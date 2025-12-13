@@ -206,6 +206,31 @@ Environment variables (docker/.env):
 - **Pattern Matching**: Regex-based pattern detection for each language
 - **Error Code Detection**: Automatic detection of patterns like `ERR_`, `ERROR`, `FAIL`
 
+### Comprehensive Query Detection
+
+Automatically detects queries that require listing multiple items and adjusts retrieval accordingly:
+
+| Setting | Normal Query | Comprehensive Query |
+|---------|-------------|---------------------|
+| **Results (k)** | 5 | 10 |
+| **Content/chunk** | 500 chars | 800 chars |
+| **Prompt** | Standard | "List ALL relevant items" |
+
+**Detection Patterns:**
+
+| Language | Patterns |
+|----------|----------|
+| **Korean** | `알려주세요`, `목록`, `종류`, `옵션`, `툴`, `도구` |
+| **Japanese** | `教えてください`, `種類`, `一覧`, `ツール` |
+| **English** | `all`, `list`, `what are`, `tools`, `options` |
+
+**Example:**
+```
+Query: ofcobol의 전처리툴을 알려주세요.
+→ Detected as comprehensive query
+→ Returns: ofconv, ofcbpp, ofcbppf, osccblpp (all tools)
+```
+
 ### Embedding Classifier
 
 The embedding classifier uses **prototype vectors** for probabilistic query classification:
