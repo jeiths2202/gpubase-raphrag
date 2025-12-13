@@ -20,6 +20,7 @@ class QueryType(Enum):
     VECTOR = "vector"    # Semantic similarity search
     GRAPH = "graph"      # Relationship/entity traversal
     HYBRID = "hybrid"    # Both approaches combined
+    CODE = "code"        # Code generation/analysis (routed to Code LLM)
 
 
 class EmbeddingClassifier:
@@ -495,6 +496,61 @@ class QueryRouter:
     # Keywords that indicate error codes (substrings)
     ERROR_CODE_KEYWORDS = ['ERR', 'ERROR', 'FAIL', 'EXCEPTION', 'FAULT']
 
+    # Keywords indicating code generation/analysis is appropriate
+    CODE_KEYWORDS = [
+        # English - code generation
+        "write code", "sample code", "code example", "example code",
+        "implement", "implementation", "source code", "create a function",
+        "write a function", "write function", "write a program", "write a script",
+        "code snippet", "coding", "programming",
+        # English - function/class creation patterns
+        "python function", "java function", "javascript function",
+        "function to", "class to", "method to",
+        # English - code analysis
+        "analyze code", "analyze this code", "explain this code",
+        "code review", "syntax", "debug", "refactor",
+        # Korean - 코드 생성
+        "코드 작성", "코드를 작성", "코드 만들", "코드를 만들",
+        "샘플 코드", "샘플코드", "예제 코드", "예제코드",
+        "소스 코드", "소스코드", "구현", "구현해",
+        "함수 작성", "함수를 작성", "프로그램 작성",
+        "스크립트 작성", "코딩", "프로그래밍",
+        # Korean - 코드 분석
+        "코드 분석", "코드를 분석", "코드 설명", "코드를 설명",
+        "구문 분석", "구문을 분석", "문법 분석",
+        "디버그", "디버깅", "리팩토링", "리팩터링",
+        # Japanese - コード生成
+        "コードを書", "コード作成", "サンプルコード",
+        "例コード", "ソースコード", "実装", "実装して",
+        "関数を作成", "プログラム作成", "スクリプト作成",
+        "コーディング", "プログラミング",
+        # Japanese - コード分析
+        "コード分析", "コードを分析", "コード説明", "コードを説明",
+        "構文分析", "デバッグ", "リファクタリング",
+    ]
+
+    # Regex patterns for code-related queries
+    CODE_PATTERNS = [
+        # English patterns
+        r'write\s+(a\s+)?(code|function|program|script)',
+        r'(sample|example)\s+code',
+        r'implement\s+',
+        r'create\s+(a\s+)?(function|class|method)',
+        r'(analyze|explain|review)\s+(this\s+)?code',
+        # Korean patterns
+        r'코드.*(작성|만들|생성)',
+        r'(샘플|예제|소스)\s*코드',
+        r'(함수|클래스|메서드).*(작성|만들|구현)',
+        r'코드.*(분석|설명|리뷰)',
+        r'(구문|문법).*(분석|설명)',
+        # Japanese patterns
+        r'コード.*(作成|書|生成)',
+        r'(サンプル|例|ソース)\s*コード',
+        r'(関数|クラス|メソッド).*(作成|実装)',
+        r'コード.*(分析|説明|レビュー)',
+        r'(構文|文法).*(分析|説明)',
+    ]
+
     def __init__(
         self,
         llm: Optional[ChatOpenAI] = None,
@@ -555,6 +611,32 @@ class QueryRouter:
 
         return False
 
+    def _is_code_query(self, query: str) -> bool:
+        """
+        Check if query is asking for code generation or analysis
+
+        Detects:
+        - Code generation requests (sample code, write function, etc.)
+        - Code analysis requests (analyze code, explain syntax, etc.)
+        - Programming-related questions
+
+        Returns:
+            True if query should be routed to Code LLM
+        """
+        query_lower = query.lower()
+
+        # Check keyword matches
+        for keyword in self.CODE_KEYWORDS:
+            if keyword in query_lower or keyword in query:
+                return True
+
+        # Check regex patterns
+        for pattern in self.CODE_PATTERNS:
+            if re.search(pattern, query, re.IGNORECASE):
+                return True
+
+        return False
+
     def classify_query(self, query: str, method: str = "hybrid") -> QueryType:
         """
         Classify a query to determine the best RAG strategy
@@ -566,6 +648,10 @@ class QueryRouter:
         Returns:
             QueryType indicating recommended strategy
         """
+        # Check for code queries first (highest priority)
+        if self._is_code_query(query):
+            return QueryType.CODE
+
         if method == "rule":
             result = self._rule_based_classify(query)
             return result if result else QueryType.VECTOR

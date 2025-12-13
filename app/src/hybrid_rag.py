@@ -48,12 +48,21 @@ class HybridRAG:
             password=neo4j_password or config.neo4j.password
         )
 
-        # LLM
+        # LLM (Nemotron for RAG)
         self.llm = ChatOpenAI(
             base_url=(llm_url or config.llm.api_url).replace("/chat/completions", ""),
             model=llm_model or config.llm.model,
             api_key="not-needed",
             temperature=0.1
+        )
+
+        # Code LLM (Mistral NeMo for code generation/analysis)
+        self.code_llm = ChatOpenAI(
+            base_url=config.code_llm.api_url.replace("/chat/completions", ""),
+            model=config.code_llm.model,
+            api_key="not-needed",
+            temperature=config.code_llm.temperature,
+            max_tokens=config.code_llm.max_tokens
         )
 
         # Embedding service
@@ -112,7 +121,18 @@ class HybridRAG:
             query_type = self.router.classify_query(question)
             strategy = query_type.value
 
-        # Execute appropriate strategy
+        # Handle CODE strategy separately (direct to Code LLM)
+        if strategy == "code":
+            answer = self._generate_code_response(question, language, conversation_history)
+            return {
+                "answer": answer,
+                "strategy": strategy,
+                "language": language,
+                "sources": 0,  # No RAG sources for code generation
+                "results": []
+            }
+
+        # Execute appropriate RAG strategy
         if strategy == "vector":
             results = self._vector_search(question, k)
         elif strategy == "graph":
@@ -366,6 +386,76 @@ Answer (consider the previous conversation if relevant):"""
         answer = self._clean_response(answer)
 
         return answer
+
+    def _generate_code_response(
+        self,
+        question: str,
+        language: str,
+        conversation_history: List[Dict] = None
+    ) -> str:
+        """
+        Generate code response using Code LLM (Mistral NeMo)
+
+        Args:
+            question: The user's question (code-related)
+            language: Response language (ko, ja, en)
+            conversation_history: Previous Q&A pairs
+
+        Returns:
+            Generated code or code analysis
+        """
+        # Build conversation context
+        conversation_context = ""
+        if conversation_history:
+            recent_history = conversation_history[-3:]
+            history_parts = []
+            for turn in recent_history:
+                q = turn.get("query", "")[:200]
+                a = turn.get("answer", "")[:300]
+                history_parts.append(f"User: {q}\nAssistant: {a}")
+
+            if history_parts:
+                conversation_context = f"""
+Previous conversation:
+{chr(10).join(history_parts)}
+
+"""
+
+        # Language instruction for response
+        lang_instruction = ""
+        if language == "ko":
+            lang_instruction = "Please respond in Korean. Provide explanations in Korean but keep code comments in English for readability.\n"
+        elif language == "ja":
+            lang_instruction = "日本語で回答してください。説明は日本語で、コードコメントは可読性のため英語で記述してください。\n"
+
+        # Build prompt for code generation
+        prompt = f"""{lang_instruction}{conversation_context}You are an expert programmer. Help the user with their code-related request.
+
+User Request: {question}
+
+Provide:
+1. Clear, well-commented code
+2. Brief explanation of how it works
+3. Usage examples if applicable
+
+Response:"""
+
+        try:
+            response = self.code_llm.invoke(prompt)
+            answer = response.content
+
+            # Clean thinking tokens if any
+            answer = self._clean_response(answer)
+
+            return answer
+
+        except Exception as e:
+            error_msg = {
+                "ko": f"코드 생성 중 오류가 발생했습니다: {e}",
+                "ja": f"コード生成中にエラーが発生しました: {e}",
+                "en": f"Error generating code: {e}"
+            }
+            return error_msg.get(language, error_msg["en"])
 
     def _extract_keywords(self, text: str) -> List[str]:
         """Extract keywords from text"""

@@ -17,6 +17,15 @@ class LLMConfig:
 
 
 @dataclass
+class CodeLLMConfig:
+    """Code LLM (Mistral NeMo) configuration for code generation/analysis"""
+    api_url: str = os.getenv("CODE_LLM_API_URL", "http://localhost:12802/v1/chat/completions")
+    model: str = os.getenv("CODE_LLM_MODEL", "mistralai/Mistral-Nemo-Instruct-2407")
+    temperature: float = float(os.getenv("CODE_LLM_TEMPERATURE", "0.1"))
+    max_tokens: int = int(os.getenv("CODE_LLM_MAX_TOKENS", "2048"))
+
+
+@dataclass
 class EmbeddingConfig:
     """Embedding NIM configuration"""
     api_url: str = os.getenv("EMBEDDING_API_URL", "http://localhost:12801/v1")
@@ -56,6 +65,7 @@ class Config:
 
     def __init__(self):
         self.llm = LLMConfig()
+        self.code_llm = CodeLLMConfig()
         self.embedding = EmbeddingConfig()
         self.neo4j = Neo4jConfig()
         self.vector = VectorConfig()

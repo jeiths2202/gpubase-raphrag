@@ -148,7 +148,8 @@ class ChatRAG:
         badges = {
             "vector": "[VECTOR/Embedding]",
             "graph": "[GRAPH/Relationship]",
-            "hybrid": "[HYBRID/Combined]"
+            "hybrid": "[HYBRID/Combined]",
+            "code": "[CODE/Mistral-NeMo]"
         }
         return badges.get(strategy, f"[{strategy.upper()}]")
 
