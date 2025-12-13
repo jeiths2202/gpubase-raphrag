@@ -89,8 +89,13 @@ class QueryRouter:
         "처리", "처리방법", "처리 방법", "수정", "수정방법", "수정 방법",
         # Japanese
         "なぜ", "分析", "影響", "詳細", "理由",
-        # Japanese - Error troubleshooting
-        "解決", "対処", "対応", "修正"
+        # Japanese - Error troubleshooting (expanded)
+        "解決", "解決方法", "解決法", "解決策",
+        "対処", "対処方法", "対処法", "対処策",
+        "対応", "対応方法", "対応策",
+        "修正", "修正方法",
+        "処理", "処理方法",
+        "回避", "回避方法", "回避策"
     ]
 
     # Korean question patterns (regex)
@@ -120,6 +125,13 @@ class QueryRouter:
         r'(발생|생기).*(이유|원인)',   # 발생...이유/원인
         r'(에러|오류|error).*(해결|조치|대처|방법)',  # 에러...해결/조치/방법
         r'(해결|조치|대처).*(방법|절차)',  # 해결/조치...방법/절차
+    ]
+
+    JAPANESE_HYBRID_PATTERNS = [
+        r'(エラー|error).*(解決|対処|対応|方法)',  # エラー...解決/対処/方法
+        r'(解決|対処|対応).*(方法|手順)',  # 解決/対処...方法/手順
+        r'(原因|理由).*(解決|対処)',  # 原因/理由...解決/対処
+        r'(発生|起き).*(原因|理由)',  # 発生...原因/理由
     ]
 
     # Error code pattern (high priority for hybrid routing)
@@ -216,6 +228,10 @@ class QueryRouter:
             if re.search(pattern, query):
                 hybrid_score += 3  # Higher weight for hybrid
 
+        for pattern in self.JAPANESE_HYBRID_PATTERNS:
+            if re.search(pattern, query):
+                hybrid_score += 3  # Higher weight for hybrid
+
         # Korean question ending patterns for vector (explanations, definitions)
         if re.search(r'(뭐|무엇|어떤|어떻게).*(예요|에요|인가요|일까요|입니까)\??$', query):
             vector_score += 2
@@ -229,8 +245,12 @@ class QueryRouter:
         # Error code detection (high priority)
         has_error_code = self._has_error_code(query)
         has_troubleshoot_keyword = bool(re.search(
-            r'(해결|조치|대처|대응|처리|수정|방법|fix|resolve|solution|troubleshoot)',
+            r'(해결|조치|대처|대응|처리|수정|방법|fix|resolve|solution|troubleshoot|'
+            r'解決|対処|対応|修正|処理|回避|方法)',
             query_lower
+        )) or bool(re.search(
+            r'(解決|対処|対応|修正|処理|回避|方法)',
+            query  # Japanese needs original case
         ))
 
         if has_error_code:
