@@ -597,6 +597,7 @@ class QueryRouter:
         - NVSM_ERR_SYSTEM_FWRITE (contains ERR/ERROR/FAIL/EXCEPTION)
         - OFM-1234 (standard error code format)
         - COBOL_COMPILE_ERROR
+        - -5212 (numeric error codes with minus sign)
         """
         # Find uppercase words (potential error codes)
         words = re.findall(r'[A-Z][A-Z0-9_]+', query)
@@ -609,6 +610,17 @@ class QueryRouter:
         # Check for standard error code format: ABC-1234
         if re.search(self.ERROR_CODE_PATTERN, query):
             return True
+
+        # Check for numeric error codes: -1234, -5212 (negative numbers as error codes)
+        # Must be combined with error-related keywords in context
+        if re.search(r'-\d{3,5}', query):
+            # Check if query mentions error-related terms
+            error_context = re.search(
+                r'(에러|오류|error|エラー|코드|code|コード|해결|조치|fix|対処)',
+                query, re.IGNORECASE
+            )
+            if error_context:
+                return True
 
         return False
 

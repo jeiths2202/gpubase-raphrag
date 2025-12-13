@@ -245,28 +245,81 @@ class HybridRAG:
 
     def _hybrid_search(self, query: str, k: int) -> List[Dict]:
         """Execute both vector and graph search, merge results"""
+        # Check for numeric error codes (e.g., -5212)
+        error_code_results = self._search_numeric_error_code(query, k)
+
         # Get results from both sources
         vector_results = self._vector_search(query, k)
         graph_results = self._graph_search(query, k)
 
-        # Merge and deduplicate
-        merged = self._merge_results(vector_results, graph_results)
+        # Merge and deduplicate (error code results have highest priority)
+        merged = self._merge_results(vector_results, graph_results, error_code_results)
 
         # Rerank
         reranked = self._rerank_results(merged, query)
 
         return reranked[:k]
 
+    def _search_numeric_error_code(self, query: str, k: int) -> List[Dict]:
+        """Search for numeric error codes like -5212 directly in content"""
+        # Find numeric error codes in query
+        error_codes = re.findall(r'-\d{3,5}', query)
+
+        if not error_codes:
+            return []
+
+        results = []
+        for error_code in error_codes:
+            # Direct content search for the error code
+            search_results = self.graph.query(
+                """
+                MATCH (c:Chunk)
+                WHERE c.content CONTAINS $error_code
+                OPTIONAL MATCH (c)-[:MENTIONS]->(e:Entity)
+                OPTIONAL MATCH (d:Document)-[:CONTAINS]->(c)
+                RETURN
+                    c.id AS chunk_id,
+                    c.content AS content,
+                    d.id AS doc_id,
+                    collect(DISTINCT e.name)[..5] AS entities
+                LIMIT $k
+                """,
+                {"error_code": error_code, "k": k}
+            )
+
+            for r in search_results:
+                results.append({
+                    "chunk_id": r["chunk_id"],
+                    "content": r["content"],
+                    "chunk_index": None,
+                    "doc_id": r["doc_id"],
+                    "entities": r["entities"] or [],
+                    "score": 1.0,  # High score for exact match
+                    "source": "error_code"
+                })
+
+        return results
+
     def _merge_results(
         self,
         vector_results: List[Dict],
-        graph_results: List[Dict]
+        graph_results: List[Dict],
+        error_code_results: List[Dict] = None
     ) -> List[Dict]:
-        """Merge results from vector and graph search"""
+        """Merge results from vector, graph, and error code search"""
         seen_chunks = set()
         merged = []
 
-        # Process vector results first (with similarity scores)
+        # Process error code results first (highest priority)
+        if error_code_results:
+            for result in error_code_results:
+                chunk_id = result["chunk_id"]
+                if chunk_id not in seen_chunks:
+                    result["combined_score"] = 1.0  # Highest priority
+                    merged.append(result)
+                    seen_chunks.add(chunk_id)
+
+        # Process vector results (with similarity scores)
         for result in vector_results:
             chunk_id = result["chunk_id"]
             if chunk_id not in seen_chunks:
