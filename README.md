@@ -281,6 +281,40 @@ Query: ofcobol의 전처리툴을 알려주세요.
 → Returns: ofconv, ofcbpp, ofcbppf, osccblpp (all tools)
 ```
 
+### Deep Analysis Mode
+
+For queries requesting detailed, thorough analysis, the system provides extended search and comprehensive responses:
+
+| Setting | Normal | Comprehensive | **Deep Analysis** |
+|---------|--------|---------------|-------------------|
+| **Results (k)** | 5 | 10 | **20** |
+| **Content/chunk** | 500 chars | 800 chars | **1500 chars** |
+| **Prompt** | Standard | List all items | **심층 분석 모드** |
+
+**Detection Keywords:**
+
+| Language | Patterns |
+|----------|----------|
+| **Korean** | `자세하게`, `상세하게`, `소상히`, `깊이`, `심층`, `철저히` |
+| **Japanese** | `詳しく`, `詳細に`, `深く`, `徹底的に` |
+| **English** | `deep think`, `ultra deep`, `in detail`, `thoroughly` |
+
+**Example:**
+```
+Query: -5212 에러코드에 대해서 자세하게 설명해줘
+
+Strategy: [HYBRID/Combined]
+Sources: 20
+
+→ Detailed response with:
+  - Error code explanation (DSALC_ERR_DATASET_NOT_FOUND)
+  - Cause analysis (4 detailed points)
+  - Solutions (5 step-by-step methods)
+  - Example scenarios
+  - Related error codes (-5211, -5213)
+  - Additional context and recommendations
+```
+
 ### Embedding Classifier
 
 The embedding classifier uses **prototype vectors** for probabilistic query classification:
