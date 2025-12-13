@@ -1,7 +1,8 @@
 version: '3.8'
 
 # GraphRAG Docker Services
-# All data persists in bind-mounted directories under ../data/
+# Neo4j data persists in bind-mounted directory
+# NIM/vLLM caches use named volumes for container compatibility
 
 services:
   # Neo4j Graph Database (port 7474, 7687)
@@ -23,10 +24,11 @@ services:
       - ../neo4j/logs:/logs
       - ../neo4j/plugins:/plugins
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7474"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 30s
 
   # Nemotron LLM NIM (port 12800, GPU 7)
   nemotron-llm:
@@ -39,7 +41,7 @@ services:
     environment:
       - NGC_API_KEY=${NGC_API_KEY}
     volumes:
-      - ../data/nim_llm_cache:/opt/nim/.cache
+      - nim_llm_cache:/opt/nim/.cache
     deploy:
       resources:
         reservations:
@@ -52,7 +54,8 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 10
+      start_period: 180s
 
   # NeMo Embedding NIM (port 12801, GPU 4,5)
   nemo-embedding:
@@ -66,7 +69,7 @@ services:
       - NGC_API_KEY=${NGC_API_KEY}
       - NIM_TRITON_PERFORMANCE_MODE=latency
     volumes:
-      - ../data/nim_embed_cache:/opt/nim/.cache
+      - nim_embed_cache:/opt/nim/.cache
     deploy:
       resources:
         reservations:
@@ -79,7 +82,8 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 10
+      start_period: 180s
 
   # Mistral NeMo Code LLM (vLLM, port 12802, GPU 0)
   mistral-nemo-coder:
@@ -92,7 +96,7 @@ services:
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
     volumes:
-      - ../data/huggingface_cache:/root/.cache/huggingface
+      - huggingface_cache:/root/.cache/huggingface
     command: >
       --model mistralai/Mistral-Nemo-Instruct-2407
       --max-model-len 8192
@@ -109,4 +113,14 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 10
+      start_period: 180s
+
+# Named volumes for model caches (persist across container restarts)
+volumes:
+  nim_llm_cache:
+    name: graphrag_nim_llm_cache
+  nim_embed_cache:
+    name: graphrag_nim_embed_cache
+  huggingface_cache:
+    name: graphrag_huggingface_cache

@@ -7,7 +7,7 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "============================================================"
@@ -19,10 +19,10 @@ echo ""
 echo "[1/2] Current running containers:"
 docker ps --format "table {{.Names}}\t{{.Status}}" | grep -E "(NAMES|graphrag|nemo|mistral)" || echo "  No GraphRAG containers running"
 
-# Stop services
+# Stop services (using docker compose v2)
 echo ""
 echo "[2/2] Stopping Docker services..."
-docker-compose down
+docker compose down
 
 echo ""
 echo "============================================================"

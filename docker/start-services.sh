@@ -6,7 +6,7 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "============================================================"
@@ -27,10 +27,10 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
-# Start services
+# Start services (using docker compose v2)
 echo ""
 echo "[2/4] Starting Docker services..."
-docker-compose up -d
+docker compose up -d
 
 # Wait for services to be healthy
 echo ""
@@ -39,14 +39,10 @@ echo "  (This may take 2-5 minutes for GPU models to load)"
 echo ""
 
 # Check each service
-services=("neo4j-graphrag" "nemotron-graphrag" "docker-nemo-embedding-1" "docker-mistral-nemo-coder-1")
-ports=("7474" "12800" "12801" "12802")
-names=("Neo4j" "Nemotron LLM" "NeMo Embedding" "Mistral NeMo Coder")
-
-for i in "${!services[@]}"; do
-    container="${services[$i]}"
-    port="${ports[$i]}"
-    name="${names[$i]}"
+check_service() {
+    local container="$1"
+    local port="$2"
+    local name="$3"
 
     printf "  %-20s: " "$name"
 
@@ -58,10 +54,10 @@ for i in "${!services[@]}"; do
 
         if [ "$status" = "healthy" ]; then
             echo "OK (port $port)"
-            break
+            return 0
         elif [ "$status" = "unhealthy" ]; then
             echo "UNHEALTHY"
-            break
+            return 1
         fi
 
         sleep 5
@@ -69,10 +65,14 @@ for i in "${!services[@]}"; do
         printf "."
     done
 
-    if [ $waited -ge $max_wait ]; then
-        echo "TIMEOUT"
-    fi
-done
+    echo "TIMEOUT"
+    return 1
+}
+
+check_service "neo4j-graphrag" "7474" "Neo4j"
+check_service "nemotron-graphrag" "12800" "Nemotron LLM"
+check_service "docker-nemo-embedding-1" "12801" "NeMo Embedding"
+check_service "docker-mistral-nemo-coder-1" "12802" "Mistral Coder"
 
 # Show final status
 echo ""

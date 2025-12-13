@@ -4,7 +4,7 @@
 # Shows status of all Docker containers
 #
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "============================================================"
@@ -23,9 +23,9 @@ echo "Health Check:"
 echo "------------------------------------------------------------"
 
 check_health() {
-    local name=$1
-    local url=$2
-    local container=$3
+    local name="$1"
+    local url="$2"
+    local container="$3"
 
     printf "  %-20s: " "$name"
 
