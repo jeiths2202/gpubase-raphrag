@@ -108,9 +108,17 @@ class HybridRAG:
         # Detect if query needs comprehensive answer (listing multiple items)
         is_comprehensive = self._is_comprehensive_query(question)
 
-        # Use larger k for comprehensive queries
+        # Detect if query needs deep analysis (detailed, thorough response)
+        is_deep_analysis = self._is_deep_analysis_query(question)
+
+        # Adjust k based on query type
         if k is None:
-            k = self.top_k * 2 if is_comprehensive else self.top_k
+            if is_deep_analysis:
+                k = self.top_k * 4  # 20 results for deep analysis
+            elif is_comprehensive:
+                k = self.top_k * 2  # 10 results for comprehensive
+            else:
+                k = self.top_k      # 5 results for normal
 
         # Detect language if auto
         if language == "auto":
@@ -144,7 +152,8 @@ class HybridRAG:
         answer = self._generate_answer(
             question, results, language,
             conversation_history=conversation_history,
-            is_comprehensive=is_comprehensive
+            is_comprehensive=is_comprehensive,
+            is_deep_analysis=is_deep_analysis
         )
 
         return {
@@ -371,15 +380,23 @@ class HybridRAG:
         results: List[Dict],
         language: str,
         conversation_history: List[Dict] = None,
-        is_comprehensive: bool = False
+        is_comprehensive: bool = False,
+        is_deep_analysis: bool = False
     ) -> str:
         """Generate answer using LLM with optional conversation context"""
         if not results:
             return self._no_results_message(language)
 
-        # Use more context for comprehensive queries
-        max_results = 10 if is_comprehensive else 5
-        max_content_length = 800 if is_comprehensive else 500
+        # Adjust context size based on query type
+        if is_deep_analysis:
+            max_results = 20
+            max_content_length = 1500  # Much more content for deep analysis
+        elif is_comprehensive:
+            max_results = 10
+            max_content_length = 800
+        else:
+            max_results = 5
+            max_content_length = 500
 
         # Build document context
         context_parts = []
@@ -422,9 +439,49 @@ Previous conversation:
             else:
                 comprehensive_instruction = "\nIMPORTANT: List ALL relevant items found in the documents. Do not mention just one item if there are multiple.\n"
 
+        # Deep analysis instruction for thorough, detailed responses
+        deep_analysis_instruction = ""
+        if is_deep_analysis:
+            if language == "ko":
+                deep_analysis_instruction = """
+[심층 분석 모드]
+사용자가 자세하고 깊이 있는 분석을 요청했습니다. 다음 지침을 따라주세요:
+1. 제공된 모든 문서를 철저히 분석하세요
+2. 관련된 모든 정보를 빠짐없이 포함하세요
+3. 개념, 원인, 해결방법, 예시 등을 상세하게 설명하세요
+4. 가능한 한 구체적이고 실용적인 정보를 제공하세요
+5. 관련 배경 정보와 맥락도 함께 설명하세요
+6. 길고 상세한 답변을 제공하세요 - 간략하게 답하지 마세요
+
+"""
+            elif language == "ja":
+                deep_analysis_instruction = """
+[深層分析モード]
+ユーザーが詳細で深い分析を要求しています。以下の指針に従ってください：
+1. 提供されたすべてのドキュメントを徹底的に分析してください
+2. 関連するすべての情報を漏れなく含めてください
+3. 概念、原因、解決方法、例などを詳しく説明してください
+4. できるだけ具体的で実用的な情報を提供してください
+5. 関連する背景情報とコンテキストも一緒に説明してください
+6. 長く詳細な回答を提供してください - 簡潔に答えないでください
+
+"""
+            else:
+                deep_analysis_instruction = """
+[DEEP ANALYSIS MODE]
+The user has requested a detailed, thorough analysis. Follow these guidelines:
+1. Thoroughly analyze ALL provided documents
+2. Include ALL relevant information without omission
+3. Explain concepts, causes, solutions, and examples in detail
+4. Provide specific and practical information
+5. Include related background information and context
+6. Provide a long, detailed response - do NOT be brief
+
+"""
+
         # Generate answer with conversation context
         prompt = f"""Based on the context below, answer the question.
-{lang_instruction}{comprehensive_instruction}
+{lang_instruction}{comprehensive_instruction}{deep_analysis_instruction}
 {conversation_context}Document Context:
 {context}
 
@@ -615,6 +672,70 @@ Response:"""
             r'tools',           # tools
             r'methods',         # methods
             r'which.*are',      # which ... are
+        ]
+
+        all_patterns = korean_patterns + japanese_patterns + english_patterns
+
+        for pattern in all_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
+
+        return False
+
+    def _is_deep_analysis_query(self, text: str) -> bool:
+        """
+        Detect if query requests deep, detailed analysis
+
+        Triggers thorough search with more results and detailed response.
+
+        Patterns:
+        - Korean: 자세하게, 상세하게, 소상히, 깊이, 심층
+        - Japanese: 詳しく, 詳細に, 深く
+        - English: deep think, ultra deep think, in detail, thoroughly
+        """
+        text_lower = text.lower()
+
+        # Korean patterns for deep analysis
+        korean_patterns = [
+            r'자세하게',        # In detail
+            r'자세히',          # In detail
+            r'상세하게',        # In detail (formal)
+            r'상세히',          # In detail (formal)
+            r'소상히',          # In detail (literary)
+            r'소상하게',        # In detail (literary)
+            r'깊이',            # Deeply
+            r'깊게',            # Deeply
+            r'심층',            # In-depth
+            r'심도\s*있게',     # In-depth
+            r'철저하게',        # Thoroughly
+            r'철저히',          # Thoroughly
+            r'구체적으로',      # Specifically
+            r'면밀하게',        # Meticulously
+            r'면밀히',          # Meticulously
+        ]
+
+        # Japanese patterns
+        japanese_patterns = [
+            r'詳しく',          # In detail
+            r'詳細に',          # In detail
+            r'深く',            # Deeply
+            r'徹底的に',        # Thoroughly
+            r'具体的に',        # Specifically
+            r'綿密に',          # Meticulously
+        ]
+
+        # English patterns
+        english_patterns = [
+            r'deep\s*think',        # deep think
+            r'ultra\s*deep',        # ultra deep
+            r'in\s*detail',         # in detail
+            r'detailed',            # detailed
+            r'thorough',            # thorough
+            r'thoroughly',          # thoroughly
+            r'in[\s-]*depth',       # in-depth
+            r'comprehensive',       # comprehensive
+            r'exhaustive',          # exhaustive
+            r'elaborate',           # elaborate
         ]
 
         all_patterns = korean_patterns + japanese_patterns + english_patterns
