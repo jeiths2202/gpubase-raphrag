@@ -129,6 +129,7 @@ python chat_rag.py
 - `/help` - Show help
 - `/stats` - Show database statistics
 - `/history` - Show chat history
+- `/context` - Toggle conversation context mode
 - `/clear` - Clear history
 - `/quit` - Exit
 
