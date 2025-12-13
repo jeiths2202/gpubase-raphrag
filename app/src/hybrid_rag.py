@@ -257,12 +257,24 @@ class HybridRAG:
         # Check for numeric error codes (e.g., -5212)
         error_code_results = self._search_numeric_error_code(query, k)
 
+        # Extract key concept and search by topic density (Option 1+3)
+        key_concept = self._extract_key_concept(query)
+        topic_density_results = []
+        if key_concept:
+            print(f"    [Topic Density] Key concept: '{key_concept}'")
+            topic_density_results = self._search_by_topic_density(key_concept, k)
+            if topic_density_results:
+                print(f"    [Topic Density] Found {len(topic_density_results)} results from topic-central documents")
+
         # Get results from both sources
         vector_results = self._vector_search(query, k)
         graph_results = self._graph_search(query, k)
 
-        # Merge and deduplicate (error code results have highest priority)
-        merged = self._merge_results(vector_results, graph_results, error_code_results)
+        # Merge and deduplicate
+        # Priority: error_code > topic_density > vector/graph hybrid
+        merged = self._merge_results_with_topic_density(
+            vector_results, graph_results, error_code_results, topic_density_results
+        )
 
         # Rerank
         reranked = self._rerank_results(merged, query)
@@ -350,6 +362,84 @@ class HybridRAG:
                     if m["chunk_id"] == chunk_id:
                         m["combined_score"] += result.get("score", 0.5) * graph_weight
                         m["source"] = "hybrid"
+                        break
+
+        return merged
+
+    def _merge_results_with_topic_density(
+        self,
+        vector_results: List[Dict],
+        graph_results: List[Dict],
+        error_code_results: List[Dict] = None,
+        topic_density_results: List[Dict] = None
+    ) -> List[Dict]:
+        """
+        Merge results with topic density prioritization
+
+        Priority order:
+        1. Error code results (exact match, highest priority)
+        2. Topic density results (documents where concept is central)
+        3. Vector + Graph hybrid results
+        """
+        seen_chunks = set()
+        merged = []
+
+        # 1. Process error code results first (highest priority)
+        if error_code_results:
+            for result in error_code_results:
+                chunk_id = result["chunk_id"]
+                if chunk_id not in seen_chunks:
+                    result["combined_score"] = 1.0  # Highest priority
+                    merged.append(result)
+                    seen_chunks.add(chunk_id)
+
+        # 2. Process topic density results (concept-central documents)
+        if topic_density_results:
+            for result in topic_density_results:
+                chunk_id = result["chunk_id"]
+                if chunk_id not in seen_chunks:
+                    # Score based on topic density (0.0 to 1.0) + base boost
+                    topic_score = result.get("topic_density", 0.5)
+                    result["combined_score"] = 0.9 + (topic_score * 0.1)  # 0.9 ~ 1.0 range
+                    merged.append(result)
+                    seen_chunks.add(chunk_id)
+                else:
+                    # Boost existing chunk if also found by topic density
+                    for m in merged:
+                        if m["chunk_id"] == chunk_id:
+                            m["combined_score"] += 0.2  # Boost
+                            m["source"] = "topic_density_boosted"
+                            break
+
+        # 3. Process vector results
+        for result in vector_results:
+            chunk_id = result["chunk_id"]
+            if chunk_id not in seen_chunks:
+                result["combined_score"] = result["score"] * self.vector_weight * 0.8  # Slightly lower priority
+                merged.append(result)
+                seen_chunks.add(chunk_id)
+            else:
+                # Boost if also found by vector
+                for m in merged:
+                    if m["chunk_id"] == chunk_id:
+                        m["combined_score"] += result["score"] * 0.1
+                        break
+
+        # 4. Process graph results
+        graph_weight = 1.0 - self.vector_weight
+        for result in graph_results:
+            chunk_id = result["chunk_id"]
+            if chunk_id not in seen_chunks:
+                result["combined_score"] = result.get("score", 0.5) * graph_weight * 0.8
+                merged.append(result)
+                seen_chunks.add(chunk_id)
+            else:
+                # Boost if also found by graph
+                for m in merged:
+                    if m["chunk_id"] == chunk_id:
+                        m["combined_score"] += result.get("score", 0.5) * 0.1
+                        if "hybrid" not in m.get("source", ""):
+                            m["source"] = m.get("source", "") + "_hybrid"
                         break
 
         return merged
@@ -566,6 +656,176 @@ Response:"""
                 "en": f"Error generating code: {e}"
             }
             return error_msg.get(language, error_msg["en"])
+
+    def _extract_key_concept(self, query: str) -> str:
+        """
+        Extract the central/key concept from a query using LLM
+
+        This helps identify the main topic to prioritize documents
+        where that topic is central, not just mentioned.
+
+        Args:
+            query: User's query
+
+        Returns:
+            The key concept/keyword that is most central to the query
+        """
+        prompt = f"""다음 질문에서 핵심 주제/동작을 나타내는 키워드 1개만 추출하세요.
+
+규칙:
+- 주요 동작/프로세스 단어를 우선 선택 (예: 마이그레이션, 변환, 설치, 설정)
+- 대상 명사보다 행위/과정을 나타내는 단어를 선택
+- 조사(을/를/이/가/의/에서/으로)는 제외하고 단어만 반환
+- 영어 단어도 가능
+
+질문: {query}
+
+핵심 키워드(한 단어만):"""
+
+        # First try fallback for common action words (faster and more reliable)
+        fallback_concept = self._fallback_key_concept(query)
+
+        try:
+            response = self.llm.invoke(prompt)
+            concept = response.content.strip()
+
+            # Clean up - remove quotes, periods, particles, etc.
+            concept = re.sub(r'["\'.。、:：]', '', concept)
+            concept = concept.split('\n')[0].strip()  # Take first line only
+            concept = concept.split()[0] if concept.split() else concept  # Take first word only
+
+            # Remove Korean particles if present
+            concept = re.sub(r'(을|를|이|가|의|에서|으로|에|와|과|도|만)$', '', concept)
+
+            # Validate: concept should be in the original query
+            if concept and len(concept) >= 2:
+                # Check if concept is in query (with or without particles)
+                if concept.lower() in query.lower():
+                    # Prefer action words from fallback if LLM returned something else
+                    if fallback_concept and fallback_concept != concept:
+                        # Check if fallback found an action word
+                        action_words = {'마이그레이션', '변환', '이동', '전환', '이관',
+                                       '설치', '설정', '구성', '배포', '실행',
+                                       '에러', '오류', '해결', 'migration', 'error'}
+                        if fallback_concept.lower() in action_words or any(aw in fallback_concept.lower() for aw in action_words):
+                            return fallback_concept
+                    return concept
+                # Also try without potential particle at the end
+                for suffix in ['을', '를', '이', '가', '의', '에서', '으로', '에', '하는', '한']:
+                    if (concept + suffix).lower() in query.lower():
+                        return concept
+
+            # Return fallback result
+            return fallback_concept
+
+        except Exception as e:
+            print(f"Key concept extraction error: {e}")
+            return fallback_concept
+
+    def _fallback_key_concept(self, query: str) -> str:
+        """Fallback key concept extraction using simple heuristics"""
+        # Priority action/process words (these are likely the central topic)
+        action_patterns = [
+            r'마이그레이션', r'변환', r'이동', r'전환', r'이관',
+            r'설치', r'설정', r'구성', r'배포', r'실행',
+            r'생성', r'삭제', r'수정', r'업데이트', r'업그레이드',
+            r'migration', r'convert', r'install', r'setup', r'deploy',
+            r'에러', r'오류', r'error', r'해결', r'처리'
+        ]
+
+        # First, check for action words
+        for pattern in action_patterns:
+            if re.search(pattern, query, re.IGNORECASE):
+                match = re.search(pattern, query, re.IGNORECASE)
+                return match.group()
+
+        # Remove common question/filler words
+        stop_words = {
+            '방법', '하는', '에서', '으로', '대해', '대해서', '알려', '주세요',
+            '무엇', '어떻게', '왜', '언제', 'what', 'how', 'why', 'when',
+            '상세', '자세', '하게', '히', '을', '를', '이', '가', '의',
+            '데이터셋을', '데이터셋으로', '데이터셋'
+        }
+
+        # Split into words and find meaningful ones
+        words = re.findall(r'[A-Za-z가-힣]+', query)
+        meaningful = [w for w in words if len(w) >= 2 and w.lower() not in stop_words]
+
+        if meaningful:
+            # Return the longest meaningful word (likely the key concept)
+            return max(meaningful, key=len)
+
+        return ""
+
+    def _search_by_topic_density(self, concept: str, k: int) -> List[Dict]:
+        """
+        Search documents where the concept is central (high topic density)
+
+        Topic density = number of chunks containing concept / total chunks in document
+        Documents with higher density have the concept as a more central topic.
+
+        Args:
+            concept: The key concept to search for
+            k: Number of results to return
+
+        Returns:
+            List of chunks from documents where the concept is most central
+        """
+        if not concept:
+            return []
+
+        # Find documents and score by topic density
+        results = self.graph.query(
+            """
+            // First, find all documents containing the concept
+            MATCH (d:Document)-[:CONTAINS]->(c:Chunk)
+            WHERE c.content CONTAINS $concept
+            WITH d, count(c) AS concept_chunks
+
+            // Get total chunks per document
+            MATCH (d)-[:CONTAINS]->(all_chunks:Chunk)
+            WITH d, concept_chunks, count(all_chunks) AS total_chunks
+
+            // Calculate topic density
+            WITH d, concept_chunks, total_chunks,
+                 toFloat(concept_chunks) / toFloat(total_chunks) AS topic_density
+
+            // Order by density (concept centrality) then by absolute count
+            ORDER BY topic_density DESC, concept_chunks DESC
+
+            // Get chunks from top documents
+            MATCH (d)-[:CONTAINS]->(c:Chunk)
+            WHERE c.content CONTAINS $concept
+            OPTIONAL MATCH (c)-[:MENTIONS]->(e:Entity)
+
+            RETURN
+                c.id AS chunk_id,
+                c.content AS content,
+                c.index AS chunk_index,
+                d.id AS doc_id,
+                collect(DISTINCT e.name)[..5] AS entities,
+                topic_density,
+                concept_chunks AS doc_concept_count
+            ORDER BY topic_density DESC, c.index
+            LIMIT $k
+            """,
+            {"concept": concept, "k": k}
+        )
+
+        return [
+            {
+                "chunk_id": r["chunk_id"],
+                "content": r["content"],
+                "chunk_index": r["chunk_index"],
+                "doc_id": r["doc_id"],
+                "entities": r["entities"] or [],
+                "score": r["topic_density"],  # Use topic density as score
+                "topic_density": r["topic_density"],
+                "doc_concept_count": r["doc_concept_count"],
+                "source": "topic_density"
+            }
+            for r in results
+        ]
 
     def _extract_keywords(self, text: str) -> List[str]:
         """Extract keywords from text"""
