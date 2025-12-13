@@ -4,15 +4,26 @@ Automatically routes queries to vector, graph, or hybrid strategy
 """
 import sys
 import io
+import os
 import re
 from typing import Dict, Any, List
 from datetime import datetime
 
-# Set UTF-8 encoding for stdin/stdout
-if sys.stdout.encoding != 'utf-8':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-if sys.stdin.encoding != 'utf-8':
-    sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8', errors='replace')
+# Set UTF-8 encoding environment
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+
+# Set UTF-8 encoding for stdin/stdout with error handling
+def setup_utf8_encoding():
+    """Setup UTF-8 encoding for stdin/stdout safely"""
+    try:
+        if hasattr(sys.stdout, 'buffer'):
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+        if hasattr(sys.stdin, 'buffer'):
+            sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass  # Already wrapped or not supported
+
+setup_utf8_encoding()
 
 from hybrid_rag import HybridRAG
 from query_router import QueryType
@@ -33,6 +44,17 @@ def clean_thinking_tokens(text: str) -> str:
     text = re.sub(r'\n{3,}', '\n\n', text)
 
     return text.strip()
+
+
+def safe_str(text: str) -> str:
+    """Convert text to safe UTF-8 string, replacing invalid characters"""
+    if not text:
+        return ""
+    try:
+        # Encode to UTF-8 and decode back, replacing errors
+        return text.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
+    except Exception:
+        return str(text)
 
 
 class ChatRAG:
@@ -137,8 +159,8 @@ class ChatRAG:
         query_type = self.rag.router.classify_query(query)
         features = self.rag.router.get_query_features(query)
 
-        # Clean thinking tokens from answer
-        clean_answer = clean_thinking_tokens(result["answer"])
+        # Clean thinking tokens from answer and ensure safe encoding
+        clean_answer = safe_str(clean_thinking_tokens(result["answer"]))
 
         # Get document names for references
         results_with_names = self._enrich_results(result.get("results", []))
@@ -274,8 +296,13 @@ class ChatRAG:
 
         while True:
             try:
-                # Get user input
-                user_input = input("You: ").strip()
+                # Get user input with safe encoding
+                try:
+                    raw_input = input("You: ")
+                    user_input = safe_str(raw_input).strip()
+                except (UnicodeDecodeError, UnicodeEncodeError):
+                    print("\n  Input encoding error. Please try again.\n")
+                    continue
 
                 if not user_input:
                     continue
@@ -313,15 +340,13 @@ class ChatRAG:
                     "query": user_input,
                     "strategy": response["strategy"],
                     "sources": response["sources"],
-                    "answer": response["answer"][:200]
+                    "answer": safe_str(response["answer"][:200])
                 })
 
             except KeyboardInterrupt:
                 print("\n\nInterrupted. Type /quit to exit.\n")
-            except UnicodeDecodeError as e:
+            except (UnicodeDecodeError, UnicodeEncodeError) as e:
                 print(f"\n  Encoding error: {e}. Try using simpler characters.\n")
-            except UnicodeEncodeError as e:
-                print(f"\n  Display error: {e}. Some characters cannot be displayed.\n")
             except Exception as e:
                 print(f"\n  Error: {e}\n")
 
