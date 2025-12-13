@@ -1,16 +1,98 @@
 version: '3.8'
 
+# GraphRAG Docker Services
+# All data persists in bind-mounted directories under ../data/
+
 services:
+  # Neo4j Graph Database (port 7474, 7687)
+  neo4j:
+    container_name: neo4j-graphrag
+    image: neo4j:latest
+    restart: unless-stopped
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-graphrag2024}
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+    volumes:
+      - ../neo4j/data:/data
+      - ../neo4j/logs:/logs
+      - ../neo4j/plugins:/plugins
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7474"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Nemotron LLM NIM (port 12800, GPU 7)
+  nemotron-llm:
+    container_name: nemotron-graphrag
+    image: nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2:latest
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "12800:8000"
+    environment:
+      - NGC_API_KEY=${NGC_API_KEY}
+    volumes:
+      - ../data/nim_llm_cache:/opt/nim/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['7']
+              capabilities: [gpu]
+    shm_size: '16gb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # NeMo Embedding NIM (port 12801, GPU 4,5)
+  nemo-embedding:
+    container_name: docker-nemo-embedding-1
+    image: nvcr.io/nim/nvidia/nv-embedqa-mistral-7b-v2:1.0.1
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "12801:8000"
+    environment:
+      - NGC_API_KEY=${NGC_API_KEY}
+      - NIM_TRITON_PERFORMANCE_MODE=latency
+    volumes:
+      - ../data/nim_embed_cache:/opt/nim/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['4', '5']
+              capabilities: [gpu]
+    shm_size: '16gb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   # Mistral NeMo Code LLM (vLLM, port 12802, GPU 0)
   mistral-nemo-coder:
+    container_name: docker-mistral-nemo-coder-1
     image: vllm/vllm-openai:latest
+    restart: unless-stopped
     runtime: nvidia
     ports:
       - "12802:8000"
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
     volumes:
-      - huggingface_cache:/root/.cache/huggingface
+      - ../data/huggingface_cache:/root/.cache/huggingface
     command: >
       --model mistralai/Mistral-Nemo-Instruct-2407
       --max-model-len 8192
@@ -28,65 +110,3 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-
-  # Nemotron LLM NIM (existing, port 12800)
-  nemotron-llm:
-    image: nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2:latest
-    runtime: nvidia
-    ports:
-      - "12800:8000"
-    environment:
-      - NGC_API_KEY=${NGC_API_KEY}
-    volumes:
-      - nim_llm_cache:/opt/nim/.cache
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ['7']
-              capabilities: [gpu]
-    shm_size: '16gb'
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  # NeMo Embedding NIM (new, port 12801)
-  nemo-embedding:
-    image: nvcr.io/nim/nvidia/nv-embedqa-mistral-7b-v2:1.0.1
-    runtime: nvidia
-    ports:
-      - "12801:8000"
-    environment:
-      - NGC_API_KEY=${NGC_API_KEY}
-      - NIM_TRITON_PERFORMANCE_MODE=latency
-    volumes:
-      - nim_embed_cache:/opt/nim/.cache
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ['4', '5']
-              capabilities: [gpu]
-    shm_size: '16gb'
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  # Neo4j - 기존 컨테이너(neo4j-graphrag) 사용
-  # neo4j:
-  #   image: neo4j:latest
-  #   ports:
-  #     - "7474:7474"
-  #     - "7687:7687"
-  #   (기존 neo4j-graphrag 컨테이너 사용)
-
-volumes:
-  nim_llm_cache:
-  nim_embed_cache:
-  huggingface_cache:
