@@ -1,10 +1,10 @@
-# GraphRAG
+# HybridRAG
 
 A multilingual Hybrid RAG system combining Graph-based and Vector-based retrieval.
 
 ## Overview
 
-GraphRAG combines knowledge graph technology with vector embeddings and LLM capabilities for enhanced document retrieval and question answering.
+HybridRAG combines knowledge graph technology with vector embeddings and LLM capabilities for enhanced document retrieval and question answering.
 
 **Tech Stack:**
 - **LLM**: NVIDIA Nemotron Nano 9B v2 (via NIM Container, GPU 7)
@@ -91,7 +91,7 @@ graphrag/
 │       ├── query_router.py      # Query classification
 │       ├── vector_rag.py        # Vector-based RAG
 │       ├── hybrid_rag.py        # Hybrid RAG orchestrator
-│       ├── graphrag.py          # Core GraphRAG class
+│       ├── graphrag.py          # Core HybridRAG class
 │       ├── chat_rag.py          # Interactive chat interface
 │       ├── pdf_rag_test.py      # PDF processing test
 │       ├── simple_pdf_test.py   # Quick PDF test
@@ -147,7 +147,7 @@ NVSM_ERR_SYSTEM_FWRITE(-922) 에러가 발생한 경우, 스풀에 출력된
 ### 3. Run Programmatic RAG
 
 ```bash
-# Basic GraphRAG (Graph only)
+# Basic HybridRAG (Graph only)
 python app/src/graphrag.py
 
 # Hybrid RAG (Vector + Graph)
