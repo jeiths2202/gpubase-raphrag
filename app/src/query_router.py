@@ -404,6 +404,21 @@ if __name__ == "__main__":
         # Error code patterns - Graph (error code only, no troubleshooting)
         ("NVSM_ERR_SYSTEM_FWRITE 에러가 뭐야?", QueryType.GRAPH),
         ("OFM-1234 에러 설명해줘", QueryType.GRAPH),
+        # Japanese - Vector
+        ("OpenFrameとは何ですか？", QueryType.VECTOR),
+        ("OFCOBOLのインストール方法を教えてください", QueryType.VECTOR),
+        ("システムの説明をお願いします", QueryType.VECTOR),
+        # Japanese - Graph
+        ("OFCOBOLとOFASMの違いは？", QueryType.GRAPH),
+        ("すべてのエラーコード一覧", QueryType.GRAPH),
+        ("ドキュメント間の関係", QueryType.GRAPH),
+        # Japanese - Hybrid (error code + troubleshooting)
+        ("NVSM_ERR_SYSTEM_FWRITE エラーの対処方法", QueryType.HYBRID),
+        ("OFM-1234 エラーの解決方法を教えてください", QueryType.HYBRID),
+        ("COBOL_COMPILE_ERROR の対応方法", QueryType.HYBRID),
+        ("エラーが発生する原因と対処法", QueryType.HYBRID),
+        # Japanese - Graph (error code only, no troubleshooting)
+        ("NVSM_ERR_SYSTEM_FWRITE エラーとは？", QueryType.GRAPH),
     ]
 
     correct = 0
