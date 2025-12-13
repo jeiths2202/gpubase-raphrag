@@ -88,7 +88,7 @@ Queries requesting code generation or analysis are automatically routed to the C
 |----------|-------------------|
 | **English** | `write code`, `sample code`, `implement`, `python function` |
 | **Korean** | `코드 작성`, `샘플 코드`, `구현`, `코드 분석` |
-| **Japanese** | `コードを書`, `サンプルコード`, `実装`, `コード分析` |
+| **Japanese** | `コードを書`, `関数を書`, `サンプルコード`, `実装` |
 
 **Example:**
 ```
