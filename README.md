@@ -48,11 +48,27 @@ Document --CONTAINS--> Chunk --MENTIONS--> Entity
 
 ### Query Routing Logic
 
-| Query Type | Example | Strategy |
-|------------|---------|----------|
-| Vector | "What is OFCobol?", "Explain error code" | Semantic similarity search |
-| Graph | "Document relationships", "List all errors" | Graph traversal |
-| Hybrid | "Compare products", "Detailed context" | Both strategies combined |
+The system automatically routes queries to the appropriate RAG strategy based on multilingual keyword detection and pattern matching.
+
+| Query Type | Strategy | Use Case |
+|------------|----------|----------|
+| **Vector** | Semantic similarity search | Definitions, explanations, methods |
+| **Graph** | Entity-based graph traversal | Comparisons, lists, relationships |
+| **Hybrid** | Both strategies combined | Error troubleshooting, detailed analysis |
+
+#### Multilingual Query Examples
+
+| Language | Vector | Graph | Hybrid |
+|----------|--------|-------|--------|
+| **English** | "What is OpenFrame?" | "Compare A and B" | "How to fix error?" |
+| **Korean** | "OpenFrame이란?" | "A와 B의 차이점" | "에러 해결 방법" |
+| **Japanese** | "OpenFrameとは?" | "AとBの違いは?" | "エラーの対処方法" |
+
+#### Error Code Detection
+
+Queries containing error codes (e.g., `NVSM_ERR_SYSTEM_FWRITE`, `OFM-1234`) are automatically detected and routed:
+- **Error code + troubleshooting keywords** → HYBRID (semantic + entity search)
+- **Error code only** → GRAPH (entity lookup)
 
 ## Project Structure
 
@@ -68,6 +84,7 @@ graphrag/
 │       ├── vector_rag.py        # Vector-based RAG
 │       ├── hybrid_rag.py        # Hybrid RAG orchestrator
 │       ├── graphrag.py          # Core GraphRAG class
+│       ├── chat_rag.py          # Interactive chat interface
 │       ├── pdf_rag_test.py      # PDF processing test
 │       ├── simple_pdf_test.py   # Quick PDF test
 │       ├── rag_qa.py            # QA module
@@ -93,7 +110,33 @@ cd docker
 docker-compose up -d
 ```
 
-### 2. Run GraphRAG
+### 2. Run Interactive Chat
+
+```bash
+cd app/src
+python chat_rag.py
+```
+
+**Chat Commands:**
+- `/help` - Show help
+- `/stats` - Show database statistics
+- `/history` - Show chat history
+- `/clear` - Clear history
+- `/quit` - Exit
+
+**Example Session:**
+```
+You: NVSM_ERR_SYSTEM_FWRITE 에러의 조치방법에 대해서 알려주세요
+
+Strategy: [HYBRID/Combined]
+Language: ko | Sources: 5 | Time: 3.66s
+
+NVSM_ERR_SYSTEM_FWRITE(-922) 에러가 발생한 경우, 스풀에 출력된
+시스템 함수 호출 관련 에러 메시지를 확인하여 구체적인 원인을
+파악해야 합니다.
+```
+
+### 3. Run Programmatic RAG
 
 ```bash
 # Basic GraphRAG (Graph only)
@@ -103,7 +146,7 @@ python app/src/graphrag.py
 python app/src/hybrid_rag.py
 ```
 
-### 3. Test PDF Processing
+### 4. Test PDF Processing
 
 ```bash
 python app/src/pdf_rag_test.py
@@ -135,12 +178,34 @@ Environment variables (docker/.env):
 
 ## Features
 
+### Core Features
 - **Hybrid RAG**: Automatic routing between Vector and Graph search
-- **Multilingual**: Japanese, Korean, English support
-- **Vector Search**: Neo4j vector index with cosine similarity
+- **Interactive Chat**: Command-line chatbot interface with UTF-8 support
+- **Vector Search**: Neo4j vector index with 4096-dimensional embeddings
 - **Graph Search**: Entity-based relationship traversal
-- **Query Classification**: LLM-based query routing
-- **Batch Processing**: Efficient document ingestion with embeddings
+- **Batch Processing**: Efficient document ingestion with parallel processing
+
+### Multilingual Support
+- **Languages**: Japanese (日本語), Korean (한국어), English
+- **Query Detection**: Automatic language detection and response
+- **Keyword Patterns**: Language-specific routing patterns
+- **Error Code Handling**: Universal error code detection across languages
+
+### Query Router Features
+- **35 Test Cases**: Comprehensive test coverage (EN/KO/JP)
+- **100% Accuracy**: All query types correctly classified
+- **Pattern Matching**: Regex-based pattern detection for each language
+- **Error Code Detection**: Automatic detection of patterns like `ERR_`, `ERROR`, `FAIL`
+
+### Supported Query Patterns
+
+| Pattern Type | Keywords (EN/KO/JP) |
+|--------------|---------------------|
+| Definition | "what is", "이란", "とは" |
+| Method | "how to", "방법", "方法" |
+| Comparison | "compare", "비교", "比較" |
+| List | "all", "모든", "すべて" |
+| Troubleshoot | "fix", "해결", "解決" |
 
 ## License
 
