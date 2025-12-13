@@ -3,10 +3,14 @@ Query Router for GraphRAG Hybrid System
 Classifies queries and routes to appropriate RAG strategy
 """
 import re
+import os
+import json
 import math
+import hashlib
 import numpy as np
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
+from pathlib import Path
 from langchain_openai import ChatOpenAI
 from config import config
 
@@ -24,7 +28,14 @@ class EmbeddingClassifier:
 
     Uses cosine similarity between query embedding and prototype embeddings
     for each query type to compute classification probabilities.
+
+    Supports caching of prototype embeddings to avoid regeneration on each startup.
     """
+
+    # Cache configuration
+    CACHE_VERSION = "1.0"
+    DEFAULT_CACHE_DIR = Path(__file__).parent / ".cache"
+    CACHE_FILENAME = "prototype_embeddings.json"
 
     # Prototype queries for each type (multilingual)
     VECTOR_PROTOTYPES = [
@@ -87,16 +98,21 @@ class EmbeddingClassifier:
         "なぜこのエラーが発生し、どう解決しますか？",
     ]
 
-    def __init__(self, embedding_service=None):
+    def __init__(self, embedding_service=None, cache_dir: Optional[Path] = None, use_cache: bool = True):
         """
         Initialize the embedding classifier
 
         Args:
             embedding_service: NeMoEmbeddingService instance (lazy loaded if None)
+            cache_dir: Directory for caching prototype embeddings
+            use_cache: Whether to use cached embeddings (default: True)
         """
         self._embedding_service = embedding_service
         self._prototypes: Dict[str, np.ndarray] = {}
         self._initialized = False
+        self._use_cache = use_cache
+        self._cache_dir = cache_dir or self.DEFAULT_CACHE_DIR
+        self._cache_path = self._cache_dir / self.CACHE_FILENAME
 
     @property
     def embedding_service(self):
@@ -105,6 +121,109 @@ class EmbeddingClassifier:
             from embeddings import NeMoEmbeddingService
             self._embedding_service = NeMoEmbeddingService()
         return self._embedding_service
+
+    def _get_prototypes_hash(self) -> str:
+        """
+        Compute hash of prototype queries for cache invalidation
+
+        Returns:
+            MD5 hash string of all prototype queries
+        """
+        all_prototypes = (
+            self.VECTOR_PROTOTYPES +
+            self.GRAPH_PROTOTYPES +
+            self.HYBRID_PROTOTYPES
+        )
+        content = json.dumps(all_prototypes, sort_keys=True, ensure_ascii=False)
+        return hashlib.md5(content.encode('utf-8')).hexdigest()
+
+    def _load_cache(self) -> bool:
+        """
+        Load prototype embeddings from cache
+
+        Returns:
+            True if cache was loaded successfully
+        """
+        if not self._use_cache:
+            return False
+
+        if not self._cache_path.exists():
+            return False
+
+        try:
+            with open(self._cache_path, 'r', encoding='utf-8') as f:
+                cache_data = json.load(f)
+
+            # Validate cache version and hash
+            if cache_data.get("version") != self.CACHE_VERSION:
+                print("  Cache version mismatch, regenerating...")
+                return False
+
+            if cache_data.get("prototypes_hash") != self._get_prototypes_hash():
+                print("  Prototype queries changed, regenerating...")
+                return False
+
+            # Load prototype vectors
+            for query_type in ["vector", "graph", "hybrid"]:
+                if query_type not in cache_data.get("prototypes", {}):
+                    return False
+                self._prototypes[query_type] = np.array(cache_data["prototypes"][query_type])
+
+            print(f"  Loaded prototype embeddings from cache")
+            return True
+
+        except Exception as e:
+            print(f"  Cache load error: {e}")
+            return False
+
+    def _save_cache(self) -> bool:
+        """
+        Save prototype embeddings to cache
+
+        Returns:
+            True if cache was saved successfully
+        """
+        if not self._use_cache:
+            return False
+
+        try:
+            # Ensure cache directory exists
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
+
+            cache_data = {
+                "version": self.CACHE_VERSION,
+                "prototypes_hash": self._get_prototypes_hash(),
+                "prototypes": {
+                    query_type: proto.tolist()
+                    for query_type, proto in self._prototypes.items()
+                }
+            }
+
+            with open(self._cache_path, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, ensure_ascii=False, indent=2)
+
+            print(f"  Saved prototype embeddings to cache")
+            return True
+
+        except Exception as e:
+            print(f"  Cache save error: {e}")
+            return False
+
+    def clear_cache(self) -> bool:
+        """
+        Clear the prototype embeddings cache
+
+        Returns:
+            True if cache was cleared successfully
+        """
+        try:
+            if self._cache_path.exists():
+                self._cache_path.unlink()
+                print("Cache cleared successfully")
+            return True
+        except Exception as e:
+            print(f"Failed to clear cache: {e}")
+            return False
 
     def _cosine_similarity(self, vec1: np.ndarray, vec2: np.ndarray) -> float:
         """Compute cosine similarity between two vectors"""
@@ -125,9 +244,12 @@ class EmbeddingClassifier:
         sum_exp = sum(exp_scores)
         return [e / sum_exp for e in exp_scores]
 
-    def initialize(self) -> bool:
+    def initialize(self, force_regenerate: bool = False) -> bool:
         """
-        Initialize prototype embeddings
+        Initialize prototype embeddings (with caching support)
+
+        Args:
+            force_regenerate: If True, regenerate embeddings even if cache exists
 
         Returns:
             True if initialization successful
@@ -135,8 +257,17 @@ class EmbeddingClassifier:
         if self._initialized:
             return True
 
+        print("Initializing embedding classifier prototypes...")
+
+        # Try to load from cache first (unless force_regenerate)
+        if not force_regenerate and self._load_cache():
+            self._initialized = True
+            print("Embedding classifier initialized from cache")
+            return True
+
+        # Generate new embeddings
         try:
-            print("Initializing embedding classifier prototypes...")
+            print("  Generating new prototype embeddings...")
 
             # Generate embeddings for each prototype set
             for query_type, prototypes in [
@@ -148,6 +279,9 @@ class EmbeddingClassifier:
                 # Compute mean prototype vector
                 self._prototypes[query_type] = np.mean(embeddings, axis=0)
                 print(f"  {query_type}: {len(prototypes)} prototypes -> {len(self._prototypes[query_type])}d vector")
+
+            # Save to cache
+            self._save_cache()
 
             self._initialized = True
             print("Embedding classifier initialized successfully")

@@ -6,3 +6,6 @@ docker/.env
 Thumbs.db
 *.log
 *.jar
+
+# Embedding classifier cache
+app/src/.cache/
