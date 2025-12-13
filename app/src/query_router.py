@@ -51,6 +51,8 @@ class QueryRouter:
         "relationship", "connected", "related", "between", "compare",
         "difference", "all", "list", "which documents", "across",
         "entities", "mentions", "references", "every",
+        # English - Error related (entity search)
+        "error code", "error codes", "err_",
         # Korean
         "관계", "연결", "연관", "연결된",
         "비교", "비교해", "비교해줘", "비교해주세요",
@@ -59,8 +61,12 @@ class QueryRouter:
         "모든", "모두", "전부", "전체",
         "어떤 문서", "어느 문서",
         "사이", "간의", "와의", "과의",
+        # Korean - Error related (entity search)
+        "에러 코드", "오류 코드", "에러코드", "오류코드",
         # Japanese
-        "関係", "比較", "違い", "一覧", "すべて", "全て"
+        "関係", "比較", "違い", "一覧", "すべて", "全て",
+        # Japanese - Error related
+        "エラーコード", "エラー一覧"
     ]
 
     # Keywords indicating hybrid approach
@@ -68,6 +74,8 @@ class QueryRouter:
         # English
         "why", "analyze", "impact", "effect", "comprehensive",
         "detailed", "in-depth", "context", "reason",
+        # English - Error troubleshooting (needs both semantic + entity search)
+        "fix", "resolve", "solution", "troubleshoot", "workaround",
         # Korean
         "왜", "이유", "원인",
         "분석", "분석해", "분석해줘", "분석해주세요",
@@ -75,8 +83,14 @@ class QueryRouter:
         "상세", "상세히", "자세히", "자세하게",
         "맥락", "배경", "근거",
         "종합", "종합적",
+        # Korean - Error troubleshooting (needs both semantic + entity search)
+        "해결", "해결방법", "해결 방법", "조치", "조치방법", "조치 방법",
+        "대처", "대처방법", "대처 방법", "대응", "대응방법", "대응 방법",
+        "처리", "처리방법", "처리 방법", "수정", "수정방법", "수정 방법",
         # Japanese
-        "なぜ", "分析", "影響", "詳細", "理由"
+        "なぜ", "分析", "影響", "詳細", "理由",
+        # Japanese - Error troubleshooting
+        "解決", "対処", "対応", "修正"
     ]
 
     # Korean question patterns (regex)
@@ -104,7 +118,16 @@ class QueryRouter:
     KOREAN_HYBRID_PATTERNS = [
         r'(이유|원인).*(해결|방법)',   # 이유...해결/방법
         r'(발생|생기).*(이유|원인)',   # 발생...이유/원인
+        r'(에러|오류|error).*(해결|조치|대처|방법)',  # 에러...해결/조치/방법
+        r'(해결|조치|대처).*(방법|절차)',  # 해결/조치...방법/절차
     ]
+
+    # Error code pattern (high priority for hybrid routing)
+    # Note: Simple regex greedy matching issue - use _has_error_code() method instead
+    ERROR_CODE_PATTERN = r'[A-Z]+-\d+'  # Standard format like OFM-1234
+
+    # Keywords that indicate error codes (substrings)
+    ERROR_CODE_KEYWORDS = ['ERR', 'ERROR', 'FAIL', 'EXCEPTION', 'FAULT']
 
     def __init__(self, llm: Optional[ChatOpenAI] = None):
         """
@@ -119,6 +142,29 @@ class QueryRouter:
             api_key="not-needed",
             temperature=0.1
         )
+
+    def _has_error_code(self, query: str) -> bool:
+        """
+        Check if query contains an error code pattern
+
+        Detects patterns like:
+        - NVSM_ERR_SYSTEM_FWRITE (contains ERR/ERROR/FAIL/EXCEPTION)
+        - OFM-1234 (standard error code format)
+        - COBOL_COMPILE_ERROR
+        """
+        # Find uppercase words (potential error codes)
+        words = re.findall(r'[A-Z][A-Z0-9_]+', query)
+
+        # Check if any word contains error keywords
+        for word in words:
+            if any(kw in word for kw in self.ERROR_CODE_KEYWORDS):
+                return True
+
+        # Check for standard error code format: ABC-1234
+        if re.search(self.ERROR_CODE_PATTERN, query):
+            return True
+
+        return False
 
     def classify_query(self, query: str) -> QueryType:
         """
@@ -180,10 +226,26 @@ class QueryRouter:
         if re.search(r'(설치|사용|실행|구성|설정).*(방법|절차|순서|과정)', query):
             vector_score += 2
 
-        # Korean error/problem patterns -> vector
-        if re.search(r'(에러|오류|문제|장애).*(해결|원인|이유)', query):
-            vector_score += 1
-            hybrid_score += 1
+        # Error code detection (high priority)
+        has_error_code = self._has_error_code(query)
+        has_troubleshoot_keyword = bool(re.search(
+            r'(해결|조치|대처|대응|처리|수정|방법|fix|resolve|solution|troubleshoot)',
+            query_lower
+        ))
+
+        if has_error_code:
+            if has_troubleshoot_keyword:
+                # Error code + troubleshooting -> HYBRID (need both semantic + entity search)
+                # High weight to override other patterns like "알려줘", "방법" etc.
+                hybrid_score += 10
+            else:
+                # Error code only -> GRAPH (entity search for error code lookup)
+                # High weight to override patterns like "설명해줘" which prefer vector
+                graph_score += 8
+
+        # Korean error/problem patterns (without specific error code)
+        if not has_error_code and re.search(r'(에러|오류|문제|장애).*(해결|원인|이유)', query):
+            hybrid_score += 2
 
         # Determine winner
         max_score = max(vector_score, graph_score, hybrid_score)
@@ -315,6 +377,13 @@ if __name__ == "__main__":
         # Korean - Hybrid
         ("이 에러가 발생하는 이유와 해결 방법", QueryType.HYBRID),
         ("설치 문제의 원인을 분석해주세요", QueryType.HYBRID),
+        # Error code patterns - Hybrid (error code + troubleshooting)
+        ("NVSM_ERR_SYSTEM_FWRITE 에러의 조치방법에 대해서 알려주세요", QueryType.HYBRID),
+        ("OFM-1234 에러 해결 방법", QueryType.HYBRID),
+        ("COBOL_COMPILE_ERROR 수정 방법 알려줘", QueryType.HYBRID),
+        # Error code patterns - Graph (error code only, no troubleshooting)
+        ("NVSM_ERR_SYSTEM_FWRITE 에러가 뭐야?", QueryType.GRAPH),
+        ("OFM-1234 에러 설명해줘", QueryType.GRAPH),
     ]
 
     correct = 0

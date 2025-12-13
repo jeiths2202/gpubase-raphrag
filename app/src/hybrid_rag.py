@@ -152,26 +152,52 @@ class HybridRAG:
                 {"k": k}
             )
         else:
-            # Search with keywords
-            keyword = keywords[0]  # Primary keyword
-            results = self.graph.query(
+            # First try: Search entities that match keywords
+            entity_results = self.graph.query(
                 """
-                MATCH (c:Chunk)
-                WHERE c.content CONTAINS $keyword
-                OPTIONAL MATCH (c)-[:MENTIONS]->(e:Entity)
+                UNWIND $keywords AS keyword
+                MATCH (e:Entity)
+                WHERE toLower(e.name) CONTAINS toLower(keyword)
+                MATCH (c:Chunk)-[:MENTIONS]->(e)
                 OPTIONAL MATCH (d:Document)-[:CONTAINS]->(c)
-                WITH c, d, collect(DISTINCT e.name)[..5] AS entities
-                RETURN
+                WITH c, d, collect(DISTINCT e.name)[..5] AS entities, count(e) AS match_count
+                RETURN DISTINCT
                     c.id AS chunk_id,
                     c.content AS content,
                     c.index AS chunk_index,
                     d.id AS doc_id,
-                    entities
-                ORDER BY c.index
+                    entities,
+                    match_count
+                ORDER BY match_count DESC, c.index
                 LIMIT $k
                 """,
-                {"keyword": keyword, "k": k}
+                {"keywords": keywords, "k": k}
             )
+
+            # If entity search found results, use them
+            if entity_results:
+                results = entity_results
+            else:
+                # Fallback: Search content with case-insensitive match
+                keyword = keywords[0]
+                results = self.graph.query(
+                    """
+                    MATCH (c:Chunk)
+                    WHERE toLower(c.content) CONTAINS toLower($keyword)
+                    OPTIONAL MATCH (c)-[:MENTIONS]->(e:Entity)
+                    OPTIONAL MATCH (d:Document)-[:CONTAINS]->(c)
+                    WITH c, d, collect(DISTINCT e.name)[..5] AS entities
+                    RETURN
+                        c.id AS chunk_id,
+                        c.content AS content,
+                        c.index AS chunk_index,
+                        d.id AS doc_id,
+                        entities
+                    ORDER BY c.index
+                    LIMIT $k
+                    """,
+                    {"keyword": keyword, "k": k}
+                )
 
         return [
             {
@@ -180,7 +206,7 @@ class HybridRAG:
                 "chunk_index": r["chunk_index"],
                 "doc_id": r["doc_id"],
                 "entities": r["entities"] or [],
-                "score": 1.0,  # Graph results don't have similarity scores
+                "score": r.get("match_count", 1.0),  # Use match count as score
                 "source": "graph"
             }
             for r in results
@@ -299,21 +325,42 @@ Answer:"""
 
     def _extract_keywords(self, text: str) -> List[str]:
         """Extract keywords from text"""
+        keywords = []
+
         # Error codes (high priority)
         error_codes = re.findall(r'[A-Z_]+ERR[A-Z_]*|[A-Z]+-\d+', text)
-        if error_codes:
-            return error_codes
+        keywords.extend(error_codes)
 
-        # Technical terms (capitalized words)
+        # Product/technical names (OF*, Open*, etc.)
+        product_names = re.findall(r'\b(?:OF[A-Za-z]+|Open[A-Za-z]+|OFCOBOL|OFASM|PROSORT|JEUS|Tibero|Neo4j)\b', text, re.IGNORECASE)
+        keywords.extend(product_names)
+
+        # Technical terms (capitalized words like GraphRAG, Neo4j)
         tech_terms = re.findall(r'\b[A-Z][a-zA-Z]*[A-Z][a-zA-Z]*\b', text)
-        if tech_terms:
-            return list(set(tech_terms))[:3]
+        keywords.extend(tech_terms)
 
-        # Regular nouns (basic extraction)
+        # Korean comparison patterns: "A와 B", "A과 B"
+        korean_compare = re.findall(r'([A-Za-z가-힣]+)[와과]\s*([A-Za-z가-힣]+)', text)
+        for match in korean_compare:
+            keywords.extend(match)
+
+        # Deduplicate while preserving order
+        seen = set()
+        unique_keywords = []
+        for kw in keywords:
+            kw_lower = kw.lower()
+            if kw_lower not in seen and len(kw) >= 2:
+                seen.add(kw_lower)
+                unique_keywords.append(kw)
+
+        if unique_keywords:
+            return unique_keywords[:5]
+
+        # Fallback: Regular nouns (basic extraction)
         words = text.split()
-        # Filter short words and common words
-        stop_words = {"the", "a", "an", "is", "are", "was", "were", "what", "how", "why", "which"}
-        keywords = [w for w in words if len(w) > 3 and w.lower() not in stop_words]
+        stop_words = {"the", "a", "an", "is", "are", "was", "were", "what", "how", "why", "which",
+                      "이란", "무엇", "어떻게", "뭐야", "뭔가요", "인가요", "이에요"}
+        keywords = [w for w in words if len(w) > 2 and w.lower() not in stop_words]
 
         return keywords[:3]
 
@@ -345,10 +392,19 @@ Answer:"""
         return "No relevant information found."
 
     def _clean_response(self, text: str) -> str:
-        """Clean LLM response"""
-        # Remove thinking tokens
-        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
-        text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
+        """Clean LLM response - remove thinking tokens and normalize whitespace"""
+        # Remove complete thinking blocks: <think>...</think>, <thinking>...</thinking>
+        text = re.sub(r'<think(?:ing)?>\s*.*?\s*</think(?:ing)?>', '', text, flags=re.DOTALL | re.IGNORECASE)
+
+        # Remove incomplete thinking blocks (opening tag without closing)
+        text = re.sub(r'<think(?:ing)?>\s*.*', '', text, flags=re.DOTALL | re.IGNORECASE)
+
+        # Remove content before closing tag (closing tag without opening)
+        text = re.sub(r'^.*?</think(?:ing)?>\s*', '', text, flags=re.DOTALL | re.IGNORECASE)
+
+        # Clean up multiple newlines and whitespace
+        text = re.sub(r'\n{3,}', '\n\n', text)
+
         return text.strip()
 
     def init_system(self) -> Dict[str, bool]:
