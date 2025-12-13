@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+neo4j/
+docker/.env
+*.pdf
+Thumbs.db
+*.log
+*.jar
