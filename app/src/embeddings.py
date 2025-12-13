@@ -71,28 +71,50 @@ class NeMoEmbeddingService:
         """
         embeddings = []
 
+        # Clean texts - remove empty or too short texts
+        cleaned_texts = []
+        for t in texts:
+            if t and len(t.strip()) > 0:
+                # Truncate very long texts
+                cleaned_texts.append(t[:8000] if len(t) > 8000 else t)
+            else:
+                cleaned_texts.append("empty")  # Placeholder for empty texts
+
         # Process in batches
-        for i in range(0, len(texts), self.batch_size):
-            batch = texts[i:i + self.batch_size]
+        for i in range(0, len(cleaned_texts), self.batch_size):
+            batch = cleaned_texts[i:i + self.batch_size]
 
-            response = self.client.post(
-                f"{self.base_url}/embeddings",
-                json={
-                    "model": self.model,
-                    "input": batch,
-                    "input_type": input_type,
-                    "encoding_format": "float"
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
+            try:
+                response = self.client.post(
+                    f"{self.base_url}/embeddings",
+                    json={
+                        "model": self.model,
+                        "input": batch,
+                        "input_type": input_type,
+                        "encoding_format": "float"
+                    },
+                    timeout=120.0
+                )
+                response.raise_for_status()
+                data = response.json()
 
-            # Sort by index to maintain order
-            batch_embeddings = sorted(data["data"], key=lambda x: x["index"])
-            embeddings.extend([item["embedding"] for item in batch_embeddings])
+                # Sort by index to maintain order
+                batch_embeddings = sorted(data["data"], key=lambda x: x["index"])
+                embeddings.extend([item["embedding"] for item in batch_embeddings])
 
-            if len(texts) > self.batch_size and (i + self.batch_size) % 100 == 0:
-                print(f"  Embedded {min(i + self.batch_size, len(texts))}/{len(texts)} texts...")
+            except Exception as e:
+                print(f"  Batch error at {i}: {e}")
+                # Fall back to single embedding for failed batch
+                for text in batch:
+                    try:
+                        emb = self.embed_text(text, input_type)
+                        embeddings.append(emb)
+                    except Exception:
+                        # Return zero vector for failed texts
+                        embeddings.append([0.0] * self.dimension)
+
+            if len(cleaned_texts) > self.batch_size and (i + self.batch_size) % 100 == 0:
+                print(f"  Embedded {min(i + self.batch_size, len(cleaned_texts))}/{len(cleaned_texts)} texts...")
 
         return embeddings
 
