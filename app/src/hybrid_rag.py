@@ -165,8 +165,62 @@ class HybridRAG:
         }
 
     def _vector_search(self, query: str, k: int) -> List[Dict]:
-        """Execute vector similarity search"""
-        return self.vector_rag.search_similar(query, k=k)
+        """Execute vector similarity search with topic density boosting"""
+        # Extract key concept and search by topic density
+        key_concept = self._extract_key_concept(query)
+        topic_density_results = []
+        if key_concept:
+            print(f"    [Topic Density] Key concept: '{key_concept}'")
+            topic_density_results = self._search_by_topic_density(key_concept, k)
+            if topic_density_results:
+                print(f"    [Topic Density] Found {len(topic_density_results)} results from topic-central documents")
+
+        # Get vector search results
+        vector_results = self.vector_rag.search_similar(query, k=k)
+
+        # Merge topic density and vector results
+        if topic_density_results:
+            merged = self._merge_topic_density_with_vector(topic_density_results, vector_results)
+            return merged[:k]
+
+        return vector_results
+
+    def _merge_topic_density_with_vector(
+        self,
+        topic_density_results: List[Dict],
+        vector_results: List[Dict]
+    ) -> List[Dict]:
+        """Merge topic density results with vector results for VECTOR strategy"""
+        seen_chunks = set()
+        merged = []
+
+        # Topic density results first (concept-central documents)
+        for result in topic_density_results:
+            chunk_id = result["chunk_id"]
+            if chunk_id not in seen_chunks:
+                topic_score = result.get("topic_density", 0.5)
+                result["combined_score"] = 0.85 + (topic_score * 0.15)  # 0.85 ~ 1.0 range
+                result["source"] = "topic_density"
+                merged.append(result)
+                seen_chunks.add(chunk_id)
+
+        # Vector results (with similarity scores)
+        for result in vector_results:
+            chunk_id = result["chunk_id"]
+            if chunk_id not in seen_chunks:
+                result["combined_score"] = result["score"] * 0.8  # Slightly lower priority
+                merged.append(result)
+                seen_chunks.add(chunk_id)
+            else:
+                # Boost if also found by vector
+                for m in merged:
+                    if m["chunk_id"] == chunk_id:
+                        m["combined_score"] += result["score"] * 0.15
+                        m["source"] = "topic_density_vector"
+                        break
+
+        # Sort by combined score
+        return sorted(merged, key=lambda x: x.get("combined_score", 0), reverse=True)
 
     def _graph_search(self, query: str, k: int) -> List[Dict]:
         """Execute graph-based search with entity traversal"""
