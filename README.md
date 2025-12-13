@@ -315,6 +315,59 @@ Sources: 20
   - Additional context and recommendations
 ```
 
+### Topic Density Search
+
+The system uses **Topic Density** to prioritize documents where the query's key concept is a central topic, not just mentioned:
+
+```
+Query: "ebcdic데이터셋을 sjis로 마이그레이션 방법"
+                    ↓
+         Key Concept Extraction (LLM + Pattern)
+                    ↓
+         Extracted: "마이그레이션"
+                    ↓
+         Topic Density Calculation per Document:
+         ┌─────────────────────────────────────────┐
+         │ Document              │ Density │ Rank │
+         ├───────────────────────┼─────────┼──────┤
+         │ Migration Guide       │ 68.80%  │  1   │ ← Prioritized
+         │ General Doc A         │  5.20%  │  2   │
+         │ General Doc B         │  2.10%  │  3   │
+         └─────────────────────────────────────────┘
+                    ↓
+         Return chunks from high-density documents first
+```
+
+**Topic Density Formula:**
+```
+Topic Density = (Chunks containing concept) / (Total chunks in document)
+```
+
+**Key Concept Extraction:**
+
+| Method | Description |
+|--------|-------------|
+| **LLM-based** | Extracts central action/process word from query |
+| **Pattern Fallback** | Matches action words: 마이그레이션, 설치, 변환, 에러, etc. |
+
+**Priority Order in Hybrid Search:**
+1. **Error Code Results** - Exact match (highest priority)
+2. **Topic Density Results** - Concept-central documents
+3. **Vector + Graph Results** - Semantic + entity search
+
+**Example Results:**
+
+| Query | Key Concept | Top Document | Topic Density |
+|-------|-------------|--------------|---------------|
+| ebcdic→sjis 마이그레이션 | 마이그레이션 | Migration Guide | **68.80%** |
+| OpenFrame 설치 방법 | 설치 | Installation Guide | **78.33%** |
+| JCL 에러 해결 | 에러 | Error Reference | **93.50%** |
+
+**Benefits:**
+- Finds documents where the concept is **central**, not just mentioned
+- Reduces noise from unrelated documents that happen to contain the keyword
+- Improves answer relevance for topic-specific queries
+
 ### Embedding Classifier
 
 The embedding classifier uses **prototype vectors** for probabilistic query classification:
