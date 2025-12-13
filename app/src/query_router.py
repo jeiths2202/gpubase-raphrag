@@ -611,6 +611,16 @@ class QueryRouter:
 
         return False
 
+    # Exclusion patterns for code detection (error codes, not programming)
+    CODE_EXCLUSIONS = [
+        # English
+        "error code", "error codes", "err code", "err codes",
+        # Korean
+        "에러 코드", "에러코드", "오류 코드", "오류코드",
+        # Japanese
+        "エラーコード", "エラー コード",
+    ]
+
     def _is_code_query(self, query: str) -> bool:
         """
         Check if query is asking for code generation or analysis
@@ -620,10 +630,18 @@ class QueryRouter:
         - Code analysis requests (analyze code, explain syntax, etc.)
         - Programming-related questions
 
+        Excludes:
+        - Error code references (에러 코드, error code, エラーコード)
+
         Returns:
             True if query should be routed to Code LLM
         """
         query_lower = query.lower()
+
+        # Check exclusions first (error codes are NOT code generation requests)
+        for exclusion in self.CODE_EXCLUSIONS:
+            if exclusion in query_lower or exclusion in query:
+                return False
 
         # Check keyword matches
         for keyword in self.CODE_KEYWORDS:
