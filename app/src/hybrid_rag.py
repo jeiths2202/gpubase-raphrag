@@ -80,7 +80,8 @@ class HybridRAG:
         question: str,
         strategy: str = "auto",
         language: str = "auto",
-        k: int = None
+        k: int = None,
+        conversation_history: List[Dict] = None
     ) -> Dict[str, Any]:
         """
         Answer a question using hybrid RAG
@@ -90,6 +91,7 @@ class HybridRAG:
             strategy: RAG strategy (auto, vector, graph, hybrid)
             language: Response language (auto, ko, ja, en)
             k: Number of results to retrieve
+            conversation_history: List of previous Q&A pairs for context
 
         Returns:
             Dictionary with answer and metadata
@@ -113,8 +115,11 @@ class HybridRAG:
         else:  # hybrid
             results = self._hybrid_search(question, k)
 
-        # Generate answer
-        answer = self._generate_answer(question, results, language)
+        # Generate answer with conversation context
+        answer = self._generate_answer(
+            question, results, language,
+            conversation_history=conversation_history
+        )
 
         return {
             "answer": answer,
@@ -285,13 +290,14 @@ class HybridRAG:
         self,
         question: str,
         results: List[Dict],
-        language: str
+        language: str,
+        conversation_history: List[Dict] = None
     ) -> str:
-        """Generate answer using LLM"""
+        """Generate answer using LLM with optional conversation context"""
         if not results:
             return self._no_results_message(language)
 
-        # Build context
+        # Build document context
         context_parts = []
         for i, r in enumerate(results[:5], 1):
             content = r["content"][:500]
@@ -304,16 +310,33 @@ class HybridRAG:
         # Language instruction
         lang_instruction = self._get_language_instruction(language)
 
-        # Generate answer
+        # Build conversation history section
+        conversation_context = ""
+        if conversation_history:
+            # Limit to last 3 turns to avoid token overflow
+            recent_history = conversation_history[-3:]
+            history_parts = []
+            for turn in recent_history:
+                q = turn.get("query", "")[:200]
+                a = turn.get("answer", "")[:300]
+                history_parts.append(f"User: {q}\nAssistant: {a}")
+
+            if history_parts:
+                conversation_context = f"""
+Previous conversation:
+{chr(10).join(history_parts)}
+
+"""
+
+        # Generate answer with conversation context
         prompt = f"""Based on the context below, answer the question.
 {lang_instruction}
-
-Context:
+{conversation_context}Document Context:
 {context}
 
-Question: {question}
+Current Question: {question}
 
-Answer:"""
+Answer (consider the previous conversation if relevant):"""
 
         response = self.llm.invoke(prompt)
         answer = response.content

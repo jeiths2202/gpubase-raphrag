@@ -60,6 +60,9 @@ def safe_str(text: str) -> str:
 class ChatRAG:
     """Interactive chat interface for Hybrid RAG system"""
 
+    # Configuration
+    MAX_CONTEXT_TURNS = 5  # Maximum conversation turns to keep in context
+
     def __init__(self):
         print("=" * 60)
         print("  GraphRAG Interactive Chat")
@@ -68,6 +71,7 @@ class ChatRAG:
 
         self.rag = HybridRAG()
         self.history: List[Dict] = []
+        self.context_mode = True  # Enable conversation context by default
 
         # Initialize and check status
         status = self.rag.init_system()
@@ -92,8 +96,10 @@ class ChatRAG:
         print("    /help     - Show help")
         print("    /stats    - Show statistics")
         print("    /history  - Show chat history")
+        print("    /context  - Toggle conversation context mode")
         print("    /clear    - Clear history")
         print("    /quit     - Exit")
+        print(f"  Context Mode: {'ON' if self.context_mode else 'OFF'}")
         print("=" * 60 + "\n")
 
     def format_references(self, results: List[Dict]) -> str:
@@ -150,8 +156,17 @@ class ChatRAG:
         """Process a user query and return formatted result"""
         start_time = datetime.now()
 
-        # Execute query with auto routing
-        result = self.rag.query(query, strategy="auto")
+        # Get conversation history for context (if enabled)
+        conversation_history = None
+        if self.context_mode and self.history:
+            conversation_history = self.history[-self.MAX_CONTEXT_TURNS:]
+
+        # Execute query with auto routing and conversation context
+        result = self.rag.query(
+            query,
+            strategy="auto",
+            conversation_history=conversation_history
+        )
 
         elapsed = (datetime.now() - start_time).total_seconds()
 
@@ -218,9 +233,10 @@ class ChatRAG:
         print()
         print("-" * 60)
 
-        # Strategy badge
+        # Strategy badge and context indicator
         strategy_badge = self.format_strategy_badge(response["strategy"])
-        print(f"  Strategy: {strategy_badge}")
+        context_indicator = "[CTX]" if self.context_mode and len(self.history) > 0 else ""
+        print(f"  Strategy: {strategy_badge} {context_indicator}")
         print(f"  Language: {response['language']} | Sources: {response['sources']} | Time: {response['elapsed']:.2f}s")
         print("-" * 60)
 
@@ -236,7 +252,8 @@ class ChatRAG:
 
     def show_help(self):
         """Show help message"""
-        print("""
+        context_status = "ON" if self.context_mode else "OFF"
+        print(f"""
 ╔════════════════════════════════════════════════════════════╗
 ║  GraphRAG Interactive Chat - Help                          ║
 ╠════════════════════════════════════════════════════════════╣
@@ -250,10 +267,16 @@ class ChatRAG:
 ║    - HYBRID: Combined approach                             ║
 ║      Examples: "원인 분석", "상세히 설명", "이유"           ║
 ║                                                            ║
+║  Conversation Context:                                     ║
+║    When enabled, previous Q&A are included in prompts      ║
+║    for follow-up questions like "그것에 대해 더 설명해줘"  ║
+║    Current status: {context_status:<4}                                    ║
+║                                                            ║
 ║  Commands:                                                 ║
 ║    /help     - Show this help                              ║
 ║    /stats    - Show database statistics                    ║
 ║    /history  - Show conversation history                   ║
+║    /context  - Toggle conversation context mode            ║
 ║    /clear    - Clear conversation history                  ║
 ║    /quit     - Exit the chat                               ║
 ╚════════════════════════════════════════════════════════════╝
@@ -320,6 +343,14 @@ class ChatRAG:
                         self.show_stats()
                     elif cmd == "/history":
                         self.show_history()
+                    elif cmd == "/context":
+                        self.context_mode = not self.context_mode
+                        status = "ON" if self.context_mode else "OFF"
+                        print(f"\n  Conversation context mode: {status}")
+                        if self.context_mode:
+                            print(f"  (Last {self.MAX_CONTEXT_TURNS} turns will be included in prompts)\n")
+                        else:
+                            print("  (Each query will be processed independently)\n")
                     elif cmd == "/clear":
                         self.history.clear()
                         print("\n  History cleared.\n")
