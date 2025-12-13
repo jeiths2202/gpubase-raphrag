@@ -5,7 +5,7 @@ Uses Neo4j Vector Index for semantic similarity search
 import re
 from typing import List, Dict, Any, Optional
 from langchain_openai import ChatOpenAI
-from langchain_community.graphs import Neo4jGraph
+from langchain_neo4j import Neo4jGraph
 from embeddings import NeMoEmbeddingService
 from config import config
 

@@ -5,7 +5,7 @@ Orchestrates Vector RAG and Graph RAG based on query classification
 import re
 from typing import List, Dict, Any, Optional
 from langchain_openai import ChatOpenAI
-from langchain_community.graphs import Neo4jGraph
+from langchain_neo4j import Neo4jGraph
 from config import config
 from embeddings import NeMoEmbeddingService
 from query_router import QueryRouter, QueryType
