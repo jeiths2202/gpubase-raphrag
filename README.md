@@ -48,13 +48,21 @@ Document --CONTAINS--> Chunk --MENTIONS--> Entity
 
 ### Query Routing Logic
 
-The system automatically routes queries to the appropriate RAG strategy based on multilingual keyword detection and pattern matching.
+The system uses a **hybrid classification approach** combining rule-based keyword matching with embedding-based semantic similarity for intelligent query routing.
 
 | Query Type | Strategy | Use Case |
 |------------|----------|----------|
 | **Vector** | Semantic similarity search | Definitions, explanations, methods |
 | **Graph** | Entity-based graph traversal | Comparisons, lists, relationships |
 | **Hybrid** | Both strategies combined | Error troubleshooting, detailed analysis |
+
+#### Classification Methods
+
+| Method | Accuracy | Speed | Description |
+|--------|----------|-------|-------------|
+| **Rule-based** | 100% | Fast | Keyword/pattern matching |
+| **Embedding** | 82.9% | Medium | Cosine similarity with prototype vectors |
+| **Hybrid** | 100% | Medium | Rule + Embedding combined (default) |
 
 #### Multilingual Query Examples
 
@@ -196,6 +204,46 @@ Environment variables (docker/.env):
 - **100% Accuracy**: All query types correctly classified
 - **Pattern Matching**: Regex-based pattern detection for each language
 - **Error Code Detection**: Automatic detection of patterns like `ERR_`, `ERROR`, `FAIL`
+
+### Embedding Classifier
+
+The embedding classifier uses **prototype vectors** for probabilistic query classification:
+
+```
+Query → Embed → Cosine Similarity → Softmax → Probabilities
+                    ↓
+         Compare with prototypes:
+         - Vector: 14 multilingual examples
+         - Graph: 14 multilingual examples
+         - Hybrid: 14 multilingual examples
+```
+
+**How it works:**
+1. Generate 4096-dimensional embeddings for prototype queries (EN/KO/JP)
+2. Compute mean vector for each query type (vector, graph, hybrid)
+3. For new queries, compute cosine similarity with each prototype
+4. Apply softmax to get classification probabilities
+
+**Test the classifier:**
+```bash
+cd app/src
+
+# Rule-based only
+python query_router.py
+
+# Embedding classifier only
+python query_router.py -e
+
+# Compare all methods
+python query_router.py -c
+```
+
+**Example output:**
+```
+Q: NVSM_ERR_SYSTEM_FWRITE 에러의 조치방법
+   Expected: hybrid
+   Rule: hybrid ✓ | Emb: hybrid ✓ | Hybrid: hybrid ✓
+```
 
 ### Supported Query Patterns
 
