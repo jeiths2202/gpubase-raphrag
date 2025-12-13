@@ -76,9 +76,30 @@ The system uses a **hybrid classification approach** combining rule-based keywor
 
 #### Error Code Detection
 
-Queries containing error codes (e.g., `NVSM_ERR_SYSTEM_FWRITE`, `OFM-1234`) are automatically detected and routed:
+Queries containing error codes are automatically detected and routed:
+
+| Pattern | Example | Routing |
+|---------|---------|---------|
+| Uppercase with ERR/ERROR | `NVSM_ERR_SYSTEM_FWRITE` | HYBRID/GRAPH |
+| Standard format | `OFM-1234` | HYBRID/GRAPH |
+| **Numeric codes** | `-5212`, `-5211` | **HYBRID (direct search)** |
+
 - **Error code + troubleshooting keywords** → HYBRID (semantic + entity search)
 - **Error code only** → GRAPH (entity lookup)
+- **Numeric error codes** → HYBRID with direct content search (highest priority)
+
+**Numeric Error Code Example:**
+```
+Query: -5212에러코드의 의미와 해결방법
+
+Strategy: [HYBRID/Combined]
+Sources: 10
+
+DSALC_ERR_DATASET_NOT_FOUND (-5212) 에러는 기존의 데이터세트가
+찾히지 않는 경우에 발생합니다.
+
+해결방법: 데이터세트를 생성한 후 다시 실행
+```
 
 #### Code Query Detection
 
