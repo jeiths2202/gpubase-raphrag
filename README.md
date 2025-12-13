@@ -224,6 +224,23 @@ Query → Embed → Cosine Similarity → Softmax → Probabilities
 3. For new queries, compute cosine similarity with each prototype
 4. Apply softmax to get classification probabilities
 
+**Caching:**
+
+Prototype embeddings are cached to avoid regeneration on startup:
+
+| Feature | Description |
+|---------|-------------|
+| **Cache Location** | `app/src/.cache/prototype_embeddings.json` |
+| **Cache Size** | ~353KB (3 × 4096d vectors) |
+| **Invalidation** | Automatic when prototype queries change |
+| **Performance** | ~0.1s (cached) vs ~3-5s (uncached) |
+
+```bash
+# Cache is automatically created on first run
+# To force regeneration, delete the cache:
+rm -rf app/src/.cache/
+```
+
 **Test the classifier:**
 ```bash
 cd app/src
