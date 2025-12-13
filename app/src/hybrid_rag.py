@@ -96,7 +96,12 @@ class HybridRAG:
         Returns:
             Dictionary with answer and metadata
         """
-        k = k or self.top_k
+        # Detect if query needs comprehensive answer (listing multiple items)
+        is_comprehensive = self._is_comprehensive_query(question)
+
+        # Use larger k for comprehensive queries
+        if k is None:
+            k = self.top_k * 2 if is_comprehensive else self.top_k
 
         # Detect language if auto
         if language == "auto":
@@ -118,7 +123,8 @@ class HybridRAG:
         # Generate answer with conversation context
         answer = self._generate_answer(
             question, results, language,
-            conversation_history=conversation_history
+            conversation_history=conversation_history,
+            is_comprehensive=is_comprehensive
         )
 
         return {
@@ -291,16 +297,21 @@ class HybridRAG:
         question: str,
         results: List[Dict],
         language: str,
-        conversation_history: List[Dict] = None
+        conversation_history: List[Dict] = None,
+        is_comprehensive: bool = False
     ) -> str:
         """Generate answer using LLM with optional conversation context"""
         if not results:
             return self._no_results_message(language)
 
+        # Use more context for comprehensive queries
+        max_results = 10 if is_comprehensive else 5
+        max_content_length = 800 if is_comprehensive else 500
+
         # Build document context
         context_parts = []
-        for i, r in enumerate(results[:5], 1):
-            content = r["content"][:500]
+        for i, r in enumerate(results[:max_results], 1):
+            content = r["content"][:max_content_length]
             context_parts.append(f"[{i}] {content}")
             if r.get("entities"):
                 context_parts.append(f"    Related entities: {', '.join(r['entities'])}")
@@ -328,9 +339,19 @@ Previous conversation:
 
 """
 
+        # Comprehensive instruction for list-type queries
+        comprehensive_instruction = ""
+        if is_comprehensive:
+            if language == "ko":
+                comprehensive_instruction = "\n중요: 문서에서 찾은 모든 관련 항목을 빠짐없이 나열해주세요. 하나만 언급하지 말고 전체 목록을 제공하세요.\n"
+            elif language == "ja":
+                comprehensive_instruction = "\n重要: ドキュメントで見つかったすべての関連項目を漏れなくリストアップしてください。\n"
+            else:
+                comprehensive_instruction = "\nIMPORTANT: List ALL relevant items found in the documents. Do not mention just one item if there are multiple.\n"
+
         # Generate answer with conversation context
         prompt = f"""Based on the context below, answer the question.
-{lang_instruction}
+{lang_instruction}{comprehensive_instruction}
 {conversation_context}Document Context:
 {context}
 
@@ -397,6 +418,69 @@ Answer (consider the previous conversation if relevant):"""
         elif japanese_count > korean_count and japanese_count > len(text) * 0.1:
             return "ja"
         return "en"
+
+    def _is_comprehensive_query(self, text: str) -> bool:
+        """
+        Detect if query requires comprehensive answer (listing multiple items)
+
+        Patterns that indicate comprehensive queries:
+        - Asking for tools, options, methods (plural or list-type)
+        - Korean: ~들, 목록, 종류, 알려주세요, 무엇이 있나요
+        - Japanese: ~たち, 一覧, 種類, 教えてください
+        - English: all, list, what are, types of
+        """
+        text_lower = text.lower()
+
+        # Korean patterns for comprehensive queries
+        korean_patterns = [
+            r'알려주세요',      # Tell me (about)
+            r'알려줘',          # Tell me (casual)
+            r'무엇이\s*있',     # What are there
+            r'뭐가\s*있',       # What's there (casual)
+            r'어떤\s*것들?이',  # What kinds of
+            r'종류',            # Types/kinds
+            r'목록',            # List
+            r'들이?\s*(있|뭐)', # Plural marker + existence
+            r'모든',            # All
+            r'전체',            # Entire/whole
+            r'옵션',            # Options
+            r'방법들',          # Methods (plural)
+            r'툴|도구',         # Tools
+        ]
+
+        # Japanese patterns
+        japanese_patterns = [
+            r'教えてください',   # Please tell me
+            r'何がありますか',   # What is there
+            r'どんな.*があり',   # What kinds are there
+            r'種類',            # Types
+            r'一覧',            # List
+            r'すべて',          # All
+            r'全て',            # All (kanji)
+            r'オプション',      # Options
+            r'ツール',          # Tools
+        ]
+
+        # English patterns
+        english_patterns = [
+            r'\ball\b',         # all
+            r'\blist\b',        # list
+            r'what are',        # what are
+            r'types of',        # types of
+            r'kinds of',        # kinds of
+            r'options',         # options
+            r'tools',           # tools
+            r'methods',         # methods
+            r'which.*are',      # which ... are
+        ]
+
+        all_patterns = korean_patterns + japanese_patterns + english_patterns
+
+        for pattern in all_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
+
+        return False
 
     def _get_language_instruction(self, language: str) -> str:
         """Get language instruction for prompt"""
