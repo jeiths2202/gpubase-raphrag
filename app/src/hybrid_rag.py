@@ -1,0 +1,459 @@
+"""
+Hybrid RAG Module for GraphRAG System
+Orchestrates Vector RAG and Graph RAG based on query classification
+"""
+import re
+from typing import List, Dict, Any, Optional
+from langchain_openai import ChatOpenAI
+from langchain_community.graphs import Neo4jGraph
+from config import config
+from embeddings import NeMoEmbeddingService
+from query_router import QueryRouter, QueryType
+from vector_rag import VectorRAG
+
+
+class HybridRAG:
+    """
+    Hybrid RAG system combining Vector and Graph-based retrieval
+
+    - Automatically routes queries to appropriate strategy
+    - Merges and reranks results from multiple sources
+    - Generates unified responses
+    """
+
+    def __init__(
+        self,
+        neo4j_uri: Optional[str] = None,
+        neo4j_user: Optional[str] = None,
+        neo4j_password: Optional[str] = None,
+        llm_url: Optional[str] = None,
+        llm_model: Optional[str] = None,
+        embedding_url: Optional[str] = None
+    ):
+        """
+        Initialize HybridRAG system
+
+        Args:
+            neo4j_uri: Neo4j connection URI
+            neo4j_user: Neo4j username
+            neo4j_password: Neo4j password
+            llm_url: LLM API URL
+            llm_model: LLM model name
+            embedding_url: Embedding API URL
+        """
+        # Neo4j connection
+        self.graph = Neo4jGraph(
+            url=neo4j_uri or config.neo4j.uri,
+            username=neo4j_user or config.neo4j.user,
+            password=neo4j_password or config.neo4j.password
+        )
+
+        # LLM
+        self.llm = ChatOpenAI(
+            base_url=(llm_url or config.llm.api_url).replace("/chat/completions", ""),
+            model=llm_model or config.llm.model,
+            api_key="not-needed",
+            temperature=0.1
+        )
+
+        # Embedding service
+        self.embedding_service = NeMoEmbeddingService(
+            base_url=embedding_url or config.embedding.api_url
+        )
+
+        # Query router
+        self.router = QueryRouter(self.llm)
+
+        # Vector RAG
+        self.vector_rag = VectorRAG(
+            graph=self.graph,
+            embedding_service=self.embedding_service,
+            llm=self.llm
+        )
+
+        # Configuration
+        self.vector_weight = config.rag.vector_weight
+        self.top_k = config.rag.top_k
+
+    def query(
+        self,
+        question: str,
+        strategy: str = "auto",
+        language: str = "auto",
+        k: int = None
+    ) -> Dict[str, Any]:
+        """
+        Answer a question using hybrid RAG
+
+        Args:
+            question: The user's question
+            strategy: RAG strategy (auto, vector, graph, hybrid)
+            language: Response language (auto, ko, ja, en)
+            k: Number of results to retrieve
+
+        Returns:
+            Dictionary with answer and metadata
+        """
+        k = k or self.top_k
+
+        # Detect language if auto
+        if language == "auto":
+            language = self._detect_language(question)
+
+        # Determine strategy
+        if strategy == "auto":
+            query_type = self.router.classify_query(question)
+            strategy = query_type.value
+
+        # Execute appropriate strategy
+        if strategy == "vector":
+            results = self._vector_search(question, k)
+        elif strategy == "graph":
+            results = self._graph_search(question, k)
+        else:  # hybrid
+            results = self._hybrid_search(question, k)
+
+        # Generate answer
+        answer = self._generate_answer(question, results, language)
+
+        return {
+            "answer": answer,
+            "strategy": strategy,
+            "language": language,
+            "sources": len(results),
+            "results": results[:3]  # Top 3 for reference
+        }
+
+    def _vector_search(self, query: str, k: int) -> List[Dict]:
+        """Execute vector similarity search"""
+        return self.vector_rag.search_similar(query, k=k)
+
+    def _graph_search(self, query: str, k: int) -> List[Dict]:
+        """Execute graph-based search with entity traversal"""
+        # Extract keywords for search
+        keywords = self._extract_keywords(query)
+
+        if not keywords:
+            # Fallback to simple content search
+            results = self.graph.query(
+                """
+                MATCH (c:Chunk)
+                OPTIONAL MATCH (c)-[:MENTIONS]->(e:Entity)
+                OPTIONAL MATCH (d:Document)-[:CONTAINS]->(c)
+                RETURN
+                    c.id AS chunk_id,
+                    c.content AS content,
+                    c.index AS chunk_index,
+                    d.id AS doc_id,
+                    collect(DISTINCT e.name)[..5] AS entities
+                ORDER BY c.index
+                LIMIT $k
+                """,
+                {"k": k}
+            )
+        else:
+            # Search with keywords
+            keyword = keywords[0]  # Primary keyword
+            results = self.graph.query(
+                """
+                MATCH (c:Chunk)
+                WHERE c.content CONTAINS $keyword
+                OPTIONAL MATCH (c)-[:MENTIONS]->(e:Entity)
+                OPTIONAL MATCH (d:Document)-[:CONTAINS]->(c)
+                WITH c, d, collect(DISTINCT e.name)[..5] AS entities
+                RETURN
+                    c.id AS chunk_id,
+                    c.content AS content,
+                    c.index AS chunk_index,
+                    d.id AS doc_id,
+                    entities
+                ORDER BY c.index
+                LIMIT $k
+                """,
+                {"keyword": keyword, "k": k}
+            )
+
+        return [
+            {
+                "chunk_id": r["chunk_id"],
+                "content": r["content"],
+                "chunk_index": r["chunk_index"],
+                "doc_id": r["doc_id"],
+                "entities": r["entities"] or [],
+                "score": 1.0,  # Graph results don't have similarity scores
+                "source": "graph"
+            }
+            for r in results
+        ]
+
+    def _hybrid_search(self, query: str, k: int) -> List[Dict]:
+        """Execute both vector and graph search, merge results"""
+        # Get results from both sources
+        vector_results = self._vector_search(query, k)
+        graph_results = self._graph_search(query, k)
+
+        # Merge and deduplicate
+        merged = self._merge_results(vector_results, graph_results)
+
+        # Rerank
+        reranked = self._rerank_results(merged, query)
+
+        return reranked[:k]
+
+    def _merge_results(
+        self,
+        vector_results: List[Dict],
+        graph_results: List[Dict]
+    ) -> List[Dict]:
+        """Merge results from vector and graph search"""
+        seen_chunks = set()
+        merged = []
+
+        # Process vector results first (with similarity scores)
+        for result in vector_results:
+            chunk_id = result["chunk_id"]
+            if chunk_id not in seen_chunks:
+                result["combined_score"] = result["score"] * self.vector_weight
+                merged.append(result)
+                seen_chunks.add(chunk_id)
+
+        # Process graph results
+        graph_weight = 1.0 - self.vector_weight
+        for result in graph_results:
+            chunk_id = result["chunk_id"]
+            if chunk_id not in seen_chunks:
+                result["combined_score"] = result.get("score", 0.5) * graph_weight
+                merged.append(result)
+                seen_chunks.add(chunk_id)
+            else:
+                # Boost score for chunks found by both methods
+                for m in merged:
+                    if m["chunk_id"] == chunk_id:
+                        m["combined_score"] += result.get("score", 0.5) * graph_weight
+                        m["source"] = "hybrid"
+                        break
+
+        return merged
+
+    def _rerank_results(self, results: List[Dict], query: str) -> List[Dict]:
+        """Rerank merged results"""
+        # Sort by combined score
+        sorted_results = sorted(
+            results,
+            key=lambda x: x.get("combined_score", 0),
+            reverse=True
+        )
+
+        # Boost results with query keywords in content
+        keywords = self._extract_keywords(query)
+        for result in sorted_results:
+            content_lower = result["content"].lower()
+            keyword_matches = sum(1 for kw in keywords if kw.lower() in content_lower)
+            if keyword_matches > 0:
+                result["combined_score"] *= (1 + 0.1 * keyword_matches)
+
+        # Re-sort after boosting
+        return sorted(sorted_results, key=lambda x: x.get("combined_score", 0), reverse=True)
+
+    def _generate_answer(
+        self,
+        question: str,
+        results: List[Dict],
+        language: str
+    ) -> str:
+        """Generate answer using LLM"""
+        if not results:
+            return self._no_results_message(language)
+
+        # Build context
+        context_parts = []
+        for i, r in enumerate(results[:5], 1):
+            content = r["content"][:500]
+            context_parts.append(f"[{i}] {content}")
+            if r.get("entities"):
+                context_parts.append(f"    Related entities: {', '.join(r['entities'])}")
+
+        context = "\n\n".join(context_parts)
+
+        # Language instruction
+        lang_instruction = self._get_language_instruction(language)
+
+        # Generate answer
+        prompt = f"""Based on the context below, answer the question.
+{lang_instruction}
+
+Context:
+{context}
+
+Question: {question}
+
+Answer:"""
+
+        response = self.llm.invoke(prompt)
+        answer = response.content
+
+        # Clean thinking tokens
+        answer = self._clean_response(answer)
+
+        return answer
+
+    def _extract_keywords(self, text: str) -> List[str]:
+        """Extract keywords from text"""
+        # Error codes (high priority)
+        error_codes = re.findall(r'[A-Z_]+ERR[A-Z_]*|[A-Z]+-\d+', text)
+        if error_codes:
+            return error_codes
+
+        # Technical terms (capitalized words)
+        tech_terms = re.findall(r'\b[A-Z][a-zA-Z]*[A-Z][a-zA-Z]*\b', text)
+        if tech_terms:
+            return list(set(tech_terms))[:3]
+
+        # Regular nouns (basic extraction)
+        words = text.split()
+        # Filter short words and common words
+        stop_words = {"the", "a", "an", "is", "are", "was", "were", "what", "how", "why", "which"}
+        keywords = [w for w in words if len(w) > 3 and w.lower() not in stop_words]
+
+        return keywords[:3]
+
+    def _detect_language(self, text: str) -> str:
+        """Detect language of text"""
+        korean_count = len(re.findall(r'[\uac00-\ud7af]', text))
+        japanese_count = len(re.findall(r'[\u3040-\u309f\u30a0-\u30ff]', text))
+
+        if korean_count > japanese_count and korean_count > len(text) * 0.1:
+            return "ko"
+        elif japanese_count > korean_count and japanese_count > len(text) * 0.1:
+            return "ja"
+        return "en"
+
+    def _get_language_instruction(self, language: str) -> str:
+        """Get language instruction for prompt"""
+        if language == "ko":
+            return "Please respond in Korean (한국어로 답변해주세요)."
+        elif language == "ja":
+            return "Please respond in Japanese (日本語で回答してください)."
+        return ""
+
+    def _no_results_message(self, language: str) -> str:
+        """Get no results message in appropriate language"""
+        if language == "ko":
+            return "관련 정보를 찾을 수 없습니다."
+        elif language == "ja":
+            return "関連情報が見つかりません。"
+        return "No relevant information found."
+
+    def _clean_response(self, text: str) -> str:
+        """Clean LLM response"""
+        # Remove thinking tokens
+        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
+        return text.strip()
+
+    def init_system(self) -> Dict[str, bool]:
+        """
+        Initialize the hybrid RAG system
+
+        Returns:
+            Status of each component
+        """
+        status = {}
+
+        # Check embedding service
+        status["embedding_service"] = self.embedding_service.health_check()
+
+        # Initialize vector index
+        status["vector_index"] = self.vector_rag.init_vector_index()
+
+        # Check graph connection
+        try:
+            self.graph.query("RETURN 1")
+            status["graph_connection"] = True
+        except Exception:
+            status["graph_connection"] = False
+
+        return status
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get system statistics"""
+        # Vector stats
+        vector_stats = self.vector_rag.get_vector_stats()
+
+        # Graph stats
+        try:
+            graph_stats = self.graph.query(
+                """
+                MATCH (d:Document) WITH count(d) as docs
+                MATCH (c:Chunk) WITH docs, count(c) as chunks
+                MATCH (e:Entity) WITH docs, chunks, count(e) as entities
+                MATCH ()-[r]->() WITH docs, chunks, entities, count(r) as rels
+                RETURN docs, chunks, entities, rels
+                """
+            )
+            if graph_stats:
+                graph_stats = graph_stats[0]
+            else:
+                graph_stats = {"docs": 0, "chunks": 0, "entities": 0, "rels": 0}
+        except Exception:
+            graph_stats = {"docs": 0, "chunks": 0, "entities": 0, "rels": 0}
+
+        return {
+            "documents": graph_stats["docs"],
+            "chunks": graph_stats["chunks"],
+            "entities": graph_stats["entities"],
+            "relationships": graph_stats["rels"],
+            "embeddings": vector_stats["with_embedding"],
+            "embedding_coverage": f"{vector_stats['coverage']:.1f}%"
+        }
+
+
+def get_hybrid_rag() -> HybridRAG:
+    """Get a configured HybridRAG instance"""
+    return HybridRAG()
+
+
+if __name__ == "__main__":
+    # Test HybridRAG
+    print("Testing Hybrid RAG System...")
+    print("=" * 50)
+
+    rag = HybridRAG()
+
+    # Initialize system
+    print("\n1. Initializing system...")
+    status = rag.init_system()
+    for component, ok in status.items():
+        print(f"   {component}: {'OK' if ok else 'FAILED'}")
+
+    # Get stats
+    print("\n2. System statistics:")
+    stats = rag.get_stats()
+    for key, value in stats.items():
+        print(f"   {key}: {value}")
+
+    # Test queries
+    print("\n3. Testing queries...")
+
+    test_queries = [
+        ("What is GraphRAG?", "vector"),
+        ("What is the relationship between Document and Chunk?", "graph"),
+        ("Explain how entity extraction works in detail", "hybrid"),
+    ]
+
+    for question, expected_strategy in test_queries:
+        print(f"\n   Q: {question}")
+
+        # Classify
+        query_type = rag.router.classify_query(question)
+        print(f"   Classified as: {query_type.value} (expected: {expected_strategy})")
+
+        # Query (if system is ready)
+        if all(status.values()) and stats["chunks"] > 0:
+            result = rag.query(question, strategy="auto")
+            print(f"   Strategy used: {result['strategy']}")
+            print(f"   Sources: {result['sources']}")
+            print(f"   Answer: {result['answer'][:100]}...")
+
+    print("\n" + "=" * 50)
+    print("Hybrid RAG test completed!")

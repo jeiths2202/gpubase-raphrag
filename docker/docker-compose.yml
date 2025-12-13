@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # Nemotron LLM NIM (existing, port 12800)
+  nemotron-llm:
+    image: nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2:latest
+    runtime: nvidia
+    ports:
+      - "12800:8000"
+    environment:
+      - NGC_API_KEY=${NGC_API_KEY}
+    volumes:
+      - nim_llm_cache:/opt/nim/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['7']
+              capabilities: [gpu]
+    shm_size: '16gb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # NeMo Embedding NIM (new, port 12801)
+  nemo-embedding:
+    image: nvcr.io/nim/nvidia/nv-embedqa-mistral-7b-v2:latest
+    runtime: nvidia
+    ports:
+      - "12801:8000"
+    environment:
+      - NGC_API_KEY=${NGC_API_KEY}
+      - NIM_TRITON_PERFORMANCE_MODE=latency
+    volumes:
+      - nim_embed_cache:/opt/nim/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['4', '5']
+              capabilities: [gpu]
+    shm_size: '16gb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Neo4j Graph Database
+  neo4j:
+    image: neo4j:5.26-enterprise
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER}/${NEO4J_PASSWORD}
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+    volumes:
+      - ../neo4j/data:/data
+      - ../neo4j/logs:/logs
+      - ../neo4j/plugins:/plugins
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7474"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  nim_llm_cache:
+  nim_embed_cache:

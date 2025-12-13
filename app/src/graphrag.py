@@ -1,14 +1,22 @@
 """
 GraphRAG System using Nemotron NIM + Neo4J + LangChain
+Supports both Graph RAG and Vector RAG (Hybrid mode)
 """
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_community.graphs import Neo4jGraph
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 load_dotenv()
+
+# Optional: Import embedding service for hybrid mode
+try:
+    from embeddings import NeMoEmbeddingService
+    EMBEDDINGS_AVAILABLE = True
+except ImportError:
+    EMBEDDINGS_AVAILABLE = False
 
 class GraphRAG:
     def __init__(
@@ -17,7 +25,9 @@ class GraphRAG:
         llm_model: str = "nvidia/nvidia-nemotron-nano-9b-v2",
         neo4j_uri: str = "bolt://localhost:7687",
         neo4j_user: str = "neo4j",
-        neo4j_password: str = "graphrag2024"
+        neo4j_password: str = "graphrag2024",
+        enable_embeddings: bool = False,
+        embedding_url: str = "http://localhost:12801/v1"
     ):
         self.llm = ChatOpenAI(
             base_url=llm_url,
@@ -37,6 +47,17 @@ class GraphRAG:
             chunk_overlap=200
         )
 
+        # Optional embedding service for hybrid mode
+        self.embedding_service = None
+        self.enable_embeddings = enable_embeddings
+        if enable_embeddings and EMBEDDINGS_AVAILABLE:
+            try:
+                self.embedding_service = NeMoEmbeddingService(base_url=embedding_url)
+                print("Embedding service initialized")
+            except Exception as e:
+                print(f"Embedding service not available: {e}")
+                self.enable_embeddings = False
+
         self._init_schema()
 
     def _init_schema(self):
@@ -51,6 +72,23 @@ class GraphRAG:
             except Exception as e:
                 print(f"Schema warning: {e}")
 
+        # Create vector index if embeddings are enabled
+        if self.enable_embeddings:
+            try:
+                self.graph.query("""
+                    CREATE VECTOR INDEX chunk_embedding IF NOT EXISTS
+                    FOR (c:Chunk) ON (c.embedding)
+                    OPTIONS {
+                        indexConfig: {
+                            `vector.dimensions`: 4096,
+                            `vector.similarity_function`: 'cosine'
+                        }
+                    }
+                """)
+                print("Vector index created/verified")
+            except Exception as e:
+                print(f"Vector index warning: {e}")
+
     def add_document(self, content: str, metadata: Dict[str, Any] = None) -> str:
         import hashlib
         doc_id = hashlib.md5(content[:100].encode()).hexdigest()[:12]
@@ -62,19 +100,41 @@ class GraphRAG:
 
         chunks = self.text_splitter.split_text(content)
 
+        # Generate embeddings in batch if enabled
+        embeddings = None
+        if self.enable_embeddings and self.embedding_service:
+            try:
+                embeddings = self.embedding_service.embed_batch(chunks, input_type="passage")
+            except Exception as e:
+                print(f"Batch embedding error: {e}")
+
         for i, chunk in enumerate(chunks):
             chunk_id = f"{doc_id}_chunk_{i}"
 
-            self.graph.query(
-                """
-                MERGE (c:Chunk {id: $chunk_id})
-                SET c.content = $content, c.index = $index
-                WITH c
-                MATCH (d:Document {id: $doc_id})
-                MERGE (d)-[:CONTAINS]->(c)
-                """,
-                {"chunk_id": chunk_id, "content": chunk, "index": i, "doc_id": doc_id}
-            )
+            # Include embedding if available
+            if embeddings and i < len(embeddings):
+                self.graph.query(
+                    """
+                    MERGE (c:Chunk {id: $chunk_id})
+                    SET c.content = $content, c.index = $index, c.embedding = $embedding
+                    WITH c
+                    MATCH (d:Document {id: $doc_id})
+                    MERGE (d)-[:CONTAINS]->(c)
+                    """,
+                    {"chunk_id": chunk_id, "content": chunk, "index": i,
+                     "doc_id": doc_id, "embedding": embeddings[i]}
+                )
+            else:
+                self.graph.query(
+                    """
+                    MERGE (c:Chunk {id: $chunk_id})
+                    SET c.content = $content, c.index = $index
+                    WITH c
+                    MATCH (d:Document {id: $doc_id})
+                    MERGE (d)-[:CONTAINS]->(c)
+                    """,
+                    {"chunk_id": chunk_id, "content": chunk, "index": i, "doc_id": doc_id}
+                )
 
             entities = self._extract_entities(chunk)
 
