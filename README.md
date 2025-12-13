@@ -161,7 +161,61 @@ pip install -r app/requirements.txt
 
 ```bash
 cd docker
-docker-compose up -d
+
+# Start all services (with health check)
+./start-services.sh
+
+# Check service status
+./status-services.sh
+
+# Stop services (data preserved)
+./stop-services.sh
+```
+
+**Service Management Scripts:**
+
+| Script | Description |
+|--------|-------------|
+| `start-services.sh` | Start all containers with health monitoring |
+| `stop-services.sh` | Graceful shutdown (data persisted) |
+| `status-services.sh` | Check health, GPU usage, disk usage |
+
+**Data Persistence:**
+
+All data is stored in bind-mounted directories and persists across container restarts:
+
+| Service | Data Location | Description |
+|---------|---------------|-------------|
+| Neo4j | `neo4j/data/` | Graph database |
+| Nemotron LLM | `data/nim_llm_cache/` | Model cache |
+| NeMo Embedding | `data/nim_embed_cache/` | Embedding cache |
+| Mistral Coder | `data/huggingface_cache/` | HuggingFace models |
+
+**Status Check Example:**
+```
+$ ./status-services.sh
+
+Container Status:
+------------------------------------------------------------
+NAMES                         STATUS              PORTS
+neo4j-graphrag                Up 10 hours         7474, 7687
+nemotron-graphrag             Up 10 hours         12800
+docker-nemo-embedding-1       Up 5 hours          12801
+docker-mistral-nemo-coder-1   Up 2 hours          12802
+
+Health Check:
+------------------------------------------------------------
+  Neo4j               : OK
+  Nemotron LLM        : OK
+  NeMo Embedding      : OK
+  Mistral Coder       : OK
+
+GPU Usage:
+------------------------------------------------------------
+  GPU 0:  37485/40960 MB - Mistral Coder
+  GPU 4:  35865/40960 MB - NeMo Embedding
+  GPU 5:  35865/40960 MB - NeMo Embedding
+  GPU 7:  36681/40960 MB - Nemotron LLM
 ```
 
 ### 2. Run Interactive Chat
