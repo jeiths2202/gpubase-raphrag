@@ -3,8 +3,10 @@ Query Router for GraphRAG Hybrid System
 Classifies queries and routes to appropriate RAG strategy
 """
 import re
+import math
+import numpy as np
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 from langchain_openai import ChatOpenAI
 from config import config
 
@@ -14,6 +16,224 @@ class QueryType(Enum):
     VECTOR = "vector"    # Semantic similarity search
     GRAPH = "graph"      # Relationship/entity traversal
     HYBRID = "hybrid"    # Both approaches combined
+
+
+class EmbeddingClassifier:
+    """
+    Embedding-based query classifier using prototype vectors
+
+    Uses cosine similarity between query embedding and prototype embeddings
+    for each query type to compute classification probabilities.
+    """
+
+    # Prototype queries for each type (multilingual)
+    VECTOR_PROTOTYPES = [
+        # English - definitions, explanations
+        "What is this?",
+        "Explain how it works",
+        "Describe the process",
+        "Tell me about this feature",
+        "What does this mean?",
+        # Korean - 정의, 설명
+        "이것이 무엇인가요?",
+        "설명해주세요",
+        "이란 무엇인가요",
+        "방법을 알려주세요",
+        "어떻게 사용하나요?",
+        # Japanese - 定義、説明
+        "これは何ですか？",
+        "説明してください",
+        "とは何ですか",
+        "方法を教えてください",
+    ]
+
+    GRAPH_PROTOTYPES = [
+        # English - relationships, comparisons
+        "What is the relationship between A and B?",
+        "Compare these two options",
+        "List all available items",
+        "What are the differences?",
+        "How are they connected?",
+        # Korean - 관계, 비교
+        "A와 B의 관계는?",
+        "비교해주세요",
+        "모든 목록을 보여주세요",
+        "차이점이 뭔가요?",
+        "어떻게 연결되어 있나요?",
+        # Japanese - 関係、比較
+        "AとBの関係は？",
+        "比較してください",
+        "すべてのリストを見せてください",
+        "違いは何ですか？",
+    ]
+
+    HYBRID_PROTOTYPES = [
+        # English - troubleshooting, analysis
+        "How to fix this error?",
+        "What is the cause and solution?",
+        "Analyze the problem in detail",
+        "Why does this error occur and how to resolve it?",
+        "Troubleshoot this issue",
+        # Korean - 문제해결, 분석
+        "에러 해결 방법은?",
+        "원인과 해결방법을 알려주세요",
+        "문제를 상세히 분석해주세요",
+        "왜 이 에러가 발생하고 어떻게 해결하나요?",
+        "조치 방법을 알려주세요",
+        # Japanese - トラブルシューティング、分析
+        "エラーの解決方法は？",
+        "原因と対処方法を教えてください",
+        "問題を詳しく分析してください",
+        "なぜこのエラーが発生し、どう解決しますか？",
+    ]
+
+    def __init__(self, embedding_service=None):
+        """
+        Initialize the embedding classifier
+
+        Args:
+            embedding_service: NeMoEmbeddingService instance (lazy loaded if None)
+        """
+        self._embedding_service = embedding_service
+        self._prototypes: Dict[str, np.ndarray] = {}
+        self._initialized = False
+
+    @property
+    def embedding_service(self):
+        """Lazy load embedding service"""
+        if self._embedding_service is None:
+            from embeddings import NeMoEmbeddingService
+            self._embedding_service = NeMoEmbeddingService()
+        return self._embedding_service
+
+    def _cosine_similarity(self, vec1: np.ndarray, vec2: np.ndarray) -> float:
+        """Compute cosine similarity between two vectors"""
+        dot_product = np.dot(vec1, vec2)
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+        return dot_product / (norm1 * norm2)
+
+    def _softmax(self, scores: List[float], temperature: float = 1.0) -> List[float]:
+        """Apply softmax to convert scores to probabilities"""
+        # Scale scores by temperature
+        scaled = [s / temperature for s in scores]
+        # Subtract max for numerical stability
+        max_score = max(scaled)
+        exp_scores = [math.exp(s - max_score) for s in scaled]
+        sum_exp = sum(exp_scores)
+        return [e / sum_exp for e in exp_scores]
+
+    def initialize(self) -> bool:
+        """
+        Initialize prototype embeddings
+
+        Returns:
+            True if initialization successful
+        """
+        if self._initialized:
+            return True
+
+        try:
+            print("Initializing embedding classifier prototypes...")
+
+            # Generate embeddings for each prototype set
+            for query_type, prototypes in [
+                ("vector", self.VECTOR_PROTOTYPES),
+                ("graph", self.GRAPH_PROTOTYPES),
+                ("hybrid", self.HYBRID_PROTOTYPES)
+            ]:
+                embeddings = self.embedding_service.embed_batch(prototypes, input_type="query")
+                # Compute mean prototype vector
+                self._prototypes[query_type] = np.mean(embeddings, axis=0)
+                print(f"  {query_type}: {len(prototypes)} prototypes -> {len(self._prototypes[query_type])}d vector")
+
+            self._initialized = True
+            print("Embedding classifier initialized successfully")
+            return True
+
+        except Exception as e:
+            print(f"Failed to initialize embedding classifier: {e}")
+            return False
+
+    def classify(self, query: str, temperature: float = 0.5) -> Dict[str, float]:
+        """
+        Classify query using embedding similarity
+
+        Args:
+            query: The user's query
+            temperature: Softmax temperature (lower = more confident)
+
+        Returns:
+            Dictionary with probabilities for each query type
+        """
+        if not self._initialized:
+            if not self.initialize():
+                # Return uniform distribution if initialization fails
+                return {"vector": 0.33, "graph": 0.33, "hybrid": 0.34}
+
+        try:
+            # Generate query embedding
+            query_embedding = np.array(
+                self.embedding_service.embed_text(query, input_type="query")
+            )
+
+            # Compute similarity to each prototype
+            similarities = []
+            for query_type in ["vector", "graph", "hybrid"]:
+                sim = self._cosine_similarity(query_embedding, self._prototypes[query_type])
+                similarities.append(sim)
+
+            # Convert to probabilities
+            probs = self._softmax(similarities, temperature=temperature)
+
+            return {
+                "vector": probs[0],
+                "graph": probs[1],
+                "hybrid": probs[2]
+            }
+
+        except Exception as e:
+            print(f"Embedding classification error: {e}")
+            return {"vector": 0.33, "graph": 0.33, "hybrid": 0.34}
+
+    def get_classification_details(self, query: str) -> Dict:
+        """
+        Get detailed classification information
+
+        Args:
+            query: The user's query
+
+        Returns:
+            Dictionary with similarities, probabilities, and recommended type
+        """
+        if not self._initialized:
+            self.initialize()
+
+        try:
+            query_embedding = np.array(
+                self.embedding_service.embed_text(query, input_type="query")
+            )
+
+            similarities = {}
+            for query_type in ["vector", "graph", "hybrid"]:
+                similarities[query_type] = self._cosine_similarity(
+                    query_embedding, self._prototypes[query_type]
+                )
+
+            probs = self.classify(query)
+            recommended = max(probs, key=probs.get)
+
+            return {
+                "similarities": similarities,
+                "probabilities": probs,
+                "recommended": recommended,
+                "confidence": probs[recommended]
+            }
+
+        except Exception as e:
+            return {"error": str(e)}
 
 
 class QueryRouter:
@@ -141,12 +361,19 @@ class QueryRouter:
     # Keywords that indicate error codes (substrings)
     ERROR_CODE_KEYWORDS = ['ERR', 'ERROR', 'FAIL', 'EXCEPTION', 'FAULT']
 
-    def __init__(self, llm: Optional[ChatOpenAI] = None):
+    def __init__(
+        self,
+        llm: Optional[ChatOpenAI] = None,
+        embedding_service=None,
+        use_embedding_classifier: bool = True
+    ):
         """
         Initialize the query router
 
         Args:
             llm: Optional LLM for advanced classification
+            embedding_service: Optional embedding service for embedding classifier
+            use_embedding_classifier: Whether to use embedding-based classification
         """
         self.llm = llm or ChatOpenAI(
             base_url=config.llm.api_url.replace("/chat/completions", ""),
@@ -154,6 +381,22 @@ class QueryRouter:
             api_key="not-needed",
             temperature=0.1
         )
+
+        # Initialize embedding classifier (lazy initialization)
+        self.use_embedding_classifier = use_embedding_classifier
+        self._embedding_classifier: Optional[EmbeddingClassifier] = None
+        self._embedding_service = embedding_service
+
+        # Weights for hybrid classification
+        self.rule_weight = 0.5      # Rule-based score weight
+        self.embedding_weight = 0.5  # Embedding-based score weight
+
+    @property
+    def embedding_classifier(self) -> EmbeddingClassifier:
+        """Lazy load embedding classifier"""
+        if self._embedding_classifier is None:
+            self._embedding_classifier = EmbeddingClassifier(self._embedding_service)
+        return self._embedding_classifier
 
     def _has_error_code(self, query: str) -> bool:
         """
@@ -178,29 +421,99 @@ class QueryRouter:
 
         return False
 
-    def classify_query(self, query: str) -> QueryType:
+    def classify_query(self, query: str, method: str = "hybrid") -> QueryType:
         """
         Classify a query to determine the best RAG strategy
 
         Args:
             query: The user's question
+            method: Classification method - "rule", "embedding", "hybrid", or "llm"
 
         Returns:
             QueryType indicating recommended strategy
         """
-        # First try rule-based classification (fast)
-        rule_result = self._rule_based_classify(query)
-        if rule_result is not None:
-            return rule_result
+        if method == "rule":
+            result = self._rule_based_classify(query)
+            return result if result else QueryType.VECTOR
 
-        # Fall back to LLM-based classification (more accurate)
-        return self._llm_classify(query)
+        elif method == "embedding":
+            if not self.use_embedding_classifier:
+                return self._rule_based_classify(query) or QueryType.VECTOR
+            return self._embedding_classify(query)
 
-    def _rule_based_classify(self, query: str) -> Optional[QueryType]:
+        elif method == "llm":
+            return self._llm_classify(query)
+
+        else:  # hybrid (default)
+            return self._hybrid_classify(query)
+
+    def _embedding_classify(self, query: str) -> QueryType:
         """
-        Rule-based query classification using keyword matching
+        Classify using embedding similarity only
 
-        Returns None if no clear match, indicating LLM should be used
+        Args:
+            query: The user's question
+
+        Returns:
+            QueryType based on embedding similarity
+        """
+        probs = self.embedding_classifier.classify(query)
+        max_type = max(probs, key=probs.get)
+        return QueryType(max_type)
+
+    def _hybrid_classify(self, query: str) -> QueryType:
+        """
+        Hybrid classification combining rule-based and embedding-based approaches
+
+        Args:
+            query: The user's question
+
+        Returns:
+            QueryType based on combined scores
+        """
+        # Get rule-based scores
+        rule_scores = self._get_rule_scores(query)
+
+        # Check for high-confidence rule matches (error codes, etc.)
+        max_rule_score = max(rule_scores.values())
+        if max_rule_score >= 8:  # High confidence from rules (e.g., error codes)
+            max_type = max(rule_scores, key=rule_scores.get)
+            return QueryType(max_type)
+
+        # Get embedding-based probabilities
+        if self.use_embedding_classifier:
+            try:
+                emb_probs = self.embedding_classifier.classify(query)
+            except Exception:
+                emb_probs = {"vector": 0.33, "graph": 0.33, "hybrid": 0.34}
+        else:
+            emb_probs = {"vector": 0.33, "graph": 0.33, "hybrid": 0.34}
+
+        # Normalize rule scores to probabilities
+        rule_sum = sum(rule_scores.values()) or 1
+        rule_probs = {k: v / rule_sum for k, v in rule_scores.items()}
+
+        # Combine scores
+        combined = {}
+        for query_type in ["vector", "graph", "hybrid"]:
+            combined[query_type] = (
+                rule_probs.get(query_type, 0) * self.rule_weight +
+                emb_probs.get(query_type, 0) * self.embedding_weight
+            )
+
+        # Return type with highest combined score
+        max_type = max(combined, key=combined.get)
+        return QueryType(max_type)
+
+    def _get_rule_scores(self, query: str) -> Dict[str, float]:
+        """
+        Get raw scores from rule-based classification
+
+        Args:
+            query: The user's question
+
+        Returns:
+            Dictionary with scores for each query type
         """
         query_lower = query.lower()
 
@@ -222,17 +535,17 @@ class QueryRouter:
 
         for pattern in self.KOREAN_GRAPH_PATTERNS:
             if re.search(pattern, query):
-                graph_score += 3  # Higher weight for graph patterns
+                graph_score += 3
 
         for pattern in self.KOREAN_HYBRID_PATTERNS:
             if re.search(pattern, query):
-                hybrid_score += 3  # Higher weight for hybrid
+                hybrid_score += 3
 
         for pattern in self.JAPANESE_HYBRID_PATTERNS:
             if re.search(pattern, query):
-                hybrid_score += 3  # Higher weight for hybrid
+                hybrid_score += 3
 
-        # Korean question ending patterns for vector (explanations, definitions)
+        # Korean question ending patterns for vector
         if re.search(r'(뭐|무엇|어떤|어떻게).*(예요|에요|인가요|일까요|입니까)\??$', query):
             vector_score += 2
         if re.search(r'(설명|알려|가르쳐).*(줘|주세요|주십시오)$', query):
@@ -250,34 +563,48 @@ class QueryRouter:
             query_lower
         )) or bool(re.search(
             r'(解決|対処|対応|修正|処理|回避|方法)',
-            query  # Japanese needs original case
+            query
         ))
 
         if has_error_code:
             if has_troubleshoot_keyword:
-                # Error code + troubleshooting -> HYBRID (need both semantic + entity search)
-                # High weight to override other patterns like "알려줘", "방법" etc.
                 hybrid_score += 10
             else:
-                # Error code only -> GRAPH (entity search for error code lookup)
-                # High weight to override patterns like "설명해줘" which prefer vector
                 graph_score += 8
 
         # Korean error/problem patterns (without specific error code)
         if not has_error_code and re.search(r'(에러|오류|문제|장애).*(해결|원인|이유)', query):
             hybrid_score += 2
 
-        # Determine winner
+        return {
+            "vector": max(vector_score, 0.1),  # Minimum score to avoid division by zero
+            "graph": max(graph_score, 0.1),
+            "hybrid": max(hybrid_score, 0.1)
+        }
+
+    def _rule_based_classify(self, query: str) -> Optional[QueryType]:
+        """
+        Rule-based query classification using keyword matching
+
+        Returns None if no clear match, indicating LLM should be used
+        """
+        scores = self._get_rule_scores(query)
+
+        vector_score = scores["vector"]
+        graph_score = scores["graph"]
+        hybrid_score = scores["hybrid"]
+
+        # Determine winner (subtract 0.1 minimum to get actual scores)
         max_score = max(vector_score, graph_score, hybrid_score)
 
-        if max_score == 0:
+        if max_score <= 0.1:
             return None  # No clear match, use LLM
 
-        if hybrid_score == max_score and hybrid_score > 0:
+        if hybrid_score == max_score and hybrid_score > 0.1:
             return QueryType.HYBRID
         elif graph_score > vector_score:
             return QueryType.GRAPH
-        elif vector_score > 0:
+        elif vector_score > 0.1:
             return QueryType.VECTOR
         else:
             return None
@@ -365,11 +692,18 @@ def get_query_router(llm: Optional[ChatOpenAI] = None) -> QueryRouter:
 
 
 if __name__ == "__main__":
+    import sys
+
     # Test the query router
     print("Testing Query Router...")
     print("=" * 60)
 
-    router = QueryRouter()
+    # Check if embedding test is requested
+    test_embedding = "--embedding" in sys.argv or "-e" in sys.argv
+    test_compare = "--compare" in sys.argv or "-c" in sys.argv
+
+    # Initialize router (without embedding classifier for basic test)
+    router = QueryRouter(use_embedding_classifier=test_embedding or test_compare)
 
     test_queries = [
         # English - Vector
@@ -421,16 +755,83 @@ if __name__ == "__main__":
         ("NVSM_ERR_SYSTEM_FWRITE エラーとは？", QueryType.GRAPH),
     ]
 
-    correct = 0
-    total = len(test_queries)
+    if test_compare:
+        # Compare rule-based vs embedding vs hybrid classification
+        print("\n[Comparison Mode: Rule vs Embedding vs Hybrid]")
+        print("-" * 80)
 
-    for query, expected in test_queries:
-        result = router.classify_query(query)
-        features = router.get_query_features(query)
-        status = "OK" if result == expected else "MISS"
-        if result == expected:
-            correct += 1
-        print(f"[{status}] '{query[:35]}' -> {result.value} (expected: {expected.value})")
+        results = {"rule": 0, "embedding": 0, "hybrid": 0}
+        total = len(test_queries)
 
-    print("=" * 60)
-    print(f"Accuracy: {correct}/{total} ({100*correct/total:.1f}%)")
+        for query, expected in test_queries:
+            rule_result = router.classify_query(query, method="rule")
+            emb_result = router.classify_query(query, method="embedding")
+            hybrid_result = router.classify_query(query, method="hybrid")
+
+            rule_ok = "✓" if rule_result == expected else "✗"
+            emb_ok = "✓" if emb_result == expected else "✗"
+            hybrid_ok = "✓" if hybrid_result == expected else "✗"
+
+            if rule_result == expected:
+                results["rule"] += 1
+            if emb_result == expected:
+                results["embedding"] += 1
+            if hybrid_result == expected:
+                results["hybrid"] += 1
+
+            print(f"Q: {query[:40]}")
+            print(f"   Expected: {expected.value}")
+            print(f"   Rule: {rule_result.value} {rule_ok} | Emb: {emb_result.value} {emb_ok} | Hybrid: {hybrid_result.value} {hybrid_ok}")
+            print()
+
+        print("=" * 80)
+        print("Accuracy Summary:")
+        for method, correct in results.items():
+            print(f"  {method:12}: {correct}/{total} ({100*correct/total:.1f}%)")
+
+    elif test_embedding:
+        # Test embedding classifier only
+        print("\n[Embedding Classifier Test]")
+        print("-" * 60)
+
+        correct = 0
+        total = len(test_queries)
+
+        for query, expected in test_queries:
+            result = router.classify_query(query, method="embedding")
+            details = router.embedding_classifier.get_classification_details(query)
+            probs = details.get("probabilities", {})
+
+            status = "OK" if result == expected else "MISS"
+            if result == expected:
+                correct += 1
+
+            print(f"[{status}] '{query[:35]}'")
+            print(f"      -> {result.value} (expected: {expected.value})")
+            print(f"      Probs: V:{probs.get('vector', 0):.2f} G:{probs.get('graph', 0):.2f} H:{probs.get('hybrid', 0):.2f}")
+
+        print("=" * 60)
+        print(f"Embedding Accuracy: {correct}/{total} ({100*correct/total:.1f}%)")
+
+    else:
+        # Standard rule-based test
+        print("\n[Rule-based Classification Test]")
+        print("-" * 60)
+
+        correct = 0
+        total = len(test_queries)
+
+        for query, expected in test_queries:
+            result = router.classify_query(query, method="rule")
+            status = "OK" if result == expected else "MISS"
+            if result == expected:
+                correct += 1
+            print(f"[{status}] '{query[:35]}' -> {result.value} (expected: {expected.value})")
+
+        print("=" * 60)
+        print(f"Rule-based Accuracy: {correct}/{total} ({100*correct/total:.1f}%)")
+
+    print("\nUsage:")
+    print("  python query_router.py           # Rule-based test")
+    print("  python query_router.py -e        # Embedding classifier test")
+    print("  python query_router.py -c        # Compare all methods")
