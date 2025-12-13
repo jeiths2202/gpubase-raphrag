@@ -193,7 +193,7 @@ class ChatRAG:
                 """
                 UNWIND $chunk_ids AS cid
                 MATCH (d:Document)-[:CONTAINS]->(c:Chunk {id: cid})
-                RETURN c.id AS chunk_id, d.id AS doc_id, d.title AS doc_title
+                RETURN c.id AS chunk_id, d.id AS doc_id, d.filename AS doc_filename
                 """,
                 {"chunk_ids": chunk_ids}
             )
@@ -206,7 +206,7 @@ class ChatRAG:
                 cid = r.get("chunk_id")
                 if cid in doc_lookup:
                     info = doc_lookup[cid]
-                    r["doc_name"] = info.get("doc_title") or info.get("doc_id", "unknown")
+                    r["doc_name"] = info.get("doc_filename") or info.get("doc_id", "unknown")
 
         except Exception:
             pass
