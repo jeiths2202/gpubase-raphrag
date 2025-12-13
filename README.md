@@ -288,6 +288,61 @@ Environment variables (docker/.env):
 | 7474 | Neo4j HTTP |
 | 7687 | Neo4j Bolt |
 
+## GPU Memory Requirements
+
+### Nemotron Nano 9B on A100-40GB
+
+Nemotron Nano 9B requires special configuration to run on A100-40GB GPUs due to high memory requirements:
+
+| Component | Memory |
+|-----------|--------|
+| Model Weights | ~17 GiB |
+| Mamba Cache (default) | ~34 GiB |
+| **Total (default)** | **~51 GiB** ❌ |
+
+**Problem:** Default settings require ~51 GiB, exceeding A100-40GB capacity.
+
+**Solution:** Add memory optimization settings in `docker-compose.yml`:
+
+```yaml
+environment:
+  - NIM_MAX_NUM_SEQS=64      # Limit max sequences (default: 256)
+  - NIM_MAX_MODEL_LEN=8192   # Limit context length (default: 131072)
+```
+
+| Setting | Default | Optimized | Effect |
+|---------|---------|-----------|--------|
+| `NIM_MAX_NUM_SEQS` | 256 | **64** | Reduces Mamba cache size |
+| `NIM_MAX_MODEL_LEN` | 131072 | **8192** | Reduces KV cache allocation |
+
+**Result with optimized settings:**
+
+| Component | Memory |
+|-----------|--------|
+| Model Weights | ~17 GiB |
+| Mamba Cache (optimized) | ~18 GiB |
+| **Total (optimized)** | **~35 GiB** ✅ |
+
+### GPU Allocation Summary
+
+| Service | GPU | Memory Used | Memory Limit |
+|---------|-----|-------------|--------------|
+| Nemotron LLM | GPU 7 | ~35 GiB | 40 GiB |
+| Mistral Coder | GPU 0 | ~37 GiB | 40 GiB |
+| NeMo Embedding | GPU 4,5 | ~36 GiB × 2 | 40 GiB × 2 |
+
+### GPU Isolation
+
+GPU isolation is configured via environment variables (not Docker deploy section):
+
+```yaml
+environment:
+  - NVIDIA_VISIBLE_DEVICES=7    # Physical GPU to use
+  - CUDA_VISIBLE_DEVICES=0      # Logical GPU inside container
+```
+
+**Note:** The container sees only the specified GPU(s), mapped to logical device 0 internally.
+
 ## Features
 
 ### Core Features
