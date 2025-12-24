@@ -2,9 +2,8 @@
 Health API Router
 시스템 상태 확인 API (인증 불필요)
 """
-import time
 from datetime import datetime
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Response, Depends
 
 from ..models.health import (
     HealthResponse,
@@ -13,76 +12,20 @@ from ..models.health import (
     ServicesHealth,
 )
 from ..core.config import api_settings
+from ..core.deps import get_health_service
 
 router = APIRouter(prefix="/health", tags=["Health"])
 
-# Track server start time
-_server_start_time = time.time()
 
-
-async def check_neo4j_health() -> ServiceHealth:
-    """Check Neo4j database health"""
-    try:
-        # TODO: Implement actual Neo4j health check
-        # from ..services.database import check_neo4j_connection
-        # response_time, is_healthy = await check_neo4j_connection()
-        return ServiceHealth(
-            status=HealthStatus.HEALTHY,
-            response_time_ms=15
-        )
-    except Exception as e:
-        return ServiceHealth(
-            status=HealthStatus.UNHEALTHY,
-            error=str(e)
-        )
-
-
-async def check_llm_health() -> ServiceHealth:
-    """Check Nemotron LLM health"""
-    try:
-        # TODO: Implement actual LLM health check
-        return ServiceHealth(
-            status=HealthStatus.HEALTHY,
-            response_time_ms=120,
-            gpu="GPU 7"
-        )
-    except Exception as e:
-        return ServiceHealth(
-            status=HealthStatus.UNHEALTHY,
-            error=str(e)
-        )
-
-
-async def check_embedding_health() -> ServiceHealth:
-    """Check embedding service health"""
-    try:
-        # TODO: Implement actual embedding health check
-        return ServiceHealth(
-            status=HealthStatus.HEALTHY,
-            response_time_ms=85,
-            gpu="GPU 4,5"
-        )
-    except Exception as e:
-        return ServiceHealth(
-            status=HealthStatus.UNHEALTHY,
-            error=str(e)
-        )
-
-
-async def check_mistral_health() -> ServiceHealth:
-    """Check Mistral Code LLM health"""
-    try:
-        # TODO: Implement actual Mistral health check
-        return ServiceHealth(
-            status=HealthStatus.HEALTHY,
-            response_time_ms=95,
-            gpu="GPU 0"
-        )
-    except Exception as e:
-        return ServiceHealth(
-            status=HealthStatus.UNHEALTHY,
-            error=str(e)
-        )
+def _convert_health_result(result: dict) -> ServiceHealth:
+    """Convert health check result to ServiceHealth model"""
+    status = HealthStatus.HEALTHY if result.get("status") == "healthy" else HealthStatus.UNHEALTHY
+    return ServiceHealth(
+        status=status,
+        response_time_ms=result.get("response_time_ms"),
+        gpu=result.get("gpu"),
+        error=result.get("error")
+    )
 
 
 @router.get(
@@ -91,34 +34,42 @@ async def check_mistral_health() -> ServiceHealth:
     summary="시스템 상태 조회",
     description="전체 시스템 및 개별 서비스 상태를 조회합니다."
 )
-async def health_check(response: Response):
+async def health_check(
+    response: Response,
+    health_service = Depends(get_health_service)
+):
     """Comprehensive health check for all services"""
-    uptime = int(time.time() - _server_start_time)
+    # Check all services using real health service
+    result = await health_service.check_all()
 
-    # Check all services
-    neo4j = await check_neo4j_health()
-    llm = await check_llm_health()
-    embedding = await check_embedding_health()
-    mistral = await check_mistral_health()
+    services_data = result.get("services", {})
+
+    # Convert API service health
+    api_data = services_data.get("api", {})
+    api_health = ServiceHealth(
+        status=HealthStatus.HEALTHY,
+        uptime_seconds=api_data.get("uptime_seconds", 0)
+    )
+
+    # Convert other service health results
+    neo4j = _convert_health_result(services_data.get("neo4j", {}))
+    llm = _convert_health_result(services_data.get("nemotron_llm", {}))
+    embedding = _convert_health_result(services_data.get("embedding", {}))
+    mistral = _convert_health_result(services_data.get("mistral_code", {}))
 
     services = ServicesHealth(
-        api=ServiceHealth(
-            status=HealthStatus.HEALTHY,
-            uptime_seconds=uptime
-        ),
+        api=api_health,
         neo4j=neo4j,
         nemotron_llm=llm,
         embedding=embedding,
         mistral_code=mistral
     )
 
-    # Determine overall status
-    all_services = [neo4j, llm, embedding, mistral]
-    unhealthy_count = sum(1 for s in all_services if s.status == HealthStatus.UNHEALTHY)
-
-    if unhealthy_count == 0:
+    # Determine overall status from result
+    overall = result.get("status", "unhealthy")
+    if overall == "healthy":
         overall_status = HealthStatus.HEALTHY
-    elif unhealthy_count < len(all_services):
+    elif overall == "degraded":
         overall_status = HealthStatus.DEGRADED
         response.status_code = 503
     else:
@@ -138,13 +89,16 @@ async def health_check(response: Response):
     summary="Readiness 체크",
     description="서비스 준비 상태를 확인합니다 (Kubernetes Readiness Probe용)."
 )
-async def readiness_check(response: Response):
+async def readiness_check(
+    response: Response,
+    health_service = Depends(get_health_service)
+):
     """Kubernetes readiness probe"""
     # Check critical services only
-    neo4j = await check_neo4j_health()
-    llm = await check_llm_health()
+    neo4j = await health_service.check_neo4j()
+    llm = await health_service.check_llm()
 
-    if neo4j.status == HealthStatus.HEALTHY and llm.status == HealthStatus.HEALTHY:
+    if neo4j.get("status") == "healthy" and llm.get("status") == "healthy":
         return {"status": "ready"}
     else:
         response.status_code = 503

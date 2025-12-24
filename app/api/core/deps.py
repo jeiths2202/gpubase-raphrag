@@ -85,46 +85,10 @@ async def get_admin_user(
 
 
 # Service Dependencies
-# These will be replaced with actual service implementations
-
-
-class RAGService:
-    """Mock RAG Service - Replace with actual implementation"""
-
-    async def query(self, question: str, strategy: str, language: str,
-                   top_k: int = 5, conversation_id: str = None) -> dict:
-        # TODO: Integrate with existing hybrid_rag.py
-        return {
-            "answer": f"[Mock] Answer to: {question}",
-            "strategy": strategy if strategy != "auto" else "hybrid",
-            "language": language if language != "auto" else "ko",
-            "confidence": 0.85,
-            "sources": [],
-            "query_analysis": {
-                "detected_language": "ko",
-                "query_type": strategy,
-                "is_comprehensive": False,
-                "is_deep_analysis": False,
-                "has_error_code": False
-            }
-        }
-
-    async def stream_query(self, question: str, strategy: str, language: str):
-        # TODO: Implement streaming
-        yield {"type": "text", "content": f"[Mock] Streaming answer to: {question}"}
-        yield {"type": "sources", "sources": []}
-
-    async def classify_query(self, question: str) -> dict:
-        # TODO: Integrate with existing query_router.py
-        return {
-            "strategy": "hybrid",
-            "confidence": 0.9,
-            "probabilities": {"vector": 0.2, "graph": 0.2, "hybrid": 0.6},
-            "language": "ko",
-            "has_error_code": False,
-            "is_comprehensive": False,
-            "is_code_query": False
-        }
+# Import actual service implementations
+from ..services.rag_service import RAGService, get_rag_service as _get_rag_service
+from ..services.stats_service import StatsService, get_stats_service as _get_stats_service
+from ..services.health_service import HealthService, get_health_service as _get_health_service
 
 
 class DocumentService:
@@ -187,35 +151,6 @@ class HistoryService:
         return None
 
 
-class StatsService:
-    """Mock Stats Service"""
-
-    async def get_system_stats(self) -> dict:
-        return {
-            "database": {"documents_count": 0, "chunks_count": 0, "entities_count": 0, "relationships_count": 0},
-            "embeddings": {"total_chunks": 0, "with_embedding": 0, "without_embedding": 0, "coverage_percent": 0, "dimension": 4096},
-            "queries": {"total_queries": 0, "today_queries": 0, "avg_response_time_ms": 0, "strategy_distribution": {}},
-            "storage": {"neo4j_size_mb": 0, "documents_size_mb": 0}
-        }
-
-    async def get_query_stats(self, period: str, granularity: str) -> dict:
-        return {
-            "period": period,
-            "total_queries": 0,
-            "avg_response_time_ms": 0,
-            "timeline": [],
-            "top_queries": []
-        }
-
-    async def get_document_stats(self) -> dict:
-        return {
-            "total_documents": 0,
-            "by_status": {"ready": 0, "processing": 0, "error": 0},
-            "by_language": {"ko": 0, "ja": 0, "en": 0},
-            "total_pages": 0,
-            "total_chunks": 0,
-            "avg_chunks_per_document": 0
-        }
 
 
 class SettingsService:
@@ -293,7 +228,8 @@ class AuthService:
 
 # Dependency injection functions
 def get_rag_service() -> RAGService:
-    return RAGService()
+    """Get RAG service instance (real implementation)"""
+    return _get_rag_service()
 
 
 def get_document_service() -> DocumentService:
@@ -305,7 +241,8 @@ def get_history_service() -> HistoryService:
 
 
 def get_stats_service() -> StatsService:
-    return StatsService()
+    """Get stats service instance (real implementation)"""
+    return _get_stats_service()
 
 
 def get_settings_service() -> SettingsService:
@@ -314,3 +251,8 @@ def get_settings_service() -> SettingsService:
 
 def get_auth_service() -> AuthService:
     return AuthService()
+
+
+def get_health_service() -> HealthService:
+    """Get health service instance (real implementation)"""
+    return _get_health_service()
