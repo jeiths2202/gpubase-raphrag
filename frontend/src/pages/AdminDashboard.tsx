@@ -23,10 +23,47 @@ interface UserStats {
   pending_verification: number;
 }
 
+interface TokenOverview {
+  total_tokens_issued: number;
+  daily_average: number;
+  avg_processing_time_ms: number;
+  slowest_token: {
+    token_id: string;
+    user_id: string;
+    processing_time_ms: number;
+    endpoint: string;
+    issued_at: string;
+  } | null;
+  today_count: number;
+  today_avg_time_ms: number;
+}
+
+interface UserTokenStats {
+  user_id: string;
+  total_tokens: number;
+  avg_processing_time_ms: number;
+  max_processing_time_ms: number;
+  min_processing_time_ms: number;
+  most_used_endpoint: string;
+  endpoint_breakdown: Record<string, number>;
+}
+
+interface DailyStats {
+  date: string;
+  count: number;
+  avg_processing_time_ms: number;
+}
+
+type TabType = 'users' | 'tokens';
+
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, accessToken, logout } = useAuthStore();
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState<TabType>('users');
+
+  // User management state
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,6 +73,12 @@ const AdminDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  // Token statistics state
+  const [tokenOverview, setTokenOverview] = useState<TokenOverview | null>(null);
+  const [userTokenStats, setUserTokenStats] = useState<UserTokenStats[]>([]);
+  const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
+  const [isLoadingTokens, setIsLoadingTokens] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -87,14 +130,54 @@ const AdminDashboard: React.FC = () => {
     }
   }, [accessToken]);
 
+  const fetchTokenStats = useCallback(async () => {
+    setIsLoadingTokens(true);
+    try {
+      const [overviewRes, userStatsRes, dailyRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/admin/tokens/overview`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+        fetch(`${API_BASE_URL}/admin/tokens/users`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+        fetch(`${API_BASE_URL}/admin/tokens/daily?days=7`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+      ]);
+
+      const [overviewData, userStatsData, dailyData] = await Promise.all([
+        overviewRes.json(),
+        userStatsRes.json(),
+        dailyRes.json(),
+      ]);
+
+      if (overviewData.data) setTokenOverview(overviewData.data);
+      if (userStatsData.data) setUserTokenStats(userStatsData.data);
+      if (dailyData.data) setDailyStats(dailyData.data);
+    } catch {
+      console.error('Failed to fetch token stats');
+    } finally {
+      setIsLoadingTokens(false);
+    }
+  }, [accessToken]);
+
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
-      await Promise.all([fetchUsers(), fetchStats()]);
+      await Promise.all([fetchUsers(), fetchStats(), fetchTokenStats()]);
       setIsLoading(false);
     };
     loadData();
-  }, [fetchUsers, fetchStats]);
+  }, [fetchUsers, fetchStats, fetchTokenStats]);
 
   const handleToggleActive = async (userId: string) => {
     try {
@@ -208,7 +291,7 @@ const AdminDashboard: React.FC = () => {
 
       {/* Main Content */}
       <main className="admin-main">
-        {/* Stats Cards */}
+        {/* User Stats Cards */}
         {stats && (
           <motion.section
             className="stats-section"
@@ -247,6 +330,61 @@ const AdminDashboard: React.FC = () => {
           </motion.section>
         )}
 
+        {/* Token Stats Cards */}
+        {tokenOverview && (
+          <motion.section
+            className="stats-section token-stats"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            <div className="stat-card token">
+              <div className="stat-icon">🎫</div>
+              <div className="stat-content">
+                <span className="stat-value">{tokenOverview.daily_average.toFixed(1)}</span>
+                <span className="stat-label">일평균 토큰 발행</span>
+              </div>
+            </div>
+            <div className="stat-card token">
+              <div className="stat-icon">⚡</div>
+              <div className="stat-content">
+                <span className="stat-value">{tokenOverview.avg_processing_time_ms.toFixed(0)}ms</span>
+                <span className="stat-label">평균 처리 시간</span>
+              </div>
+            </div>
+            <div className="stat-card token">
+              <div className="stat-icon">🐢</div>
+              <div className="stat-content">
+                <span className="stat-value">{tokenOverview.slowest_token?.processing_time_ms || 0}ms</span>
+                <span className="stat-label">최장 처리 시간</span>
+              </div>
+            </div>
+            <div className="stat-card token">
+              <div className="stat-icon">📊</div>
+              <div className="stat-content">
+                <span className="stat-value">{tokenOverview.today_count}</span>
+                <span className="stat-label">오늘 발행 수</span>
+              </div>
+            </div>
+          </motion.section>
+        )}
+
+        {/* Tab Navigation */}
+        <div className="tab-nav">
+          <button
+            className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
+            onClick={() => setActiveTab('users')}
+          >
+            👥 사용자 관리
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'tokens' ? 'active' : ''}`}
+            onClick={() => setActiveTab('tokens')}
+          >
+            🎫 토큰 통계
+          </button>
+        </div>
+
         {/* Error Message */}
         <AnimatePresence>
           {error && (
@@ -262,120 +400,230 @@ const AdminDashboard: React.FC = () => {
           )}
         </AnimatePresence>
 
-        {/* User Management Section */}
-        <motion.section
-          className="users-section"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <div className="section-header">
-            <h2>사용자 관리</h2>
-            <div className="search-box">
-              <input
-                type="text"
-                placeholder="사용자 검색..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPage(1);
-                }}
-              />
+        {/* Users Tab */}
+        {activeTab === 'users' && (
+          <motion.section
+            className="users-section"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="section-header">
+              <h2>사용자 관리</h2>
+              <div className="search-box">
+                <input
+                  type="text"
+                  placeholder="사용자 검색..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
             </div>
-          </div>
 
-          {isLoading ? (
-            <div className="loading-state">
-              <div className="spinner" />
-              <span>로딩 중...</span>
-            </div>
-          ) : (
-            <>
-              <div className="users-table">
-                <div className="table-header">
-                  <span>사용자 ID</span>
-                  <span>이메일</span>
-                  <span>역할</span>
-                  <span>상태</span>
-                  <span>인증</span>
-                  <span>작업</span>
-                </div>
-                {users.map((u) => (
-                  <motion.div
-                    key={u.id}
-                    className="table-row"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    whileHover={{ backgroundColor: 'rgba(255,255,255,0.05)' }}
-                  >
-                    <span className="user-name">{u.username}</span>
-                    <span className="user-email">{u.email}</span>
-                    <span className={`role-badge ${u.role}`}>
-                      {u.role === 'admin' ? '관리자' : '사용자'}
-                    </span>
-                    <span className={`status-badge ${u.is_active ? 'active' : 'inactive'}`}>
-                      {u.is_active ? '활성' : '비활성'}
-                    </span>
-                    <span className={`verify-badge ${u.is_verified ? 'verified' : 'unverified'}`}>
-                      {u.is_verified ? '완료' : '대기'}
-                    </span>
-                    <div className="actions">
-                      <button
-                        className="btn-action edit"
-                        onClick={() => {
-                          setSelectedUser(u);
-                          setShowEditModal(true);
-                        }}
-                        title="수정"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        className="btn-action toggle"
-                        onClick={() => handleToggleActive(u.id)}
-                        title={u.is_active ? '비활성화' : '활성화'}
-                      >
-                        {u.is_active ? '🔒' : '🔓'}
-                      </button>
-                      <button
-                        className="btn-action delete"
-                        onClick={() => handleDeleteUser(u.id)}
-                        title="삭제"
-                        disabled={u.username === 'admin'}
-                      >
-                        🗑️
-                      </button>
+            {isLoading ? (
+              <div className="loading-state">
+                <div className="spinner" />
+                <span>로딩 중...</span>
+              </div>
+            ) : (
+              <>
+                <div className="users-table">
+                  <div className="table-header">
+                    <span>사용자 ID</span>
+                    <span>이메일</span>
+                    <span>역할</span>
+                    <span>상태</span>
+                    <span>인증</span>
+                    <span>작업</span>
+                  </div>
+                  {users.map((u) => (
+                    <motion.div
+                      key={u.id}
+                      className="table-row"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      whileHover={{ backgroundColor: 'rgba(255,255,255,0.05)' }}
+                    >
+                      <span className="user-name">{u.username}</span>
+                      <span className="user-email">{u.email}</span>
+                      <span className={`role-badge ${u.role}`}>
+                        {u.role === 'admin' ? '관리자' : '사용자'}
+                      </span>
+                      <span className={`status-badge ${u.is_active ? 'active' : 'inactive'}`}>
+                        {u.is_active ? '활성' : '비활성'}
+                      </span>
+                      <span className={`verify-badge ${u.is_verified ? 'verified' : 'unverified'}`}>
+                        {u.is_verified ? '완료' : '대기'}
+                      </span>
+                      <div className="actions">
+                        <button
+                          className="btn-action edit"
+                          onClick={() => {
+                            setSelectedUser(u);
+                            setShowEditModal(true);
+                          }}
+                          title="수정"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          className="btn-action toggle"
+                          onClick={() => handleToggleActive(u.id)}
+                          title={u.is_active ? '비활성화' : '활성화'}
+                        >
+                          {u.is_active ? '🔒' : '🔓'}
+                        </button>
+                        <button
+                          className="btn-action delete"
+                          onClick={() => handleDeleteUser(u.id)}
+                          title="삭제"
+                          disabled={u.username === 'admin'}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                  {users.length === 0 && (
+                    <div className="empty-state">
+                      사용자가 없습니다.
                     </div>
-                  </motion.div>
-                ))}
-                {users.length === 0 && (
-                  <div className="empty-state">
-                    사용자가 없습니다.
+                  )}
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="pagination">
+                    <button
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(p => p - 1)}
+                    >
+                      이전
+                    </button>
+                    <span>{currentPage} / {totalPages}</span>
+                    <button
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(p => p + 1)}
+                    >
+                      다음
+                    </button>
                   </div>
                 )}
-              </div>
+              </>
+            )}
+          </motion.section>
+        )}
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="pagination">
-                  <button
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(p => p - 1)}
-                  >
-                    이전
-                  </button>
-                  <span>{currentPage} / {totalPages}</span>
-                  <button
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(p => p + 1)}
-                  >
-                    다음
-                  </button>
+        {/* Tokens Tab */}
+        {activeTab === 'tokens' && (
+          <motion.section
+            className="tokens-section"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            {/* Daily Stats Chart */}
+            <div className="token-panel">
+              <h3>📈 일별 토큰 발행 현황 (최근 7일)</h3>
+              {isLoadingTokens ? (
+                <div className="loading-state small">
+                  <div className="spinner" />
+                </div>
+              ) : (
+                <div className="daily-chart">
+                  {dailyStats.map((day, idx) => {
+                    const maxCount = Math.max(...dailyStats.map(d => d.count), 1);
+                    const heightPercent = (day.count / maxCount) * 100;
+                    return (
+                      <div key={idx} className="chart-bar-container">
+                        <div className="chart-bar-wrapper">
+                          <motion.div
+                            className="chart-bar"
+                            initial={{ height: 0 }}
+                            animate={{ height: `${heightPercent}%` }}
+                            transition={{ duration: 0.5, delay: idx * 0.1 }}
+                          />
+                        </div>
+                        <span className="chart-value">{day.count}</span>
+                        <span className="chart-label">{day.date.slice(5)}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
-            </>
-          )}
-        </motion.section>
+            </div>
+
+            {/* Slowest Token Info */}
+            {tokenOverview?.slowest_token && (
+              <div className="token-panel slowest">
+                <h3>🐢 가장 느린 토큰 처리</h3>
+                <div className="slowest-info">
+                  <div className="info-row">
+                    <span className="info-label">토큰 ID:</span>
+                    <span className="info-value mono">{tokenOverview.slowest_token.token_id}</span>
+                  </div>
+                  <div className="info-row">
+                    <span className="info-label">사용자:</span>
+                    <span className="info-value">{tokenOverview.slowest_token.user_id}</span>
+                  </div>
+                  <div className="info-row">
+                    <span className="info-label">처리 시간:</span>
+                    <span className="info-value highlight">{tokenOverview.slowest_token.processing_time_ms}ms</span>
+                  </div>
+                  <div className="info-row">
+                    <span className="info-label">엔드포인트:</span>
+                    <span className="info-value mono">{tokenOverview.slowest_token.endpoint}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* User Token Stats Table */}
+            <div className="token-panel">
+              <h3>👥 유저별 토큰 사용 통계</h3>
+              {isLoadingTokens ? (
+                <div className="loading-state small">
+                  <div className="spinner" />
+                </div>
+              ) : (
+                <div className="token-table">
+                  <div className="table-header">
+                    <span>사용자 ID</span>
+                    <span>총 토큰 수</span>
+                    <span>평균 처리 시간</span>
+                    <span>최대 처리 시간</span>
+                    <span>최소 처리 시간</span>
+                    <span>주 사용 API</span>
+                  </div>
+                  {userTokenStats.map((stat) => (
+                    <motion.div
+                      key={stat.user_id}
+                      className="table-row"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      whileHover={{ backgroundColor: 'rgba(255,255,255,0.05)' }}
+                    >
+                      <span className="user-id">{stat.user_id}</span>
+                      <span className="token-count">{stat.total_tokens}</span>
+                      <span className="time-avg">{stat.avg_processing_time_ms.toFixed(1)}ms</span>
+                      <span className="time-max">{stat.max_processing_time_ms}ms</span>
+                      <span className="time-min">{stat.min_processing_time_ms}ms</span>
+                      <span className="endpoint mono">{stat.most_used_endpoint.split('/').pop()}</span>
+                    </motion.div>
+                  ))}
+                  {userTokenStats.length === 0 && (
+                    <div className="empty-state">
+                      토큰 사용 데이터가 없습니다.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </motion.section>
+        )}
       </main>
 
       {/* Edit Modal */}
@@ -579,7 +827,11 @@ const styles = `
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 20px;
-    margin-bottom: 40px;
+    margin-bottom: 24px;
+  }
+
+  .stats-section.token-stats {
+    margin-bottom: 32px;
   }
 
   .stat-card {
@@ -591,6 +843,11 @@ const styles = `
     display: flex;
     align-items: center;
     gap: 16px;
+  }
+
+  .stat-card.token {
+    border-color: rgba(99, 102, 241, 0.2);
+    background: rgba(99, 102, 241, 0.05);
   }
 
   .stat-icon {
@@ -620,6 +877,38 @@ const styles = `
     color: rgba(255, 255, 255, 0.5);
   }
 
+  .tab-nav {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 6px;
+    border-radius: 12px;
+    width: fit-content;
+  }
+
+  .tab-btn {
+    padding: 10px 20px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tab-btn.active {
+    background: rgba(99, 102, 241, 0.2);
+    color: #a5b4fc;
+  }
+
+  .tab-btn:hover:not(.active) {
+    color: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
   .error-banner {
     background: rgba(239, 68, 68, 0.15);
     border: 1px solid rgba(239, 68, 68, 0.3);
@@ -640,7 +929,7 @@ const styles = `
     cursor: pointer;
   }
 
-  .users-section {
+  .users-section, .tokens-section {
     background: rgba(255, 255, 255, 0.03);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -693,6 +982,10 @@ const styles = `
     gap: 16px;
   }
 
+  .loading-state.small {
+    padding: 30px;
+  }
+
   .spinner {
     width: 40px;
     height: 40px;
@@ -706,7 +999,7 @@ const styles = `
     to { transform: rotate(360deg); }
   }
 
-  .users-table {
+  .users-table, .token-table {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -718,6 +1011,11 @@ const styles = `
     gap: 16px;
     padding: 12px 16px;
     align-items: center;
+  }
+
+  .token-table .table-header,
+  .token-table .table-row {
+    grid-template-columns: 1fr 100px 120px 120px 120px 120px;
   }
 
   .table-header {
@@ -739,12 +1037,38 @@ const styles = `
     transition: all 0.2s;
   }
 
-  .user-name {
+  .user-name, .user-id {
     font-weight: 500;
   }
 
   .user-email {
     color: rgba(255, 255, 255, 0.7);
+  }
+
+  .mono {
+    font-family: monospace;
+    font-size: 12px;
+  }
+
+  .token-count {
+    font-weight: 600;
+    color: #a5b4fc;
+  }
+
+  .time-avg {
+    color: #86efac;
+  }
+
+  .time-max {
+    color: #fca5a5;
+  }
+
+  .time-min {
+    color: #93c5fd;
+  }
+
+  .endpoint {
+    color: rgba(255, 255, 255, 0.6);
   }
 
   .role-badge, .status-badge, .verify-badge {
@@ -857,6 +1181,104 @@ const styles = `
   .pagination button:disabled {
     opacity: 0.3;
     cursor: not-allowed;
+  }
+
+  /* Token Stats Styles */
+  .token-panel {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .token-panel h3 {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 20px;
+  }
+
+  .token-panel.slowest {
+    border-color: rgba(239, 68, 68, 0.2);
+    background: rgba(239, 68, 68, 0.05);
+  }
+
+  .daily-chart {
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-end;
+    height: 200px;
+    padding-top: 20px;
+  }
+
+  .chart-bar-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+  }
+
+  .chart-bar-wrapper {
+    height: 150px;
+    width: 40px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    display: flex;
+    align-items: flex-end;
+    overflow: hidden;
+  }
+
+  .chart-bar {
+    width: 100%;
+    background: linear-gradient(180deg, #6366f1, #8b5cf6);
+    border-radius: 8px 8px 0 0;
+    min-height: 4px;
+  }
+
+  .chart-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  .chart-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .slowest-info {
+    display: grid;
+    gap: 12px;
+  }
+
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+  }
+
+  .info-label {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 14px;
+  }
+
+  .info-value {
+    color: #fff;
+    font-size: 14px;
+  }
+
+  .info-value.mono {
+    font-family: monospace;
+    font-size: 12px;
+  }
+
+  .info-value.highlight {
+    color: #fca5a5;
+    font-weight: 600;
   }
 
   .modal-overlay {

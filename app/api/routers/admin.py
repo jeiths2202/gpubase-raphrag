@@ -1,14 +1,14 @@
 """
 Admin API Router
-관리자 전용 API - 사용자 관리, 대시보드 통계
+관리자 전용 API - 사용자 관리, 대시보드 통계, 토큰 통계
 """
 import uuid
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field, EmailStr
 
 from ..models.base import SuccessResponse, MetaInfo
-from ..core.deps import get_current_user, get_admin_user, get_auth_service
+from ..core.deps import get_current_user, get_admin_user, get_auth_service, get_token_stats_service
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -259,5 +259,92 @@ async def get_dashboard_stats(
             "users": user_stats,
             "system": system_stats
         },
+        meta=MetaInfo(request_id=request_id)
+    )
+
+
+# ============= Token Statistics Endpoints =============
+
+@router.get(
+    "/tokens/overview",
+    response_model=SuccessResponse[dict],
+    summary="토큰 통계 개요",
+    description="토큰 사용에 대한 전반적인 통계를 조회합니다. (관리자 전용)"
+)
+async def get_token_overview(
+    admin_user: dict = Depends(get_admin_user),
+    token_stats_service = Depends(get_token_stats_service)
+):
+    """Get overall token statistics"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    overview = await token_stats_service.get_token_overview()
+
+    return SuccessResponse(
+        data=overview,
+        meta=MetaInfo(request_id=request_id)
+    )
+
+
+@router.get(
+    "/tokens/daily",
+    response_model=SuccessResponse[list],
+    summary="일별 토큰 통계",
+    description="최근 N일간의 일별 토큰 발행 통계를 조회합니다. (관리자 전용)"
+)
+async def get_daily_token_stats(
+    days: int = Query(7, ge=1, le=30, description="조회할 일수"),
+    admin_user: dict = Depends(get_admin_user),
+    token_stats_service = Depends(get_token_stats_service)
+):
+    """Get daily token statistics"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    daily_stats = await token_stats_service.get_daily_stats(days=days)
+
+    return SuccessResponse(
+        data=daily_stats,
+        meta=MetaInfo(request_id=request_id)
+    )
+
+
+@router.get(
+    "/tokens/users",
+    response_model=SuccessResponse[list],
+    summary="유저별 토큰 통계",
+    description="각 사용자별 토큰 사용 통계를 조회합니다. (관리자 전용)"
+)
+async def get_user_token_stats(
+    admin_user: dict = Depends(get_admin_user),
+    token_stats_service = Depends(get_token_stats_service)
+):
+    """Get per-user token statistics"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    user_stats = await token_stats_service.get_user_token_stats()
+
+    return SuccessResponse(
+        data=user_stats,
+        meta=MetaInfo(request_id=request_id)
+    )
+
+
+@router.get(
+    "/tokens/endpoints",
+    response_model=SuccessResponse[list],
+    summary="엔드포인트별 토큰 통계",
+    description="각 API 엔드포인트별 토큰 사용 통계를 조회합니다. (관리자 전용)"
+)
+async def get_endpoint_token_stats(
+    admin_user: dict = Depends(get_admin_user),
+    token_stats_service = Depends(get_token_stats_service)
+):
+    """Get per-endpoint token statistics"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    endpoint_stats = await token_stats_service.get_endpoint_stats()
+
+    return SuccessResponse(
+        data=endpoint_stats,
         meta=MetaInfo(request_id=request_id)
     )

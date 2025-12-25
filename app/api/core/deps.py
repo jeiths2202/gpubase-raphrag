@@ -490,6 +490,229 @@ class AuthService:
         }
 
 
+class TokenStatsService:
+    """Service for tracking and analyzing token usage statistics"""
+
+    # In-memory storage for token statistics (replace with database in production)
+    _token_events: list = []  # List of {user_id, token_id, issued_at, processing_time_ms, endpoint}
+    _daily_stats: dict = {}  # {date_str: {count, total_time_ms}}
+
+    @classmethod
+    def record_token_event(
+        cls,
+        user_id: str,
+        token_id: str,
+        processing_time_ms: int,
+        endpoint: str = "unknown"
+    ):
+        """Record a token usage event"""
+        import uuid
+        event = {
+            "id": f"evt_{uuid.uuid4().hex[:12]}",
+            "user_id": user_id,
+            "token_id": token_id,
+            "issued_at": datetime.utcnow().isoformat(),
+            "processing_time_ms": processing_time_ms,
+            "endpoint": endpoint,
+            "date": datetime.utcnow().strftime("%Y-%m-%d")
+        }
+        cls._token_events.append(event)
+
+        # Update daily stats
+        date_str = event["date"]
+        if date_str not in cls._daily_stats:
+            cls._daily_stats[date_str] = {"count": 0, "total_time_ms": 0}
+        cls._daily_stats[date_str]["count"] += 1
+        cls._daily_stats[date_str]["total_time_ms"] += processing_time_ms
+
+    @classmethod
+    def _generate_sample_data(cls):
+        """Generate sample data for demonstration"""
+        import random
+        import uuid
+
+        if len(cls._token_events) > 0:
+            return  # Already has data
+
+        sample_users = ["user_admin", "user_test1", "user_test2", "user_demo"]
+        endpoints = ["/api/v1/query", "/api/v1/documents", "/api/v1/mindmap", "/api/v1/auth"]
+
+        # Generate events for the last 7 days
+        for days_ago in range(7):
+            date = datetime.utcnow() - timedelta(days=days_ago)
+            date_str = date.strftime("%Y-%m-%d")
+
+            # Random number of events per day (10-50)
+            num_events = random.randint(10, 50)
+            for _ in range(num_events):
+                user_id = random.choice(sample_users)
+                endpoint = random.choice(endpoints)
+                processing_time = random.randint(50, 2000)  # 50ms to 2000ms
+
+                event = {
+                    "id": f"evt_{uuid.uuid4().hex[:12]}",
+                    "user_id": user_id,
+                    "token_id": f"tok_{uuid.uuid4().hex[:16]}",
+                    "issued_at": (date + timedelta(
+                        hours=random.randint(0, 23),
+                        minutes=random.randint(0, 59)
+                    )).isoformat(),
+                    "processing_time_ms": processing_time,
+                    "endpoint": endpoint,
+                    "date": date_str
+                }
+                cls._token_events.append(event)
+
+                if date_str not in cls._daily_stats:
+                    cls._daily_stats[date_str] = {"count": 0, "total_time_ms": 0}
+                cls._daily_stats[date_str]["count"] += 1
+                cls._daily_stats[date_str]["total_time_ms"] += processing_time
+
+    async def get_token_overview(self) -> dict:
+        """Get overall token statistics"""
+        self._generate_sample_data()
+
+        total_tokens = len(self._token_events)
+        if total_tokens == 0:
+            return {
+                "total_tokens_issued": 0,
+                "daily_average": 0,
+                "avg_processing_time_ms": 0,
+                "slowest_token": None,
+                "today_count": 0,
+                "today_avg_time_ms": 0
+            }
+
+        # Calculate statistics
+        total_processing_time = sum(e["processing_time_ms"] for e in self._token_events)
+        avg_processing_time = total_processing_time / total_tokens
+
+        # Find slowest token
+        slowest = max(self._token_events, key=lambda x: x["processing_time_ms"])
+
+        # Daily average (based on number of days with data)
+        num_days = len(self._daily_stats) or 1
+        daily_average = total_tokens / num_days
+
+        # Today's stats
+        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        today_stats = self._daily_stats.get(today_str, {"count": 0, "total_time_ms": 0})
+        today_avg = (today_stats["total_time_ms"] / today_stats["count"]) if today_stats["count"] > 0 else 0
+
+        return {
+            "total_tokens_issued": total_tokens,
+            "daily_average": round(daily_average, 1),
+            "avg_processing_time_ms": round(avg_processing_time, 1),
+            "slowest_token": {
+                "token_id": slowest["token_id"],
+                "user_id": slowest["user_id"],
+                "processing_time_ms": slowest["processing_time_ms"],
+                "endpoint": slowest["endpoint"],
+                "issued_at": slowest["issued_at"]
+            },
+            "today_count": today_stats["count"],
+            "today_avg_time_ms": round(today_avg, 1)
+        }
+
+    async def get_daily_stats(self, days: int = 7) -> list:
+        """Get daily token statistics for the last N days"""
+        self._generate_sample_data()
+
+        result = []
+        for i in range(days):
+            date = datetime.utcnow() - timedelta(days=i)
+            date_str = date.strftime("%Y-%m-%d")
+            stats = self._daily_stats.get(date_str, {"count": 0, "total_time_ms": 0})
+            avg_time = (stats["total_time_ms"] / stats["count"]) if stats["count"] > 0 else 0
+
+            result.append({
+                "date": date_str,
+                "count": stats["count"],
+                "avg_processing_time_ms": round(avg_time, 1)
+            })
+
+        return result
+
+    async def get_user_token_stats(self) -> list:
+        """Get token usage statistics per user"""
+        self._generate_sample_data()
+
+        user_stats = {}
+        for event in self._token_events:
+            user_id = event["user_id"]
+            if user_id not in user_stats:
+                user_stats[user_id] = {
+                    "user_id": user_id,
+                    "total_tokens": 0,
+                    "total_time_ms": 0,
+                    "max_time_ms": 0,
+                    "min_time_ms": float('inf'),
+                    "endpoints": {}
+                }
+
+            stats = user_stats[user_id]
+            stats["total_tokens"] += 1
+            stats["total_time_ms"] += event["processing_time_ms"]
+            stats["max_time_ms"] = max(stats["max_time_ms"], event["processing_time_ms"])
+            stats["min_time_ms"] = min(stats["min_time_ms"], event["processing_time_ms"])
+
+            endpoint = event["endpoint"]
+            stats["endpoints"][endpoint] = stats["endpoints"].get(endpoint, 0) + 1
+
+        # Calculate averages and format
+        result = []
+        for user_id, stats in user_stats.items():
+            avg_time = stats["total_time_ms"] / stats["total_tokens"] if stats["total_tokens"] > 0 else 0
+            most_used_endpoint = max(stats["endpoints"].items(), key=lambda x: x[1])[0] if stats["endpoints"] else "N/A"
+
+            result.append({
+                "user_id": user_id,
+                "total_tokens": stats["total_tokens"],
+                "avg_processing_time_ms": round(avg_time, 1),
+                "max_processing_time_ms": stats["max_time_ms"],
+                "min_processing_time_ms": stats["min_time_ms"] if stats["min_time_ms"] != float('inf') else 0,
+                "most_used_endpoint": most_used_endpoint,
+                "endpoint_breakdown": stats["endpoints"]
+            })
+
+        # Sort by total tokens descending
+        result.sort(key=lambda x: x["total_tokens"], reverse=True)
+        return result
+
+    async def get_endpoint_stats(self) -> list:
+        """Get token statistics per endpoint"""
+        self._generate_sample_data()
+
+        endpoint_stats = {}
+        for event in self._token_events:
+            endpoint = event["endpoint"]
+            if endpoint not in endpoint_stats:
+                endpoint_stats[endpoint] = {
+                    "endpoint": endpoint,
+                    "count": 0,
+                    "total_time_ms": 0,
+                    "max_time_ms": 0
+                }
+
+            stats = endpoint_stats[endpoint]
+            stats["count"] += 1
+            stats["total_time_ms"] += event["processing_time_ms"]
+            stats["max_time_ms"] = max(stats["max_time_ms"], event["processing_time_ms"])
+
+        result = []
+        for endpoint, stats in endpoint_stats.items():
+            avg_time = stats["total_time_ms"] / stats["count"] if stats["count"] > 0 else 0
+            result.append({
+                "endpoint": endpoint,
+                "count": stats["count"],
+                "avg_processing_time_ms": round(avg_time, 1),
+                "max_processing_time_ms": stats["max_time_ms"]
+            })
+
+        result.sort(key=lambda x: x["count"], reverse=True)
+        return result
+
+
 # Dependency injection functions
 def get_rag_service() -> RAGService:
     """Get RAG service instance (real implementation)"""
@@ -515,6 +738,10 @@ def get_settings_service() -> SettingsService:
 
 def get_auth_service() -> AuthService:
     return AuthService()
+
+
+def get_token_stats_service() -> TokenStatsService:
+    return TokenStatsService()
 
 
 def get_health_service() -> HealthService:
