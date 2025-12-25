@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import MindmapViewer from '../components/MindmapViewer';
 import Sidebar from '../components/Sidebar';
 import NodePanel from '../components/NodePanel';
@@ -7,6 +8,8 @@ import type { MindmapFull, MindmapNode, MindmapInfo } from '../types/mindmap';
 import { useAuthStore } from '../store/authStore';
 
 const MindmapApp: React.FC = () => {
+  const navigate = useNavigate();
+  const { user, logout } = useAuthStore();
   const [currentMindmap, setCurrentMindmap] = useState<MindmapFull | null>(null);
   const [selectedNode, setSelectedNode] = useState<MindmapNode | null>(null);
   const [mindmapList, setMindmapList] = useState<MindmapInfo[]>([]);
@@ -198,7 +201,7 @@ const MindmapApp: React.FC = () => {
               </span>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {isLoading && (
               <span style={{
                 fontSize: '13px',
@@ -207,8 +210,38 @@ const MindmapApp: React.FC = () => {
                 Processing...
               </span>
             )}
+            {user?.role === 'admin' && (
+              <button
+                onClick={() => navigate('/admin')}
+                style={{
+                  padding: '8px 16px',
+                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))',
+                  border: '1px solid rgba(139, 92, 246, 0.3)',
+                  borderRadius: '6px',
+                  color: '#a5b4fc',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  transition: 'all 0.2s',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(139, 92, 246, 0.3))';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))';
+                }}
+              >
+                관리자
+              </button>
+            )}
+            <span style={{
+              fontSize: '13px',
+              color: 'var(--color-text-muted)',
+            }}>
+              {user?.name || user?.email}
+            </span>
             <button
-              onClick={() => useAuthStore.getState().logout()}
+              onClick={() => logout()}
               style={{
                 padding: '8px 16px',
                 background: 'transparent',

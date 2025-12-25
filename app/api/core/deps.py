@@ -184,34 +184,38 @@ class AuthService:
     """Auth Service with registration and email verification"""
 
     # In-memory storage (replace with database in production)
-    _users: dict = {}
+    _users: dict = {
+        "admin": {
+            "id": "user_admin",
+            "username": "admin",
+            "email": "admin@system.local",
+            "password_hash": "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",  # sha256("admin")
+            "role": "admin",
+            "is_verified": True,
+            "created_at": "2025-01-01T00:00:00Z",
+            "is_active": True
+        }
+    }
     _pending_verifications: dict = {}  # email -> {code, user_data, expires_at}
-    _verified_emails: set = set()
+    _verified_emails: set = {"admin@system.local"}
 
     async def authenticate(self, username: str, password: str) -> dict:
         """Authenticate user with username and password"""
         import hashlib
 
-        # Check registered users first
+        # Check registered users
         if username in self._users:
             user = self._users[username]
             hashed = hashlib.sha256(password.encode()).hexdigest()
             if user["password_hash"] == hashed and user.get("is_verified", False):
+                if not user.get("is_active", True):
+                    return None  # User is deactivated
                 return {
                     "id": user["id"],
                     "username": user["username"],
                     "email": user["email"],
                     "role": user.get("role", "user")
                 }
-            return None
-
-        # Fallback to admin user for development
-        if username == "admin" and password == "admin123":
-            return {
-                "id": "user_admin",
-                "username": "admin",
-                "role": "admin"
-            }
         return None
 
     async def register_user(self, user_id: str, email: str, password: str) -> dict:
@@ -389,6 +393,101 @@ class AuthService:
     async def invalidate_tokens(self, user_id: str) -> bool:
         # TODO: Implement token blacklist
         return True
+
+    # User Management Methods (Admin)
+    async def list_users(self, page: int = 1, limit: int = 20, search: str = None) -> dict:
+        """List all users with pagination"""
+        users_list = []
+        for username, user in self._users.items():
+            if search and search.lower() not in username.lower() and search.lower() not in user.get("email", "").lower():
+                continue
+            users_list.append({
+                "id": user["id"],
+                "username": user["username"],
+                "email": user.get("email", ""),
+                "role": user.get("role", "user"),
+                "is_active": user.get("is_active", True),
+                "is_verified": user.get("is_verified", False),
+                "created_at": user.get("created_at", "")
+            })
+
+        total = len(users_list)
+        start = (page - 1) * limit
+        end = start + limit
+        paginated = users_list[start:end]
+
+        return {
+            "users": paginated,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit
+        }
+
+    async def get_user(self, user_id: str) -> dict:
+        """Get user by ID"""
+        for user in self._users.values():
+            if user["id"] == user_id:
+                return {
+                    "id": user["id"],
+                    "username": user["username"],
+                    "email": user.get("email", ""),
+                    "role": user.get("role", "user"),
+                    "is_active": user.get("is_active", True),
+                    "is_verified": user.get("is_verified", False),
+                    "created_at": user.get("created_at", "")
+                }
+        return None
+
+    async def update_user(self, user_id: str, updates: dict) -> dict:
+        """Update user details"""
+        for username, user in self._users.items():
+            if user["id"] == user_id:
+                # Update allowed fields
+                if "role" in updates:
+                    user["role"] = updates["role"]
+                if "is_active" in updates:
+                    user["is_active"] = updates["is_active"]
+                if "email" in updates:
+                    user["email"] = updates["email"]
+
+                self._users[username] = user
+                return {
+                    "id": user["id"],
+                    "username": user["username"],
+                    "email": user.get("email", ""),
+                    "role": user.get("role", "user"),
+                    "is_active": user.get("is_active", True),
+                    "is_verified": user.get("is_verified", False)
+                }
+        return None
+
+    async def delete_user(self, user_id: str) -> bool:
+        """Delete user by ID"""
+        for username, user in list(self._users.items()):
+            if user["id"] == user_id:
+                # Prevent deleting admin
+                if user.get("role") == "admin" and username == "admin":
+                    return False
+                del self._users[username]
+                return True
+        return False
+
+    async def get_user_stats(self) -> dict:
+        """Get user statistics for dashboard"""
+        total_users = len(self._users)
+        active_users = sum(1 for u in self._users.values() if u.get("is_active", True))
+        admin_users = sum(1 for u in self._users.values() if u.get("role") == "admin")
+        pending_verification = len(self._pending_verifications)
+
+        return {
+            "total_users": total_users,
+            "active_users": active_users,
+            "inactive_users": total_users - active_users,
+            "admin_users": admin_users,
+            "regular_users": total_users - admin_users,
+            "pending_verification": pending_verification
+        }
 
 
 # Dependency injection functions

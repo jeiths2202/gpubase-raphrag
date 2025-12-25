@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import LoginPage from './pages/LoginPage';
 import MindmapApp from './pages/MindmapApp';
+import AdminDashboard from './pages/AdminDashboard';
 import { useAuthStore } from './store/authStore';
 import { GOOGLE_CLIENT_ID } from './config/constants';
 
@@ -77,6 +78,16 @@ const App: React.FC = () => {
             element={
               <ProtectedRoute>
                 <MindmapApp />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Admin routes */}
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <AdminDashboard />
               </ProtectedRoute>
             }
           />
