@@ -28,6 +28,10 @@ class QueryOptions(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20, description="Number of results")
     include_sources: bool = Field(default=True, description="Include source documents")
     conversation_id: Optional[str] = Field(default=None, description="Conversation session ID")
+    # Session document options
+    session_id: Optional[str] = Field(default=None, description="Session ID for uploaded documents")
+    use_session_docs: bool = Field(default=True, description="Use session uploaded documents")
+    session_weight: float = Field(default=2.0, ge=1.0, le=5.0, description="Weight boost for session results")
 
 
 class QueryRequest(BaseModel):
@@ -59,8 +63,11 @@ class SourceInfo(BaseModel):
     chunk_index: int
     content: str
     score: float = Field(ge=0.0, le=1.0)
-    source_type: str
+    source_type: str  # "vector", "graph", "session"
     entities: list[str] = Field(default_factory=list)
+    # Session document info
+    is_session_doc: bool = Field(default=False, description="From session uploaded document")
+    page_number: Optional[int] = Field(default=None, description="Page number if available")
 
 
 class QueryAnalysis(BaseModel):
@@ -70,6 +77,9 @@ class QueryAnalysis(BaseModel):
     is_comprehensive: bool = False
     is_deep_analysis: bool = False
     has_error_code: bool = False
+    # Session document usage
+    used_session_docs: bool = Field(default=False, description="Session documents were used")
+    session_doc_count: int = Field(default=0, description="Number of session document results")
 
 
 class QueryResponse(BaseModel):

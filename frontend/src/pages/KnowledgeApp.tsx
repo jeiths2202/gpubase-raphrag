@@ -271,6 +271,21 @@ const KnowledgeApp: React.FC = () => {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
 
+  // Session document state (for chat context)
+  const [sessionId] = useState<string>(`session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+  const [sessionDocuments, setSessionDocuments] = useState<{
+    id: string;
+    filename: string;
+    status: string;
+    chunk_count: number;
+    word_count: number;
+  }[]>([]);
+  const [showPasteModal, setShowPasteModal] = useState(false);
+  const [pasteContent, setPasteContent] = useState('');
+  const [pasteTitle, setPasteTitle] = useState('');
+  const [uploadingSessionDoc, setUploadingSessionDoc] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -573,7 +588,11 @@ const KnowledgeApp: React.FC = () => {
           options: {
             top_k: 5,
             include_sources: true,
-            conversation_id: selectedConversation
+            conversation_id: selectedConversation,
+            // Session document options for priority RAG
+            session_id: sessionDocuments.length > 0 ? sessionId : undefined,
+            use_session_docs: sessionDocuments.length > 0,
+            session_weight: 2.0
           }
         })
       });
@@ -588,7 +607,9 @@ const KnowledgeApp: React.FC = () => {
           doc_name: s.doc_name,
           chunk_index: s.chunk_index,
           content: s.content,
-          score: s.score
+          score: s.score,
+          is_session_doc: s.is_session_doc,
+          page_number: s.page_number
         })),
         timestamp: new Date()
       };
@@ -612,13 +633,142 @@ const KnowledgeApp: React.FC = () => {
   };
 
   const generateSuggestedQuestions = (query: string, answer: string) => {
-    // Mock suggested questions - in production, this would use LLM
     const suggestions = [
       `${query}에 대해 더 자세히 알려주세요`,
       '관련된 예시를 보여주세요',
       '이 주제의 장단점은 무엇인가요?'
     ];
     setSuggestedQuestions(suggestions);
+  };
+
+  // Session document functions
+  const uploadSessionFile = async (file: File) => {
+    setUploadingSessionDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append('session_id', sessionId);
+      formData.append('file', file);
+
+      const res = await fetch(`${API_BASE}/session-documents/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: formData
+      });
+
+      const data = await res.json();
+      if (data.status === 'success') {
+        // Add to session documents and poll for status
+        setSessionDocuments(prev => [...prev, {
+          id: data.data.document_id,
+          filename: data.data.filename,
+          status: 'processing',
+          chunk_count: 0,
+          word_count: 0
+        }]);
+        pollSessionDocumentStatus(data.data.document_id);
+      }
+    } catch (error) {
+      console.error('Failed to upload session file:', error);
+    } finally {
+      setUploadingSessionDoc(false);
+    }
+  };
+
+  const pasteSessionText = async () => {
+    if (!pasteContent.trim()) return;
+    setUploadingSessionDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append('session_id', sessionId);
+      formData.append('content', pasteContent);
+      formData.append('title', pasteTitle || 'Pasted Text');
+
+      const res = await fetch(`${API_BASE}/session-documents/paste`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: formData
+      });
+
+      const data = await res.json();
+      if (data.status === 'success') {
+        setSessionDocuments(prev => [...prev, {
+          id: data.data.document_id,
+          filename: data.data.filename,
+          status: 'processing',
+          chunk_count: 0,
+          word_count: data.data.word_count || 0
+        }]);
+        pollSessionDocumentStatus(data.data.document_id);
+        setPasteContent('');
+        setPasteTitle('');
+        setShowPasteModal(false);
+      }
+    } catch (error) {
+      console.error('Failed to paste session text:', error);
+    } finally {
+      setUploadingSessionDoc(false);
+    }
+  };
+
+  const pollSessionDocumentStatus = async (docId: string) => {
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/session-documents/${docId}/status`, {
+          headers: getAuthHeaders()
+        });
+        const data = await res.json();
+
+        if (data.data?.status === 'ready') {
+          setSessionDocuments(prev => prev.map(d =>
+            d.id === docId ? { ...d, status: 'ready', chunk_count: data.data.chunk_count } : d
+          ));
+        } else if (data.data?.status === 'error') {
+          setSessionDocuments(prev => prev.map(d =>
+            d.id === docId ? { ...d, status: 'error' } : d
+          ));
+        } else {
+          setTimeout(checkStatus, 1000);
+        }
+      } catch (error) {
+        console.error('Failed to check status:', error);
+      }
+    };
+    checkStatus();
+  };
+
+  const removeSessionDocument = async (docId: string) => {
+    try {
+      await fetch(`${API_BASE}/session-documents/${docId}?session_id=${sessionId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      setSessionDocuments(prev => prev.filter(d => d.id !== docId));
+    } catch (error) {
+      console.error('Failed to remove session document:', error);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      await uploadSessionFile(files[0]);
+    }
   };
 
   // Content generation
@@ -1580,40 +1730,238 @@ const KnowledgeApp: React.FC = () => {
                 </div>
               )}
 
-              {/* Input */}
-              <div style={{ ...cardStyle, display: 'flex', gap: '12px' }}>
-                <input
-                  type="text"
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                  placeholder="질문을 입력하세요..."
-                  style={{
-                    flex: 1,
-                    padding: '12px 16px',
-                    background: 'rgba(255,255,255,0.1)',
-                    border: `1px solid ${themeColors.cardBorder}`,
-                    borderRadius: '8px',
-                    color: themeColors.text,
-                    fontSize: '16px'
-                  }}
-                />
-                <button
-                  onClick={sendMessage}
-                  disabled={isLoading || !inputMessage.trim()}
-                  style={{
-                    padding: '12px 24px',
-                    background: themeColors.accent,
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    cursor: isLoading ? 'not-allowed' : 'pointer',
-                    opacity: isLoading || !inputMessage.trim() ? 0.5 : 1
-                  }}
-                >
-                  전송
-                </button>
+              {/* Session Documents */}
+              {sessionDocuments.length > 0 && (
+                <div style={{
+                  ...cardStyle,
+                  background: 'rgba(46, 204, 113, 0.1)',
+                  border: '1px solid rgba(46, 204, 113, 0.3)',
+                  padding: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '14px' }}>📎 현재 대화에서 사용 중인 문서</span>
+                    <span style={{
+                      fontSize: '11px',
+                      padding: '2px 6px',
+                      background: 'rgba(46, 204, 113, 0.3)',
+                      borderRadius: '4px',
+                      color: '#2ECC71'
+                    }}>
+                      우선 참조
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {sessionDocuments.map(doc => (
+                      <div
+                        key={doc.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '6px 10px',
+                          background: 'rgba(255,255,255,0.1)',
+                          borderRadius: '6px',
+                          fontSize: '12px'
+                        }}
+                      >
+                        <span>{doc.filename}</span>
+                        {doc.status === 'processing' && (
+                          <span style={{ color: '#F1C40F' }}>처리중...</span>
+                        )}
+                        {doc.status === 'ready' && (
+                          <span style={{ color: '#2ECC71' }}>({doc.chunk_count} chunks)</span>
+                        )}
+                        {doc.status === 'error' && (
+                          <span style={{ color: '#E74C3C' }}>오류</span>
+                        )}
+                        <button
+                          onClick={() => removeSessionDocument(doc.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#E74C3C',
+                            cursor: 'pointer',
+                            padding: '2px 4px',
+                            fontSize: '14px'
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Input with File Upload */}
+              <div
+                style={{
+                  ...cardStyle,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  border: dragOver ? `2px dashed ${themeColors.accent}` : undefined,
+                  background: dragOver ? 'rgba(74, 144, 217, 0.1)' : undefined
+                }}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                {/* Upload Buttons */}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <label style={{
+                    ...tabStyle(false),
+                    cursor: uploadingSessionDoc ? 'not-allowed' : 'pointer',
+                    fontSize: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    opacity: uploadingSessionDoc ? 0.5 : 1
+                  }}>
+                    📎 파일 첨부
+                    <input
+                      type="file"
+                      style={{ display: 'none' }}
+                      accept=".pdf,.txt,.md,.docx,.png,.jpg,.jpeg"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadSessionFile(file);
+                        e.target.value = '';
+                      }}
+                      disabled={uploadingSessionDoc}
+                    />
+                  </label>
+                  <button
+                    onClick={() => setShowPasteModal(true)}
+                    style={{ ...tabStyle(false), fontSize: '12px' }}
+                    disabled={uploadingSessionDoc}
+                  >
+                    📝 텍스트 붙여넣기
+                  </button>
+                  {uploadingSessionDoc && (
+                    <span style={{ color: themeColors.textSecondary, fontSize: '12px', alignSelf: 'center' }}>
+                      처리 중...
+                    </span>
+                  )}
+                </div>
+
+                {/* Message Input */}
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <input
+                    type="text"
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    placeholder={sessionDocuments.length > 0
+                      ? "첨부된 문서를 참조하여 질문하세요..."
+                      : "질문을 입력하세요..."}
+                    style={{
+                      flex: 1,
+                      padding: '12px 16px',
+                      background: 'rgba(255,255,255,0.1)',
+                      border: `1px solid ${themeColors.cardBorder}`,
+                      borderRadius: '8px',
+                      color: themeColors.text,
+                      fontSize: '16px'
+                    }}
+                  />
+                  <button
+                    onClick={sendMessage}
+                    disabled={isLoading || !inputMessage.trim()}
+                    style={{
+                      padding: '12px 24px',
+                      background: themeColors.accent,
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: isLoading ? 'not-allowed' : 'pointer',
+                      opacity: isLoading || !inputMessage.trim() ? 0.5 : 1
+                    }}
+                  >
+                    전송
+                  </button>
+                </div>
               </div>
+
+              {/* Text Paste Modal */}
+              <AnimatePresence>
+                {showPasteModal && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                      position: 'fixed',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      background: 'rgba(0,0,0,0.7)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 1000
+                    }}
+                    onClick={() => setShowPasteModal(false)}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.9, opacity: 0 }}
+                      style={{ ...cardStyle, width: '600px', maxWidth: '90%' }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <h3 style={{ margin: '0 0 16px' }}>📝 텍스트 붙여넣기</h3>
+                      <p style={{ color: themeColors.textSecondary, fontSize: '14px', marginBottom: '16px' }}>
+                        문서 내용이나 참고자료를 붙여넣으면 현재 대화에서 우선적으로 참조합니다.
+                      </p>
+
+                      <input
+                        type="text"
+                        placeholder="제목 (선택)"
+                        value={pasteTitle}
+                        onChange={e => setPasteTitle(e.target.value)}
+                        style={{
+                          ...inputStyle,
+                          width: '100%',
+                          marginBottom: '12px'
+                        }}
+                      />
+
+                      <textarea
+                        placeholder="내용을 붙여넣으세요..."
+                        value={pasteContent}
+                        onChange={e => setPasteContent(e.target.value)}
+                        style={{
+                          ...inputStyle,
+                          width: '100%',
+                          minHeight: '200px',
+                          resize: 'vertical',
+                          fontFamily: 'inherit'
+                        }}
+                      />
+
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+                        <button
+                          onClick={() => setShowPasteModal(false)}
+                          style={{ ...tabStyle(false), flex: 1 }}
+                        >
+                          취소
+                        </button>
+                        <button
+                          onClick={pasteSessionText}
+                          disabled={!pasteContent.trim() || uploadingSessionDoc}
+                          style={{
+                            ...tabStyle(true),
+                            flex: 1,
+                            opacity: !pasteContent.trim() || uploadingSessionDoc ? 0.5 : 1,
+                            cursor: !pasteContent.trim() || uploadingSessionDoc ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {uploadingSessionDoc ? '처리 중...' : '추가'}
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
 

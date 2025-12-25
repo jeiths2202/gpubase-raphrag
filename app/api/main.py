@@ -18,7 +18,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document
 
 
 @asynccontextmanager
@@ -57,6 +57,7 @@ app = FastAPI(
 - **Knowledge Article API**: 지식 등록, 검수, 게시 워크플로우
 - **Notification API**: 인앱 알림 및 메시지 관리
 - **Web Source API**: URL 기반 웹 콘텐츠 RAG 처리
+- **Session Document API**: 채팅 세션별 문서 업로드 및 우선순위 RAG
 
 ### 기술 스택
 - **LLM**: Nemotron Nano 9B, Mistral NeMo 12B
@@ -121,6 +122,7 @@ app.include_router(knowledge_graph.router, prefix=API_PREFIX)
 app.include_router(knowledge_article.router, prefix=API_PREFIX)
 app.include_router(notification.router, prefix=API_PREFIX)
 app.include_router(web_source.router, prefix=API_PREFIX)
+app.include_router(session_document.router, prefix=API_PREFIX)
 
 
 # Root endpoint
