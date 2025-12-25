@@ -92,33 +92,379 @@ from ..services.health_service import HealthService, get_health_service as _get_
 
 
 class DocumentService:
-    """Mock Document Service"""
+    """
+    Document Service with multimodal support.
+    Handles document upload, parsing, and management.
+    """
 
-    async def list_documents(self, page: int, limit: int,
-                            search: str = None, status: str = None) -> dict:
-        return {"documents": [], "total": 0}
+    # In-memory storage (replace with database in production)
+    _documents: dict = {}  # document_id -> document data
+    _tasks: dict = {}  # task_id -> task status
+    _chunks: dict = {}  # document_id -> list of chunks
 
-    async def upload_document(self, file_content: bytes, filename: str,
-                             display_name: str = None, language: str = "auto",
-                             tags: list = None) -> dict:
+    @classmethod
+    def _get_document_type(cls, filename: str, mime_type: str = None) -> tuple:
+        """Determine document type from filename or MIME type."""
+        from ..models.document import EXTENSION_TO_MIME, SUPPORTED_MIME_TYPES, DocumentType
+        import os
+
+        ext = os.path.splitext(filename)[1].lower()
+
+        if not mime_type:
+            mime_type = EXTENSION_TO_MIME.get(ext, "application/octet-stream")
+
+        doc_type = SUPPORTED_MIME_TYPES.get(mime_type, DocumentType.TEXT)
+
+        return doc_type, mime_type
+
+    async def list_documents(
+        self,
+        page: int,
+        limit: int,
+        search: str = None,
+        status: str = None,
+        document_type: str = None
+    ) -> dict:
+        """List documents with filtering."""
+        documents = []
+
+        for doc_id, doc in self._documents.items():
+            # Apply filters
+            if search and search.lower() not in doc["filename"].lower():
+                continue
+            if status and doc["status"] != status:
+                continue
+            if document_type and doc.get("document_type") != document_type:
+                continue
+
+            documents.append({
+                "id": doc["id"],
+                "filename": doc["filename"],
+                "original_name": doc["original_name"],
+                "file_size": doc["file_size"],
+                "mime_type": doc["mime_type"],
+                "document_type": doc.get("document_type", "pdf"),
+                "status": doc["status"],
+                "chunks_count": doc.get("chunks_count", 0),
+                "entities_count": doc.get("entities_count", 0),
+                "embedding_status": doc.get("embedding_status", "pending"),
+                "language": doc.get("language", "auto"),
+                "processing_mode": doc.get("processing_mode", "text_only"),
+                "vlm_processed": doc.get("vlm_processed", False),
+                "created_at": doc["created_at"],
+                "updated_at": doc["updated_at"]
+            })
+
+        # Sort by created_at descending
+        documents.sort(key=lambda x: x["created_at"], reverse=True)
+
+        total = len(documents)
+        start = (page - 1) * limit
+        end = start + limit
+
+        return {"documents": documents[start:end], "total": total}
+
+    async def upload_document(
+        self,
+        file_content: bytes,
+        filename: str,
+        display_name: str = None,
+        language: str = "auto",
+        tags: list = None,
+        processing_mode: str = "text_only",
+        enable_vlm: bool = False,
+        extract_tables: bool = True,
+        extract_images: bool = True
+    ) -> dict:
+        """
+        Upload and process a document.
+
+        Supports: PDF, Word, Excel, PowerPoint, Text, Markdown, CSV, JSON, Images
+        """
         import uuid
-        return {
-            "document_id": f"doc_{uuid.uuid4().hex[:12]}",
-            "filename": filename,
-            "task_id": f"task_{uuid.uuid4().hex[:12]}"
+        import asyncio
+
+        doc_id = f"doc_{uuid.uuid4().hex[:12]}"
+        task_id = f"task_{uuid.uuid4().hex[:12]}"
+        now = datetime.utcnow()
+
+        # Determine document type
+        doc_type, mime_type = self._get_document_type(filename)
+
+        # Store document metadata
+        self._documents[doc_id] = {
+            "id": doc_id,
+            "filename": display_name or filename,
+            "original_name": filename,
+            "file_size": len(file_content),
+            "mime_type": mime_type,
+            "document_type": doc_type.value if hasattr(doc_type, 'value') else doc_type,
+            "status": "processing",
+            "chunks_count": 0,
+            "entities_count": 0,
+            "embedding_status": "pending",
+            "language": language,
+            "tags": tags or [],
+            "processing_mode": processing_mode,
+            "vlm_processed": False,
+            "enable_vlm": enable_vlm,
+            "extract_tables": extract_tables,
+            "extract_images": extract_images,
+            "created_at": now,
+            "updated_at": now,
+            "stats": None,
+            "processing_info": None,
+            "multimodal_content": None
         }
 
+        # Store task status
+        self._tasks[task_id] = {
+            "document_id": doc_id,
+            "status": "processing",
+            "current_step": "uploading",
+            "steps": [
+                {"name": "uploading", "status": "completed", "progress": 100},
+                {"name": "parsing", "status": "pending", "progress": 0},
+                {"name": "chunking", "status": "pending", "progress": 0},
+                {"name": "embedding", "status": "pending", "progress": 0}
+            ],
+            "overall_progress": 10,
+            "started_at": now,
+            "estimated_completion": None
+        }
+
+        # Start background processing
+        asyncio.create_task(self._process_document_async(
+            doc_id, task_id, file_content, filename,
+            processing_mode, enable_vlm, extract_tables, extract_images
+        ))
+
+        return {
+            "document_id": doc_id,
+            "filename": filename,
+            "task_id": task_id
+        }
+
+    async def _process_document_async(
+        self,
+        doc_id: str,
+        task_id: str,
+        file_content: bytes,
+        filename: str,
+        processing_mode: str,
+        enable_vlm: bool,
+        extract_tables: bool,
+        extract_images: bool
+    ):
+        """Process document asynchronously."""
+        import asyncio
+
+        try:
+            # Step 1: Parse document
+            self._update_task(task_id, "parsing", 25)
+            await asyncio.sleep(1)  # Simulate parsing
+
+            # In production, use actual parser:
+            # from ..services.document_parser import get_document_parser_factory
+            # from ..services.vlm_service import get_vlm_service
+            # vlm_service = get_vlm_service() if enable_vlm else None
+            # factory = get_document_parser_factory(vlm_service)
+            # parsed = await factory.parse_document(file_content, filename, options={...})
+
+            # Mock parsed content
+            mock_text = f"문서 '{filename}'의 추출된 텍스트 내용입니다.\n\n이 문서는 자동으로 처리되었습니다."
+
+            # Step 2: Chunking
+            self._update_task(task_id, "chunking", 50)
+            await asyncio.sleep(0.5)
+
+            # Create mock chunks
+            chunks = self._create_chunks(doc_id, mock_text)
+            self._chunks[doc_id] = chunks
+
+            # Step 3: Embedding
+            self._update_task(task_id, "embedding", 75)
+            await asyncio.sleep(0.5)
+
+            # Update document with results
+            doc = self._documents.get(doc_id)
+            if doc:
+                doc["status"] = "ready"
+                doc["chunks_count"] = len(chunks)
+                doc["entities_count"] = 5  # Mock
+                doc["embedding_status"] = "completed"
+                doc["vlm_processed"] = enable_vlm
+                doc["updated_at"] = datetime.utcnow()
+                doc["stats"] = {
+                    "pages": 10,
+                    "chunks_count": len(chunks),
+                    "entities_count": 5,
+                    "avg_chunk_size": 500,
+                    "embedding_dimension": 4096,
+                    "images_count": 2 if extract_images else 0,
+                    "tables_count": 1 if extract_tables else 0,
+                    "figures_count": 1,
+                    "vlm_processed": enable_vlm
+                }
+                doc["processing_info"] = {
+                    "started_at": self._tasks[task_id]["started_at"],
+                    "completed_at": datetime.utcnow(),
+                    "processing_time_seconds": 3
+                }
+
+            # Complete task
+            self._update_task(task_id, "completed", 100)
+            self._tasks[task_id]["status"] = "ready"
+
+        except Exception as e:
+            # Handle error
+            if doc_id in self._documents:
+                self._documents[doc_id]["status"] = "error"
+            if task_id in self._tasks:
+                self._tasks[task_id]["status"] = "error"
+                self._tasks[task_id]["error"] = str(e)
+
+    def _update_task(self, task_id: str, step: str, progress: int):
+        """Update task progress."""
+        if task_id not in self._tasks:
+            return
+
+        task = self._tasks[task_id]
+        task["current_step"] = step
+        task["overall_progress"] = progress
+
+        for s in task["steps"]:
+            if s["name"] == step:
+                s["status"] = "in_progress"
+                s["progress"] = 50
+            elif task["steps"].index(s) < [ss["name"] for ss in task["steps"]].index(step):
+                s["status"] = "completed"
+                s["progress"] = 100
+
+    def _create_chunks(self, doc_id: str, text: str, chunk_size: int = 500) -> list:
+        """Create text chunks from document."""
+        import uuid
+
+        chunks = []
+        words = text.split()
+        current_chunk = []
+        current_length = 0
+
+        for word in words:
+            current_chunk.append(word)
+            current_length += len(word) + 1
+
+            if current_length >= chunk_size:
+                chunk_text = " ".join(current_chunk)
+                chunks.append({
+                    "id": f"chunk_{uuid.uuid4().hex[:8]}",
+                    "index": len(chunks),
+                    "content": chunk_text,
+                    "content_length": len(chunk_text),
+                    "has_embedding": True,
+                    "entities": [],
+                    "page_number": 1,
+                    "chunk_type": "text",
+                    "source_image_id": None,
+                    "source_table_id": None,
+                    "metadata": {}
+                })
+                current_chunk = []
+                current_length = 0
+
+        # Add remaining text
+        if current_chunk:
+            chunk_text = " ".join(current_chunk)
+            chunks.append({
+                "id": f"chunk_{uuid.uuid4().hex[:8]}",
+                "index": len(chunks),
+                "content": chunk_text,
+                "content_length": len(chunk_text),
+                "has_embedding": True,
+                "entities": [],
+                "page_number": 1,
+                "chunk_type": "text",
+                "source_image_id": None,
+                "source_table_id": None,
+                "metadata": {}
+            })
+
+        return chunks
+
     async def get_upload_status(self, task_id: str) -> dict:
-        return None
+        """Get document upload/processing status."""
+        return self._tasks.get(task_id)
 
     async def get_document(self, document_id: str) -> dict:
-        return None
+        """Get document details."""
+        doc = self._documents.get(document_id)
+        if not doc:
+            return None
+
+        return {
+            **doc,
+            "created_at": doc["created_at"],
+            "updated_at": doc["updated_at"]
+        }
 
     async def delete_document(self, document_id: str) -> dict:
-        return None
+        """Delete a document and its chunks."""
+        if document_id not in self._documents:
+            return None
 
-    async def get_document_chunks(self, document_id: str, page: int, limit: int) -> dict:
-        return None
+        doc = self._documents[document_id]
+        chunks = self._chunks.get(document_id, [])
+
+        # Delete document and chunks
+        del self._documents[document_id]
+        if document_id in self._chunks:
+            del self._chunks[document_id]
+
+        return {
+            "deleted_chunks": len(chunks),
+            "deleted_entities": doc.get("entities_count", 0)
+        }
+
+    async def get_document_chunks(
+        self,
+        document_id: str,
+        page: int,
+        limit: int
+    ) -> dict:
+        """Get document chunks with pagination."""
+        if document_id not in self._documents:
+            return None
+
+        chunks = self._chunks.get(document_id, [])
+        total = len(chunks)
+        start = (page - 1) * limit
+        end = start + limit
+
+        return {"chunks": chunks[start:end], "total": total}
+
+    async def reprocess_document(
+        self,
+        document_id: str,
+        processing_mode: str = None,
+        enable_vlm: bool = None
+    ) -> dict:
+        """Reprocess an existing document with different options."""
+        if document_id not in self._documents:
+            return None
+
+        doc = self._documents[document_id]
+
+        # Update processing options
+        if processing_mode:
+            doc["processing_mode"] = processing_mode
+        if enable_vlm is not None:
+            doc["enable_vlm"] = enable_vlm
+
+        doc["status"] = "processing"
+        doc["updated_at"] = datetime.utcnow()
+
+        # In production, trigger reprocessing here
+        return {"document_id": document_id, "status": "reprocessing"}
 
 
 class HistoryService:

@@ -40,7 +40,40 @@ interface Document {
   original_name: string;
   status: string;
   chunks_count: number;
+  document_type?: string;
+  processing_mode?: string;
+  vlm_processed?: boolean;
+  file_size?: number;
+  mime_type?: string;
 }
+
+// Supported file formats
+const SUPPORTED_FORMATS = {
+  pdf: { extensions: ['.pdf'], icon: '📄', color: '#E74C3C' },
+  word: { extensions: ['.doc', '.docx'], icon: '📝', color: '#2B579A' },
+  excel: { extensions: ['.xls', '.xlsx'], icon: '📊', color: '#217346' },
+  powerpoint: { extensions: ['.ppt', '.pptx'], icon: '📽️', color: '#D24726' },
+  text: { extensions: ['.txt', '.md', '.markdown'], icon: '📃', color: '#6C757D' },
+  data: { extensions: ['.csv', '.json'], icon: '📋', color: '#17A2B8' },
+  image: { extensions: ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp'], icon: '🖼️', color: '#9B59B6' },
+  html: { extensions: ['.html', '.htm'], icon: '🌐', color: '#E44D26' }
+};
+
+const getFileTypeInfo = (filename: string): { icon: string; color: string; type: string } => {
+  const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
+  for (const [type, info] of Object.entries(SUPPORTED_FORMATS)) {
+    if (info.extensions.includes(ext)) {
+      return { icon: info.icon, color: info.color, type };
+    }
+  }
+  return { icon: '📄', color: '#6C757D', type: 'unknown' };
+};
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+};
 
 interface ContentItem {
   id: string;
@@ -120,6 +153,19 @@ const KnowledgeApp: React.FC = () => {
 
   // Sidebar state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Upload state
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadSettings, setUploadSettings] = useState({
+    processingMode: 'text_only' as 'text_only' | 'vlm_enhanced' | 'multimodal' | 'ocr',
+    enableVLM: false,
+    extractTables: true,
+    extractImages: true,
+    language: 'auto'
+  });
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
 
   // Load initial data
   useEffect(() => {
@@ -457,6 +503,97 @@ const KnowledgeApp: React.FC = () => {
     }
   };
 
+  // Upload document
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadFile(file);
+    }
+  };
+
+  const uploadDocument = async () => {
+    if (!uploadFile) return;
+
+    setUploading(true);
+    setUploadProgress('Uploading...');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('processing_mode', uploadSettings.processingMode);
+      formData.append('enable_vlm', String(uploadSettings.enableVLM));
+      formData.append('extract_tables', String(uploadSettings.extractTables));
+      formData.append('extract_images', String(uploadSettings.extractImages));
+      formData.append('language', uploadSettings.language);
+
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE}/documents`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setUploadProgress('Processing document...');
+        // Poll for status
+        pollUploadStatus(data.data.task_id);
+      } else {
+        setUploadProgress(`Error: ${data.detail?.message || 'Upload failed'}`);
+        setTimeout(() => {
+          setUploadProgress(null);
+          setUploading(false);
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setUploadProgress('Upload failed');
+      setTimeout(() => {
+        setUploadProgress(null);
+        setUploading(false);
+      }, 3000);
+    }
+  };
+
+  const pollUploadStatus = async (taskId: string) => {
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/documents/upload-status/${taskId}`, {
+          headers: getAuthHeaders()
+        });
+        const data = await res.json();
+
+        if (data.data?.status === 'ready') {
+          setUploadProgress('Document processed successfully!');
+          setShowUploadModal(false);
+          setUploadFile(null);
+          loadDocuments();
+          setTimeout(() => {
+            setUploadProgress(null);
+            setUploading(false);
+          }, 2000);
+        } else if (data.data?.status === 'error') {
+          setUploadProgress('Processing failed');
+          setTimeout(() => {
+            setUploadProgress(null);
+            setUploading(false);
+          }, 3000);
+        } else {
+          const progress = data.data?.progress?.overall_progress || 0;
+          const step = data.data?.progress?.current_step || 'processing';
+          setUploadProgress(`${step}... ${progress}%`);
+          setTimeout(checkStatus, 1500);
+        }
+      } catch {
+        setTimeout(checkStatus, 2000);
+      }
+    };
+    checkStatus();
+  };
+
   // Theme toggle
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
@@ -786,38 +923,328 @@ const KnowledgeApp: React.FC = () => {
               style={{ flex: 1 }}
             >
               <div style={cardStyle}>
-                <h2>Documents</h2>
-                <p style={{ color: themeColors.textSecondary }}>
-                  문서를 선택하여 AI 질의에 활용하세요. 선택됨: {selectedDocuments.length}개
-                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div>
+                    <h2 style={{ margin: 0 }}>Documents</h2>
+                    <p style={{ color: themeColors.textSecondary, margin: '8px 0 0' }}>
+                      문서를 선택하여 AI 질의에 활용하세요. 선택됨: {selectedDocuments.length}개
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    style={{ ...tabStyle(true), display: 'flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    📤 Upload Document
+                  </button>
+                </div>
 
-                <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
-                  {documents.map(doc => (
-                    <div
-                      key={doc.id}
-                      onClick={() => {
-                        setSelectedDocuments(prev =>
-                          prev.includes(doc.id)
-                            ? prev.filter(id => id !== doc.id)
-                            : [...prev, doc.id]
-                        );
-                      }}
-                      style={{
-                        ...cardStyle,
-                        cursor: 'pointer',
-                        border: selectedDocuments.includes(doc.id)
-                          ? `2px solid ${themeColors.accent}`
-                          : `1px solid ${themeColors.cardBorder}`
-                      }}
-                    >
-                      <div style={{ fontWeight: 600 }}>{doc.original_name}</div>
-                      <div style={{ fontSize: '12px', color: themeColors.textSecondary }}>
-                        {doc.chunks_count} chunks | {doc.status}
-                      </div>
-                    </div>
+                {/* Supported Formats Info */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px', padding: '12px', background: 'rgba(74,144,217,0.1)', borderRadius: '8px' }}>
+                  <span style={{ color: themeColors.textSecondary, fontSize: '12px' }}>Supported:</span>
+                  {Object.entries(SUPPORTED_FORMATS).map(([type, info]) => (
+                    <span key={type} style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>{info.icon}</span>
+                      <span style={{ color: themeColors.textSecondary }}>{info.extensions.join(', ')}</span>
+                    </span>
                   ))}
                 </div>
+
+                {/* Documents Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                  {documents.map(doc => {
+                    const fileInfo = getFileTypeInfo(doc.original_name);
+                    return (
+                      <div
+                        key={doc.id}
+                        onClick={() => {
+                          setSelectedDocuments(prev =>
+                            prev.includes(doc.id)
+                              ? prev.filter(id => id !== doc.id)
+                              : [...prev, doc.id]
+                          );
+                        }}
+                        style={{
+                          ...cardStyle,
+                          cursor: 'pointer',
+                          border: selectedDocuments.includes(doc.id)
+                            ? `2px solid ${themeColors.accent}`
+                            : `1px solid ${themeColors.cardBorder}`,
+                          display: 'flex',
+                          gap: '12px',
+                          alignItems: 'flex-start'
+                        }}
+                      >
+                        <div style={{
+                          width: '48px',
+                          height: '48px',
+                          borderRadius: '8px',
+                          background: `${fileInfo.color}20`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '24px',
+                          flexShrink: 0
+                        }}>
+                          {fileInfo.icon}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {doc.original_name}
+                          </div>
+                          <div style={{ fontSize: '12px', color: themeColors.textSecondary, marginTop: '4px' }}>
+                            {doc.chunks_count} chunks | {doc.status}
+                            {doc.file_size && ` | ${formatFileSize(doc.file_size)}`}
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                            <span style={{
+                              fontSize: '10px',
+                              padding: '2px 6px',
+                              background: `${fileInfo.color}30`,
+                              color: fileInfo.color,
+                              borderRadius: '4px'
+                            }}>
+                              {fileInfo.type.toUpperCase()}
+                            </span>
+                            {doc.vlm_processed && (
+                              <span style={{
+                                fontSize: '10px',
+                                padding: '2px 6px',
+                                background: 'rgba(155, 89, 182, 0.3)',
+                                color: '#9B59B6',
+                                borderRadius: '4px'
+                              }}>
+                                VLM
+                              </span>
+                            )}
+                            {doc.processing_mode && doc.processing_mode !== 'text_only' && (
+                              <span style={{
+                                fontSize: '10px',
+                                padding: '2px 6px',
+                                background: 'rgba(46, 204, 113, 0.3)',
+                                color: '#2ECC71',
+                                borderRadius: '4px'
+                              }}>
+                                {doc.processing_mode}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {selectedDocuments.includes(doc.id) && (
+                          <div style={{ color: themeColors.accent, fontSize: '20px' }}>✓</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {documents.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '40px', color: themeColors.textSecondary }}>
+                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>📁</div>
+                    <p>No documents uploaded yet.</p>
+                    <button
+                      onClick={() => setShowUploadModal(true)}
+                      style={{ ...tabStyle(true), marginTop: '16px' }}
+                    >
+                      Upload your first document
+                    </button>
+                  </div>
+                )}
               </div>
+
+              {/* Upload Modal */}
+              <AnimatePresence>
+                {showUploadModal && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                      position: 'fixed',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background: 'rgba(0,0,0,0.7)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 1000
+                    }}
+                    onClick={() => !uploading && setShowUploadModal(false)}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.9, opacity: 0 }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        ...cardStyle,
+                        width: '500px',
+                        maxWidth: '90vw',
+                        maxHeight: '90vh',
+                        overflow: 'auto'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h2 style={{ margin: 0 }}>Upload Document</h2>
+                        <button
+                          onClick={() => !uploading && setShowUploadModal(false)}
+                          disabled={uploading}
+                          style={{ background: 'transparent', border: 'none', color: themeColors.text, fontSize: '24px', cursor: 'pointer' }}
+                        >
+                          ×
+                        </button>
+                      </div>
+
+                      {/* File Drop Zone */}
+                      <div
+                        style={{
+                          border: `2px dashed ${uploadFile ? themeColors.accent : themeColors.cardBorder}`,
+                          borderRadius: '12px',
+                          padding: '40px 20px',
+                          textAlign: 'center',
+                          marginBottom: '20px',
+                          background: uploadFile ? 'rgba(74,144,217,0.1)' : 'transparent',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {uploadFile ? (
+                          <div>
+                            <div style={{ fontSize: '48px', marginBottom: '12px' }}>
+                              {getFileTypeInfo(uploadFile.name).icon}
+                            </div>
+                            <div style={{ fontWeight: 600 }}>{uploadFile.name}</div>
+                            <div style={{ fontSize: '12px', color: themeColors.textSecondary, marginTop: '4px' }}>
+                              {formatFileSize(uploadFile.size)}
+                            </div>
+                            <button
+                              onClick={() => setUploadFile(null)}
+                              style={{ ...tabStyle(false), marginTop: '12px', fontSize: '12px' }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ fontSize: '48px', marginBottom: '12px' }}>📤</div>
+                            <p style={{ margin: 0 }}>Drop file here or click to browse</p>
+                            <p style={{ fontSize: '12px', color: themeColors.textSecondary, marginTop: '8px' }}>
+                              PDF, Word, Excel, PowerPoint, Text, CSV, JSON, Images
+                            </p>
+                          </div>
+                        )}
+                        <input
+                          type="file"
+                          onChange={handleFileSelect}
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.webp,.html,.htm"
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            opacity: 0,
+                            cursor: 'pointer'
+                          }}
+                        />
+                      </div>
+
+                      {/* Processing Options */}
+                      <div style={{ marginBottom: '20px' }}>
+                        <h4 style={{ marginBottom: '12px' }}>Processing Options</h4>
+
+                        {/* Processing Mode */}
+                        <div style={{ marginBottom: '16px' }}>
+                          <label style={{ fontSize: '14px', color: themeColors.textSecondary, display: 'block', marginBottom: '8px' }}>
+                            Processing Mode
+                          </label>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                            {[
+                              { value: 'text_only', label: 'Text Only', desc: 'Basic text extraction' },
+                              { value: 'vlm_enhanced', label: 'VLM Enhanced', desc: 'AI-assisted extraction' },
+                              { value: 'multimodal', label: 'Multimodal', desc: 'Full image analysis' },
+                              { value: 'ocr', label: 'OCR', desc: 'For scanned documents' }
+                            ].map(mode => (
+                              <div
+                                key={mode.value}
+                                onClick={() => setUploadSettings(prev => ({ ...prev, processingMode: mode.value as any }))}
+                                style={{
+                                  padding: '12px',
+                                  borderRadius: '8px',
+                                  border: uploadSettings.processingMode === mode.value
+                                    ? `2px solid ${themeColors.accent}`
+                                    : `1px solid ${themeColors.cardBorder}`,
+                                  cursor: 'pointer',
+                                  background: uploadSettings.processingMode === mode.value ? 'rgba(74,144,217,0.1)' : 'transparent'
+                                }}
+                              >
+                                <div style={{ fontWeight: 600, fontSize: '14px' }}>{mode.label}</div>
+                                <div style={{ fontSize: '11px', color: themeColors.textSecondary }}>{mode.desc}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Toggle Options */}
+                        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={uploadSettings.enableVLM}
+                              onChange={(e) => setUploadSettings(prev => ({ ...prev, enableVLM: e.target.checked }))}
+                            />
+                            <span>Enable VLM Analysis</span>
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={uploadSettings.extractTables}
+                              onChange={(e) => setUploadSettings(prev => ({ ...prev, extractTables: e.target.checked }))}
+                            />
+                            <span>Extract Tables</span>
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={uploadSettings.extractImages}
+                              onChange={(e) => setUploadSettings(prev => ({ ...prev, extractImages: e.target.checked }))}
+                            />
+                            <span>Extract Images</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Upload Progress */}
+                      {uploadProgress && (
+                        <div style={{
+                          padding: '12px',
+                          background: 'rgba(74,144,217,0.2)',
+                          borderRadius: '8px',
+                          marginBottom: '20px',
+                          textAlign: 'center'
+                        }}>
+                          {uploadProgress}
+                        </div>
+                      )}
+
+                      {/* Upload Button */}
+                      <button
+                        onClick={uploadDocument}
+                        disabled={!uploadFile || uploading}
+                        style={{
+                          ...tabStyle(true),
+                          width: '100%',
+                          padding: '14px',
+                          opacity: !uploadFile || uploading ? 0.5 : 1,
+                          cursor: !uploadFile || uploading ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {uploading ? 'Processing...' : 'Upload & Process'}
+                      </button>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
 
