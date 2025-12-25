@@ -32,6 +32,9 @@ class QueryOptions(BaseModel):
     session_id: Optional[str] = Field(default=None, description="Session ID for uploaded documents")
     use_session_docs: bool = Field(default=True, description="Use session uploaded documents")
     session_weight: float = Field(default=2.0, ge=1.0, le=5.0, description="Weight boost for session results")
+    # External resource options
+    use_external_resources: bool = Field(default=True, description="Use connected external resources")
+    external_weight: float = Field(default=2.5, ge=1.0, le=5.0, description="Weight boost for external resource results")
 
 
 class QueryRequest(BaseModel):
@@ -63,11 +66,16 @@ class SourceInfo(BaseModel):
     chunk_index: int
     content: str
     score: float = Field(ge=0.0, le=1.0)
-    source_type: str  # "vector", "graph", "session"
+    source_type: str  # "vector", "graph", "session", "external_notion", etc.
     entities: list[str] = Field(default_factory=list)
     # Session document info
     is_session_doc: bool = Field(default=False, description="From session uploaded document")
     page_number: Optional[int] = Field(default=None, description="Page number if available")
+    # External resource info
+    is_external_resource: bool = Field(default=False, description="From connected external resource")
+    source_url: Optional[str] = Field(default=None, description="URL to original source")
+    external_source: Optional[str] = Field(default=None, description="External source type (notion, github, etc.)")
+    section_title: Optional[str] = Field(default=None, description="Section title if available")
 
 
 class QueryAnalysis(BaseModel):
@@ -80,6 +88,9 @@ class QueryAnalysis(BaseModel):
     # Session document usage
     used_session_docs: bool = Field(default=False, description="Session documents were used")
     session_doc_count: int = Field(default=0, description="Number of session document results")
+    # External resource usage
+    used_external_resources: bool = Field(default=False, description="External resources were used")
+    external_doc_count: int = Field(default=0, description="Number of external resource results")
 
 
 class QueryResponse(BaseModel):

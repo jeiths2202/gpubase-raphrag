@@ -348,6 +348,27 @@ const KnowledgeApp: React.FC = () => {
   const [addingUrls, setAddingUrls] = useState(false);
   const [webSourceTags, setWebSourceTags] = useState<string[]>([]);
 
+  // External Connection state
+  const [externalConnections, setExternalConnections] = useState<{
+    id: string;
+    resource_type: string;
+    status: string;
+    document_count: number;
+    chunk_count: number;
+    last_sync_at: string | null;
+    error_message: string | null;
+  }[]>([]);
+  const [showExternalModal, setShowExternalModal] = useState(false);
+  const [connectingResource, setConnectingResource] = useState<string | null>(null);
+  const [syncingConnection, setSyncingConnection] = useState<string | null>(null);
+  const [availableResources] = useState([
+    { type: 'notion', name: 'Notion', icon: '📝', description: 'Notion 페이지 및 데이터베이스', authType: 'oauth2' },
+    { type: 'github', name: 'GitHub', icon: '🐙', description: 'GitHub 저장소 문서', authType: 'oauth2' },
+    { type: 'google_drive', name: 'Google Drive', icon: '📁', description: 'Google Drive 문서', authType: 'oauth2' },
+    { type: 'onenote', name: 'OneNote', icon: '📔', description: 'Microsoft OneNote 노트북', authType: 'oauth2' },
+    { type: 'confluence', name: 'Confluence', icon: '📚', description: 'Atlassian Confluence 페이지', authType: 'api_token' }
+  ]);
+
   // Load initial data
   useEffect(() => {
     loadProjects();
@@ -770,6 +791,114 @@ const KnowledgeApp: React.FC = () => {
       await uploadSessionFile(files[0]);
     }
   };
+
+  // External Connection functions
+  const loadExternalConnections = async () => {
+    try {
+      const userId = user?.id || user?.user_id;
+      if (!userId) return;
+
+      const res = await fetch(`${API_BASE}/external-connections?user_id=${userId}`, {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setExternalConnections(data.connections || []);
+      }
+    } catch (error) {
+      console.error('Failed to load external connections:', error);
+    }
+  };
+
+  const connectExternalResource = async (resourceType: string) => {
+    setConnectingResource(resourceType);
+    try {
+      const userId = user?.id || user?.user_id;
+
+      // Create connection
+      const res = await fetch(`${API_BASE}/external-connections?user_id=${userId}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          resource_type: resourceType,
+          config: {}
+        })
+      });
+
+      if (!res.ok) throw new Error('Failed to create connection');
+      const connection = await res.json();
+
+      // Get OAuth URL for OAuth-based resources
+      const resource = availableResources.find(r => r.type === resourceType);
+      if (resource?.authType === 'oauth2') {
+        const redirectUri = `${window.location.origin}/oauth/callback`;
+        const oauthRes = await fetch(
+          `${API_BASE}/external-connections/${connection.id}/oauth-url?redirect_uri=${encodeURIComponent(redirectUri)}`,
+          { headers: getAuthHeaders() }
+        );
+
+        if (oauthRes.ok) {
+          const { oauth_url } = await oauthRes.json();
+          // Store connection ID for callback
+          sessionStorage.setItem('oauth_connection_id', connection.id);
+          // Redirect to OAuth
+          window.location.href = oauth_url;
+        }
+      } else {
+        // API token auth - connection is already complete
+        await loadExternalConnections();
+        setShowExternalModal(false);
+      }
+    } catch (error) {
+      console.error('Failed to connect external resource:', error);
+      alert('연결에 실패했습니다.');
+    } finally {
+      setConnectingResource(null);
+    }
+  };
+
+  const disconnectExternalResource = async (connectionId: string) => {
+    if (!confirm('이 연결을 해제하시겠습니까? 동기화된 모든 문서가 삭제됩니다.')) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/external-connections/${connectionId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+
+      if (res.ok) {
+        setExternalConnections(prev => prev.filter(c => c.id !== connectionId));
+      }
+    } catch (error) {
+      console.error('Failed to disconnect:', error);
+    }
+  };
+
+  const syncExternalResource = async (connectionId: string, fullSync = false) => {
+    setSyncingConnection(connectionId);
+    try {
+      const res = await fetch(`${API_BASE}/external-connections/${connectionId}/sync`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ full_sync: fullSync })
+      });
+
+      if (res.ok) {
+        await loadExternalConnections();
+      }
+    } catch (error) {
+      console.error('Failed to sync:', error);
+    } finally {
+      setSyncingConnection(null);
+    }
+  };
+
+  // Load external connections on mount
+  useEffect(() => {
+    if (user) {
+      loadExternalConnections();
+    }
+  }, [user]);
 
   // Content generation
   const generateContent = async (type: string) => {
@@ -1807,8 +1936,55 @@ const KnowledgeApp: React.FC = () => {
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
               >
+                {/* External Resources Indicator */}
+                {externalConnections.filter(c => c.status === 'connected').length > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    background: 'rgba(46, 204, 113, 0.1)',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    color: '#2ECC71',
+                    marginBottom: '4px'
+                  }}>
+                    🔗 외부 리소스 연결됨:
+                    {externalConnections.filter(c => c.status === 'connected').map(conn => {
+                      const resource = availableResources.find(r => r.type === conn.resource_type);
+                      return (
+                        <span key={conn.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {resource?.icon} {resource?.name} ({conn.document_count}개)
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {/* Upload Buttons */}
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {/* + Button for External Resources */}
+                  <button
+                    onClick={() => setShowExternalModal(true)}
+                    style={{
+                      ...tabStyle(false),
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      padding: '8px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: externalConnections.some(c => c.status === 'connected')
+                        ? 'rgba(46, 204, 113, 0.2)'
+                        : undefined,
+                      borderColor: externalConnections.some(c => c.status === 'connected')
+                        ? '#2ECC71'
+                        : undefined
+                    }}
+                    title="외부 리소스 연결"
+                  >
+                    ➕ 외부 연결
+                  </button>
                   <label style={{
                     ...tabStyle(false),
                     cursor: uploadingSessionDoc ? 'not-allowed' : 'pointer',
@@ -1956,6 +2132,176 @@ const KnowledgeApp: React.FC = () => {
                           }}
                         >
                           {uploadingSessionDoc ? '처리 중...' : '추가'}
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* External Connection Modal */}
+              <AnimatePresence>
+                {showExternalModal && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                      position: 'fixed',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      background: 'rgba(0,0,0,0.7)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 1000
+                    }}
+                    onClick={() => setShowExternalModal(false)}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.9, opacity: 0 }}
+                      style={{ ...cardStyle, width: '600px', maxWidth: '90%', maxHeight: '80vh', overflow: 'auto' }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <h3 style={{ margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        🔗 외부 리소스 연결
+                      </h3>
+                      <p style={{ color: themeColors.textSecondary, fontSize: '14px', marginBottom: '20px' }}>
+                        외부 서비스의 문서를 연결하면 질문 시 우선적으로 참조합니다.
+                      </p>
+
+                      {/* Connected Resources */}
+                      {externalConnections.length > 0 && (
+                        <div style={{ marginBottom: '24px' }}>
+                          <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: themeColors.textSecondary }}>
+                            연결된 리소스
+                          </h4>
+                          {externalConnections.map(conn => {
+                            const resource = availableResources.find(r => r.type === conn.resource_type);
+                            return (
+                              <div key={conn.id} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '12px',
+                                background: 'rgba(255,255,255,0.05)',
+                                borderRadius: '8px',
+                                marginBottom: '8px'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                  <span style={{ fontSize: '24px' }}>{resource?.icon}</span>
+                                  <div>
+                                    <div style={{ fontWeight: 500 }}>{resource?.name}</div>
+                                    <div style={{ fontSize: '12px', color: themeColors.textSecondary }}>
+                                      {conn.status === 'connected' ? (
+                                        <span style={{ color: '#2ECC71' }}>
+                                          ✓ 연결됨 • {conn.document_count}개 문서 • {conn.chunk_count}개 청크
+                                        </span>
+                                      ) : conn.status === 'syncing' ? (
+                                        <span style={{ color: '#F39C12' }}>동기화 중...</span>
+                                      ) : conn.status === 'error' ? (
+                                        <span style={{ color: '#E74C3C' }}>오류: {conn.error_message}</span>
+                                      ) : (
+                                        <span>연결 대기 중</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  {conn.status === 'connected' && (
+                                    <button
+                                      onClick={() => syncExternalResource(conn.id)}
+                                      disabled={syncingConnection === conn.id}
+                                      style={{
+                                        ...tabStyle(false),
+                                        fontSize: '12px',
+                                        padding: '6px 12px'
+                                      }}
+                                    >
+                                      {syncingConnection === conn.id ? '동기화 중...' : '🔄 동기화'}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => disconnectExternalResource(conn.id)}
+                                    style={{
+                                      ...tabStyle(false),
+                                      fontSize: '12px',
+                                      padding: '6px 12px',
+                                      color: '#E74C3C',
+                                      borderColor: '#E74C3C'
+                                    }}
+                                  >
+                                    연결 해제
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Available Resources */}
+                      <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: themeColors.textSecondary }}>
+                        연결 가능한 리소스
+                      </h4>
+                      <div style={{ display: 'grid', gap: '12px' }}>
+                        {availableResources.map(resource => {
+                          const isConnected = externalConnections.some(
+                            c => c.resource_type === resource.type && c.status === 'connected'
+                          );
+                          const isConnecting = connectingResource === resource.type;
+
+                          return (
+                            <div key={resource.type} style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '16px',
+                              background: isConnected ? 'rgba(46, 204, 113, 0.1)' : 'rgba(255,255,255,0.05)',
+                              borderRadius: '8px',
+                              border: isConnected ? '1px solid rgba(46, 204, 113, 0.3)' : '1px solid transparent'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                <span style={{ fontSize: '32px' }}>{resource.icon}</span>
+                                <div>
+                                  <div style={{ fontWeight: 600, fontSize: '16px' }}>{resource.name}</div>
+                                  <div style={{ fontSize: '13px', color: themeColors.textSecondary }}>
+                                    {resource.description}
+                                  </div>
+                                  <div style={{
+                                    fontSize: '11px',
+                                    color: themeColors.textSecondary,
+                                    marginTop: '4px'
+                                  }}>
+                                    {resource.authType === 'oauth2' ? '🔐 OAuth 인증' : '🔑 API 토큰'}
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => !isConnected && connectExternalResource(resource.type)}
+                                disabled={isConnected || isConnecting}
+                                style={{
+                                  ...tabStyle(false),
+                                  padding: '10px 20px',
+                                  opacity: isConnected ? 0.5 : 1,
+                                  cursor: isConnected ? 'not-allowed' : 'pointer',
+                                  background: isConnected ? 'rgba(46, 204, 113, 0.2)' : undefined
+                                }}
+                              >
+                                {isConnected ? '✓ 연결됨' : isConnecting ? '연결 중...' : '연결하기'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
+                        <button
+                          onClick={() => setShowExternalModal(false)}
+                          style={{ ...tabStyle(false) }}
+                        >
+                          닫기
                         </button>
                       </div>
                     </motion.div>

@@ -68,10 +68,19 @@ class RAGService:
         # Session document options
         session_id: Optional[str] = None,
         use_session_docs: bool = True,
-        session_weight: float = 2.0
+        session_weight: float = 2.0,
+        # External resource options
+        user_id: Optional[str] = None,
+        use_external_resources: bool = True,
+        external_weight: float = 2.5
     ) -> Dict[str, Any]:
         """
-        Execute RAG query asynchronously with session document priority
+        Execute RAG query asynchronously with priority-based retrieval
+
+        Priority order:
+        1. Session documents (uploaded in current session)
+        2. User's external resources (OneNote, GitHub, Drive, Notion, Confluence)
+        3. Global knowledge base
 
         Args:
             question: User's question
@@ -83,15 +92,21 @@ class RAGService:
             session_id: Session ID for uploaded documents
             use_session_docs: Whether to use session documents (default True)
             session_weight: Score boost for session results (default 2.0)
+            user_id: User ID for external resources
+            use_external_resources: Whether to use external resources (default True)
+            external_weight: Score boost for external results (default 2.5)
 
         Returns:
             Dictionary with answer, sources, and metadata
         """
         session_results = []
+        external_results = []
         used_session_docs = False
+        used_external_resources = False
         session_doc_count = 0
+        external_doc_count = 0
 
-        # Step 1: Search session documents first (if available)
+        # Step 1: Search session documents first (highest priority)
         if session_id and use_session_docs:
             try:
                 from .session_document_service import get_session_document_service
@@ -112,28 +127,64 @@ class RAGService:
             except Exception as e:
                 print(f"[RAGService] Session document search failed: {e}")
 
-        # Step 2: Search global knowledge base
-        loop = asyncio.get_event_loop()
-        global_result = await loop.run_in_executor(
-            None,
-            self._sync_query,
-            question, strategy, language, top_k, conversation_history
-        )
+        # Step 2: Search user's external resources (second priority)
+        if user_id and use_external_resources:
+            try:
+                from .external_document_service import get_external_document_service
+                external_service = get_external_document_service()
 
-        # Step 3: Merge results with priority
-        merged_sources = self._merge_results_with_priority(
+                external_results = await external_service.search_user_resources(
+                    user_id=user_id,
+                    query=question,
+                    top_k=top_k,
+                    min_score=0.3
+                )
+
+                if external_results:
+                    used_external_resources = True
+                    external_doc_count = len(external_results)
+                    print(f"[RAGService] Found {external_doc_count} results from external resources")
+
+            except Exception as e:
+                print(f"[RAGService] External resource search failed: {e}")
+
+        # Step 3: Search global knowledge base (if needed)
+        # Skip global search if we have sufficient results from user sources
+        search_global = True
+        if (session_doc_count + external_doc_count) >= top_k:
+            # Check if scores are high enough
+            all_user_results = session_results + external_results
+            avg_score = sum(r.score for r in all_user_results) / len(all_user_results) if all_user_results else 0
+            if avg_score >= 0.7:
+                search_global = False
+                print(f"[RAGService] Skipping global search (sufficient user context: avg_score={avg_score:.2f})")
+
+        global_result = {"answer": "", "sources": [], "strategy": strategy, "language": language}
+        if search_global:
+            loop = asyncio.get_event_loop()
+            global_result = await loop.run_in_executor(
+                None,
+                self._sync_query,
+                question, strategy, language, top_k, conversation_history
+            )
+
+        # Step 4: Merge results with priority
+        merged_sources = self._merge_all_results_with_priority(
             session_results=session_results,
+            external_results=external_results,
             global_sources=global_result.get("sources", []),
             session_weight=session_weight,
+            external_weight=external_weight,
             top_k=top_k
         )
 
-        # Step 4: Generate answer with combined context
-        if session_results:
-            # Re-generate answer with session context included
-            answer = await self._generate_answer_with_session_context(
+        # Step 5: Generate answer with combined context
+        if session_results or external_results:
+            # Re-generate answer with user context included
+            answer = await self._generate_answer_with_full_context(
                 question=question,
                 session_results=session_results,
+                external_results=external_results,
                 global_sources=global_result.get("sources", []),
                 language=language,
                 original_answer=global_result.get("answer", "")
@@ -157,7 +208,9 @@ class RAGService:
                 "is_deep_analysis": False,
                 "has_error_code": features.get("has_error_code", False),
                 "used_session_docs": used_session_docs,
-                "session_doc_count": session_doc_count
+                "session_doc_count": session_doc_count,
+                "used_external_resources": used_external_resources,
+                "external_doc_count": external_doc_count
             }
         }
 
@@ -197,6 +250,79 @@ class RAGService:
                     **gs,
                     "is_session_doc": False,
                     "page_number": None
+                })
+
+        # Sort by score descending
+        merged.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+        return merged[:top_k]
+
+    def _merge_all_results_with_priority(
+        self,
+        session_results: List[Any],
+        external_results: List[Any],
+        global_sources: List[Dict],
+        session_weight: float,
+        external_weight: float,
+        top_k: int
+    ) -> List[Dict]:
+        """
+        Merge session, external, and global results with priority scoring.
+
+        Priority (highest to lowest):
+        1. Session documents (uploaded in current chat) - highest weight
+        2. External resources (user's connected resources) - medium weight
+        3. Global knowledge base - base score
+        """
+        merged = []
+
+        # Add session results with highest boost
+        for sr in session_results:
+            merged.append({
+                "doc_id": sr.document_id,
+                "doc_name": sr.source_name,
+                "chunk_id": sr.chunk_id,
+                "chunk_index": sr.metadata.get("index", 0),
+                "content": sr.content[:500],
+                "score": min(sr.score * session_weight, 1.0),
+                "source_type": "session",
+                "entities": [],
+                "is_session_doc": True,
+                "is_external_resource": False,
+                "page_number": getattr(sr, 'page_number', None),
+                "source_url": None
+            })
+
+        # Add external resource results with medium boost
+        for er in external_results:
+            merged.append({
+                "doc_id": er.document_id,
+                "doc_name": er.source_name,
+                "chunk_id": er.chunk_id,
+                "chunk_index": er.metadata.get("index", 0),
+                "content": er.content[:500],
+                "score": min(er.score * external_weight, 1.0),
+                "source_type": f"external_{er.source}" if hasattr(er, 'source') else "external",
+                "entities": [],
+                "is_session_doc": False,
+                "is_external_resource": True,
+                "page_number": getattr(er, 'page_number', None),
+                "source_url": getattr(er, 'source_url', None),
+                "external_source": er.source if hasattr(er, 'source') else None,
+                "section_title": getattr(er, 'section_title', None)
+            })
+
+        # Add global results (no boost)
+        for gs in global_sources:
+            # Check if this chunk is already included
+            existing_chunks = {m.get("chunk_id") for m in merged}
+            if gs.get("chunk_id") not in existing_chunks:
+                merged.append({
+                    **gs,
+                    "is_session_doc": False,
+                    "is_external_resource": False,
+                    "page_number": None,
+                    "source_url": None
                 })
 
         # Sort by score descending
@@ -278,6 +404,105 @@ class RAGService:
         except Exception as e:
             print(f"[RAGService] Answer generation with session context failed: {e}")
             # Fallback to original answer
+            return original_answer
+
+    async def _generate_answer_with_full_context(
+        self,
+        question: str,
+        session_results: List[Any],
+        external_results: List[Any],
+        global_sources: List[Dict],
+        language: str,
+        original_answer: str
+    ) -> str:
+        """
+        Generate answer with full context from all sources.
+
+        Priority:
+        1. Session documents (uploaded files)
+        2. External resources (connected accounts)
+        3. Global knowledge base
+        """
+        try:
+            rag = self._ensure_initialized()
+
+            context_parts = []
+
+            # Session context (highest priority)
+            if session_results:
+                context_parts.append("=== 업로드된 문서 (최우선 참조) ===")
+                for i, sr in enumerate(session_results[:4], 1):
+                    source_info = f"[{sr.source_name}]"
+                    if hasattr(sr, 'page_number') and sr.page_number:
+                        source_info += f" (페이지 {sr.page_number})"
+                    context_parts.append(f"[업로드{i}] {source_info}")
+                    context_parts.append(sr.content[:500])
+                context_parts.append("")
+
+            # External resource context (second priority)
+            if external_results:
+                context_parts.append("=== 연결된 외부 리소스 (우선 참조) ===")
+                for i, er in enumerate(external_results[:4], 1):
+                    source_type = er.source if hasattr(er, 'source') else "external"
+                    source_info = f"[{er.source_name}] ({source_type})"
+                    if hasattr(er, 'source_url') and er.source_url:
+                        source_info += f"\n   링크: {er.source_url}"
+                    if hasattr(er, 'section_title') and er.section_title:
+                        source_info += f"\n   섹션: {er.section_title}"
+                    context_parts.append(f"[외부{i}] {source_info}")
+                    context_parts.append(er.content[:500])
+                context_parts.append("")
+
+            # Global context (base knowledge)
+            if global_sources:
+                context_parts.append("=== 기존 지식 베이스 ===")
+                for i, gs in enumerate(global_sources[:3], 1):
+                    context_parts.append(f"[참조{i}] {gs.get('content', '')[:400]}")
+
+            context = "\n\n".join(context_parts)
+
+            # Language instruction
+            lang_instruction = ""
+            if language == "ko":
+                lang_instruction = "한국어로 답변해주세요."
+            elif language == "ja":
+                lang_instruction = "日本語で回答してください。"
+
+            # Generate answer with source attribution
+            prompt = f"""다음 문서들을 참고하여 질문에 답변하세요.
+{lang_instruction}
+
+**중요 지시사항**:
+1. '업로드된 문서'와 '연결된 외부 리소스'의 내용을 우선적으로 참조하여 답변하세요.
+2. 답변에 사용한 정보의 출처를 명시해주세요:
+   - 업로드된 문서에서 온 정보: "[업로드 문서]"
+   - 외부 리소스에서 온 정보: "[외부 리소스: 소스명]"
+   - 기존 지식에서 온 정보: "[기존 지식]"
+3. 외부 리소스의 링크가 있다면 참조용으로 제공해주세요.
+
+{context}
+
+질문: {question}
+
+답변:"""
+
+            # Run in thread pool
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: rag.llm.invoke(prompt)
+            )
+
+            answer = response.content
+
+            # Clean thinking tokens
+            if "</think>" in answer:
+                answer = answer.split("</think>")[-1].strip()
+
+            return answer
+
+        except Exception as e:
+            print(f"[RAGService] Answer generation with full context failed: {e}")
             return original_answer
 
     def _sync_query(

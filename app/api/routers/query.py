@@ -46,7 +46,7 @@ async def execute_query(
         # Get options with defaults
         opts = request.options or QueryOptions()
 
-        # Execute RAG query via service with session document support
+        # Execute RAG query via service with session document and external resource support
         result = await rag_service.query(
             question=request.question,
             strategy=request.strategy.value,
@@ -56,12 +56,16 @@ async def execute_query(
             # Session document options
             session_id=opts.session_id,
             use_session_docs=opts.use_session_docs,
-            session_weight=opts.session_weight
+            session_weight=opts.session_weight,
+            # External resource options
+            user_id=current_user.get("user_id") or current_user.get("id"),
+            use_external_resources=opts.use_external_resources,
+            external_weight=opts.external_weight
         )
 
         processing_time = int((time.time() - start_time) * 1000)
 
-        # Build sources list with session document info
+        # Build sources list with session document and external resource info
         sources = []
         for s in result.get("sources", []):
             source_info = SourceInfo(
@@ -74,7 +78,11 @@ async def execute_query(
                 source_type=s.get("source_type", "unknown"),
                 entities=s.get("entities", []),
                 is_session_doc=s.get("is_session_doc", False),
-                page_number=s.get("page_number")
+                page_number=s.get("page_number"),
+                is_external_resource=s.get("is_external_resource", False),
+                source_url=s.get("source_url"),
+                external_source=s.get("external_source"),
+                section_title=s.get("section_title")
             )
             sources.append(source_info)
 
