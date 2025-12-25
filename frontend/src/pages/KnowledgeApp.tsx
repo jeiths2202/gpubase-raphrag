@@ -201,7 +201,32 @@ interface Notification {
   created_at: string;
 }
 
-type TabType = 'chat' | 'documents' | 'notes' | 'content' | 'projects' | 'mindmap' | 'knowledge-graph' | 'knowledge-articles';
+type TabType = 'chat' | 'documents' | 'web-sources' | 'notes' | 'content' | 'projects' | 'mindmap' | 'knowledge-graph' | 'knowledge-articles';
+
+// Web Source types
+interface WebSource {
+  id: string;
+  url: string;
+  display_name: string;
+  domain: string;
+  status: 'pending' | 'fetching' | 'extracting' | 'chunking' | 'embedding' | 'ready' | 'error' | 'stale';
+  metadata: {
+    title?: string;
+    description?: string;
+    author?: string;
+    content_type: string;
+    language?: string;
+  };
+  stats: {
+    word_count: number;
+    chunk_count: number;
+    fetch_time_ms: number;
+  };
+  tags: string[];
+  error_message?: string;
+  created_at: string;
+  fetched_at?: string;
+}
 type ThemeType = 'dark' | 'light';
 
 const API_BASE = '/api/v1';
@@ -301,6 +326,13 @@ const KnowledgeApp: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
 
+  // Web Source state
+  const [webSources, setWebSources] = useState<WebSource[]>([]);
+  const [showAddUrlModal, setShowAddUrlModal] = useState(false);
+  const [newUrls, setNewUrls] = useState('');
+  const [addingUrls, setAddingUrls] = useState(false);
+  const [webSourceTags, setWebSourceTags] = useState<string[]>([]);
+
   // Load initial data
   useEffect(() => {
     loadProjects();
@@ -325,6 +357,8 @@ const KnowledgeApp: React.FC = () => {
       if (user?.role === 'senior' || user?.role === 'leader' || user?.role === 'admin') {
         loadPendingReviews();
       }
+    } else if (activeTab === 'web-sources') {
+      loadWebSources();
     }
   }, [activeTab, selectedProject]);
 
@@ -358,6 +392,96 @@ const KnowledgeApp: React.FC = () => {
       setDocuments(data.data?.documents || []);
     } catch (error) {
       console.error('Failed to load documents:', error);
+    }
+  };
+
+  const loadWebSources = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/web-sources?page=1&limit=100`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      setWebSources(data.data?.web_sources || []);
+    } catch (error) {
+      console.error('Failed to load web sources:', error);
+    }
+  };
+
+  const addWebSources = async () => {
+    if (!newUrls.trim()) return;
+
+    setAddingUrls(true);
+    try {
+      const urls = newUrls.split('\n').map(u => u.trim()).filter(u => u);
+
+      if (urls.length === 1) {
+        // Single URL
+        const res = await fetch(`${API_BASE}/web-sources`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            url: urls[0],
+            tags: webSourceTags
+          })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          setWebSources(prev => [data.data.web_source, ...prev]);
+        }
+      } else {
+        // Multiple URLs
+        const res = await fetch(`${API_BASE}/web-sources/bulk`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            urls: urls,
+            tags: webSourceTags
+          })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          setWebSources(prev => [...data.data.web_sources, ...prev]);
+        }
+      }
+
+      setNewUrls('');
+      setWebSourceTags([]);
+      setShowAddUrlModal(false);
+    } catch (error) {
+      console.error('Failed to add web sources:', error);
+    } finally {
+      setAddingUrls(false);
+    }
+  };
+
+  const refreshWebSource = async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/web-sources/${id}/refresh`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ force: false })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        loadWebSources();
+      }
+    } catch (error) {
+      console.error('Failed to refresh web source:', error);
+    }
+  };
+
+  const deleteWebSource = async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/web-sources/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        setWebSources(prev => prev.filter(ws => ws.id !== id));
+      }
+    } catch (error) {
+      console.error('Failed to delete web source:', error);
     }
   };
 
@@ -1259,6 +1383,7 @@ const KnowledgeApp: React.FC = () => {
           {[
             { key: 'chat', label: 'Chat', icon: '💬' },
             { key: 'documents', label: 'Documents', icon: '📄' },
+            { key: 'web-sources', label: 'Web Sources', icon: '🌐' },
             { key: 'notes', label: 'Notes', icon: '📝' },
             { key: 'content', label: 'AI Content', icon: '🤖' },
             { key: 'projects', label: 'Projects', icon: '📁' },
@@ -1820,6 +1945,234 @@ const KnowledgeApp: React.FC = () => {
                       >
                         {uploading ? 'Processing...' : 'Upload & Process'}
                       </button>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+
+          {/* Web Sources Tab */}
+          {activeTab === 'web-sources' && (
+            <motion.div
+              key="web-sources"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              style={{ flex: 1 }}
+            >
+              <div style={cardStyle}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div>
+                    <h2 style={{ margin: 0 }}>🌐 Web Sources</h2>
+                    <p style={{ color: themeColors.textSecondary, margin: '8px 0 0' }}>
+                      웹 URL을 추가하여 RAG 질의에 활용하세요. NotebookLM 스타일로 웹 콘텐츠를 인덱싱합니다.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowAddUrlModal(true)}
+                    style={{ ...tabStyle(true), display: 'flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    ➕ Add URL
+                  </button>
+                </div>
+
+                {/* Web Sources Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' }}>
+                  {webSources.map(ws => (
+                    <div
+                      key={ws.id}
+                      style={{
+                        ...cardStyle,
+                        border: `1px solid ${themeColors.cardBorder}`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                        <div style={{
+                          width: '48px',
+                          height: '48px',
+                          borderRadius: '8px',
+                          background: ws.status === 'ready' ? 'rgba(46, 204, 113, 0.2)' :
+                                     ws.status === 'error' ? 'rgba(231, 76, 60, 0.2)' :
+                                     'rgba(74, 144, 217, 0.2)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '24px',
+                          flexShrink: 0
+                        }}>
+                          {ws.status === 'ready' ? '✅' :
+                           ws.status === 'error' ? '❌' :
+                           ws.status === 'pending' ? '⏳' : '🔄'}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {ws.display_name || ws.metadata?.title || ws.domain}
+                          </div>
+                          <div style={{ fontSize: '12px', color: themeColors.textSecondary, marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            🔗 {ws.url}
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: '10px',
+                              padding: '2px 6px',
+                              background: ws.status === 'ready' ? 'rgba(46, 204, 113, 0.3)' :
+                                         ws.status === 'error' ? 'rgba(231, 76, 60, 0.3)' :
+                                         'rgba(241, 196, 15, 0.3)',
+                              color: ws.status === 'ready' ? '#2ECC71' :
+                                    ws.status === 'error' ? '#E74C3C' : '#F1C40F',
+                              borderRadius: '4px'
+                            }}>
+                              {ws.status.toUpperCase()}
+                            </span>
+                            {ws.stats?.chunk_count > 0 && (
+                              <span style={{
+                                fontSize: '10px',
+                                padding: '2px 6px',
+                                background: 'rgba(155, 89, 182, 0.3)',
+                                color: '#9B59B6',
+                                borderRadius: '4px'
+                              }}>
+                                {ws.stats.chunk_count} chunks
+                              </span>
+                            )}
+                            {ws.stats?.word_count > 0 && (
+                              <span style={{
+                                fontSize: '10px',
+                                padding: '2px 6px',
+                                background: 'rgba(52, 152, 219, 0.3)',
+                                color: '#3498DB',
+                                borderRadius: '4px'
+                              }}>
+                                {ws.stats.word_count.toLocaleString()} words
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {ws.error_message && (
+                        <div style={{ fontSize: '12px', color: '#E74C3C', background: 'rgba(231,76,60,0.1)', padding: '8px', borderRadius: '4px' }}>
+                          {ws.error_message}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: '8px', borderTop: `1px solid ${themeColors.cardBorder}`, paddingTop: '12px' }}>
+                        <button
+                          onClick={() => refreshWebSource(ws.id)}
+                          style={{ ...tabStyle(false), flex: 1, fontSize: '12px' }}
+                        >
+                          🔄 Refresh
+                        </button>
+                        <button
+                          onClick={() => window.open(ws.url, '_blank')}
+                          style={{ ...tabStyle(false), flex: 1, fontSize: '12px' }}
+                        >
+                          🔗 Open
+                        </button>
+                        <button
+                          onClick={() => deleteWebSource(ws.id)}
+                          style={{ ...tabStyle(false), flex: 1, fontSize: '12px', color: '#E74C3C' }}
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {webSources.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '40px', color: themeColors.textSecondary }}>
+                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>🌐</div>
+                    <p>No web sources added yet.</p>
+                    <p style={{ fontSize: '14px', marginTop: '8px' }}>Add web URLs to index their content for RAG queries.</p>
+                    <button
+                      onClick={() => setShowAddUrlModal(true)}
+                      style={{ ...tabStyle(true), marginTop: '16px' }}
+                    >
+                      Add your first URL
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Add URL Modal */}
+              <AnimatePresence>
+                {showAddUrlModal && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                      position: 'fixed',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      background: 'rgba(0,0,0,0.7)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 1000
+                    }}
+                    onClick={() => setShowAddUrlModal(false)}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.9, opacity: 0 }}
+                      style={{ ...cardStyle, width: '500px', maxWidth: '90%' }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <h3 style={{ margin: '0 0 16px' }}>🌐 Add Web URLs</h3>
+                      <p style={{ color: themeColors.textSecondary, fontSize: '14px', marginBottom: '16px' }}>
+                        Enter one or more URLs (one per line) to fetch and index their content.
+                      </p>
+
+                      <textarea
+                        placeholder="https://example.com/article&#10;https://docs.example.com/guide"
+                        value={newUrls}
+                        onChange={e => setNewUrls(e.target.value)}
+                        style={{
+                          ...inputStyle,
+                          width: '100%',
+                          minHeight: '120px',
+                          resize: 'vertical',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+
+                      <div style={{ marginTop: '16px' }}>
+                        <label style={{ color: themeColors.textSecondary, fontSize: '12px' }}>
+                          Tags (optional, comma-separated)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="docs, tutorial, api"
+                          value={webSourceTags.join(', ')}
+                          onChange={e => setWebSourceTags(e.target.value.split(',').map(t => t.trim()).filter(t => t))}
+                          style={{ ...inputStyle, width: '100%', marginTop: '4px' }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+                        <button
+                          onClick={() => setShowAddUrlModal(false)}
+                          style={{ ...tabStyle(false), flex: 1 }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={addWebSources}
+                          disabled={!newUrls.trim() || addingUrls}
+                          style={{
+                            ...tabStyle(true),
+                            flex: 1,
+                            opacity: !newUrls.trim() || addingUrls ? 0.5 : 1,
+                            cursor: !newUrls.trim() || addingUrls ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {addingUrls ? 'Adding...' : 'Add URLs'}
+                        </button>
+                      </div>
                     </motion.div>
                   </motion.div>
                 )}
