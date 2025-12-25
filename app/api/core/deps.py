@@ -181,10 +181,31 @@ class SettingsService:
 
 
 class AuthService:
-    """Mock Auth Service"""
+    """Auth Service with registration and email verification"""
+
+    # In-memory storage (replace with database in production)
+    _users: dict = {}
+    _pending_verifications: dict = {}  # email -> {code, user_data, expires_at}
+    _verified_emails: set = set()
 
     async def authenticate(self, username: str, password: str) -> dict:
-        # TODO: Implement proper authentication
+        """Authenticate user with username and password"""
+        import hashlib
+
+        # Check registered users first
+        if username in self._users:
+            user = self._users[username]
+            hashed = hashlib.sha256(password.encode()).hexdigest()
+            if user["password_hash"] == hashed and user.get("is_verified", False):
+                return {
+                    "id": user["id"],
+                    "username": user["username"],
+                    "email": user["email"],
+                    "role": user.get("role", "user")
+                }
+            return None
+
+        # Fallback to admin user for development
         if username == "admin" and password == "admin123":
             return {
                 "id": "user_admin",
@@ -193,11 +214,155 @@ class AuthService:
             }
         return None
 
+    async def register_user(self, user_id: str, email: str, password: str) -> dict:
+        """Register a new user and send verification email"""
+        import hashlib
+        import random
+        import uuid
+
+        # Check if user_id already exists
+        if user_id in self._users:
+            return {"error": "USER_EXISTS", "message": "이미 존재하는 사용자 ID입니다."}
+
+        # Check if email already registered
+        for u in self._users.values():
+            if u["email"] == email:
+                return {"error": "EMAIL_EXISTS", "message": "이미 등록된 이메일입니다."}
+
+        # Generate verification code
+        verification_code = str(random.randint(100000, 999999))
+
+        # Hash password
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+
+        # Store pending verification
+        self._pending_verifications[email] = {
+            "code": verification_code,
+            "user_data": {
+                "id": f"user_{uuid.uuid4().hex[:12]}",
+                "username": user_id,
+                "email": email,
+                "password_hash": password_hash,
+                "role": "user",
+                "is_verified": False
+            },
+            "expires_at": datetime.utcnow() + timedelta(minutes=10)
+        }
+
+        # Send verification email (mock for now)
+        await self._send_verification_email(email, verification_code)
+
+        return {
+            "success": True,
+            "user_id": user_id,
+            "email": email,
+            "message": "인증 코드가 이메일로 발송되었습니다."
+        }
+
+    async def verify_email(self, email: str, code: str) -> dict:
+        """Verify email with code"""
+        if email not in self._pending_verifications:
+            return {"error": "NO_PENDING", "message": "인증 대기 중인 이메일이 없습니다."}
+
+        pending = self._pending_verifications[email]
+
+        # Check expiration
+        if datetime.utcnow() > pending["expires_at"]:
+            del self._pending_verifications[email]
+            return {"error": "CODE_EXPIRED", "message": "인증 코드가 만료되었습니다."}
+
+        # Verify code
+        if pending["code"] != code:
+            return {"error": "INVALID_CODE", "message": "잘못된 인증 코드입니다."}
+
+        # Create user
+        user_data = pending["user_data"]
+        user_data["is_verified"] = True
+        self._users[user_data["username"]] = user_data
+        self._verified_emails.add(email)
+
+        # Clean up
+        del self._pending_verifications[email]
+
+        return {
+            "success": True,
+            "user": {
+                "id": user_data["id"],
+                "username": user_data["username"],
+                "email": user_data["email"],
+                "role": user_data["role"]
+            }
+        }
+
+    async def resend_verification(self, email: str) -> dict:
+        """Resend verification code"""
+        import random
+
+        if email not in self._pending_verifications:
+            return {"error": "NO_PENDING", "message": "인증 대기 중인 이메일이 없습니다."}
+
+        # Generate new code
+        new_code = str(random.randint(100000, 999999))
+        self._pending_verifications[email]["code"] = new_code
+        self._pending_verifications[email]["expires_at"] = datetime.utcnow() + timedelta(minutes=10)
+
+        # Send email
+        await self._send_verification_email(email, new_code)
+
+        return {"success": True, "message": "새 인증 코드가 발송되었습니다."}
+
+    async def _send_verification_email(self, email: str, code: str) -> bool:
+        """Send verification email (mock implementation)"""
+        # TODO: Implement actual email sending (SMTP, SendGrid, etc.)
+        print(f"[EMAIL] Sending verification code {code} to {email}")
+        return True
+
+    async def authenticate_google(self, credential: str) -> dict:
+        """Authenticate with Google OAuth"""
+        # TODO: Implement Google token verification
+        # For now, decode and mock the response
+        try:
+            # In production, verify with Google's API
+            # from google.oauth2 import id_token
+            # from google.auth.transport import requests
+            # idinfo = id_token.verify_oauth2_token(credential, requests.Request(), GOOGLE_CLIENT_ID)
+
+            # Mock response for development
+            import uuid
+            return {
+                "id": f"google_{uuid.uuid4().hex[:12]}",
+                "username": "google_user",
+                "email": "user@gmail.com",
+                "role": "user",
+                "provider": "google"
+            }
+        except Exception:
+            return None
+
+    async def initiate_sso(self, email: str) -> dict:
+        """Initiate corporate SSO flow"""
+        # Check if corporate email
+        domain = email.split("@")[1].lower() if "@" in email else ""
+        corp_domains = ["company.com", "company.co.kr"]
+
+        if domain not in corp_domains:
+            return {"error": "NOT_CORPORATE", "message": "회사 이메일이 아닙니다."}
+
+        # TODO: Implement actual SSO (SAML/OIDC) flow
+        # For now, return SSO URL mock
+        import uuid
+        return {
+            "success": True,
+            "sso_url": f"/auth/sso/callback?token={uuid.uuid4().hex}",
+            "message": "SSO 인증 페이지로 이동합니다."
+        }
+
     async def create_access_token(self, user: dict) -> str:
         expire = datetime.utcnow() + timedelta(minutes=api_settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
         payload = {
             "sub": user["id"],
             "username": user["username"],
+            "email": user.get("email", ""),
             "role": user.get("role", "user"),
             "exp": expire
         }
