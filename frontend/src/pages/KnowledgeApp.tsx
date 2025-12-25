@@ -98,7 +98,40 @@ interface Conversation {
   last_query_at?: string;
 }
 
-type TabType = 'chat' | 'documents' | 'notes' | 'content' | 'projects' | 'mindmap';
+// Knowledge Graph types
+interface KGEntity {
+  id: string;
+  label: string;
+  entity_type: string;
+  properties: Record<string, any>;
+  confidence: number;
+  x?: number;
+  y?: number;
+  color?: string;
+}
+
+interface KGRelationship {
+  id: string;
+  source_id: string;
+  target_id: string;
+  relation_type: string;
+  weight: number;
+  confidence: number;
+}
+
+interface KnowledgeGraphData {
+  id: string;
+  name: string;
+  description?: string;
+  entities: KGEntity[];
+  relationships: KGRelationship[];
+  entity_count: number;
+  relationship_count: number;
+  source_query?: string;
+  created_at: string;
+}
+
+type TabType = 'chat' | 'documents' | 'notes' | 'content' | 'projects' | 'mindmap' | 'knowledge-graph';
 type ThemeType = 'dark' | 'light';
 
 const API_BASE = '/api/v1';
@@ -147,6 +180,14 @@ const KnowledgeApp: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
 
+  // Knowledge Graph state
+  const [knowledgeGraphs, setKnowledgeGraphs] = useState<KnowledgeGraphData[]>([]);
+  const [selectedKG, setSelectedKG] = useState<KnowledgeGraphData | null>(null);
+  const [kgQuery, setKgQuery] = useState('');
+  const [buildingKG, setBuildingKG] = useState(false);
+  const [queryingKG, setQueryingKG] = useState(false);
+  const [kgAnswer, setKgAnswer] = useState<string | null>(null);
+
   // Source panel state
   const [showSourcePanel, setShowSourcePanel] = useState(false);
   const [selectedSource, setSelectedSource] = useState<any>(null);
@@ -180,6 +221,8 @@ const KnowledgeApp: React.FC = () => {
       loadFolders();
     } else if (activeTab === 'content') {
       loadContents();
+    } else if (activeTab === 'knowledge-graph') {
+      loadKnowledgeGraphs();
     }
   }, [activeTab, selectedProject]);
 
@@ -503,6 +546,119 @@ const KnowledgeApp: React.FC = () => {
     }
   };
 
+  // Knowledge Graph functions
+  const loadKnowledgeGraphs = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/knowledge-graph?page=1&limit=50`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      setKnowledgeGraphs(data.data?.knowledge_graphs || []);
+    } catch (error) {
+      console.error('Failed to load knowledge graphs:', error);
+    }
+  };
+
+  const buildKnowledgeGraph = async () => {
+    if (!kgQuery.trim()) return;
+
+    setBuildingKG(true);
+    setKgAnswer(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/knowledge-graph/build`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          query: kgQuery,
+          document_ids: selectedDocuments,
+          name: `KG: ${kgQuery.substring(0, 50)}`,
+          max_entities: 50,
+          max_relationships: 100,
+          use_llm_extraction: true,
+          infer_relationships: true
+        })
+      });
+
+      const data = await res.json();
+      if (data.data?.knowledge_graph) {
+        setSelectedKG(data.data.knowledge_graph);
+        loadKnowledgeGraphs();
+      }
+    } catch (error) {
+      console.error('Failed to build knowledge graph:', error);
+    } finally {
+      setBuildingKG(false);
+    }
+  };
+
+  const queryKnowledgeGraph = async () => {
+    if (!selectedKG || !kgQuery.trim()) return;
+
+    setQueryingKG(true);
+    setKgAnswer(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/knowledge-graph/${selectedKG.id}/query`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          query: kgQuery,
+          max_hops: 3,
+          include_paths: true
+        })
+      });
+
+      const data = await res.json();
+      if (data.data?.answer) {
+        setKgAnswer(data.data.answer);
+      }
+    } catch (error) {
+      console.error('Failed to query knowledge graph:', error);
+    } finally {
+      setQueryingKG(false);
+    }
+  };
+
+  const deleteKnowledgeGraph = async (kgId: string) => {
+    if (!confirm('정말 이 Knowledge Graph를 삭제하시겠습니까?')) return;
+
+    try {
+      await fetch(`${API_BASE}/knowledge-graph/${kgId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+
+      if (selectedKG?.id === kgId) {
+        setSelectedKG(null);
+      }
+      loadKnowledgeGraphs();
+    } catch (error) {
+      console.error('Failed to delete knowledge graph:', error);
+    }
+  };
+
+  // Get entity type color for visualization
+  const getEntityColor = (entityType: string): string => {
+    const colors: Record<string, string> = {
+      concept: '#4A90D9',
+      person: '#E74C3C',
+      organization: '#2ECC71',
+      location: '#F39C12',
+      technology: '#9B59B6',
+      event: '#E91E63',
+      document: '#00BCD4',
+      topic: '#FF5722',
+      process: '#795548',
+      product: '#607D8B',
+      term: '#3F51B5',
+      metric: '#009688',
+      date: '#FF9800',
+      quantity: '#8BC34A'
+    };
+    return colors[entityType] || '#6C757D';
+  };
+
   // Upload document
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -685,7 +841,8 @@ const KnowledgeApp: React.FC = () => {
             { key: 'notes', label: 'Notes', icon: '📝' },
             { key: 'content', label: 'AI Content', icon: '🤖' },
             { key: 'projects', label: 'Projects', icon: '📁' },
-            { key: 'mindmap', label: 'Mindmap', icon: '🧠' }
+            { key: 'mindmap', label: 'Mindmap', icon: '🧠' },
+            { key: 'knowledge-graph', label: 'Knowledge Graph', icon: '🔗' }
           ].map(tab => (
             <button
               key={tab.key}
@@ -1540,6 +1697,427 @@ const KnowledgeApp: React.FC = () => {
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Knowledge Graph Tab */}
+          {activeTab === 'knowledge-graph' && (
+            <motion.div
+              key="knowledge-graph"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}
+            >
+              {/* Header */}
+              <div style={cardStyle}>
+                <h2 style={{ margin: 0 }}>Knowledge Graph</h2>
+                <p style={{ color: themeColors.textSecondary, margin: '8px 0 0' }}>
+                  쿼리 기반 지식 그래프 생성 및 탐색 - 선택된 문서: {selectedDocuments.length}개
+                </p>
+              </div>
+
+              {/* Query Input & Actions */}
+              <div style={{ ...cardStyle, display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  value={kgQuery}
+                  onChange={(e) => setKgQuery(e.target.value)}
+                  placeholder="Knowledge Graph를 생성하거나 질의할 내용을 입력하세요..."
+                  style={{
+                    flex: 1,
+                    minWidth: '300px',
+                    padding: '12px 16px',
+                    background: 'rgba(255,255,255,0.1)',
+                    border: `1px solid ${themeColors.cardBorder}`,
+                    borderRadius: '8px',
+                    color: themeColors.text,
+                    fontSize: '16px'
+                  }}
+                  onKeyPress={(e) => e.key === 'Enter' && (selectedKG ? queryKnowledgeGraph() : buildKnowledgeGraph())}
+                />
+                <button
+                  onClick={buildKnowledgeGraph}
+                  disabled={buildingKG || !kgQuery.trim()}
+                  style={{
+                    padding: '12px 24px',
+                    background: '#2ECC71',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: buildingKG || !kgQuery.trim() ? 'not-allowed' : 'pointer',
+                    opacity: buildingKG || !kgQuery.trim() ? 0.5 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {buildingKG ? '생성 중...' : '🔗 KG 생성'}
+                </button>
+                {selectedKG && (
+                  <button
+                    onClick={queryKnowledgeGraph}
+                    disabled={queryingKG || !kgQuery.trim()}
+                    style={{
+                      padding: '12px 24px',
+                      background: themeColors.accent,
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: queryingKG || !kgQuery.trim() ? 'not-allowed' : 'pointer',
+                      opacity: queryingKG || !kgQuery.trim() ? 0.5 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    {queryingKG ? '질의 중...' : '🔍 KG 질의'}
+                  </button>
+                )}
+              </div>
+
+              {/* Main Content Area */}
+              <div style={{ display: 'flex', gap: '16px', flex: 1 }}>
+                {/* KG List Sidebar */}
+                <div style={{ ...cardStyle, width: '250px', flexShrink: 0 }}>
+                  <h3 style={{ margin: '0 0 16px' }}>Knowledge Graphs</h3>
+                  {knowledgeGraphs.length === 0 ? (
+                    <div style={{ color: themeColors.textSecondary, fontSize: '14px', textAlign: 'center', padding: '20px 0' }}>
+                      생성된 Knowledge Graph가 없습니다.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {knowledgeGraphs.map(kg => (
+                        <div
+                          key={kg.id}
+                          onClick={() => setSelectedKG(kg)}
+                          style={{
+                            padding: '12px',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            background: selectedKG?.id === kg.id ? 'rgba(74,144,217,0.2)' : 'rgba(255,255,255,0.05)',
+                            border: selectedKG?.id === kg.id ? `2px solid ${themeColors.accent}` : '1px solid transparent',
+                            position: 'relative'
+                          }}
+                        >
+                          <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '4px' }}>{kg.name}</div>
+                          <div style={{ fontSize: '12px', color: themeColors.textSecondary }}>
+                            {kg.entity_count} entities | {kg.relationship_count} relationships
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteKnowledgeGraph(kg.id);
+                            }}
+                            style={{
+                              position: 'absolute',
+                              top: '8px',
+                              right: '8px',
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#E74C3C',
+                              cursor: 'pointer',
+                              fontSize: '14px',
+                              padding: '4px'
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Graph Visualization */}
+                <div style={{ ...cardStyle, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  {selectedKG ? (
+                    <>
+                      {/* KG Header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <div>
+                          <h3 style={{ margin: 0 }}>{selectedKG.name}</h3>
+                          <div style={{ fontSize: '12px', color: themeColors.textSecondary, marginTop: '4px' }}>
+                            {selectedKG.source_query && `Query: "${selectedKG.source_query}"`}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <span style={{ padding: '4px 8px', background: 'rgba(46,204,113,0.2)', borderRadius: '4px', fontSize: '12px' }}>
+                            {selectedKG.entity_count} Entities
+                          </span>
+                          <span style={{ padding: '4px 8px', background: 'rgba(74,144,217,0.2)', borderRadius: '4px', fontSize: '12px' }}>
+                            {selectedKG.relationship_count} Relations
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* KG Answer */}
+                      {kgAnswer && (
+                        <div style={{
+                          padding: '16px',
+                          background: 'rgba(74,144,217,0.1)',
+                          borderRadius: '8px',
+                          marginBottom: '16px',
+                          borderLeft: `4px solid ${themeColors.accent}`
+                        }}>
+                          <div style={{ fontWeight: 600, marginBottom: '8px' }}>AI 답변:</div>
+                          <div style={{ whiteSpace: 'pre-wrap' }}>{kgAnswer}</div>
+                        </div>
+                      )}
+
+                      {/* Graph SVG Visualization */}
+                      <div style={{
+                        flex: 1,
+                        minHeight: '400px',
+                        background: 'rgba(0,0,0,0.2)',
+                        borderRadius: '8px',
+                        position: 'relative',
+                        overflow: 'hidden'
+                      }}>
+                        <svg width="100%" height="100%" style={{ display: 'block' }}>
+                          <defs>
+                            <marker
+                              id="arrowhead"
+                              markerWidth="10"
+                              markerHeight="7"
+                              refX="10"
+                              refY="3.5"
+                              orient="auto"
+                            >
+                              <polygon points="0 0, 10 3.5, 0 7" fill={themeColors.textSecondary} />
+                            </marker>
+                          </defs>
+
+                          {/* Relationships (Edges) */}
+                          {selectedKG.relationships.map((rel, idx) => {
+                            const sourceEntity = selectedKG.entities.find(e => e.id === rel.source_id);
+                            const targetEntity = selectedKG.entities.find(e => e.id === rel.target_id);
+                            if (!sourceEntity || !targetEntity) return null;
+
+                            // Calculate positions in a circular layout if not set
+                            const entityCount = selectedKG.entities.length;
+                            const sourceIndex = selectedKG.entities.findIndex(e => e.id === rel.source_id);
+                            const targetIndex = selectedKG.entities.findIndex(e => e.id === rel.target_id);
+                            const centerX = 400;
+                            const centerY = 250;
+                            const radius = Math.min(300, Math.max(150, entityCount * 20));
+
+                            const sourceX = sourceEntity.x ?? (centerX + radius * Math.cos(2 * Math.PI * sourceIndex / entityCount));
+                            const sourceY = sourceEntity.y ?? (centerY + radius * Math.sin(2 * Math.PI * sourceIndex / entityCount));
+                            const targetX = targetEntity.x ?? (centerX + radius * Math.cos(2 * Math.PI * targetIndex / entityCount));
+                            const targetY = targetEntity.y ?? (centerY + radius * Math.sin(2 * Math.PI * targetIndex / entityCount));
+
+                            // Calculate midpoint for label
+                            const midX = (sourceX + targetX) / 2;
+                            const midY = (sourceY + targetY) / 2;
+
+                            return (
+                              <g key={rel.id || idx}>
+                                <line
+                                  x1={sourceX}
+                                  y1={sourceY}
+                                  x2={targetX}
+                                  y2={targetY}
+                                  stroke={themeColors.textSecondary}
+                                  strokeWidth={Math.max(1, rel.weight * 2)}
+                                  strokeOpacity={0.5}
+                                  markerEnd="url(#arrowhead)"
+                                />
+                                <text
+                                  x={midX}
+                                  y={midY - 5}
+                                  fill={themeColors.textSecondary}
+                                  fontSize="10"
+                                  textAnchor="middle"
+                                  style={{ pointerEvents: 'none' }}
+                                >
+                                  {rel.relation_type.replace(/_/g, ' ')}
+                                </text>
+                              </g>
+                            );
+                          })}
+
+                          {/* Entities (Nodes) */}
+                          {selectedKG.entities.map((entity, idx) => {
+                            const entityCount = selectedKG.entities.length;
+                            const centerX = 400;
+                            const centerY = 250;
+                            const radius = Math.min(300, Math.max(150, entityCount * 20));
+                            const x = entity.x ?? (centerX + radius * Math.cos(2 * Math.PI * idx / entityCount));
+                            const y = entity.y ?? (centerY + radius * Math.sin(2 * Math.PI * idx / entityCount));
+                            const nodeRadius = 25 + (entity.confidence * 10);
+                            const color = entity.color || getEntityColor(entity.entity_type);
+
+                            return (
+                              <g key={entity.id} style={{ cursor: 'pointer' }}>
+                                {/* Node circle */}
+                                <circle
+                                  cx={x}
+                                  cy={y}
+                                  r={nodeRadius}
+                                  fill={color}
+                                  fillOpacity={0.8}
+                                  stroke={color}
+                                  strokeWidth={2}
+                                />
+                                {/* Entity label */}
+                                <text
+                                  x={x}
+                                  y={y + 4}
+                                  fill="#fff"
+                                  fontSize="11"
+                                  textAnchor="middle"
+                                  style={{ pointerEvents: 'none', fontWeight: 600 }}
+                                >
+                                  {entity.label.length > 10 ? entity.label.substring(0, 10) + '...' : entity.label}
+                                </text>
+                                {/* Entity type badge */}
+                                <text
+                                  x={x}
+                                  y={y + nodeRadius + 14}
+                                  fill={themeColors.textSecondary}
+                                  fontSize="9"
+                                  textAnchor="middle"
+                                  style={{ pointerEvents: 'none' }}
+                                >
+                                  {entity.entity_type}
+                                </text>
+                              </g>
+                            );
+                          })}
+                        </svg>
+
+                        {/* Legend */}
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '12px',
+                          left: '12px',
+                          background: 'rgba(0,0,0,0.7)',
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: '8px',
+                          maxWidth: '400px'
+                        }}>
+                          {Array.from(new Set(selectedKG.entities.map(e => e.entity_type))).map(type => (
+                            <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <div style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '50%',
+                                background: getEntityColor(type)
+                              }} />
+                              <span style={{ fontSize: '10px', color: themeColors.text }}>{type}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Entity/Relationship Details */}
+                      <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
+                        {/* Entities List */}
+                        <div style={{ flex: 1 }}>
+                          <h4 style={{ margin: '0 0 8px' }}>Entities ({selectedKG.entity_count})</h4>
+                          <div style={{ maxHeight: '200px', overflow: 'auto' }}>
+                            {selectedKG.entities.slice(0, 20).map(entity => (
+                              <div
+                                key={entity.id}
+                                style={{
+                                  padding: '8px',
+                                  background: 'rgba(255,255,255,0.05)',
+                                  borderRadius: '6px',
+                                  marginBottom: '4px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px'
+                                }}
+                              >
+                                <div style={{
+                                  width: '10px',
+                                  height: '10px',
+                                  borderRadius: '50%',
+                                  background: getEntityColor(entity.entity_type)
+                                }} />
+                                <span style={{ fontWeight: 500 }}>{entity.label}</span>
+                                <span style={{ fontSize: '11px', color: themeColors.textSecondary }}>
+                                  ({entity.entity_type})
+                                </span>
+                              </div>
+                            ))}
+                            {selectedKG.entities.length > 20 && (
+                              <div style={{ fontSize: '12px', color: themeColors.textSecondary, padding: '8px' }}>
+                                + {selectedKG.entities.length - 20} more entities
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Relationships List */}
+                        <div style={{ flex: 1 }}>
+                          <h4 style={{ margin: '0 0 8px' }}>Relationships ({selectedKG.relationship_count})</h4>
+                          <div style={{ maxHeight: '200px', overflow: 'auto' }}>
+                            {selectedKG.relationships.slice(0, 20).map(rel => {
+                              const source = selectedKG.entities.find(e => e.id === rel.source_id);
+                              const target = selectedKG.entities.find(e => e.id === rel.target_id);
+                              return (
+                                <div
+                                  key={rel.id}
+                                  style={{
+                                    padding: '8px',
+                                    background: 'rgba(255,255,255,0.05)',
+                                    borderRadius: '6px',
+                                    marginBottom: '4px',
+                                    fontSize: '12px'
+                                  }}
+                                >
+                                  <span style={{ fontWeight: 500 }}>{source?.label || '?'}</span>
+                                  <span style={{ color: themeColors.accent, margin: '0 6px' }}>
+                                    → {rel.relation_type.replace(/_/g, ' ')} →
+                                  </span>
+                                  <span style={{ fontWeight: 500 }}>{target?.label || '?'}</span>
+                                </div>
+                              );
+                            })}
+                            {selectedKG.relationships.length > 20 && (
+                              <div style={{ fontSize: '12px', color: themeColors.textSecondary, padding: '8px' }}>
+                                + {selectedKG.relationships.length - 20} more relationships
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: themeColors.textSecondary }}>
+                      <div style={{ fontSize: '64px', marginBottom: '16px' }}>🔗</div>
+                      <h3>Knowledge Graph를 생성하세요</h3>
+                      <p style={{ textAlign: 'center', maxWidth: '400px', marginTop: '8px' }}>
+                        쿼리를 입력하고 'KG 생성' 버튼을 클릭하면 관련 개념, 관계를 추출하여 지식 그래프를 구축합니다.
+                      </p>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        {[
+                          'GPU 기반 RAG 시스템 구조',
+                          'Neo4j Knowledge Graph',
+                          'LLM과 벡터 검색의 관계'
+                        ].map((example, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setKgQuery(example)}
+                            style={{
+                              ...tabStyle(false),
+                              fontSize: '12px',
+                              padding: '8px 12px'
+                            }}
+                          >
+                            {example}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>

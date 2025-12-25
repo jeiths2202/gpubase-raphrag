@@ -18,7 +18,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph
 
 
 @asynccontextmanager
@@ -53,6 +53,7 @@ app = FastAPI(
 - **Content API**: AI 기반 콘텐츠 생성 (요약, FAQ, 학습가이드, 브리핑, 타임라인, 목차)
 - **Notes API**: 노트 및 메모 관리
 - **Projects API**: 프로젝트/노트북 관리 및 공유
+- **Knowledge Graph API**: 쿼리 기반 지식 그래프 생성 및 탐색
 
 ### 기술 스택
 - **LLM**: Nemotron Nano 9B, Mistral NeMo 12B
@@ -113,6 +114,7 @@ app.include_router(mindmap.router, prefix=API_PREFIX)
 app.include_router(content.router, prefix=API_PREFIX)
 app.include_router(notes.router, prefix=API_PREFIX)
 app.include_router(projects.router, prefix=API_PREFIX)
+app.include_router(knowledge_graph.router, prefix=API_PREFIX)
 
 
 # Root endpoint
