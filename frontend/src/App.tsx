@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import LoginPage from './pages/LoginPage';
 import MindmapApp from './pages/MindmapApp';
 import AdminDashboard from './pages/AdminDashboard';
+import KnowledgeApp from './pages/KnowledgeApp';
 import { useAuthStore } from './store/authStore';
 import { GOOGLE_CLIENT_ID } from './config/constants';
 
@@ -75,6 +76,16 @@ const App: React.FC = () => {
           {/* Protected routes */}
           <Route
             path="/"
+            element={
+              <ProtectedRoute>
+                <KnowledgeApp />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Mindmap route */}
+          <Route
+            path="/mindmap"
             element={
               <ProtectedRoute>
                 <MindmapApp />
