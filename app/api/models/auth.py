@@ -1,8 +1,44 @@
 """
 Authentication Pydantic models
 """
-from typing import Optional
+from enum import Enum
+from typing import Optional, List
 from pydantic import BaseModel, Field, EmailStr
+from datetime import datetime
+
+
+class UserRole(str, Enum):
+    """User role hierarchy for permission control"""
+    ADMIN = "admin"      # Full system access
+    LEADER = "leader"    # Review permission + user management
+    SENIOR = "senior"    # Review permission
+    USER = "user"        # Knowledge registration permission
+    GUEST = "guest"      # Read-only access
+
+
+# Role hierarchy for permission checks
+ROLE_HIERARCHY = {
+    UserRole.ADMIN: 5,
+    UserRole.LEADER: 4,
+    UserRole.SENIOR: 3,
+    UserRole.USER: 2,
+    UserRole.GUEST: 1
+}
+
+
+def has_permission(user_role: str, required_role: str) -> bool:
+    """Check if user has required permission level"""
+    try:
+        user_level = ROLE_HIERARCHY.get(UserRole(user_role), 0)
+        required_level = ROLE_HIERARCHY.get(UserRole(required_role), 0)
+        return user_level >= required_level
+    except ValueError:
+        return False
+
+
+def can_review(user_role: str) -> bool:
+    """Check if user can review knowledge articles"""
+    return has_permission(user_role, UserRole.SENIOR)
 
 
 class LoginRequest(BaseModel):
@@ -103,5 +139,32 @@ class UserInfo(BaseModel):
     """User information"""
     id: str
     username: str
-    role: str = "user"
+    email: Optional[str] = None
+    role: UserRole = UserRole.USER
+    department: Optional[str] = None
     is_active: bool = True
+    created_at: Optional[datetime] = None
+    last_login_at: Optional[datetime] = None
+
+    def can_review(self) -> bool:
+        """Check if user can review knowledge articles"""
+        return has_permission(self.role, UserRole.SENIOR)
+
+    def is_reviewer(self) -> bool:
+        """Check if user is senior or above"""
+        return self.role in [UserRole.ADMIN, UserRole.LEADER, UserRole.SENIOR]
+
+
+class UserUpdateRequest(BaseModel):
+    """User update request for admin"""
+    role: Optional[UserRole] = None
+    department: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class UserListResponse(BaseModel):
+    """User list response"""
+    users: List[UserInfo]
+    total: int
+    page: int
+    limit: int

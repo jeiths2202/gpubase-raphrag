@@ -131,7 +131,77 @@ interface KnowledgeGraphData {
   created_at: string;
 }
 
-type TabType = 'chat' | 'documents' | 'notes' | 'content' | 'projects' | 'mindmap' | 'knowledge-graph';
+// Knowledge Article types
+type KnowledgeStatus = 'draft' | 'pending' | 'in_review' | 'approved' | 'rejected' | 'published';
+type KnowledgeCategory = 'technical' | 'process' | 'guideline' | 'troubleshooting' | 'best_practice' | 'tutorial' | 'faq' | 'announcement' | 'research' | 'other';
+type SupportedLanguage = 'ko' | 'ja' | 'en';
+
+interface KnowledgeTranslation {
+  language: SupportedLanguage;
+  title: string;
+  content: string;
+  summary?: string;
+}
+
+interface ReviewComment {
+  id: string;
+  reviewer_id: string;
+  reviewer_name: string;
+  comment: string;
+  action: string;
+  created_at: string;
+}
+
+interface KnowledgeArticle {
+  id: string;
+  title: string;
+  content: string;
+  summary?: string;
+  primary_language: SupportedLanguage;
+  category: KnowledgeCategory;
+  tags: string[];
+  author_id: string;
+  author_name: string;
+  author_department?: string;
+  status: KnowledgeStatus;
+  reviewer_id?: string;
+  reviewer_name?: string;
+  review_comments: ReviewComment[];
+  translations: Record<string, KnowledgeTranslation>;
+  view_count: number;
+  recommendation_count: number;
+  created_at: string;
+  published_at?: string;
+}
+
+interface TopContributor {
+  user_id: string;
+  username: string;
+  department?: string;
+  total_recommendations: number;
+  article_count: number;
+  rank: number;
+}
+
+interface CategoryOption {
+  value: KnowledgeCategory;
+  label: string;
+}
+
+// Notification types
+interface Notification {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  message: string;
+  reference_type?: string;
+  reference_id?: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+type TabType = 'chat' | 'documents' | 'notes' | 'content' | 'projects' | 'mindmap' | 'knowledge-graph' | 'knowledge-articles';
 type ThemeType = 'dark' | 'light';
 
 const API_BASE = '/api/v1';
@@ -188,6 +258,29 @@ const KnowledgeApp: React.FC = () => {
   const [queryingKG, setQueryingKG] = useState(false);
   const [kgAnswer, setKgAnswer] = useState<string | null>(null);
 
+  // Knowledge Article state
+  const [knowledgeArticles, setKnowledgeArticles] = useState<KnowledgeArticle[]>([]);
+  const [selectedArticle, setSelectedArticle] = useState<KnowledgeArticle | null>(null);
+  const [articleLanguage, setArticleLanguage] = useState<SupportedLanguage>('ko');
+  const [showCreateArticle, setShowCreateArticle] = useState(false);
+  const [newArticle, setNewArticle] = useState({
+    title: '',
+    content: '',
+    summary: '',
+    category: 'technical' as KnowledgeCategory,
+    tags: [] as string[]
+  });
+  const [savingArticle, setSavingArticle] = useState(false);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [topContributors, setTopContributors] = useState<TopContributor[]>([]);
+  const [pendingReviews, setPendingReviews] = useState<KnowledgeArticle[]>([]);
+  const [reviewComment, setReviewComment] = useState('');
+
+  // Notification state
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+
   // Source panel state
   const [showSourcePanel, setShowSourcePanel] = useState(false);
   const [selectedSource, setSelectedSource] = useState<any>(null);
@@ -213,6 +306,8 @@ const KnowledgeApp: React.FC = () => {
     loadProjects();
     loadDocuments();
     loadConversations();
+    loadNotifications();
+    loadUnreadCount();
   }, []);
 
   useEffect(() => {
@@ -223,6 +318,13 @@ const KnowledgeApp: React.FC = () => {
       loadContents();
     } else if (activeTab === 'knowledge-graph') {
       loadKnowledgeGraphs();
+    } else if (activeTab === 'knowledge-articles') {
+      loadKnowledgeArticles();
+      loadCategories();
+      loadTopContributors();
+      if (user?.role === 'senior' || user?.role === 'leader' || user?.role === 'admin') {
+        loadPendingReviews();
+      }
     }
   }, [activeTab, selectedProject]);
 
@@ -659,6 +761,233 @@ const KnowledgeApp: React.FC = () => {
     return colors[entityType] || '#6C757D';
   };
 
+  // Knowledge Article functions
+  const loadKnowledgeArticles = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/knowledge?status=published&page=1&limit=50`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      setKnowledgeArticles(data.data?.articles || []);
+    } catch (error) {
+      console.error('Failed to load knowledge articles:', error);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/knowledge/categories?language=${articleLanguage}`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      setCategories(data.data?.categories || []);
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    }
+  };
+
+  const loadTopContributors = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/knowledge/top-contributors?limit=10`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      setTopContributors(data.data?.contributors || []);
+    } catch (error) {
+      console.error('Failed to load top contributors:', error);
+    }
+  };
+
+  const loadPendingReviews = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/knowledge/pending-reviews?page=1&limit=20`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      setPendingReviews(data.data?.articles || []);
+    } catch (error) {
+      console.error('Failed to load pending reviews:', error);
+    }
+  };
+
+  const createKnowledgeArticle = async () => {
+    if (!newArticle.title.trim() || !newArticle.content.trim()) return;
+
+    setSavingArticle(true);
+    try {
+      const res = await fetch(`${API_BASE}/knowledge`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          title: newArticle.title,
+          content: newArticle.content,
+          summary: newArticle.summary,
+          category: newArticle.category,
+          tags: newArticle.tags,
+          primary_language: 'ko'
+        })
+      });
+
+      const data = await res.json();
+      if (data.status === 'success') {
+        setShowCreateArticle(false);
+        setNewArticle({ title: '', content: '', summary: '', category: 'technical', tags: [] });
+        loadKnowledgeArticles();
+      }
+    } catch (error) {
+      console.error('Failed to create knowledge article:', error);
+    } finally {
+      setSavingArticle(false);
+    }
+  };
+
+  const submitForReview = async (articleId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/knowledge/${articleId}/submit`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert(data.message || '검수 요청되었습니다.');
+        loadKnowledgeArticles();
+      }
+    } catch (error) {
+      console.error('Failed to submit for review:', error);
+    }
+  };
+
+  const reviewArticle = async (articleId: string, action: 'approve' | 'reject' | 'request_changes') => {
+    if (!reviewComment.trim()) {
+      alert('검수 코멘트를 입력해주세요.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/knowledge/${articleId}/review`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          action,
+          comment: reviewComment
+        })
+      });
+
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert(data.message || '검수가 완료되었습니다.');
+        setReviewComment('');
+        setSelectedArticle(null);
+        loadPendingReviews();
+        loadKnowledgeArticles();
+      }
+    } catch (error) {
+      console.error('Failed to review article:', error);
+    }
+  };
+
+  const recommendArticle = async (articleId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/knowledge/${articleId}/recommend`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+
+      const data = await res.json();
+      if (data.status === 'success') {
+        // Update local state
+        setKnowledgeArticles(prev => prev.map(a =>
+          a.id === articleId
+            ? { ...a, recommendation_count: data.data.recommendation_count }
+            : a
+        ));
+        if (selectedArticle?.id === articleId) {
+          setSelectedArticle(prev => prev ? { ...prev, recommendation_count: data.data.recommendation_count } : null);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to recommend article:', error);
+    }
+  };
+
+  // Notification functions
+  const loadNotifications = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/notifications?page=1&limit=20`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      setNotifications(data.data?.notifications || []);
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+    }
+  };
+
+  const loadUnreadCount = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/notifications/count`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      setUnreadCount(data.data?.total || 0);
+    } catch (error) {
+      console.error('Failed to load unread count:', error);
+    }
+  };
+
+  const markNotificationAsRead = async (notificationIds: string[]) => {
+    try {
+      await fetch(`${API_BASE}/notifications/read`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ notification_ids: notificationIds })
+      });
+      loadNotifications();
+      loadUnreadCount();
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    try {
+      await fetch(`${API_BASE}/notifications/read-all`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      loadNotifications();
+      loadUnreadCount();
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error);
+    }
+  };
+
+  // Get status badge color
+  const getStatusColor = (status: KnowledgeStatus): string => {
+    const colors: Record<KnowledgeStatus, string> = {
+      draft: '#6C757D',
+      pending: '#F39C12',
+      in_review: '#3498DB',
+      approved: '#2ECC71',
+      rejected: '#E74C3C',
+      published: '#27AE60'
+    };
+    return colors[status] || '#6C757D';
+  };
+
+  const getStatusLabel = (status: KnowledgeStatus): string => {
+    const labels: Record<KnowledgeStatus, string> = {
+      draft: '작성 중',
+      pending: '검수 대기',
+      in_review: '검수 중',
+      approved: '승인됨',
+      rejected: '반려됨',
+      published: '게시됨'
+    };
+    return labels[status] || status;
+  };
+
   // Upload document
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -825,11 +1154,103 @@ const KnowledgeApp: React.FC = () => {
           </button>
         </div>
 
-        {/* User Info */}
+        {/* User Info with Notification Bell */}
         {!sidebarCollapsed && (
           <div style={{ padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-            <div style={{ fontWeight: 600 }}>{user?.username || 'User'}</div>
-            <div style={{ fontSize: '12px', color: themeColors.textSecondary }}>{user?.email}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 600 }}>{user?.username || 'User'}</div>
+                <div style={{ fontSize: '12px', color: themeColors.textSecondary }}>{user?.email}</div>
+              </div>
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '20px',
+                    position: 'relative'
+                  }}
+                >
+                  🔔
+                  {unreadCount > 0 && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '-5px',
+                      right: '-5px',
+                      background: '#E74C3C',
+                      color: 'white',
+                      borderRadius: '50%',
+                      width: '18px',
+                      height: '18px',
+                      fontSize: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+                {/* Notification Dropdown */}
+                {showNotifications && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: '8px',
+                    width: '300px',
+                    maxHeight: '400px',
+                    overflow: 'auto',
+                    background: themeColors.cardBg,
+                    border: `1px solid ${themeColors.cardBorder}`,
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                    zIndex: 1000
+                  }}>
+                    <div style={{ padding: '12px', borderBottom: `1px solid ${themeColors.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600 }}>Notifications</span>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={markAllNotificationsAsRead}
+                          style={{ background: 'transparent', border: 'none', color: themeColors.accent, cursor: 'pointer', fontSize: '12px' }}
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+                    {notifications.length === 0 ? (
+                      <div style={{ padding: '20px', textAlign: 'center', color: themeColors.textSecondary }}>
+                        No notifications
+                      </div>
+                    ) : (
+                      notifications.map(notif => (
+                        <div
+                          key={notif.id}
+                          onClick={() => {
+                            if (!notif.is_read) markNotificationAsRead([notif.id]);
+                            if (notif.reference_type === 'knowledge' && notif.reference_id) {
+                              setActiveTab('knowledge-articles');
+                            }
+                            setShowNotifications(false);
+                          }}
+                          style={{
+                            padding: '12px',
+                            borderBottom: `1px solid ${themeColors.cardBorder}`,
+                            cursor: 'pointer',
+                            background: notif.is_read ? 'transparent' : 'rgba(74,144,217,0.1)'
+                          }}
+                        >
+                          <div style={{ fontWeight: notif.is_read ? 400 : 600, fontSize: '13px' }}>{notif.title}</div>
+                          <div style={{ fontSize: '12px', color: themeColors.textSecondary, marginTop: '4px' }}>{notif.message}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -842,7 +1263,8 @@ const KnowledgeApp: React.FC = () => {
             { key: 'content', label: 'AI Content', icon: '🤖' },
             { key: 'projects', label: 'Projects', icon: '📁' },
             { key: 'mindmap', label: 'Mindmap', icon: '🧠' },
-            { key: 'knowledge-graph', label: 'Knowledge Graph', icon: '🔗' }
+            { key: 'knowledge-graph', label: 'Knowledge Graph', icon: '🔗' },
+            { key: 'knowledge-articles', label: 'Knowledge Base', icon: '📚' }
           ].map(tab => (
             <button
               key={tab.key}
@@ -2120,6 +2542,537 @@ const KnowledgeApp: React.FC = () => {
                   )}
                 </div>
               </div>
+            </motion.div>
+          )}
+
+          {/* Knowledge Articles Tab */}
+          {activeTab === 'knowledge-articles' && (
+            <motion.div
+              key="knowledge-articles"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}
+            >
+              {/* Header */}
+              <div style={cardStyle}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h2 style={{ margin: 0 }}>Knowledge Base</h2>
+                    <p style={{ color: themeColors.textSecondary, margin: '8px 0 0' }}>
+                      지식 등록, 검수, 공유 시스템
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {/* Language Selector */}
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      {(['ko', 'ja', 'en'] as SupportedLanguage[]).map(lang => (
+                        <button
+                          key={lang}
+                          onClick={() => setArticleLanguage(lang)}
+                          style={{
+                            padding: '8px 12px',
+                            border: 'none',
+                            borderRadius: '6px',
+                            background: articleLanguage === lang ? themeColors.accent : 'rgba(255,255,255,0.1)',
+                            color: articleLanguage === lang ? '#fff' : themeColors.text,
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            fontWeight: 600
+                          }}
+                        >
+                          {lang.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setShowCreateArticle(true)}
+                      style={{ ...tabStyle(true), display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                      + New Knowledge
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main Content */}
+              <div style={{ display: 'flex', gap: '16px', flex: 1 }}>
+                {/* Articles List */}
+                <div style={{ ...cardStyle, flex: 1 }}>
+                  <h3 style={{ margin: '0 0 16px' }}>Published Knowledge</h3>
+
+                  {knowledgeArticles.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px', color: themeColors.textSecondary }}>
+                      <div style={{ fontSize: '48px', marginBottom: '16px' }}>📚</div>
+                      <p>등록된 지식이 없습니다.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {knowledgeArticles.map(article => (
+                        <div
+                          key={article.id}
+                          onClick={() => setSelectedArticle(article)}
+                          style={{
+                            padding: '16px',
+                            background: selectedArticle?.id === article.id ? 'rgba(74,144,217,0.2)' : 'rgba(255,255,255,0.05)',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            border: selectedArticle?.id === article.id ? `2px solid ${themeColors.accent}` : '1px solid transparent'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 600, fontSize: '16px' }}>{article.title}</div>
+                              <div style={{ fontSize: '12px', color: themeColors.textSecondary, marginTop: '4px' }}>
+                                {article.author_name} | {article.category} | {new Date(article.created_at).toLocaleDateString()}
+                              </div>
+                              {article.summary && (
+                                <div style={{ fontSize: '13px', color: themeColors.textSecondary, marginTop: '8px' }}>
+                                  {article.summary}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                              <span style={{
+                                padding: '4px 8px',
+                                background: `${getStatusColor(article.status)}30`,
+                                color: getStatusColor(article.status),
+                                borderRadius: '4px',
+                                fontSize: '11px'
+                              }}>
+                                {getStatusLabel(article.status)}
+                              </span>
+                              <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: themeColors.textSecondary }}>
+                                <span>👁️ {article.view_count}</span>
+                                <span>👍 {article.recommendation_count}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+                            {article.tags.map((tag, i) => (
+                              <span key={i} style={{
+                                fontSize: '10px',
+                                padding: '2px 6px',
+                                background: 'rgba(74,144,217,0.2)',
+                                borderRadius: '4px'
+                              }}>
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Sidebar */}
+                <div style={{ width: '300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Pending Reviews (for reviewers only) */}
+                  {(user?.role === 'senior' || user?.role === 'leader' || user?.role === 'admin') && pendingReviews.length > 0 && (
+                    <div style={cardStyle}>
+                      <h3 style={{ margin: '0 0 12px', color: '#F39C12' }}>Pending Reviews ({pendingReviews.length})</h3>
+                      {pendingReviews.map(article => (
+                        <div
+                          key={article.id}
+                          onClick={() => setSelectedArticle(article)}
+                          style={{
+                            padding: '10px',
+                            background: 'rgba(243,156,18,0.1)',
+                            borderRadius: '6px',
+                            marginBottom: '8px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <div style={{ fontWeight: 500, fontSize: '13px' }}>{article.title}</div>
+                          <div style={{ fontSize: '11px', color: themeColors.textSecondary }}>
+                            by {article.author_name}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Top Contributors */}
+                  <div style={cardStyle}>
+                    <h3 style={{ margin: '0 0 12px' }}>Top Contributors</h3>
+                    {topContributors.length === 0 ? (
+                      <div style={{ color: themeColors.textSecondary, fontSize: '13px' }}>
+                        No contributors yet
+                      </div>
+                    ) : (
+                      topContributors.map((contributor, idx) => (
+                        <div
+                          key={contributor.user_id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '8px 0',
+                            borderBottom: idx < topContributors.length - 1 ? `1px solid ${themeColors.cardBorder}` : 'none'
+                          }}
+                        >
+                          <div style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            background: idx < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][idx] : themeColors.cardBg,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '12px',
+                            fontWeight: 600
+                          }}>
+                            {contributor.rank}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 500, fontSize: '13px' }}>{contributor.username}</div>
+                            <div style={{ fontSize: '11px', color: themeColors.textSecondary }}>
+                              {contributor.article_count} articles | {contributor.total_recommendations} recommendations
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Categories */}
+                  <div style={cardStyle}>
+                    <h3 style={{ margin: '0 0 12px' }}>Categories</h3>
+                    {categories.map(cat => (
+                      <div
+                        key={cat.value}
+                        style={{
+                          padding: '8px',
+                          borderRadius: '6px',
+                          marginBottom: '4px',
+                          cursor: 'pointer',
+                          background: 'rgba(255,255,255,0.05)'
+                        }}
+                      >
+                        {cat.label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Article Detail Modal */}
+              <AnimatePresence>
+                {selectedArticle && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                      position: 'fixed',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background: 'rgba(0,0,0,0.7)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 1000
+                    }}
+                    onClick={() => setSelectedArticle(null)}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.9, opacity: 0 }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        ...cardStyle,
+                        width: '800px',
+                        maxWidth: '90vw',
+                        maxHeight: '90vh',
+                        overflow: 'auto'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                        <div>
+                          <span style={{
+                            padding: '4px 8px',
+                            background: `${getStatusColor(selectedArticle.status)}30`,
+                            color: getStatusColor(selectedArticle.status),
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            marginBottom: '8px',
+                            display: 'inline-block'
+                          }}>
+                            {getStatusLabel(selectedArticle.status)}
+                          </span>
+                          <h2 style={{ margin: '8px 0 0' }}>{selectedArticle.title}</h2>
+                          <div style={{ fontSize: '13px', color: themeColors.textSecondary, marginTop: '8px' }}>
+                            {selectedArticle.author_name} {selectedArticle.author_department && `(${selectedArticle.author_department})`} | {new Date(selectedArticle.created_at).toLocaleString()}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setSelectedArticle(null)}
+                          style={{ background: 'transparent', border: 'none', color: themeColors.text, fontSize: '24px', cursor: 'pointer' }}
+                        >
+                          ×
+                        </button>
+                      </div>
+
+                      {/* Language Selector for Article */}
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                        {(['ko', 'ja', 'en'] as SupportedLanguage[]).map(lang => (
+                          <button
+                            key={lang}
+                            onClick={() => setArticleLanguage(lang)}
+                            style={{
+                              padding: '6px 12px',
+                              border: 'none',
+                              borderRadius: '4px',
+                              background: articleLanguage === lang ? themeColors.accent : 'rgba(255,255,255,0.1)',
+                              color: articleLanguage === lang ? '#fff' : themeColors.text,
+                              cursor: 'pointer',
+                              fontSize: '12px'
+                            }}
+                          >
+                            {lang === 'ko' ? '한국어' : lang === 'ja' ? '日本語' : 'English'}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Article Content */}
+                      <div style={{
+                        padding: '20px',
+                        background: 'rgba(0,0,0,0.2)',
+                        borderRadius: '8px',
+                        marginBottom: '16px'
+                      }}>
+                        {selectedArticle.translations[articleLanguage] ? (
+                          <div dangerouslySetInnerHTML={{ __html: selectedArticle.translations[articleLanguage].content }} />
+                        ) : (
+                          <div dangerouslySetInnerHTML={{ __html: selectedArticle.content }} />
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                          onClick={() => recommendArticle(selectedArticle.id)}
+                          style={{
+                            padding: '10px 20px',
+                            background: 'rgba(46,204,113,0.2)',
+                            border: 'none',
+                            borderRadius: '6px',
+                            color: '#2ECC71',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          👍 Recommend ({selectedArticle.recommendation_count})
+                        </button>
+
+                        <div style={{ marginLeft: 'auto', fontSize: '13px', color: themeColors.textSecondary }}>
+                          Views: {selectedArticle.view_count}
+                        </div>
+
+                        {/* Review Actions (for reviewers) */}
+                        {selectedArticle.status === 'in_review' && selectedArticle.reviewer_id === user?.id && (
+                          <div style={{ display: 'flex', gap: '8px', marginLeft: '16px' }}>
+                            <input
+                              type="text"
+                              value={reviewComment}
+                              onChange={(e) => setReviewComment(e.target.value)}
+                              placeholder="Review comment..."
+                              style={{
+                                padding: '8px 12px',
+                                background: 'rgba(255,255,255,0.1)',
+                                border: `1px solid ${themeColors.cardBorder}`,
+                                borderRadius: '6px',
+                                color: themeColors.text,
+                                width: '200px'
+                              }}
+                            />
+                            <button
+                              onClick={() => reviewArticle(selectedArticle.id, 'approve')}
+                              style={{ padding: '8px 16px', background: '#2ECC71', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => reviewArticle(selectedArticle.id, 'reject')}
+                              style={{ padding: '8px 16px', background: '#E74C3C', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Create Article Modal */}
+              <AnimatePresence>
+                {showCreateArticle && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                      position: 'fixed',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background: 'rgba(0,0,0,0.7)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 1000
+                    }}
+                    onClick={() => !savingArticle && setShowCreateArticle(false)}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.9, opacity: 0 }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        ...cardStyle,
+                        width: '700px',
+                        maxWidth: '90vw',
+                        maxHeight: '90vh',
+                        overflow: 'auto'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h2 style={{ margin: 0 }}>Create New Knowledge</h2>
+                        <button
+                          onClick={() => !savingArticle && setShowCreateArticle(false)}
+                          disabled={savingArticle}
+                          style={{ background: 'transparent', border: 'none', color: themeColors.text, fontSize: '24px', cursor: 'pointer' }}
+                        >
+                          ×
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>Title *</label>
+                          <input
+                            type="text"
+                            value={newArticle.title}
+                            onChange={(e) => setNewArticle(prev => ({ ...prev, title: e.target.value }))}
+                            placeholder="Enter knowledge title..."
+                            style={{
+                              width: '100%',
+                              padding: '12px',
+                              background: 'rgba(255,255,255,0.1)',
+                              border: `1px solid ${themeColors.cardBorder}`,
+                              borderRadius: '8px',
+                              color: themeColors.text,
+                              fontSize: '16px'
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>Category *</label>
+                          <select
+                            value={newArticle.category}
+                            onChange={(e) => setNewArticle(prev => ({ ...prev, category: e.target.value as KnowledgeCategory }))}
+                            style={{
+                              width: '100%',
+                              padding: '12px',
+                              background: 'rgba(255,255,255,0.1)',
+                              border: `1px solid ${themeColors.cardBorder}`,
+                              borderRadius: '8px',
+                              color: themeColors.text,
+                              fontSize: '14px'
+                            }}
+                          >
+                            {categories.map(cat => (
+                              <option key={cat.value} value={cat.value}>{cat.label}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>Summary</label>
+                          <input
+                            type="text"
+                            value={newArticle.summary}
+                            onChange={(e) => setNewArticle(prev => ({ ...prev, summary: e.target.value }))}
+                            placeholder="Brief summary of the knowledge..."
+                            style={{
+                              width: '100%',
+                              padding: '12px',
+                              background: 'rgba(255,255,255,0.1)',
+                              border: `1px solid ${themeColors.cardBorder}`,
+                              borderRadius: '8px',
+                              color: themeColors.text,
+                              fontSize: '14px'
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px' }}>Content * (HTML/Markdown)</label>
+                          <textarea
+                            value={newArticle.content}
+                            onChange={(e) => setNewArticle(prev => ({ ...prev, content: e.target.value }))}
+                            placeholder="Write your knowledge content here..."
+                            style={{
+                              width: '100%',
+                              height: '300px',
+                              padding: '12px',
+                              background: 'rgba(255,255,255,0.1)',
+                              border: `1px solid ${themeColors.cardBorder}`,
+                              borderRadius: '8px',
+                              color: themeColors.text,
+                              fontSize: '14px',
+                              resize: 'vertical'
+                            }}
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                          <button
+                            onClick={createKnowledgeArticle}
+                            disabled={savingArticle || !newArticle.title.trim() || !newArticle.content.trim()}
+                            style={{
+                              padding: '12px 24px',
+                              background: themeColors.accent,
+                              border: 'none',
+                              borderRadius: '8px',
+                              color: '#fff',
+                              cursor: savingArticle ? 'not-allowed' : 'pointer',
+                              opacity: savingArticle || !newArticle.title.trim() || !newArticle.content.trim() ? 0.5 : 1
+                            }}
+                          >
+                            {savingArticle ? 'Saving...' : 'Create Draft'}
+                          </button>
+                          <button
+                            onClick={() => setShowCreateArticle(false)}
+                            disabled={savingArticle}
+                            style={{
+                              padding: '12px 24px',
+                              background: 'rgba(255,255,255,0.1)',
+                              border: 'none',
+                              borderRadius: '8px',
+                              color: themeColors.text,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
         </AnimatePresence>
