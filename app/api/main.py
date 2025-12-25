@@ -4,12 +4,21 @@ GPU Hybrid RAG based Knowledge Management System
 """
 import time
 import uuid
+import argparse
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 
 from .core.config import api_settings
+from .core.app_mode import get_app_mode_manager, AppMode
+from .core.logging_framework import get_logger, get_token_logger, LogCategory
+from .core.logging_middleware import setup_logging_middleware
+from .core.error_handling import (
+    get_error_handler,
+    AppException,
+    ValidationException
+)
 from .core.exceptions import (
     APIException,
     api_exception_handler,
@@ -21,16 +30,42 @@ from .core.exceptions import (
 from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise
 
 
+# Initialize mode manager and logger
+mode_manager = get_app_mode_manager()
+logger = get_logger("kms.main")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Startup
-    print(f"🚀 Starting {api_settings.APP_NAME} v{api_settings.APP_VERSION}")
-    print(f"📊 Debug mode: {api_settings.DEBUG}")
+    logger.info(
+        f"Starting {api_settings.APP_NAME} v{api_settings.APP_VERSION}",
+        category=LogCategory.BUSINESS,
+        extra_data={
+            "mode": mode_manager.mode.value,
+            "log_level": mode_manager.get_log_level(),
+            "token_logging": mode_manager.should_log_tokens(),
+            "performance_tracking": mode_manager.config.enable_performance_tracking
+        }
+    )
+
+    if mode_manager.is_develop:
+        logger.debug(
+            "Running in DEVELOP mode - detailed logging enabled",
+            category=LogCategory.BUSINESS
+        )
+    else:
+        logger.info(
+            "Running in PRODUCT mode - optimized for performance",
+            category=LogCategory.BUSINESS
+        )
+
     # TODO: Initialize database connections, load models, etc.
     yield
+
     # Shutdown
-    print("👋 Shutting down...")
+    logger.info("Shutting down application", category=LogCategory.BUSINESS)
     # TODO: Cleanup resources
 
 
@@ -73,6 +108,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Setup logging middleware (mode-aware)
+setup_logging_middleware(app)
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -83,26 +121,41 @@ app.add_middleware(
 )
 
 
-# Request timing middleware
-@app.middleware("http")
-async def add_request_timing(request: Request, call_next):
-    """Add request timing and request ID to responses"""
-    request_id = request.headers.get("X-Request-ID", f"req_{uuid.uuid4().hex[:12]}")
-    start_time = time.time()
-
-    response = await call_next(request)
-
-    process_time = int((time.time() - start_time) * 1000)
-    response.headers["X-Request-ID"] = request_id
-    response.headers["X-Process-Time-Ms"] = str(process_time)
-
-    return response
+# Mode-aware exception handlers
+error_handler = get_error_handler()
 
 
-# Exception handlers
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    """Handle application exceptions with mode awareness"""
+    return await error_handler.handle_app_exception(request, exc)
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Handle HTTP exceptions"""
+    return await error_handler.handle_http_exception(request, exc)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler_new(request: Request, exc: RequestValidationError):
+    """Handle validation errors"""
+    validation_exc = ValidationException(
+        message="Request validation failed",
+        details={"errors": exc.errors()}
+    )
+    return await error_handler.handle_app_exception(request, validation_exc)
+
+
+@app.exception_handler(Exception)
+async def generic_exception_handler_new(request: Request, exc: Exception):
+    """Handle unexpected exceptions"""
+    return await error_handler.handle_generic_exception(request, exc)
+
+
+# Legacy exception handlers (for backward compatibility)
 app.add_exception_handler(APIException, api_exception_handler)
-app.add_exception_handler(RequestValidationError, validation_exception_handler)
-app.add_exception_handler(Exception, generic_exception_handler)
+
 
 # Include routers with /api/v1 prefix
 API_PREFIX = "/api/v1"
@@ -136,18 +189,80 @@ async def root():
     return {
         "name": api_settings.APP_NAME,
         "version": api_settings.APP_VERSION,
+        "mode": mode_manager.mode.value,
         "docs": "/docs",
         "health": "/api/v1/health"
+    }
+
+
+# Mode status endpoint
+@app.get("/mode", tags=["System"])
+async def get_mode():
+    """Get current application mode and configuration"""
+    config = mode_manager.config
+
+    # Only expose configuration details in develop mode
+    if mode_manager.is_develop:
+        return {
+            "mode": mode_manager.mode.value,
+            "config": {
+                "log_level": config.log_level,
+                "enable_token_logging": config.enable_token_logging,
+                "enable_debug_logs": config.enable_debug_logs,
+                "enable_stack_trace": config.enable_stack_trace,
+                "enable_performance_tracking": config.enable_performance_tracking,
+                "slow_request_threshold_ms": config.slow_request_threshold_ms,
+                "enable_tracing": config.enable_tracing
+            }
+        }
+
+    return {
+        "mode": mode_manager.mode.value
     }
 
 
 # For running directly with: python -m app.api.main
 if __name__ == "__main__":
     import uvicorn
+
+    # Parse CLI arguments for mode
+    parser = argparse.ArgumentParser(description="KMS API Server")
+    parser.add_argument(
+        "--mode", "-m",
+        type=str,
+        choices=["develop", "product", "dev", "prod"],
+        default=None,
+        help="Application mode (develop/product)"
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default=api_settings.HOST,
+        help="Host to bind"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=api_settings.PORT,
+        help="Port to bind"
+    )
+
+    args = parser.parse_args()
+
+    # Apply CLI mode if specified
+    if args.mode:
+        mode_manager.set_mode(AppMode.from_string(args.mode))
+
+    # Configure uvicorn based on mode
+    reload = mode_manager.is_develop
+    workers = 1 if mode_manager.is_develop else api_settings.WORKERS
+    log_level = mode_manager.get_log_level().lower()
+
     uvicorn.run(
         "app.api.main:app",
-        host=api_settings.HOST,
-        port=api_settings.PORT,
-        reload=api_settings.DEBUG,
-        workers=1 if api_settings.DEBUG else api_settings.WORKERS
+        host=args.host,
+        port=args.port,
+        reload=reload,
+        workers=workers,
+        log_level=log_level
     )
