@@ -3,12 +3,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleLogin } from '@react-oauth/google';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { useTranslation } from '../hooks/useTranslation';
 import { isCorpEmail, APP_CONFIG } from '../config/constants';
+import ThemeToggle from '../components/ThemeToggle';
+import LanguageSelector from '../components/LanguageSelector';
 
 type AuthMode = 'login' | 'register' | 'verify' | 'forgot';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { login, loginWithGoogle, isLoading, error, clearError } = useAuthStore();
 
   const [mode, setMode] = useState<AuthMode>('login');
@@ -27,7 +31,7 @@ const LoginPage: React.FC = () => {
     clearError();
 
     if (!userId || !password) {
-      setLocalError('Please enter your ID and password');
+      setLocalError(t('auth.errors.enterIdAndPassword'));
       return;
     }
 
@@ -43,17 +47,17 @@ const LoginPage: React.FC = () => {
     setSuccessMessage('');
 
     if (!userId || !password || !email) {
-      setLocalError('Please fill in all fields');
+      setLocalError(t('auth.errors.fillAllFields'));
       return;
     }
 
     if (password !== confirmPassword) {
-      setLocalError('Passwords do not match');
+      setLocalError(t('auth.errors.passwordsDoNotMatch'));
       return;
     }
 
     if (password.length < 8) {
-      setLocalError('Password must be at least 8 characters');
+      setLocalError(t('auth.errors.passwordTooShort'));
       return;
     }
 
@@ -69,13 +73,13 @@ const LoginPage: React.FC = () => {
       const data = await response.json();
 
       if (response.ok) {
-        setSuccessMessage('Verification code sent to your email');
+        setSuccessMessage(t('auth.verificationSent'));
         setMode('verify');
       } else {
-        setLocalError(data.detail?.message || 'Registration failed');
+        setLocalError(data.detail?.message || t('auth.errors.registrationFailed'));
       }
     } catch {
-      setLocalError('Network error. Please try again.');
+      setLocalError(t('auth.errors.networkError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -86,7 +90,7 @@ const LoginPage: React.FC = () => {
     setLocalError('');
 
     if (!verificationCode) {
-      setLocalError('Please enter verification code');
+      setLocalError(t('auth.errors.enterVerificationCode'));
       return;
     }
 
@@ -102,16 +106,16 @@ const LoginPage: React.FC = () => {
       const data = await response.json();
 
       if (response.ok) {
-        setSuccessMessage('Account verified! You can now login.');
+        setSuccessMessage(t('auth.accountVerified'));
         setTimeout(() => {
           setMode('login');
           setSuccessMessage('');
         }, 2000);
       } else {
-        setLocalError(data.detail?.message || 'Verification failed');
+        setLocalError(data.detail?.message || t('auth.errors.verificationFailed'));
       }
     } catch {
-      setLocalError('Network error. Please try again.');
+      setLocalError(t('auth.errors.networkError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -128,10 +132,9 @@ const LoginPage: React.FC = () => {
 
   const handleSSOLogin = () => {
     if (isCorpEmail(email)) {
-      // Redirect to SSO
       window.location.href = `/api/v1/auth/sso/initiate?email=${encodeURIComponent(email)}`;
     } else {
-      setLocalError('Please enter a valid corporate email');
+      setLocalError(t('auth.errors.invalidCorporateEmail'));
     }
   };
 
@@ -139,6 +142,12 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className="login-container">
+      {/* Theme/Language Controls */}
+      <div className="login-controls">
+        <ThemeToggle size="sm" />
+        <LanguageSelector size="sm" />
+      </div>
+
       {/* Animated Background */}
       <div className="login-bg">
         <div className="gradient-orb orb-1" />
@@ -173,13 +182,13 @@ const LoginPage: React.FC = () => {
             className={`tab ${mode === 'login' ? 'active' : ''}`}
             onClick={() => { setMode('login'); clearError(); setLocalError(''); }}
           >
-            Sign In
+            {t('auth.signIn')}
           </button>
           <button
             className={`tab ${mode === 'register' || mode === 'verify' ? 'active' : ''}`}
             onClick={() => { setMode('register'); clearError(); setLocalError(''); }}
           >
-            Register
+            {t('auth.register')}
           </button>
         </div>
 
@@ -220,23 +229,23 @@ const LoginPage: React.FC = () => {
               transition={{ duration: 0.3 }}
             >
               <div className="input-group">
-                <label>User ID</label>
+                <label>{t('auth.userId')}</label>
                 <input
                   type="text"
                   value={userId}
                   onChange={(e) => setUserId(e.target.value)}
-                  placeholder="Enter your user ID"
+                  placeholder={t('auth.userIdPlaceholder')}
                   autoComplete="username"
                 />
               </div>
 
               <div className="input-group">
-                <label>Password</label>
+                <label>{t('auth.password')}</label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  placeholder={t('auth.passwordPlaceholder')}
                   autoComplete="current-password"
                 />
               </div>
@@ -248,17 +257,17 @@ const LoginPage: React.FC = () => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                {isLoading ? <span className="spinner" /> : 'Sign In'}
+                {isLoading ? <span className="spinner" /> : t('auth.signIn')}
               </motion.button>
 
               <div className="divider">
-                <span>or continue with</span>
+                <span>{t('auth.orContinueWith')}</span>
               </div>
 
               <div className="social-buttons">
                 <GoogleLogin
                   onSuccess={handleGoogleSuccess}
-                  onError={() => setLocalError('Google login failed')}
+                  onError={() => setLocalError(t('auth.errors.googleLoginFailed'))}
                   theme="filled_black"
                   shape="pill"
                   size="large"
@@ -274,7 +283,7 @@ const LoginPage: React.FC = () => {
                   whileTap={{ scale: 0.98 }}
                 >
                   <span className="sso-icon">🏢</span>
-                  Corporate SSO
+                  {t('auth.corporateSSO')}
                 </motion.button>
               </div>
             </motion.form>
@@ -291,45 +300,45 @@ const LoginPage: React.FC = () => {
               transition={{ duration: 0.3 }}
             >
               <div className="input-group">
-                <label>User ID</label>
+                <label>{t('auth.userId')}</label>
                 <input
                   type="text"
                   value={userId}
                   onChange={(e) => setUserId(e.target.value)}
-                  placeholder="Choose a user ID"
+                  placeholder={t('auth.chooseUserId')}
                   autoComplete="username"
                 />
               </div>
 
               <div className="input-group">
-                <label>Email (for verification)</label>
+                <label>{t('auth.emailForVerification')}</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
+                  placeholder={t('auth.emailPlaceholder')}
                   autoComplete="email"
                 />
               </div>
 
               <div className="input-group">
-                <label>Password</label>
+                <label>{t('auth.password')}</label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters"
+                  placeholder={t('auth.passwordMinLength')}
                   autoComplete="new-password"
                 />
               </div>
 
               <div className="input-group">
-                <label>Confirm Password</label>
+                <label>{t('auth.confirmPassword')}</label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm your password"
+                  placeholder={t('auth.confirmPasswordPlaceholder')}
                   autoComplete="new-password"
                 />
               </div>
@@ -341,11 +350,11 @@ const LoginPage: React.FC = () => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                {isSubmitting ? <span className="spinner" /> : 'Create Account'}
+                {isSubmitting ? <span className="spinner" /> : t('auth.createAccount')}
               </motion.button>
 
               <p className="hint">
-                A verification code will be sent to your email
+                {t('auth.verificationHint')}
               </p>
             </motion.form>
           )}
@@ -362,17 +371,17 @@ const LoginPage: React.FC = () => {
             >
               <div className="verify-icon">📧</div>
               <p className="verify-text">
-                We sent a verification code to<br />
+                {t('auth.verificationEmailSent')}<br />
                 <strong>{email}</strong>
               </p>
 
               <div className="input-group">
-                <label>Verification Code</label>
+                <label>{t('auth.verificationCode')}</label>
                 <input
                   type="text"
                   value={verificationCode}
                   onChange={(e) => setVerificationCode(e.target.value)}
-                  placeholder="Enter 6-digit code"
+                  placeholder={t('auth.verificationCodePlaceholder')}
                   maxLength={6}
                   className="code-input"
                   autoComplete="one-time-code"
@@ -386,7 +395,7 @@ const LoginPage: React.FC = () => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                {isSubmitting ? <span className="spinner" /> : 'Verify Email'}
+                {isSubmitting ? <span className="spinner" /> : t('auth.verifyEmail')}
               </motion.button>
 
               <button
@@ -394,7 +403,7 @@ const LoginPage: React.FC = () => {
                 className="btn-link"
                 onClick={() => setMode('register')}
               >
-                ← Back to registration
+                ← {t('auth.backToRegistration')}
               </button>
             </motion.form>
           )}
@@ -411,16 +420,16 @@ const LoginPage: React.FC = () => {
             >
               <div className="verify-icon">🏢</div>
               <p className="verify-text">
-                Enter your corporate email to sign in with SSO
+                {t('auth.enterCorporateEmail')}
               </p>
 
               <div className="input-group">
-                <label>Corporate Email</label>
+                <label>{t('auth.corporateEmail')}</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
+                  placeholder={t('auth.corporateEmailPlaceholder')}
                   autoComplete="email"
                 />
               </div>
@@ -431,7 +440,7 @@ const LoginPage: React.FC = () => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                Continue with SSO
+                {t('auth.continueWithSSO')}
               </motion.button>
 
               <button
@@ -439,7 +448,7 @@ const LoginPage: React.FC = () => {
                 className="btn-link"
                 onClick={() => setMode('login')}
               >
-                ← Back to login
+                ← {t('auth.backToLogin')}
               </button>
             </motion.form>
           )}
@@ -447,9 +456,9 @@ const LoginPage: React.FC = () => {
 
         {/* Footer */}
         <div className="login-footer">
-          <a href="#">Terms of Service</a>
+          <a href="#">{t('auth.termsOfService')}</a>
           <span>•</span>
-          <a href="#">Privacy Policy</a>
+          <a href="#">{t('auth.privacyPolicy')}</a>
         </div>
       </motion.div>
 
@@ -462,12 +471,21 @@ const LoginPage: React.FC = () => {
           padding: 20px;
           position: relative;
           overflow: hidden;
+          background: var(--gradient-bg);
+        }
+
+        .login-controls {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          display: flex;
+          gap: 8px;
+          z-index: 100;
         }
 
         .login-bg {
           position: fixed;
           inset: 0;
-          background: linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #0f0f23 100%);
           z-index: -1;
         }
 
@@ -517,14 +535,12 @@ const LoginPage: React.FC = () => {
         .login-card {
           width: 100%;
           max-width: 420px;
-          background: rgba(255, 255, 255, 0.03);
+          background: var(--color-bg-card);
           backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          border: 1px solid var(--color-border);
           border-radius: 24px;
           padding: 40px;
-          box-shadow:
-            0 4px 24px rgba(0, 0, 0, 0.2),
-            0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+          box-shadow: var(--shadow-xl);
         }
 
         .login-header {
@@ -553,14 +569,14 @@ const LoginPage: React.FC = () => {
         .login-header h1 {
           font-size: 28px;
           font-weight: 700;
-          color: #fff;
+          color: var(--color-text-primary);
           margin: 0 0 4px;
           letter-spacing: -0.5px;
         }
 
         .subtitle {
           font-size: 14px;
-          color: rgba(255, 255, 255, 0.5);
+          color: var(--color-text-secondary);
           margin: 0;
         }
 
@@ -568,7 +584,7 @@ const LoginPage: React.FC = () => {
           display: flex;
           gap: 8px;
           margin-bottom: 24px;
-          background: rgba(255, 255, 255, 0.05);
+          background: var(--color-bg-hover);
           padding: 4px;
           border-radius: 12px;
         }
@@ -579,7 +595,7 @@ const LoginPage: React.FC = () => {
           background: transparent;
           border: none;
           border-radius: 8px;
-          color: rgba(255, 255, 255, 0.6);
+          color: var(--color-text-secondary);
           font-size: 14px;
           font-weight: 500;
           cursor: pointer;
@@ -587,12 +603,12 @@ const LoginPage: React.FC = () => {
         }
 
         .tab.active {
-          background: rgba(99, 102, 241, 0.2);
-          color: #a5b4fc;
+          background: var(--color-primary);
+          color: var(--color-text-inverse);
         }
 
         .tab:hover:not(.active) {
-          color: rgba(255, 255, 255, 0.8);
+          color: var(--color-text-primary);
         }
 
         .message {
@@ -604,15 +620,15 @@ const LoginPage: React.FC = () => {
         }
 
         .message.error {
-          background: rgba(239, 68, 68, 0.15);
-          border: 1px solid rgba(239, 68, 68, 0.3);
-          color: #fca5a5;
+          background: var(--color-error-light);
+          border: 1px solid var(--color-error);
+          color: var(--color-error);
         }
 
         .message.success {
-          background: rgba(34, 197, 94, 0.15);
-          border: 1px solid rgba(34, 197, 94, 0.3);
-          color: #86efac;
+          background: var(--color-success-light);
+          border: 1px solid var(--color-success);
+          color: var(--color-success);
         }
 
         .auth-form {
@@ -630,28 +646,27 @@ const LoginPage: React.FC = () => {
         .input-group label {
           font-size: 13px;
           font-weight: 500;
-          color: rgba(255, 255, 255, 0.7);
+          color: var(--color-text-secondary);
         }
 
         .input-group input {
           padding: 14px 16px;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: var(--color-bg-input);
+          border: 1px solid var(--color-border);
           border-radius: 12px;
-          color: #fff;
+          color: var(--color-text-primary);
           font-size: 15px;
           transition: all 0.2s;
         }
 
         .input-group input::placeholder {
-          color: rgba(255, 255, 255, 0.3);
+          color: var(--color-text-muted);
         }
 
         .input-group input:focus {
           outline: none;
-          border-color: rgba(99, 102, 241, 0.5);
-          background: rgba(99, 102, 241, 0.05);
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+          border-color: var(--color-border-focus);
+          box-shadow: 0 0 0 3px var(--focus-ring-color);
         }
 
         .code-input {
@@ -705,7 +720,7 @@ const LoginPage: React.FC = () => {
           display: flex;
           align-items: center;
           gap: 16px;
-          color: rgba(255, 255, 255, 0.3);
+          color: var(--color-text-muted);
           font-size: 13px;
         }
 
@@ -714,7 +729,7 @@ const LoginPage: React.FC = () => {
           content: '';
           flex: 1;
           height: 1px;
-          background: rgba(255, 255, 255, 0.1);
+          background: var(--color-border);
         }
 
         .social-buttons {
@@ -725,10 +740,10 @@ const LoginPage: React.FC = () => {
 
         .btn-sso {
           padding: 12px 24px;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: var(--color-bg-hover);
+          border: 1px solid var(--color-border);
           border-radius: 12px;
-          color: rgba(255, 255, 255, 0.8);
+          color: var(--color-text-primary);
           font-size: 14px;
           font-weight: 500;
           cursor: pointer;
@@ -740,8 +755,8 @@ const LoginPage: React.FC = () => {
         }
 
         .btn-sso:hover {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.15);
+          background: var(--color-bg-active);
+          border-color: var(--color-border-focus);
         }
 
         .sso-icon {
@@ -756,27 +771,27 @@ const LoginPage: React.FC = () => {
 
         .verify-text {
           text-align: center;
-          color: rgba(255, 255, 255, 0.7);
+          color: var(--color-text-secondary);
           font-size: 14px;
           line-height: 1.6;
           margin-bottom: 8px;
         }
 
         .verify-text strong {
-          color: #a5b4fc;
+          color: var(--color-primary);
         }
 
         .hint {
           text-align: center;
           font-size: 12px;
-          color: rgba(255, 255, 255, 0.4);
+          color: var(--color-text-muted);
           margin: 0;
         }
 
         .btn-link {
           background: none;
           border: none;
-          color: rgba(255, 255, 255, 0.5);
+          color: var(--color-text-muted);
           font-size: 13px;
           cursor: pointer;
           padding: 8px;
@@ -784,13 +799,13 @@ const LoginPage: React.FC = () => {
         }
 
         .btn-link:hover {
-          color: rgba(255, 255, 255, 0.8);
+          color: var(--color-text-primary);
         }
 
         .login-footer {
           margin-top: 32px;
           padding-top: 20px;
-          border-top: 1px solid rgba(255, 255, 255, 0.05);
+          border-top: 1px solid var(--color-border);
           display: flex;
           justify-content: center;
           gap: 16px;
@@ -798,17 +813,17 @@ const LoginPage: React.FC = () => {
         }
 
         .login-footer a {
-          color: rgba(255, 255, 255, 0.4);
+          color: var(--color-text-muted);
           text-decoration: none;
           transition: color 0.2s;
         }
 
         .login-footer a:hover {
-          color: rgba(255, 255, 255, 0.7);
+          color: var(--color-text-primary);
         }
 
         .login-footer span {
-          color: rgba(255, 255, 255, 0.2);
+          color: var(--color-text-muted);
         }
 
         /* Google button override */
@@ -818,6 +833,12 @@ const LoginPage: React.FC = () => {
 
         .social-buttons iframe {
           width: 100% !important;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .gradient-orb {
+            animation: none;
+          }
         }
       `}</style>
     </div>

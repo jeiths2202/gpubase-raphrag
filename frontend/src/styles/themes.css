@@ -19,19 +19,19 @@
   --theme-transition-duration: 0.2s;
   --theme-transition-timing: ease-out;
 
-  /* Accent colors (consistent across themes) */
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-  --color-primary-light: rgba(59, 130, 246, 0.15);
+  /* Accent colors (consistent across themes, WCAG AA compliant) */
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-light: rgba(37, 99, 235, 0.15);
   --color-secondary: #64748b;
-  --color-success: #10b981;
-  --color-success-light: rgba(16, 185, 129, 0.15);
-  --color-warning: #f59e0b;
-  --color-warning-light: rgba(245, 158, 11, 0.15);
-  --color-error: #ef4444;
-  --color-error-light: rgba(239, 68, 68, 0.15);
-  --color-info: #0ea5e9;
-  --color-info-light: rgba(14, 165, 233, 0.15);
+  --color-success: #059669;
+  --color-success-light: rgba(5, 150, 105, 0.15);
+  --color-warning: #d97706;
+  --color-warning-light: rgba(217, 119, 6, 0.15);
+  --color-error: #dc2626;
+  --color-error-light: rgba(220, 38, 38, 0.15);
+  --color-info: #0284c7;
+  --color-info-light: rgba(2, 132, 199, 0.15);
 
   /* Node type colors for mindmap */
   --node-root: #2563eb;
@@ -68,7 +68,7 @@
   /* Border colors */
   --color-border: #334155;
   --color-border-light: #1e293b;
-  --color-border-focus: #3b82f6;
+  --color-border-focus: #60a5fa;
   --color-border-error: #ef4444;
 
   /* Shadows */
@@ -130,10 +130,10 @@
   --color-text-link: #2563eb;
   --color-text-link-hover: #1d4ed8;
 
-  /* Border colors */
-  --color-border: #e2e8f0;
-  --color-border-light: #f1f5f9;
-  --color-border-focus: #3b82f6;
+  /* Border colors (WCAG compliant contrast) */
+  --color-border: #cbd5e1;
+  --color-border-light: #e2e8f0;
+  --color-border-focus: #2563eb;
   --color-border-error: #ef4444;
 
   /* Shadows */
