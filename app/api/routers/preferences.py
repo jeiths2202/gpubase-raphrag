@@ -128,3 +128,86 @@ async def get_supported_preferences():
         data=SupportedPreferences(),
         meta=MetaInfo(request_id=request_id)
     )
+
+
+@router.get(
+    "/language-policy",
+    response_model=SuccessResponse,
+    summary="언어 정책 조회",
+    description="현재 사용자의 역할에 따른 언어 정책을 조회합니다."
+)
+async def get_language_policy(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get language policy for current user based on their role"""
+    from ..services.language_policy import get_language_policy_service
+    from ..models.language_policy import LanguagePolicyResponse
+
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+    user_id = current_user.get("id", current_user.get("username", "anonymous"))
+    user_role = current_user.get("role", "user")
+
+    policy_service = get_language_policy_service()
+    policy = policy_service.get_policy_for_role(user_role)
+
+    # Get user's current language preference
+    user_prefs = get_user_preferences(user_id)
+    current_language = user_prefs.language.value if user_prefs.language else None
+
+    response = LanguagePolicyResponse(
+        allowed_languages=policy.allowed_languages,
+        default_language=policy.default_language,
+        restriction_level=policy.restriction_level,
+        allow_auto_detect=policy.allow_auto_detect,
+        current_language=current_language
+    )
+
+    return SuccessResponse(
+        data=response,
+        meta=MetaInfo(request_id=request_id)
+    )
+
+
+@router.post(
+    "/validate-language",
+    response_model=SuccessResponse,
+    summary="언어 선택 검증",
+    description="사용자가 선택한 언어가 해당 역할에서 허용되는지 검증합니다."
+)
+async def validate_language(
+    language: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Validate if a language selection is allowed for current user"""
+    from ..services.language_policy import get_language_policy_service
+    from ..models.language_policy import LanguageValidationResponse
+
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+    user_role = current_user.get("role", "user")
+
+    policy_service = get_language_policy_service()
+    effective_language, was_modified = policy_service.validate_language(
+        requested_language=language,
+        user_role=user_role
+    )
+
+    # Determine if valid
+    is_valid = not was_modified
+
+    # Generate message
+    message = None
+    if was_modified:
+        message = f"Language '{language}' is not allowed for your role. Using '{effective_language}' instead."
+
+    response = LanguageValidationResponse(
+        valid=is_valid,
+        requested_language=language,
+        effective_language=effective_language,
+        was_modified=was_modified,
+        message=message
+    )
+
+    return SuccessResponse(
+        data=response,
+        meta=MetaInfo(request_id=request_id)
+    )

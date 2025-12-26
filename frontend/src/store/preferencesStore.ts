@@ -15,7 +15,7 @@ import { API_BASE_URL } from '../config/constants';
 // Theme types
 export type Theme = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
-export type Language = 'en' | 'ko';
+export type Language = 'en' | 'ko' | 'ja';
 
 interface PreferencesState {
   // State

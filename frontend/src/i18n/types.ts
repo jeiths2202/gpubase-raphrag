@@ -5,7 +5,17 @@
  */
 
 // Supported language codes
-export type LanguageCode = 'en' | 'ko';
+export type LanguageCode = 'en' | 'ko' | 'ja';
+
+// Locale codes with region
+export type LocaleCode = 'en-US' | 'ko-KR' | 'ja-JP';
+
+// Map language codes to full locale codes
+export const LOCALE_MAP: Record<LanguageCode, LocaleCode> = {
+  en: 'en-US',
+  ko: 'ko-KR',
+  ja: 'ja-JP',
+};
 
 // Language metadata
 export interface LanguageInfo {
@@ -28,6 +38,12 @@ export const LANGUAGES: Record<LanguageCode, LanguageInfo> = {
     name: 'Korean',
     nativeName: '한국어',
     flag: '🇰🇷',
+  },
+  ja: {
+    code: 'ja',
+    name: 'Japanese',
+    nativeName: '日本語',
+    flag: '🇯🇵',
   },
 };
 

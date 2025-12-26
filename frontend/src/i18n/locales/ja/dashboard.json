@@ -1,0 +1,44 @@
+{
+  "welcome": "こんにちは、{{name}}さん",
+  "welcomeMessage": "今日から効率的なナレッジ管理を始めましょう。",
+  "systemStatus": "システム状態",
+  "quickActions": "クイックアクション",
+  "knowledgeSources": "ナレッジソース",
+  "recentActivity": "最近のアクティビティ",
+  "gpu": "GPU",
+  "model": "AIモデル",
+  "vectorIndex": "ベクターインデックス",
+  "graphDb": "グラフDB",
+  "memory": "メモリ",
+  "utilization": "使用率",
+  "temperature": "温度",
+  "version": "バージョン",
+  "status": "状態",
+  "inferenceTime": "推論時間",
+  "documents": "ドキュメント",
+  "chunks": "チャンク",
+  "nodes": "ノード",
+  "relationships": "リレーション",
+  "todaySearches": "本日の検索",
+  "newDocuments": "新規ドキュメント",
+  "aiResponses": "AI応答",
+  "avgResponse": "平均応答",
+  "actions": {
+    "knowledge": {
+      "label": "ナレッジ検索",
+      "description": "RAGベースのドキュメント検索とQ&A"
+    },
+    "mindmap": {
+      "label": "マインドマップ",
+      "description": "ナレッジの可視化と探索"
+    },
+    "documents": {
+      "label": "ドキュメント管理",
+      "description": "アップロードとドキュメントインデックス管理"
+    },
+    "analytics": {
+      "label": "分析ダッシュボード",
+      "description": "使用統計とパフォーマンス監視"
+    }
+  }
+}

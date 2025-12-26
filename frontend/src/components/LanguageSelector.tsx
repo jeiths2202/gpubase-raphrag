@@ -1,17 +1,18 @@
 /**
  * LanguageSelector Component
  *
- * A button that toggles between available languages
- * Currently supports English (en) and Korean (ko)
+ * A button that cycles through available languages
+ * Supports English (en), Korean (ko), and Japanese (ja)
  *
  * Features:
  * - Animated transitions
  * - Accessible (keyboard navigation, ARIA labels)
  * - Shows current language with flag
+ * - Cycles: en → ko → ja → en
  */
 import React, { memo } from 'react';
 import { useTranslation } from '../hooks/useTranslation';
-import { LanguageCode, LANGUAGES } from '../i18n/types';
+import { LANGUAGES } from '../i18n/types';
 
 interface LanguageSelectorProps {
   /** Show full language name */
@@ -46,9 +47,9 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = memo(({
   className = '',
   size = 'md',
 }) => {
-  const { language, toggleLanguage } = useTranslation();
+  const { language, toggleLanguage, getNextLanguage } = useTranslation();
   const currentLang = LANGUAGES[language];
-  const nextLang = LANGUAGES[language === 'en' ? 'ko' : 'en'];
+  const nextLang = LANGUAGES[getNextLanguage()];
   const sizes = sizeConfig[size];
 
   const ariaLabel = `Current language: ${currentLang.name}. Click to switch to ${nextLang.name}`;

@@ -599,13 +599,18 @@ const KnowledgeApp: React.FC = () => {
     setIsLoading(true);
 
     try {
+      // Get current UI language for RAG response synchronization
+      const uiLanguage = localStorage.getItem('kms-preferences')
+        ? JSON.parse(localStorage.getItem('kms-preferences') || '{}').state?.language || 'auto'
+        : 'auto';
+
       const res = await fetch(`${API_BASE}/query`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
           question: inputMessage,
           strategy: 'auto',
-          language: 'auto',
+          language: uiLanguage, // Sync RAG response with UI language
           options: {
             top_k: 5,
             include_sources: true,

@@ -366,16 +366,15 @@ class RAGService:
 
             context = "\n\n".join(context_parts)
 
-            # Language instruction
-            lang_instruction = ""
-            if language == "ko":
-                lang_instruction = "한국어로 답변해주세요."
-            elif language == "ja":
-                lang_instruction = "日本語で回答してください。"
+            # Language instruction from policy service
+            from .language_policy import get_language_policy_service
+            policy_service = get_language_policy_service()
+            lang_instruction = policy_service.get_language_instruction(language)
 
             # Generate answer
             prompt = f"""다음 문서들을 참고하여 질문에 답변하세요.
-{lang_instruction}
+
+**응답 언어 지시**: {lang_instruction}
 
 **중요**: '업로드된 문서'의 내용을 우선적으로 참조하여 답변하세요.
 답변 시 정보의 출처(업로드 문서 또는 기존 지식)를 명시해주세요.
@@ -461,16 +460,15 @@ class RAGService:
 
             context = "\n\n".join(context_parts)
 
-            # Language instruction
-            lang_instruction = ""
-            if language == "ko":
-                lang_instruction = "한국어로 답변해주세요."
-            elif language == "ja":
-                lang_instruction = "日本語で回答してください。"
+            # Language instruction from policy service
+            from .language_policy import get_language_policy_service
+            policy_service = get_language_policy_service()
+            lang_instruction = policy_service.get_language_instruction(language)
 
             # Generate answer with source attribution
             prompt = f"""다음 문서들을 참고하여 질문에 답변하세요.
-{lang_instruction}
+
+**응답 언어 지시**: {lang_instruction}
 
 **중요 지시사항**:
 1. '업로드된 문서'와 '연결된 외부 리소스'의 내용을 우선적으로 참조하여 답변하세요.
