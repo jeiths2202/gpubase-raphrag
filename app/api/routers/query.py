@@ -13,6 +13,7 @@ from ..models.base import SuccessResponse, MetaInfo
 from ..models.query import (
     QueryRequest,
     QueryResponse,
+    QueryOptions,
     ClassifyResponse,
     ClassificationResult,
     ClassificationFeatures,
@@ -42,16 +43,48 @@ async def execute_query(
     request_id = f"req_{uuid.uuid4().hex[:12]}"
 
     try:
-        # Execute RAG query via service
+        # Get options with defaults
+        opts = request.options or QueryOptions()
+
+        # Execute RAG query via service with session document and external resource support
         result = await rag_service.query(
             question=request.question,
             strategy=request.strategy.value,
             language=request.language.value,
-            top_k=request.options.top_k if request.options else 5,
-            conversation_id=request.options.conversation_id if request.options else None
+            top_k=opts.top_k,
+            conversation_id=opts.conversation_id,
+            # Session document options
+            session_id=opts.session_id,
+            use_session_docs=opts.use_session_docs,
+            session_weight=opts.session_weight,
+            # External resource options
+            user_id=current_user.get("user_id") or current_user.get("id"),
+            use_external_resources=opts.use_external_resources,
+            external_weight=opts.external_weight
         )
 
         processing_time = int((time.time() - start_time) * 1000)
+
+        # Build sources list with session document and external resource info
+        sources = []
+        for s in result.get("sources", []):
+            source_info = SourceInfo(
+                doc_id=s.get("doc_id", ""),
+                doc_name=s.get("doc_name", ""),
+                chunk_id=s.get("chunk_id", ""),
+                chunk_index=s.get("chunk_index", 0),
+                content=s.get("content", ""),
+                score=s.get("score", 0.0),
+                source_type=s.get("source_type", "unknown"),
+                entities=s.get("entities", []),
+                is_session_doc=s.get("is_session_doc", False),
+                page_number=s.get("page_number"),
+                is_external_resource=s.get("is_external_resource", False),
+                source_url=s.get("source_url"),
+                external_source=s.get("external_source"),
+                section_title=s.get("section_title")
+            )
+            sources.append(source_info)
 
         return SuccessResponse(
             data=QueryResponse(
@@ -59,7 +92,7 @@ async def execute_query(
                 strategy=StrategyType(result["strategy"]),
                 language=LanguageType(result["language"]),
                 confidence=result.get("confidence", 0.85),
-                sources=[SourceInfo(**s) for s in result.get("sources", [])],
+                sources=sources,
                 query_analysis=QueryAnalysis(**result["query_analysis"]) if result.get("query_analysis") else None
             ),
             meta=MetaInfo(
@@ -86,6 +119,7 @@ async def stream_query(
 
     async def generate_events() -> AsyncGenerator[dict, None]:
         start_time = time.time()
+        opts = request.options or QueryOptions()
 
         # Start event
         yield {
@@ -94,11 +128,13 @@ async def stream_query(
         }
 
         try:
-            # Stream answer chunks
+            # Stream answer chunks with session document support
             async for chunk in rag_service.stream_query(
                 question=request.question,
                 strategy=request.strategy.value,
-                language=request.language.value
+                language=request.language.value,
+                session_id=opts.session_id,
+                use_session_docs=opts.use_session_docs
             ):
                 if chunk.get("type") == "text":
                     yield {"event": "chunk", "data": {"text": chunk["content"]}}

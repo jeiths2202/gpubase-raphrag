@@ -216,3 +216,98 @@ async def delete_conversation(
         },
         meta=MetaInfo(request_id=request_id)
     )
+
+
+@conversations_router.post(
+    "/{conversation_id}/export",
+    response_model=SuccessResponse[dict],
+    summary="대화 내보내기",
+    description="대화 세션을 다양한 형식으로 내보냅니다."
+)
+async def export_conversation(
+    conversation_id: str,
+    format: str = Query(default="markdown", description="내보내기 형식: markdown, json, html, txt"),
+    include_sources: bool = Query(default=True, description="출처 포함 여부"),
+    current_user: dict = Depends(get_current_user),
+    history_service = Depends(get_history_service)
+):
+    """Export conversation to various formats"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    result = await history_service.export_conversation(
+        conversation_id=conversation_id,
+        format=format,
+        include_sources=include_sources
+    )
+
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "CONVERSATION_NOT_FOUND", "message": "대화 세션을 찾을 수 없습니다."}
+        )
+
+    return SuccessResponse(
+        data=result,
+        meta=MetaInfo(request_id=request_id)
+    )
+
+
+@conversations_router.post(
+    "/{conversation_id}/branch",
+    response_model=SuccessResponse[ConversationListItem],
+    summary="대화 분기",
+    description="특정 지점부터 새로운 대화 세션으로 분기합니다."
+)
+async def branch_conversation(
+    conversation_id: str,
+    from_query_id: str = Query(..., description="분기 시작점 (쿼리 ID)"),
+    new_title: Optional[str] = Query(default=None, description="새 대화 제목"),
+    current_user: dict = Depends(get_current_user),
+    history_service = Depends(get_history_service)
+):
+    """Branch conversation from a specific point"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    result = await history_service.branch_conversation(
+        conversation_id=conversation_id,
+        from_query_id=from_query_id,
+        new_title=new_title,
+        user_id=current_user["id"]
+    )
+
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "CONVERSATION_NOT_FOUND", "message": "대화 세션 또는 쿼리를 찾을 수 없습니다."}
+        )
+
+    return SuccessResponse(
+        data=ConversationListItem(**result),
+        meta=MetaInfo(request_id=request_id)
+    )
+
+
+@conversations_router.get(
+    "/{conversation_id}/suggested-questions",
+    response_model=SuccessResponse[dict],
+    summary="추천 질문",
+    description="대화 맥락을 기반으로 다음 질문을 추천합니다."
+)
+async def get_suggested_questions(
+    conversation_id: str,
+    limit: int = Query(default=5, ge=1, le=10),
+    current_user: dict = Depends(get_current_user),
+    history_service = Depends(get_history_service)
+):
+    """Get suggested follow-up questions based on conversation context"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    result = await history_service.get_suggested_questions(
+        conversation_id=conversation_id,
+        limit=limit
+    )
+
+    return SuccessResponse(
+        data={"questions": result},
+        meta=MetaInfo(request_id=request_id)
+    )

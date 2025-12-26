@@ -1,7 +1,44 @@
 """
 Authentication Pydantic models
 """
-from pydantic import BaseModel, Field
+from enum import Enum
+from typing import Optional, List
+from pydantic import BaseModel, Field, EmailStr
+from datetime import datetime
+
+
+class UserRole(str, Enum):
+    """User role hierarchy for permission control"""
+    ADMIN = "admin"      # Full system access
+    LEADER = "leader"    # Review permission + user management
+    SENIOR = "senior"    # Review permission
+    USER = "user"        # Knowledge registration permission
+    GUEST = "guest"      # Read-only access
+
+
+# Role hierarchy for permission checks
+ROLE_HIERARCHY = {
+    UserRole.ADMIN: 5,
+    UserRole.LEADER: 4,
+    UserRole.SENIOR: 3,
+    UserRole.USER: 2,
+    UserRole.GUEST: 1
+}
+
+
+def has_permission(user_role: str, required_role: str) -> bool:
+    """Check if user has required permission level"""
+    try:
+        user_level = ROLE_HIERARCHY.get(UserRole(user_role), 0)
+        required_level = ROLE_HIERARCHY.get(UserRole(required_role), 0)
+        return user_level >= required_level
+    except ValueError:
+        return False
+
+
+def can_review(user_role: str) -> bool:
+    """Check if user can review knowledge articles"""
+    return has_permission(user_role, UserRole.SENIOR)
 
 
 class LoginRequest(BaseModel):
@@ -16,6 +53,73 @@ class LoginRequest(BaseModel):
                 "password": "password123"
             }
         }
+
+
+class RegisterRequest(BaseModel):
+    """User registration request"""
+    user_id: str = Field(..., min_length=3, max_length=50, pattern=r'^[a-zA-Z0-9_]+$')
+    email: EmailStr = Field(..., description="Email for verification")
+    password: str = Field(..., min_length=8, max_length=100)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "user_id": "newuser",
+                "email": "user@example.com",
+                "password": "securepassword123"
+            }
+        }
+
+
+class VerifyEmailRequest(BaseModel):
+    """Email verification request"""
+    email: EmailStr
+    code: str = Field(..., min_length=6, max_length=6)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "email": "user@example.com",
+                "code": "123456"
+            }
+        }
+
+
+class ResendVerificationRequest(BaseModel):
+    """Resend verification code request"""
+    email: EmailStr
+
+
+class GoogleAuthRequest(BaseModel):
+    """Google OAuth request"""
+    credential: str = Field(..., description="Google OAuth credential token")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "credential": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+            }
+        }
+
+
+class SSORequest(BaseModel):
+    """Corporate SSO request"""
+    email: EmailStr = Field(..., description="Corporate email address")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "email": "user@company.com"
+            }
+        }
+
+
+class RegisterResponse(BaseModel):
+    """Registration response"""
+    user_id: str
+    email: str
+    message: str = "인증 코드가 이메일로 발송되었습니다."
+    verification_required: bool = True
 
 
 class TokenResponse(BaseModel):
@@ -35,5 +139,32 @@ class UserInfo(BaseModel):
     """User information"""
     id: str
     username: str
-    role: str = "user"
+    email: Optional[str] = None
+    role: UserRole = UserRole.USER
+    department: Optional[str] = None
     is_active: bool = True
+    created_at: Optional[datetime] = None
+    last_login_at: Optional[datetime] = None
+
+    def can_review(self) -> bool:
+        """Check if user can review knowledge articles"""
+        return has_permission(self.role, UserRole.SENIOR)
+
+    def is_reviewer(self) -> bool:
+        """Check if user is senior or above"""
+        return self.role in [UserRole.ADMIN, UserRole.LEADER, UserRole.SENIOR]
+
+
+class UserUpdateRequest(BaseModel):
+    """User update request for admin"""
+    role: Optional[UserRole] = None
+    department: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class UserListResponse(BaseModel):
+    """User list response"""
+    users: List[UserInfo]
+    total: int
+    page: int
+    limit: int

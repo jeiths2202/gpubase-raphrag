@@ -64,6 +64,61 @@ from .settings import (
     SettingsUpdateResponse,
 )
 
+from .content import (
+    ContentType,
+    ContentStatus,
+    GenerateContentRequest,
+    GeneratedContent,
+    ContentListItem,
+    GenerateContentResponse,
+    ContentDetailResponse,
+    SummaryContent,
+    FAQContent,
+    FAQItem,
+    StudyGuideContent,
+    BriefingContent,
+    TimelineContent,
+    TOCContent,
+    KeyTopicsContent,
+)
+
+from .note import (
+    NoteType,
+    NoteSource,
+    CreateNoteRequest,
+    UpdateNoteRequest,
+    CreateFolderRequest,
+    UpdateFolderRequest,
+    SaveAIResponseRequest,
+    ExportNotesRequest,
+    SearchNotesRequest,
+    NoteFolder,
+    NoteListItem,
+    NoteDetail,
+    NoteExportResult,
+    NoteSearchResult,
+    NoteStats,
+)
+
+from .project import (
+    ProjectVisibility,
+    ProjectRole,
+    TemplateCategory,
+    CreateProjectRequest,
+    UpdateProjectRequest,
+    ShareProjectRequest,
+    CloneProjectRequest,
+    CreateTemplateRequest,
+    ProjectMember,
+    ProjectStats,
+    ProjectListItem,
+    ProjectDetail,
+    ProjectTemplate,
+    CloneProjectResponse,
+    ShareProjectResponse,
+    ProjectActivityItem,
+)
+
 __all__ = [
     # Base
     "MetaInfo", "PaginationMeta", "ErrorDetail",
@@ -86,4 +141,20 @@ __all__ = [
     "LoginRequest", "TokenResponse", "RefreshRequest", "UserInfo",
     # Settings
     "SystemSettings", "SettingsUpdate", "SettingsUpdateResponse",
+    # Content
+    "ContentType", "ContentStatus", "GenerateContentRequest", "GeneratedContent",
+    "ContentListItem", "GenerateContentResponse", "ContentDetailResponse",
+    "SummaryContent", "FAQContent", "FAQItem", "StudyGuideContent",
+    "BriefingContent", "TimelineContent", "TOCContent", "KeyTopicsContent",
+    # Note
+    "NoteType", "NoteSource", "CreateNoteRequest", "UpdateNoteRequest",
+    "CreateFolderRequest", "UpdateFolderRequest", "SaveAIResponseRequest",
+    "ExportNotesRequest", "SearchNotesRequest", "NoteFolder", "NoteListItem",
+    "NoteDetail", "NoteExportResult", "NoteSearchResult", "NoteStats",
+    # Project
+    "ProjectVisibility", "ProjectRole", "TemplateCategory",
+    "CreateProjectRequest", "UpdateProjectRequest", "ShareProjectRequest",
+    "CloneProjectRequest", "CreateTemplateRequest", "ProjectMember",
+    "ProjectStats", "ProjectListItem", "ProjectDetail", "ProjectTemplate",
+    "CloneProjectResponse", "ShareProjectResponse", "ProjectActivityItem",
 ]

@@ -131,18 +131,39 @@ graphrag/
 ├── app/
 │   ├── requirements.txt
 │   ├── docs/                    # PDF documents (JP/KR/EN)
-│   └── src/
-│       ├── config.py            # Configuration management
-│       ├── embeddings.py        # NeMo Embedding service
-│       ├── query_router.py      # Query classification
-│       ├── vector_rag.py        # Vector-based RAG
-│       ├── hybrid_rag.py        # Hybrid RAG orchestrator
-│       ├── graphrag.py          # Core HybridRAG class
-│       ├── chat_rag.py          # Interactive chat interface
-│       ├── pdf_rag_test.py      # PDF processing test
-│       ├── simple_pdf_test.py   # Quick PDF test
-│       ├── rag_qa.py            # QA module
-│       └── batch_upload.py      # Batch upload utility
+│   ├── src/
+│   │   ├── config.py            # Configuration management
+│   │   ├── embeddings.py        # NeMo Embedding service
+│   │   ├── query_router.py      # Query classification
+│   │   ├── vector_rag.py        # Vector-based RAG
+│   │   ├── hybrid_rag.py        # Hybrid RAG orchestrator
+│   │   ├── graphrag.py          # Core HybridRAG class
+│   │   ├── chat_rag.py          # Interactive chat interface
+│   │   ├── pdf_rag_test.py      # PDF processing test
+│   │   ├── simple_pdf_test.py   # Quick PDF test
+│   │   ├── rag_qa.py            # QA module
+│   │   └── batch_upload.py      # Batch upload utility
+│   └── api/
+│       ├── main.py              # FastAPI application
+│       ├── routers/
+│       │   ├── query.py         # RAG query API
+│       │   ├── documents.py     # Document management API
+│       │   └── mindmap.py       # Mindmap API
+│       ├── services/
+│       │   ├── rag_service.py   # RAG service wrapper
+│       │   └── mindmap_service.py # Mindmap generation service
+│       └── models/
+│           └── mindmap.py       # Mindmap data models
+├── frontend/                    # React Mindmap UI
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── MindmapViewer.tsx  # React Flow visualization
+│   │   │   ├── MindmapNode.tsx    # Custom node component
+│   │   │   ├── NodePanel.tsx      # Node detail/query panel
+│   │   │   └── Sidebar.tsx        # Mindmap management
+│   │   ├── services/api.ts      # API client
+│   │   └── types/mindmap.ts     # TypeScript types
+│   └── package.json
 ├── docker/
 │   ├── docker-compose.yml       # Container orchestration
 │   └── .env                     # Environment configuration
@@ -285,6 +306,8 @@ Environment variables (docker/.env):
 | 12800 | Nemotron NIM LLM API (GPU 7) |
 | 12801 | NeMo Embedding NIM API (GPU 4,5) |
 | 12802 | Mistral NeMo Code LLM (GPU 0) |
+| 8000 | FastAPI Backend |
+| 3000 | React Frontend (Mindmap UI) |
 | 7474 | Neo4j HTTP |
 | 7687 | Neo4j Bolt |
 
@@ -352,6 +375,108 @@ environment:
 - **Vector Search**: Neo4j vector index with 4096-dimensional embeddings
 - **Graph Search**: Entity-based relationship traversal
 - **Batch Processing**: Efficient document ingestion with parallel processing
+- **Mindmap Generation**: LLM-based concept extraction and interactive visualization
+
+### Mindmap Visualization
+
+NotebookLM-style mindmap feature for knowledge visualization from documents.
+
+**Architecture:**
+```
+Documents → LLM Concept Extraction → Neo4j (Concept nodes) → React Flow Visualization
+                    ↓
+         JSON: {concepts, relations}
+                    ↓
+         ┌─────────────────────────────────────┐
+         │  Mindmap Graph Schema               │
+         │                                     │
+         │  (Mindmap)--HAS_CONCEPT-->(Concept) │
+         │  (Concept)--CONCEPT_RELATION-->(Concept) │
+         └─────────────────────────────────────┘
+```
+
+**API Endpoints:**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/mindmap/generate` | Generate mindmap from documents |
+| POST | `/api/v1/mindmap/from-all-documents` | Generate from all documents |
+| GET | `/api/v1/mindmap` | List all mindmaps |
+| GET | `/api/v1/mindmap/{id}` | Get mindmap with nodes/edges |
+| DELETE | `/api/v1/mindmap/{id}` | Delete mindmap |
+| POST | `/api/v1/mindmap/{id}/expand` | Expand node (add sub-concepts) |
+| POST | `/api/v1/mindmap/{id}/query` | RAG query about specific node |
+| GET | `/api/v1/mindmap/{id}/node/{node_id}` | Get node detail |
+
+**Node Types:**
+
+| Type | Color | Description |
+|------|-------|-------------|
+| Root | `#2563EB` | Central topic of the mindmap |
+| Concept | `#3B82F6` | General concept |
+| Entity | `#10B981` | Named entity (person, org, etc.) |
+| Topic | `#8B5CF6` | Subject/theme |
+| Keyword | `#F59E0B` | Key term |
+
+**Relation Types:**
+- `relates_to` - General relationship
+- `contains` - Containment
+- `causes` - Causal relationship
+- `depends_on` - Dependency
+- `similar_to` - Similarity
+- `part_of` - Part-whole relationship
+- `example_of` - Example/instance
+
+**Quick Start:**
+
+```bash
+# Start backend
+cd app/api
+python run.py
+
+# Start frontend (separate terminal)
+cd frontend
+npm install
+npm run dev
+
+# Open browser: http://localhost:3000
+```
+
+**Usage Example:**
+
+```bash
+# Generate mindmap via API
+curl -X POST http://localhost:8000/api/v1/mindmap/from-all-documents \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Knowledge Map", "max_nodes": 50}'
+
+# Response
+{
+  "success": true,
+  "data": {
+    "mindmap": {
+      "id": "mm_abc123",
+      "title": "Knowledge Map",
+      "node_count": 35,
+      "edge_count": 42,
+      "data": {
+        "nodes": [...],
+        "edges": [...],
+        "root_id": "node_xyz"
+      }
+    }
+  }
+}
+```
+
+**Features:**
+- LLM-based automatic concept and relation extraction
+- Interactive graph visualization with React Flow
+- Hierarchical layout using dagre algorithm
+- Node expansion (drill-down into sub-concepts)
+- Node-specific RAG queries
+- Dark theme UI with node type color coding
+- Zoom, pan, and minimap navigation
 
 ### Multilingual Support
 - **Languages**: Japanese (日本語), Korean (한국어), English
