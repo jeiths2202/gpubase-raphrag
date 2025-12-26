@@ -175,12 +175,16 @@ const MainDashboard: React.FC = () => {
 
   const fetchKnowledgeSources = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/knowledge/sources`, {
+      const response = await fetch(`${API_BASE_URL}/system/knowledge/sources`, {
         credentials: 'include',
       });
       if (response.ok) {
         const data = await response.json();
-        setKnowledgeSources(data.data);
+        // Handle both data.data.sources and data.data array formats
+        const sources = data.data?.sources || data.data;
+        if (Array.isArray(sources)) {
+          setKnowledgeSources(sources);
+        }
       }
     } catch {
       // Use mock data
@@ -200,7 +204,10 @@ const MainDashboard: React.FC = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        setNotifications(data.data);
+        // Ensure data.data is an array before setting
+        if (Array.isArray(data.data)) {
+          setNotifications(data.data);
+        }
       }
     } catch {
       // Use mock data
