@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import LoginPage from './pages/LoginPage';
+import MainDashboard from './pages/MainDashboard';
 import MindmapApp from './pages/MindmapApp';
 import AdminDashboard from './pages/AdminDashboard';
 import KnowledgeApp from './pages/KnowledgeApp';
@@ -76,6 +77,16 @@ const App: React.FC = () => {
           {/* Protected routes */}
           <Route
             path="/"
+            element={
+              <ProtectedRoute>
+                <MainDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Knowledge search route */}
+          <Route
+            path="/knowledge"
             element={
               <ProtectedRoute>
                 <KnowledgeApp />

@@ -12,6 +12,9 @@ export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 // API Base URL
 export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
+// Application Environment
+export const APP_ENV = (import.meta.env.VITE_APP_ENV || 'development') as 'development' | 'staging' | 'production';
+
 // Corporate email domains for SSO
 export const CORP_EMAIL_DOMAINS = [
   'company.com',
