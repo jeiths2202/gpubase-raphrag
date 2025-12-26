@@ -200,6 +200,51 @@ class RAGSettings:
 
 
 @dataclass
+class VisionSettings:
+    """Vision LLM configuration for image-based document processing"""
+
+    # Primary Vision LLM
+    provider: str = "openai"  # openai, anthropic, local
+    model: str = "gpt-4o"
+    api_key: Optional[str] = None
+
+    # Fallback Vision LLM
+    fallback_provider: str = "anthropic"
+    fallback_model: str = "claude-3-5-sonnet-20241022"
+    fallback_api_key: Optional[str] = None
+
+    # Cost Control
+    monthly_budget: float = 1000.0  # USD
+    max_cost_per_request: float = 0.50  # USD
+    enable_cost_tracking: bool = True
+
+    # Performance
+    max_images_per_request: int = 20
+    max_image_dimension: int = 2048
+    batch_size: int = 5
+    timeout: int = 60
+
+    # Image Preprocessing
+    default_image_format: str = "PNG"
+    jpeg_quality: int = 85
+    pdf_dpi: int = 150
+
+    # Routing Thresholds
+    visual_complexity_threshold: float = 0.4
+    image_area_ratio_threshold: float = 0.3
+
+    # Caching
+    cache_enabled: bool = True
+    cache_ttl_hours: int = 168  # 7 days for document analysis
+
+    # Feature Flags
+    enable_chart_extraction: bool = True
+    enable_table_extraction: bool = True
+    enable_diagram_analysis: bool = True
+    enable_ocr: bool = True
+
+
+@dataclass
 class AppSettings:
     """Main application configuration"""
     # Basic settings
@@ -221,6 +266,7 @@ class AppSettings:
     logging: LoggingSettings = field(default_factory=LoggingSettings)
     cache: CacheSettings = field(default_factory=CacheSettings)
     rag: RAGSettings = field(default_factory=RAGSettings)
+    vision: VisionSettings = field(default_factory=VisionSettings)
 
     # Extra settings
     extra: Dict[str, Any] = field(default_factory=dict)
@@ -330,6 +376,25 @@ class SettingsLoader:
         settings.cache.enabled = os.getenv("ENABLE_CACHE", "true").lower() == "true"
         settings.cache.redis_url = os.getenv("REDIS_URL")
 
+        # Vision LLM
+        settings.vision.provider = os.getenv("VISION_PROVIDER", settings.vision.provider)
+        settings.vision.model = os.getenv("VISION_MODEL", settings.vision.model)
+        settings.vision.api_key = os.getenv("VISION_API_KEY") or os.getenv("OPENAI_API_KEY")
+        settings.vision.fallback_provider = os.getenv("VISION_FALLBACK_PROVIDER", settings.vision.fallback_provider)
+        settings.vision.fallback_model = os.getenv("VISION_FALLBACK_MODEL", settings.vision.fallback_model)
+        settings.vision.fallback_api_key = os.getenv("VISION_FALLBACK_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+        if budget := os.getenv("VISION_MONTHLY_BUDGET"):
+            settings.vision.monthly_budget = float(budget)
+        if max_cost := os.getenv("VISION_MAX_COST_PER_REQUEST"):
+            settings.vision.max_cost_per_request = float(max_cost)
+        if max_images := os.getenv("VISION_MAX_IMAGES_PER_REQUEST"):
+            settings.vision.max_images_per_request = int(max_images)
+        if max_dim := os.getenv("VISION_MAX_IMAGE_DIMENSION"):
+            settings.vision.max_image_dimension = int(max_dim)
+        settings.vision.cache_enabled = os.getenv("VISION_CACHE_ENABLED", "true").lower() == "true"
+        if cache_ttl := os.getenv("VISION_CACHE_TTL_HOURS"):
+            settings.vision.cache_ttl_hours = int(cache_ttl)
+
         return settings
 
     @classmethod
@@ -339,7 +404,8 @@ class SettingsLoader:
             if hasattr(settings, key):
                 attr = getattr(settings, key)
                 if isinstance(attr, (DatabaseConfig, LLMSettings, VectorStoreSettings,
-                                     SecuritySettings, LoggingSettings, CacheSettings, RAGSettings)):
+                                     SecuritySettings, LoggingSettings, CacheSettings,
+                                     RAGSettings, VisionSettings)):
                     # Nested config
                     if isinstance(value, dict):
                         for sub_key, sub_value in value.items():
