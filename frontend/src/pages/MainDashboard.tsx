@@ -719,20 +719,35 @@ const MainDashboard: React.FC = () => {
 // ─────────────────────────────────────────────────────────────
 
 const styles = `
-  /* Container & Background */
-  .dashboard-container {
-    min-height: 100vh;
-    position: relative;
-    overflow-x: hidden;
-    display: flex;
-    flex-direction: column;
+  /* ═══════════════════════════════════════════════════════════════
+     SCROLL & LAYOUT ARCHITECTURE
+     - Uses proper scroll container hierarchy
+     - Fixed header with scrollable main content
+     - Touch-friendly scrolling for mobile
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* Reset & Base */
+  *, *::before, *::after {
+    box-sizing: border-box;
   }
 
+  /* Container - Full viewport with flex layout */
+  .dashboard-container {
+    min-height: 100vh;
+    height: 100vh;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Prevent body scroll */
+  }
+
+  /* Background - Fixed, no pointer events */
   .dashboard-bg {
     position: fixed;
     inset: 0;
     background: linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #0f0f23 100%);
     z-index: -1;
+    pointer-events: none;
   }
 
   .gradient-orb {
@@ -741,6 +756,7 @@ const styles = `
     filter: blur(100px);
     opacity: 0.3;
     animation: float 25s infinite ease-in-out;
+    pointer-events: none;
   }
 
   .orb-1 {
@@ -774,6 +790,37 @@ const styles = `
     25% { transform: translate(30px, -30px) scale(1.05); }
     50% { transform: translate(-20px, 20px) scale(0.95); }
     75% { transform: translate(-30px, -20px) scale(1.02); }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     FOCUS & ACCESSIBILITY STATES
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* Visible focus outlines for keyboard navigation */
+  button:focus-visible,
+  a:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+  }
+
+  /* Skip link for accessibility */
+  .skip-link {
+    position: absolute;
+    top: -100px;
+    left: 16px;
+    padding: 12px 24px;
+    background: #3b82f6;
+    color: #fff;
+    border-radius: 8px;
+    z-index: 1000;
+    font-weight: 600;
+    text-decoration: none;
+    transition: top 0.2s;
+  }
+
+  .skip-link:focus {
+    top: 16px;
   }
 
   /* Header */
@@ -885,13 +932,15 @@ const styles = `
     top: calc(100% + 8px);
     right: 0;
     width: 360px;
-    max-height: 400px;
+    max-height: min(400px, calc(100vh - 120px));
     background: rgba(30, 30, 50, 0.98);
     backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
     overflow: hidden;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
   }
 
   .notification-header {
@@ -917,8 +966,18 @@ const styles = `
   }
 
   .notification-list {
-    max-height: 320px;
+    flex: 1;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .notification-list::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .notification-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
   }
 
   .notification-item {
@@ -1071,13 +1130,68 @@ const styles = `
     margin-bottom: 0;
   }
 
-  /* Main Content */
+  /* ═══════════════════════════════════════════════════════════════
+     MAIN CONTENT - Scrollable Container
+     ═══════════════════════════════════════════════════════════════ */
+
   .dashboard-main {
     flex: 1;
-    padding: 32px 24px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* Touch-friendly smooth scrolling */
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    /* Scroll padding for sticky header overlap */
+    scroll-padding-top: 20px;
+  }
+
+  /* Inner container for max-width and padding */
+  .dashboard-main > * {
     max-width: 1400px;
-    margin: 0 auto;
-    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  /* First child has top padding */
+  .dashboard-main > *:first-child {
+    padding-top: 32px;
+  }
+
+  /* Last child has bottom padding */
+  .dashboard-main > *:last-child {
+    padding-bottom: 32px;
+  }
+
+  /* Custom scrollbar styling */
+  .dashboard-main::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .dashboard-main::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .dashboard-main::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+  }
+
+  .dashboard-main::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+
+  /* Scroll indicator gradient at bottom */
+  .dashboard-main::after {
+    content: '';
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(to top, rgba(10, 10, 26, 0.8), transparent);
+    pointer-events: none;
   }
 
   .loading-state {
@@ -1085,7 +1199,8 @@ const styles = `
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 80px;
+    min-height: 60vh;
+    padding: 80px 24px;
     color: rgba(255, 255, 255, 0.5);
     gap: 20px;
   }
@@ -1483,6 +1598,11 @@ const styles = `
 
   /* Tablet */
   @media (max-width: 1024px) {
+    .dashboard-container {
+      height: 100vh;
+      height: 100dvh; /* Dynamic viewport height for mobile browsers */
+    }
+
     .status-grid {
       grid-template-columns: repeat(2, 1fr);
     }
@@ -1502,16 +1622,31 @@ const styles = `
     .user-info {
       display: none;
     }
+
+    /* Ensure cards don't overflow */
+    .status-card,
+    .action-card,
+    .source-card,
+    .activity-card {
+      min-width: 0; /* Allow flex items to shrink */
+      overflow: hidden;
+    }
   }
 
   /* Mobile */
   @media (max-width: 768px) {
     .mobile-menu-btn {
       display: block;
+      min-width: 44px; /* Touch target minimum */
+      min-height: 44px;
     }
 
     .mobile-nav {
       display: block;
+      max-height: calc(100vh - 70px);
+      max-height: calc(100dvh - 70px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     .logo-text h1 {
@@ -1529,6 +1664,8 @@ const styles = `
 
     .user-section {
       padding: 6px;
+      min-width: 44px; /* Touch target */
+      min-height: 44px;
     }
 
     .user-avatar {
@@ -1537,20 +1674,33 @@ const styles = `
       font-size: 14px;
     }
 
+    .notification-btn {
+      min-width: 44px; /* Touch target */
+      min-height: 44px;
+    }
+
     .notification-dropdown {
       position: fixed;
       top: 70px;
       left: 12px;
       right: 12px;
       width: auto;
+      max-height: calc(100vh - 90px);
+      max-height: calc(100dvh - 90px);
     }
 
     .dashboard-main {
       padding: 20px 16px;
+      /* Safe area padding for notched devices */
+      padding-left: max(16px, env(safe-area-inset-left));
+      padding-right: max(16px, env(safe-area-inset-right));
+      padding-bottom: max(20px, env(safe-area-inset-bottom));
     }
 
     .welcome-section h2 {
       font-size: 22px;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
 
     .status-grid,
@@ -1565,6 +1715,7 @@ const styles = `
 
     .action-card {
       padding: 18px;
+      min-height: 44px; /* Touch target */
     }
 
     .action-icon {
@@ -1578,33 +1729,75 @@ const styles = `
     .metric-value.large {
       font-size: 18px;
     }
+
+    /* Prevent text overflow in cards */
+    .action-content h4,
+    .source-info h4,
+    .activity-label {
+      white-space: normal;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    /* Metric labels should wrap on mobile */
+    .metric {
+      flex-wrap: wrap;
+    }
+
+    .metric-label {
+      flex-basis: 100%;
+    }
+
+    /* Footer safe area */
+    .dashboard-footer {
+      padding-bottom: max(20px, env(safe-area-inset-bottom));
+    }
   }
 
   /* Small Mobile */
   @media (max-width: 480px) {
     .dashboard-header {
       padding: 12px 16px;
+      padding-left: max(12px, env(safe-area-inset-left));
+      padding-right: max(12px, env(safe-area-inset-right));
+      flex-wrap: nowrap;
     }
 
     .logo-section {
       gap: 8px;
+      min-width: 0; /* Allow shrinking */
+      flex: 1;
     }
 
     .logo-icon {
       font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .logo-text {
+      min-width: 0; /* Allow text truncation */
+      overflow: hidden;
     }
 
     .logo-text h1 {
       font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .header-right {
-      gap: 8px;
+      gap: 4px;
+      flex-shrink: 0;
     }
 
     .notification-btn {
       padding: 8px;
       font-size: 16px;
+    }
+
+    .welcome-section {
+      margin-bottom: 24px;
     }
 
     .welcome-section h2 {
@@ -1617,6 +1810,113 @@ const styles = `
 
     .section-title {
       font-size: 16px;
+    }
+
+    /* Reduce section margins on small screens */
+    .status-section,
+    .actions-section,
+    .sources-section,
+    .activity-section {
+      margin-bottom: 28px;
+    }
+
+    /* Tighter card spacing */
+    .status-grid,
+    .actions-grid,
+    .sources-grid,
+    .activity-grid {
+      gap: 12px;
+    }
+
+    /* Smaller activity values */
+    .activity-value {
+      font-size: 24px;
+    }
+
+    /* Status card metric adjustments */
+    .status-metrics {
+      gap: 8px;
+    }
+
+    .metric-bar-container {
+      min-width: 50px;
+    }
+  }
+
+  /* Landscape Mobile - Prevent content cutoff */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .dashboard-container {
+      height: auto;
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+
+    .dashboard-main {
+      padding-top: 16px;
+      padding-bottom: 16px;
+    }
+
+    .welcome-section {
+      margin-bottom: 16px;
+    }
+
+    .status-section,
+    .actions-section,
+    .sources-section,
+    .activity-section {
+      margin-bottom: 24px;
+    }
+
+    .notification-dropdown {
+      max-height: calc(100vh - 80px);
+      max-height: calc(100dvh - 80px);
+    }
+  }
+
+  /* Reduced motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    .dashboard-main {
+      scroll-behavior: auto;
+    }
+
+    .status-card,
+    .action-card,
+    .source-card,
+    .activity-card,
+    .notification-btn,
+    .user-section,
+    .action-arrow,
+    .status-indicator,
+    .spinner {
+      animation: none;
+      transition: none;
+    }
+
+    .action-card:hover .action-arrow {
+      transform: none;
+    }
+
+    .status-card:hover {
+      transform: none;
+    }
+  }
+
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    .status-card,
+    .action-card,
+    .source-card,
+    .activity-card {
+      border-width: 2px;
+      border-color: rgba(255, 255, 255, 0.5);
+    }
+
+    .nav-link:focus-visible,
+    .notification-btn:focus-visible,
+    .user-section:focus-visible,
+    .action-card:focus-visible {
+      outline-width: 3px;
+      outline-color: #fff;
     }
   }
 `;
