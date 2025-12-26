@@ -29,6 +29,17 @@ import koErrors from './locales/ko/errors.json';
 import koTime from './locales/ko/time.json';
 import koStatus from './locales/ko/status.json';
 
+// Import Japanese translations
+import jaCommon from './locales/ja/common.json';
+import jaAuth from './locales/ja/auth.json';
+import jaDashboard from './locales/ja/dashboard.json';
+import jaKnowledge from './locales/ja/knowledge.json';
+import jaMindmap from './locales/ja/mindmap.json';
+import jaAdmin from './locales/ja/admin.json';
+import jaErrors from './locales/ja/errors.json';
+import jaTime from './locales/ja/time.json';
+import jaStatus from './locales/ja/status.json';
+
 // Merge translations by namespace
 const translations: Record<LanguageCode, Record<string, unknown>> = {
   en: {
@@ -52,6 +63,17 @@ const translations: Record<LanguageCode, Record<string, unknown>> = {
     errors: koErrors,
     time: koTime,
     status: koStatus,
+  },
+  ja: {
+    common: jaCommon,
+    auth: jaAuth,
+    dashboard: jaDashboard,
+    knowledge: jaKnowledge,
+    mindmap: jaMindmap,
+    admin: jaAdmin,
+    errors: jaErrors,
+    time: jaTime,
+    status: jaStatus,
   },
 };
 

@@ -1,0 +1,20 @@
+{
+  "title": "ナレッジマインドマップ",
+  "createNew": "新規マインドマップ作成",
+  "addNode": "ノード追加",
+  "deleteNode": "ノード削除",
+  "editNode": "ノード編集",
+  "nodeTypes": {
+    "root": "ルート",
+    "concept": "コンセプト",
+    "entity": "エンティティ",
+    "topic": "トピック",
+    "keyword": "キーワード"
+  },
+  "controls": {
+    "zoomIn": "拡大",
+    "zoomOut": "縮小",
+    "fitView": "画面に合わせる",
+    "reset": "表示リセット"
+  }
+}

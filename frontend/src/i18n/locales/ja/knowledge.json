@@ -1,0 +1,17 @@
+{
+  "title": "ナレッジ検索",
+  "searchPlaceholder": "質問を入力するか、ドキュメントを検索...",
+  "askQuestion": "質問する",
+  "noResults": "結果が見つかりません",
+  "sources": "ソース",
+  "relevance": "関連度",
+  "newConversation": "新しい会話",
+  "conversationHistory": "会話履歴",
+  "relatedDocuments": "関連ドキュメント",
+  "feedback": {
+    "helpful": "この回答は役に立ちましたか？",
+    "yes": "はい",
+    "no": "いいえ",
+    "thanks": "フィードバックありがとうございます！"
+  }
+}

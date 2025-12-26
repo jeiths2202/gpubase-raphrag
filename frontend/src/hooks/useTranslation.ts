@@ -24,8 +24,12 @@ interface UseTranslationReturn {
   isKorean: boolean;
   /** Is current language English */
   isEnglish: boolean;
-  /** Toggle between languages */
+  /** Is current language Japanese */
+  isJapanese: boolean;
+  /** Cycle through languages (en → ko → ja → en) */
   toggleLanguage: () => void;
+  /** Get next language in cycle */
+  getNextLanguage: () => LanguageCode;
 }
 
 /**
@@ -42,15 +46,27 @@ interface UseTranslationReturn {
  *   </div>
  * );
  */
+// Language cycle order
+const LANGUAGE_CYCLE: LanguageCode[] = ['en', 'ko', 'ja'];
+
 export const useTranslation = (): UseTranslationReturn => {
   const { language, setLanguage, t, isLoading } = useI18nContext();
 
   /**
-   * Toggle between English and Korean
+   * Get the next language in the cycle
+   */
+  const getNextLanguage = useCallback((): LanguageCode => {
+    const currentIndex = LANGUAGE_CYCLE.indexOf(language);
+    const nextIndex = (currentIndex + 1) % LANGUAGE_CYCLE.length;
+    return LANGUAGE_CYCLE[nextIndex];
+  }, [language]);
+
+  /**
+   * Cycle through languages: en → ko → ja → en
    */
   const toggleLanguage = useCallback(() => {
-    setLanguage(language === 'en' ? 'ko' : 'en');
-  }, [language, setLanguage]);
+    setLanguage(getNextLanguage());
+  }, [getNextLanguage, setLanguage]);
 
   return {
     language,
@@ -60,7 +76,9 @@ export const useTranslation = (): UseTranslationReturn => {
     languages: LANGUAGES,
     isKorean: language === 'ko',
     isEnglish: language === 'en',
+    isJapanese: language === 'ja',
     toggleLanguage,
+    getNextLanguage,
   };
 };
 

@@ -18,6 +18,7 @@ class LanguageCode(str, Enum):
     """Supported language codes"""
     EN = "en"
     KO = "ko"
+    JA = "ja"
 
 
 class UserPreferencesResponse(BaseModel):
@@ -73,7 +74,8 @@ class SupportedPreferences(BaseModel):
     languages: list[SupportedLanguage] = Field(
         default_factory=lambda: [
             SupportedLanguage(code="en", name="English", native_name="English"),
-            SupportedLanguage(code="ko", name="Korean", native_name="한국어")
+            SupportedLanguage(code="ko", name="Korean", native_name="한국어"),
+            SupportedLanguage(code="ja", name="Japanese", native_name="日本語")
         ],
         description="Available languages"
     )

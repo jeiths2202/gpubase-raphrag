@@ -1,0 +1,14 @@
+{
+  "title": "管理ダッシュボード",
+  "users": "ユーザー",
+  "system": "システム",
+  "logs": "ログ",
+  "userManagement": "ユーザー管理",
+  "systemSettings": "システム設定",
+  "activityLogs": "アクティビティログ",
+  "addUser": "ユーザー追加",
+  "editUser": "ユーザー編集",
+  "deleteUser": "ユーザー削除",
+  "role": "役割",
+  "lastActive": "最終アクティブ"
+}
