@@ -27,7 +27,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system
 
 
 # Initialize mode manager and logger
@@ -130,6 +130,7 @@ app = FastAPI(
 - **Session Document API**: 채팅 세션별 문서 업로드 및 우선순위 RAG
 - **External Connection API**: 외부 리소스 연동 (OneNote, GitHub, Google Drive, Notion, Confluence)
 - **Enterprise API**: 엔터프라이즈 기능 (MFA, 감사 로그, 문서 버전 관리, 협업)
+- **System API**: 시스템 상태 모니터링 (GPU, AI 모델, 인덱스, Neo4j)
 
 ### 기술 스택
 - **LLM**: Nemotron Nano 9B, Mistral NeMo 12B
@@ -229,6 +230,7 @@ app.include_router(web_source.router, prefix=API_PREFIX)
 app.include_router(session_document.router, prefix=API_PREFIX)
 app.include_router(external_connection.router, prefix=API_PREFIX)
 app.include_router(enterprise.router, prefix=API_PREFIX)
+app.include_router(system.router, prefix=API_PREFIX)
 
 
 # Root endpoint
