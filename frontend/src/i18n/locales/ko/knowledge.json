@@ -1,0 +1,17 @@
+{
+  "title": "지식 검색",
+  "searchPlaceholder": "질문을 입력하거나 문서를 검색하세요...",
+  "askQuestion": "질문하기",
+  "noResults": "검색 결과가 없습니다",
+  "sources": "출처",
+  "relevance": "관련도",
+  "newConversation": "새 대화",
+  "conversationHistory": "대화 기록",
+  "relatedDocuments": "관련 문서",
+  "feedback": {
+    "helpful": "도움이 되었나요?",
+    "yes": "예",
+    "no": "아니오",
+    "thanks": "피드백 감사합니다!"
+  }
+}

@@ -1,41 +1,38 @@
-/* Global Styles */
-:root {
-  --color-primary: #2563eb;
-  --color-secondary: #64748b;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
+/**
+ * KMS Global Styles
+ *
+ * Theme-aware CSS using CSS variables from themes.css
+ * Variables are applied via [data-theme="light"] or [data-theme="dark"]
+ */
 
-  --color-bg-dark: #0f172a;
-  --color-bg-card: #1e293b;
-  --color-bg-hover: #334155;
+/* Import theme system */
+@import './styles/themes.css';
 
-  --color-text-primary: #f1f5f9;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #64748b;
-
-  --color-border: #334155;
-
-  /* Node colors */
-  --node-root: #2563eb;
-  --node-concept: #3b82f6;
-  --node-entity: #10b981;
-  --node-topic: #8b5cf6;
-  --node-keyword: #f59e0b;
-}
-
+/* ============================================
+   CSS Reset
+   ============================================ */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+/* ============================================
+   Base Styles
+   ============================================ */
+html {
+  /* Prevent flash of wrong theme */
+  background-color: var(--color-bg-primary);
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background-color: var(--color-bg-dark);
+  background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--theme-transition-duration) var(--theme-transition-timing),
+              color var(--theme-transition-duration) var(--theme-transition-timing);
 }
 
 #root {
@@ -44,7 +41,9 @@ body {
   overflow: hidden;
 }
 
-/* React Flow custom styles */
+/* ============================================
+   React Flow Custom Styles
+   ============================================ */
 .react-flow__node {
   border-radius: 50%;
   display: flex;
@@ -81,7 +80,7 @@ body {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
 }
 
 .react-flow__controls-button {
@@ -100,26 +99,9 @@ body {
   border-radius: 8px;
 }
 
-/* Scrollbar styles */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--color-bg-dark);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-secondary);
-}
-
-/* Button styles */
+/* ============================================
+   Button Styles
+   ============================================ */
 .btn {
   padding: 8px 16px;
   border-radius: 6px;
@@ -135,11 +117,11 @@ body {
 
 .btn-primary {
   background: var(--color-primary);
-  color: white;
+  color: var(--color-text-inverse);
 }
 
 .btn-primary:hover {
-  background: #1d4ed8;
+  background: var(--color-primary-hover);
 }
 
 .btn-secondary {
@@ -149,49 +131,57 @@ body {
 }
 
 .btn-secondary:hover {
-  background: var(--color-secondary);
+  background: var(--color-bg-active);
 }
 
 .btn-success {
   background: var(--color-success);
-  color: white;
+  color: var(--color-text-inverse);
 }
 
 .btn-success:hover {
   background: #059669;
 }
 
-/* Input styles */
+/* ============================================
+   Input Styles
+   ============================================ */
 .input {
   padding: 10px 14px;
   border-radius: 6px;
   border: 1px solid var(--color-border);
-  background: var(--color-bg-dark);
+  background: var(--color-bg-input);
   color: var(--color-text-primary);
   font-size: 14px;
   width: 100%;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
 }
 
 .input:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--focus-ring-color);
 }
 
 .input::placeholder {
   color: var(--color-text-muted);
 }
 
-/* Card styles */
+/* ============================================
+   Card Styles
+   ============================================ */
 .card {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 16px;
+  transition: background-color var(--theme-transition-duration) var(--theme-transition-timing),
+              border-color var(--theme-transition-duration) var(--theme-transition-timing);
 }
 
-/* Animation */
+/* ============================================
+   Animations
+   ============================================ */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -208,4 +198,30 @@ body {
 
 .loading {
   animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-20px) scale(1.05); }
+}
+
+/* ============================================
+   Accessibility
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================
+   Selection
+   ============================================ */
+::selection {
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
 }

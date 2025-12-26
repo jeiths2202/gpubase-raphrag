@@ -1,0 +1,20 @@
+{
+  "title": "지식 마인드맵",
+  "createNew": "새 마인드맵 만들기",
+  "addNode": "노드 추가",
+  "deleteNode": "노드 삭제",
+  "editNode": "노드 수정",
+  "nodeTypes": {
+    "root": "루트",
+    "concept": "개념",
+    "entity": "엔티티",
+    "topic": "주제",
+    "keyword": "키워드"
+  },
+  "controls": {
+    "zoomIn": "확대",
+    "zoomOut": "축소",
+    "fitView": "화면에 맞추기",
+    "reset": "뷰 초기화"
+  }
+}

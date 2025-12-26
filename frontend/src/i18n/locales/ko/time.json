@@ -1,0 +1,11 @@
+{
+  "justNow": "방금 전",
+  "minutesAgo": "{{count}}분 전",
+  "minutesAgo_plural": "{{count}}분 전",
+  "hoursAgo": "{{count}}시간 전",
+  "hoursAgo_plural": "{{count}}시간 전",
+  "daysAgo": "{{count}}일 전",
+  "daysAgo_plural": "{{count}}일 전",
+  "weeksAgo": "{{count}}주 전",
+  "weeksAgo_plural": "{{count}}주 전"
+}

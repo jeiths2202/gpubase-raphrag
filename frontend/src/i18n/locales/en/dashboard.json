@@ -1,0 +1,44 @@
+{
+  "welcome": "Hello, {{name}}",
+  "welcomeMessage": "Start efficient knowledge management today.",
+  "systemStatus": "System Status",
+  "quickActions": "Quick Actions",
+  "knowledgeSources": "Knowledge Sources",
+  "recentActivity": "Recent Activity",
+  "gpu": "GPU",
+  "model": "AI Model",
+  "vectorIndex": "Vector Index",
+  "graphDb": "Graph DB",
+  "memory": "Memory",
+  "utilization": "Utilization",
+  "temperature": "Temperature",
+  "version": "Version",
+  "status": "Status",
+  "inferenceTime": "Inference Time",
+  "documents": "Documents",
+  "chunks": "Chunks",
+  "nodes": "Nodes",
+  "relationships": "Relationships",
+  "todaySearches": "Searches Today",
+  "newDocuments": "New Documents",
+  "aiResponses": "AI Responses",
+  "avgResponse": "Avg Response",
+  "actions": {
+    "knowledge": {
+      "label": "Knowledge Search",
+      "description": "RAG-based document search and Q&A"
+    },
+    "mindmap": {
+      "label": "Mindmap",
+      "description": "Knowledge visualization and exploration"
+    },
+    "documents": {
+      "label": "Document Management",
+      "description": "Upload and manage document indexing"
+    },
+    "analytics": {
+      "label": "Analytics Dashboard",
+      "description": "Usage statistics and performance monitoring"
+    }
+  }
+}

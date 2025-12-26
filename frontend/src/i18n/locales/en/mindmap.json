@@ -1,0 +1,20 @@
+{
+  "title": "Knowledge Mindmap",
+  "createNew": "Create New Mindmap",
+  "addNode": "Add Node",
+  "deleteNode": "Delete Node",
+  "editNode": "Edit Node",
+  "nodeTypes": {
+    "root": "Root",
+    "concept": "Concept",
+    "entity": "Entity",
+    "topic": "Topic",
+    "keyword": "Keyword"
+  },
+  "controls": {
+    "zoomIn": "Zoom In",
+    "zoomOut": "Zoom Out",
+    "fitView": "Fit to View",
+    "reset": "Reset View"
+  }
+}

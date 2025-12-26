@@ -27,7 +27,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences
 
 
 # Initialize mode manager and logger
@@ -231,6 +231,7 @@ app.include_router(session_document.router, prefix=API_PREFIX)
 app.include_router(external_connection.router, prefix=API_PREFIX)
 app.include_router(enterprise.router, prefix=API_PREFIX)
 app.include_router(system.router, prefix=API_PREFIX)
+app.include_router(preferences.router, prefix=API_PREFIX)
 
 
 # Root endpoint

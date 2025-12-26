@@ -1,0 +1,17 @@
+{
+  "title": "Knowledge Search",
+  "searchPlaceholder": "Ask a question or search for documents...",
+  "askQuestion": "Ask Question",
+  "noResults": "No results found",
+  "sources": "Sources",
+  "relevance": "Relevance",
+  "newConversation": "New Conversation",
+  "conversationHistory": "Conversation History",
+  "relatedDocuments": "Related Documents",
+  "feedback": {
+    "helpful": "Was this helpful?",
+    "yes": "Yes",
+    "no": "No",
+    "thanks": "Thanks for your feedback!"
+  }
+}

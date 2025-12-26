@@ -7,20 +7,27 @@ import MindmapApp from './pages/MindmapApp';
 import AdminDashboard from './pages/AdminDashboard';
 import KnowledgeApp from './pages/KnowledgeApp';
 import { useAuthStore } from './store/authStore';
+import { usePreferencesStore, initializeThemeListener } from './store/preferencesStore';
+import { I18nProvider } from './i18n/I18nContext';
 import { GOOGLE_CLIENT_ID } from './config/constants';
 
 // Protected Route component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, checkAuth } = useAuthStore();
+  const { loadPreferences } = usePreferencesStore();
   const [isChecking, setIsChecking] = React.useState(true);
 
   useEffect(() => {
     const verifyAuth = async () => {
-      await checkAuth();
+      const authenticated = await checkAuth();
+      // Load user preferences from server if authenticated
+      if (authenticated) {
+        await loadPreferences();
+      }
       setIsChecking(false);
     };
     verifyAuth();
-  }, [checkAuth]);
+  }, [checkAuth, loadPreferences]);
 
   if (isChecking) {
     return (
@@ -29,8 +36,8 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
         alignItems: 'center',
         justifyContent: 'center',
         height: '100vh',
-        background: 'linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%)',
-        color: '#fff',
+        background: 'var(--color-bg-primary)',
+        color: 'var(--color-text-primary)',
       }}>
         <div style={{ textAlign: 'center' }}>
           <div className="loading" style={{ fontSize: '24px', marginBottom: '16px' }}>
@@ -60,10 +67,17 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 const App: React.FC = () => {
+  // Initialize theme listener for system preference changes
+  useEffect(() => {
+    const cleanup = initializeThemeListener();
+    return cleanup;
+  }, []);
+
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <BrowserRouter>
-        <Routes>
+      <I18nProvider>
+        <BrowserRouter>
+          <Routes>
           {/* Public routes */}
           <Route
             path="/login"
@@ -117,7 +131,8 @@ const App: React.FC = () => {
           {/* Catch all - redirect to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </BrowserRouter>
+        </BrowserRouter>
+      </I18nProvider>
     </GoogleOAuthProvider>
   );
 };

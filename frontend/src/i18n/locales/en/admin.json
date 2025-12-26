@@ -1,0 +1,14 @@
+{
+  "title": "Admin Dashboard",
+  "users": "Users",
+  "system": "System",
+  "logs": "Logs",
+  "userManagement": "User Management",
+  "systemSettings": "System Settings",
+  "activityLogs": "Activity Logs",
+  "addUser": "Add User",
+  "editUser": "Edit User",
+  "deleteUser": "Delete User",
+  "role": "Role",
+  "lastActive": "Last Active"
+}

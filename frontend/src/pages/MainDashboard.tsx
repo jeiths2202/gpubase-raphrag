@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { API_BASE_URL, APP_ENV } from '../config/constants';
+import ThemeToggle from '../components/ThemeToggle';
+import LanguageSelector from '../components/LanguageSelector';
+import { useTranslation } from '../hooks/useTranslation';
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -119,6 +122,7 @@ const QUICK_ACTIONS: QuickAction[] = [
 const MainDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const { t } = useTranslation();
 
   // State
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
@@ -342,6 +346,12 @@ const MainDashboard: React.FC = () => {
         </div>
 
         <div className="header-right">
+          {/* Language Selector */}
+          <LanguageSelector size="sm" />
+
+          {/* Theme Toggle */}
+          <ThemeToggle size="sm" />
+
           {/* Notification Bell */}
           <div className="notification-wrapper">
             <button
@@ -412,7 +422,7 @@ const MainDashboard: React.FC = () => {
               </button>
             )}
             <button className="nav-btn logout" onClick={logout}>
-              로그아웃
+              {t('common.nav.logout')}
             </button>
           </nav>
         </div>
@@ -455,7 +465,7 @@ const MainDashboard: React.FC = () => {
         {isLoading ? (
           <div className="loading-state">
             <div className="spinner" />
-            <span>데이터를 불러오는 중...</span>
+            <span>{t('common.loading')}</span>
           </div>
         ) : (
           <>
@@ -466,8 +476,8 @@ const MainDashboard: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <h2>안녕하세요, {user?.name || 'User'}님 👋</h2>
-              <p>오늘도 효율적인 지식 관리를 시작하세요.</p>
+              <h2>{t('dashboard.welcome', { name: user?.name || 'User' })} 👋</h2>
+              <p>{t('dashboard.welcomeMessage')}</p>
             </motion.section>
 
             {/* System Status Cards */}
@@ -478,7 +488,7 @@ const MainDashboard: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 }}
               >
-                <h3 className="section-title">🖥️ 시스템 상태</h3>
+                <h3 className="section-title">🖥️ {t('dashboard.systemStatus')}</h3>
                 <div className="status-grid">
                   {/* GPU Status */}
                   <div className="status-card gpu">
@@ -603,7 +613,7 @@ const MainDashboard: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              <h3 className="section-title">⚡ 빠른 실행</h3>
+              <h3 className="section-title">⚡ {t('dashboard.quickActions')}</h3>
               <div className="actions-grid">
                 {QUICK_ACTIONS.map((action, index) => (
                   <motion.button
@@ -636,9 +646,9 @@ const MainDashboard: React.FC = () => {
               transition={{ duration: 0.5, delay: 0.3 }}
             >
               <div className="section-header">
-                <h3 className="section-title">📚 지식 소스</h3>
+                <h3 className="section-title">📚 {t('dashboard.knowledgeSources')}</h3>
                 <button className="btn-secondary" onClick={() => navigate('/documents')}>
-                  모두 보기
+                  {t('common.viewAll')}
                 </button>
               </div>
               <div className="sources-grid">
@@ -668,7 +678,7 @@ const MainDashboard: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
             >
-              <h3 className="section-title">📈 최근 활동</h3>
+              <h3 className="section-title">📈 {t('dashboard.recentActivity')}</h3>
               <div className="activity-grid">
                 <div className="activity-card">
                   <span className="activity-icon">🔍</span>
@@ -745,9 +755,10 @@ const styles = `
   .dashboard-bg {
     position: fixed;
     inset: 0;
-    background: linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #0f0f23 100%);
+    background: var(--gradient-bg);
     z-index: -1;
     pointer-events: none;
+    transition: background 0.3s ease;
   }
 
   .gradient-orb {
@@ -800,7 +811,7 @@ const styles = `
   button:focus-visible,
   a:focus-visible,
   [tabindex]:focus-visible {
-    outline: 2px solid #3b82f6;
+    outline: 2px solid var(--color-border-focus);
     outline-offset: 2px;
   }
 
@@ -810,8 +821,8 @@ const styles = `
     top: -100px;
     left: 16px;
     padding: 12px 24px;
-    background: #3b82f6;
-    color: #fff;
+    background: var(--color-primary);
+    color: var(--color-text-inverse);
     border-radius: 8px;
     z-index: 1000;
     font-weight: 600;
@@ -829,10 +840,11 @@ const styles = `
     justify-content: space-between;
     align-items: center;
     padding: 16px 24px;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--gradient-header);
     backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--color-border);
     position: sticky;
+    transition: background 0.3s ease, border-color 0.3s ease;
     top: 0;
     z-index: 50;
   }
@@ -847,7 +859,7 @@ const styles = `
     display: none;
     background: none;
     border: none;
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 24px;
     cursor: pointer;
     padding: 8px;
@@ -864,7 +876,7 @@ const styles = `
   }
 
   .logo-text h1 {
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 20px;
     font-weight: 700;
     margin: 0;
@@ -872,7 +884,7 @@ const styles = `
   }
 
   .logo-subtitle {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-muted);
     font-size: 12px;
   }
 
@@ -897,8 +909,8 @@ const styles = `
   }
 
   .notification-btn {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
     border-radius: 10px;
     padding: 10px;
     font-size: 18px;
@@ -908,15 +920,15 @@ const styles = `
   }
 
   .notification-btn:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--color-bg-hover);
   }
 
   .notification-badge {
     position: absolute;
     top: -4px;
     right: -4px;
-    background: #ef4444;
-    color: #fff;
+    background: var(--color-error);
+    color: var(--color-text-inverse);
     font-size: 11px;
     font-weight: 600;
     min-width: 18px;
@@ -933,12 +945,12 @@ const styles = `
     right: 0;
     width: 360px;
     max-height: min(400px, calc(100vh - 120px));
-    background: rgba(30, 30, 50, 0.98);
+    background: var(--color-bg-dropdown);
     backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--color-border);
     border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--shadow-xl);
     display: flex;
     flex-direction: column;
   }
@@ -948,11 +960,11 @@ const styles = `
     justify-content: space-between;
     align-items: center;
     padding: 16px 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--color-border);
   }
 
   .notification-header h4 {
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 16px;
     margin: 0;
   }
@@ -960,7 +972,7 @@ const styles = `
   .notification-header button {
     background: none;
     border: none;
-    color: #3b82f6;
+    color: var(--color-primary);
     font-size: 13px;
     cursor: pointer;
   }
@@ -976,7 +988,7 @@ const styles = `
   }
 
   .notification-list::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--scrollbar-thumb);
     border-radius: 3px;
   }
 
@@ -984,16 +996,16 @@ const styles = `
     display: flex;
     gap: 12px;
     padding: 14px 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--color-border);
     transition: background 0.2s;
   }
 
   .notification-item:hover {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--color-bg-hover);
   }
 
   .notification-item.unread {
-    background: rgba(59, 130, 246, 0.08);
+    background: var(--color-primary-bg);
   }
 
   .notification-icon {
@@ -1008,27 +1020,27 @@ const styles = `
 
   .notification-content strong {
     display: block;
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 14px;
     margin-bottom: 4px;
   }
 
   .notification-content p {
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--color-text-secondary);
     font-size: 13px;
     margin: 0 0 6px;
     line-height: 1.4;
   }
 
   .notification-time {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--color-text-muted);
     font-size: 12px;
   }
 
   .notification-empty {
     padding: 40px;
     text-align: center;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--color-text-muted);
   }
 
   /* User Section */
@@ -1037,19 +1049,19 @@ const styles = `
     align-items: center;
     gap: 10px;
     padding: 6px 12px;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--color-bg-secondary);
     border-radius: 12px;
   }
 
   .user-avatar {
     width: 36px;
     height: 36px;
-    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
     border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
+    color: var(--color-text-inverse);
     font-weight: 600;
     font-size: 16px;
   }
@@ -1060,13 +1072,13 @@ const styles = `
   }
 
   .user-name {
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 14px;
     font-weight: 500;
   }
 
   .user-role {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-muted);
     font-size: 12px;
     text-transform: capitalize;
   }
@@ -1079,34 +1091,34 @@ const styles = `
 
   .nav-btn {
     padding: 10px 16px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
     border-radius: 10px;
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 14px;
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .nav-btn:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--color-bg-hover);
   }
 
   .nav-btn.logout {
-    background: rgba(239, 68, 68, 0.15);
-    border-color: rgba(239, 68, 68, 0.2);
-    color: #fca5a5;
+    background: var(--color-error-bg);
+    border-color: var(--color-error-border);
+    color: var(--color-error);
   }
 
   .nav-btn.logout:hover {
-    background: rgba(239, 68, 68, 0.25);
+    background: var(--color-error-hover);
   }
 
   /* Mobile Navigation */
   .mobile-nav {
     display: none;
-    background: rgba(30, 30, 50, 0.98);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--color-bg-dropdown);
+    border-bottom: 1px solid var(--color-border);
     padding: 12px;
     overflow: hidden;
   }
@@ -1117,10 +1129,10 @@ const styles = `
     gap: 12px;
     width: 100%;
     padding: 14px 16px;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--color-bg-secondary);
     border: none;
     border-radius: 12px;
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 15px;
     cursor: pointer;
     margin-bottom: 8px;
@@ -1170,16 +1182,16 @@ const styles = `
   }
 
   .dashboard-main::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--scrollbar-track);
   }
 
   .dashboard-main::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--scrollbar-thumb);
     border-radius: 4px;
   }
 
   .dashboard-main::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.25);
+    background: var(--scrollbar-thumb-hover);
   }
 
   /* Scroll indicator gradient at bottom */
@@ -1190,7 +1202,7 @@ const styles = `
     left: 0;
     right: 0;
     height: 40px;
-    background: linear-gradient(to top, rgba(10, 10, 26, 0.8), transparent);
+    background: var(--gradient-scroll-indicator);
     pointer-events: none;
   }
 
@@ -1201,15 +1213,15 @@ const styles = `
     justify-content: center;
     min-height: 60vh;
     padding: 80px 24px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-muted);
     gap: 20px;
   }
 
   .spinner {
     width: 48px;
     height: 48px;
-    border: 4px solid rgba(255, 255, 255, 0.1);
-    border-top-color: #3b82f6;
+    border: 4px solid var(--color-border);
+    border-top-color: var(--color-primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
@@ -1224,21 +1236,21 @@ const styles = `
   }
 
   .welcome-section h2 {
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 28px;
     font-weight: 700;
     margin: 0 0 8px;
   }
 
   .welcome-section p {
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--color-text-secondary);
     font-size: 16px;
     margin: 0;
   }
 
   /* Section Titles */
   .section-title {
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 18px;
     font-weight: 600;
     margin: 0 0 20px;
@@ -1257,17 +1269,17 @@ const styles = `
 
   .btn-secondary {
     padding: 8px 16px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
     border-radius: 8px;
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 13px;
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--color-bg-hover);
   }
 
   /* Status Section */
@@ -1282,16 +1294,16 @@ const styles = `
   }
 
   .status-card {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--color-bg-card);
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--color-border);
     border-radius: 20px;
     padding: 24px;
     transition: all 0.3s;
   }
 
   .status-card:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--color-bg-hover);
     transform: translateY(-2px);
   }
 
@@ -1319,7 +1331,7 @@ const styles = `
   }
 
   .status-card h4 {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--color-text-secondary);
     font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
@@ -1328,7 +1340,7 @@ const styles = `
   }
 
   .status-name {
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 14px;
     margin: 0 0 20px;
     opacity: 0.9;
@@ -1349,12 +1361,12 @@ const styles = `
   }
 
   .metric-label {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-muted);
     font-size: 12px;
   }
 
   .metric-value {
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 14px;
     font-weight: 500;
   }
@@ -1362,7 +1374,7 @@ const styles = `
   .metric-value.large {
     font-size: 20px;
     font-weight: 700;
-    color: #3b82f6;
+    color: var(--color-primary);
   }
 
   .metric-value.status-text {
@@ -1373,7 +1385,7 @@ const styles = `
     flex: 1;
     min-width: 60px;
     height: 6px;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--color-bg-secondary);
     border-radius: 3px;
     overflow: hidden;
   }
@@ -1400,8 +1412,8 @@ const styles = `
     align-items: center;
     gap: 16px;
     padding: 24px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
     border-radius: 16px;
     cursor: pointer;
     transition: all 0.3s;
@@ -1427,7 +1439,7 @@ const styles = `
   }
 
   .action-card:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--color-bg-hover);
     border-color: var(--action-color);
   }
 
@@ -1441,20 +1453,20 @@ const styles = `
   }
 
   .action-content h4 {
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 16px;
     font-weight: 600;
     margin: 0 0 4px;
   }
 
   .action-content p {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-muted);
     font-size: 13px;
     margin: 0;
   }
 
   .action-arrow {
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--color-text-muted);
     font-size: 20px;
     transition: all 0.3s;
   }
@@ -1480,14 +1492,14 @@ const styles = `
     align-items: center;
     gap: 14px;
     padding: 18px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
     border-radius: 14px;
     transition: all 0.2s;
   }
 
   .source-card:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--color-bg-hover);
   }
 
   .source-icon {
@@ -1501,7 +1513,7 @@ const styles = `
   }
 
   .source-info h4 {
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 14px;
     font-weight: 500;
     margin: 0 0 4px;
@@ -1511,7 +1523,7 @@ const styles = `
   }
 
   .source-info p {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-muted);
     font-size: 12px;
     margin: 0;
   }
@@ -1530,7 +1542,7 @@ const styles = `
   }
 
   .sync-time {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--color-text-muted);
     font-size: 11px;
     white-space: nowrap;
   }
@@ -1551,8 +1563,8 @@ const styles = `
     align-items: center;
     gap: 16px;
     padding: 24px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
     border-radius: 16px;
   }
 
@@ -1566,14 +1578,14 @@ const styles = `
   }
 
   .activity-value {
-    color: #fff;
+    color: var(--color-text-primary);
     font-size: 28px;
     font-weight: 700;
     line-height: 1;
   }
 
   .activity-label {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--color-text-muted);
     font-size: 13px;
     margin-top: 4px;
   }
@@ -1582,12 +1594,12 @@ const styles = `
   .dashboard-footer {
     padding: 20px;
     text-align: center;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid var(--color-border);
+    background: var(--color-bg-secondary);
   }
 
   .dashboard-footer p {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--color-text-muted);
     font-size: 12px;
     margin: 0;
   }
@@ -1908,7 +1920,7 @@ const styles = `
     .source-card,
     .activity-card {
       border-width: 2px;
-      border-color: rgba(255, 255, 255, 0.5);
+      border-color: var(--color-border);
     }
 
     .nav-link:focus-visible,
@@ -1916,7 +1928,7 @@ const styles = `
     .user-section:focus-visible,
     .action-card:focus-visible {
       outline-width: 3px;
-      outline-color: #fff;
+      outline-color: var(--color-text-primary);
     }
   }
 `;
