@@ -21,13 +21,9 @@ class NotificationService:
     _notifications: Dict[str, Notification] = {}
     _preferences: Dict[str, NotificationPreferences] = {}
 
-    # Mock user store (shared with KnowledgeArticleService)
-    _users: Dict[str, dict] = {
-        "dev_user": {"id": "dev_user", "username": "developer", "role": "admin", "email": "dev@example.com"},
-        "senior_1": {"id": "senior_1", "username": "senior_dev", "role": "senior", "email": "senior@example.com"},
-        "leader_1": {"id": "leader_1", "username": "team_lead", "role": "leader", "email": "leader@example.com"},
-        "user_1": {"id": "user_1", "username": "regular_user", "role": "user", "email": "user@example.com"},
-    }
+    # User lookup should be done via AuthService, not hardcoded mock users
+    # SECURITY: No hardcoded mock users - use proper user database/service
+    _users: Dict[str, dict] = {}
 
     async def create_notification(
         self,

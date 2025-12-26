@@ -1,7 +1,16 @@
+/**
+ * Authentication Store
+ *
+ * SECURITY FEATURES:
+ * - No localStorage token storage (prevents XSS token theft)
+ * - HttpOnly cookies used for authentication
+ * - withCredentials enables automatic cookie handling
+ * - Only non-sensitive user info stored in memory
+ */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import axios from 'axios';
-import { API_BASE_URL, AUTH_STORAGE_KEYS } from '../config/constants';
+import { API_BASE_URL } from '../config/constants';
 
 export interface User {
   id: string;
@@ -14,8 +23,6 @@ export interface User {
 
 interface AuthState {
   user: User | null;
-  accessToken: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -23,30 +30,33 @@ interface AuthState {
 
   // Actions
   setUser: (user: User | null) => void;
-  setTokens: (accessToken: string, refreshToken: string) => void;
   login: (userId: string, password: string) => Promise<boolean>;
   register: (userId: string, email: string, password: string) => Promise<boolean>;
   verifyEmail: (email: string, code: string) => Promise<boolean>;
   resendVerification: (email: string) => Promise<boolean>;
   loginWithGoogle: (credential: string) => Promise<boolean>;
   loginWithSSO: (email: string) => Promise<string>; // Returns redirect URL
-  logout: () => void;
+  logout: () => Promise<void>;
   clearError: () => void;
   checkAuth: () => Promise<boolean>;
   setPendingEmail: (email: string | null) => void;
 }
 
+/**
+ * SECURITY: API client with HttpOnly cookie authentication
+ * - withCredentials: true enables automatic cookie inclusion
+ * - No Authorization header needed - cookies are sent automatically
+ */
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true, // SECURITY: Enable HttpOnly cookie authentication
 });
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
-      accessToken: null,
-      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -54,26 +64,18 @@ export const useAuthStore = create<AuthState>()(
 
       setUser: (user) => set({ user, isAuthenticated: !!user }),
 
-      setTokens: (accessToken, refreshToken) => {
-        set({ accessToken, refreshToken });
-        // Set default auth header
-        api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-      },
-
       setPendingEmail: (email) => set({ pendingEmail: email }),
 
       login: async (userId: string, password: string) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await api.post('/auth/login', {
+          // Login - server sets HttpOnly cookies automatically
+          await api.post('/auth/login', {
             username: userId,
             password: password,
           });
 
-          const { access_token, refresh_token } = response.data.data;
-
-          // Get user info
-          api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+          // Get user info - cookies are sent automatically
           const userResponse = await api.get('/auth/me');
           const userData = userResponse.data.data;
 
@@ -87,8 +89,6 @@ export const useAuthStore = create<AuthState>()(
 
           set({
             user,
-            accessToken: access_token,
-            refreshToken: refresh_token,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -112,7 +112,7 @@ export const useAuthStore = create<AuthState>()(
             password: password,
           });
 
-          // Store email for verification step
+          // Store email for verification step (not sensitive)
           set({ pendingEmail: email, isLoading: false });
           return true;
         } catch (error: unknown) {
@@ -127,15 +127,13 @@ export const useAuthStore = create<AuthState>()(
       verifyEmail: async (email: string, code: string) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await api.post('/auth/verify', {
+          // Verify - server sets HttpOnly cookies automatically
+          await api.post('/auth/verify', {
             email: email,
             code: code,
           });
 
-          const { access_token, refresh_token } = response.data.data;
-
-          // Get user info
-          api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+          // Get user info - cookies are sent automatically
           const userResponse = await api.get('/auth/me');
           const userData = userResponse.data.data;
 
@@ -149,8 +147,6 @@ export const useAuthStore = create<AuthState>()(
 
           set({
             user,
-            accessToken: access_token,
-            refreshToken: refresh_token,
             isAuthenticated: true,
             isLoading: false,
             pendingEmail: null,
@@ -184,8 +180,9 @@ export const useAuthStore = create<AuthState>()(
       loginWithGoogle: async (credential: string) => {
         set({ isLoading: true, error: null });
         try {
+          // Google login - server sets HttpOnly cookies automatically
           const response = await api.post('/auth/google', { credential });
-          const { access_token, refresh_token, user: userData } = response.data.data;
+          const userData = response.data.data.user;
 
           const user: User = {
             id: userData.id,
@@ -198,13 +195,10 @@ export const useAuthStore = create<AuthState>()(
 
           set({
             user,
-            accessToken: access_token,
-            refreshToken: refresh_token,
             isAuthenticated: true,
             isLoading: false,
           });
 
-          api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
           return true;
         } catch (error: unknown) {
           const message = axios.isAxiosError(error)
@@ -230,44 +224,34 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      logout: () => {
-        // Call logout API (fire and forget)
-        const token = get().accessToken;
-        if (token) {
-          api.post('/auth/logout').catch(() => {});
+      logout: async () => {
+        try {
+          // Call logout API - server clears HttpOnly cookies
+          await api.post('/auth/logout');
+        } catch {
+          // Ignore logout errors
         }
 
-        // Clear state
+        // Clear local state (not tokens - they're in HttpOnly cookies)
         set({
           user: null,
-          accessToken: null,
-          refreshToken: null,
           isAuthenticated: false,
           error: null,
         });
-
-        // Clear axios header
-        delete api.defaults.headers.common['Authorization'];
       },
 
       clearError: () => set({ error: null }),
 
       checkAuth: async () => {
-        const token = get().accessToken;
-        if (!token) {
-          set({ isAuthenticated: false });
-          return false;
-        }
-
         try {
-          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          // Check if session is valid - cookies are sent automatically
           const response = await api.get('/auth/me');
           const userData = response.data.data;
 
           set({
             user: {
               id: userData.id,
-              email: userData.username,
+              email: userData.email || userData.username,
               name: userData.username,
               role: userData.role,
               provider: 'email',
@@ -277,33 +261,39 @@ export const useAuthStore = create<AuthState>()(
 
           return true;
         } catch {
-          // Try refresh token
-          const refreshToken = get().refreshToken;
-          if (refreshToken) {
-            try {
-              const refreshResponse = await api.post('/auth/refresh', {
-                refresh_token: refreshToken,
-              });
-              const { access_token, refresh_token: newRefresh } = refreshResponse.data.data;
-              set({ accessToken: access_token, refreshToken: newRefresh });
-              api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-              return true;
-            } catch {
-              get().logout();
-              return false;
-            }
+          // Session invalid or expired - try refresh (cookies sent automatically)
+          try {
+            await api.post('/auth/refresh');
+            // Refresh successful, check auth again
+            const response = await api.get('/auth/me');
+            const userData = response.data.data;
+
+            set({
+              user: {
+                id: userData.id,
+                email: userData.email || userData.username,
+                name: userData.username,
+                role: userData.role,
+                provider: 'email',
+              },
+              isAuthenticated: true,
+            });
+            return true;
+          } catch {
+            // Refresh failed - user needs to login again
+            set({ user: null, isAuthenticated: false });
+            return false;
           }
-          get().logout();
-          return false;
         }
       },
     }),
     {
       name: 'kms-auth-storage',
+      // SECURITY: Only persist non-sensitive user info, NOT tokens
+      // Tokens are stored in HttpOnly cookies by the server
       partialize: (state) => ({
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
         user: state.user,
+        // NOTE: accessToken and refreshToken removed - using HttpOnly cookies
       }),
     }
   )

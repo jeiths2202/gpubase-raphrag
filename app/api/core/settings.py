@@ -108,8 +108,14 @@ class VectorStoreSettings:
 
 @dataclass
 class SecuritySettings:
-    """Security configuration"""
-    jwt_secret: str = "change-me-in-production"
+    """Security configuration
+
+    SECURITY NOTE:
+    - jwt_secret is required and has no default value
+    - Must be set via environment variable JWT_SECRET_KEY
+    - Minimum 32 characters required for production security
+    """
+    jwt_secret: Optional[str] = None  # REQUIRED: Set via JWT_SECRET_KEY env var
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 24
     refresh_token_expiration_days: int = 7
@@ -358,9 +364,12 @@ class SettingsLoader:
             settings.logging.json_format = True
             settings.logging.enable_token_logging = False
 
-            # Warn about insecure defaults
-            if settings.security.jwt_secret == "change-me-in-production":
-                logger.warning("JWT_SECRET is using default value in production!")
+        # SECURITY: Validate jwt_secret is set (required in all environments)
+        if not settings.security.jwt_secret:
+            raise ValueError(
+                "JWT_SECRET_KEY environment variable is required. "
+                "Generate a secure key with: openssl rand -base64 32"
+            )
 
         return settings
 

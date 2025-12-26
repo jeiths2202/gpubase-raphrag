@@ -1,6 +1,11 @@
 """
 Security Service
 Enterprise security features: MFA, encryption, rate limiting
+
+SECURITY NOTE:
+- Encryption keys are loaded from environment variables (no defaults)
+- Application will fail to start if required secrets are not set
+- For production, use AWS KMS or HashiCorp Vault via secrets_manager
 """
 import os
 import base64
@@ -9,6 +14,7 @@ import hmac
 import time
 import secrets
 import pyotp
+import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass, field
@@ -18,46 +24,136 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+logger = logging.getLogger(__name__)
+
+
+# ================== Encryption Key Validation ==================
+
+# Known insecure values that should never be used
+INSECURE_ENCRYPTION_KEYS = [
+    "default-dev-key-change-in-production",
+    "dev-key",
+    "test-key",
+    "secret",
+    "password",
+]
+
+INSECURE_SALT_VALUES = [
+    "kms-salt-change-in-production",
+    "salt",
+    "dev-salt",
+    "test-salt",
+]
+
+
+def _validate_encryption_key(key: str, name: str) -> str:
+    """Validate encryption key meets security requirements"""
+    if not key:
+        raise RuntimeError(
+            f"{name} environment variable is required. "
+            f"Set it before starting the application. "
+            f"Generate a secure value with: openssl rand -base64 32"
+        )
+    if len(key) < 32:
+        raise RuntimeError(
+            f"{name} must be at least 32 characters (got {len(key)}). "
+            f"Generate a secure value with: openssl rand -base64 32"
+        )
+    if key.lower() in [v.lower() for v in INSECURE_ENCRYPTION_KEYS]:
+        raise RuntimeError(
+            f"{name} contains an insecure default value. "
+            f"Generate a secure value with: openssl rand -base64 32"
+        )
+    return key
+
+
+def _validate_salt(salt: str) -> str:
+    """Validate salt meets security requirements"""
+    if not salt:
+        raise RuntimeError(
+            "ENCRYPTION_SALT environment variable is required. "
+            "Set it before starting the application. "
+            "Generate a secure value with: openssl rand -base64 16"
+        )
+    if len(salt) < 16:
+        raise RuntimeError(
+            f"ENCRYPTION_SALT must be at least 16 characters (got {len(salt)}). "
+            "Generate a secure value with: openssl rand -base64 16"
+        )
+    if salt.lower() in [v.lower() for v in INSECURE_SALT_VALUES]:
+        raise RuntimeError(
+            "ENCRYPTION_SALT contains an insecure default value. "
+            "Generate a secure value with: openssl rand -base64 16"
+        )
+    return salt
+
 
 # ================== Token Encryption ==================
 
 class TokenEncryption:
     """
     Secure token encryption using Fernet (AES-128-CBC).
-    For production, use AWS KMS or HashiCorp Vault.
+
+    SECURITY REQUIREMENTS:
+    - ENCRYPTION_MASTER_KEY must be set (min 32 chars)
+    - ENCRYPTION_SALT must be set (min 16 chars)
+    - No hardcoded defaults - will fail if not configured
+
+    For production:
+    - Use AWS KMS or HashiCorp Vault for key management
+    - Rotate keys periodically
+    - Enable audit logging
     """
 
     _instance: Optional['TokenEncryption'] = None
     _key: Optional[bytes] = None
+    _initialized: bool = False
 
     def __init__(self):
         self._init_key()
 
     def _init_key(self):
-        """Initialize or derive encryption key"""
-        master_key = os.environ.get("ENCRYPTION_MASTER_KEY", "default-dev-key-change-in-production")
+        """Initialize encryption key from environment variables"""
+        # Get and validate master key - NO DEFAULTS
+        master_key_raw = os.environ.get("ENCRYPTION_MASTER_KEY")
+        master_key = _validate_encryption_key(master_key_raw, "ENCRYPTION_MASTER_KEY")
 
-        # Derive a proper key using PBKDF2
-        salt = os.environ.get("ENCRYPTION_SALT", "kms-salt-change-in-production").encode()
+        # Get and validate salt - NO DEFAULTS
+        salt_raw = os.environ.get("ENCRYPTION_SALT")
+        salt = _validate_salt(salt_raw)
+
+        # Derive encryption key using PBKDF2
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
-            salt=salt,
+            salt=salt.encode(),
             iterations=100000,
         )
         derived_key = base64.urlsafe_b64encode(kdf.derive(master_key.encode()))
         self._key = derived_key
+        self._initialized = True
+
+        logger.info("TokenEncryption initialized with secure key derivation")
 
     @classmethod
     def get_instance(cls) -> 'TokenEncryption':
+        """Get singleton instance with lazy initialization"""
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+    @classmethod
+    def reset_instance(cls):
+        """Reset singleton instance (for testing or key rotation)"""
+        cls._instance = None
 
     def encrypt(self, plaintext: str) -> str:
         """Encrypt a string and return base64 encoded ciphertext"""
         if not plaintext:
             return ""
+        if not self._initialized:
+            raise RuntimeError("TokenEncryption not properly initialized")
+
         fernet = Fernet(self._key)
         encrypted = fernet.encrypt(plaintext.encode())
         return base64.urlsafe_b64encode(encrypted).decode()
@@ -66,14 +162,18 @@ class TokenEncryption:
         """Decrypt base64 encoded ciphertext"""
         if not ciphertext:
             return ""
+        if not self._initialized:
+            raise RuntimeError("TokenEncryption not properly initialized")
+
         try:
             fernet = Fernet(self._key)
             encrypted = base64.urlsafe_b64decode(ciphertext.encode())
             decrypted = fernet.decrypt(encrypted)
             return decrypted.decode()
-        except Exception:
-            # Return empty on decryption failure (may be legacy plaintext)
-            return ciphertext
+        except Exception as e:
+            logger.warning(f"Decryption failed: {e}")
+            # Don't return ciphertext on failure - this could leak encrypted data
+            raise ValueError("Failed to decrypt data")
 
 
 # ================== MFA / TOTP ==================

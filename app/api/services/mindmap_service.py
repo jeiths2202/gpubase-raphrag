@@ -23,11 +23,12 @@ try:
     from config import config
 except ImportError:
     # Fallback config
+    # SECURITY: No default values for sensitive credentials
     class FallbackConfig:
         class neo4j:
             uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
             user = os.getenv("NEO4J_USER", "neo4j")
-            password = os.getenv("NEO4J_PASSWORD", "graphrag2024")
+            password = os.getenv("NEO4J_PASSWORD")  # REQUIRED: No default
         class llm:
             api_url = os.getenv("LLM_API_URL", "http://localhost:12800/v1")
             model = os.getenv("LLM_MODEL", "nvidia/nvidia-nemotron-nano-9b-v2")

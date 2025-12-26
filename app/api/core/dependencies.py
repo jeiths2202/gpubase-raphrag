@@ -25,7 +25,16 @@ from ..ports import (
 
 # Security
 security = HTTPBearer(auto_error=False)
-JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-key")
+
+# SECURITY: JWT_SECRET_KEY is required, no default value
+# Application will fail to start if not set
+JWT_SECRET = os.getenv("JWT_SECRET_KEY")
+if not JWT_SECRET:
+    raise RuntimeError(
+        "JWT_SECRET_KEY environment variable is required. "
+        "Generate a secure key with: openssl rand -base64 32"
+    )
+
 JWT_ALGORITHM = "HS256"
 
 
@@ -37,20 +46,12 @@ async def get_current_user(
     """
     Get current authenticated user.
 
-    In development mode, returns a mock user if no token is provided.
-    In production, validates JWT token.
+    SECURITY NOTE:
+    - NO DEBUG/DEVELOPMENT BYPASS - Authentication is ALWAYS required
+    - All environments require valid JWT tokens
+    - Use the auth endpoints to obtain valid tokens
     """
-    container = get_container()
-
-    # Development mode: allow requests without token
-    if container.config.environment.value == "development":
-        if not credentials:
-            return {
-                "user_id": "dev-user",
-                "email": "dev@example.com",
-                "role": "admin"
-            }
-
+    # SECURITY: Authentication is ALWAYS required - no environment bypass
     if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

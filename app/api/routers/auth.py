@@ -1,10 +1,16 @@
 """
 Auth API Router
 인증 관련 API
+
+SECURITY FEATURES:
+- HttpOnly cookies for token storage (prevents XSS token theft)
+- Secure flag for HTTPS-only cookies in production
+- SameSite=Strict for CSRF protection
+- Dual support: cookies (preferred) and Authorization header (API clients)
 """
 import uuid
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.security import HTTPBearer
 
 from ..models.base import SuccessResponse, MetaInfo
@@ -22,6 +28,7 @@ from ..models.auth import (
 )
 from ..core.deps import get_current_user, get_auth_service
 from ..core.config import api_settings
+from ..core.cookie_auth import set_auth_cookies, clear_auth_cookies, get_refresh_token_from_cookie
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 security = HTTPBearer()
@@ -31,13 +38,21 @@ security = HTTPBearer()
     "/login",
     response_model=SuccessResponse[TokenResponse],
     summary="로그인",
-    description="사용자 인증 및 JWT 토큰을 발급합니다."
+    description="사용자 인증 및 JWT 토큰을 발급합니다. 토큰은 HttpOnly 쿠키에 저장됩니다."
 )
 async def login(
     request: LoginRequest,
+    response: Response,
     auth_service = Depends(get_auth_service)
 ):
-    """Authenticate user and return JWT tokens"""
+    """
+    Authenticate user and return JWT tokens.
+
+    SECURITY:
+    - Tokens are set as HttpOnly cookies (prevents XSS access)
+    - Response body includes token info for API clients
+    - Cookie takes priority over Authorization header
+    """
     request_id = f"req_{uuid.uuid4().hex[:12]}"
 
     # Authenticate user
@@ -59,6 +74,9 @@ async def login(
     access_token = await auth_service.create_access_token(user)
     refresh_token = await auth_service.create_refresh_token(user)
 
+    # SECURITY: Set HttpOnly cookies for browser clients
+    set_auth_cookies(response, access_token, refresh_token)
+
     return SuccessResponse(
         data=TokenResponse(
             access_token=access_token,
@@ -77,14 +95,37 @@ async def login(
     description="Refresh 토큰을 사용하여 새 Access 토큰을 발급합니다."
 )
 async def refresh_token(
-    request: RefreshRequest,
+    http_request: Request,
+    response: Response,
+    request: RefreshRequest = None,
     auth_service = Depends(get_auth_service)
 ):
-    """Refresh access token using refresh token"""
+    """
+    Refresh access token using refresh token.
+
+    SECURITY:
+    - Accepts refresh token from cookie OR request body
+    - Cookie takes priority over request body
+    - New tokens are set as HttpOnly cookies
+    """
     request_id = f"req_{uuid.uuid4().hex[:12]}"
 
+    # Get refresh token from cookie first, then request body
+    token_value = get_refresh_token_from_cookie(http_request)
+    if not token_value and request and request.refresh_token:
+        token_value = request.refresh_token
+
+    if not token_value:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": "AUTH_MISSING_TOKEN",
+                "message": "Refresh 토큰이 필요합니다."
+            }
+        )
+
     # Verify refresh token and get user
-    user = await auth_service.verify_refresh_token(request.refresh_token)
+    user = await auth_service.verify_refresh_token(token_value)
 
     if not user:
         raise HTTPException(
@@ -97,14 +138,17 @@ async def refresh_token(
 
     # Generate new tokens
     access_token = await auth_service.create_access_token(user)
-    refresh_token = await auth_service.create_refresh_token(user)
+    new_refresh_token = await auth_service.create_refresh_token(user)
+
+    # SECURITY: Set new HttpOnly cookies
+    set_auth_cookies(response, access_token, new_refresh_token)
 
     return SuccessResponse(
         data=TokenResponse(
             access_token=access_token,
             token_type="bearer",
             expires_in=api_settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            refresh_token=refresh_token
+            refresh_token=new_refresh_token
         ),
         meta=MetaInfo(request_id=request_id)
     )
@@ -114,17 +158,27 @@ async def refresh_token(
     "/logout",
     response_model=SuccessResponse[dict],
     summary="로그아웃",
-    description="현재 토큰을 무효화합니다."
+    description="현재 토큰을 무효화하고 쿠키를 삭제합니다."
 )
 async def logout(
+    response: Response,
     current_user: dict = Depends(get_current_user),
     auth_service = Depends(get_auth_service)
 ):
-    """Invalidate current tokens"""
+    """
+    Invalidate current tokens and clear cookies.
+
+    SECURITY:
+    - Clears HttpOnly cookies from browser
+    - Invalidates tokens on server-side
+    """
     request_id = f"req_{uuid.uuid4().hex[:12]}"
 
-    # Invalidate tokens
+    # Invalidate tokens on server
     await auth_service.invalidate_tokens(current_user["id"])
+
+    # SECURITY: Clear HttpOnly cookies
+    clear_auth_cookies(response)
 
     return SuccessResponse(
         data={"message": "로그아웃되었습니다."},

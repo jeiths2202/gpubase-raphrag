@@ -36,10 +36,22 @@ class EmbeddingConfig:
 
 @dataclass
 class Neo4jConfig:
-    """Neo4j database configuration"""
+    """Neo4j database configuration
+
+    SECURITY NOTE:
+    - NEO4J_PASSWORD is required with no default value
+    - Must be set via environment variable
+    """
     uri: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
     user: str = os.getenv("NEO4J_USER", "neo4j")
-    password: str = os.getenv("NEO4J_PASSWORD", "graphrag2024")
+    password: str = os.getenv("NEO4J_PASSWORD", "")  # REQUIRED: Set via environment variable
+
+    def __post_init__(self):
+        if not self.password:
+            raise ValueError(
+                "NEO4J_PASSWORD environment variable is required. "
+                "Set a secure password for Neo4j database access."
+            )
 
 
 @dataclass

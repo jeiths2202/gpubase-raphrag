@@ -38,7 +38,42 @@ logger = get_logger("kms.main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
-    # Startup
+    # ==================== Secrets Validation ====================
+    # SECURITY: Validate all required secrets FIRST before anything else
+    # This ensures the application fails fast if secrets are missing or insecure
+    from .core.secrets_manager import validate_secrets_on_startup, SecretValidationError
+    try:
+        validate_secrets_on_startup()
+        logger.info(
+            "All required secrets validated successfully",
+            category=LogCategory.BUSINESS
+        )
+    except SecretValidationError as e:
+        logger.error(
+            f"FATAL: Secrets validation failed: {e}",
+            category=LogCategory.BUSINESS
+        )
+        raise  # Application should not start without valid secrets
+
+    # ==================== Admin User Initialization ====================
+    # SECURITY: Initialize admin user from environment variable
+    # No hardcoded admin credentials - must be set via ADMIN_INITIAL_PASSWORD
+    from .core.deps import AuthService
+    try:
+        admin_created = await AuthService.initialize_admin_user()
+        if admin_created:
+            logger.info(
+                "Admin user initialized from environment variable",
+                category=LogCategory.BUSINESS
+            )
+    except ValueError as e:
+        logger.error(
+            f"FATAL: Admin initialization failed: {e}",
+            category=LogCategory.BUSINESS
+        )
+        raise  # Application should not start with insecure admin password
+
+    # ==================== Application Startup ====================
     logger.info(
         f"Starting {api_settings.APP_NAME} v{api_settings.APP_VERSION}",
         category=LogCategory.BUSINESS,
@@ -111,13 +146,27 @@ app = FastAPI(
 # Setup logging middleware (mode-aware)
 setup_logging_middleware(app)
 
-# CORS middleware
+# ==================== Security Middleware Stack ====================
+# SECURITY: Order matters - Security headers should wrap CORS
+from .core.security_middleware import SecurityHeadersMiddleware, get_cors_config
+
+# Add security headers middleware (outermost - applied to all responses)
+app.add_middleware(
+    SecurityHeadersMiddleware,
+    environment=api_settings.APP_ENV
+)
+
+# CORS middleware with hardened settings
+# SECURITY: Explicit methods and headers instead of wildcards
+cors_config = get_cors_config(api_settings.APP_ENV)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=api_settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=cors_config["allow_origins"],
+    allow_credentials=cors_config["allow_credentials"],
+    allow_methods=cors_config["allow_methods"],
+    allow_headers=cors_config["allow_headers"],
+    expose_headers=cors_config["expose_headers"],
+    max_age=cors_config["max_age"],
 )
 
 

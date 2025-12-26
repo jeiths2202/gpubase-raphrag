@@ -1,34 +1,47 @@
 """
 Dependency Injection for FastAPI
+
+SECURITY FEATURES:
+- HttpOnly cookie authentication (prevents XSS token theft)
+- Authorization header fallback for API clients
+- No DEBUG bypass - authentication always required
 """
 from typing import Optional
 from datetime import datetime, timedelta
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 
 from .config import api_settings
+from .cookie_auth import get_token_from_request
 
-# Security scheme
+# Security scheme (still accepts Authorization header for API clients)
 security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> dict:
     """
     Validate JWT token and return current user.
-    For development, returns a mock user if no token is provided.
+
+    SECURITY FEATURES:
+    - Accepts token from HttpOnly cookie (preferred, more secure)
+    - Falls back to Authorization header for API clients
+    - NO DEBUG BYPASS - Authentication is ALWAYS required
+    - Token validation includes expiration check
     """
-    # Development mode: allow requests without token
-    if credentials is None:
-        if api_settings.DEBUG:
-            return {
-                "id": "dev_user",
-                "username": "developer",
-                "role": "admin",
-                "is_active": True
-            }
+    # Extract token from cookie or header
+    # Cookie takes priority (more secure for browser clients)
+    authorization_header = None
+    if credentials:
+        authorization_header = f"Bearer {credentials.credentials}"
+
+    token = get_token_from_request(request, authorization_header)
+
+    # SECURITY: Authentication is ALWAYS required - no bypass for any mode
+    if token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"code": "AUTH_REQUIRED", "message": "인증이 필요합니다."},
@@ -36,7 +49,6 @@ async def get_current_user(
         )
 
     try:
-        token = credentials.credentials
         payload = jwt.decode(
             token,
             api_settings.JWT_SECRET_KEY,
@@ -495,7 +507,7 @@ class HistoryService:
                 "created_at": c.get("created_at")
             }
             for cid, c in self._conversations.items()
-            if c.get("user_id") == user_id or user_id == "dev_user"
+            if c.get("user_id") == user_id
         ]
         total = len(convs)
         start = (page - 1) * limit
@@ -714,23 +726,87 @@ class SettingsService:
 
 
 class AuthService:
-    """Auth Service with registration and email verification"""
+    """Auth Service with registration and email verification
+
+    SECURITY NOTE:
+    - No hardcoded users - admin must be initialized via environment variable
+    - Use ADMIN_INITIAL_PASSWORD environment variable to set initial admin password
+    - In production, use a proper user database instead of in-memory storage
+    """
 
     # In-memory storage (replace with database in production)
-    _users: dict = {
-        "admin": {
+    # SECURITY: No hardcoded users - admin must be initialized at startup
+    _users: dict = {}
+    _pending_verifications: dict = {}  # email -> {code, user_data, expires_at}
+    _verified_emails: set = set()
+    _admin_initialized: bool = False
+
+    @classmethod
+    async def initialize_admin_user(cls) -> bool:
+        """
+        Initialize admin user from environment variable.
+
+        Call this at application startup. The admin password must be set via
+        ADMIN_INITIAL_PASSWORD environment variable.
+
+        Returns:
+            True if admin was initialized, False if already exists or env var not set
+        """
+        import os
+        import hashlib
+
+        if cls._admin_initialized:
+            return False
+
+        if "admin" in cls._users:
+            cls._admin_initialized = True
+            return False
+
+        admin_password = os.environ.get("ADMIN_INITIAL_PASSWORD")
+        if not admin_password:
+            # Log warning but don't fail - allows running without admin
+            import logging
+            logging.getLogger(__name__).warning(
+                "ADMIN_INITIAL_PASSWORD not set. No admin user will be created. "
+                "Set this environment variable to create an initial admin user."
+            )
+            return False
+
+        # Validate password strength
+        if len(admin_password) < 12:
+            raise ValueError(
+                "ADMIN_INITIAL_PASSWORD must be at least 12 characters. "
+                "Generate a secure password for production use."
+            )
+
+        # Check for insecure passwords
+        insecure_passwords = ["admin", "password", "123456", "admin123", "password123"]
+        if admin_password.lower() in insecure_passwords:
+            raise ValueError(
+                "ADMIN_INITIAL_PASSWORD contains an insecure default value. "
+                "Use a strong, unique password."
+            )
+
+        admin_email = os.environ.get("ADMIN_EMAIL", "admin@localhost")
+
+        cls._users["admin"] = {
             "id": "user_admin",
             "username": "admin",
-            "email": "admin@system.local",
-            "password_hash": "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",  # sha256("admin")
+            "email": admin_email,
+            "password_hash": hashlib.sha256(admin_password.encode()).hexdigest(),
             "role": "admin",
             "is_verified": True,
-            "created_at": "2025-01-01T00:00:00Z",
+            "created_at": datetime.utcnow().isoformat(),
             "is_active": True
         }
-    }
-    _pending_verifications: dict = {}  # email -> {code, user_data, expires_at}
-    _verified_emails: set = {"admin@system.local"}
+        cls._verified_emails.add(admin_email)
+        cls._admin_initialized = True
+
+        import logging
+        logging.getLogger(__name__).info(
+            f"Admin user initialized with email: {admin_email}"
+        )
+        return True
 
     async def authenticate(self, username: str, password: str) -> dict:
         """Authenticate user with username and password"""
@@ -1456,7 +1532,7 @@ class ContentService:
         """List generated contents"""
         contents = []
         for cid, content in self._contents.items():
-            if content["user_id"] != user_id and user_id != "dev_user":
+            if content["user_id"] != user_id :
                 continue
             if content_type and content["content_type"] != content_type:
                 continue
@@ -1568,7 +1644,7 @@ class NoteService:
         """List notes with filtering"""
         notes = []
         for nid, note in self._notes.items():
-            if note.get("created_by") != user_id and user_id != "dev_user":
+            if note.get("created_by") != user_id :
                 continue
             if folder_id and note.get("folder_id") != folder_id:
                 continue
@@ -1718,7 +1794,7 @@ class NoteService:
         """List folders in tree structure"""
         folders = []
         for fid, folder in self._folders.items():
-            if folder.get("created_by") != user_id and user_id != "dev_user":
+            if folder.get("created_by") != user_id :
                 continue
             if project_id and folder.get("project_id") != project_id:
                 continue
@@ -1800,7 +1876,7 @@ class NoteService:
         query_lower = query.lower()
 
         for nid, note in self._notes.items():
-            if note.get("created_by") != user_id and user_id != "dev_user":
+            if note.get("created_by") != user_id :
                 continue
 
             # Text search
@@ -1889,7 +1965,7 @@ class NoteService:
 
     async def get_stats(self, user_id: str) -> dict:
         """Get note statistics"""
-        notes = [n for n in self._notes.values() if n.get("created_by") == user_id or user_id == "dev_user"]
+        notes = [n for n in self._notes.values() if n.get("created_by") == user_id ]
 
         by_type = {}
         by_source = {}
@@ -1921,7 +1997,7 @@ class NoteService:
         """List all tags used by user"""
         tags = set()
         for note in self._notes.values():
-            if note.get("created_by") == user_id or user_id == "dev_user":
+            if note.get("created_by") == user_id :
                 tags.update(note.get("tags", []))
         return sorted(list(tags))
 

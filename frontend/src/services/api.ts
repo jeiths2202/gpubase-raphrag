@@ -14,22 +14,27 @@ import type {
 
 const API_BASE_URL = '/api/v1';
 
-// Axios instance with default config
+/**
+ * Axios instance with secure authentication configuration.
+ *
+ * SECURITY FEATURES:
+ * - withCredentials: true enables HttpOnly cookie authentication
+ * - Cookies are automatically sent with all requests
+ * - No localStorage token storage (prevents XSS token theft)
+ * - Authorization header removed (cookies preferred)
+ */
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  // SECURITY: Enable cookie-based authentication
+  // HttpOnly cookies are automatically sent with requests
+  withCredentials: true,
 });
 
-// Add auth token to requests if available
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// SECURITY: No localStorage token storage - using HttpOnly cookies instead
+// The browser automatically includes cookies with each request when withCredentials is true
 
 // Mindmap API functions
 export const mindmapApi = {

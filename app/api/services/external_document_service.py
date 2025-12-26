@@ -183,8 +183,19 @@ class ExternalDocumentService:
     _connections: Dict[str, ExternalConnection] = {}
     _documents: Dict[str, ExternalDocument] = {}
 
-    # Token encryption key (in production, use proper key management)
-    _ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "default-dev-key-change-in-prod")
+    # Token encryption key - SECURITY: Required, no default value
+    # Uses ENCRYPTION_MASTER_KEY from centralized secrets management
+    _ENCRYPTION_KEY = os.environ.get("ENCRYPTION_MASTER_KEY")
+
+    @classmethod
+    def _get_encryption_key(cls) -> str:
+        """Get encryption key with validation"""
+        if not cls._ENCRYPTION_KEY:
+            raise RuntimeError(
+                "ENCRYPTION_MASTER_KEY environment variable is required. "
+                "Generate a secure key with: openssl rand -base64 32"
+            )
+        return cls._ENCRYPTION_KEY
 
     def __init__(self):
         self._connector_manager = get_connector_manager()

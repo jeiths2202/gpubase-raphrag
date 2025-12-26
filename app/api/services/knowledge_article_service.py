@@ -137,12 +137,9 @@ class KnowledgeArticleService:
     # In-memory storage (replace with PostgreSQL in production)
     _articles: Dict[str, KnowledgeArticle] = {}
     _recommendations: Dict[str, Recommendation] = {}
-    _users: Dict[str, dict] = {
-        # Mock users with roles
-        "dev_user": {"id": "dev_user", "username": "developer", "role": "admin", "email": "dev@example.com", "department": "Engineering"},
-        "senior_1": {"id": "senior_1", "username": "senior_dev", "role": "senior", "email": "senior@example.com", "department": "Engineering"},
-        "leader_1": {"id": "leader_1", "username": "team_lead", "role": "leader", "email": "leader@example.com", "department": "Engineering"},
-    }
+    # User lookup should be done via AuthService, not hardcoded mock users
+    # SECURITY: No hardcoded mock users - use proper user database/service
+    _users: Dict[str, dict] = {}
 
     def __init__(self):
         self.email_service = EmailService()

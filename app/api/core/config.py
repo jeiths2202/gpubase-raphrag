@@ -1,10 +1,16 @@
 """
 API Configuration for KMS System
 Extends the existing config with API-specific settings
+
+SECURITY NOTE:
+- JWT_SECRET_KEY is loaded from environment variables (no default)
+- Application will fail to start if required secrets are not set
+- Use secrets_manager for centralized secrets handling
 """
 import os
 from functools import lru_cache
-from pydantic import Field
+from typing import List, Optional
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 # Import existing config
@@ -13,30 +19,91 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from config import config as rag_config
 
 
+# Known insecure values that should never be used in production
+INSECURE_SECRET_VALUES = [
+    "your-secret-key-change-in-production",
+    "dev-secret-key",
+    "change-me-in-production",
+    "secret",
+    "password",
+    "test",
+]
+
+
 class APISettings(BaseSettings):
-    """API-specific settings"""
+    """API-specific settings with secure defaults"""
 
     # Application
     APP_NAME: str = "KMS API"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = Field(default=False, description="Debug mode")
+    APP_ENV: str = Field(default="production", description="Application environment")
 
     # Server
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     WORKERS: int = 4
 
-    # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8501"]
+    # CORS - Configurable via environment
+    CORS_ORIGINS: List[str] = Field(
+        default=["http://localhost:3000", "http://localhost:8501"],
+        description="Allowed CORS origins"
+    )
+    CORS_METHODS: List[str] = Field(
+        default=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        description="Allowed CORS methods"
+    )
+    CORS_HEADERS: List[str] = Field(
+        default=["Content-Type", "Authorization", "X-Request-ID"],
+        description="Allowed CORS headers"
+    )
+    CORS_ALLOW_CREDENTIALS: bool = Field(
+        default=True,
+        description="Allow credentials in CORS requests"
+    )
 
-    # JWT Authentication
+    # JWT Authentication - NO DEFAULT for secret key
     JWT_SECRET_KEY: str = Field(
-        default="your-secret-key-change-in-production",
-        description="JWT secret key"
+        ...,  # Required, no default
+        description="JWT secret key (REQUIRED, min 32 characters)"
     )
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    @field_validator('JWT_SECRET_KEY')
+    @classmethod
+    def validate_jwt_secret(cls, v: str) -> str:
+        """Validate JWT secret key for security requirements"""
+        if not v:
+            raise ValueError(
+                "JWT_SECRET_KEY is required. "
+                "Set it via environment variable or .env file."
+            )
+        if len(v) < 32:
+            raise ValueError(
+                f"JWT_SECRET_KEY must be at least 32 characters (got {len(v)}). "
+                "Generate a secure key with: openssl rand -base64 32"
+            )
+        if v.lower() in [s.lower() for s in INSECURE_SECRET_VALUES]:
+            raise ValueError(
+                "JWT_SECRET_KEY contains an insecure default value. "
+                "Generate a secure key with: openssl rand -base64 32"
+            )
+        return v
+
+    @field_validator('APP_ENV')
+    @classmethod
+    def validate_app_env(cls, v: str) -> str:
+        """Validate and normalize application environment"""
+        normalized = v.lower()
+        if normalized in ["dev", "development"]:
+            return "development"
+        if normalized in ["prod", "production"]:
+            return "production"
+        if normalized in ["test", "testing"]:
+            return "testing"
+        return normalized
 
     # Rate Limiting
     RATE_LIMIT_QUERY: int = 60  # requests per minute
