@@ -570,7 +570,7 @@ class ThreadResponse(BaseModel):
 
 
 class ReactionRequest(BaseModel):
-    reaction_type: str = Field(..., regex="^(like|love|helpful|confused|celebrate|insightful)$")
+    reaction_type: str = Field(..., pattern="^(like|love|helpful|confused|celebrate|insightful)$")
 
 
 @router.post("/comments/{parent_type}/{parent_id}", response_model=CommentResponse)

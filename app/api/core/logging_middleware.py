@@ -207,8 +207,8 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
             self._logger.warning(
                 f"SLOW REQUEST: {request.method} {request.url.path} took {duration_ms:.0f}ms",
                 category=LogCategory.PERFORMANCE,
-                duration_ms=duration_ms,
                 extra_data={
+                    "duration_ms": duration_ms,
                     "threshold_ms": threshold,
                     "memory_delta_mb": end_memory - start_memory
                 }
