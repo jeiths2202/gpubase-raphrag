@@ -13,5 +13,88 @@
     "yes": "Yes",
     "no": "No",
     "thanks": "Thanks for your feedback!"
+  },
+  "chat": {
+    "title": "AI Chat",
+    "subtitle": "Document-based AI Q&A - Selected documents: {{count}}",
+    "startPrompt": "Enter a question to start the conversation.",
+    "inputPlaceholder": "Enter your question...",
+    "send": "Send",
+    "quickPrompts": {
+      "summarize": "Summarize document",
+      "keyConcepts": "Key concepts?",
+      "showExamples": "Show examples"
+    }
+  },
+  "sidebar": {
+    "chat": "Chat",
+    "documents": "Documents",
+    "webSources": "Web Sources",
+    "notes": "Notes",
+    "aiContent": "AI Content",
+    "projects": "Projects",
+    "mindmap": "Mindmap",
+    "knowledgeGraph": "Knowledge Graph",
+    "knowledgeBase": "Knowledge Base",
+    "settings": "Settings",
+    "logout": "Logout",
+    "admin": "Admin",
+    "dark": "Dark",
+    "light": "Light"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark all read",
+    "empty": "No notifications"
+  },
+  "upload": {
+    "fileAttach": "Attach file",
+    "pasteText": "Paste text"
+  },
+  "external": {
+    "title": "External Resource Connection",
+    "description": "Connect external service documents to prioritize them in queries.",
+    "button": "External Connection",
+    "buttonTitle": "External Resource Connection",
+    "connectedResources": "Connected Resources",
+    "availableResources": "Available Resources",
+    "connected": "Connected",
+    "connecting": "Connecting...",
+    "syncing": "Syncing...",
+    "syncButton": "Sync",
+    "disconnect": "Disconnect",
+    "connect": "Connect",
+    "close": "Close",
+    "error": "Error",
+    "waiting": "Waiting to connect",
+    "documents": "documents",
+    "chunks": "chunks",
+    "connectionFailed": "Connection failed.",
+    "disconnectConfirm": "Disconnect this connection? All synced documents will be deleted.",
+    "oauthAuth": "OAuth Authentication",
+    "apiToken": "API Token",
+    "connectedStatus": "External resources connected",
+    "resources": {
+      "notion": {
+        "name": "Notion",
+        "description": "Notion pages and databases"
+      },
+      "github": {
+        "name": "GitHub",
+        "description": "GitHub repository documents"
+      },
+      "googleDrive": {
+        "name": "Google Drive",
+        "description": "Google Drive documents"
+      },
+      "onenote": {
+        "name": "OneNote",
+        "description": "Microsoft OneNote notebooks"
+      },
+      "confluence": {
+        "name": "Confluence",
+        "description": "Atlassian Confluence pages"
+      }
+    }
   }
 }

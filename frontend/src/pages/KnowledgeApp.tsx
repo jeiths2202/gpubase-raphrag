@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { useTranslation } from '../hooks/useTranslation';
+import { LANGUAGES, LanguageCode } from '../i18n/types';
 
 // Types
 interface Project {
@@ -327,6 +329,12 @@ const KnowledgeApp: React.FC = () => {
 
   // Sidebar state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Settings popup state
+  const [showSettingsPopup, setShowSettingsPopup] = useState(false);
+
+  // Translation hook
+  const { language, setLanguage, t } = useTranslation();
 
   // Upload state
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -856,14 +864,15 @@ const KnowledgeApp: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to connect external resource:', error);
-      alert('연결에 실패했습니다.');
+      // Note: t() is available from useTranslation hook at component level
+      alert(t('knowledge.external.connectionFailed' as keyof import('../i18n/types').TranslationKeys));
     } finally {
       setConnectingResource(null);
     }
   };
 
   const disconnectExternalResource = async (connectionId: string) => {
-    if (!confirm('이 연결을 해제하시겠습니까? 동기화된 모든 문서가 삭제됩니다.')) return;
+    if (!confirm(t('knowledge.external.disconnectConfirm' as keyof import('../i18n/types').TranslationKeys))) return;
 
     try {
       const res = await fetch(`${API_BASE}/external-connections/${connectionId}`, {
@@ -1548,7 +1557,8 @@ const KnowledgeApp: React.FC = () => {
           display: 'flex',
           flexDirection: 'column',
           gap: '16px',
-          overflow: 'hidden'
+          overflowY: 'auto',
+          overflowX: 'hidden'
         }}
       >
         {/* Logo & Toggle */}
@@ -1618,19 +1628,19 @@ const KnowledgeApp: React.FC = () => {
                     zIndex: 1000
                   }}>
                     <div style={{ padding: '12px', borderBottom: `1px solid ${themeColors.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600 }}>Notifications</span>
+                      <span style={{ fontWeight: 600 }}>{t('knowledge.notifications.title')}</span>
                       {unreadCount > 0 && (
                         <button
                           onClick={markAllNotificationsAsRead}
                           style={{ background: 'transparent', border: 'none', color: themeColors.accent, cursor: 'pointer', fontSize: '12px' }}
                         >
-                          Mark all read
+                          {t('knowledge.notifications.markAllRead')}
                         </button>
                       )}
                     </div>
                     {notifications.length === 0 ? (
                       <div style={{ padding: '20px', textAlign: 'center', color: themeColors.textSecondary }}>
-                        No notifications
+                        {t('knowledge.notifications.empty')}
                       </div>
                     ) : (
                       notifications.map(notif => (
@@ -1665,15 +1675,15 @@ const KnowledgeApp: React.FC = () => {
         {/* Navigation Tabs */}
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {[
-            { key: 'chat', label: 'Chat', icon: '💬' },
-            { key: 'documents', label: 'Documents', icon: '📄' },
-            { key: 'web-sources', label: 'Web Sources', icon: '🌐' },
-            { key: 'notes', label: 'Notes', icon: '📝' },
-            { key: 'content', label: 'AI Content', icon: '🤖' },
-            { key: 'projects', label: 'Projects', icon: '📁' },
-            { key: 'mindmap', label: 'Mindmap', icon: '🧠' },
-            { key: 'knowledge-graph', label: 'Knowledge Graph', icon: '🔗' },
-            { key: 'knowledge-articles', label: 'Knowledge Base', icon: '📚' }
+            { key: 'chat', labelKey: 'knowledge.sidebar.chat', icon: '💬' },
+            { key: 'documents', labelKey: 'knowledge.sidebar.documents', icon: '📄' },
+            { key: 'web-sources', labelKey: 'knowledge.sidebar.webSources', icon: '🌐' },
+            { key: 'notes', labelKey: 'knowledge.sidebar.notes', icon: '📝' },
+            { key: 'content', labelKey: 'knowledge.sidebar.aiContent', icon: '🤖' },
+            { key: 'projects', labelKey: 'knowledge.sidebar.projects', icon: '📁' },
+            { key: 'mindmap', labelKey: 'knowledge.sidebar.mindmap', icon: '🧠' },
+            { key: 'knowledge-graph', labelKey: 'knowledge.sidebar.knowledgeGraph', icon: '🔗' },
+            { key: 'knowledge-articles', labelKey: 'knowledge.sidebar.knowledgeBase', icon: '📚' }
           ].map(tab => (
             <button
               key={tab.key}
@@ -1693,7 +1703,7 @@ const KnowledgeApp: React.FC = () => {
               }}
             >
               <span>{tab.icon}</span>
-              {!sidebarCollapsed && <span>{tab.label}</span>}
+              {!sidebarCollapsed && <span>{t(tab.labelKey as keyof import('../i18n/types').TranslationKeys)}</span>}
             </button>
           ))}
         </nav>
@@ -1701,7 +1711,7 @@ const KnowledgeApp: React.FC = () => {
         {/* Projects List */}
         {!sidebarCollapsed && activeTab !== 'projects' && (
           <div style={{ flex: 1, overflow: 'auto' }}>
-            <h3 style={{ fontSize: '14px', color: themeColors.textSecondary, marginBottom: '8px' }}>Projects</h3>
+            <h3 style={{ fontSize: '14px', color: themeColors.textSecondary, marginBottom: '8px' }}>{t('knowledge.sidebar.projects')}</h3>
             {projects.map(project => (
               <div
                 key={project.id}
@@ -1730,15 +1740,15 @@ const KnowledgeApp: React.FC = () => {
             style={{ ...tabStyle(false), display: 'flex', alignItems: 'center', gap: '12px', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
           >
             <span>{theme === 'dark' ? '🌙' : '☀️'}</span>
-            {!sidebarCollapsed && <span>{theme === 'dark' ? 'Dark' : 'Light'}</span>}
+            {!sidebarCollapsed && <span>{theme === 'dark' ? t('knowledge.sidebar.dark') : t('knowledge.sidebar.light')}</span>}
           </button>
           {user?.role === 'admin' && (
             <button
               onClick={() => navigate('/admin')}
               style={{ ...tabStyle(false), display: 'flex', alignItems: 'center', gap: '12px', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
             >
-              <span>⚙️</span>
-              {!sidebarCollapsed && <span>Admin</span>}
+              <span>👤</span>
+              {!sidebarCollapsed && <span>{t('knowledge.sidebar.admin')}</span>}
             </button>
           )}
           <button
@@ -1746,10 +1756,112 @@ const KnowledgeApp: React.FC = () => {
             style={{ ...tabStyle(false), display: 'flex', alignItems: 'center', gap: '12px', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
           >
             <span>🚪</span>
-            {!sidebarCollapsed && <span>Logout</span>}
+            {!sidebarCollapsed && <span>{t('knowledge.sidebar.logout')}</span>}
+          </button>
+          <button
+            onClick={() => setShowSettingsPopup(true)}
+            style={{ ...tabStyle(false), display: 'flex', alignItems: 'center', gap: '12px', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
+          >
+            <span>⚙️</span>
+            {!sidebarCollapsed && <span>{t('knowledge.sidebar.settings')}</span>}
           </button>
         </div>
       </motion.aside>
+
+      {/* Settings Popup */}
+      <AnimatePresence>
+        {showSettingsPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowSettingsPopup(false)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 2000
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                ...cardStyle,
+                width: '400px',
+                maxWidth: '90vw',
+                padding: '24px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 600 }}>{t('knowledge.sidebar.settings')}</h2>
+                <button
+                  onClick={() => setShowSettingsPopup(false)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: themeColors.text,
+                    fontSize: '24px',
+                    cursor: 'pointer',
+                    padding: '4px'
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Language Settings */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: themeColors.textSecondary }}>
+                  Language / 언어 / 言語
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {(['en', 'ko', 'ja'] as LanguageCode[]).map((lang) => {
+                    const langInfo = LANGUAGES[lang];
+                    const isSelected = language === lang;
+                    return (
+                      <button
+                        key={lang}
+                        onClick={() => setLanguage(lang)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '12px 16px',
+                          background: isSelected ? themeColors.accent : 'rgba(255, 255, 255, 0.05)',
+                          border: isSelected ? `2px solid ${themeColors.accent}` : '2px solid transparent',
+                          borderRadius: '8px',
+                          color: isSelected ? '#fff' : themeColors.text,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <span style={{ fontSize: '24px' }}>{langInfo.flag}</span>
+                        <div>
+                          <div style={{ fontWeight: 500 }}>{langInfo.nativeName}</div>
+                          <div style={{ fontSize: '12px', opacity: 0.7 }}>{langInfo.name}</div>
+                        </div>
+                        {isSelected && (
+                          <span style={{ marginLeft: 'auto', fontSize: '18px' }}>✓</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <main style={{ flex: 1, padding: '24px', overflow: 'auto', display: 'flex', gap: '24px' }}>
@@ -1765,9 +1877,9 @@ const KnowledgeApp: React.FC = () => {
             >
               {/* Chat Header */}
               <div style={cardStyle}>
-                <h2 style={{ margin: 0 }}>AI Chat</h2>
+                <h2 style={{ margin: 0 }}>{t('knowledge.chat.title')}</h2>
                 <p style={{ color: themeColors.textSecondary, margin: '8px 0 0' }}>
-                  문서 기반 AI 질의응답 - 선택된 문서: {selectedDocuments.length}개
+                  {t('knowledge.chat.subtitle', { count: selectedDocuments.length })}
                 </p>
               </div>
 
@@ -1775,15 +1887,19 @@ const KnowledgeApp: React.FC = () => {
               <div style={{ ...cardStyle, flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {messages.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '40px', color: themeColors.textSecondary }}>
-                    <p>질문을 입력하여 대화를 시작하세요.</p>
+                    <p>{t('knowledge.chat.startPrompt')}</p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginTop: '16px' }}>
-                      {['문서 요약해줘', '핵심 개념은?', '예시를 보여줘'].map((q, i) => (
+                      {[
+                        { key: 'summarize', label: t('knowledge.chat.quickPrompts.summarize') },
+                        { key: 'keyConcepts', label: t('knowledge.chat.quickPrompts.keyConcepts') },
+                        { key: 'showExamples', label: t('knowledge.chat.quickPrompts.showExamples') }
+                      ].map((q) => (
                         <button
-                          key={i}
-                          onClick={() => setInputMessage(q)}
+                          key={q.key}
+                          onClick={() => setInputMessage(q.label)}
                           style={{ ...tabStyle(false), fontSize: '14px' }}
                         >
-                          {q}
+                          {q.label}
                         </button>
                       ))}
                     </div>
@@ -1806,7 +1922,7 @@ const KnowledgeApp: React.FC = () => {
                       {msg.sources && msg.sources.length > 0 && (
                         <div style={{ marginTop: '12px', fontSize: '12px' }}>
                           <div style={{ color: themeColors.textSecondary, marginBottom: '8px' }}>
-                            출처 ({msg.sources.length}개):
+                            {t('knowledge.sources')} ({msg.sources.length}):
                           </div>
                           {msg.sources.map((source, idx) => (
                             <div
@@ -1954,12 +2070,12 @@ const KnowledgeApp: React.FC = () => {
                     color: '#2ECC71',
                     marginBottom: '4px'
                   }}>
-                    🔗 외부 리소스 연결됨:
+                    🔗 {t('knowledge.external.connectedStatus' as keyof import('../i18n/types').TranslationKeys)}:
                     {externalConnections.filter(c => c.status === 'connected').map(conn => {
                       const resource = availableResources.find(r => r.type === conn.resource_type);
                       return (
                         <span key={conn.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          {resource?.icon} {resource?.name} ({conn.document_count}개)
+                          {resource?.icon} {t(`knowledge.external.resources.${resource?.type === 'google_drive' ? 'googleDrive' : resource?.type}.name` as keyof import('../i18n/types').TranslationKeys)} ({conn.document_count})
                         </span>
                       );
                     })}
@@ -1972,23 +2088,28 @@ const KnowledgeApp: React.FC = () => {
                   <button
                     onClick={() => setShowExternalModal(true)}
                     style={{
-                      ...tabStyle(false),
+                      padding: '8px 12px',
                       fontSize: '14px',
                       fontWeight: 'bold',
-                      padding: '8px 12px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '4px',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
                       background: externalConnections.some(c => c.status === 'connected')
                         ? 'rgba(46, 204, 113, 0.2)'
-                        : undefined,
-                      borderColor: externalConnections.some(c => c.status === 'connected')
+                        : 'rgba(74, 144, 217, 0.15)',
+                      border: externalConnections.some(c => c.status === 'connected')
+                        ? '1px solid #2ECC71'
+                        : '1px solid rgba(74, 144, 217, 0.5)',
+                      color: externalConnections.some(c => c.status === 'connected')
                         ? '#2ECC71'
-                        : undefined
+                        : themeColors.accent
                     }}
-                    title="외부 리소스 연결"
+                    title={t('knowledge.external.buttonTitle' as keyof import('../i18n/types').TranslationKeys)}
                   >
-                    ➕ 외부 연결
+                    ➕ {t('knowledge.external.button' as keyof import('../i18n/types').TranslationKeys)}
                   </button>
                   <label style={{
                     ...tabStyle(false),
@@ -1999,7 +2120,7 @@ const KnowledgeApp: React.FC = () => {
                     gap: '4px',
                     opacity: uploadingSessionDoc ? 0.5 : 1
                   }}>
-                    📎 파일 첨부
+                    📎 {t('knowledge.upload.fileAttach')}
                     <input
                       type="file"
                       style={{ display: 'none' }}
@@ -2017,7 +2138,7 @@ const KnowledgeApp: React.FC = () => {
                     style={{ ...tabStyle(false), fontSize: '12px' }}
                     disabled={uploadingSessionDoc}
                   >
-                    📝 텍스트 붙여넣기
+                    📝 {t('knowledge.upload.pasteText')}
                   </button>
                   {uploadingSessionDoc && (
                     <span style={{ color: themeColors.textSecondary, fontSize: '12px', alignSelf: 'center' }}>
@@ -2033,9 +2154,7 @@ const KnowledgeApp: React.FC = () => {
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                    placeholder={sessionDocuments.length > 0
-                      ? "첨부된 문서를 참조하여 질문하세요..."
-                      : "질문을 입력하세요..."}
+                    placeholder={t('knowledge.chat.inputPlaceholder')}
                     style={{
                       flex: 1,
                       padding: '12px 16px',
@@ -2059,7 +2178,7 @@ const KnowledgeApp: React.FC = () => {
                       opacity: isLoading || !inputMessage.trim() ? 0.5 : 1
                     }}
                   >
-                    전송
+                    {t('knowledge.chat.send')}
                   </button>
                 </div>
               </div>
@@ -2089,7 +2208,7 @@ const KnowledgeApp: React.FC = () => {
                       style={{ ...cardStyle, width: '600px', maxWidth: '90%' }}
                       onClick={e => e.stopPropagation()}
                     >
-                      <h3 style={{ margin: '0 0 16px' }}>📝 텍스트 붙여넣기</h3>
+                      <h3 style={{ margin: '0 0 16px' }}>📝 {t('knowledge.upload.pasteText')}</h3>
                       <p style={{ color: themeColors.textSecondary, fontSize: '14px', marginBottom: '16px' }}>
                         문서 내용이나 참고자료를 붙여넣으면 현재 대화에서 우선적으로 참조합니다.
                       </p>
@@ -2170,17 +2289,17 @@ const KnowledgeApp: React.FC = () => {
                       onClick={e => e.stopPropagation()}
                     >
                       <h3 style={{ margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        🔗 외부 리소스 연결
+                        🔗 {t('knowledge.external.title' as keyof import('../i18n/types').TranslationKeys)}
                       </h3>
                       <p style={{ color: themeColors.textSecondary, fontSize: '14px', marginBottom: '20px' }}>
-                        외부 서비스의 문서를 연결하면 질문 시 우선적으로 참조합니다.
+                        {t('knowledge.external.description' as keyof import('../i18n/types').TranslationKeys)}
                       </p>
 
                       {/* Connected Resources */}
                       {externalConnections.length > 0 && (
                         <div style={{ marginBottom: '24px' }}>
                           <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: themeColors.textSecondary }}>
-                            연결된 리소스
+                            {t('knowledge.external.connectedResources' as keyof import('../i18n/types').TranslationKeys)}
                           </h4>
                           {externalConnections.map(conn => {
                             const resource = availableResources.find(r => r.type === conn.resource_type);
@@ -2201,14 +2320,14 @@ const KnowledgeApp: React.FC = () => {
                                     <div style={{ fontSize: '12px', color: themeColors.textSecondary }}>
                                       {conn.status === 'connected' ? (
                                         <span style={{ color: '#2ECC71' }}>
-                                          ✓ 연결됨 • {conn.document_count}개 문서 • {conn.chunk_count}개 청크
+                                          ✓ {t('knowledge.external.connected' as keyof import('../i18n/types').TranslationKeys)} • {conn.document_count} {t('knowledge.external.documents' as keyof import('../i18n/types').TranslationKeys)} • {conn.chunk_count} {t('knowledge.external.chunks' as keyof import('../i18n/types').TranslationKeys)}
                                         </span>
                                       ) : conn.status === 'syncing' ? (
-                                        <span style={{ color: '#F39C12' }}>동기화 중...</span>
+                                        <span style={{ color: '#F39C12' }}>{t('knowledge.external.syncing' as keyof import('../i18n/types').TranslationKeys)}</span>
                                       ) : conn.status === 'error' ? (
-                                        <span style={{ color: '#E74C3C' }}>오류: {conn.error_message}</span>
+                                        <span style={{ color: '#E74C3C' }}>{t('knowledge.external.error' as keyof import('../i18n/types').TranslationKeys)}: {conn.error_message}</span>
                                       ) : (
-                                        <span>연결 대기 중</span>
+                                        <span>{t('knowledge.external.waiting' as keyof import('../i18n/types').TranslationKeys)}</span>
                                       )}
                                     </div>
                                   </div>
@@ -2224,7 +2343,7 @@ const KnowledgeApp: React.FC = () => {
                                         padding: '6px 12px'
                                       }}
                                     >
-                                      {syncingConnection === conn.id ? '동기화 중...' : '🔄 동기화'}
+                                      {syncingConnection === conn.id ? t('knowledge.external.syncing' as keyof import('../i18n/types').TranslationKeys) : `🔄 ${t('knowledge.external.syncButton' as keyof import('../i18n/types').TranslationKeys)}`}
                                     </button>
                                   )}
                                   <button
@@ -2237,7 +2356,7 @@ const KnowledgeApp: React.FC = () => {
                                       borderColor: '#E74C3C'
                                     }}
                                   >
-                                    연결 해제
+                                    {t('knowledge.external.disconnect' as keyof import('../i18n/types').TranslationKeys)}
                                   </button>
                                 </div>
                               </div>
@@ -2248,7 +2367,7 @@ const KnowledgeApp: React.FC = () => {
 
                       {/* Available Resources */}
                       <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: themeColors.textSecondary }}>
-                        연결 가능한 리소스
+                        {t('knowledge.external.availableResources' as keyof import('../i18n/types').TranslationKeys)}
                       </h4>
                       <div style={{ display: 'grid', gap: '12px' }}>
                         {availableResources.map(resource => {
@@ -2270,16 +2389,18 @@ const KnowledgeApp: React.FC = () => {
                               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                                 <span style={{ fontSize: '32px' }}>{resource.icon}</span>
                                 <div>
-                                  <div style={{ fontWeight: 600, fontSize: '16px' }}>{resource.name}</div>
+                                  <div style={{ fontWeight: 600, fontSize: '16px' }}>
+                                    {t(`knowledge.external.resources.${resource.type === 'google_drive' ? 'googleDrive' : resource.type}.name` as keyof import('../i18n/types').TranslationKeys)}
+                                  </div>
                                   <div style={{ fontSize: '13px', color: themeColors.textSecondary }}>
-                                    {resource.description}
+                                    {t(`knowledge.external.resources.${resource.type === 'google_drive' ? 'googleDrive' : resource.type}.description` as keyof import('../i18n/types').TranslationKeys)}
                                   </div>
                                   <div style={{
                                     fontSize: '11px',
                                     color: themeColors.textSecondary,
                                     marginTop: '4px'
                                   }}>
-                                    {resource.authType === 'oauth2' ? '🔐 OAuth 인증' : '🔑 API 토큰'}
+                                    {resource.authType === 'oauth2' ? `🔐 ${t('knowledge.external.oauthAuth' as keyof import('../i18n/types').TranslationKeys)}` : `🔑 ${t('knowledge.external.apiToken' as keyof import('../i18n/types').TranslationKeys)}`}
                                   </div>
                                 </div>
                               </div>
@@ -2294,7 +2415,7 @@ const KnowledgeApp: React.FC = () => {
                                   background: isConnected ? 'rgba(46, 204, 113, 0.2)' : undefined
                                 }}
                               >
-                                {isConnected ? '✓ 연결됨' : isConnecting ? '연결 중...' : '연결하기'}
+                                {isConnected ? `✓ ${t('knowledge.external.connected' as keyof import('../i18n/types').TranslationKeys)}` : isConnecting ? t('knowledge.external.connecting' as keyof import('../i18n/types').TranslationKeys) : t('knowledge.external.connect' as keyof import('../i18n/types').TranslationKeys)}
                               </button>
                             </div>
                           );
@@ -2306,7 +2427,7 @@ const KnowledgeApp: React.FC = () => {
                           onClick={() => setShowExternalModal(false)}
                           style={{ ...tabStyle(false) }}
                         >
-                          닫기
+                          {t('knowledge.external.close' as keyof import('../i18n/types').TranslationKeys)}
                         </button>
                       </div>
                     </motion.div>

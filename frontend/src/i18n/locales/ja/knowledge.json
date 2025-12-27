@@ -13,5 +13,88 @@
     "yes": "はい",
     "no": "いいえ",
     "thanks": "フィードバックありがとうございます！"
+  },
+  "chat": {
+    "title": "AI Chat",
+    "subtitle": "ドキュメントベースAI Q&A - 選択されたドキュメント: {{count}}件",
+    "startPrompt": "質問を入力して会話を開始してください。",
+    "inputPlaceholder": "質問を入力してください...",
+    "send": "送信",
+    "quickPrompts": {
+      "summarize": "ドキュメントを要約",
+      "keyConcepts": "主要な概念は？",
+      "showExamples": "例を表示"
+    }
+  },
+  "sidebar": {
+    "chat": "チャット",
+    "documents": "ドキュメント",
+    "webSources": "Webソース",
+    "notes": "ノート",
+    "aiContent": "AIコンテンツ",
+    "projects": "プロジェクト",
+    "mindmap": "マインドマップ",
+    "knowledgeGraph": "ナレッジグラフ",
+    "knowledgeBase": "ナレッジベース",
+    "settings": "設定",
+    "logout": "ログアウト",
+    "admin": "管理者",
+    "dark": "ダーク",
+    "light": "ライト"
+  },
+  "notifications": {
+    "title": "通知",
+    "markAllRead": "すべて既読",
+    "empty": "通知はありません"
+  },
+  "upload": {
+    "fileAttach": "ファイル添付",
+    "pasteText": "テキスト貼り付け"
+  },
+  "external": {
+    "title": "外部リソース接続",
+    "description": "外部サービスのドキュメントを接続すると、質問時に優先的に参照されます。",
+    "button": "外部接続",
+    "buttonTitle": "外部リソース接続",
+    "connectedResources": "接続済みリソース",
+    "availableResources": "接続可能なリソース",
+    "connected": "接続済み",
+    "connecting": "接続中...",
+    "syncing": "同期中...",
+    "syncButton": "同期",
+    "disconnect": "接続解除",
+    "connect": "接続する",
+    "close": "閉じる",
+    "error": "エラー",
+    "waiting": "接続待機中",
+    "documents": "件のドキュメント",
+    "chunks": "件のチャンク",
+    "connectionFailed": "接続に失敗しました。",
+    "disconnectConfirm": "この接続を解除しますか？同期されたすべてのドキュメントが削除されます。",
+    "oauthAuth": "OAuth認証",
+    "apiToken": "APIトークン",
+    "connectedStatus": "外部リソース接続済み",
+    "resources": {
+      "notion": {
+        "name": "Notion",
+        "description": "Notionページとデータベース"
+      },
+      "github": {
+        "name": "GitHub",
+        "description": "GitHubリポジトリドキュメント"
+      },
+      "googleDrive": {
+        "name": "Google Drive",
+        "description": "Google Driveドキュメント"
+      },
+      "onenote": {
+        "name": "OneNote",
+        "description": "Microsoft OneNoteノートブック"
+      },
+      "confluence": {
+        "name": "Confluence",
+        "description": "Atlassian Confluenceページ"
+      }
+    }
   }
 }

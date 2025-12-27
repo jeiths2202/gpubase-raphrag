@@ -13,5 +13,88 @@
     "yes": "예",
     "no": "아니오",
     "thanks": "피드백 감사합니다!"
+  },
+  "chat": {
+    "title": "AI Chat",
+    "subtitle": "문서 기반 AI 질의응답 - 선택된 문서: {{count}}개",
+    "startPrompt": "질문을 입력하여 대화를 시작하세요.",
+    "inputPlaceholder": "질문을 입력하세요...",
+    "send": "전송",
+    "quickPrompts": {
+      "summarize": "문서 요약해줘",
+      "keyConcepts": "핵심 개념은?",
+      "showExamples": "예시를 보여줘"
+    }
+  },
+  "sidebar": {
+    "chat": "채팅",
+    "documents": "문서",
+    "webSources": "웹 소스",
+    "notes": "노트",
+    "aiContent": "AI 콘텐츠",
+    "projects": "프로젝트",
+    "mindmap": "마인드맵",
+    "knowledgeGraph": "지식 그래프",
+    "knowledgeBase": "지식베이스",
+    "settings": "설정",
+    "logout": "로그아웃",
+    "admin": "관리자",
+    "dark": "다크",
+    "light": "라이트"
+  },
+  "notifications": {
+    "title": "알림",
+    "markAllRead": "모두 읽음",
+    "empty": "알림이 없습니다"
+  },
+  "upload": {
+    "fileAttach": "파일 첨부",
+    "pasteText": "텍스트 붙여넣기"
+  },
+  "external": {
+    "title": "외부 리소스 연결",
+    "description": "외부 서비스의 문서를 연결하면 질문 시 우선적으로 참조합니다.",
+    "button": "외부 연결",
+    "buttonTitle": "외부 리소스 연결",
+    "connectedResources": "연결된 리소스",
+    "availableResources": "연결 가능한 리소스",
+    "connected": "연결됨",
+    "connecting": "연결 중...",
+    "syncing": "동기화 중...",
+    "syncButton": "동기화",
+    "disconnect": "연결 해제",
+    "connect": "연결하기",
+    "close": "닫기",
+    "error": "오류",
+    "waiting": "연결 대기 중",
+    "documents": "개 문서",
+    "chunks": "개 청크",
+    "connectionFailed": "연결에 실패했습니다.",
+    "disconnectConfirm": "이 연결을 해제하시겠습니까? 동기화된 모든 문서가 삭제됩니다.",
+    "oauthAuth": "OAuth 인증",
+    "apiToken": "API 토큰",
+    "connectedStatus": "외부 리소스 연결됨",
+    "resources": {
+      "notion": {
+        "name": "Notion",
+        "description": "Notion 페이지 및 데이터베이스"
+      },
+      "github": {
+        "name": "GitHub",
+        "description": "GitHub 저장소 문서"
+      },
+      "googleDrive": {
+        "name": "Google Drive",
+        "description": "Google Drive 문서"
+      },
+      "onenote": {
+        "name": "OneNote",
+        "description": "Microsoft OneNote 노트북"
+      },
+      "confluence": {
+        "name": "Confluence",
+        "description": "Atlassian Confluence 페이지"
+      }
+    }
   }
 }

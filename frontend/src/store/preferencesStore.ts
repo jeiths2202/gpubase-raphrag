@@ -128,38 +128,43 @@ export const usePreferencesStore = create<PreferencesState>()(
       loadPreferences: async () => {
         set({ isLoading: true, error: null });
 
+        // Get current local preferences (from localStorage via zustand persist)
+        const localTheme = get().theme;
+        const localLanguage = get().language;
+
         try {
-          const response = await api.get('/preferences');
-          const prefs = response.data.data;
+          // First, sync local preferences to server
+          // This ensures the language selected on login page is preserved
+          await api.patch('/preferences', {
+            theme: localTheme,
+            language: localLanguage
+          });
 
-          const theme = prefs.theme as Theme;
-          const language = prefs.language as Language;
-          const resolvedTheme = theme === 'system'
+          // Apply local preferences to DOM (user's selection takes priority)
+          const resolvedTheme = localTheme === 'system'
             ? detectSystemTheme()
-            : theme as ResolvedTheme;
+            : localTheme as ResolvedTheme;
 
-          // Apply to DOM
           applyThemeToDOM(resolvedTheme);
-          applyLanguageToDOM(language);
+          applyLanguageToDOM(localLanguage);
 
           // Update state
           set({
-            theme,
-            language,
+            theme: localTheme,
+            language: localLanguage,
             resolvedTheme,
             isLoading: false,
             isSynced: true,
           });
         } catch {
           // Server unavailable - use local preferences
-          const { theme, language } = get();
-          const resolvedTheme = theme === 'system'
+          const resolvedTheme = localTheme === 'system'
             ? detectSystemTheme()
-            : theme as ResolvedTheme;
+            : localTheme as ResolvedTheme;
 
           // Apply local preferences to DOM
           applyThemeToDOM(resolvedTheme);
-          applyLanguageToDOM(language);
+          applyLanguageToDOM(localLanguage);
 
           set({
             resolvedTheme,
