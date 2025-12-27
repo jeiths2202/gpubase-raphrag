@@ -66,8 +66,8 @@ const KnowledgeApp: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [_conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConversation, _setSelectedConversation] = useState<string | null>(null);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
 
   // Session document state (for chat context)
@@ -95,7 +95,7 @@ const KnowledgeApp: React.FC = () => {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [_searchResults, setSearchResults] = useState<any[]>([]);
 
   // Knowledge Graph state
   const [knowledgeGraphs, setKnowledgeGraphs] = useState<KnowledgeGraphData[]>([]);
@@ -471,7 +471,7 @@ const KnowledgeApp: React.FC = () => {
     }
   };
 
-  const generateSuggestedQuestions = (query: string, answer: string) => {
+  const generateSuggestedQuestions = (query: string, _answer: string) => {
     const suggestions = [
       t('knowledge.chat.followUp.tellMore' as keyof import('../i18n/types').TranslationKeys, { query }),
       t('knowledge.chat.followUp.showExamples' as keyof import('../i18n/types').TranslationKeys),
@@ -716,7 +716,7 @@ const KnowledgeApp: React.FC = () => {
   // External Connection functions
   const loadExternalConnections = async () => {
     try {
-      const userId = user?.id || user?.user_id;
+      const userId = user?.id;
       if (!userId) return;
 
       const res = await fetch(`${API_BASE}/external-connections?user_id=${userId}`, {
@@ -734,7 +734,7 @@ const KnowledgeApp: React.FC = () => {
   const connectExternalResource = async (resourceType: string) => {
     setConnectingResource(resourceType);
     try {
-      const userId = user?.id || user?.user_id;
+      const userId = user?.id;
 
       // Create connection
       const res = await fetch(`${API_BASE}/external-connections?user_id=${userId}`, {
@@ -1163,23 +1163,6 @@ const KnowledgeApp: React.FC = () => {
       console.error('Failed to create knowledge article:', error);
     } finally {
       setSavingArticle(false);
-    }
-  };
-
-  const submitForReview = async (articleId: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/knowledge/${articleId}/submit`, {
-        method: 'POST',
-        headers: getAuthHeaders()
-      });
-
-      const data = await res.json();
-      if (data.status === 'success') {
-        alert(data.message || t('knowledge.knowledgeBase.review.requested' as keyof import('../i18n/types').TranslationKeys));
-        loadKnowledgeArticles();
-      }
-    } catch (error) {
-      console.error('Failed to submit for review:', error);
     }
   };
 

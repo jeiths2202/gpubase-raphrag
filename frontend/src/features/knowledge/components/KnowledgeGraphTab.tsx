@@ -14,7 +14,7 @@ interface KnowledgeGraphTabProps {
   buildingKG: boolean;
   queryingKG: boolean;
   knowledgeGraphs: KnowledgeGraphData[];
-  kgAnswer: string;
+  kgAnswer: string | null;
 
   // State setters
   setKgQuery: (query: string) => void;

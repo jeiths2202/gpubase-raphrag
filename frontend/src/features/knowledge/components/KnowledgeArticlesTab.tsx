@@ -33,7 +33,7 @@ interface KnowledgeArticlesTabProps {
   showCreateArticle: boolean;
   articleLanguage: SupportedLanguage;
   reviewComment: string;
-  newArticle: { title: string; category: KnowledgeCategory; summary: string; content: string };
+  newArticle: { title: string; content: string; summary: string; category: KnowledgeCategory; tags: string[] };
   savingArticle: boolean;
 
   // State setters
@@ -41,13 +41,13 @@ interface KnowledgeArticlesTabProps {
   setShowCreateArticle: (show: boolean) => void;
   setArticleLanguage: (lang: SupportedLanguage) => void;
   setReviewComment: (comment: string) => void;
-  setNewArticle: React.Dispatch<React.SetStateAction<{ title: string; category: KnowledgeCategory; summary: string; content: string }>>;
+  setNewArticle: React.Dispatch<React.SetStateAction<{ title: string; content: string; summary: string; category: KnowledgeCategory; tags: string[] }>>;
 
   // Functions
   getStatusColor: (status: KnowledgeStatus) => string;
   getStatusLabel: (status: KnowledgeStatus) => string;
   recommendArticle: (articleId: string) => void;
-  reviewArticle: (articleId: string, action: string, comment?: string) => void;
+  reviewArticle: (articleId: string, action: 'approve' | 'reject' | 'request_changes') => Promise<void>;
   createKnowledgeArticle: () => void;
 
   // Styles
