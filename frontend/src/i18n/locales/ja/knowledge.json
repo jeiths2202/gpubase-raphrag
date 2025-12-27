@@ -192,11 +192,15 @@
   "knowledgeBase": {
     "title": "ナレッジベース",
     "subtitle": "ナレッジ登録、レビュー、共有システム",
-    "newKnowledge": "新規ナレッジ",
+    "newKnowledge": "+ 新規ナレッジ",
     "publishedKnowledge": "公開済みナレッジ",
     "noArticles": "登録されたナレッジがありません。",
     "pendingReviews": "レビュー待ち",
     "topContributors": "トップ貢献者",
+    "noContributors": "まだ貢献者がいません",
+    "categories": "カテゴリ",
+    "articles": "件の記事",
+    "recommendations": "件の推薦",
     "status": {
       "draft": "下書き",
       "pending": "レビュー待ち",
@@ -209,6 +213,18 @@
       "requested": "レビューが要請されました。",
       "enterComment": "レビューコメントを入力してください。",
       "completed": "レビューが完了しました。"
+    },
+    "categoryNames": {
+      "technical": "技術文書",
+      "process": "業務プロセス",
+      "guideline": "ガイドライン",
+      "troubleshooting": "問題解決",
+      "best_practice": "ベストプラクティス",
+      "tutorial": "チュートリアル",
+      "faq": "よくある質問",
+      "announcement": "お知らせ",
+      "research": "研究・分析",
+      "other": "その他"
     }
   },
   "paste": {

@@ -3954,40 +3954,17 @@ const KnowledgeApp: React.FC = () => {
               <div style={cardStyle}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <h2 style={{ margin: 0 }}>Knowledge Base</h2>
+                    <h2 style={{ margin: 0 }}>{t('knowledge.knowledgeBase.title' as keyof import('../i18n/types').TranslationKeys)}</h2>
                     <p style={{ color: themeColors.textSecondary, margin: '8px 0 0' }}>
                       {t('knowledge.knowledgeBase.subtitle' as keyof import('../i18n/types').TranslationKeys)}
                     </p>
                   </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {/* Language Selector */}
-                    <div style={{ display: 'flex', gap: '4px' }}>
-                      {(['ko', 'ja', 'en'] as SupportedLanguage[]).map(lang => (
-                        <button
-                          key={lang}
-                          onClick={() => setArticleLanguage(lang)}
-                          style={{
-                            padding: '8px 12px',
-                            border: 'none',
-                            borderRadius: '6px',
-                            background: articleLanguage === lang ? themeColors.accent : 'rgba(255,255,255,0.1)',
-                            color: articleLanguage === lang ? '#fff' : themeColors.text,
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 600
-                          }}
-                        >
-                          {lang.toUpperCase()}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => setShowCreateArticle(true)}
-                      style={{ ...tabStyle(true), display: 'flex', alignItems: 'center', gap: '8px' }}
-                    >
-                      + New Knowledge
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setShowCreateArticle(true)}
+                    style={{ ...tabStyle(true), display: 'flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    {t('knowledge.knowledgeBase.newKnowledge' as keyof import('../i18n/types').TranslationKeys)}
+                  </button>
                 </div>
               </div>
 
@@ -3995,7 +3972,7 @@ const KnowledgeApp: React.FC = () => {
               <div style={{ display: 'flex', gap: '16px', flex: 1 }}>
                 {/* Articles List */}
                 <div style={{ ...cardStyle, flex: 1 }}>
-                  <h3 style={{ margin: '0 0 16px' }}>Published Knowledge</h3>
+                  <h3 style={{ margin: '0 0 16px' }}>{t('knowledge.knowledgeBase.publishedKnowledge' as keyof import('../i18n/types').TranslationKeys)}</h3>
 
                   {knowledgeArticles.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '40px', color: themeColors.textSecondary }}>
@@ -4091,10 +4068,10 @@ const KnowledgeApp: React.FC = () => {
 
                   {/* Top Contributors */}
                   <div style={cardStyle}>
-                    <h3 style={{ margin: '0 0 12px' }}>Top Contributors</h3>
+                    <h3 style={{ margin: '0 0 12px' }}>{t('knowledge.knowledgeBase.topContributors' as keyof import('../i18n/types').TranslationKeys)}</h3>
                     {topContributors.length === 0 ? (
                       <div style={{ color: themeColors.textSecondary, fontSize: '13px' }}>
-                        No contributors yet
+                        {t('knowledge.knowledgeBase.noContributors' as keyof import('../i18n/types').TranslationKeys)}
                       </div>
                     ) : (
                       topContributors.map((contributor, idx) => (
@@ -4124,7 +4101,7 @@ const KnowledgeApp: React.FC = () => {
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 500, fontSize: '13px' }}>{contributor.username}</div>
                             <div style={{ fontSize: '11px', color: themeColors.textSecondary }}>
-                              {contributor.article_count} articles | {contributor.total_recommendations} recommendations
+                              {contributor.article_count} {t('knowledge.knowledgeBase.articles' as keyof import('../i18n/types').TranslationKeys)} | {contributor.total_recommendations} {t('knowledge.knowledgeBase.recommendations' as keyof import('../i18n/types').TranslationKeys)}
                             </div>
                           </div>
                         </div>
@@ -4134,7 +4111,7 @@ const KnowledgeApp: React.FC = () => {
 
                   {/* Categories */}
                   <div style={cardStyle}>
-                    <h3 style={{ margin: '0 0 12px' }}>Categories</h3>
+                    <h3 style={{ margin: '0 0 12px' }}>{t('knowledge.knowledgeBase.categories' as keyof import('../i18n/types').TranslationKeys)}</h3>
                     {categories.map(cat => (
                       <div
                         key={cat.value}
@@ -4146,7 +4123,7 @@ const KnowledgeApp: React.FC = () => {
                           background: 'rgba(255,255,255,0.05)'
                         }}
                       >
-                        {cat.label}
+                        {t(`knowledge.knowledgeBase.categoryNames.${cat.value}` as keyof import('../i18n/types').TranslationKeys)}
                       </div>
                     ))}
                   </div>

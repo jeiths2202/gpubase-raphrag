@@ -192,11 +192,15 @@
   "knowledgeBase": {
     "title": "Knowledge Base",
     "subtitle": "Knowledge registration, review, and sharing system",
-    "newKnowledge": "New Knowledge",
+    "newKnowledge": "+ New Knowledge",
     "publishedKnowledge": "Published Knowledge",
     "noArticles": "No knowledge articles registered.",
     "pendingReviews": "Pending Reviews",
     "topContributors": "Top Contributors",
+    "noContributors": "No contributors yet",
+    "categories": "Categories",
+    "articles": "articles",
+    "recommendations": "recommendations",
     "status": {
       "draft": "Draft",
       "pending": "Pending",
@@ -209,6 +213,18 @@
       "requested": "Review requested.",
       "enterComment": "Please enter a review comment.",
       "completed": "Review completed."
+    },
+    "categoryNames": {
+      "technical": "Technical Documents",
+      "process": "Business Process",
+      "guideline": "Guidelines",
+      "troubleshooting": "Problem Solving",
+      "best_practice": "Best Practices",
+      "tutorial": "Tutorial",
+      "faq": "FAQ",
+      "announcement": "Announcements",
+      "research": "Research & Analysis",
+      "other": "Other"
     }
   },
   "paste": {

@@ -192,11 +192,15 @@
   "knowledgeBase": {
     "title": "지식베이스",
     "subtitle": "지식 등록, 검수, 공유 시스템",
-    "newKnowledge": "새 지식",
+    "newKnowledge": "+ 새 지식",
     "publishedKnowledge": "게시된 지식",
     "noArticles": "등록된 지식이 없습니다.",
     "pendingReviews": "검수 대기",
     "topContributors": "상위 기여자",
+    "noContributors": "아직 기여자가 없습니다",
+    "categories": "카테고리",
+    "articles": "개 글",
+    "recommendations": "개 추천",
     "status": {
       "draft": "작성 중",
       "pending": "검수 대기",
@@ -209,6 +213,18 @@
       "requested": "검수 요청되었습니다.",
       "enterComment": "검수 코멘트를 입력해주세요.",
       "completed": "검수가 완료되었습니다."
+    },
+    "categoryNames": {
+      "technical": "기술 문서",
+      "process": "업무 프로세스",
+      "guideline": "가이드라인",
+      "troubleshooting": "문제 해결",
+      "best_practice": "모범 사례",
+      "tutorial": "튜토리얼",
+      "faq": "자주 묻는 질문",
+      "announcement": "공지사항",
+      "research": "연구 및 분석",
+      "other": "기타"
     }
   },
   "paste": {
