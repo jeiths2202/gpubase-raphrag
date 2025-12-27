@@ -20,6 +20,19 @@
     "startPrompt": "질문을 입력하여 대화를 시작하세요.",
     "inputPlaceholder": "질문을 입력하세요...",
     "send": "전송",
+    "generating": "응답 생성 중...",
+    "noResponse": "응답을 생성할 수 없습니다.",
+    "errorOccurred": "오류가 발생했습니다. 다시 시도해주세요.",
+    "saveAsNote": "노트로 저장",
+    "noteSaved": "노트가 저장되었습니다.",
+    "sessionDocs": "현재 대화에서 사용 중인 문서",
+    "priority": "우선 참조",
+    "confidence": "신뢰도",
+    "followUp": {
+      "tellMore": "{{query}}에 대해 더 자세히 알려주세요",
+      "showExamples": "관련된 예시를 보여주세요",
+      "prosAndCons": "이 주제의 장단점은 무엇인가요?"
+    },
     "quickPrompts": {
       "summarize": "문서 요약해줘",
       "keyConcepts": "핵심 개념은?",
@@ -105,5 +118,112 @@
         "description": "Atlassian Confluence 페이지"
       }
     }
+  },
+  "documents": {
+    "title": "문서",
+    "subtitle": "문서를 선택하여 AI 질의에 활용하세요. 선택됨: {{count}}개",
+    "upload": "문서 업로드",
+    "supported": "지원 형식",
+    "noDocuments": "업로드된 문서가 없습니다.",
+    "uploadFirst": "첫 번째 문서를 업로드하세요"
+  },
+  "webSources": {
+    "title": "웹 소스",
+    "subtitle": "웹 URL을 추가하여 RAG 질의에 활용하세요. NotebookLM 스타일로 웹 콘텐츠를 인덱싱합니다.",
+    "addUrl": "URL 추가",
+    "refresh": "새로고침",
+    "open": "열기",
+    "delete": "삭제"
+  },
+  "notes": {
+    "title": "노트",
+    "folders": "폴더",
+    "allNotes": "모든 노트",
+    "newNote": "새 노트",
+    "searchPlaceholder": "노트 검색...",
+    "search": "검색"
+  },
+  "content": {
+    "title": "AI 콘텐츠 생성",
+    "subtitle": "선택된 문서 ({{count}}개)를 기반으로 다양한 콘텐츠를 생성합니다.",
+    "generating": "콘텐츠 생성 중...",
+    "generatedContents": "생성된 콘텐츠",
+    "selectDocumentsFirst": "문서를 먼저 선택해주세요.",
+    "generationFailed": "콘텐츠 생성에 실패했습니다.",
+    "types": {
+      "summary": "요약",
+      "faq": "FAQ",
+      "studyGuide": "학습 가이드",
+      "briefing": "브리핑",
+      "timeline": "타임라인",
+      "toc": "목차",
+      "keyTopics": "핵심 주제"
+    }
+  },
+  "projects": {
+    "title": "프로젝트",
+    "newProject": "새 프로젝트",
+    "projectName": "프로젝트 이름:",
+    "docs": "개 문서",
+    "notesCount": "개 노트"
+  },
+  "knowledgeGraph": {
+    "title": "지식 그래프",
+    "subtitle": "쿼리 기반 지식 그래프 생성 및 탐색 - 선택된 문서: {{count}}개",
+    "placeholder": "Knowledge Graph를 생성하거나 질의할 내용을 입력하세요...",
+    "building": "생성 중...",
+    "createKG": "KG 생성",
+    "querying": "질의 중...",
+    "queryKG": "KG 질의",
+    "noGraphs": "생성된 Knowledge Graph가 없습니다.",
+    "aiAnswer": "AI 답변:",
+    "entities": "개체",
+    "relations": "관계",
+    "deleteConfirm": "정말 이 Knowledge Graph를 삭제하시겠습니까?",
+    "createPrompt": {
+      "title": "Knowledge Graph를 생성하세요",
+      "description": "쿼리를 입력하고 'KG 생성' 버튼을 클릭하면 관련 개념, 관계를 추출하여 지식 그래프를 구축합니다.",
+      "examples": {
+        "example1": "GPU 기반 RAG 시스템 구조",
+        "example2": "LLM과 벡터 검색의 관계"
+      }
+    }
+  },
+  "knowledgeBase": {
+    "title": "지식베이스",
+    "subtitle": "지식 등록, 검수, 공유 시스템",
+    "newKnowledge": "새 지식",
+    "publishedKnowledge": "게시된 지식",
+    "noArticles": "등록된 지식이 없습니다.",
+    "pendingReviews": "검수 대기",
+    "topContributors": "상위 기여자",
+    "status": {
+      "draft": "작성 중",
+      "pending": "검수 대기",
+      "inReview": "검수 중",
+      "approved": "승인됨",
+      "rejected": "반려됨",
+      "published": "게시됨"
+    },
+    "review": {
+      "requested": "검수 요청되었습니다.",
+      "enterComment": "검수 코멘트를 입력해주세요.",
+      "completed": "검수가 완료되었습니다."
+    }
+  },
+  "paste": {
+    "modalTitle": "텍스트 붙여넣기",
+    "description": "문서 내용이나 참고자료를 붙여넣으면 현재 대화에서 우선적으로 참조합니다.",
+    "titlePlaceholder": "제목 (선택)",
+    "contentPlaceholder": "내용을 붙여넣으세요...",
+    "cancel": "취소",
+    "add": "추가"
+  },
+  "sourceViewer": {
+    "chunkInfo": "Chunk #{{chunk}} | 신뢰도: {{score}}%"
+  },
+  "common": {
+    "processing": "처리 중...",
+    "error": "오류"
   }
 }

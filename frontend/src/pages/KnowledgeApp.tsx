@@ -378,11 +378,11 @@ const KnowledgeApp: React.FC = () => {
   const [connectingResource, setConnectingResource] = useState<string | null>(null);
   const [syncingConnection, setSyncingConnection] = useState<string | null>(null);
   const [availableResources] = useState([
-    { type: 'notion', name: 'Notion', icon: '📝', description: 'Notion 페이지 및 데이터베이스', authType: 'oauth2' },
-    { type: 'github', name: 'GitHub', icon: '🐙', description: 'GitHub 저장소 문서', authType: 'oauth2' },
-    { type: 'google_drive', name: 'Google Drive', icon: '📁', description: 'Google Drive 문서', authType: 'oauth2' },
-    { type: 'onenote', name: 'OneNote', icon: '📔', description: 'Microsoft OneNote 노트북', authType: 'oauth2' },
-    { type: 'confluence', name: 'Confluence', icon: '📚', description: 'Atlassian Confluence 페이지', authType: 'api_token' }
+    { type: 'notion', name: 'Notion', icon: '📝', descriptionKey: 'notion', authType: 'oauth2' },
+    { type: 'github', name: 'GitHub', icon: '🐙', descriptionKey: 'github', authType: 'oauth2' },
+    { type: 'google_drive', name: 'Google Drive', icon: '📁', descriptionKey: 'googleDrive', authType: 'oauth2' },
+    { type: 'onenote', name: 'OneNote', icon: '📔', descriptionKey: 'onenote', authType: 'oauth2' },
+    { type: 'confluence', name: 'Confluence', icon: '📚', descriptionKey: 'confluence', authType: 'api_token' }
   ]);
 
   // Load initial data
@@ -644,7 +644,7 @@ const KnowledgeApp: React.FC = () => {
       const assistantMessage: ChatMessage = {
         id: `msg_${Date.now()}_resp`,
         role: 'assistant',
-        content: data.data?.answer || '응답을 생성할 수 없습니다.',
+        content: data.data?.answer || t('knowledge.chat.noResponse' as keyof import('../i18n/types').TranslationKeys),
         sources: data.data?.sources?.map((s: any) => ({
           doc_name: s.doc_name,
           chunk_index: s.chunk_index,
@@ -666,7 +666,7 @@ const KnowledgeApp: React.FC = () => {
       setMessages(prev => [...prev, {
         id: `msg_${Date.now()}_err`,
         role: 'assistant',
-        content: '오류가 발생했습니다. 다시 시도해주세요.',
+        content: t('knowledge.chat.errorOccurred' as keyof import('../i18n/types').TranslationKeys),
         timestamp: new Date()
       }]);
     } finally {
@@ -676,9 +676,9 @@ const KnowledgeApp: React.FC = () => {
 
   const generateSuggestedQuestions = (query: string, answer: string) => {
     const suggestions = [
-      `${query}에 대해 더 자세히 알려주세요`,
-      '관련된 예시를 보여주세요',
-      '이 주제의 장단점은 무엇인가요?'
+      t('knowledge.chat.followUp.tellMore' as keyof import('../i18n/types').TranslationKeys, { query }),
+      t('knowledge.chat.followUp.showExamples' as keyof import('../i18n/types').TranslationKeys),
+      t('knowledge.chat.followUp.prosAndCons' as keyof import('../i18n/types').TranslationKeys)
     ];
     setSuggestedQuestions(suggestions);
   };
@@ -1028,7 +1028,7 @@ const KnowledgeApp: React.FC = () => {
   // Content generation
   const generateContent = async (type: string) => {
     if (selectedDocuments.length === 0) {
-      alert('문서를 먼저 선택해주세요.');
+      alert(t('knowledge.content.selectDocumentsFirst' as keyof import('../i18n/types').TranslationKeys));
       return;
     }
 
@@ -1068,7 +1068,7 @@ const KnowledgeApp: React.FC = () => {
           loadContentDetail(contentId);
         } else if (data.data?.status === 'failed') {
           setGeneratingContent(false);
-          alert('콘텐츠 생성에 실패했습니다.');
+          alert(t('knowledge.content.generationFailed' as keyof import('../i18n/types').TranslationKeys));
         } else {
           setTimeout(checkStatus, 2000);
         }
@@ -1127,7 +1127,7 @@ const KnowledgeApp: React.FC = () => {
       });
 
       if (res.ok) {
-        alert('노트가 저장되었습니다.');
+        alert(t('knowledge.chat.noteSaved' as keyof import('../i18n/types').TranslationKeys));
         loadNotes();
       }
     } catch (error) {
@@ -1251,7 +1251,7 @@ const KnowledgeApp: React.FC = () => {
   };
 
   const deleteKnowledgeGraph = async (kgId: string) => {
-    if (!confirm('정말 이 Knowledge Graph를 삭제하시겠습니까?')) return;
+    if (!confirm(t('knowledge.knowledgeGraph.deleteConfirm' as keyof import('../i18n/types').TranslationKeys))) return;
 
     try {
       await fetch(`${API_BASE}/knowledge-graph/${kgId}`, {
@@ -1378,7 +1378,7 @@ const KnowledgeApp: React.FC = () => {
 
       const data = await res.json();
       if (data.status === 'success') {
-        alert(data.message || '검수 요청되었습니다.');
+        alert(data.message || t('knowledge.knowledgeBase.review.requested' as keyof import('../i18n/types').TranslationKeys));
         loadKnowledgeArticles();
       }
     } catch (error) {
@@ -1388,7 +1388,7 @@ const KnowledgeApp: React.FC = () => {
 
   const reviewArticle = async (articleId: string, action: 'approve' | 'reject' | 'request_changes') => {
     if (!reviewComment.trim()) {
-      alert('검수 코멘트를 입력해주세요.');
+      alert(t('knowledge.knowledgeBase.review.enterComment' as keyof import('../i18n/types').TranslationKeys));
       return;
     }
 
@@ -1404,7 +1404,7 @@ const KnowledgeApp: React.FC = () => {
 
       const data = await res.json();
       if (data.status === 'success') {
-        alert(data.message || '검수가 완료되었습니다.');
+        alert(data.message || t('knowledge.knowledgeBase.review.completed' as keyof import('../i18n/types').TranslationKeys));
         setReviewComment('');
         setSelectedArticle(null);
         loadPendingReviews();
@@ -1505,15 +1505,16 @@ const KnowledgeApp: React.FC = () => {
   };
 
   const getStatusLabel = (status: KnowledgeStatus): string => {
-    const labels: Record<KnowledgeStatus, string> = {
-      draft: '작성 중',
-      pending: '검수 대기',
-      in_review: '검수 중',
-      approved: '승인됨',
-      rejected: '반려됨',
-      published: '게시됨'
+    const statusKeyMap: Record<KnowledgeStatus, string> = {
+      draft: 'draft',
+      pending: 'pending',
+      in_review: 'inReview',
+      approved: 'approved',
+      rejected: 'rejected',
+      published: 'published'
     };
-    return labels[status] || status;
+    const key = statusKeyMap[status];
+    return key ? t(`knowledge.knowledgeBase.status.${key}` as keyof import('../i18n/types').TranslationKeys) : status;
   };
 
   // Upload document
@@ -2673,7 +2674,7 @@ const KnowledgeApp: React.FC = () => {
                   <div>
                     <h2 style={{ margin: 0 }}>Documents</h2>
                     <p style={{ color: themeColors.textSecondary, margin: '8px 0 0' }}>
-                      문서를 선택하여 AI 질의에 활용하세요. 선택됨: {selectedDocuments.length}개
+                      {t('knowledge.documents.subtitle' as keyof import('../i18n/types').TranslationKeys, { count: selectedDocuments.length })}
                     </p>
                   </div>
                   <button
@@ -3008,7 +3009,7 @@ const KnowledgeApp: React.FC = () => {
                   <div>
                     <h2 style={{ margin: 0 }}>🌐 Web Sources</h2>
                     <p style={{ color: themeColors.textSecondary, margin: '8px 0 0' }}>
-                      웹 URL을 추가하여 RAG 질의에 활용하세요. NotebookLM 스타일로 웹 콘텐츠를 인덱싱합니다.
+                      {t('knowledge.webSources.subtitle' as keyof import('../i18n/types').TranslationKeys)}
                     </p>
                   </div>
                   <button
@@ -3373,19 +3374,19 @@ const KnowledgeApp: React.FC = () => {
               <div style={cardStyle}>
                 <h2>AI Content Generation</h2>
                 <p style={{ color: themeColors.textSecondary }}>
-                  선택된 문서 ({selectedDocuments.length}개)를 기반으로 다양한 콘텐츠를 생성합니다.
+                  {t('knowledge.content.subtitle' as keyof import('../i18n/types').TranslationKeys, { count: selectedDocuments.length })}
                 </p>
 
                 {/* Content Type Buttons */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px', marginTop: '20px' }}>
                   {[
-                    { type: 'summary', label: '요약', icon: '📝' },
-                    { type: 'faq', label: 'FAQ', icon: '❓' },
-                    { type: 'study_guide', label: '학습 가이드', icon: '📚' },
-                    { type: 'briefing', label: '브리핑', icon: '📋' },
-                    { type: 'timeline', label: '타임라인', icon: '📅' },
-                    { type: 'toc', label: '목차', icon: '📑' },
-                    { type: 'key_topics', label: '핵심 주제', icon: '🎯' }
+                    { type: 'summary', labelKey: 'summary', icon: '📝' },
+                    { type: 'faq', labelKey: 'faq', icon: '❓' },
+                    { type: 'study_guide', labelKey: 'studyGuide', icon: '📚' },
+                    { type: 'briefing', labelKey: 'briefing', icon: '📋' },
+                    { type: 'timeline', labelKey: 'timeline', icon: '📅' },
+                    { type: 'toc', labelKey: 'toc', icon: '📑' },
+                    { type: 'key_topics', labelKey: 'keyTopics', icon: '🎯' }
                   ].map(ct => (
                     <button
                       key={ct.type}
@@ -3399,14 +3400,14 @@ const KnowledgeApp: React.FC = () => {
                       }}
                     >
                       <div style={{ fontSize: '32px' }}>{ct.icon}</div>
-                      <div style={{ marginTop: '8px', fontWeight: 600 }}>{ct.label}</div>
+                      <div style={{ marginTop: '8px', fontWeight: 600 }}>{t(`knowledge.content.types.${ct.labelKey}` as keyof import('../i18n/types').TranslationKeys)}</div>
                     </button>
                   ))}
                 </div>
 
                 {generatingContent && (
                   <div style={{ textAlign: 'center', marginTop: '20px', color: themeColors.accent }}>
-                    콘텐츠 생성 중...
+                    {t('knowledge.content.generating' as keyof import('../i18n/types').TranslationKeys)}
                   </div>
                 )}
               </div>
@@ -3465,7 +3466,7 @@ const KnowledgeApp: React.FC = () => {
                   <h2 style={{ margin: 0 }}>Projects</h2>
                   <button
                     onClick={() => {
-                      const name = prompt('프로젝트 이름:');
+                      const name = prompt(t('knowledge.projects.projectName' as keyof import('../i18n/types').TranslationKeys));
                       if (name) createProject(name, '');
                     }}
                     style={tabStyle(true)}
@@ -3532,7 +3533,7 @@ const KnowledgeApp: React.FC = () => {
               <div style={cardStyle}>
                 <h2 style={{ margin: 0 }}>Knowledge Graph</h2>
                 <p style={{ color: themeColors.textSecondary, margin: '8px 0 0' }}>
-                  쿼리 기반 지식 그래프 생성 및 탐색 - 선택된 문서: {selectedDocuments.length}개
+                  {t('knowledge.knowledgeGraph.subtitle' as keyof import('../i18n/types').TranslationKeys, { count: selectedDocuments.length })}
                 </p>
               </div>
 
@@ -3542,7 +3543,7 @@ const KnowledgeApp: React.FC = () => {
                   type="text"
                   value={kgQuery}
                   onChange={(e) => setKgQuery(e.target.value)}
-                  placeholder="Knowledge Graph를 생성하거나 질의할 내용을 입력하세요..."
+                  placeholder={t('knowledge.knowledgeGraph.placeholder' as keyof import('../i18n/types').TranslationKeys)}
                   style={{
                     flex: 1,
                     minWidth: '300px',
@@ -3571,7 +3572,7 @@ const KnowledgeApp: React.FC = () => {
                     gap: '8px'
                   }}
                 >
-                  {buildingKG ? '생성 중...' : '🔗 KG 생성'}
+                  {buildingKG ? t('knowledge.knowledgeGraph.building' as keyof import('../i18n/types').TranslationKeys) : `🔗 ${t('knowledge.knowledgeGraph.createKG' as keyof import('../i18n/types').TranslationKeys)}`}
                 </button>
                 {selectedKG && (
                   <button
@@ -3590,7 +3591,7 @@ const KnowledgeApp: React.FC = () => {
                       gap: '8px'
                     }}
                   >
-                    {queryingKG ? '질의 중...' : '🔍 KG 질의'}
+                    {queryingKG ? t('knowledge.knowledgeGraph.querying' as keyof import('../i18n/types').TranslationKeys) : `🔍 ${t('knowledge.knowledgeGraph.queryKG' as keyof import('../i18n/types').TranslationKeys)}`}
                   </button>
                 )}
               </div>
@@ -3602,7 +3603,7 @@ const KnowledgeApp: React.FC = () => {
                   <h3 style={{ margin: '0 0 16px' }}>Knowledge Graphs</h3>
                   {knowledgeGraphs.length === 0 ? (
                     <div style={{ color: themeColors.textSecondary, fontSize: '14px', textAlign: 'center', padding: '20px 0' }}>
-                      생성된 Knowledge Graph가 없습니다.
+                      {t('knowledge.knowledgeGraph.noGraphs' as keyof import('../i18n/types').TranslationKeys)}
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -3679,7 +3680,7 @@ const KnowledgeApp: React.FC = () => {
                           marginBottom: '16px',
                           borderLeft: `4px solid ${themeColors.accent}`
                         }}>
-                          <div style={{ fontWeight: 600, marginBottom: '8px' }}>AI 답변:</div>
+                          <div style={{ fontWeight: 600, marginBottom: '8px' }}>{t('knowledge.knowledgeGraph.aiAnswer' as keyof import('../i18n/types').TranslationKeys)}</div>
                           <div style={{ whiteSpace: 'pre-wrap' }}>{kgAnswer}</div>
                         </div>
                       )}
@@ -3910,15 +3911,15 @@ const KnowledgeApp: React.FC = () => {
                   ) : (
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: themeColors.textSecondary }}>
                       <div style={{ fontSize: '64px', marginBottom: '16px' }}>🔗</div>
-                      <h3>Knowledge Graph를 생성하세요</h3>
+                      <h3>{t('knowledge.knowledgeGraph.createPrompt.title' as keyof import('../i18n/types').TranslationKeys)}</h3>
                       <p style={{ textAlign: 'center', maxWidth: '400px', marginTop: '8px' }}>
-                        쿼리를 입력하고 'KG 생성' 버튼을 클릭하면 관련 개념, 관계를 추출하여 지식 그래프를 구축합니다.
+                        {t('knowledge.knowledgeGraph.createPrompt.description' as keyof import('../i18n/types').TranslationKeys)}
                       </p>
                       <div style={{ display: 'flex', gap: '8px', marginTop: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
                         {[
-                          'GPU 기반 RAG 시스템 구조',
+                          t('knowledge.knowledgeGraph.createPrompt.examples.example1' as keyof import('../i18n/types').TranslationKeys),
                           'Neo4j Knowledge Graph',
-                          'LLM과 벡터 검색의 관계'
+                          t('knowledge.knowledgeGraph.createPrompt.examples.example2' as keyof import('../i18n/types').TranslationKeys)
                         ].map((example, i) => (
                           <button
                             key={i}
@@ -3955,7 +3956,7 @@ const KnowledgeApp: React.FC = () => {
                   <div>
                     <h2 style={{ margin: 0 }}>Knowledge Base</h2>
                     <p style={{ color: themeColors.textSecondary, margin: '8px 0 0' }}>
-                      지식 등록, 검수, 공유 시스템
+                      {t('knowledge.knowledgeBase.subtitle' as keyof import('../i18n/types').TranslationKeys)}
                     </p>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -3999,7 +4000,7 @@ const KnowledgeApp: React.FC = () => {
                   {knowledgeArticles.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '40px', color: themeColors.textSecondary }}>
                       <div style={{ fontSize: '48px', marginBottom: '16px' }}>📚</div>
-                      <p>등록된 지식이 없습니다.</p>
+                      <p>{t('knowledge.knowledgeBase.noArticles' as keyof import('../i18n/types').TranslationKeys)}</p>
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

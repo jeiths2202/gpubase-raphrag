@@ -20,6 +20,19 @@
     "startPrompt": "Enter a question to start the conversation.",
     "inputPlaceholder": "Enter your question...",
     "send": "Send",
+    "generating": "Generating response...",
+    "noResponse": "Unable to generate response.",
+    "errorOccurred": "An error occurred. Please try again.",
+    "saveAsNote": "Save as note",
+    "noteSaved": "Note saved.",
+    "sessionDocs": "Documents used in current conversation",
+    "priority": "Priority",
+    "confidence": "Confidence",
+    "followUp": {
+      "tellMore": "Tell me more about {{query}}",
+      "showExamples": "Show me related examples",
+      "prosAndCons": "What are the pros and cons of this topic?"
+    },
     "quickPrompts": {
       "summarize": "Summarize document",
       "keyConcepts": "Key concepts?",
@@ -105,5 +118,112 @@
         "description": "Atlassian Confluence pages"
       }
     }
+  },
+  "documents": {
+    "title": "Documents",
+    "subtitle": "Select documents for AI queries. Selected: {{count}}",
+    "upload": "Upload Document",
+    "supported": "Supported",
+    "noDocuments": "No documents uploaded yet.",
+    "uploadFirst": "Upload your first document"
+  },
+  "webSources": {
+    "title": "Web Sources",
+    "subtitle": "Add web URLs for RAG queries. Index web content NotebookLM-style.",
+    "addUrl": "Add URL",
+    "refresh": "Refresh",
+    "open": "Open",
+    "delete": "Delete"
+  },
+  "notes": {
+    "title": "Notes",
+    "folders": "Folders",
+    "allNotes": "All Notes",
+    "newNote": "New Note",
+    "searchPlaceholder": "Search notes...",
+    "search": "Search"
+  },
+  "content": {
+    "title": "AI Content Generation",
+    "subtitle": "Generate various content based on selected documents ({{count}}).",
+    "generating": "Generating content...",
+    "generatedContents": "Generated Contents",
+    "selectDocumentsFirst": "Please select documents first.",
+    "generationFailed": "Failed to generate content.",
+    "types": {
+      "summary": "Summary",
+      "faq": "FAQ",
+      "studyGuide": "Study Guide",
+      "briefing": "Briefing",
+      "timeline": "Timeline",
+      "toc": "TOC",
+      "keyTopics": "Key Topics"
+    }
+  },
+  "projects": {
+    "title": "Projects",
+    "newProject": "New Project",
+    "projectName": "Project name:",
+    "docs": "docs",
+    "notesCount": "notes"
+  },
+  "knowledgeGraph": {
+    "title": "Knowledge Graph",
+    "subtitle": "Query-based knowledge graph generation and exploration - Selected documents: {{count}}",
+    "placeholder": "Enter query to generate or query Knowledge Graph...",
+    "building": "Generating...",
+    "createKG": "Create KG",
+    "querying": "Querying...",
+    "queryKG": "Query KG",
+    "noGraphs": "No Knowledge Graphs created.",
+    "aiAnswer": "AI Answer:",
+    "entities": "Entities",
+    "relations": "Relations",
+    "deleteConfirm": "Are you sure you want to delete this Knowledge Graph?",
+    "createPrompt": {
+      "title": "Create a Knowledge Graph",
+      "description": "Enter a query and click 'Create KG' button to extract related concepts and relationships to build a knowledge graph.",
+      "examples": {
+        "example1": "GPU-based RAG system architecture",
+        "example2": "Relationship between LLM and vector search"
+      }
+    }
+  },
+  "knowledgeBase": {
+    "title": "Knowledge Base",
+    "subtitle": "Knowledge registration, review, and sharing system",
+    "newKnowledge": "New Knowledge",
+    "publishedKnowledge": "Published Knowledge",
+    "noArticles": "No knowledge articles registered.",
+    "pendingReviews": "Pending Reviews",
+    "topContributors": "Top Contributors",
+    "status": {
+      "draft": "Draft",
+      "pending": "Pending",
+      "inReview": "In Review",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "published": "Published"
+    },
+    "review": {
+      "requested": "Review requested.",
+      "enterComment": "Please enter a review comment.",
+      "completed": "Review completed."
+    }
+  },
+  "paste": {
+    "modalTitle": "Paste text",
+    "description": "Paste document content or reference material to prioritize in current conversation.",
+    "titlePlaceholder": "Title (optional)",
+    "contentPlaceholder": "Paste content here...",
+    "cancel": "Cancel",
+    "add": "Add"
+  },
+  "sourceViewer": {
+    "chunkInfo": "Chunk #{{chunk}} | Confidence: {{score}}%"
+  },
+  "common": {
+    "processing": "Processing...",
+    "error": "Error"
   }
 }
