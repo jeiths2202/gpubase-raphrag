@@ -2338,9 +2338,14 @@ const KnowledgeApp: React.FC = () => {
                                       onClick={() => syncExternalResource(conn.id)}
                                       disabled={syncingConnection === conn.id}
                                       style={{
-                                        ...tabStyle(false),
                                         fontSize: '12px',
-                                        padding: '6px 12px'
+                                        padding: '6px 12px',
+                                        borderRadius: '6px',
+                                        cursor: syncingConnection === conn.id ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s',
+                                        background: 'rgba(74, 144, 217, 0.15)',
+                                        border: '1px solid rgba(74, 144, 217, 0.5)',
+                                        color: themeColors.accent
                                       }}
                                     >
                                       {syncingConnection === conn.id ? t('knowledge.external.syncing' as keyof import('../i18n/types').TranslationKeys) : `🔄 ${t('knowledge.external.syncButton' as keyof import('../i18n/types').TranslationKeys)}`}
@@ -2349,11 +2354,14 @@ const KnowledgeApp: React.FC = () => {
                                   <button
                                     onClick={() => disconnectExternalResource(conn.id)}
                                     style={{
-                                      ...tabStyle(false),
                                       fontSize: '12px',
                                       padding: '6px 12px',
-                                      color: '#E74C3C',
-                                      borderColor: '#E74C3C'
+                                      borderRadius: '6px',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s',
+                                      background: 'rgba(231, 76, 60, 0.15)',
+                                      border: '1px solid rgba(231, 76, 60, 0.5)',
+                                      color: '#E74C3C'
                                     }}
                                   >
                                     {t('knowledge.external.disconnect' as keyof import('../i18n/types').TranslationKeys)}
@@ -2408,11 +2416,19 @@ const KnowledgeApp: React.FC = () => {
                                 onClick={() => !isConnected && connectExternalResource(resource.type)}
                                 disabled={isConnected || isConnecting}
                                 style={{
-                                  ...tabStyle(false),
                                   padding: '10px 20px',
-                                  opacity: isConnected ? 0.5 : 1,
+                                  borderRadius: '8px',
+                                  fontWeight: 500,
                                   cursor: isConnected ? 'not-allowed' : 'pointer',
-                                  background: isConnected ? 'rgba(46, 204, 113, 0.2)' : undefined
+                                  transition: 'all 0.2s',
+                                  opacity: isConnected ? 0.7 : 1,
+                                  background: isConnected
+                                    ? 'rgba(46, 204, 113, 0.2)'
+                                    : 'rgba(74, 144, 217, 0.9)',
+                                  border: isConnected
+                                    ? '1px solid #2ECC71'
+                                    : '1px solid rgba(74, 144, 217, 1)',
+                                  color: isConnected ? '#2ECC71' : '#ffffff'
                                 }}
                               >
                                 {isConnected ? `✓ ${t('knowledge.external.connected' as keyof import('../i18n/types').TranslationKeys)}` : isConnecting ? t('knowledge.external.connecting' as keyof import('../i18n/types').TranslationKeys) : t('knowledge.external.connect' as keyof import('../i18n/types').TranslationKeys)}
@@ -2425,7 +2441,16 @@ const KnowledgeApp: React.FC = () => {
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
                         <button
                           onClick={() => setShowExternalModal(false)}
-                          style={{ ...tabStyle(false) }}
+                          style={{
+                            padding: '10px 24px',
+                            borderRadius: '8px',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            background: 'rgba(255, 255, 255, 0.1)',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            color: themeColors.text
+                          }}
                         >
                           {t('knowledge.external.close' as keyof import('../i18n/types').TranslationKeys)}
                         </button>
