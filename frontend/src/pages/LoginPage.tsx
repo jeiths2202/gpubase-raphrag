@@ -164,7 +164,14 @@ const LoginPage: React.FC = () => {
   const handleGoogleSuccess = useCallback(async (token: string) => {
     const success = await loginWithGoogle(token);
     if (success) {
-      navigate('/');
+      // Google users (regular users) go directly to knowledge page
+      // Admin users or other login methods go to dashboard
+      const { user } = useAuthStore.getState();
+      if (user?.provider === 'google' && user?.role === 'user') {
+        navigate('/knowledge');
+      } else {
+        navigate('/');
+      }
     }
   }, [loginWithGoogle, navigate]);
 

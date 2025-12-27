@@ -931,25 +931,55 @@ class AuthService:
         return True
 
     async def authenticate_google(self, credential: str) -> dict:
-        """Authenticate with Google OAuth"""
-        # TODO: Implement Google token verification
-        # For now, decode and mock the response
-        try:
-            # In production, verify with Google's API
-            # from google.oauth2 import id_token
-            # from google.auth.transport import requests
-            # idinfo = id_token.verify_oauth2_token(credential, requests.Request(), GOOGLE_CLIENT_ID)
+        """
+        Authenticate with Google OAuth access token.
 
-            # Mock response for development
-            import uuid
-            return {
-                "id": f"google_{uuid.uuid4().hex[:12]}",
-                "username": "google_user",
-                "email": "user@gmail.com",
-                "role": "user",
-                "provider": "google"
-            }
-        except Exception:
+        Args:
+            credential: Google OAuth access token from frontend
+
+        Returns:
+            User dict with id, username, email, role, provider, picture
+        """
+        import httpx
+
+        try:
+            # Verify access token by fetching user info from Google
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    headers={"Authorization": f"Bearer {credential}"}
+                )
+
+                if response.status_code != 200:
+                    print(f"[GOOGLE AUTH] Failed to verify token: {response.status_code}")
+                    return None
+
+                userinfo = response.json()
+
+                # Extract user info from Google response
+                google_id = userinfo.get("sub")
+                email = userinfo.get("email")
+                name = userinfo.get("name", email.split("@")[0] if email else "Google User")
+                picture = userinfo.get("picture")
+
+                if not google_id or not email:
+                    print("[GOOGLE AUTH] Missing required fields in Google response")
+                    return None
+
+                print(f"[GOOGLE AUTH] Successfully verified: {email}")
+
+                return {
+                    "id": f"google_{google_id}",
+                    "username": name,
+                    "email": email,
+                    "name": name,
+                    "picture": picture,
+                    "role": "user",
+                    "provider": "google"
+                }
+
+        except Exception as e:
+            print(f"[GOOGLE AUTH] Error: {e}")
             return None
 
     async def initiate_sso(self, email: str) -> dict:

@@ -322,12 +322,13 @@ async def resend_verification(
 
 @router.post(
     "/google",
-    response_model=SuccessResponse[TokenResponse],
+    response_model=SuccessResponse[dict],
     summary="Google 로그인",
     description="Google OAuth를 사용하여 로그인합니다."
 )
 async def google_auth(
     request: GoogleAuthRequest,
+    response: Response,
     auth_service = Depends(get_auth_service)
 ):
     """Authenticate with Google OAuth"""
@@ -348,13 +349,23 @@ async def google_auth(
     access_token = await auth_service.create_access_token(user)
     refresh_token = await auth_service.create_refresh_token(user)
 
+    # SECURITY: Set HttpOnly cookies for browser clients
+    set_auth_cookies(response, access_token, refresh_token)
+
     return SuccessResponse(
-        data=TokenResponse(
-            access_token=access_token,
-            token_type="bearer",
-            expires_in=api_settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            refresh_token=refresh_token
-        ),
+        data={
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": api_settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "refresh_token": refresh_token,
+            "user": {
+                "id": user["id"],
+                "email": user["email"],
+                "name": user.get("name", user.get("username")),
+                "picture": user.get("picture"),
+                "role": user.get("role", "user")
+            }
+        },
         meta=MetaInfo(request_id=request_id)
     )
 

@@ -89,7 +89,7 @@ const App: React.FC = () => {
   return (
     <GoogleOAuthWrapper>
       <I18nProvider>
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
           {/* Public routes */}
           <Route

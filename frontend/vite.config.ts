@@ -12,6 +12,10 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    // Fix COOP warning for Google OAuth popup flow
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+    },
   },
   test: {
     globals: true,
