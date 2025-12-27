@@ -16,5 +16,49 @@
     "zoomOut": "축소",
     "fitView": "화면에 맞추기",
     "reset": "뷰 초기화"
+  },
+  "header": {
+    "admin": "관리자",
+    "logout": "로그아웃",
+    "processing": "처리 중...",
+    "nodes": "노드",
+    "edges": "엣지"
+  },
+  "sidebar": {
+    "title": "KMS 마인드맵",
+    "subtitle": "지식 시각화",
+    "newMindmap": "+ 새 마인드맵 생성",
+    "titlePlaceholder": "마인드맵 제목 (선택)",
+    "focusPlaceholder": "집중할 주제 (선택)",
+    "maxNodes": "최대 노드 수:",
+    "generating": "생성 중...",
+    "generate": "생성",
+    "cancel": "취소",
+    "savedMindmaps": "저장된 마인드맵",
+    "noMindmaps": "아직 마인드맵이 없습니다",
+    "deleteConfirm": "이 마인드맵을 삭제하시겠습니까?"
+  },
+  "empty": {
+    "title": "마인드맵 생성을 시작하세요",
+    "description": "왼쪽 사이드바에서 새 마인드맵을 생성하거나 기존 마인드맵을 선택하세요",
+    "generating": "생성 중...",
+    "generateAll": "전체 문서로 마인드맵 생성"
+  },
+  "panel": {
+    "tabs": {
+      "info": "정보",
+      "query": "질의",
+      "related": "관련"
+    },
+    "importance": "중요도",
+    "expand": "확장",
+    "summarize": "요약",
+    "sourceDocuments": "원본 문서",
+    "askPlaceholder": "\"{{label}}\"에 대해 질문하세요...",
+    "ask": "질문",
+    "generatingAnswer": "답변 생성 중...",
+    "answer": "답변",
+    "relatedConcepts": "관련 개념",
+    "noRelatedNodes": "관련 노드를 찾을 수 없습니다"
   }
 }

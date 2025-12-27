@@ -177,9 +177,9 @@ const NodePanel: React.FC<NodePanelProps> = ({
         }}
       >
         {[
-          { key: 'info', label: 'Info' },
-          { key: 'query', label: 'Query' },
-          { key: 'related', label: 'Related' },
+          { key: 'info', labelKey: 'mindmap.panel.tabs.info' },
+          { key: 'query', labelKey: 'mindmap.panel.tabs.query' },
+          { key: 'related', labelKey: 'mindmap.panel.tabs.related' },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -203,7 +203,7 @@ const NodePanel: React.FC<NodePanelProps> = ({
               transition: 'all 0.2s',
             }}
           >
-            {tab.label}
+            {t(tab.labelKey as keyof import('../i18n/types').TranslationKeys)}
           </button>
         ))}
       </div>
@@ -223,7 +223,7 @@ const NodePanel: React.FC<NodePanelProps> = ({
                   marginBottom: '6px',
                 }}
               >
-                Importance
+                {t('mindmap.panel.importance')}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div
@@ -258,7 +258,7 @@ const NodePanel: React.FC<NodePanelProps> = ({
                 onClick={onExpand}
                 disabled={isLoading}
               >
-                🔍 Expand
+                🔍 {t('mindmap.panel.expand')}
               </button>
               <button
                 className="btn btn-secondary"
@@ -266,7 +266,7 @@ const NodePanel: React.FC<NodePanelProps> = ({
                 onClick={handleSummarize}
                 disabled={isLoading}
               >
-                📝 Summarize
+                📝 {t('mindmap.panel.summarize')}
               </button>
             </div>
 
@@ -281,7 +281,7 @@ const NodePanel: React.FC<NodePanelProps> = ({
                     marginBottom: '8px',
                   }}
                 >
-                  Source Documents
+                  {t('mindmap.panel.sourceDocuments')}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {nodeDetail.source_content.map((source, idx) => (
@@ -321,7 +321,7 @@ const NodePanel: React.FC<NodePanelProps> = ({
               <input
                 type="text"
                 className="input"
-                placeholder={`Ask about "${node.label}"...`}
+                placeholder={t('mindmap.panel.askPlaceholder', { label: node.label })}
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleQuery()}
@@ -331,7 +331,7 @@ const NodePanel: React.FC<NodePanelProps> = ({
                 onClick={handleQuery}
                 disabled={isLoading || !question.trim()}
               >
-                Ask
+                {t('mindmap.panel.ask')}
               </button>
             </div>
 
@@ -359,7 +359,7 @@ const NodePanel: React.FC<NodePanelProps> = ({
                 }}
                 className="loading"
               >
-                Generating answer...
+                {t('mindmap.panel.generatingAnswer')}
               </div>
             )}
 
@@ -373,7 +373,7 @@ const NodePanel: React.FC<NodePanelProps> = ({
                     marginBottom: '8px',
                   }}
                 >
-                  Answer
+                  {t('mindmap.panel.answer')}
                 </div>
                 <div
                   style={{
@@ -399,7 +399,7 @@ const NodePanel: React.FC<NodePanelProps> = ({
                         marginBottom: '6px',
                       }}
                     >
-                      Related Concepts
+                      {t('mindmap.panel.relatedConcepts')}
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                       {queryResult.related_concepts.map((concept, idx) => (
@@ -506,7 +506,7 @@ const NodePanel: React.FC<NodePanelProps> = ({
                   fontSize: '13px',
                 }}
               >
-                No related nodes found
+                {t('mindmap.panel.noRelatedNodes')}
               </div>
             )}
           </div>

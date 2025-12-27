@@ -6,10 +6,12 @@ import NodePanel from '../components/NodePanel';
 import { mindmapApi } from '../services/api';
 import type { MindmapFull, MindmapNode, MindmapInfo } from '../types/mindmap';
 import { useAuthStore } from '../store/authStore';
+import { useTranslation } from '../hooks/useTranslation';
 
 const MindmapApp: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const { t } = useTranslation();
   const [currentMindmap, setCurrentMindmap] = useState<MindmapFull | null>(null);
   const [selectedNode, setSelectedNode] = useState<MindmapNode | null>(null);
   const [mindmapList, setMindmapList] = useState<MindmapInfo[]>([]);
@@ -197,7 +199,7 @@ const MindmapApp: React.FC = () => {
                 fontSize: '13px',
                 color: 'var(--color-text-muted)',
               }}>
-                {currentMindmap.node_count} nodes / {currentMindmap.edge_count} edges
+                {currentMindmap.node_count} {t('mindmap.header.nodes')} / {currentMindmap.edge_count} {t('mindmap.header.edges')}
               </span>
             )}
           </div>
@@ -207,7 +209,7 @@ const MindmapApp: React.FC = () => {
                 fontSize: '13px',
                 color: 'var(--color-primary)',
               }} className="loading">
-                Processing...
+                {t('mindmap.header.processing')}
               </span>
             )}
             {user?.role === 'admin' && (
@@ -231,7 +233,7 @@ const MindmapApp: React.FC = () => {
                   e.currentTarget.style.background = 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))';
                 }}
               >
-                관리자
+                {t('mindmap.header.admin')}
               </button>
             )}
             <span style={{
@@ -261,7 +263,7 @@ const MindmapApp: React.FC = () => {
                 e.currentTarget.style.color = 'var(--color-text-secondary)';
               }}
             >
-              로그아웃
+              {t('mindmap.header.logout')}
             </button>
           </div>
         </header>
@@ -314,17 +316,17 @@ const MindmapApp: React.FC = () => {
             }}>
               <div style={{ fontSize: '64px' }}>🧠</div>
               <h2 style={{ fontSize: '24px', fontWeight: '500' }}>
-                마인드맵 생성을 시작하세요
+                {t('mindmap.empty.title')}
               </h2>
               <p style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>
-                왼쪽 사이드바에서 새 마인드맵을 생성하거나 기존 마인드맵을 선택하세요
+                {t('mindmap.empty.description')}
               </p>
               <button
                 className="btn btn-primary"
                 onClick={() => handleGenerateMindmap({ title: 'New Mindmap' })}
                 disabled={isLoading}
               >
-                {isLoading ? '생성 중...' : '전체 문서로 마인드맵 생성'}
+                {isLoading ? t('mindmap.empty.generating') : t('mindmap.empty.generateAll')}
               </button>
             </div>
           )}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { MindmapInfo } from '../types/mindmap';
+import { useTranslation } from '../hooks/useTranslation';
 
 interface SidebarProps {
   mindmapList: MindmapInfo[];
@@ -23,6 +24,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onGenerateMindmap,
   isLoading,
 }) => {
+  const { t } = useTranslation();
   const [showGenerateForm, setShowGenerateForm] = useState(false);
   const [title, setTitle] = useState('');
   const [maxNodes, setMaxNodes] = useState(50);
@@ -62,10 +64,10 @@ const Sidebar: React.FC<SidebarProps> = ({
           <span style={{ fontSize: '24px' }}>🧠</span>
           <div>
             <h2 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--color-text-primary)' }}>
-              KMS Mindmap
+              {t('mindmap.sidebar.title')}
             </h2>
             <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-              Knowledge Visualization
+              {t('mindmap.sidebar.subtitle')}
             </span>
           </div>
         </div>
@@ -80,14 +82,14 @@ const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => setShowGenerateForm(true)}
             disabled={isLoading}
           >
-            + 새 마인드맵 생성
+            {t('mindmap.sidebar.newMindmap')}
           </button>
         ) : (
           <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <input
               type="text"
               className="input"
-              placeholder="마인드맵 제목 (선택)"
+              placeholder={t('mindmap.sidebar.titlePlaceholder')}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -95,7 +97,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <input
               type="text"
               className="input"
-              placeholder="집중할 주제 (선택)"
+              placeholder={t('mindmap.sidebar.focusPlaceholder')}
               value={focusTopic}
               onChange={(e) => setFocusTopic(e.target.value)}
             />
@@ -109,7 +111,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   marginBottom: '4px',
                 }}
               >
-                최대 노드 수: {maxNodes}
+                {t('mindmap.sidebar.maxNodes')} {maxNodes}
               </label>
               <input
                 type="range"
@@ -128,13 +130,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                 onClick={handleGenerate}
                 disabled={isLoading}
               >
-                {isLoading ? '생성 중...' : '생성'}
+                {isLoading ? t('mindmap.sidebar.generating') : t('mindmap.sidebar.generate')}
               </button>
               <button
                 className="btn btn-secondary"
                 onClick={() => setShowGenerateForm(false)}
               >
-                취소
+                {t('mindmap.sidebar.cancel')}
               </button>
             </div>
           </div>
@@ -153,7 +155,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             marginBottom: '12px',
           }}
         >
-          저장된 마인드맵 ({mindmapList.length})
+          {t('mindmap.sidebar.savedMindmaps')} ({mindmapList.length})
         </div>
 
         {mindmapList.length === 0 ? (
@@ -165,7 +167,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               fontSize: '13px',
             }}
           >
-            아직 마인드맵이 없습니다
+            {t('mindmap.sidebar.noMindmaps')}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -224,7 +226,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (confirm('이 마인드맵을 삭제하시겠습니까?')) {
+                      if (confirm(t('mindmap.sidebar.deleteConfirm'))) {
                         onDeleteMindmap(mm.id);
                       }
                     }}

@@ -16,5 +16,49 @@
     "zoomOut": "Zoom Out",
     "fitView": "Fit to View",
     "reset": "Reset View"
+  },
+  "header": {
+    "admin": "Admin",
+    "logout": "Logout",
+    "processing": "Processing...",
+    "nodes": "nodes",
+    "edges": "edges"
+  },
+  "sidebar": {
+    "title": "KMS Mindmap",
+    "subtitle": "Knowledge Visualization",
+    "newMindmap": "+ New Mindmap",
+    "titlePlaceholder": "Mindmap title (optional)",
+    "focusPlaceholder": "Focus topic (optional)",
+    "maxNodes": "Max nodes:",
+    "generating": "Generating...",
+    "generate": "Generate",
+    "cancel": "Cancel",
+    "savedMindmaps": "Saved Mindmaps",
+    "noMindmaps": "No mindmaps yet",
+    "deleteConfirm": "Delete this mindmap?"
+  },
+  "empty": {
+    "title": "Start creating a mindmap",
+    "description": "Create a new mindmap or select an existing one from the sidebar",
+    "generating": "Generating...",
+    "generateAll": "Generate mindmap from all documents"
+  },
+  "panel": {
+    "tabs": {
+      "info": "Info",
+      "query": "Query",
+      "related": "Related"
+    },
+    "importance": "Importance",
+    "expand": "Expand",
+    "summarize": "Summarize",
+    "sourceDocuments": "Source Documents",
+    "askPlaceholder": "Ask about \"{{label}}\"...",
+    "ask": "Ask",
+    "generatingAnswer": "Generating answer...",
+    "answer": "Answer",
+    "relatedConcepts": "Related Concepts",
+    "noRelatedNodes": "No related nodes found"
   }
 }

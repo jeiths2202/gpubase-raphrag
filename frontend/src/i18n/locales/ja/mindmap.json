@@ -16,5 +16,49 @@
     "zoomOut": "縮小",
     "fitView": "画面に合わせる",
     "reset": "表示リセット"
+  },
+  "header": {
+    "admin": "管理者",
+    "logout": "ログアウト",
+    "processing": "処理中...",
+    "nodes": "ノード",
+    "edges": "エッジ"
+  },
+  "sidebar": {
+    "title": "KMS マインドマップ",
+    "subtitle": "ナレッジ可視化",
+    "newMindmap": "+ 新規マインドマップ",
+    "titlePlaceholder": "マインドマップタイトル（任意）",
+    "focusPlaceholder": "フォーカストピック（任意）",
+    "maxNodes": "最大ノード数:",
+    "generating": "生成中...",
+    "generate": "生成",
+    "cancel": "キャンセル",
+    "savedMindmaps": "保存済みマインドマップ",
+    "noMindmaps": "まだマインドマップがありません",
+    "deleteConfirm": "このマインドマップを削除しますか？"
+  },
+  "empty": {
+    "title": "マインドマップを作成しましょう",
+    "description": "左のサイドバーから新しいマインドマップを作成するか、既存のものを選択してください",
+    "generating": "生成中...",
+    "generateAll": "全ドキュメントからマインドマップを生成"
+  },
+  "panel": {
+    "tabs": {
+      "info": "情報",
+      "query": "クエリ",
+      "related": "関連"
+    },
+    "importance": "重要度",
+    "expand": "展開",
+    "summarize": "要約",
+    "sourceDocuments": "ソースドキュメント",
+    "askPlaceholder": "「{{label}}」について質問...",
+    "ask": "質問",
+    "generatingAnswer": "回答を生成中...",
+    "answer": "回答",
+    "relatedConcepts": "関連コンセプト",
+    "noRelatedNodes": "関連ノードが見つかりません"
   }
 }
