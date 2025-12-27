@@ -57,11 +57,9 @@ interface Notification {
   read: boolean;
 }
 
-interface QuickAction {
+interface QuickActionConfig {
   id: string;
   icon: string;
-  label: string;
-  description: string;
   route: string;
   color: string;
 }
@@ -77,42 +75,14 @@ const ENV_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 // ─────────────────────────────────────────────────────────────
-// Quick Actions Configuration
+// Quick Actions Configuration (using translation keys)
 // ─────────────────────────────────────────────────────────────
 
-const QUICK_ACTIONS: QuickAction[] = [
-  {
-    id: 'knowledge',
-    icon: '📚',
-    label: '지식 검색',
-    description: 'RAG 기반 문서 검색 및 질의응답',
-    route: '/knowledge',
-    color: '#3b82f6',
-  },
-  {
-    id: 'mindmap',
-    icon: '🧠',
-    label: '마인드맵',
-    description: '지식 시각화 및 관계 탐색',
-    route: '/mindmap',
-    color: '#8b5cf6',
-  },
-  {
-    id: 'documents',
-    icon: '📄',
-    label: '문서 관리',
-    description: '문서 업로드 및 인덱싱 관리',
-    route: '/documents',
-    color: '#10b981',
-  },
-  {
-    id: 'analytics',
-    icon: '📊',
-    label: '분석 대시보드',
-    description: '사용량 통계 및 성능 모니터링',
-    route: '/analytics',
-    color: '#f59e0b',
-  },
+const QUICK_ACTIONS_CONFIG = [
+  { id: 'knowledge', icon: '📚', route: '/knowledge', color: '#3b82f6' },
+  { id: 'mindmap', icon: '🧠', route: '/mindmap', color: '#8b5cf6' },
+  { id: 'documents', icon: '📄', route: '/documents', color: '#10b981' },
+  { id: 'analytics', icon: '📊', route: '/analytics', color: '#f59e0b' },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -191,12 +161,12 @@ const MainDashboard: React.FC = () => {
         }
       }
     } catch {
-      // Use mock data
+      // Use mock data - names will be translated in render
       setKnowledgeSources([
-        { id: '1', name: '기술 문서', type: 'pdf', document_count: 342, last_sync: '2시간 전', status: 'active' },
-        { id: '2', name: '정책 가이드', type: 'docx', document_count: 128, last_sync: '1일 전', status: 'active' },
-        { id: '3', name: 'API 문서', type: 'web', document_count: 89, last_sync: '30분 전', status: 'syncing' },
-        { id: '4', name: '내부 위키', type: 'database', document_count: 567, last_sync: '5분 전', status: 'active' },
+        { id: '1', name: 'technicalDocs', type: 'pdf', document_count: 342, last_sync: '2h', status: 'active' },
+        { id: '2', name: 'policyGuide', type: 'docx', document_count: 128, last_sync: '1d', status: 'active' },
+        { id: '3', name: 'apiDocs', type: 'web', document_count: 89, last_sync: '30m', status: 'syncing' },
+        { id: '4', name: 'internalWiki', type: 'database', document_count: 567, last_sync: '5m', status: 'active' },
       ]);
     }
   }, []);
@@ -307,6 +277,33 @@ const MainDashboard: React.FC = () => {
     }
   };
 
+  // Helper to translate source names
+  const getSourceName = (nameKey: string) => {
+    const key = `dashboard.sources.${nameKey}`;
+    const translated = t(key);
+    return translated !== key ? translated : nameKey;
+  };
+
+  // Helper to translate time ago
+  const getTimeAgo = (timeCode: string) => {
+    const match = timeCode.match(/^(\d+)(m|h|d)$/);
+    if (!match) return timeCode;
+    const [, count, unit] = match;
+    switch (unit) {
+      case 'm': return t('dashboard.timeAgo.minutesAgo', { count });
+      case 'h': return t('dashboard.timeAgo.hoursAgo', { count });
+      case 'd': return t('dashboard.timeAgo.daysAgo', { count });
+      default: return timeCode;
+    }
+  };
+
+  // Generate translated quick actions
+  const quickActions = QUICK_ACTIONS_CONFIG.map(action => ({
+    ...action,
+    label: t(`dashboard.actions.${action.id}.label`),
+    description: t(`dashboard.actions.${action.id}.description`),
+  }));
+
   const unreadCount = notifications.filter(n => !n.read).length;
   const envConfig = ENV_LABELS[APP_ENV] || ENV_LABELS.development;
 
@@ -329,7 +326,7 @@ const MainDashboard: React.FC = () => {
           <button
             className="mobile-menu-btn"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            aria-label="메뉴 열기"
+            aria-label={t('dashboard.aria.openMenu')}
           >
             ☰
           </button>
@@ -357,7 +354,7 @@ const MainDashboard: React.FC = () => {
             <button
               className="notification-btn"
               onClick={() => setShowNotifications(!showNotifications)}
-              aria-label="알림"
+              aria-label={t('dashboard.aria.notifications')}
             >
               🔔
               {unreadCount > 0 && (
@@ -374,14 +371,14 @@ const MainDashboard: React.FC = () => {
                   exit={{ opacity: 0, y: -10, scale: 0.95 }}
                 >
                   <div className="notification-header">
-                    <h4>알림</h4>
+                    <h4>{t('dashboard.notifications.title')}</h4>
                     <button onClick={() => setNotifications(notifications.map(n => ({ ...n, read: true })))}>
-                      모두 읽음
+                      {t('dashboard.notifications.markAllRead')}
                     </button>
                   </div>
                   <div className="notification-list">
                     {notifications.length === 0 ? (
-                      <div className="notification-empty">알림이 없습니다</div>
+                      <div className="notification-empty">{t('dashboard.notifications.empty')}</div>
                     ) : (
                       notifications.map((notif) => (
                         <div
@@ -418,7 +415,7 @@ const MainDashboard: React.FC = () => {
           <nav className="header-nav">
             {user?.role === 'admin' && (
               <button className="nav-btn" onClick={() => navigate('/admin')}>
-                ⚙️ 관리
+                ⚙️ {t('admin.menu')}
               </button>
             )}
             <button className="nav-btn logout" onClick={logout}>
@@ -437,7 +434,7 @@ const MainDashboard: React.FC = () => {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
           >
-            {QUICK_ACTIONS.map((action) => (
+            {quickActions.map((action) => (
               <button
                 key={action.id}
                 className="mobile-nav-item"
@@ -453,7 +450,7 @@ const MainDashboard: React.FC = () => {
             {user?.role === 'admin' && (
               <button className="mobile-nav-item" onClick={() => navigate('/admin')}>
                 <span>⚙️</span>
-                <span>관리자 대시보드</span>
+                <span>{t('admin.title')}</span>
               </button>
             )}
           </motion.nav>
@@ -503,7 +500,7 @@ const MainDashboard: React.FC = () => {
                     <p className="status-name">{systemStatus.gpu.name}</p>
                     <div className="status-metrics">
                       <div className="metric">
-                        <span className="metric-label">메모리</span>
+                        <span className="metric-label">{t('dashboard.memory')}</span>
                         <div className="metric-bar-container">
                           <div
                             className="metric-bar"
@@ -518,11 +515,11 @@ const MainDashboard: React.FC = () => {
                         </span>
                       </div>
                       <div className="metric">
-                        <span className="metric-label">사용률</span>
+                        <span className="metric-label">{t('dashboard.utilization')}</span>
                         <span className="metric-value large">{systemStatus.gpu.utilization}%</span>
                       </div>
                       <div className="metric">
-                        <span className="metric-label">온도</span>
+                        <span className="metric-label">{t('dashboard.temperature')}</span>
                         <span className="metric-value">{systemStatus.gpu.temperature}°C</span>
                       </div>
                     </div>
@@ -537,21 +534,21 @@ const MainDashboard: React.FC = () => {
                         style={{ background: getStatusColor(systemStatus.model.status) }}
                       />
                     </div>
-                    <h4>AI 모델</h4>
+                    <h4>{t('dashboard.model')}</h4>
                     <p className="status-name">{systemStatus.model.name}</p>
                     <div className="status-metrics">
                       <div className="metric">
-                        <span className="metric-label">버전</span>
+                        <span className="metric-label">{t('dashboard.version')}</span>
                         <span className="metric-value">{systemStatus.model.version}</span>
                       </div>
                       <div className="metric">
-                        <span className="metric-label">상태</span>
+                        <span className="metric-label">{t('dashboard.status')}</span>
                         <span className="metric-value status-text" style={{ color: getStatusColor(systemStatus.model.status) }}>
-                          {systemStatus.model.status === 'loaded' ? '정상' : systemStatus.model.status}
+                          {systemStatus.model.status === 'loaded' ? t('dashboard.statusValues.normal') : systemStatus.model.status}
                         </span>
                       </div>
                       <div className="metric">
-                        <span className="metric-label">추론 시간</span>
+                        <span className="metric-label">{t('dashboard.inferenceTime')}</span>
                         <span className="metric-value large">{systemStatus.model.inference_time_ms}ms</span>
                       </div>
                     </div>
@@ -566,15 +563,15 @@ const MainDashboard: React.FC = () => {
                         style={{ background: getStatusColor(systemStatus.index.status) }}
                       />
                     </div>
-                    <h4>벡터 인덱스</h4>
-                    <p className="status-name">{systemStatus.index.status === 'ready' ? '준비됨' : systemStatus.index.status}</p>
+                    <h4>{t('dashboard.vectorIndex')}</h4>
+                    <p className="status-name">{systemStatus.index.status === 'ready' ? t('dashboard.statusValues.ready') : systemStatus.index.status}</p>
                     <div className="status-metrics">
                       <div className="metric">
-                        <span className="metric-label">문서</span>
+                        <span className="metric-label">{t('dashboard.documents')}</span>
                         <span className="metric-value large">{systemStatus.index.total_documents.toLocaleString()}</span>
                       </div>
                       <div className="metric">
-                        <span className="metric-label">청크</span>
+                        <span className="metric-label">{t('dashboard.chunks')}</span>
                         <span className="metric-value">{systemStatus.index.total_chunks.toLocaleString()}</span>
                       </div>
                     </div>
@@ -589,15 +586,15 @@ const MainDashboard: React.FC = () => {
                         style={{ background: getStatusColor(systemStatus.neo4j.status) }}
                       />
                     </div>
-                    <h4>그래프 DB</h4>
-                    <p className="status-name">Neo4j {systemStatus.neo4j.status === 'connected' ? '연결됨' : '연결 끊김'}</p>
+                    <h4>{t('dashboard.graphDb')}</h4>
+                    <p className="status-name">Neo4j {systemStatus.neo4j.status === 'connected' ? t('dashboard.statusValues.connected') : t('dashboard.statusValues.disconnected')}</p>
                     <div className="status-metrics">
                       <div className="metric">
-                        <span className="metric-label">노드</span>
+                        <span className="metric-label">{t('dashboard.nodes')}</span>
                         <span className="metric-value large">{systemStatus.neo4j.node_count.toLocaleString()}</span>
                       </div>
                       <div className="metric">
-                        <span className="metric-label">관계</span>
+                        <span className="metric-label">{t('dashboard.relationships')}</span>
                         <span className="metric-value">{systemStatus.neo4j.relationship_count.toLocaleString()}</span>
                       </div>
                     </div>
@@ -615,7 +612,7 @@ const MainDashboard: React.FC = () => {
             >
               <h3 className="section-title">⚡ {t('dashboard.quickActions')}</h3>
               <div className="actions-grid">
-                {QUICK_ACTIONS.map((action, index) => (
+                {quickActions.map((action, index) => (
                   <motion.button
                     key={action.id}
                     className="action-card"
@@ -656,15 +653,15 @@ const MainDashboard: React.FC = () => {
                   <div key={source.id} className="source-card">
                     <div className="source-icon">{getSourceIcon(source.type)}</div>
                     <div className="source-info">
-                      <h4>{source.name}</h4>
-                      <p>{source.document_count.toLocaleString()} 문서</p>
+                      <h4>{getSourceName(source.name)}</h4>
+                      <p>{t('dashboard.sources.documentCount', { count: source.document_count.toLocaleString() })}</p>
                     </div>
                     <div className="source-status">
                       <span
                         className="status-dot"
                         style={{ background: getStatusColor(source.status) }}
                       />
-                      <span className="sync-time">{source.last_sync}</span>
+                      <span className="sync-time">{getTimeAgo(source.last_sync)}</span>
                     </div>
                   </div>
                 ))}
@@ -684,28 +681,28 @@ const MainDashboard: React.FC = () => {
                   <span className="activity-icon">🔍</span>
                   <div className="activity-content">
                     <span className="activity-value">247</span>
-                    <span className="activity-label">오늘 검색</span>
+                    <span className="activity-label">{t('dashboard.todaySearches')}</span>
                   </div>
                 </div>
                 <div className="activity-card">
                   <span className="activity-icon">📄</span>
                   <div className="activity-content">
                     <span className="activity-value">15</span>
-                    <span className="activity-label">신규 문서</span>
+                    <span className="activity-label">{t('dashboard.newDocuments')}</span>
                   </div>
                 </div>
                 <div className="activity-card">
                   <span className="activity-icon">💬</span>
                   <div className="activity-content">
                     <span className="activity-value">89</span>
-                    <span className="activity-label">AI 응답</span>
+                    <span className="activity-label">{t('dashboard.aiResponses')}</span>
                   </div>
                 </div>
                 <div className="activity-card">
                   <span className="activity-icon">⏱️</span>
                   <div className="activity-content">
                     <span className="activity-value">1.2s</span>
-                    <span className="activity-label">평균 응답</span>
+                    <span className="activity-label">{t('dashboard.avgResponse')}</span>
                   </div>
                 </div>
               </div>

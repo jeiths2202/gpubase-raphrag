@@ -1,5 +1,6 @@
 {
   "title": "Admin Dashboard",
+  "menu": "Admin",
   "users": "Users",
   "system": "System",
   "logs": "Logs",

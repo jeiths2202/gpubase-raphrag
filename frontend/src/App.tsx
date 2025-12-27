@@ -9,12 +9,25 @@ import KnowledgeApp from './pages/KnowledgeApp';
 import { useAuthStore } from './store/authStore';
 import { usePreferencesStore, initializeThemeListener } from './store/preferencesStore';
 import { I18nProvider } from './i18n/I18nContext';
+import { useTranslation } from './hooks/useTranslation';
 import { GOOGLE_CLIENT_ID } from './config/constants';
+
+// Check if Google OAuth is configured
+const isGoogleConfigured = !!GOOGLE_CLIENT_ID;
+
+// Conditional wrapper for Google OAuth
+const GoogleOAuthWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  if (isGoogleConfigured) {
+    return <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>{children}</GoogleOAuthProvider>;
+  }
+  return <>{children}</>;
+};
 
 // Protected Route component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, checkAuth } = useAuthStore();
   const { loadPreferences } = usePreferencesStore();
+  const { t } = useTranslation();
   const [isChecking, setIsChecking] = React.useState(true);
 
   useEffect(() => {
@@ -41,7 +54,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
       }}>
         <div style={{ textAlign: 'center' }}>
           <div className="loading" style={{ fontSize: '24px', marginBottom: '16px' }}>
-            Loading...
+            {t('common.loading')}
           </div>
         </div>
       </div>
@@ -74,7 +87,7 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+    <GoogleOAuthWrapper>
       <I18nProvider>
         <BrowserRouter>
           <Routes>
@@ -133,7 +146,7 @@ const App: React.FC = () => {
         </Routes>
         </BrowserRouter>
       </I18nProvider>
-    </GoogleOAuthProvider>
+    </GoogleOAuthWrapper>
   );
 };
 

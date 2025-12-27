@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { mindmapApi } from '../services/api';
+import { useTranslation } from '../hooks/useTranslation';
 import type { MindmapNode, QueryNodeResponse, NodeDetailResponse } from '../types/mindmap';
 
 interface NodePanelProps {
@@ -15,6 +16,7 @@ const NodePanel: React.FC<NodePanelProps> = ({
   onClose,
   onExpand,
 }) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'info' | 'query' | 'related'>('info');
   const [question, setQuestion] = useState('');
   const [queryResult, setQueryResult] = useState<QueryNodeResponse | null>(null);
@@ -434,7 +436,7 @@ const NodePanel: React.FC<NodePanelProps> = ({
                 }}
                 className="loading"
               >
-                Loading...
+                {t('common.loading')}
               </div>
             ) : nodeDetail?.connected_nodes && nodeDetail.connected_nodes.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
