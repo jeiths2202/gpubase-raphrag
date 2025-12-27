@@ -51,6 +51,15 @@
     "fileAttach": "Attach file",
     "pasteText": "Paste text"
   },
+  "clipboard": {
+    "image": "Image",
+    "text": "Text",
+    "add": "Add",
+    "processing": "Processing...",
+    "pastedText": "Pasted Text",
+    "pastedImage": "Pasted Image",
+    "preview": "Preview"
+  },
   "external": {
     "title": "External Resource Connection",
     "description": "Connect external service documents to prioritize them in queries.",

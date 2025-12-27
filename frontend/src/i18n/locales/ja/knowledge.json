@@ -51,6 +51,15 @@
     "fileAttach": "ファイル添付",
     "pasteText": "テキスト貼り付け"
   },
+  "clipboard": {
+    "image": "画像",
+    "text": "テキスト",
+    "add": "追加",
+    "processing": "処理中...",
+    "pastedText": "貼り付けたテキスト",
+    "pastedImage": "貼り付けた画像",
+    "preview": "プレビュー"
+  },
   "external": {
     "title": "外部リソース接続",
     "description": "外部サービスのドキュメントを接続すると、質問時に優先的に参照されます。",

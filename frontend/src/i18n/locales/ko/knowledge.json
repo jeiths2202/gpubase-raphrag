@@ -51,6 +51,15 @@
     "fileAttach": "파일 첨부",
     "pasteText": "텍스트 붙여넣기"
   },
+  "clipboard": {
+    "image": "이미지",
+    "text": "텍스트",
+    "add": "추가",
+    "processing": "처리 중...",
+    "pastedText": "붙여넣은 텍스트",
+    "pastedImage": "붙여넣은 이미지",
+    "preview": "미리보기"
+  },
   "external": {
     "title": "외부 리소스 연결",
     "description": "외부 서비스의 문서를 연결하면 질문 시 우선적으로 참조합니다.",

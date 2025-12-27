@@ -288,6 +288,14 @@ const KnowledgeApp: React.FC = () => {
   const [uploadingSessionDoc, setUploadingSessionDoc] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
+  // Clipboard paste state
+  const [clipboardContent, setClipboardContent] = useState<{
+    type: 'image' | 'text' | null;
+    data: string | null;  // base64 for image, text content for text
+    mimeType: string | null;
+    preview: string | null;
+  }>({ type: null, data: null, mimeType: null, preview: null });
+
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -717,7 +725,7 @@ const KnowledgeApp: React.FC = () => {
       const formData = new FormData();
       formData.append('session_id', sessionId);
       formData.append('content', pasteContent);
-      formData.append('title', pasteTitle || 'Pasted Text');
+      formData.append('title', pasteTitle || t('knowledge.clipboard.pastedText' as keyof import('../i18n/types').TranslationKeys));
 
       const res = await fetch(`${API_BASE}/session-documents/paste`, {
         method: 'POST',
@@ -743,6 +751,109 @@ const KnowledgeApp: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to paste session text:', error);
+    } finally {
+      setUploadingSessionDoc(false);
+    }
+  };
+
+  // Clipboard paste handler with content type detection
+  const handleClipboardPaste = async (e: React.ClipboardEvent) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) return;
+
+    // Check for image content first
+    const items = clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+
+      // Image detection
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const base64 = event.target?.result as string;
+            setClipboardContent({
+              type: 'image',
+              data: base64,
+              mimeType: item.type,
+              preview: base64
+            });
+          };
+          reader.readAsDataURL(file);
+        }
+        return;
+      }
+    }
+
+    // Text detection (text/plain or text/html)
+    const htmlContent = clipboardData.getData('text/html');
+    const plainContent = clipboardData.getData('text/plain');
+
+    if (htmlContent || plainContent) {
+      // Only show preview for substantial text (> 100 chars)
+      const textContent = plainContent || htmlContent;
+      if (textContent.length > 100) {
+        e.preventDefault();
+        setClipboardContent({
+          type: 'text',
+          data: textContent,
+          mimeType: htmlContent ? 'text/html' : 'text/plain',
+          preview: textContent.slice(0, 300) + (textContent.length > 300 ? '...' : '')
+        });
+      }
+      // For short text, let it pass through to input normally
+    }
+  };
+
+  // Clear clipboard content
+  const clearClipboardContent = () => {
+    setClipboardContent({ type: null, data: null, mimeType: null, preview: null });
+  };
+
+  // Add clipboard content to session
+  const addClipboardToSession = async () => {
+    if (!clipboardContent.data) return;
+
+    setUploadingSessionDoc(true);
+    try {
+      if (clipboardContent.type === 'image') {
+        // Convert base64 to blob and upload
+        const response = await fetch(clipboardContent.data);
+        const blob = await response.blob();
+        const file = new File([blob], `pasted_image_${Date.now()}.png`, { type: clipboardContent.mimeType || 'image/png' });
+        await uploadSessionFile(file);
+      } else if (clipboardContent.type === 'text') {
+        // Upload as text
+        const formData = new FormData();
+        formData.append('session_id', sessionId);
+        formData.append('content', clipboardContent.data);
+        formData.append('title', `${t('knowledge.clipboard.pastedText' as keyof import('../i18n/types').TranslationKeys)} ${new Date().toLocaleTimeString()}`);
+
+        const res = await fetch(`${API_BASE}/session-documents/paste`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          },
+          body: formData
+        });
+
+        const data = await res.json();
+        if (data.status === 'success') {
+          setSessionDocuments(prev => [...prev, {
+            id: data.data.document_id,
+            filename: data.data.filename,
+            status: 'processing',
+            chunk_count: 0,
+            word_count: data.data.word_count || 0
+          }]);
+          pollSessionDocumentStatus(data.data.document_id);
+        }
+      }
+      clearClipboardContent();
+    } catch (error) {
+      console.error('Failed to add clipboard content:', error);
     } finally {
       setUploadingSessionDoc(false);
     }
@@ -2082,9 +2193,8 @@ const KnowledgeApp: React.FC = () => {
                   </div>
                 )}
 
-                {/* Upload Buttons */}
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {/* + Button for External Resources */}
+                {/* External Resources Button */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                   <button
                     onClick={() => setShowExternalModal(true)}
                     style={{
@@ -2111,41 +2221,127 @@ const KnowledgeApp: React.FC = () => {
                   >
                     ➕ {t('knowledge.external.button' as keyof import('../i18n/types').TranslationKeys)}
                   </button>
-                  <label style={{
-                    ...tabStyle(false),
-                    cursor: uploadingSessionDoc ? 'not-allowed' : 'pointer',
-                    fontSize: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    opacity: uploadingSessionDoc ? 0.5 : 1
-                  }}>
-                    📎 {t('knowledge.upload.fileAttach')}
-                    <input
-                      type="file"
-                      style={{ display: 'none' }}
-                      accept=".pdf,.txt,.md,.docx,.png,.jpg,.jpeg"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) uploadSessionFile(file);
-                        e.target.value = '';
-                      }}
-                      disabled={uploadingSessionDoc}
-                    />
-                  </label>
-                  <button
-                    onClick={() => setShowPasteModal(true)}
-                    style={{ ...tabStyle(false), fontSize: '12px' }}
-                    disabled={uploadingSessionDoc}
-                  >
-                    📝 {t('knowledge.upload.pasteText')}
-                  </button>
                   {uploadingSessionDoc && (
-                    <span style={{ color: themeColors.textSecondary, fontSize: '12px', alignSelf: 'center' }}>
-                      처리 중...
+                    <span style={{ color: themeColors.textSecondary, fontSize: '12px' }}>
+                      {t('knowledge.clipboard.processing' as keyof import('../i18n/types').TranslationKeys)}
                     </span>
                   )}
                 </div>
+
+                {/* Clipboard Content Preview */}
+                {clipboardContent.type && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '12px',
+                      padding: '12px 16px',
+                      background: clipboardContent.type === 'image'
+                        ? 'rgba(155, 89, 182, 0.15)'
+                        : 'rgba(52, 152, 219, 0.15)',
+                      border: clipboardContent.type === 'image'
+                        ? '1px solid rgba(155, 89, 182, 0.4)'
+                        : '1px solid rgba(52, 152, 219, 0.4)',
+                      borderRadius: '8px'
+                    }}
+                  >
+                    {/* Content Type Icon */}
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '8px',
+                      background: clipboardContent.type === 'image'
+                        ? 'rgba(155, 89, 182, 0.3)'
+                        : 'rgba(52, 152, 219, 0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '24px',
+                      flexShrink: 0
+                    }}>
+                      {clipboardContent.type === 'image' ? '🖼️' : '📄'}
+                    </div>
+
+                    {/* Preview Content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <span style={{
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: clipboardContent.type === 'image' ? '#9B59B6' : '#3498DB',
+                          textTransform: 'uppercase'
+                        }}>
+                          {clipboardContent.type === 'image' ? t('knowledge.clipboard.image' as keyof import('../i18n/types').TranslationKeys) : t('knowledge.clipboard.text' as keyof import('../i18n/types').TranslationKeys)} • {clipboardContent.mimeType}
+                        </span>
+                      </div>
+
+                      {clipboardContent.type === 'image' ? (
+                        <img
+                          src={clipboardContent.preview || ''}
+                          alt={t('knowledge.clipboard.preview' as keyof import('../i18n/types').TranslationKeys)}
+                          style={{
+                            maxWidth: '200px',
+                            maxHeight: '120px',
+                            borderRadius: '4px',
+                            objectFit: 'contain'
+                          }}
+                        />
+                      ) : (
+                        <div style={{
+                          fontSize: '13px',
+                          color: themeColors.textSecondary,
+                          lineHeight: 1.4,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: 'vertical'
+                        }}>
+                          {clipboardContent.preview}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                      <button
+                        onClick={addClipboardToSession}
+                        disabled={uploadingSessionDoc}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '6px',
+                          fontWeight: 500,
+                          fontSize: '13px',
+                          cursor: uploadingSessionDoc ? 'not-allowed' : 'pointer',
+                          background: 'rgba(46, 204, 113, 0.9)',
+                          border: '1px solid #2ECC71',
+                          color: '#fff',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        ✓ {t('knowledge.clipboard.add' as keyof import('../i18n/types').TranslationKeys)}
+                      </button>
+                      <button
+                        onClick={clearClipboardContent}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          background: 'rgba(231, 76, 60, 0.15)',
+                          border: '1px solid rgba(231, 76, 60, 0.4)',
+                          color: '#E74C3C',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
 
                 {/* Message Input */}
                 <div style={{ display: 'flex', gap: '12px' }}>
@@ -2154,6 +2350,7 @@ const KnowledgeApp: React.FC = () => {
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    onPaste={handleClipboardPaste}
                     placeholder={t('knowledge.chat.inputPlaceholder')}
                     style={{
                       flex: 1,
