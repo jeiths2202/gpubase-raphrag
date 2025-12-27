@@ -58,7 +58,7 @@ type TabType = 'users' | 'tokens';
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user, accessToken, logout } = useAuthStore();
+  const { user, logout } = useAuthStore();
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('users');
@@ -91,8 +91,8 @@ const AdminDashboard: React.FC = () => {
       }
 
       const response = await fetch(`${API_BASE_URL}/admin/users?${params}`, {
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       });
@@ -110,13 +110,13 @@ const AdminDashboard: React.FC = () => {
     } catch {
       setError('사용자 목록을 불러오는데 실패했습니다.');
     }
-  }, [accessToken, currentPage, searchQuery]);
+  }, [currentPage, searchQuery]);
 
   const fetchStats = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/admin/stats`, {
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       });
@@ -128,27 +128,27 @@ const AdminDashboard: React.FC = () => {
     } catch {
       console.error('Failed to fetch stats');
     }
-  }, [accessToken]);
+  }, []);
 
   const fetchTokenStats = useCallback(async () => {
     setIsLoadingTokens(true);
     try {
       const [overviewRes, userStatsRes, dailyRes] = await Promise.all([
         fetch(`${API_BASE_URL}/admin/tokens/overview`, {
+          credentials: 'include',
           headers: {
-            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
         }),
         fetch(`${API_BASE_URL}/admin/tokens/users`, {
+          credentials: 'include',
           headers: {
-            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
         }),
         fetch(`${API_BASE_URL}/admin/tokens/daily?days=7`, {
+          credentials: 'include',
           headers: {
-            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
         }),
@@ -168,7 +168,7 @@ const AdminDashboard: React.FC = () => {
     } finally {
       setIsLoadingTokens(false);
     }
-  }, [accessToken]);
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -183,8 +183,8 @@ const AdminDashboard: React.FC = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/toggle-active`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       });
@@ -202,8 +202,8 @@ const AdminDashboard: React.FC = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(updates),
@@ -226,8 +226,8 @@ const AdminDashboard: React.FC = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
         method: 'DELETE',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       });

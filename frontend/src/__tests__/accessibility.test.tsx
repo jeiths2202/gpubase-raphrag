@@ -4,7 +4,7 @@
  * Tests for WCAG 2.1 AA compliance across theme/language combinations
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 // Color utilities for contrast checking
 const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {

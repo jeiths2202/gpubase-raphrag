@@ -54,7 +54,7 @@ const mockMatchMedia = (prefersDark: boolean = false) => {
       onchange: null,
       addListener: vi.fn(),
       removeListener: vi.fn(),
-      addEventListener: (event: string, cb: (e: MediaQueryListEvent) => void) => {
+      addEventListener: (_event: string, cb: (e: MediaQueryListEvent) => void) => {
         listeners.push(cb);
       },
       removeEventListener: vi.fn(),

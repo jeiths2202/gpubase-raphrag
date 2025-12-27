@@ -57,13 +57,6 @@ interface Notification {
   read: boolean;
 }
 
-interface QuickActionConfig {
-  id: string;
-  icon: string;
-  route: string;
-  color: string;
-}
-
 // ─────────────────────────────────────────────────────────────
 // Environment Configuration
 // ─────────────────────────────────────────────────────────────
@@ -279,7 +272,7 @@ const MainDashboard: React.FC = () => {
 
   // Helper to translate source names
   const getSourceName = (nameKey: string) => {
-    const key = `dashboard.sources.${nameKey}`;
+    const key = `dashboard.sources.${nameKey}` as keyof import('../i18n/types').TranslationKeys;
     const translated = t(key);
     return translated !== key ? translated : nameKey;
   };
@@ -300,8 +293,8 @@ const MainDashboard: React.FC = () => {
   // Generate translated quick actions
   const quickActions = QUICK_ACTIONS_CONFIG.map(action => ({
     ...action,
-    label: t(`dashboard.actions.${action.id}.label`),
-    description: t(`dashboard.actions.${action.id}.description`),
+    label: t(`dashboard.actions.${action.id}.label` as keyof import('../i18n/types').TranslationKeys),
+    description: t(`dashboard.actions.${action.id}.description` as keyof import('../i18n/types').TranslationKeys),
   }));
 
   const unreadCount = notifications.filter(n => !n.read).length;
