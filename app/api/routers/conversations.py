@@ -31,7 +31,6 @@ from ..models.conversation import (
     SummaryResponse,
 )
 from ..core.deps import get_current_user
-from ..models.auth import UserInfo
 from ..services.conversation_service import get_conversation_service, ConversationService
 
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
@@ -54,7 +53,7 @@ async def list_conversations(
     skip: int = Query(0, ge=0, description="건너뛸 항목 수"),
     limit: int = Query(50, ge=1, le=100, description="최대 조회 수"),
     include_archived: bool = Query(False, description="보관된 대화 포함 여부"),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):
     """
@@ -65,14 +64,14 @@ async def list_conversations(
     request_id = _generate_request_id()
 
     conversations = await service.list_conversations(
-        user_id=current_user.id,
+        user_id=current_user["id"],
         skip=skip,
         limit=limit,
         include_archived=include_archived
     )
 
     # Get total count for pagination
-    stats = await service.get_user_stats(current_user.id)
+    stats = await service.get_user_stats(current_user["id"])
     total = stats["active_conversations"]
     if include_archived:
         total += stats["archived_conversations"]
@@ -98,7 +97,7 @@ async def list_conversations(
 )
 async def create_conversation(
     request: ConversationCreate,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):
     """
@@ -109,7 +108,7 @@ async def create_conversation(
     request_id = _generate_request_id()
 
     conversation = await service.create_conversation(
-        user_id=current_user.id,
+        user_id=current_user["id"],
         title=request.title,
         project_id=request.project_id,
         session_id=request.session_id,
@@ -121,7 +120,7 @@ async def create_conversation(
     # Get full detail
     detail = await service.get_conversation(
         conversation_id=conversation.id,
-        user_id=current_user.id,
+        user_id=current_user["id"],
         include_messages=True
     )
 
@@ -140,7 +139,7 @@ async def create_conversation(
 async def get_conversation(
     conversation_id: str,
     include_messages: bool = Query(True, description="메시지 포함 여부"),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):
     """
@@ -152,7 +151,7 @@ async def get_conversation(
 
     detail = await service.get_conversation(
         conversation_id=conversation_id,
-        user_id=current_user.id,
+        user_id=current_user["id"],
         include_messages=include_messages
     )
 
@@ -180,7 +179,7 @@ async def get_conversation(
 async def update_conversation(
     conversation_id: str,
     request: ConversationUpdate,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):
     """
@@ -192,7 +191,7 @@ async def update_conversation(
 
     updated = await service.update_conversation(
         conversation_id=conversation_id,
-        user_id=current_user.id,
+        user_id=current_user["id"],
         update=request
     )
 
@@ -208,7 +207,7 @@ async def update_conversation(
     # Get full detail
     detail = await service.get_conversation(
         conversation_id=conversation_id,
-        user_id=current_user.id,
+        user_id=current_user["id"],
         include_messages=True
     )
 
@@ -227,7 +226,7 @@ async def update_conversation(
 async def delete_conversation(
     conversation_id: str,
     hard_delete: bool = Query(False, description="영구 삭제 여부"),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):
     """
@@ -240,7 +239,7 @@ async def delete_conversation(
 
     deleted = await service.delete_conversation(
         conversation_id=conversation_id,
-        user_id=current_user.id,
+        user_id=current_user["id"],
         hard_delete=hard_delete
     )
 
@@ -271,7 +270,7 @@ async def delete_conversation(
 async def add_message(
     conversation_id: str,
     request: MessageCreate,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):
     """
@@ -288,7 +287,7 @@ async def add_message(
         if request.role.value == "user":
             message = await service.add_user_message(
                 conversation_id=conversation_id,
-                user_id=current_user.id,
+                user_id=current_user["id"],
                 content=request.content,
                 parent_message_id=str(request.parent_message_id) if request.parent_message_id else None
             )
@@ -352,7 +351,7 @@ async def get_messages(
     include_inactive_branches: bool = Query(False, description="비활성 브랜치 포함"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):
     """
@@ -366,7 +365,7 @@ async def get_messages(
     # Verify access
     detail = await service.get_conversation(
         conversation_id=conversation_id,
-        user_id=current_user.id,
+        user_id=current_user["id"],
         include_messages=False
     )
 
@@ -407,7 +406,7 @@ async def add_feedback(
     conversation_id: str,
     message_id: str,
     request: MessageFeedback,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):
     """
@@ -420,7 +419,7 @@ async def add_feedback(
     # Verify conversation access
     detail = await service.get_conversation(
         conversation_id=conversation_id,
-        user_id=current_user.id,
+        user_id=current_user["id"],
         include_messages=False
     )
 
@@ -435,7 +434,7 @@ async def add_feedback(
 
     success = await service.add_feedback(
         message_id=message_id,
-        user_id=current_user.id,
+        user_id=current_user["id"],
         score=request.score,
         text=request.text
     )
@@ -466,7 +465,7 @@ async def add_feedback(
 async def regenerate_response(
     conversation_id: str,
     request: RegenerateRequest,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):
     """
@@ -514,7 +513,7 @@ async def regenerate_response(
 async def fork_conversation(
     conversation_id: str,
     request: ConversationForkRequest,
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):
     """
@@ -529,7 +528,7 @@ async def fork_conversation(
         fork_response = await service.fork_conversation(
             conversation_id=conversation_id,
             from_message_id=str(request.from_message_id),
-            user_id=current_user.id,
+            user_id=current_user["id"],
             new_title=request.new_title
         )
 
@@ -559,7 +558,7 @@ async def fork_conversation(
 async def search_conversations(
     q: str = Query(..., min_length=2, max_length=200, description="검색어"),
     limit: int = Query(20, ge=1, le=100),
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):
     """
@@ -571,7 +570,7 @@ async def search_conversations(
     request_id = _generate_request_id()
 
     results = await service.search_conversations(
-        user_id=current_user.id,
+        user_id=current_user["id"],
         query=q,
         limit=limit
     )
@@ -599,7 +598,7 @@ async def search_conversations(
     description="사용자의 대화 통계를 조회합니다."
 )
 async def get_stats(
-    current_user: UserInfo = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):
     """
@@ -609,7 +608,7 @@ async def get_stats(
     """
     request_id = _generate_request_id()
 
-    stats = await service.get_user_stats(current_user.id)
+    stats = await service.get_user_stats(current_user["id"])
 
     return SuccessResponse(
         data=stats,
