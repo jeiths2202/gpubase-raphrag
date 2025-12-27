@@ -14,7 +14,8 @@ from ..repositories import (
     NoteRepository,
     ProjectRepository,
     UserRepository,
-    HistoryRepository
+    HistoryRepository,
+    ConversationRepository,
 )
 
 # Port interfaces
@@ -31,7 +32,8 @@ from ..infrastructure.memory import (
     MemoryNoteRepository,
     MemoryProjectRepository,
     MemoryUserRepository,
-    MemoryHistoryRepository
+    MemoryHistoryRepository,
+    MemoryConversationRepository,
 )
 
 # Adapter implementations
@@ -154,6 +156,7 @@ class Container:
         self.register_factory("project_repository", self._create_project_repository)
         self.register_factory("user_repository", self._create_user_repository)
         self.register_factory("history_repository", self._create_history_repository)
+        self.register_factory("conversation_repository", self._create_conversation_repository)
 
         # Ports/Adapters
         self.register_factory("llm", self._create_llm_adapter)
@@ -224,6 +227,17 @@ class Container:
             logger.warning("PostgreSQL repository not implemented, using memory")
 
         return MemoryHistoryRepository()
+
+    def _create_conversation_repository(self) -> ConversationRepository:
+        """Create conversation repository"""
+        if self.config.environment == Environment.PRODUCTION and self.config.postgres_url:
+            # PostgreSQL implementation available
+            logger.info("Using PostgreSQL conversation repository")
+            # TODO: Initialize PostgreSQL repository with connection pool
+            # For now, fall back to memory
+            logger.warning("PostgreSQL conversation repository connection not configured, using memory")
+
+        return MemoryConversationRepository()
 
     # ==================== Adapter Factories ====================
 

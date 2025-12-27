@@ -7,6 +7,7 @@ from .note_repository import MemoryNoteRepository
 from .project_repository import MemoryProjectRepository
 from .user_repository import MemoryUserRepository
 from .history_repository import MemoryHistoryRepository
+from .conversation_repository import MemoryConversationRepository
 
 __all__ = [
     "MemoryDocumentRepository",
@@ -14,4 +15,5 @@ __all__ = [
     "MemoryProjectRepository",
     "MemoryUserRepository",
     "MemoryHistoryRepository",
+    "MemoryConversationRepository",
 ]

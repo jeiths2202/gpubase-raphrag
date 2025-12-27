@@ -101,6 +101,7 @@ async def get_admin_user(
 from ..services.rag_service import RAGService, get_rag_service as _get_rag_service
 from ..services.stats_service import StatsService, get_stats_service as _get_stats_service
 from ..services.health_service import HealthService, get_health_service as _get_health_service
+from ..services.conversation_service import ConversationService, get_conversation_service as _get_conversation_service
 
 
 class DocumentService:
@@ -1386,6 +1387,11 @@ def get_token_stats_service() -> TokenStatsService:
 def get_health_service() -> HealthService:
     """Get health service instance (real implementation)"""
     return _get_health_service()
+
+
+def get_conversation_service() -> ConversationService:
+    """Get conversation service instance (real implementation)"""
+    return _get_conversation_service()
 
 
 # ==================== Content Generation Service ====================

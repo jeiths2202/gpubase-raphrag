@@ -8,6 +8,12 @@ from .note_repository import NoteRepository, NoteEntity
 from .project_repository import ProjectRepository, ProjectEntity
 from .user_repository import UserRepository, UserEntity
 from .history_repository import HistoryRepository, HistoryEntity
+from .conversation_repository import (
+    ConversationRepository,
+    ConversationEntity,
+    MessageEntity,
+    SummaryEntity,
+)
 
 __all__ = [
     "BaseRepository",
@@ -23,4 +29,8 @@ __all__ = [
     "UserEntity",
     "HistoryRepository",
     "HistoryEntity",
+    "ConversationRepository",
+    "ConversationEntity",
+    "MessageEntity",
+    "SummaryEntity",
 ]
