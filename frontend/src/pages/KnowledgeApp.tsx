@@ -28,7 +28,7 @@ import {
 } from '../features/knowledge/types';
 import { API_BASE } from '../features/knowledge/constants';
 import { getThemeColors, getCardStyle, getTabStyle, getInputStyle } from '../features/knowledge/utils';
-import { SettingsPopup, ChatTab, DocumentsTab, WebSourcesTab, NotesTab, ContentTab, ProjectsTab, KnowledgeGraphTab, KnowledgeArticlesTab, KnowledgeSidebar } from '../features/knowledge/components';
+import { SettingsPopup, ChatTab, WebSourcesTab, NotesTab, ContentTab, ProjectsTab, KnowledgeGraphTab, KnowledgeArticlesTab, KnowledgeSidebar } from '../features/knowledge/components';
 
 const KnowledgeApp: React.FC = () => {
   const navigate = useNavigate();
@@ -142,17 +142,18 @@ const KnowledgeApp: React.FC = () => {
   const { language, setLanguage, t } = useTranslation();
 
   // Upload state
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadSettings, setUploadSettings] = useState({
-    processingMode: 'text_only' as 'text_only' | 'vlm_enhanced' | 'multimodal' | 'ocr',
-    enableVLM: false,
-    extractTables: true,
-    extractImages: true,
-    language: 'auto'
-  });
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  // Upload state (unused - Documents tab removed)
+  // const [showUploadModal, setShowUploadModal] = useState(false);
+  // const [uploadFile, setUploadFile] = useState<File | null>(null);
+  // const [uploadSettings, setUploadSettings] = useState({
+  //   processingMode: 'text_only' as 'text_only' | 'vlm_enhanced' | 'multimodal' | 'ocr',
+  //   enableVLM: false,
+  //   extractTables: true,
+  //   extractImages: true,
+  //   language: 'auto'
+  // });
+  // const [uploading, setUploading] = useState(false);
+  // const [uploadProgress, setUploadProgress] = useState<string | null>(null);
 
   // Web Source state
   const [webSources, setWebSources] = useState<WebSource[]>([]);
@@ -708,8 +709,12 @@ const KnowledgeApp: React.FC = () => {
     e.preventDefault();
     setDragOver(false);
     const files = e.dataTransfer.files;
+
+    // Process multiple files sequentially
     if (files.length > 0) {
-      await uploadSessionFile(files[0]);
+      for (let i = 0; i < files.length; i++) {
+        await uploadSessionFile(files[i]);
+      }
     }
   };
 
@@ -1297,7 +1302,8 @@ const KnowledgeApp: React.FC = () => {
     return key ? t(`knowledge.knowledgeBase.status.${key}` as keyof import('../i18n/types').TranslationKeys) : status;
   };
 
-  // Upload document
+  // Upload document functions (unused - Documents tab removed)
+  /*
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -1306,87 +1312,13 @@ const KnowledgeApp: React.FC = () => {
   };
 
   const uploadDocument = async () => {
-    if (!uploadFile) return;
-
-    setUploading(true);
-    setUploadProgress('Uploading...');
-
-    try {
-      const formData = new FormData();
-      formData.append('file', uploadFile);
-      formData.append('processing_mode', uploadSettings.processingMode);
-      formData.append('enable_vlm', String(uploadSettings.enableVLM));
-      formData.append('extract_tables', String(uploadSettings.extractTables));
-      formData.append('extract_images', String(uploadSettings.extractImages));
-      formData.append('language', uploadSettings.language);
-
-      const token = localStorage.getItem('access_token');
-      const res = await fetch(`${API_BASE}/documents`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setUploadProgress('Processing document...');
-        // Poll for status
-        pollUploadStatus(data.data.task_id);
-      } else {
-        setUploadProgress(`Error: ${data.detail?.message || 'Upload failed'}`);
-        setTimeout(() => {
-          setUploadProgress(null);
-          setUploading(false);
-        }, 3000);
-      }
-    } catch (error) {
-      console.error('Upload failed:', error);
-      setUploadProgress('Upload failed');
-      setTimeout(() => {
-        setUploadProgress(null);
-        setUploading(false);
-      }, 3000);
-    }
+    // ... upload logic ...
   };
 
   const pollUploadStatus = async (taskId: string) => {
-    const checkStatus = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/documents/upload-status/${taskId}`, {
-          headers: getAuthHeaders()
-        });
-        const data = await res.json();
-
-        if (data.data?.status === 'ready') {
-          setUploadProgress('Document processed successfully!');
-          setShowUploadModal(false);
-          setUploadFile(null);
-          loadDocuments();
-          setTimeout(() => {
-            setUploadProgress(null);
-            setUploading(false);
-          }, 2000);
-        } else if (data.data?.status === 'error') {
-          setUploadProgress('Processing failed');
-          setTimeout(() => {
-            setUploadProgress(null);
-            setUploading(false);
-          }, 3000);
-        } else {
-          const progress = data.data?.progress?.overall_progress || 0;
-          const step = data.data?.progress?.current_step || 'processing';
-          setUploadProgress(`${step}... ${progress}%`);
-          setTimeout(checkStatus, 1500);
-        }
-      } catch {
-        setTimeout(checkStatus, 2000);
-      }
-    };
-    checkStatus();
+    // ... polling logic ...
   };
+  */
 
   // Theme toggle
   const toggleTheme = () => {
@@ -1491,29 +1423,6 @@ const KnowledgeApp: React.FC = () => {
               cardStyle={cardStyle}
               tabStyle={tabStyle}
               inputStyle={inputStyle}
-              t={t}
-            />
-          )}
-
-          {/* Documents Tab */}
-          {activeTab === 'documents' && (
-            <DocumentsTab
-              documents={documents}
-              selectedDocuments={selectedDocuments}
-              showUploadModal={showUploadModal}
-              uploadFile={uploadFile}
-              uploadSettings={uploadSettings}
-              uploading={uploading}
-              uploadProgress={uploadProgress}
-              setSelectedDocuments={setSelectedDocuments}
-              setShowUploadModal={setShowUploadModal}
-              setUploadFile={setUploadFile}
-              setUploadSettings={setUploadSettings}
-              handleFileSelect={handleFileSelect}
-              uploadDocument={uploadDocument}
-              themeColors={themeColors}
-              cardStyle={cardStyle}
-              tabStyle={tabStyle}
               t={t}
             />
           )}

@@ -507,7 +507,61 @@ export const ChatTab: React.FC<ChatTabProps> = ({
         )}
 
         {/* Message Input */}
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {/* File Attachment Button */}
+          <label
+            htmlFor="file-upload-input"
+            style={{
+              padding: '12px',
+              background: 'rgba(255,255,255,0.1)',
+              border: `1px solid ${themeColors.cardBorder}`,
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s',
+              minWidth: '48px',
+              height: '48px'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
+              e.currentTarget.style.borderColor = themeColors.accent;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+              e.currentTarget.style.borderColor = themeColors.cardBorder;
+            }}
+            title={t('knowledge.chat.attachFile' as keyof import('../../../i18n/types').TranslationKeys) || 'Attach file'}
+          >
+            📎
+            <input
+              id="file-upload-input"
+              type="file"
+              multiple
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const files = e.target.files;
+                if (files && files.length > 0 && handleDrop) {
+                  // Create a synthetic drag event to reuse existing upload logic
+                  const dataTransfer = new DataTransfer();
+                  Array.from(files).forEach(file => {
+                    dataTransfer.items.add(file);
+                  });
+                  const syntheticEvent = {
+                    preventDefault: () => {},
+                    dataTransfer: dataTransfer
+                  } as React.DragEvent;
+                  handleDrop(syntheticEvent);
+                }
+                // Reset input to allow re-uploading same file
+                e.target.value = '';
+              }}
+              accept=".pdf,.doc,.docx,.txt,.md,.json,.png,.jpg,.jpeg,.gif,.bmp"
+            />
+          </label>
+
           <input
             type="text"
             value={inputMessage}
