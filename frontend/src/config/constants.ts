@@ -37,14 +37,27 @@ export const UI_DEFAULTS = {
 };
 
 // Corporate email domains for SSO
-export const CORP_EMAIL_DOMAINS = [
-  'company.com',
-  'company.co.kr',
-  // Add your corporate domains here
-];
+// Environment variable format: comma-separated domains or "*" to allow all
+// Example: "company.com,company.co.kr" or "*"
+const CORP_EMAIL_DOMAINS_ENV = import.meta.env.VITE_CORP_EMAIL_DOMAINS || '*';
+
+// Parse corporate email domains from environment
+export const CORP_EMAIL_DOMAINS =
+  CORP_EMAIL_DOMAINS_ENV === '*'
+    ? [] // Empty array means allow all domains
+    : CORP_EMAIL_DOMAINS_ENV.split(',').map((d: string) => d.trim().toLowerCase()).filter(Boolean);
 
 // Check if email is corporate
 export const isCorpEmail = (email: string): boolean => {
+  if (!email || !email.includes('@')) {
+    return false;
+  }
+
+  // Allow all emails if wildcard is set (development mode)
+  if (CORP_EMAIL_DOMAINS_ENV === '*') {
+    return true;
+  }
+
   const domain = email.split('@')[1]?.toLowerCase();
   return CORP_EMAIL_DOMAINS.includes(domain);
 };

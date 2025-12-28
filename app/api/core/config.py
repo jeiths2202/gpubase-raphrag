@@ -119,6 +119,39 @@ class APISettings(BaseSettings):
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
 
+    # Corporate SSO
+    CORP_EMAIL_DOMAINS: str = Field(
+        default="*",
+        description="Comma-separated list of corporate email domains for SSO (use '*' to allow all)"
+    )
+
+    @field_validator('CORP_EMAIL_DOMAINS')
+    @classmethod
+    def parse_corp_domains(cls, v: str) -> str:
+        """Parse and validate corporate email domains"""
+        if not v or v.strip() == "":
+            return "*"  # Allow all if not configured
+        return v.strip()
+
+    def get_corp_domains_list(self) -> List[str]:
+        """Get corporate domains as a list"""
+        if self.CORP_EMAIL_DOMAINS == "*":
+            return []  # Empty list means allow all
+        return [d.strip().lower() for d in self.CORP_EMAIL_DOMAINS.split(",") if d.strip()]
+
+    def is_corp_email(self, email: str) -> bool:
+        """Check if email is from a corporate domain"""
+        if not email or "@" not in email:
+            return False
+
+        # Allow all if wildcard is set
+        if self.CORP_EMAIL_DOMAINS == "*":
+            return True
+
+        domain = email.split("@")[1].lower()
+        corp_domains = self.get_corp_domains_list()
+        return domain in corp_domains
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

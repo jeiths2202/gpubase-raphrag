@@ -88,8 +88,8 @@ async def login(
         category=LogCategory.SECURITY,
         extra_data={
             "username": request.username,
-            "user_id": user.id,
-            "role": user.role,
+            "user_id": user.get("id") if isinstance(user, dict) else user.id,
+            "role": user.get("role") if isinstance(user, dict) else user.role,
             "request_id": request_id
         }
     )

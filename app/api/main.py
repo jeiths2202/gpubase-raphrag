@@ -27,7 +27,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace
 
 
 # Initialize mode manager and logger
@@ -48,6 +48,17 @@ async def lifespan(app: FastAPI):
             "All required secrets validated successfully",
             category=LogCategory.BUSINESS
         )
+
+        # DEBUG: Log CORP_EMAIL_DOMAINS configuration to file
+        with open('startup_debug.log', 'w') as f:
+            f.write(f"{'='*60}\n")
+            f.write(f"[STARTUP DEBUG] CORP_EMAIL_DOMAINS configuration:\n")
+            f.write(f"  Raw value: '{api_settings.CORP_EMAIL_DOMAINS}'\n")
+            f.write(f"  Parsed list: {api_settings.get_corp_domains_list()}\n")
+            f.write(f"  Test email: ijshin@tmaxsoft.co.jp\n")
+            f.write(f"  is_corp_email: {api_settings.is_corp_email('ijshin@tmaxsoft.co.jp')}\n")
+            f.write(f"{'='*60}\n")
+
     except SecretValidationError as e:
         logger.error(
             f"FATAL: Secrets validation failed: {e}",
@@ -132,6 +143,7 @@ app = FastAPI(
 - **Enterprise API**: 엔터프라이즈 기능 (MFA, 감사 로그, 문서 버전 관리, 협업)
 - **System API**: 시스템 상태 모니터링 (GPU, AI 모델, 인덱스, Neo4j)
 - **Vision API**: Vision LLM 기반 시각적 문서 분석 및 질의 (차트, 다이어그램, 이미지 인식)
+- **Workspace API**: 멀티메뉴 작업공간 상태 영구 저장 및 복원 (채팅, 문서, 마인드맵, 지식그래프 등)
 
 ### 기술 스택
 - **LLM**: Nemotron Nano 9B, Mistral NeMo 12B
@@ -234,6 +246,7 @@ app.include_router(enterprise.router, prefix=API_PREFIX)
 app.include_router(system.router, prefix=API_PREFIX)
 app.include_router(preferences.router, prefix=API_PREFIX)
 app.include_router(vision.router, prefix=API_PREFIX)
+app.include_router(workspace.router, prefix=API_PREFIX)  # Persistent workspace state management
 
 
 # Root endpoint
