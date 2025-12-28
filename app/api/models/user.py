@@ -44,10 +44,12 @@ class UserStatus(str, Enum):
     """
     User account status
 
+    PENDING: Email verification pending (new users)
     ACTIVE: Normal operation
     INACTIVE: Temporarily disabled (no login)
     SUSPENDED: Temporary ban (violated policy)
     """
+    PENDING = "pending"
     ACTIVE = "active"
     INACTIVE = "inactive"
     SUSPENDED = "suspended"

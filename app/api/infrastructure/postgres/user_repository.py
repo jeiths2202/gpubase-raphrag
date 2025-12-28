@@ -385,7 +385,12 @@ class PostgresUserRepository:
                     metadata_json
                 )
 
-        return AuthIdentity(**dict(row))
+        row_dict = dict(row)
+        # BUGFIX: Parse provider_metadata if it's a JSON string (asyncpg JSONB handling)
+        if row_dict.get('provider_metadata') and isinstance(row_dict['provider_metadata'], str):
+            import json
+            row_dict['provider_metadata'] = json.loads(row_dict['provider_metadata'])
+        return AuthIdentity(**row_dict)
 
     async def get_auth_identity(
         self,
@@ -408,7 +413,12 @@ class PostgresUserRepository:
             row = await conn.fetchrow(query, provider.value, provider_user_id)
 
         if row:
-            return AuthIdentity(**dict(row))
+            row_dict = dict(row)
+            # BUGFIX: Parse provider_metadata if it's a JSON string (asyncpg JSONB handling)
+            if row_dict.get('provider_metadata') and isinstance(row_dict['provider_metadata'], str):
+                import json
+                row_dict['provider_metadata'] = json.loads(row_dict['provider_metadata'])
+            return AuthIdentity(**row_dict)
         return None
 
     async def update_auth_identity_last_used(
@@ -527,23 +537,39 @@ class PostgresUserRepository:
         - Password hash never logged or exposed
         - Status check after authentication
         """
+        logger.debug(f"[REPO] authenticate_local called with id_or_email={id_or_email}")
+
         # Try to find user by email first, then by username if email not found
         user = await self.get_user_by_email(id_or_email)
 
-        if not user or not user.password_hash:
+        if not user:
+            logger.debug(f"[REPO] User not found for email: {id_or_email}")
             # User not found or has no password (SSO-only user)
             # Still compute a fake hash to prevent timing attacks
             self.verify_password(password, "$2b$12$fake.hash.for.timing.protection")
             return None
 
+        if not user.password_hash:
+            logger.debug(f"[REPO] User {user.id} has no password_hash (SSO-only user)")
+            # Still compute a fake hash to prevent timing attacks
+            self.verify_password(password, "$2b$12$fake.hash.for.timing.protection")
+            return None
+
+        logger.debug(f"[REPO] User found: {user.id}, verifying password...")
+
         # Verify password
-        if not self.verify_password(password, user.password_hash):
+        password_valid = self.verify_password(password, user.password_hash)
+        logger.debug(f"[REPO] Password verification result: {password_valid}")
+
+        if not password_valid:
             return None
 
         # Check user status
         if user.status != UserStatus.ACTIVE:
             logger.warning(f"Authentication attempt for inactive user: {user.id}")
             return None
+
+        logger.debug(f"[REPO] Authentication successful, updating last_login")
 
         # Update last login
         await self.update_last_login(user.id)

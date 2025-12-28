@@ -73,6 +73,7 @@ async def get_current_user(
         return {
             "id": user_id,
             "username": payload.get("username", ""),
+            "email": payload.get("email"),
             "role": payload.get("role", "user"),
             "is_active": True
         }
@@ -1448,8 +1449,10 @@ def get_settings_service() -> SettingsService:
     return SettingsService()
 
 
-def get_auth_service() -> AuthService:
-    return AuthService()
+async def get_auth_service():
+    """Get PostgreSQL-backed AuthService singleton instance."""
+    from ..services.auth_service import get_auth_service as _get_auth_service
+    return await _get_auth_service()
 
 
 def get_token_stats_service() -> TokenStatsService:

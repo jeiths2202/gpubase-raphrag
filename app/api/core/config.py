@@ -133,6 +133,18 @@ class APISettings(BaseSettings):
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
 
+    # Email/SMTP Configuration
+    SMTP_ENABLED: bool = Field(default=False, description="Enable SMTP email sending")
+    SMTP_HOST: str = Field(default="localhost", description="SMTP server host")
+    SMTP_PORT: int = Field(default=25, description="SMTP server port (25 for local relay, 587 for TLS)")
+    SMTP_USE_TLS: bool = Field(default=False, description="Use TLS for SMTP connection")
+    SMTP_USERNAME: Optional[str] = Field(default=None, description="SMTP username (optional)")
+    SMTP_PASSWORD: Optional[str] = Field(default=None, description="SMTP password (optional)")
+    SMTP_FROM_EMAIL: str = Field(default="noreply@kms.local", description="Sender email address")
+    SMTP_FROM_NAME: str = Field(default="KMS System", description="Sender name")
+    USE_SENDMAIL: bool = Field(default=True, description="Use Linux sendmail if available")
+    SENDMAIL_PATH: str = Field(default="/usr/sbin/sendmail", description="Path to sendmail binary")
+
     # Corporate SSO
     CORP_EMAIL_DOMAINS: str = Field(
         default="*",

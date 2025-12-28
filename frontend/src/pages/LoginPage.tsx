@@ -77,7 +77,13 @@ const LoginPage: React.FC = () => {
 
     const success = await login(userId, password);
     if (success) {
-      navigate('/');
+      // Route based on user role
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser?.role === 'user') {
+        navigate('/knowledge');
+      } else {
+        navigate('/');
+      }
     }
   };
 
@@ -542,7 +548,7 @@ const LoginPage: React.FC = () => {
           justify-content: center;
           padding: 20px;
           position: relative;
-          overflow: hidden;
+          overflow-y: auto;
           background: var(--gradient-bg);
         }
 

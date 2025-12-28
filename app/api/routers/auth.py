@@ -232,6 +232,7 @@ async def get_current_user_info(
         data=UserInfo(
             id=current_user["id"],
             username=current_user["username"],
+            email=current_user.get("email"),
             role=current_user.get("role", "user"),
             is_active=current_user.get("is_active", True)
         ),
@@ -389,11 +390,11 @@ async def google_auth(
             "expires_in": api_settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             "refresh_token": refresh_token,
             "user": {
-                "id": user["id"],
-                "email": user["email"],
-                "name": user.get("name", user.get("username")),
-                "picture": user.get("picture"),
-                "role": user.get("role", "user")
+                "id": str(user.id),
+                "email": user.email,
+                "name": user.display_name or user.email.split('@')[0],
+                "picture": None,  # TODO: Extract from provider_metadata in auth_identities
+                "role": user.role.value if hasattr(user.role, 'value') else str(user.role)
             }
         },
         meta=MetaInfo(request_id=request_id)

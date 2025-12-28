@@ -12,6 +12,7 @@ DESIGN:
 3. Workspace ownership based on internal user_id
 """
 import logging
+import random
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from uuid import UUID
@@ -22,6 +23,10 @@ from ..core.config import api_settings
 from ..models.user import (
     User,
     UserPublic,
+    UserUpdate,
+    UserCreate,
+    UserStatus,
+    UserRole,
     AuthProvider,
     LocalLoginRequest,
 )
@@ -35,7 +40,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 FIXED_ADMIN_ID = "admin"
 FIXED_ADMIN_PASSWORD = "SecureAdm1nP@ss2024!"
-FIXED_ADMIN_EMAIL = "admin@localhost"
+FIXED_ADMIN_EMAIL = "admin@example.com"  # Valid email format for Pydantic validation
 
 
 class AuthService:
@@ -65,6 +70,7 @@ class AuthService:
         """
         self.user_repo = user_repository
         self._sso_tokens: Dict[str, Dict[str, Any]] = {}  # In-memory SSO token cache
+        self._verification_codes: Dict[str, Dict[str, Any]] = {}  # In-memory verification code storage
 
     # ==================== Bootstrap ====================
 
@@ -100,6 +106,25 @@ class AuthService:
 
     # ==================== Local Authentication ====================
 
+    async def authenticate(
+        self,
+        username: str,
+        password: str
+    ) -> Optional[User]:
+        """
+        General authentication method (wrapper for authenticate_local).
+
+        This method exists for compatibility with the auth router.
+
+        Args:
+            username: User ID or email
+            password: Plain text password
+
+        Returns:
+            User if authentication successful, None otherwise
+        """
+        return await self.authenticate_local(username, password)
+
     async def authenticate_local(
         self,
         id_or_email: str,
@@ -119,8 +144,11 @@ class AuthService:
         Returns:
             User if authentication successful, None otherwise
         """
+        logger.debug(f"authenticate_local called with id_or_email={id_or_email}")
+
         # Special handling for fixed admin ID
         if id_or_email == FIXED_ADMIN_ID:
+            logger.debug(f"Special admin ID detected, using email: {FIXED_ADMIN_EMAIL}")
             # Try admin email
             user = await self.user_repo.authenticate_local(
                 FIXED_ADMIN_EMAIL,
@@ -129,8 +157,11 @@ class AuthService:
             if user:
                 logger.info(f"✓ Admin login successful: {user.id}")
                 return user
+            else:
+                logger.warning(f"✗ Admin authentication failed for email: {FIXED_ADMIN_EMAIL}")
 
         # Standard email-based authentication
+        logger.debug(f"Attempting standard email-based authentication for: {id_or_email}")
         user = await self.user_repo.authenticate_local(id_or_email, password)
 
         if user:
@@ -407,6 +438,269 @@ class AuthService:
             created_at=user.created_at,
             last_login_at=user.last_login_at
         )
+
+    # ==================== User Registration ====================
+
+    def _generate_verification_code(self) -> str:
+        """Generate a 6-digit verification code"""
+        return str(random.randint(100000, 999999))
+
+    async def _send_verification_email(self, email: str, code: str) -> None:
+        """
+        Send verification code via email.
+
+        Methods (in priority order):
+        1. Linux sendmail (production)
+        2. SMTP server (fallback)
+        3. Console log (development)
+        """
+        import subprocess
+        import shutil
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+
+        # Email content
+        subject = "KMS Email Verification Code"
+        body_html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                <h1 style="color: white; margin: 0;">Email Verification</h1>
+            </div>
+            <div style="padding: 30px; background: #f9fafb; border-radius: 0 0 10px 10px;">
+                <p style="font-size: 16px; color: #374151;">Your verification code is:</p>
+                <div style="background: white; border: 2px solid #6366f1; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
+                    <h2 style="font-size: 32px; letter-spacing: 8px; color: #6366f1; margin: 0;">{code}</h2>
+                </div>
+                <p style="font-size: 14px; color: #6b7280;">This code will expire in 5 minutes.</p>
+                <p style="font-size: 14px; color: #6b7280;">If you didn't request this code, please ignore this email.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        body_text = f"""
+KMS Email Verification
+
+Your verification code is: {code}
+
+This code will expire in 5 minutes.
+If you didn't request this code, please ignore this email.
+        """
+
+        # Log for development
+        logger.info(f"📧 ========================================")
+        logger.info(f"📧 SENDING EMAIL TO: {email}")
+        logger.info(f"📧 Verification Code: {code}")
+        logger.info(f"📧 ========================================")
+
+        if not api_settings.SMTP_ENABLED:
+            logger.info("📧 SMTP_ENABLED=false, email not sent (development mode)")
+            return
+
+        # Method 1: Try Linux sendmail
+        if api_settings.USE_SENDMAIL and shutil.which(api_settings.SENDMAIL_PATH):
+            try:
+                # Construct email message for sendmail
+                message = f"""From: {api_settings.SMTP_FROM_NAME} <{api_settings.SMTP_FROM_EMAIL}>
+To: {email}
+Subject: {subject}
+Content-Type: text/html; charset=utf-8
+
+{body_html}
+"""
+                # Call sendmail
+                process = subprocess.run(
+                    [api_settings.SENDMAIL_PATH, "-t", "-oi"],
+                    input=message.encode('utf-8'),
+                    capture_output=True,
+                    timeout=10
+                )
+
+                if process.returncode == 0:
+                    logger.info(f"✅ Email sent via sendmail to {email}")
+                    return
+                else:
+                    logger.warning(f"⚠️ Sendmail failed: {process.stderr.decode()}")
+
+            except Exception as e:
+                logger.warning(f"⚠️ Sendmail error: {e}")
+
+        # Method 2: Try SMTP
+        try:
+            # Create message
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = subject
+            msg['From'] = f"{api_settings.SMTP_FROM_NAME} <{api_settings.SMTP_FROM_EMAIL}>"
+            msg['To'] = email
+
+            # Attach both text and HTML versions
+            part1 = MIMEText(body_text, 'plain', 'utf-8')
+            part2 = MIMEText(body_html, 'html', 'utf-8')
+            msg.attach(part1)
+            msg.attach(part2)
+
+            # Send via SMTP
+            with smtplib.SMTP(api_settings.SMTP_HOST, api_settings.SMTP_PORT, timeout=10) as smtp:
+                if api_settings.SMTP_USE_TLS:
+                    smtp.starttls()
+
+                if api_settings.SMTP_USERNAME and api_settings.SMTP_PASSWORD:
+                    smtp.login(api_settings.SMTP_USERNAME, api_settings.SMTP_PASSWORD)
+
+                smtp.send_message(msg)
+                logger.info(f"✅ Email sent via SMTP to {email}")
+                return
+
+        except Exception as e:
+            logger.error(f"❌ SMTP email failed: {e}")
+            logger.info(f"📧 Email not sent, but code logged above for development")
+
+    async def register_user(
+        self,
+        user_id: str,
+        email: str,
+        password: str
+    ) -> Dict[str, Any]:
+        """
+        Register a new user and send verification code.
+
+        Args:
+            user_id: User ID for login
+            email: User email address
+            password: Plain text password (will be hashed)
+
+        Returns:
+            Success dict or error dict
+        """
+        # Check if email already exists
+        existing_user = await self.user_repo.get_user_by_email(email)
+        if existing_user:
+            return {
+                "error": "EMAIL_ALREADY_EXISTS",
+                "message": "이미 등록된 이메일입니다."
+            }
+
+        # Create user
+        try:
+            user_create = UserCreate(
+                email=email,
+                display_name=user_id,  # Use user_id as display_name
+                password=password,
+                role=UserRole.USER,
+                status=UserStatus.PENDING  # User needs email verification before activation
+            )
+
+            user = await self.user_repo.create_user(user_create)
+
+            # Generate and store verification code
+            verification_code = self._generate_verification_code()
+            self._verification_codes[email] = {
+                "code": verification_code,
+                "created_at": datetime.utcnow(),
+                "user_id": str(user.id)
+            }
+
+            # Send verification email
+            await self._send_verification_email(email, verification_code)
+
+            # Clean up old verification codes
+            cutoff_time = datetime.utcnow() - timedelta(minutes=5)
+            self._verification_codes = {
+                k: v for k, v in self._verification_codes.items()
+                if v["created_at"] > cutoff_time
+            }
+
+            logger.info(f"✓ New user registered: {email}")
+
+            return {
+                "user_id": user_id,
+                "email": email,
+                "message": "회원가입이 완료되었습니다."
+            }
+
+        except Exception as e:
+            logger.error(f"User registration error: {e}")
+            return {
+                "error": "REGISTRATION_FAILED",
+                "message": "회원가입에 실패했습니다."
+            }
+
+    async def verify_email(
+        self,
+        email: str,
+        code: str
+    ) -> Dict[str, Any]:
+        """
+        Verify email with code and activate user in PostgreSQL.
+
+        Args:
+            email: User email
+            code: Verification code sent via email
+
+        Returns:
+            Success dict with user object or error dict
+        """
+        # Get user by email
+        user = await self.user_repo.get_user_by_email(email)
+
+        if not user:
+            return {
+                "error": "USER_NOT_FOUND",
+                "message": "사용자를 찾을 수 없습니다."
+            }
+
+        # Check if verification code exists
+        if email not in self._verification_codes:
+            return {
+                "error": "CODE_NOT_FOUND",
+                "message": "인증 코드가 존재하지 않습니다. 회원가입을 다시 진행해주세요."
+            }
+
+        stored_code_data = self._verification_codes[email]
+
+        # Check if code matches
+        if stored_code_data["code"] != code:
+            return {
+                "error": "INVALID_CODE",
+                "message": "인증 코드가 일치하지 않습니다."
+            }
+
+        # Check if code is expired (5 minutes)
+        if datetime.utcnow() - stored_code_data["created_at"] > timedelta(minutes=5):
+            del self._verification_codes[email]
+            return {
+                "error": "CODE_EXPIRED",
+                "message": "인증 코드가 만료되었습니다. 회원가입을 다시 진행해주세요."
+            }
+
+        # Update user status to ACTIVE in PostgreSQL
+        try:
+            user_update = UserUpdate(status=UserStatus.ACTIVE)
+            updated_user = await self.user_repo.update_user(user.id, user_update)
+
+            if not updated_user:
+                return {
+                    "error": "UPDATE_FAILED",
+                    "message": "사용자 상태 업데이트에 실패했습니다."
+                }
+
+            # Remove verification code after successful verification
+            del self._verification_codes[email]
+
+            logger.info(f"✓ Email verified and user activated in DB: {email}")
+
+            return {
+                "user": updated_user
+            }
+
+        except Exception as e:
+            logger.error(f"Email verification error: {e}")
+            return {
+                "error": "VERIFICATION_FAILED",
+                "message": "이메일 인증에 실패했습니다."
+            }
 
 
 # ==================== Factory Function ====================
