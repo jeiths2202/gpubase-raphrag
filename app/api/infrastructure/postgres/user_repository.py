@@ -395,12 +395,19 @@ class PostgresUserRepository:
     async def get_auth_identity(
         self,
         provider: AuthProvider,
-        provider_user_id: str
+        provider_user_id: str,
+        *,
+        conn: Optional[Connection] = None
     ) -> Optional[AuthIdentity]:
         """
         Get authentication identity by provider and provider_user_id.
 
         This is the CRITICAL method for external authentication resolution.
+
+        Args:
+            provider: Authentication provider (SSO, Google, etc.)
+            provider_user_id: External provider's user identifier
+            conn: Optional existing connection (for transactions)
         """
         query = """
             SELECT id, user_id, provider, provider_user_id, email,
@@ -409,8 +416,11 @@ class PostgresUserRepository:
             WHERE provider = $1 AND provider_user_id = $2
         """
 
-        async with self._pool.acquire() as conn:
+        if conn:
             row = await conn.fetchrow(query, provider.value, provider_user_id)
+        else:
+            async with self._pool.acquire() as conn:
+                row = await conn.fetchrow(query, provider.value, provider_user_id)
 
         if row:
             row_dict = dict(row)
@@ -476,8 +486,8 @@ class PostgresUserRepository:
         """
         async with self._pool.acquire() as conn:
             async with conn.transaction():
-                # Step 1: Check existing auth_identity
-                auth_identity = await self.get_auth_identity(provider, provider_user_id)
+                # Step 1: Check existing auth_identity (within transaction)
+                auth_identity = await self.get_auth_identity(provider, provider_user_id, conn=conn)
 
                 if auth_identity:
                     # Existing user found
@@ -487,20 +497,19 @@ class PostgresUserRepository:
                     user = await self.get_user_by_id(auth_identity.user_id)
                     return user, False
 
-                # Step 2: Create new user
-                user_create = UserCreate(
-                    email=email,
-                    display_name=display_name or email.split('@')[0],
-                    role=UserRole.USER,  # Default role for external auth users
-                    status=UserStatus.ACTIVE,
-                    password=None  # No password for SSO/OAuth users
-                )
+                # Step 2: Check if user already exists with this email
+                user = await self.get_user_by_email(email)
 
-                try:
+                if not user:
+                    # Create new user
+                    user_create = UserCreate(
+                        email=email,
+                        display_name=display_name or email.split('@')[0],
+                        role=UserRole.USER,  # Default role for external auth users
+                        status=UserStatus.ACTIVE,
+                        password=None  # No password for SSO/OAuth users
+                    )
                     user = await self.create_user(user_create, conn=conn)
-                except asyncpg.UniqueViolationError:
-                    # Email already exists, get existing user
-                    user = await self.get_user_by_email(email)
 
                 # Step 3: Create auth_identity mapping
                 auth_identity_create = AuthIdentityCreate(

@@ -275,7 +275,7 @@ class AuthService:
 
         return {
             "success": True,
-            "sso_url": f"/auth/sso/callback?token={token}",
+            "sso_url": f"/api/v1/auth/sso/callback?token={token}",
             "message": "SSO 인증 페이지로 이동합니다."
         }
 

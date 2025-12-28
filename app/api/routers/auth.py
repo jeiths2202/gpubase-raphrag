@@ -11,6 +11,7 @@ SECURITY FEATURES:
 import uuid
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer
 
 from ..models.base import SuccessResponse, MetaInfo
@@ -510,12 +511,12 @@ async def sso_callback(
     user = result["user"]
 
     logger.info(
-        f"SSO callback successful for user: {user['username']}",
+        f"SSO callback successful for user: {user.display_name}",
         category=LogCategory.SECURITY,
         extra_data={
-            "username": user["username"],
-            "email": user["email"],
-            "user_id": user["id"],
+            "username": user.display_name,
+            "email": user.email,
+            "user_id": str(user.id),
             "request_id": request_id
         }
     )
@@ -524,15 +525,24 @@ async def sso_callback(
     access_token = await auth_service.create_access_token(user)
     refresh_token = await auth_service.create_refresh_token(user)
 
-    # SECURITY: Set HttpOnly cookies for browser clients
-    set_auth_cookies(response, access_token, refresh_token)
+    # Redirect to appropriate page based on user role
+    redirect_url = "/knowledge" if user.role == "user" else "/"
 
-    return SuccessResponse(
-        data=TokenResponse(
-            access_token=access_token,
-            token_type="bearer",
-            expires_in=api_settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            refresh_token=refresh_token
-        ),
-        meta=MetaInfo(request_id=request_id)
+    logger.info(
+        f"Redirecting user to: {redirect_url}",
+        category=LogCategory.SECURITY,
+        extra_data={
+            "user_id": str(user.id),
+            "role": user.role,
+            "redirect_url": redirect_url,
+            "request_id": request_id
+        }
     )
+
+    # Create redirect response
+    redirect_response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
+
+    # SECURITY: Set HttpOnly cookies on redirect response
+    set_auth_cookies(redirect_response, access_token, refresh_token)
+
+    return redirect_response
