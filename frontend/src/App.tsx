@@ -6,6 +6,7 @@ import MainDashboard from './pages/MainDashboard';
 import MindmapApp from './pages/MindmapApp';
 import AdminDashboard from './pages/AdminDashboard';
 import KnowledgeApp from './pages/KnowledgeApp';
+import SSOCallbackPage from './pages/SSOCallbackPage';
 import { useAuthStore } from './store/authStore';
 import { usePreferencesStore, initializeThemeListener } from './store/preferencesStore';
 import { I18nProvider } from './i18n/I18nContext';
@@ -100,6 +101,9 @@ const App: React.FC = () => {
               </PublicRoute>
             }
           />
+
+          {/* SSO callback route - public route for handling SSO authentication */}
+          <Route path="/auth/sso/callback" element={<SSOCallbackPage />} />
 
           {/* Protected routes */}
           <Route

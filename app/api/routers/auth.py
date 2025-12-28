@@ -29,9 +29,11 @@ from ..models.auth import (
 from ..core.deps import get_current_user, get_auth_service
 from ..core.config import api_settings
 from ..core.cookie_auth import set_auth_cookies, clear_auth_cookies, get_refresh_token_from_cookie
+from ..core.logging_framework import get_logger, LogCategory
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 security = HTTPBearer()
+logger = get_logger("kms.auth")
 
 
 @router.post(
@@ -55,6 +57,12 @@ async def login(
     """
     request_id = f"req_{uuid.uuid4().hex[:12]}"
 
+    logger.info(
+        f"Login attempt for user: {request.username}",
+        category=LogCategory.SECURITY,
+        extra_data={"username": request.username, "request_id": request_id}
+    )
+
     # Authenticate user
     user = await auth_service.authenticate(
         username=request.username,
@@ -62,6 +70,11 @@ async def login(
     )
 
     if not user:
+        logger.warning(
+            f"Login failed for user: {request.username} - Invalid credentials",
+            category=LogCategory.SECURITY,
+            extra_data={"username": request.username, "request_id": request_id}
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
@@ -70,12 +83,29 @@ async def login(
             }
         )
 
+    logger.info(
+        f"Login successful for user: {request.username}",
+        category=LogCategory.SECURITY,
+        extra_data={
+            "username": request.username,
+            "user_id": user.id,
+            "role": user.role,
+            "request_id": request_id
+        }
+    )
+
     # Generate tokens
     access_token = await auth_service.create_access_token(user)
     refresh_token = await auth_service.create_refresh_token(user)
 
     # SECURITY: Set HttpOnly cookies for browser clients
     set_auth_cookies(response, access_token, refresh_token)
+
+    logger.debug(
+        f"Tokens generated for user: {request.username}",
+        category=LogCategory.SECURITY,
+        extra_data={"username": request.username, "request_id": request_id}
+    )
 
     return SuccessResponse(
         data=TokenResponse(
@@ -383,9 +413,31 @@ async def initiate_sso(
     """Initiate corporate SSO login"""
     request_id = f"req_{uuid.uuid4().hex[:12]}"
 
+    logger.info(
+        f"SSO initiation attempt for email: {request.email}",
+        category=LogCategory.SECURITY,
+        extra_data={
+            "email": request.email,
+            "request_id": request_id,
+            "corp_domains_config": api_settings.CORP_EMAIL_DOMAINS,
+            "corp_domains_list": api_settings.get_corp_domains_list(),
+            "is_corp_check": api_settings.is_corp_email(request.email)
+        }
+    )
+
     result = await auth_service.initiate_sso(email=request.email)
 
     if "error" in result:
+        logger.warning(
+            f"SSO initiation failed for email: {request.email}",
+            category=LogCategory.SECURITY,
+            extra_data={
+                "email": request.email,
+                "error": result["error"],
+                "message": result["message"],
+                "request_id": request_id
+            }
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -394,10 +446,92 @@ async def initiate_sso(
             }
         )
 
+    logger.info(
+        f"SSO initiated successfully for email: {request.email}",
+        category=LogCategory.SECURITY,
+        extra_data={
+            "email": request.email,
+            "sso_url": result["sso_url"],
+            "request_id": request_id
+        }
+    )
+
     return SuccessResponse(
         data={
             "sso_url": result["sso_url"],
             "message": result["message"]
         },
+        meta=MetaInfo(request_id=request_id)
+    )
+
+
+@router.get(
+    "/sso/callback",
+    response_model=SuccessResponse[TokenResponse],
+    summary="SSO 콜백 처리",
+    description="SSO 인증 완료 후 콜백을 처리하고 JWT 토큰을 발급합니다."
+)
+async def sso_callback(
+    token: str,
+    response: Response,
+    auth_service = Depends(get_auth_service)
+):
+    """Handle SSO callback and issue JWT tokens"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    logger.info(
+        f"SSO callback received with token",
+        category=LogCategory.SECURITY,
+        extra_data={"token": token[:8] + "...", "request_id": request_id}
+    )
+
+    # Handle SSO callback
+    result = await auth_service.handle_sso_callback(token)
+
+    if "error" in result:
+        logger.warning(
+            f"SSO callback failed: {result['error']}",
+            category=LogCategory.SECURITY,
+            extra_data={
+                "error": result["error"],
+                "message": result["message"],
+                "request_id": request_id
+            }
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": result["error"],
+                "message": result["message"]
+            }
+        )
+
+    user = result["user"]
+
+    logger.info(
+        f"SSO callback successful for user: {user['username']}",
+        category=LogCategory.SECURITY,
+        extra_data={
+            "username": user["username"],
+            "email": user["email"],
+            "user_id": user["id"],
+            "request_id": request_id
+        }
+    )
+
+    # Generate tokens
+    access_token = await auth_service.create_access_token(user)
+    refresh_token = await auth_service.create_refresh_token(user)
+
+    # SECURITY: Set HttpOnly cookies for browser clients
+    set_auth_cookies(response, access_token, refresh_token)
+
+    return SuccessResponse(
+        data=TokenResponse(
+            access_token=access_token,
+            token_type="bearer",
+            expires_in=api_settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            refresh_token=refresh_token
+        ),
         meta=MetaInfo(request_id=request_id)
     )
