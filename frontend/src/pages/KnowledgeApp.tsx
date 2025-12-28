@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -29,10 +29,28 @@ import {
 import { API_BASE } from '../features/knowledge/constants';
 import { getThemeColors, getCardStyle, getTabStyle, getInputStyle } from '../features/knowledge/utils';
 import { SettingsPopup, ChatTab, WebSourcesTab, NotesTab, ContentTab, ProjectsTab, KnowledgeGraphTab, KnowledgeArticlesTab, KnowledgeSidebar } from '../features/knowledge/components';
+import { useWorkspaceStore, useChatMessages, useMessagesLoading, useActiveConversation } from '../store/workspaceStore';
 
 const KnowledgeApp: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+
+  // Workspace store for message persistence
+  const workspaceStore = useWorkspaceStore();
+  const workspaceMessages = useChatMessages();
+  const isLoadingMessages = useMessagesLoading();
+  const activeConversationId = useActiveConversation();
+
+  // Convert workspace store Message[] to ChatMessage[] for ChatTab component
+  const messages = useMemo<ChatMessage[]>(() => {
+    return workspaceMessages.map(msg => ({
+      id: msg.id,
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content,
+      sources: msg.context_documents || [],
+      timestamp: new Date(msg.created_at)
+    }));
+  }, [workspaceMessages]);
 
   // Theme state
   const [theme, setTheme] = useState<ThemeType>('dark');
@@ -62,12 +80,13 @@ const KnowledgeApp: React.FC = () => {
   const [contentData, setContentData] = useState<any>(null);
   const [generatingContent, setGeneratingContent] = useState(false);
 
-  // Chat state
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // Chat state (messages now managed by workspace store)
+  // const [messages, setMessages] = useState<ChatMessage[]>([]); // ❌ REMOVED - using workspace store
   const [inputMessage, setInputMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingQuery, setIsLoadingQuery] = useState(false);
+  const isLoading = isLoadingQuery || isLoadingMessages; // Combined loading state
   const [_conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedConversation, _setSelectedConversation] = useState<string | null>(null);
+  // selectedConversation replaced with activeConversationId from workspace store
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
 
   // Session document state (for chat context)
@@ -191,6 +210,47 @@ const KnowledgeApp: React.FC = () => {
     loadNotifications();
     loadUnreadCount();
   }, []);
+
+  // Initialize workspace and load conversation state on mount
+  useEffect(() => {
+    const initWorkspace = async () => {
+      console.log('🚀 Initializing workspace...');
+      await workspaceStore.initializeWorkspace();
+
+      // Get active conversation ID from store AFTER initialization
+      const currentActiveId = useWorkspaceStore.getState().menuStates.chat?.activeConversationId;
+      console.log(`🔍 Current active conversation ID after init: ${currentActiveId}`);
+
+      if (currentActiveId) {
+        // Try to load messages for active conversation
+        console.log(`📥 Restoring conversation ${currentActiveId} with messages...`);
+        try {
+          await workspaceStore.loadConversationMessages(currentActiveId);
+          console.log(`✅ Successfully loaded messages for conversation ${currentActiveId}`);
+          return; // Success - conversation exists
+        } catch (error) {
+          console.warn(`⚠️ Failed to load conversation ${currentActiveId}, creating new one:`, error);
+          // Conversation doesn't exist - fall through to create new one
+        }
+      } else {
+        console.log('ℹ️ No active conversation found, will create new one');
+      }
+
+      // No active conversation OR failed to load - create a new one
+      try {
+        console.log('🔨 About to create new conversation...');
+        const newConversation = await workspaceStore.createConversation('New Chat');
+        workspaceStore.setActiveConversation(newConversation.id);
+      } catch (error) {
+        console.error('Failed to create initial conversation:', error);
+      }
+    };
+
+    initWorkspace();
+  }, []); // Only run on mount
+
+  // Note: Message loading is handled by workspaceStore.setActiveConversation()
+  // which is called during initialization and when conversation changes
 
   useEffect(() => {
     if (activeTab === 'notes') {
@@ -401,18 +461,25 @@ const KnowledgeApp: React.FC = () => {
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
 
-    const userMessage: ChatMessage = {
-      id: `msg_${Date.now()}`,
-      role: 'user',
-      content: inputMessage,
-      timestamp: new Date()
-    };
+    // Ensure we have an active conversation
+    if (!activeConversationId) {
+      console.error('❌ No active conversation - cannot send message');
+      return;
+    }
 
-    setMessages(prev => [...prev, userMessage]);
+    console.log(`📤 Sending message to conversation: ${activeConversationId}`);
+
+    const userMessageContent = inputMessage;
     setInputMessage('');
-    setIsLoading(true);
+    setIsLoadingQuery(true);
 
     try {
+      // Add user message to conversation via workspace store (optimistic update + persistence)
+      await workspaceStore.addMessageToConversation(
+        activeConversationId,
+        'user',
+        userMessageContent
+      );
       // Get current UI language for RAG response synchronization
       const uiLanguage = localStorage.getItem('kms-preferences')
         ? JSON.parse(localStorage.getItem('kms-preferences') || '{}').state?.language || 'auto'
@@ -422,13 +489,13 @@ const KnowledgeApp: React.FC = () => {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          question: inputMessage,
+          question: userMessageContent,
           strategy: 'auto',
           language: uiLanguage, // Sync RAG response with UI language
           options: {
             top_k: 5,
             include_sources: true,
-            conversation_id: selectedConversation,
+            conversation_id: activeConversationId,
             // Session document options for priority RAG
             session_id: sessionDocuments.length > 0 ? sessionId : undefined,
             use_session_docs: sessionDocuments.length > 0,
@@ -439,36 +506,39 @@ const KnowledgeApp: React.FC = () => {
 
       const data = await res.json();
 
-      const assistantMessage: ChatMessage = {
-        id: `msg_${Date.now()}_resp`,
-        role: 'assistant',
-        content: data.data?.answer || t('knowledge.chat.noResponse' as keyof import('../i18n/types').TranslationKeys),
-        sources: data.data?.sources?.map((s: any) => ({
-          doc_name: s.doc_name,
-          chunk_index: s.chunk_index,
-          content: s.content,
-          score: s.score,
-          is_session_doc: s.is_session_doc,
-          page_number: s.page_number
-        })),
-        timestamp: new Date()
-      };
+      // Create assistant message with sources
+      const assistantContent = data.data?.answer || t('knowledge.chat.noResponse' as keyof import('../i18n/types').TranslationKeys);
+      const sources = data.data?.sources?.map((s: any) => ({
+        doc_name: s.doc_name,
+        chunk_index: s.chunk_index,
+        content: s.content,
+        score: s.score,
+        is_session_doc: s.is_session_doc,
+        page_number: s.page_number
+      }));
 
-      setMessages(prev => [...prev, assistantMessage]);
+      // Add assistant message to conversation via workspace store
+      await workspaceStore.addMessageToConversation(
+        activeConversationId,
+        'assistant',
+        assistantContent,
+        { context_documents: sources }
+      );
 
       // Generate suggested questions
-      generateSuggestedQuestions(inputMessage, data.data?.answer);
+      generateSuggestedQuestions(userMessageContent, data.data?.answer);
 
     } catch (error) {
       console.error('Failed to send message:', error);
-      setMessages(prev => [...prev, {
-        id: `msg_${Date.now()}_err`,
-        role: 'assistant',
-        content: t('knowledge.chat.errorOccurred' as keyof import('../i18n/types').TranslationKeys),
-        timestamp: new Date()
-      }]);
+
+      // Add error message to conversation
+      await workspaceStore.addMessageToConversation(
+        activeConversationId,
+        'assistant',
+        t('knowledge.chat.errorOccurred' as keyof import('../i18n/types').TranslationKeys)
+      );
     } finally {
-      setIsLoading(false);
+      setIsLoadingQuery(false);
     }
   };
 
