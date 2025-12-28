@@ -77,7 +77,13 @@ const LoginPage: React.FC = () => {
 
     const success = await login(userId, password);
     if (success) {
-      navigate('/');
+      // Route based on user role
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser?.role === 'user') {
+        navigate('/knowledge');
+      } else {
+        navigate('/');
+      }
     }
   };
 
@@ -179,11 +185,35 @@ const LoginPage: React.FC = () => {
     setLocalError(t('auth.errors.googleLoginFailed'));
   }, [t]);
 
-  const handleSSOLogin = () => {
-    if (isCorpEmail(email)) {
-      window.location.href = `/api/v1/auth/sso/initiate?email=${encodeURIComponent(email)}`;
-    } else {
+  const handleSSOLogin = async () => {
+    setLocalError('');
+    setIsSubmitting(true);
+
+    if (!isCorpEmail(email)) {
       setLocalError(t('auth.errors.invalidCorporateEmail'));
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/v1/auth/sso', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Redirect to SSO URL provided by backend
+        window.location.href = data.data.sso_url;
+      } else {
+        setLocalError(data.detail?.message || t('auth.errors.ssoInitiationFailed'));
+      }
+    } catch (error) {
+      setLocalError(t('auth.errors.networkError'));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -484,10 +514,11 @@ const LoginPage: React.FC = () => {
               <motion.button
                 type="submit"
                 className="btn-primary"
+                disabled={isSubmitting}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                {t('auth.continueWithSSO')}
+                {isSubmitting ? <span className="spinner" /> : t('auth.continueWithSSO')}
               </motion.button>
 
               <button
@@ -517,7 +548,7 @@ const LoginPage: React.FC = () => {
           justify-content: center;
           padding: 20px;
           position: relative;
-          overflow: hidden;
+          overflow-y: auto;
           background: var(--gradient-bg);
         }
 

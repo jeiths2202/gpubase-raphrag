@@ -206,7 +206,6 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
       <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {[
           { key: 'chat', labelKey: 'knowledge.sidebar.chat', icon: '💬' },
-          { key: 'documents', labelKey: 'knowledge.sidebar.documents', icon: '📄' },
           { key: 'web-sources', labelKey: 'knowledge.sidebar.webSources', icon: '🌐' },
           { key: 'notes', labelKey: 'knowledge.sidebar.notes', icon: '📝' },
           { key: 'content', labelKey: 'knowledge.sidebar.aiContent', icon: '🤖' },

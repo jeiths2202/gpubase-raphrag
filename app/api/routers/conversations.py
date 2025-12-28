@@ -13,7 +13,7 @@ import uuid
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
-from ..models.base import SuccessResponse, MetaInfo, PaginatedResponse
+from ..models.base import SuccessResponse, MetaInfo, PaginatedResponse, PaginationMeta
 from ..models.conversation import (
     ConversationCreate,
     ConversationUpdate,
@@ -79,12 +79,14 @@ async def list_conversations(
     return PaginatedResponse(
         data=conversations,
         meta=MetaInfo(request_id=request_id),
-        pagination={
-            "total": total,
-            "skip": skip,
-            "limit": limit,
-            "has_more": skip + len(conversations) < total
-        }
+        pagination=PaginationMeta(
+            page=(skip // limit) + 1,
+            limit=limit,
+            total_items=total,
+            total_pages=(total + limit - 1) // limit,  # ceiling division
+            has_next=skip + len(conversations) < total,
+            has_prev=skip > 0
+        )
     )
 
 

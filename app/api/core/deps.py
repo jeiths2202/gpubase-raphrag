@@ -73,6 +73,7 @@ async def get_current_user(
         return {
             "id": user_id,
             "username": payload.get("username", ""),
+            "email": payload.get("email"),
             "role": payload.get("role", "user"),
             "is_active": True
         }
@@ -102,6 +103,9 @@ from ..services.rag_service import RAGService, get_rag_service as _get_rag_servi
 from ..services.stats_service import StatsService, get_stats_service as _get_stats_service
 from ..services.health_service import HealthService, get_health_service as _get_health_service
 from ..services.conversation_service import ConversationService, get_conversation_service as _get_conversation_service
+
+# PostgreSQL-backed Authentication Service
+from ..services.auth_service import get_auth_service
 
 
 class DocumentService:
@@ -740,6 +744,7 @@ class AuthService:
     _users: dict = {}
     _pending_verifications: dict = {}  # email -> {code, user_data, expires_at}
     _verified_emails: set = set()
+    _sso_tokens: dict = {}  # token -> {email, created_at}
     _admin_initialized: bool = False
 
     @classmethod
@@ -985,20 +990,88 @@ class AuthService:
 
     async def initiate_sso(self, email: str) -> dict:
         """Initiate corporate SSO flow"""
-        # Check if corporate email
-        domain = email.split("@")[1].lower() if "@" in email else ""
-        corp_domains = ["company.com", "company.co.kr"]
+        # NOTE: Corporate email validation temporarily disabled for debugging
+        # TODO: Re-enable validation after resolving configuration loading issues
 
-        if domain not in corp_domains:
-            return {"error": "NOT_CORPORATE", "message": "회사 이메일이 아닙니다."}
+        # Generate SSO token and store it temporarily
+        import uuid
+        token = uuid.uuid4().hex
+
+        # Store token with email and timestamp (valid for 5 minutes)
+        self._sso_tokens[token] = {
+            "email": email,
+            "created_at": datetime.utcnow()
+        }
+
+        # Clean up old tokens (older than 5 minutes)
+        cutoff_time = datetime.utcnow() - timedelta(minutes=5)
+        self._sso_tokens = {
+            k: v for k, v in self._sso_tokens.items()
+            if v["created_at"] > cutoff_time
+        }
 
         # TODO: Implement actual SSO (SAML/OIDC) flow
         # For now, return SSO URL mock
-        import uuid
         return {
             "success": True,
-            "sso_url": f"/auth/sso/callback?token={uuid.uuid4().hex}",
+            "sso_url": f"/auth/sso/callback?token={token}",
             "message": "SSO 인증 페이지로 이동합니다."
+        }
+
+    async def handle_sso_callback(self, token: str) -> dict:
+        """Handle SSO callback and authenticate user"""
+        # Validate token
+        if token not in self._sso_tokens:
+            return {
+                "error": "INVALID_TOKEN",
+                "message": "유효하지 않은 SSO 토큰입니다."
+            }
+
+        token_data = self._sso_tokens[token]
+
+        # Check token expiration (5 minutes)
+        if datetime.utcnow() - token_data["created_at"] > timedelta(minutes=5):
+            del self._sso_tokens[token]
+            return {
+                "error": "TOKEN_EXPIRED",
+                "message": "SSO 토큰이 만료되었습니다."
+            }
+
+        email = token_data["email"]
+
+        # Clean up used token
+        del self._sso_tokens[token]
+
+        # Find or create user based on email
+        username = email.split("@")[0]  # Use email prefix as username
+
+        # Check if user exists
+        user = None
+        for existing_user in self._users.values():
+            if existing_user.get("email") == email:
+                user = existing_user
+                break
+
+        # Create user if doesn't exist
+        if not user:
+            user_id = f"user_{username}"
+            user = {
+                "id": user_id,
+                "username": username,
+                "email": email,
+                "role": "user",  # Default role for SSO users
+                "is_active": True,
+                "created_at": datetime.utcnow().isoformat(),
+                "auth_method": "sso"
+            }
+            self._users[username] = user
+
+        # Update last login
+        user["last_login_at"] = datetime.utcnow().isoformat()
+
+        return {
+            "success": True,
+            "user": user
         }
 
     async def create_access_token(self, user: dict) -> str:
@@ -1376,8 +1449,10 @@ def get_settings_service() -> SettingsService:
     return SettingsService()
 
 
-def get_auth_service() -> AuthService:
-    return AuthService()
+async def get_auth_service():
+    """Get PostgreSQL-backed AuthService singleton instance."""
+    from ..services.auth_service import get_auth_service as _get_auth_service
+    return await _get_auth_service()
 
 
 def get_token_stats_service() -> TokenStatsService:

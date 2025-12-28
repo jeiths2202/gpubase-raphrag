@@ -6,8 +6,10 @@ import MainDashboard from './pages/MainDashboard';
 import MindmapApp from './pages/MindmapApp';
 import AdminDashboard from './pages/AdminDashboard';
 import KnowledgeApp from './pages/KnowledgeApp';
+import SSOCallbackPage from './pages/SSOCallbackPage';
 import { useAuthStore } from './store/authStore';
 import { usePreferencesStore, initializeThemeListener } from './store/preferencesStore';
+import { useWorkspaceStore } from './store/workspaceStore';
 import { I18nProvider } from './i18n/I18nContext';
 import { useTranslation } from './hooks/useTranslation';
 import { GOOGLE_CLIENT_ID } from './config/constants';
@@ -27,20 +29,24 @@ const GoogleOAuthWrapper: React.FC<{ children: React.ReactNode }> = ({ children 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, checkAuth } = useAuthStore();
   const { loadPreferences } = usePreferencesStore();
+  const { initializeWorkspace } = useWorkspaceStore();
   const { t } = useTranslation();
   const [isChecking, setIsChecking] = React.useState(true);
 
   useEffect(() => {
     const verifyAuth = async () => {
       const authenticated = await checkAuth();
-      // Load user preferences from server if authenticated
+      // Load user preferences and workspace state from server if authenticated
       if (authenticated) {
-        await loadPreferences();
+        await Promise.all([
+          loadPreferences(),
+          initializeWorkspace()
+        ]);
       }
       setIsChecking(false);
     };
     verifyAuth();
-  }, [checkAuth, loadPreferences]);
+  }, [checkAuth, loadPreferences, initializeWorkspace]);
 
   if (isChecking) {
     return (
@@ -100,6 +106,9 @@ const App: React.FC = () => {
               </PublicRoute>
             }
           />
+
+          {/* SSO callback route - public route for handling SSO authentication */}
+          <Route path="/auth/sso/callback" element={<SSOCallbackPage />} />
 
           {/* Protected routes */}
           <Route

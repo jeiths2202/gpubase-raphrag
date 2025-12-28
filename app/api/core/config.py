@@ -62,6 +62,20 @@ class APISettings(BaseSettings):
         description="Allow credentials in CORS requests"
     )
 
+    # PostgreSQL Database
+    POSTGRES_HOST: str = Field(default="localhost", description="PostgreSQL host")
+    POSTGRES_PORT: int = Field(default=5432, description="PostgreSQL port")
+    POSTGRES_USER: str = Field(default="postgres", description="PostgreSQL user")
+    POSTGRES_PASSWORD: str = Field(..., description="PostgreSQL password (REQUIRED)")
+    POSTGRES_DB: str = Field(default="kms_db", description="PostgreSQL database name")
+
+    def get_postgres_dsn(self) -> str:
+        """Get PostgreSQL connection string"""
+        return (
+            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@"
+            f"{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
+
     # JWT Authentication - NO DEFAULT for secret key
     JWT_SECRET_KEY: str = Field(
         ...,  # Required, no default
@@ -118,6 +132,51 @@ class APISettings(BaseSettings):
     # Pagination
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
+
+    # Email/SMTP Configuration
+    SMTP_ENABLED: bool = Field(default=False, description="Enable SMTP email sending")
+    SMTP_HOST: str = Field(default="localhost", description="SMTP server host")
+    SMTP_PORT: int = Field(default=25, description="SMTP server port (25 for local relay, 587 for TLS)")
+    SMTP_USE_TLS: bool = Field(default=False, description="Use TLS for SMTP connection")
+    SMTP_USERNAME: Optional[str] = Field(default=None, description="SMTP username (optional)")
+    SMTP_PASSWORD: Optional[str] = Field(default=None, description="SMTP password (optional)")
+    SMTP_FROM_EMAIL: str = Field(default="noreply@kms.local", description="Sender email address")
+    SMTP_FROM_NAME: str = Field(default="KMS System", description="Sender name")
+    USE_SENDMAIL: bool = Field(default=True, description="Use Linux sendmail if available")
+    SENDMAIL_PATH: str = Field(default="/usr/sbin/sendmail", description="Path to sendmail binary")
+
+    # Corporate SSO
+    CORP_EMAIL_DOMAINS: str = Field(
+        default="*",
+        description="Comma-separated list of corporate email domains for SSO (use '*' to allow all)"
+    )
+
+    @field_validator('CORP_EMAIL_DOMAINS')
+    @classmethod
+    def parse_corp_domains(cls, v: str) -> str:
+        """Parse and validate corporate email domains"""
+        if not v or v.strip() == "":
+            return "*"  # Allow all if not configured
+        return v.strip()
+
+    def get_corp_domains_list(self) -> List[str]:
+        """Get corporate domains as a list"""
+        if self.CORP_EMAIL_DOMAINS == "*":
+            return []  # Empty list means allow all
+        return [d.strip().lower() for d in self.CORP_EMAIL_DOMAINS.split(",") if d.strip()]
+
+    def is_corp_email(self, email: str) -> bool:
+        """Check if email is from a corporate domain"""
+        if not email or "@" not in email:
+            return False
+
+        # Allow all if wildcard is set
+        if self.CORP_EMAIL_DOMAINS == "*":
+            return True
+
+        domain = email.split("@")[1].lower()
+        corp_domains = self.get_corp_domains_list()
+        return domain in corp_domains
 
     class Config:
         env_file = ".env"
