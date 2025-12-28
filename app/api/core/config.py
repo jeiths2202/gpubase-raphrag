@@ -62,6 +62,20 @@ class APISettings(BaseSettings):
         description="Allow credentials in CORS requests"
     )
 
+    # PostgreSQL Database
+    POSTGRES_HOST: str = Field(default="localhost", description="PostgreSQL host")
+    POSTGRES_PORT: int = Field(default=5432, description="PostgreSQL port")
+    POSTGRES_USER: str = Field(default="postgres", description="PostgreSQL user")
+    POSTGRES_PASSWORD: str = Field(..., description="PostgreSQL password (REQUIRED)")
+    POSTGRES_DB: str = Field(default="kms_db", description="PostgreSQL database name")
+
+    def get_postgres_dsn(self) -> str:
+        """Get PostgreSQL connection string"""
+        return (
+            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@"
+            f"{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
+
     # JWT Authentication - NO DEFAULT for secret key
     JWT_SECRET_KEY: str = Field(
         ...,  # Required, no default

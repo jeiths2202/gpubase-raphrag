@@ -103,6 +103,9 @@ from ..services.stats_service import StatsService, get_stats_service as _get_sta
 from ..services.health_service import HealthService, get_health_service as _get_health_service
 from ..services.conversation_service import ConversationService, get_conversation_service as _get_conversation_service
 
+# PostgreSQL-backed Authentication Service
+from ..services.auth_service import get_auth_service
+
 
 class DocumentService:
     """

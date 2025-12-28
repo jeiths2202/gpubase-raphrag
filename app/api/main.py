@@ -66,23 +66,26 @@ async def lifespan(app: FastAPI):
         )
         raise  # Application should not start without valid secrets
 
-    # ==================== Admin User Initialization ====================
-    # SECURITY: Initialize admin user from environment variable
-    # No hardcoded admin credentials - must be set via ADMIN_INITIAL_PASSWORD
-    from .core.deps import AuthService
+    # ==================== PostgreSQL Auth Service Initialization ====================
+    # Initialize PostgreSQL-backed authentication service
+    from .services.auth_service import initialize_auth_service
     try:
-        admin_created = await AuthService.initialize_admin_user()
-        if admin_created:
-            logger.info(
-                "Admin user initialized from environment variable",
-                category=LogCategory.BUSINESS
-            )
-    except ValueError as e:
+        dsn = api_settings.get_postgres_dsn()
+        auth_service = await initialize_auth_service(dsn)
+        logger.info(
+            "✓ PostgreSQL-backed authentication initialized",
+            category=LogCategory.BUSINESS,
+            extra_data={
+                "admin_email": "admin@localhost",
+                "fixed_admin_id": "admin"
+            }
+        )
+    except Exception as e:
         logger.error(
-            f"FATAL: Admin initialization failed: {e}",
+            f"FATAL: Auth service initialization failed: {e}",
             category=LogCategory.BUSINESS
         )
-        raise  # Application should not start with insecure admin password
+        raise  # Application should not start without authentication
 
     # ==================== Application Startup ====================
     logger.info(
