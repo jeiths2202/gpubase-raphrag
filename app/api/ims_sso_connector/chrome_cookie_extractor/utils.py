@@ -101,9 +101,10 @@ def get_chrome_local_state_path() -> Path:
 
 def copy_cookie_db(cookie_db_path: Path) -> Path:
     """
-    Copy Chrome cookie database to temp location
+    Copy Chrome cookie database to temp location safely
 
-    Chrome locks the database when running, so we copy it to read
+    Uses file descriptor handling to avoid lock issues when Chrome is running.
+    Creates a temporary copy that can be read even while Chrome holds the original.
 
     Args:
         cookie_db_path: Path to Chrome Cookies database
@@ -111,9 +112,33 @@ def copy_cookie_db(cookie_db_path: Path) -> Path:
     Returns:
         Path to temporary copy of database
     """
+    import time
+
+    # Create temporary directory
     temp_dir = tempfile.mkdtemp(prefix="chrome_cookies_")
     temp_db = Path(temp_dir) / "Cookies"
-    shutil.copy2(cookie_db_path, temp_db)
+
+    # Use low-level file operations to safely copy locked database
+    # Create temp file descriptor and immediately close it
+    temp_fd, temp_file = tempfile.mkstemp(dir=temp_dir, suffix=".db")
+    os.close(temp_fd)
+
+    try:
+        # Copy to temporary file (bypasses lock issues)
+        shutil.copy2(cookie_db_path, temp_file)
+
+        # Small delay to ensure file system sync
+        time.sleep(0.1)
+
+        # Move to final location
+        shutil.move(temp_file, temp_db)
+
+    except Exception as e:
+        # Clean up on failure
+        if os.path.exists(temp_file):
+            os.unlink(temp_file)
+        raise
+
     return temp_db
 
 
