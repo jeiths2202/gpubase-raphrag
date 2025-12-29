@@ -645,9 +645,17 @@ class WorkspaceService:
             raise RuntimeError("Database repository not configured")
 
         # Add message through repository
+        # Handle role: can be string or enum
+        role_str = message_data.role.value if hasattr(message_data.role, 'value') else message_data.role
+
+        # Handle retrieval_strategy: can be string, enum, or None
+        strategy_str = None
+        if message_data.retrieval_strategy:
+            strategy_str = message_data.retrieval_strategy.value if hasattr(message_data.retrieval_strategy, 'value') else message_data.retrieval_strategy
+
         entity = await self._conversation_repo.add_message(
             conversation_id=str(message_data.conversation_id),
-            role=message_data.role.value,
+            role=role_str,
             content=message_data.content,
             parent_message_id=None,  # TODO: Support branching if needed
             input_tokens=0,  # TODO: Calculate or pass from caller
@@ -655,7 +663,7 @@ class WorkspaceService:
             total_tokens=0,  # TODO: Calculate or pass from caller
             model=None,  # TODO: Get from conversation settings
             sources=message_data.context_documents,
-            rag_context={"retrieval_strategy": message_data.retrieval_strategy.value if message_data.retrieval_strategy else None}
+            rag_context={"retrieval_strategy": strategy_str}
         )
 
         # Convert entity to workspace Message model
