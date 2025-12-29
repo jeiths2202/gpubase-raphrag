@@ -45,7 +45,7 @@ def _generate_request_id() -> str:
 
 @router.get(
     "",
-    response_model=PaginatedResponse[ConversationListItem],
+    response_model=PaginatedResponse[dict],
     summary="대화 목록",
     description="사용자의 대화 목록을 조회합니다."
 )
@@ -77,7 +77,7 @@ async def list_conversations(
         total += stats["archived_conversations"]
 
     return PaginatedResponse(
-        data=conversations,
+        data={"conversations": conversations},
         meta=MetaInfo(request_id=request_id),
         pagination=PaginationMeta(
             page=(skip // limit) + 1,
