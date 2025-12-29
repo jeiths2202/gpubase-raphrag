@@ -183,7 +183,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
                   background: themeColors.inputBg,
                   border: `1px solid ${themeColors.cardBorder}`,
                   borderRadius: '8px',
-                  color: themeColors.text,
+                  color: themeColors.inputText,
                   fontSize: '14px'
                 }}
                 onKeyPress={(e) => e.key === 'Enter' && connectToIMS()}
@@ -344,7 +344,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
                 background: themeColors.inputBg,
                 border: `1px solid ${themeColors.cardBorder}`,
                 borderRadius: '8px',
-                color: themeColors.text,
+                color: themeColors.inputText,
                 fontSize: '14px'
               }}
             />

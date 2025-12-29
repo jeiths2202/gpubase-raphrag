@@ -12,7 +12,9 @@ export const getThemeColors = (theme: ThemeType): ThemeColors => {
     text: '#fff',
     textSecondary: 'rgba(255,255,255,0.7)',
     accent: '#4A90D9',
-    accentHover: '#357ABD'
+    accentHover: '#357ABD',
+    inputBg: 'rgba(255,255,255,0.1)',
+    inputText: '#fff'
   } : {
     bg: 'linear-gradient(135deg, #f5f7fa 0%, #e4e9f2 50%, #d3dce6 100%)',
     cardBg: 'rgba(255,255,255,0.8)',
@@ -20,7 +22,9 @@ export const getThemeColors = (theme: ThemeType): ThemeColors => {
     text: '#1a1a2e',
     textSecondary: 'rgba(0,0,0,0.6)',
     accent: '#4A90D9',
-    accentHover: '#357ABD'
+    accentHover: '#357ABD',
+    inputBg: 'rgba(255,255,255,0.95)',
+    inputText: '#1a1a2e'
   };
 };
 
@@ -45,9 +49,9 @@ export const getTabStyle = (isActive: boolean, themeColors: ThemeColors): React.
 
 export const getInputStyle = (themeColors: ThemeColors): React.CSSProperties => ({
   padding: '10px 14px',
-  background: 'rgba(255,255,255,0.1)',
+  background: themeColors.inputBg,
   border: `1px solid ${themeColors.cardBorder}`,
   borderRadius: '8px',
-  color: themeColors.text,
+  color: themeColors.inputText,
   fontSize: '14px'
 });
