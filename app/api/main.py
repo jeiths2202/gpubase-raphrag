@@ -73,7 +73,7 @@ async def lifespan(app: FastAPI):
         dsn = api_settings.get_postgres_dsn()
         auth_service = await initialize_auth_service(dsn)
         logger.info(
-            "✓ PostgreSQL-backed authentication initialized",
+            "[OK] PostgreSQL-backed authentication initialized",
             category=LogCategory.BUSINESS,
             extra_data={
                 "admin_email": "admin@localhost",
@@ -86,6 +86,55 @@ async def lifespan(app: FastAPI):
             category=LogCategory.BUSINESS
         )
         raise  # Application should not start without authentication
+
+    # ==================== Database Pool Initialization ====================
+    # Initialize PostgreSQL connection pool for conversation repository
+    import asyncpg
+    from .infrastructure.postgres.conversation_repository import PostgresConversationRepository
+    from .core.container import Container
+
+    db_pool = None
+    conversation_repo = None
+    try:
+        dsn = api_settings.get_postgres_dsn()
+        db_pool = await asyncpg.create_pool(
+            dsn,
+            min_size=5,
+            max_size=20,
+            command_timeout=60
+        )
+        logger.info(
+            "[OK] PostgreSQL connection pool created",
+            category=LogCategory.BUSINESS,
+            extra_data={
+                "min_size": 5,
+                "max_size": 20
+            }
+        )
+
+        # Create conversation repository with the pool
+        conversation_repo = PostgresConversationRepository(db_pool)
+
+        # Register repository in container
+        container = Container.get_instance()
+        container.register_singleton("conversation_repository", conversation_repo)
+
+        # Initialize conversation service with PostgreSQL repository
+        from .services.conversation_service import ConversationService, set_conversation_service
+        postgres_conversation_service = ConversationService(repository=conversation_repo)
+        set_conversation_service(postgres_conversation_service)
+
+        logger.info(
+            "[OK] Conversation repository and service initialized with PostgreSQL",
+            category=LogCategory.BUSINESS
+        )
+
+    except Exception as e:
+        logger.warning(
+            f"PostgreSQL pool initialization failed, using in-memory storage: {e}",
+            category=LogCategory.BUSINESS
+        )
+        # Continue without PostgreSQL - will fall back to in-memory storage
 
     # ==================== Application Startup ====================
     logger.info(
@@ -110,12 +159,15 @@ async def lifespan(app: FastAPI):
             category=LogCategory.BUSINESS
         )
 
-    # TODO: Initialize database connections, load models, etc.
     yield
 
-    # Shutdown
+    # ==================== Application Shutdown ====================
     logger.info("Shutting down application", category=LogCategory.BUSINESS)
-    # TODO: Cleanup resources
+
+    # Close database pool
+    if db_pool is not None:
+        await db_pool.close()
+        logger.info("Database pool closed", category=LogCategory.BUSINESS)
 
 
 # Create FastAPI application

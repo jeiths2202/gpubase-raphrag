@@ -377,6 +377,15 @@ class ConversationService:
             total_tokens=tokens
         )
 
+        # Auto-generate title from first user message if conversation has no title
+        if not conversation.title and conversation.message_count == 0:
+            # Generate title from first message (max 50 chars)
+            auto_title = content.strip()[:50]
+            if len(content.strip()) > 50:
+                auto_title += "..."
+            conversation.title = auto_title
+            await self._repository.update(conversation)
+
         # Check if summarization needed
         await self._check_and_summarize(conversation_id)
 
@@ -939,10 +948,22 @@ def get_conversation_service() -> ConversationService:
     """Get the global conversation service instance."""
     global _conversation_service
     if _conversation_service is None:
-        # Import here to avoid circular imports
-        from ..infrastructure.memory.conversation_repository import MemoryConversationRepository
+        # Get PostgreSQL repository from DI container (registered in main.py lifespan)
+        from ..core.container import Container
+        container = Container.get_instance()
+
+        try:
+            # Try to get PostgreSQL repository from container
+            repository = container.get("conversation_repository")
+            logger.info("Using PostgreSQL conversation repository from container")
+        except KeyError:
+            # Fallback to memory repository if not registered (shouldn't happen in production)
+            logger.warning("PostgreSQL conversation repository not found in container, falling back to memory")
+            from ..infrastructure.memory.conversation_repository import MemoryConversationRepository
+            repository = MemoryConversationRepository()
+
         _conversation_service = ConversationService(
-            repository=MemoryConversationRepository()
+            repository=repository
         )
     return _conversation_service
 
