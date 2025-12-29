@@ -20,6 +20,7 @@
     "startPrompt": "Enter a question to start the conversation.",
     "inputPlaceholder": "Enter your question...",
     "send": "Send",
+    "attachFile": "Attach File",
     "generating": "Generating response...",
     "noResponse": "Unable to generate response.",
     "errorOccurred": "An error occurred. Please try again.",

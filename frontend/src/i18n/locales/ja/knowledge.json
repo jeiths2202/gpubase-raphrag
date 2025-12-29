@@ -20,6 +20,7 @@
     "startPrompt": "質問を入力して会話を開始してください。",
     "inputPlaceholder": "質問を入力してください...",
     "send": "送信",
+    "attachFile": "ファイル添付",
     "generating": "応答を生成中...",
     "noResponse": "応答を生成できません。",
     "errorOccurred": "エラーが発生しました。もう一度お試しください。",
