@@ -8,7 +8,6 @@ import { useTranslation } from '../hooks/useTranslation';
 // Import from extracted feature modules
 import {
   Document,
-  ContentItem,
   ChatMessage,
   Conversation,
   KnowledgeGraphData,
@@ -58,12 +57,6 @@ const KnowledgeApp: React.FC = () => {
   // Documents state
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
-
-  // Content state
-  const [contents, setContents] = useState<ContentItem[]>([]);
-  const [selectedContent, setSelectedContent] = useState<ContentItem | null>(null);
-  const [contentData, setContentData] = useState<any>(null);
-  const [generatingContent, setGeneratingContent] = useState(false);
 
   // Chat state (messages now managed by workspace store)
   // const [messages, setMessages] = useState<ChatMessage[]>([]); // ❌ REMOVED - using workspace store
@@ -237,9 +230,7 @@ const KnowledgeApp: React.FC = () => {
   // which is called during initialization and when conversation changes
 
   useEffect(() => {
-    if (activeTab === 'content') {
-      loadContents();
-    } else if (activeTab === 'knowledge-graph') {
+    if (activeTab === 'knowledge-graph') {
       loadKnowledgeGraphs();
     } else if (activeTab === 'knowledge-articles') {
       loadKnowledgeArticles();
@@ -364,18 +355,6 @@ const KnowledgeApp: React.FC = () => {
     }
   };
 
-  const loadContents = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/content?page=1&limit=50`, {
-        headers: getAuthHeaders()
-      });
-      const data = await res.json();
-      setContents(data.data?.contents || []);
-    } catch (error) {
-      console.error('Failed to load contents:', error);
-    }
-  };
-
   const loadConversations = async () => {
     try {
       const res = await fetch(`${API_BASE}/conversations?page=1&limit=20`, {
@@ -385,18 +364,6 @@ const KnowledgeApp: React.FC = () => {
       setConversations(data.data?.conversations || []);
     } catch (error) {
       console.error('Failed to load conversations:', error);
-    }
-  };
-
-  const loadContentDetail = async (contentId: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/content/${contentId}`, {
-        headers: getAuthHeaders()
-      });
-      const data = await res.json();
-      setContentData(data.data?.content);
-    } catch (error) {
-      console.error('Failed to load content detail:', error);
     }
   };
 
@@ -839,60 +806,6 @@ const KnowledgeApp: React.FC = () => {
       loadExternalConnections();
     }
   }, [user]);
-
-  // Content generation
-  const generateContent = async (type: string) => {
-    if (selectedDocuments.length === 0) {
-      alert(t('knowledge.content.selectDocumentsFirst' as keyof import('../i18n/types').TranslationKeys));
-      return;
-    }
-
-    setGeneratingContent(true);
-    try {
-      const res = await fetch(`${API_BASE}/content/generate`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          document_ids: selectedDocuments,
-          content_type: type,
-          language: 'auto'
-        })
-      });
-
-      const data = await res.json();
-      if (data.data?.content_id) {
-        // Poll for completion
-        pollContentStatus(data.data.content_id);
-      }
-    } catch (error) {
-      console.error('Failed to generate content:', error);
-    }
-  };
-
-  const pollContentStatus = async (contentId: string) => {
-    const checkStatus = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/content/${contentId}/status`, {
-          headers: getAuthHeaders()
-        });
-        const data = await res.json();
-
-        if (data.data?.status === 'completed') {
-          setGeneratingContent(false);
-          loadContents();
-          loadContentDetail(contentId);
-        } else if (data.data?.status === 'failed') {
-          setGeneratingContent(false);
-          alert(t('knowledge.content.generationFailed' as keyof import('../i18n/types').TranslationKeys));
-        } else {
-          setTimeout(checkStatus, 2000);
-        }
-      } catch (error) {
-        setGeneratingContent(false);
-      }
-    };
-    checkStatus();
-  };
 
   // Search function
   const handleSearch = async () => {
@@ -1389,17 +1302,9 @@ const KnowledgeApp: React.FC = () => {
             />
           )}
 
-          {/* Content Tab */}
+          {/* Content Tab - IMS Knowledge Service */}
           {activeTab === 'content' && (
             <ContentTab
-              selectedDocuments={selectedDocuments}
-              contents={contents}
-              generatingContent={generatingContent}
-              selectedContent={selectedContent}
-              contentData={contentData}
-              setSelectedContent={setSelectedContent}
-              generateContent={generateContent}
-              loadContentDetail={loadContentDetail}
               themeColors={themeColors}
               cardStyle={cardStyle}
               t={t}

@@ -201,7 +201,7 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
         {[
           { key: 'chat', labelKey: 'knowledge.sidebar.chat', icon: '💬' },
           { key: 'web-sources', labelKey: 'knowledge.sidebar.webSources', icon: '🌐' },
-          { key: 'content', labelKey: 'knowledge.sidebar.aiContent', icon: '🤖' },
+          { key: 'content', labelKey: 'knowledge.sidebar.imsKnowledge', icon: '🤖' },
           { key: 'mindmap', labelKey: 'knowledge.sidebar.mindmap', icon: '🧠' },
           { key: 'knowledge-graph', labelKey: 'knowledge.sidebar.knowledgeGraph', icon: '🔗' },
           { key: 'knowledge-articles', labelKey: 'knowledge.sidebar.knowledgeBase', icon: '📚' }

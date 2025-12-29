@@ -1,26 +1,27 @@
-// ContentTab Component
-// Extracted from KnowledgeApp.tsx - NO LOGIC CHANGES
+// IMS Knowledge Service Tab
+// AI Agent를 사용한 IMS지식 서비스
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import type { ThemeColors, ContentItem } from '../types';
+import type { ThemeColors } from '../types';
 import { TranslateFunction } from '../../../i18n/types';
 
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+interface KnowledgeItem {
+  id: string;
+  title: string;
+  content: string;
+  sourceUrl: string;
+  createdAt: Date;
+}
+
 interface ContentTabProps {
-  // State
-  selectedDocuments: string[];
-  contents: ContentItem[];
-  generatingContent: boolean;
-  selectedContent: ContentItem | null;
-  contentData: any;
-
-  // State setters
-  setSelectedContent: (content: ContentItem | null) => void;
-
-  // Functions
-  generateContent: (contentType: string) => void;
-  loadContentDetail: (contentId: string) => void;
-
   // Styles
   themeColors: ThemeColors;
   cardStyle: React.CSSProperties;
@@ -30,102 +31,396 @@ interface ContentTabProps {
 }
 
 export const ContentTab: React.FC<ContentTabProps> = ({
-  selectedDocuments,
-  contents,
-  generatingContent,
-  selectedContent,
-  contentData,
-  setSelectedContent,
-  generateContent,
-  loadContentDetail,
   themeColors,
   cardStyle,
   t
 }) => {
+  // IMS URL connection state
+  const [imsUrl, setImsUrl] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+
+  // Chat state
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Knowledge items state
+  const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>([]);
+
+  // Connect to IMS system via SSO
+  const connectToIMS = async () => {
+    if (!imsUrl.trim()) {
+      setConnectionError('URL을 입력해주세요');
+      return;
+    }
+
+    setConnecting(true);
+    setConnectionError(null);
+
+    try {
+      // TODO: Implement SSO connection to IMS system
+      // For now, simulate connection
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      setIsConnected(true);
+      setMessages([{
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `IMS 시스템에 연결되었습니다.\n연결된 URL: ${imsUrl}\n\n무엇을 도와드릴까요?`,
+        timestamp: new Date()
+      }]);
+    } catch (error) {
+      setConnectionError('IMS 시스템 연결에 실패했습니다');
+      setIsConnected(false);
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  // Disconnect from IMS
+  const disconnectFromIMS = () => {
+    setIsConnected(false);
+    setMessages([]);
+    setKnowledgeItems([]);
+    setImsUrl('');
+  };
+
+  // Send message to AI Agent
+  const sendMessage = async () => {
+    if (!inputMessage.trim() || isGenerating) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: inputMessage,
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInputMessage('');
+    setIsGenerating(true);
+
+    try {
+      // TODO: Implement AI Agent API call
+      // For now, simulate AI response
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: `IMS 시스템의 정보를 바탕으로 답변드립니다.\n\n${inputMessage}에 대한 지식을 생성하고 있습니다...`,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, aiMessage]);
+
+      // Create knowledge item
+      const newKnowledge: KnowledgeItem = {
+        id: Date.now().toString(),
+        title: inputMessage.slice(0, 50),
+        content: aiMessage.content,
+        sourceUrl: imsUrl,
+        createdAt: new Date()
+      };
+
+      setKnowledgeItems(prev => [newKnowledge, ...prev]);
+    } catch (error) {
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: '죄송합니다. 오류가 발생했습니다.',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Save knowledge item
+  const saveKnowledge = async (item: KnowledgeItem) => {
+    // TODO: Implement save to backend
+    alert(`지식 "${item.title}"을(를) 저장했습니다.`);
+  };
+
   return (
     <motion.div
       key="content"
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      style={{ flex: 1 }}
+      style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'auto' }}
     >
+      {/* Header */}
       <div style={cardStyle}>
-        <h2>AI Content Generation</h2>
-        <p style={{ color: themeColors.textSecondary }}>
-          {t('knowledge.content.subtitle' as keyof import('../../../i18n/types').TranslationKeys, { count: selectedDocuments.length })}
+        <h2>AI Agent를 사용한 IMS 지식 서비스</h2>
+        <p style={{ color: themeColors.textSecondary, marginTop: '8px' }}>
+          회사 IMS 시스템과 AI Agent를 연동하여 지식을 생성하고 관리합니다
         </p>
+      </div>
 
-        {/* Content Type Buttons */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px', marginTop: '20px' }}>
-          {[
-            { type: 'summary', labelKey: 'summary', icon: '📝' },
-            { type: 'faq', labelKey: 'faq', icon: '❓' },
-            { type: 'study_guide', labelKey: 'studyGuide', icon: '📚' },
-            { type: 'briefing', labelKey: 'briefing', icon: '📋' },
-            { type: 'timeline', labelKey: 'timeline', icon: '📅' },
-            { type: 'toc', labelKey: 'toc', icon: '📑' },
-            { type: 'key_topics', labelKey: 'keyTopics', icon: '🎯' }
-          ].map(ct => (
+      {/* IMS Connection Section */}
+      <div style={cardStyle}>
+        <h3 style={{ marginBottom: '16px' }}>IMS 시스템 연결</h3>
+
+        {!isConnected ? (
+          <div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>
+                IMS URL
+              </label>
+              <input
+                type="url"
+                value={imsUrl}
+                onChange={(e) => setImsUrl(e.target.value)}
+                placeholder="https://ims.company.com"
+                disabled={connecting}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  background: themeColors.inputBg,
+                  border: `1px solid ${themeColors.cardBorder}`,
+                  borderRadius: '8px',
+                  color: themeColors.text,
+                  fontSize: '14px'
+                }}
+                onKeyPress={(e) => e.key === 'Enter' && connectToIMS()}
+              />
+            </div>
+
+            {connectionError && (
+              <div style={{
+                padding: '12px',
+                background: 'rgba(231, 76, 60, 0.1)',
+                border: '1px solid #E74C3C',
+                borderRadius: '8px',
+                color: '#E74C3C',
+                marginBottom: '12px'
+              }}>
+                {connectionError}
+              </div>
+            )}
+
             <button
-              key={ct.type}
-              onClick={() => generateContent(ct.type)}
-              disabled={generatingContent || selectedDocuments.length === 0}
+              onClick={connectToIMS}
+              disabled={connecting}
               style={{
-                ...cardStyle,
-                cursor: generatingContent ? 'not-allowed' : 'pointer',
-                textAlign: 'center',
-                opacity: generatingContent || selectedDocuments.length === 0 ? 0.5 : 1
+                padding: '12px 24px',
+                background: connecting ? themeColors.cardBg : themeColors.accent,
+                border: 'none',
+                borderRadius: '8px',
+                color: 'white',
+                fontWeight: 600,
+                cursor: connecting ? 'not-allowed' : 'pointer',
+                opacity: connecting ? 0.6 : 1
               }}
             >
-              <div style={{ fontSize: '32px' }}>{ct.icon}</div>
-              <div style={{ marginTop: '8px', fontWeight: 600 }}>{t(`knowledge.content.types.${ct.labelKey}` as keyof import('../../../i18n/types').TranslationKeys)}</div>
+              {connecting ? '연결 중...' : 'SSO로 연결'}
             </button>
-          ))}
-        </div>
 
-        {generatingContent && (
-          <div style={{ textAlign: 'center', marginTop: '20px', color: themeColors.accent }}>
-            {t('knowledge.content.generating' as keyof import('../../../i18n/types').TranslationKeys)}
+            <div style={{
+              marginTop: '16px',
+              padding: '12px',
+              background: 'rgba(52, 152, 219, 0.1)',
+              borderRadius: '8px',
+              fontSize: '13px',
+              color: themeColors.textSecondary
+            }}>
+              💡 IMS URL을 입력하고 SSO 인증을 통해 시스템에 연결하세요
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px',
+              background: 'rgba(46, 204, 113, 0.1)',
+              border: '1px solid #2ECC71',
+              borderRadius: '8px',
+              marginBottom: '12px'
+            }}>
+              <div>
+                <div style={{ fontWeight: 600, color: '#2ECC71' }}>✓ 연결됨</div>
+                <div style={{ fontSize: '13px', color: themeColors.textSecondary, marginTop: '4px' }}>
+                  {imsUrl}
+                </div>
+              </div>
+              <button
+                onClick={disconnectFromIMS}
+                style={{
+                  padding: '8px 16px',
+                  background: 'transparent',
+                  border: `1px solid ${themeColors.cardBorder}`,
+                  borderRadius: '6px',
+                  color: themeColors.text,
+                  cursor: 'pointer'
+                }}
+              >
+                연결 해제
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Generated Contents List */}
-      <div style={{ ...cardStyle, marginTop: '20px' }}>
-        <h3>Generated Contents</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px', marginTop: '16px' }}>
-          {contents.map(content => (
-            <div
-              key={content.id}
-              onClick={() => {
-                setSelectedContent(content);
-                loadContentDetail(content.id);
-              }}
+      {/* AI Chat Interface - Only visible when connected */}
+      {isConnected && (
+        <div style={{ ...cardStyle, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '400px' }}>
+          <h3 style={{ marginBottom: '16px' }}>AI 지식 생성 챗</h3>
+
+          {/* Messages */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '16px',
+            background: 'rgba(255,255,255,0.02)',
+            borderRadius: '8px',
+            marginBottom: '16px'
+          }}>
+            {messages.map(msg => (
+              <div
+                key={msg.id}
+                style={{
+                  marginBottom: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start'
+                }}
+              >
+                <div style={{
+                  maxWidth: '80%',
+                  padding: '12px 16px',
+                  borderRadius: '12px',
+                  background: msg.role === 'user'
+                    ? themeColors.accent
+                    : 'rgba(255,255,255,0.05)',
+                  color: themeColors.text
+                }}>
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                    {msg.content}
+                  </div>
+                  <div style={{
+                    fontSize: '11px',
+                    marginTop: '8px',
+                    opacity: 0.7
+                  }}>
+                    {msg.timestamp.toLocaleTimeString()}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {isGenerating && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                color: themeColors.textSecondary
+              }}>
+                <span>AI가 응답하는 중</span>
+                <span className="loading-dots">...</span>
+              </div>
+            )}
+          </div>
+
+          {/* Input */}
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <input
+              type="text"
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+              placeholder="질문을 입력하세요..."
+              disabled={isGenerating}
               style={{
-                ...cardStyle,
-                cursor: 'pointer',
-                border: selectedContent?.id === content.id
-                  ? `2px solid ${themeColors.accent}`
-                  : `1px solid ${themeColors.cardBorder}`
+                flex: 1,
+                padding: '12px',
+                background: themeColors.inputBg,
+                border: `1px solid ${themeColors.cardBorder}`,
+                borderRadius: '8px',
+                color: themeColors.text,
+                fontSize: '14px'
+              }}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={isGenerating || !inputMessage.trim()}
+              style={{
+                padding: '12px 24px',
+                background: isGenerating || !inputMessage.trim() ? themeColors.cardBg : themeColors.accent,
+                border: 'none',
+                borderRadius: '8px',
+                color: 'white',
+                fontWeight: 600,
+                cursor: isGenerating || !inputMessage.trim() ? 'not-allowed' : 'pointer',
+                opacity: isGenerating || !inputMessage.trim() ? 0.6 : 1
               }}
             >
-              <div style={{ fontWeight: 600 }}>{content.title}</div>
-              <div style={{ fontSize: '12px', color: themeColors.textSecondary }}>
-                {content.content_type} | {content.status}
-              </div>
-            </div>
-          ))}
+              전송
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Content Detail */}
-      {contentData && (
-        <div style={{ ...cardStyle, marginTop: '20px' }}>
-          <h3>{contentData.title}</h3>
-          <pre style={{ whiteSpace: 'pre-wrap', fontSize: '14px' }}>
-            {JSON.stringify(contentData, null, 2)}
-          </pre>
+      {/* Knowledge Items List */}
+      {isConnected && knowledgeItems.length > 0 && (
+        <div style={cardStyle}>
+          <h3 style={{ marginBottom: '16px' }}>생성된 지식 ({knowledgeItems.length})</h3>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+            {knowledgeItems.map(item => (
+              <div
+                key={item.id}
+                style={{
+                  padding: '16px',
+                  background: 'rgba(255,255,255,0.02)',
+                  border: `1px solid ${themeColors.cardBorder}`,
+                  borderRadius: '8px'
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: '8px' }}>
+                  {item.title}
+                </div>
+                <div style={{
+                  fontSize: '13px',
+                  color: themeColors.textSecondary,
+                  marginBottom: '12px',
+                  lineHeight: 1.5,
+                  maxHeight: '60px',
+                  overflow: 'hidden'
+                }}>
+                  {item.content}
+                </div>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '12px',
+                  color: themeColors.textSecondary
+                }}>
+                  <span>{item.createdAt.toLocaleString()}</span>
+                  <button
+                    onClick={() => saveKnowledge(item)}
+                    style={{
+                      padding: '6px 12px',
+                      background: themeColors.accent,
+                      border: 'none',
+                      borderRadius: '6px',
+                      color: 'white',
+                      fontSize: '12px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    저장
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </motion.div>
