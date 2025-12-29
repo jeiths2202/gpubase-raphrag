@@ -7,9 +7,6 @@ import { useTranslation } from '../hooks/useTranslation';
 
 // Import from extracted feature modules
 import {
-  Project,
-  Note,
-  Folder,
   Document,
   ContentItem,
   ChatMessage,
@@ -28,7 +25,7 @@ import {
 } from '../features/knowledge/types';
 import { API_BASE } from '../features/knowledge/constants';
 import { getThemeColors, getCardStyle, getTabStyle, getInputStyle } from '../features/knowledge/utils';
-import { SettingsPopup, ChatTab, WebSourcesTab, NotesTab, ContentTab, ProjectsTab, KnowledgeGraphTab, KnowledgeArticlesTab, KnowledgeSidebar } from '../features/knowledge/components';
+import { SettingsPopup, ChatTab, WebSourcesTab, ContentTab, KnowledgeGraphTab, KnowledgeArticlesTab, KnowledgeSidebar } from '../features/knowledge/components';
 import { useWorkspaceStore, useChatMessages, useMessagesLoading, useActiveConversation } from '../store/workspaceStore';
 
 const KnowledgeApp: React.FC = () => {
@@ -58,21 +55,9 @@ const KnowledgeApp: React.FC = () => {
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('chat');
 
-  // Projects state
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-
   // Documents state
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
-
-  // Notes state
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
-  const [noteContent, setNoteContent] = useState('');
-  const [noteTitle, setNoteTitle] = useState('');
 
   // Content state
   const [contents, setContents] = useState<ContentItem[]>([]);
@@ -204,7 +189,6 @@ const KnowledgeApp: React.FC = () => {
 
   // Load initial data
   useEffect(() => {
-    loadProjects();
     loadDocuments();
     loadConversations();
     loadNotifications();
@@ -253,10 +237,7 @@ const KnowledgeApp: React.FC = () => {
   // which is called during initialization and when conversation changes
 
   useEffect(() => {
-    if (activeTab === 'notes') {
-      loadNotes();
-      loadFolders();
-    } else if (activeTab === 'content') {
+    if (activeTab === 'content') {
       loadContents();
     } else if (activeTab === 'knowledge-graph') {
       loadKnowledgeGraphs();
@@ -270,7 +251,7 @@ const KnowledgeApp: React.FC = () => {
     } else if (activeTab === 'web-sources') {
       loadWebSources();
     }
-  }, [activeTab, selectedProject]);
+  }, [activeTab]);
 
   // API calls
   const getAuthHeaders = () => {
@@ -279,18 +260,6 @@ const KnowledgeApp: React.FC = () => {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     };
-  };
-
-  const loadProjects = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/projects?page=1&limit=50`, {
-        headers: getAuthHeaders()
-      });
-      const data = await res.json();
-      setProjects(data.data?.projects || []);
-    } catch (error) {
-      console.error('Failed to load projects:', error);
-    }
   };
 
   const loadDocuments = async () => {
@@ -392,32 +361,6 @@ const KnowledgeApp: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to delete web source:', error);
-    }
-  };
-
-  const loadNotes = async () => {
-    try {
-      const url = selectedProject
-        ? `${API_BASE}/notes?project_id=${selectedProject.id}&page=1&limit=50`
-        : `${API_BASE}/notes?page=1&limit=50`;
-      const res = await fetch(url, { headers: getAuthHeaders() });
-      const data = await res.json();
-      setNotes(data.data?.notes || []);
-    } catch (error) {
-      console.error('Failed to load notes:', error);
-    }
-  };
-
-  const loadFolders = async () => {
-    try {
-      const url = selectedProject
-        ? `${API_BASE}/notes/folders?project_id=${selectedProject.id}`
-        : `${API_BASE}/notes/folders`;
-      const res = await fetch(url, { headers: getAuthHeaders() });
-      const data = await res.json();
-      setFolders(data.data?.folders || []);
-    } catch (error) {
-      console.error('Failed to load folders:', error);
     }
   };
 
@@ -951,83 +894,6 @@ const KnowledgeApp: React.FC = () => {
     checkStatus();
   };
 
-  // Note functions
-  const createNote = async () => {
-    if (!noteTitle.trim()) return;
-
-    try {
-      const res = await fetch(`${API_BASE}/notes`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          title: noteTitle,
-          content: noteContent,
-          note_type: 'text',
-          folder_id: selectedFolder,
-          project_id: selectedProject?.id,
-          tags: []
-        })
-      });
-
-      if (res.ok) {
-        setNoteTitle('');
-        setNoteContent('');
-        loadNotes();
-      }
-    } catch (error) {
-      console.error('Failed to create note:', error);
-    }
-  };
-
-  const saveAIResponse = async (messageId: string) => {
-    const message = messages.find(m => m.id === messageId);
-    if (!message) return;
-
-    try {
-      const res = await fetch(`${API_BASE}/notes`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          title: `AI 응답 - ${new Date().toLocaleDateString()}`,
-          content: message.content,
-          note_type: 'ai_response',
-          folder_id: selectedFolder,
-          project_id: selectedProject?.id,
-          tags: ['ai-response'],
-          source: 'ai_chat'
-        })
-      });
-
-      if (res.ok) {
-        alert(t('knowledge.chat.noteSaved' as keyof import('../i18n/types').TranslationKeys));
-        loadNotes();
-      }
-    } catch (error) {
-      console.error('Failed to save AI response:', error);
-    }
-  };
-
-  // Project functions
-  const createProject = async (name: string, description: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/projects`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          name,
-          description,
-          visibility: 'private'
-        })
-      });
-
-      if (res.ok) {
-        loadProjects();
-      }
-    } catch (error) {
-      console.error('Failed to create project:', error);
-    }
-  };
-
   // Search function
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -1416,14 +1282,11 @@ const KnowledgeApp: React.FC = () => {
         notifications={notifications}
         unreadCount={unreadCount}
         activeTab={activeTab}
-        projects={projects}
-        selectedProject={selectedProject}
         theme={theme}
         user={user}
         setSidebarCollapsed={setSidebarCollapsed}
         setShowNotifications={setShowNotifications}
         setActiveTab={setActiveTab}
-        setSelectedProject={setSelectedProject}
         setShowSettingsPopup={setShowSettingsPopup}
         markAllNotificationsAsRead={markAllNotificationsAsRead}
         markNotificationAsRead={markNotificationAsRead}
@@ -1485,7 +1348,6 @@ const KnowledgeApp: React.FC = () => {
               setPasteTitle={setPasteTitle}
               setShowExternalModal={setShowExternalModal}
               sendMessage={sendMessage}
-              saveAIResponse={saveAIResponse}
               removeSessionDocument={removeSessionDocument}
               handleDragOver={handleDragOver}
               handleDragLeave={handleDragLeave}
@@ -1527,30 +1389,6 @@ const KnowledgeApp: React.FC = () => {
             />
           )}
 
-          {/* Notes Tab */}
-          {activeTab === 'notes' && (
-            <NotesTab
-              notes={notes}
-              folders={folders}
-              selectedFolder={selectedFolder}
-              selectedNote={selectedNote}
-              searchQuery={searchQuery}
-              noteTitle={noteTitle}
-              noteContent={noteContent}
-              setSelectedFolder={setSelectedFolder}
-              setSelectedNote={setSelectedNote}
-              setSearchQuery={setSearchQuery}
-              setNoteTitle={setNoteTitle}
-              setNoteContent={setNoteContent}
-              handleSearch={handleSearch}
-              createNote={createNote}
-              themeColors={themeColors}
-              cardStyle={cardStyle}
-              tabStyle={tabStyle}
-              t={t}
-            />
-          )}
-
           {/* Content Tab */}
           {activeTab === 'content' && (
             <ContentTab
@@ -1564,20 +1402,6 @@ const KnowledgeApp: React.FC = () => {
               loadContentDetail={loadContentDetail}
               themeColors={themeColors}
               cardStyle={cardStyle}
-              t={t}
-            />
-          )}
-
-          {/* Projects Tab */}
-          {activeTab === 'projects' && (
-            <ProjectsTab
-              projects={projects}
-              selectedProject={selectedProject}
-              setSelectedProject={setSelectedProject}
-              createProject={createProject}
-              themeColors={themeColors}
-              cardStyle={cardStyle}
-              tabStyle={tabStyle}
               t={t}
             />
           )}

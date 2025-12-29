@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import type { ThemeColors, TabType, Project, Notification, ThemeType } from '../types';
+import type { ThemeColors, TabType, Notification, ThemeType } from '../types';
 import { TranslateFunction } from '../../../i18n/types';
 
 interface User {
@@ -23,8 +23,6 @@ interface KnowledgeSidebarProps {
   notifications: Notification[];
   unreadCount: number;
   activeTab: TabType;
-  projects: Project[];
-  selectedProject: Project | null;
   theme: ThemeType;
   user: User | null;
 
@@ -32,7 +30,6 @@ interface KnowledgeSidebarProps {
   setSidebarCollapsed: (collapsed: boolean) => void;
   setShowNotifications: (show: boolean) => void;
   setActiveTab: (tab: TabType) => void;
-  setSelectedProject: (project: Project | null) => void;
   setShowSettingsPopup: (show: boolean) => void;
 
   // Functions
@@ -57,14 +54,11 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
   notifications,
   unreadCount,
   activeTab,
-  projects,
-  selectedProject,
   theme,
   user,
   setSidebarCollapsed,
   setShowNotifications,
   setActiveTab,
-  setSelectedProject,
   setShowSettingsPopup,
   markAllNotificationsAsRead,
   markNotificationAsRead,
@@ -207,9 +201,7 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
         {[
           { key: 'chat', labelKey: 'knowledge.sidebar.chat', icon: '💬' },
           { key: 'web-sources', labelKey: 'knowledge.sidebar.webSources', icon: '🌐' },
-          { key: 'notes', labelKey: 'knowledge.sidebar.notes', icon: '📝' },
           { key: 'content', labelKey: 'knowledge.sidebar.aiContent', icon: '🤖' },
-          { key: 'projects', labelKey: 'knowledge.sidebar.projects', icon: '📁' },
           { key: 'mindmap', labelKey: 'knowledge.sidebar.mindmap', icon: '🧠' },
           { key: 'knowledge-graph', labelKey: 'knowledge.sidebar.knowledgeGraph', icon: '🔗' },
           { key: 'knowledge-articles', labelKey: 'knowledge.sidebar.knowledgeBase', icon: '📚' }
@@ -236,31 +228,6 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
           </button>
         ))}
       </nav>
-
-      {/* Projects List */}
-      {!sidebarCollapsed && activeTab !== 'projects' && (
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <h3 style={{ fontSize: '14px', color: themeColors.textSecondary, marginBottom: '8px' }}>{t('knowledge.sidebar.projects')}</h3>
-          {projects.map(project => (
-            <div
-              key={project.id}
-              onClick={() => setSelectedProject(selectedProject?.id === project.id ? null : project)}
-              style={{
-                padding: '10px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                background: selectedProject?.id === project.id ? 'rgba(74,144,217,0.2)' : 'transparent',
-                marginBottom: '4px'
-              }}
-            >
-              <div style={{ fontWeight: 500 }}>{project.name}</div>
-              <div style={{ fontSize: '12px', color: themeColors.textSecondary }}>
-                {project.document_count} docs
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Bottom Actions */}
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>

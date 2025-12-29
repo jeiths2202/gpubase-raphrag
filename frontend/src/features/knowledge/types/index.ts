@@ -170,7 +170,7 @@ export interface Notification {
   created_at: string;
 }
 
-export type TabType = 'chat' | 'documents' | 'web-sources' | 'notes' | 'content' | 'projects' | 'mindmap' | 'knowledge-graph' | 'knowledge-articles';
+export type TabType = 'chat' | 'documents' | 'web-sources' | 'content' | 'mindmap' | 'knowledge-graph' | 'knowledge-articles';
 
 // Web Source types
 export interface WebSource {
