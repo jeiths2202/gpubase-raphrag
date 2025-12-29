@@ -128,14 +128,15 @@ def copy_cookie_db(cookie_db_path: Path) -> Path:
                 import win32file
                 import win32con
 
-                # Open source with FILE_SHARE_READ | FILE_SHARE_WRITE
+                # Open source with FILE_SHARE_READ | FILE_SHARE_WRITE and BACKUP_SEMANTICS
+                # BACKUP_SEMANTICS allows reading even with active locks
                 handle = win32file.CreateFile(
                     str(cookie_db_path),
                     win32con.GENERIC_READ,
                     win32con.FILE_SHARE_READ | win32con.FILE_SHARE_WRITE | win32con.FILE_SHARE_DELETE,
                     None,
                     win32con.OPEN_EXISTING,
-                    0,
+                    win32con.FILE_FLAG_BACKUP_SEMANTICS,
                     None
                 )
 
