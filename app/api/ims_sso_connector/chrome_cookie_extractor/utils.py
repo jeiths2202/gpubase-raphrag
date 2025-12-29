@@ -103,8 +103,8 @@ def copy_cookie_db(cookie_db_path: Path) -> Path:
     """
     Copy Chrome cookie database to temp location safely
 
-    Uses file descriptor handling to avoid lock issues when Chrome is running.
-    Creates a temporary copy that can be read even while Chrome holds the original.
+    Uses platform-specific file sharing to read locked database.
+    Works even when Chrome is running by opening with FILE_SHARE_READ.
 
     Args:
         cookie_db_path: Path to Chrome Cookies database
@@ -118,28 +118,57 @@ def copy_cookie_db(cookie_db_path: Path) -> Path:
     temp_dir = tempfile.mkdtemp(prefix="chrome_cookies_")
     temp_db = Path(temp_dir) / "Cookies"
 
-    # Use low-level file operations to safely copy locked database
-    # Create temp file descriptor and immediately close it
-    temp_fd, temp_file = tempfile.mkstemp(dir=temp_dir, suffix=".db")
-    os.close(temp_fd)
+    # Platform-specific copy to handle locked files
+    system = platform.system()
 
     try:
-        # Copy to temporary file (bypasses lock issues)
-        shutil.copy2(cookie_db_path, temp_file)
+        if system == "Windows":
+            # Windows: Use win32file for shared access to locked file
+            try:
+                import win32file
+                import win32con
+
+                # Open source with FILE_SHARE_READ | FILE_SHARE_WRITE
+                handle = win32file.CreateFile(
+                    str(cookie_db_path),
+                    win32con.GENERIC_READ,
+                    win32con.FILE_SHARE_READ | win32con.FILE_SHARE_WRITE | win32con.FILE_SHARE_DELETE,
+                    None,
+                    win32con.OPEN_EXISTING,
+                    0,
+                    None
+                )
+
+                # Read entire file
+                file_size = os.path.getsize(cookie_db_path)
+                _, data = win32file.ReadFile(handle, file_size)
+                win32file.CloseHandle(handle)
+
+                # Write to temp file
+                with open(temp_db, 'wb') as f:
+                    f.write(data)
+
+            except ImportError:
+                # Fallback: Try standard copy (will fail if Chrome is running)
+                # This path is for systems without pywin32
+                shutil.copy2(cookie_db_path, temp_db)
+
+        else:
+            # Unix-like systems: Standard copy usually works
+            shutil.copy2(cookie_db_path, temp_db)
 
         # Small delay to ensure file system sync
         time.sleep(0.1)
 
-        # Move to final location
-        shutil.move(temp_file, temp_db)
+        return temp_db
 
     except Exception as e:
         # Clean up on failure
-        if os.path.exists(temp_file):
-            os.unlink(temp_file)
+        if temp_db.exists():
+            os.unlink(temp_db)
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
         raise
-
-    return temp_db
 
 
 def read_cookies_from_db(db_path: Path, domain: Optional[str] = None) -> list:
