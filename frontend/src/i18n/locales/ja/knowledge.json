@@ -37,6 +37,47 @@
       "summarize": "ドキュメントを要約",
       "keyConcepts": "主要な概念は？",
       "showExamples": "例を表示"
+    },
+    "scroll": {
+      "newMessages": "新しいメッセージ",
+      "scrollToBottom": "最新メッセージへ",
+      "jumpToLatest": "最新へ移動"
+    },
+    "newChat": {
+      "button": "新しいチャット",
+      "tooltip": "新しい会話を開始",
+      "creating": "会話を作成中...",
+      "created": "{{title}}を作成しました"
+    },
+    "history": {
+      "title": "会話一覧",
+      "empty": "会話がありません",
+      "emptyHint": "「新しいチャット」をクリックして最初の会話を開始",
+      "loading": "会話を読み込み中...",
+      "conversationCount": "{{count}}件の会話",
+      "conversationCount_plural": "{{count}}件の会話",
+      "message": "メッセージ",
+      "messages": "メッセージ",
+      "refresh": "更新",
+      "noActivity": "アクティビティなし",
+      "justNow": "たった今",
+      "minutesAgo": "{{count}}分前",
+      "minutesAgo_plural": "{{count}}分前",
+      "hoursAgo": "{{count}}時間前",
+      "hoursAgo_plural": "{{count}}時間前",
+      "yesterday": "昨日",
+      "daysAgo": "{{count}}日前",
+      "daysAgo_plural": "{{count}}日前",
+      "delete": {
+        "button": "削除",
+        "confirmTitle": "会話を削除",
+        "confirmMessage": "この会話を削除してもよろしいですか？この操作は取り消せません。",
+        "cancel": "キャンセル",
+        "confirm": "削除",
+        "deleting": "削除中...",
+        "deleted": "会話を削除しました",
+        "failed": "会話の削除に失敗しました"
+      }
     }
   },
   "sidebar": {
@@ -240,6 +281,8 @@
   },
   "common": {
     "processing": "処理中...",
-    "error": "エラー"
+    "error": "エラー",
+    "close": "閉じる",
+    "retry": "再試行"
   }
 }

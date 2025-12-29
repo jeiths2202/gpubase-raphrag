@@ -1403,10 +1403,11 @@ const KnowledgeApp: React.FC = () => {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      height: '100vh', // Fixed height to enable viewport-based layout
       background: themeColors.bg,
       color: themeColors.text,
-      display: 'flex'
+      display: 'flex',
+      overflow: 'hidden' // Prevent page-level scrolling
     }}>
       {/* Sidebar */}
       <KnowledgeSidebar
@@ -1447,7 +1448,14 @@ const KnowledgeApp: React.FC = () => {
       />
 
       {/* Main Content */}
-      <main style={{ flex: 1, padding: '24px', overflow: 'auto', display: 'flex', gap: '24px' }}>
+      <main style={{
+        flex: 1,
+        padding: '24px',
+        overflow: 'hidden', // Prevent main content scrolling - only ChatMessageList scrolls
+        display: 'flex',
+        gap: '24px',
+        height: '100vh' // Ensure full viewport height
+      }}>
         <AnimatePresence mode="wait">
           {/* Chat Tab */}
           {activeTab === 'chat' && (

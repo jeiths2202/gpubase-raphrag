@@ -38,6 +38,8 @@ class ConversationEntity(Entity):
     strategy: str = "auto"
     language: str = "auto"
     metadata: Dict[str, Any] = field(default_factory=dict)
+    first_message_preview: Optional[str] = None
+    last_message_preview: Optional[str] = None
 
 
 @dataclass

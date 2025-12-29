@@ -292,10 +292,18 @@ class PostgresConversationRepository(ConversationRepository):
         limit: int = 100,
         filters: Optional[Dict[str, Any]] = None
     ) -> List[ConversationEntity]:
-        """List conversations with optional filters."""
+        """List conversations with optional filters and message previews."""
         async with self._pool.acquire() as conn:
             query = """
-                SELECT * FROM conversations
+                SELECT
+                    c.*,
+                    (SELECT content FROM messages
+                     WHERE conversation_id = c.id AND role = 'user'
+                     ORDER BY created_at ASC LIMIT 1) as first_message_preview,
+                    (SELECT content FROM messages
+                     WHERE conversation_id = c.id
+                     ORDER BY created_at DESC LIMIT 1) as last_message_preview
+                FROM conversations c
                 WHERE is_deleted = FALSE
             """
             params = []
@@ -317,11 +325,20 @@ class PostgresConversationRepository(ConversationRepository):
                     params.append(filters["project_id"])
                     param_idx += 1
 
-            query += f" ORDER BY updated_at DESC LIMIT ${param_idx} OFFSET ${param_idx + 1}"
+            query += f" ORDER BY c.updated_at DESC LIMIT ${param_idx} OFFSET ${param_idx + 1}"
             params.extend([limit, skip])
 
             rows = await conn.fetch(query, *params)
-            return [self._row_to_conversation(row) for row in rows]
+            conversations = []
+            for row in rows:
+                conv = self._row_to_conversation(row)
+                # Add message previews if available
+                if 'first_message_preview' in row:
+                    conv.first_message_preview = row['first_message_preview']
+                if 'last_message_preview' in row:
+                    conv.last_message_preview = row['last_message_preview']
+                conversations.append(conv)
+            return conversations
 
     async def exists(self, entity_id: EntityId) -> bool:
         """Check if conversation exists."""
@@ -1108,3 +1125,26 @@ class PostgresConversationRepository(ConversationRepository):
                 "total_messages": stats["total_messages"] or 0,
                 "total_tokens": stats["total_tokens"] or 0
             }
+
+    # ==================== BaseRepository Interface Methods ====================
+
+    async def get_by_id(self, entity_id: EntityId) -> Optional[ConversationEntity]:
+        """
+        Get conversation by ID (BaseRepository interface).
+
+        Alias for get() method to satisfy BaseRepository abstract method.
+        """
+        return await self.get(entity_id)
+
+    async def get_all(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[ConversationEntity]:
+        """
+        Get all conversations (BaseRepository interface).
+
+        Alias for list() method to satisfy BaseRepository abstract method.
+        """
+        return await self.list(skip=skip, limit=limit, filters=filters)

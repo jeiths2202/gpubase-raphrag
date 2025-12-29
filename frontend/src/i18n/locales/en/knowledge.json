@@ -37,6 +37,47 @@
       "summarize": "Summarize document",
       "keyConcepts": "Key concepts?",
       "showExamples": "Show examples"
+    },
+    "scroll": {
+      "newMessages": "New messages",
+      "scrollToBottom": "Scroll to bottom",
+      "jumpToLatest": "Jump to latest"
+    },
+    "newChat": {
+      "button": "New Chat",
+      "tooltip": "Start a new conversation",
+      "creating": "Creating conversation...",
+      "created": "{{title}} created"
+    },
+    "history": {
+      "title": "Conversations",
+      "empty": "No conversations yet",
+      "emptyHint": "Click 'New Chat' to start your first conversation",
+      "loading": "Loading conversations...",
+      "conversationCount": "{{count}} conversations",
+      "conversationCount_plural": "{{count}} conversations",
+      "message": "message",
+      "messages": "messages",
+      "refresh": "Refresh",
+      "noActivity": "No activity",
+      "justNow": "Just now",
+      "minutesAgo": "{{count}}m ago",
+      "minutesAgo_plural": "{{count}}m ago",
+      "hoursAgo": "{{count}}h ago",
+      "hoursAgo_plural": "{{count}}h ago",
+      "yesterday": "Yesterday",
+      "daysAgo": "{{count}}d ago",
+      "daysAgo_plural": "{{count}}d ago",
+      "delete": {
+        "button": "Delete",
+        "confirmTitle": "Delete Conversation",
+        "confirmMessage": "Are you sure you want to delete this conversation? This action cannot be undone.",
+        "cancel": "Cancel",
+        "confirm": "Delete",
+        "deleting": "Deleting...",
+        "deleted": "Conversation deleted",
+        "failed": "Failed to delete conversation"
+      }
     }
   },
   "sidebar": {
@@ -240,6 +281,8 @@
   },
   "common": {
     "processing": "Processing...",
-    "error": "Error"
+    "error": "Error",
+    "close": "Close",
+    "retry": "Retry"
   }
 }

@@ -1,10 +1,14 @@
 // ChatTab Component
-// Extracted from KnowledgeApp.tsx - NO LOGIC CHANGES
+// Extracted from KnowledgeApp.tsx - Enhanced with Clean Architecture components
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ThemeColors, ChatMessage } from '../types';
 import { TranslateFunction } from '../../../i18n/types';
+import { ChatMessageList } from './ChatMessageList';
+import { NewConversationButton } from './NewConversationButton';
+import { ConversationHistorySidebar } from './ConversationHistorySidebar';
+import { useWorkspaceStore } from '../../../store/workspaceStore';
 
 // Session document type (inline as it's specific to chat)
 interface SessionDocument {
@@ -141,107 +145,103 @@ export const ChatTab: React.FC<ChatTabProps> = ({
   inputStyle,
   t
 }) => {
+  // Conversation history sidebar state
+  const [showConversationSidebar, setShowConversationSidebar] = useState(false);
+
+  // Access workspace store for conversation management
+  const workspaceStore = useWorkspaceStore();
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+
+  // Handle new conversation creation
+  const handleNewConversation = async () => {
+    setIsCreatingConversation(true);
+    try {
+      const newConversation = await workspaceStore.createConversation('New Chat');
+      await workspaceStore.setActiveConversation(newConversation.id);
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+    } finally {
+      setIsCreatingConversation(false);
+    }
+  };
+
   return (
     <motion.div
       key="chat"
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px',
+        position: 'relative',
+        height: '100%',
+        overflow: 'hidden' // Prevent entire tab from scrolling
+      }}
     >
-      {/* Chat Header */}
-      <div style={cardStyle}>
-        <h2 style={{ margin: 0 }}>{t('knowledge.chat.title')}</h2>
-        <p style={{ color: themeColors.textSecondary, margin: '8px 0 0' }}>
+      {/* Conversation History Sidebar */}
+      <ConversationHistorySidebar
+        isOpen={showConversationSidebar}
+        onClose={() => setShowConversationSidebar(false)}
+        themeColors={themeColors}
+        t={t}
+        cardStyle={cardStyle}
+      />
+
+      {/* Chat Header with New Chat Button - FIXED (doesn't scroll) */}
+      <div style={{ ...cardStyle, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <h2 style={{ margin: 0 }}>{t('knowledge.chat.title')}</h2>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setShowConversationSidebar(true)}
+              style={{
+                ...tabStyle(false),
+                fontSize: '14px',
+                padding: '6px 12px'
+              }}
+              title={t('knowledge.chat.history.title')}
+            >
+              💬 {workspaceStore.recentConversations.length}
+            </button>
+            <NewConversationButton
+              onClick={handleNewConversation}
+              isLoading={isCreatingConversation}
+              themeColors={themeColors}
+              t={t}
+            />
+          </div>
+        </div>
+        <p style={{ color: themeColors.textSecondary, margin: 0 }}>
           {t('knowledge.chat.subtitle', { count: selectedDocuments.length })}
         </p>
       </div>
 
-      {/* Messages */}
-      <div style={{ ...cardStyle, flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {messages.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: themeColors.textSecondary }}>
-            <p>{t('knowledge.chat.startPrompt')}</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginTop: '16px' }}>
-              {[
-                { key: 'summarize', label: t('knowledge.chat.quickPrompts.summarize') },
-                { key: 'keyConcepts', label: t('knowledge.chat.quickPrompts.keyConcepts') },
-                { key: 'showExamples', label: t('knowledge.chat.quickPrompts.showExamples') }
-              ].map((q) => (
-                <button
-                  key={q.key}
-                  onClick={() => setInputMessage(q.label)}
-                  style={{ ...tabStyle(false), fontSize: '14px' }}
-                >
-                  {q.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          messages.map(msg => (
-            <div
-              key={msg.id}
-              style={{
-                alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: '80%',
-                background: msg.role === 'user' ? themeColors.accent : 'rgba(255,255,255,0.1)',
-                padding: '12px 16px',
-                borderRadius: '12px'
-              }}
-            >
-              <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+      {/* Messages - Using ChatMessageList component */}
+      <ChatMessageList
+        messages={messages}
+        isLoading={isLoading}
+        themeColors={themeColors}
+        onSelectSource={(source) => {
+          setSelectedSource(source);
+          setShowSourcePanel(true);
+        }}
+        onSaveResponse={saveAIResponse}
+        onSetInputMessage={setInputMessage}
+        t={t}
+        cardStyle={cardStyle}
+        tabStyle={tabStyle}
+        initialScrollPosition={workspaceStore.menuStates.chat?.scrollPosition}
+        onScrollPositionChange={(scrollTop) => {
+          workspaceStore.setMenuState('chat', { scrollPosition: scrollTop });
+        }}
+      />
 
-              {/* Sources (Citations) */}
-              {msg.sources && msg.sources.length > 0 && (
-                <div style={{ marginTop: '12px', fontSize: '12px' }}>
-                  <div style={{ color: themeColors.textSecondary, marginBottom: '8px' }}>
-                    {t('knowledge.sources')} ({msg.sources.length}):
-                  </div>
-                  {msg.sources.map((source, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => {
-                        setSelectedSource(source);
-                        setShowSourcePanel(true);
-                      }}
-                      style={{
-                        padding: '8px',
-                        background: 'rgba(74,144,217,0.2)',
-                        borderRadius: '6px',
-                        marginBottom: '4px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <span style={{ fontWeight: 600 }}>[{idx + 1}]</span> {source.doc_name} (신뢰도: {(source.score * 100).toFixed(0)}%)
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Save to note button */}
-              {msg.role === 'assistant' && (
-                <button
-                  onClick={() => saveAIResponse(msg.id)}
-                  style={{ ...tabStyle(false), fontSize: '12px', marginTop: '8px' }}
-                >
-                  📝 노트로 저장
-                </button>
-              )}
-            </div>
-          ))
-        )}
-
-        {isLoading && (
-          <div style={{ alignSelf: 'flex-start', padding: '12px 16px', background: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}>
-            <span className="loading">응답 생성 중...</span>
-          </div>
-        )}
-      </div>
-
-      {/* Suggested Questions */}
+      {/* Suggested Questions - FIXED (doesn't scroll) */}
       {suggestedQuestions.length > 0 && (
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', flexShrink: 0 }}>
           {suggestedQuestions.map((q, i) => (
             <button
               key={i}
@@ -254,16 +254,17 @@ export const ChatTab: React.FC<ChatTabProps> = ({
         </div>
       )}
 
-      {/* Session Documents */}
+      {/* Session Documents - FIXED (doesn't scroll) */}
       {sessionDocuments.length > 0 && (
         <div style={{
           ...cardStyle,
+          flexShrink: 0,
           background: 'rgba(46, 204, 113, 0.1)',
           border: '1px solid rgba(46, 204, 113, 0.3)',
           padding: '12px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-            <span style={{ fontSize: '14px' }}>📎 현재 대화에서 사용 중인 문서</span>
+            <span style={{ fontSize: '14px' }}>📎 {t('knowledge.chat.sessionDocs')}</span>
             <span style={{
               fontSize: '11px',
               padding: '2px 6px',
@@ -271,7 +272,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
               borderRadius: '4px',
               color: '#2ECC71'
             }}>
-              우선 참조
+              {t('knowledge.chat.priority')}
             </span>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -290,13 +291,13 @@ export const ChatTab: React.FC<ChatTabProps> = ({
               >
                 <span>{doc.filename}</span>
                 {doc.status === 'processing' && (
-                  <span style={{ color: '#F1C40F' }}>처리중...</span>
+                  <span style={{ color: '#F1C40F' }}>{t('knowledge.common.processing')}</span>
                 )}
                 {doc.status === 'ready' && (
                   <span style={{ color: '#2ECC71' }}>({doc.chunk_count} chunks)</span>
                 )}
                 {doc.status === 'error' && (
-                  <span style={{ color: '#E74C3C' }}>오류</span>
+                  <span style={{ color: '#E74C3C' }}>{t('knowledge.common.error')}</span>
                 )}
                 <button
                   onClick={() => removeSessionDocument(doc.id)}
@@ -317,10 +318,11 @@ export const ChatTab: React.FC<ChatTabProps> = ({
         </div>
       )}
 
-      {/* Input with File Upload */}
+      {/* Input with File Upload - FIXED (doesn't scroll) */}
       <div
         style={{
           ...cardStyle,
+          flexShrink: 0,
           display: 'flex',
           flexDirection: 'column',
           gap: '12px',
@@ -622,14 +624,14 @@ export const ChatTab: React.FC<ChatTabProps> = ({
               style={{ ...cardStyle, width: '600px', maxWidth: '90%' }}
               onClick={e => e.stopPropagation()}
             >
-              <h3 style={{ margin: '0 0 16px' }}>📝 {t('knowledge.upload.pasteText')}</h3>
+              <h3 style={{ margin: '0 0 16px' }}>📝 {t('knowledge.paste.modalTitle')}</h3>
               <p style={{ color: themeColors.textSecondary, fontSize: '14px', marginBottom: '16px' }}>
-                문서 내용이나 참고자료를 붙여넣으면 현재 대화에서 우선적으로 참조합니다.
+                {t('knowledge.paste.description')}
               </p>
 
               <input
                 type="text"
-                placeholder="제목 (선택)"
+                placeholder={t('knowledge.paste.titlePlaceholder')}
                 value={pasteTitle}
                 onChange={e => setPasteTitle(e.target.value)}
                 style={{
@@ -640,7 +642,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
               />
 
               <textarea
-                placeholder="내용을 붙여넣으세요..."
+                placeholder={t('knowledge.paste.contentPlaceholder')}
                 value={pasteContent}
                 onChange={e => setPasteContent(e.target.value)}
                 style={{
@@ -657,7 +659,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
                   onClick={() => setShowPasteModal(false)}
                   style={{ ...tabStyle(false), flex: 1 }}
                 >
-                  취소
+                  {t('knowledge.paste.cancel')}
                 </button>
                 <button
                   onClick={pasteSessionText}
@@ -669,7 +671,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
                     cursor: !pasteContent.trim() || uploadingSessionDoc ? 'not-allowed' : 'pointer'
                   }}
                 >
-                  {uploadingSessionDoc ? '처리 중...' : '추가'}
+                  {uploadingSessionDoc ? t('knowledge.common.processing') : t('knowledge.paste.add')}
                 </button>
               </div>
             </motion.div>

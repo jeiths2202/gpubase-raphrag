@@ -37,6 +37,47 @@
       "summarize": "문서 요약해줘",
       "keyConcepts": "핵심 개념은?",
       "showExamples": "예시를 보여줘"
+    },
+    "scroll": {
+      "newMessages": "새 메시지",
+      "scrollToBottom": "최신 메시지로",
+      "jumpToLatest": "최신으로 이동"
+    },
+    "newChat": {
+      "button": "새 채팅",
+      "tooltip": "새 대화 시작",
+      "creating": "대화 생성 중...",
+      "created": "{{title}} 생성됨"
+    },
+    "history": {
+      "title": "대화 목록",
+      "empty": "대화가 없습니다",
+      "emptyHint": "'새 채팅'을 클릭하여 첫 대화를 시작하세요",
+      "loading": "대화 불러오는 중...",
+      "conversationCount": "{{count}}개의 대화",
+      "conversationCount_plural": "{{count}}개의 대화",
+      "message": "메시지",
+      "messages": "메시지",
+      "refresh": "새로고침",
+      "noActivity": "활동 없음",
+      "justNow": "방금 전",
+      "minutesAgo": "{{count}}분 전",
+      "minutesAgo_plural": "{{count}}분 전",
+      "hoursAgo": "{{count}}시간 전",
+      "hoursAgo_plural": "{{count}}시간 전",
+      "yesterday": "어제",
+      "daysAgo": "{{count}}일 전",
+      "daysAgo_plural": "{{count}}일 전",
+      "delete": {
+        "button": "삭제",
+        "confirmTitle": "대화 삭제",
+        "confirmMessage": "이 대화를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+        "cancel": "취소",
+        "confirm": "삭제",
+        "deleting": "삭제 중...",
+        "deleted": "대화가 삭제되었습니다",
+        "failed": "대화 삭제에 실패했습니다"
+      }
     }
   },
   "sidebar": {
@@ -240,6 +281,8 @@
   },
   "common": {
     "processing": "처리 중...",
-    "error": "오류"
+    "error": "오류",
+    "close": "닫기",
+    "retry": "다시 시도"
   }
 }
