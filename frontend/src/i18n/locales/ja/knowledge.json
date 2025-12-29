@@ -282,5 +282,39 @@
     "error": "エラー",
     "close": "閉じる",
     "retry": "再試行"
+  },
+  "imsKnowledge": {
+    "header": {
+      "title": "AI Agentを使用したIMS ナレッジサービス",
+      "subtitle": "会社のIMSシステムとAI Agentを連携し、知識を生成・管理します"
+    },
+    "connection": {
+      "title": "IMSシステム接続",
+      "urlLabel": "IMS URL",
+      "urlPlaceholder": "https://ims.company.com",
+      "connectButton": "SSOで接続",
+      "connecting": "接続中...",
+      "disconnect": "接続解除",
+      "connected": "✓ 接続済み",
+      "helpText": "💡 IMS URLを入力し、SSO認証を通じてシステムに接続してください",
+      "errors": {
+        "emptyUrl": "URLを入力してください",
+        "connectionFailed": "IMSシステムへの接続に失敗しました"
+      },
+      "welcomeMessage": "IMSシステムに接続されました。\n接続されたURL: {{url}}\n\n何をお手伝いしましょうか？"
+    },
+    "chat": {
+      "title": "AI知識生成チャット",
+      "inputPlaceholder": "質問を入力してください...",
+      "sendButton": "送信",
+      "generating": "AIが応答中...",
+      "assistantResponse": "IMSシステムの情報を基に回答します。\n\n{{query}}についての知識を生成しています...",
+      "error": "申し訳ございません。エラーが発生しました。"
+    },
+    "knowledge": {
+      "title": "生成された知識 ({{count}})",
+      "saveButton": "保存",
+      "saveSuccess": "知識「{{title}}」を保存しました。"
+    }
   }
 }

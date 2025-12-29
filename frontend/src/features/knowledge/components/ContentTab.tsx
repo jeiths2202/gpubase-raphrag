@@ -52,7 +52,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
   // Connect to IMS system via SSO
   const connectToIMS = async () => {
     if (!imsUrl.trim()) {
-      setConnectionError('URL을 입력해주세요');
+      setConnectionError(t('knowledge.imsKnowledge.connection.errors.emptyUrl' as keyof import('../../../i18n/types').TranslationKeys));
       return;
     }
 
@@ -68,11 +68,11 @@ export const ContentTab: React.FC<ContentTabProps> = ({
       setMessages([{
         id: Date.now().toString(),
         role: 'assistant',
-        content: `IMS 시스템에 연결되었습니다.\n연결된 URL: ${imsUrl}\n\n무엇을 도와드릴까요?`,
+        content: t('knowledge.imsKnowledge.connection.welcomeMessage' as keyof import('../../../i18n/types').TranslationKeys, { url: imsUrl }),
         timestamp: new Date()
       }]);
     } catch (error) {
-      setConnectionError('IMS 시스템 연결에 실패했습니다');
+      setConnectionError(t('knowledge.imsKnowledge.connection.errors.connectionFailed' as keyof import('../../../i18n/types').TranslationKeys));
       setIsConnected(false);
     } finally {
       setConnecting(false);
@@ -110,7 +110,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `IMS 시스템의 정보를 바탕으로 답변드립니다.\n\n${inputMessage}에 대한 지식을 생성하고 있습니다...`,
+        content: t('knowledge.imsKnowledge.chat.assistantResponse' as keyof import('../../../i18n/types').TranslationKeys, { query: inputMessage }),
         timestamp: new Date()
       };
 
@@ -130,7 +130,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: '죄송합니다. 오류가 발생했습니다.',
+        content: t('knowledge.imsKnowledge.chat.error' as keyof import('../../../i18n/types').TranslationKeys),
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -142,7 +142,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
   // Save knowledge item
   const saveKnowledge = async (item: KnowledgeItem) => {
     // TODO: Implement save to backend
-    alert(`지식 "${item.title}"을(를) 저장했습니다.`);
+    alert(t('knowledge.imsKnowledge.knowledge.saveSuccess' as keyof import('../../../i18n/types').TranslationKeys, { title: item.title }));
   };
 
   return (
@@ -155,27 +155,27 @@ export const ContentTab: React.FC<ContentTabProps> = ({
     >
       {/* Header */}
       <div style={cardStyle}>
-        <h2>AI Agent를 사용한 IMS 지식 서비스</h2>
+        <h2>{t('knowledge.imsKnowledge.header.title' as keyof import('../../../i18n/types').TranslationKeys)}</h2>
         <p style={{ color: themeColors.textSecondary, marginTop: '8px' }}>
-          회사 IMS 시스템과 AI Agent를 연동하여 지식을 생성하고 관리합니다
+          {t('knowledge.imsKnowledge.header.subtitle' as keyof import('../../../i18n/types').TranslationKeys)}
         </p>
       </div>
 
       {/* IMS Connection Section */}
       <div style={cardStyle}>
-        <h3 style={{ marginBottom: '16px' }}>IMS 시스템 연결</h3>
+        <h3 style={{ marginBottom: '16px' }}>{t('knowledge.imsKnowledge.connection.title' as keyof import('../../../i18n/types').TranslationKeys)}</h3>
 
         {!isConnected ? (
           <div>
             <div style={{ marginBottom: '12px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>
-                IMS URL
+                {t('knowledge.imsKnowledge.connection.urlLabel' as keyof import('../../../i18n/types').TranslationKeys)}
               </label>
               <input
                 type="url"
                 value={imsUrl}
                 onChange={(e) => setImsUrl(e.target.value)}
-                placeholder="https://ims.company.com"
+                placeholder={t('knowledge.imsKnowledge.connection.urlPlaceholder' as keyof import('../../../i18n/types').TranslationKeys)}
                 disabled={connecting}
                 style={{
                   width: '100%',
@@ -217,7 +217,9 @@ export const ContentTab: React.FC<ContentTabProps> = ({
                 opacity: connecting ? 0.6 : 1
               }}
             >
-              {connecting ? '연결 중...' : 'SSO로 연결'}
+              {connecting
+                ? t('knowledge.imsKnowledge.connection.connecting' as keyof import('../../../i18n/types').TranslationKeys)
+                : t('knowledge.imsKnowledge.connection.connectButton' as keyof import('../../../i18n/types').TranslationKeys)}
             </button>
 
             <div style={{
@@ -228,7 +230,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
               fontSize: '13px',
               color: themeColors.textSecondary
             }}>
-              💡 IMS URL을 입력하고 SSO 인증을 통해 시스템에 연결하세요
+              {t('knowledge.imsKnowledge.connection.helpText' as keyof import('../../../i18n/types').TranslationKeys)}
             </div>
           </div>
         ) : (
@@ -244,7 +246,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
               marginBottom: '12px'
             }}>
               <div>
-                <div style={{ fontWeight: 600, color: '#2ECC71' }}>✓ 연결됨</div>
+                <div style={{ fontWeight: 600, color: '#2ECC71' }}>{t('knowledge.imsKnowledge.connection.connected' as keyof import('../../../i18n/types').TranslationKeys)}</div>
                 <div style={{ fontSize: '13px', color: themeColors.textSecondary, marginTop: '4px' }}>
                   {imsUrl}
                 </div>
@@ -260,7 +262,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
                   cursor: 'pointer'
                 }}
               >
-                연결 해제
+                {t('knowledge.imsKnowledge.connection.disconnect' as keyof import('../../../i18n/types').TranslationKeys)}
               </button>
             </div>
           </div>
@@ -270,7 +272,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
       {/* AI Chat Interface - Only visible when connected */}
       {isConnected && (
         <div style={{ ...cardStyle, flex: 1, display: 'flex', flexDirection: 'column', minHeight: '400px' }}>
-          <h3 style={{ marginBottom: '16px' }}>AI 지식 생성 챗</h3>
+          <h3 style={{ marginBottom: '16px' }}>{t('knowledge.imsKnowledge.chat.title' as keyof import('../../../i18n/types').TranslationKeys)}</h3>
 
           {/* Messages */}
           <div style={{
@@ -321,7 +323,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
                 gap: '8px',
                 color: themeColors.textSecondary
               }}>
-                <span>AI가 응답하는 중</span>
+                <span>{t('knowledge.imsKnowledge.chat.generating' as keyof import('../../../i18n/types').TranslationKeys)}</span>
                 <span className="loading-dots">...</span>
               </div>
             )}
@@ -334,7 +336,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-              placeholder="질문을 입력하세요..."
+              placeholder={t('knowledge.imsKnowledge.chat.inputPlaceholder' as keyof import('../../../i18n/types').TranslationKeys)}
               disabled={isGenerating}
               style={{
                 flex: 1,
@@ -360,7 +362,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
                 opacity: isGenerating || !inputMessage.trim() ? 0.6 : 1
               }}
             >
-              전송
+              {t('knowledge.imsKnowledge.chat.sendButton' as keyof import('../../../i18n/types').TranslationKeys)}
             </button>
           </div>
         </div>
@@ -369,7 +371,9 @@ export const ContentTab: React.FC<ContentTabProps> = ({
       {/* Knowledge Items List */}
       {isConnected && knowledgeItems.length > 0 && (
         <div style={cardStyle}>
-          <h3 style={{ marginBottom: '16px' }}>생성된 지식 ({knowledgeItems.length})</h3>
+          <h3 style={{ marginBottom: '16px' }}>
+            {t('knowledge.imsKnowledge.knowledge.title' as keyof import('../../../i18n/types').TranslationKeys, { count: knowledgeItems.length })}
+          </h3>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
             {knowledgeItems.map(item => (
@@ -415,7 +419,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
                       cursor: 'pointer'
                     }}
                   >
-                    저장
+                    {t('knowledge.imsKnowledge.knowledge.saveButton' as keyof import('../../../i18n/types').TranslationKeys)}
                   </button>
                 </div>
               </div>

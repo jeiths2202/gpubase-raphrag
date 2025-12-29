@@ -282,5 +282,39 @@
     "error": "오류",
     "close": "닫기",
     "retry": "다시 시도"
+  },
+  "imsKnowledge": {
+    "header": {
+      "title": "AI Agent를 사용한 IMS 지식 서비스",
+      "subtitle": "회사 IMS 시스템과 AI Agent를 연동하여 지식을 생성하고 관리합니다"
+    },
+    "connection": {
+      "title": "IMS 시스템 연결",
+      "urlLabel": "IMS URL",
+      "urlPlaceholder": "https://ims.company.com",
+      "connectButton": "SSO로 연결",
+      "connecting": "연결 중...",
+      "disconnect": "연결 해제",
+      "connected": "✓ 연결됨",
+      "helpText": "💡 IMS URL을 입력하고 SSO 인증을 통해 시스템에 연결하세요",
+      "errors": {
+        "emptyUrl": "URL을 입력해주세요",
+        "connectionFailed": "IMS 시스템 연결에 실패했습니다"
+      },
+      "welcomeMessage": "IMS 시스템에 연결되었습니다.\n연결된 URL: {{url}}\n\n무엇을 도와드릴까요?"
+    },
+    "chat": {
+      "title": "AI 지식 생성 챗",
+      "inputPlaceholder": "질문을 입력하세요...",
+      "sendButton": "전송",
+      "generating": "AI가 응답하는 중...",
+      "assistantResponse": "IMS 시스템의 정보를 바탕으로 답변드립니다.\n\n{{query}}에 대한 지식을 생성하고 있습니다...",
+      "error": "죄송합니다. 오류가 발생했습니다."
+    },
+    "knowledge": {
+      "title": "생성된 지식 ({{count}})",
+      "saveButton": "저장",
+      "saveSuccess": "지식 \"{{title}}\"을(를) 저장했습니다."
+    }
   }
 }
