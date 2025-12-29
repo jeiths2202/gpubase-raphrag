@@ -3,8 +3,16 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import axios from 'axios';
 import type { ThemeColors } from '../types';
 import { TranslateFunction } from '../../../i18n/types';
+
+const API_BASE_URL = '/api/v1';
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
+});
 
 interface Message {
   id: string;
@@ -40,6 +48,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
   const [isConnected, setIsConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -60,36 +69,57 @@ export const ContentTab: React.FC<ContentTabProps> = ({
     setConnectionError(null);
 
     try {
-      // TODO: Implement SSO connection to IMS system
-      // For now, simulate connection
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Call backend IMS SSO connection API
+      const response = await api.post('/ims-sso/connect', {
+        ims_url: imsUrl,
+        chrome_profile: 'Default',
+        validation_endpoint: '/api/v1/me'
+      });
 
+      const { session_id, ims_url: connectedUrl, user_info } = response.data.data;
+
+      // Store session ID
+      setSessionId(session_id);
       setIsConnected(true);
+
+      // Set welcome message
       setMessages([{
         id: Date.now().toString(),
         role: 'assistant',
-        content: t('knowledge.imsKnowledge.connection.welcomeMessage' as keyof import('../../../i18n/types').TranslationKeys, { url: imsUrl }),
+        content: t('knowledge.imsKnowledge.connection.welcomeMessage' as keyof import('../../../i18n/types').TranslationKeys, { url: connectedUrl }),
         timestamp: new Date()
       }]);
-    } catch (error) {
-      setConnectionError(t('knowledge.imsKnowledge.connection.errors.connectionFailed' as keyof import('../../../i18n/types').TranslationKeys));
+
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail ||
+                          t('knowledge.imsKnowledge.connection.errors.connectionFailed' as keyof import('../../../i18n/types').TranslationKeys);
+      setConnectionError(errorMessage);
       setIsConnected(false);
+      setSessionId(null);
     } finally {
       setConnecting(false);
     }
   };
 
   // Disconnect from IMS
-  const disconnectFromIMS = () => {
+  const disconnectFromIMS = async () => {
+    if (sessionId) {
+      try {
+        await api.post(`/ims-sso/disconnect/${sessionId}`);
+      } catch (error) {
+        console.error('Disconnect error:', error);
+      }
+    }
+
     setIsConnected(false);
+    setSessionId(null);
     setMessages([]);
     setKnowledgeItems([]);
-    setImsUrl('');
   };
 
   // Send message to AI Agent
   const sendMessage = async () => {
-    if (!inputMessage.trim() || isGenerating) return;
+    if (!inputMessage.trim() || isGenerating || !sessionId) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -98,19 +128,24 @@ export const ContentTab: React.FC<ContentTabProps> = ({
       timestamp: new Date()
     };
 
+    const currentQuery = inputMessage;
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsGenerating(true);
 
     try {
-      // TODO: Implement AI Agent API call
-      // For now, simulate AI response
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Call backend IMS AI query API
+      const response = await api.post('/ims-sso/query', {
+        session_id: sessionId,
+        query: currentQuery
+      });
+
+      const { response: aiResponse, knowledge_id } = response.data.data;
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: t('knowledge.imsKnowledge.chat.assistantResponse' as keyof import('../../../i18n/types').TranslationKeys, { query: inputMessage }),
+        content: aiResponse,
         timestamp: new Date()
       };
 
@@ -118,19 +153,23 @@ export const ContentTab: React.FC<ContentTabProps> = ({
 
       // Create knowledge item
       const newKnowledge: KnowledgeItem = {
-        id: Date.now().toString(),
-        title: inputMessage.slice(0, 50),
-        content: aiMessage.content,
+        id: knowledge_id || Date.now().toString(),
+        title: currentQuery.slice(0, 50),
+        content: aiResponse,
         sourceUrl: imsUrl,
         createdAt: new Date()
       };
 
       setKnowledgeItems(prev => [newKnowledge, ...prev]);
-    } catch (error) {
+
+    } catch (error: any) {
+      const errorContent = error.response?.data?.detail ||
+                          t('knowledge.imsKnowledge.chat.error' as keyof import('../../../i18n/types').TranslationKeys);
+
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: t('knowledge.imsKnowledge.chat.error' as keyof import('../../../i18n/types').TranslationKeys),
+        content: errorContent,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
