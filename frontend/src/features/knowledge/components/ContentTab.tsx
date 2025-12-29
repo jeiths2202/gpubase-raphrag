@@ -36,7 +36,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
   t
 }) => {
   // IMS URL connection state
-  const [imsUrl, setImsUrl] = useState('');
+  const [imsUrl, setImsUrl] = useState('https://ims.tmaxsoft.com');
   const [isConnected, setIsConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
