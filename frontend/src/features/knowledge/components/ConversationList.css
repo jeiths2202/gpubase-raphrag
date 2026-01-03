@@ -1,0 +1,70 @@
+/* ConversationList Component Styles
+ * Scrollable list of conversations with loading and empty states
+ */
+
+/* Main List Container */
+.conversation-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0);
+}
+
+/* Loading Skeleton */
+.conversation-loading-skeleton {
+  padding: var(--space-3);
+}
+
+.conversation-skeleton-item {
+  height: 56px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Empty State */
+.conversation-empty-state {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.conversation-empty-icon {
+  font-size: 48px;
+  margin-bottom: var(--space-3);
+}
+
+.conversation-empty-text {
+  font-size: var(--text-sm);
+  margin: 0 0 var(--space-2);
+}
+
+.conversation-empty-hint {
+  font-size: var(--text-xs);
+  margin: 0;
+}
+
+/* Conversation Count Indicator */
+.conversation-count-indicator {
+  padding: var(--space-3);
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .conversation-skeleton-item {
+    animation: none;
+    opacity: 0.5;
+  }
+}
