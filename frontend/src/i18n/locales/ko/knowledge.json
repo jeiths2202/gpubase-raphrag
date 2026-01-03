@@ -20,6 +20,7 @@
     "startPrompt": "질문을 입력하여 대화를 시작하세요.",
     "inputPlaceholder": "질문을 입력하세요...",
     "send": "전송",
+    "attachFile": "파일 첨부",
     "generating": "응답 생성 중...",
     "noResponse": "응답을 생성할 수 없습니다.",
     "errorOccurred": "오류가 발생했습니다. 다시 시도해주세요.",
@@ -84,9 +85,7 @@
     "chat": "채팅",
     "documents": "문서",
     "webSources": "웹 소스",
-    "notes": "노트",
-    "aiContent": "AI 콘텐츠",
-    "projects": "프로젝트",
+    "imsKnowledge": "IMS 지식 서비스",
     "mindmap": "마인드맵",
     "knowledgeGraph": "지식 그래프",
     "knowledgeBase": "지식베이스",
@@ -284,5 +283,39 @@
     "error": "오류",
     "close": "닫기",
     "retry": "다시 시도"
+  },
+  "imsKnowledge": {
+    "header": {
+      "title": "AI Agent를 사용한 IMS 지식 서비스",
+      "subtitle": "회사 IMS 시스템과 AI Agent를 연동하여 지식을 생성하고 관리합니다"
+    },
+    "connection": {
+      "title": "IMS 시스템 연결",
+      "urlLabel": "IMS URL",
+      "urlPlaceholder": "https://ims.company.com",
+      "connectButton": "SSO로 연결",
+      "connecting": "연결 중...",
+      "disconnect": "연결 해제",
+      "connected": "✓ 연결됨",
+      "helpText": "💡 IMS URL을 입력하고 SSO 인증을 통해 시스템에 연결하세요",
+      "errors": {
+        "emptyUrl": "URL을 입력해주세요",
+        "connectionFailed": "IMS 시스템 연결에 실패했습니다"
+      },
+      "welcomeMessage": "IMS 시스템에 연결되었습니다.\n연결된 URL: {{url}}\n\n무엇을 도와드릴까요?"
+    },
+    "chat": {
+      "title": "AI 지식 생성 챗",
+      "inputPlaceholder": "질문을 입력하세요...",
+      "sendButton": "전송",
+      "generating": "AI가 응답하는 중...",
+      "assistantResponse": "IMS 시스템의 정보를 바탕으로 답변드립니다.\n\n{{query}}에 대한 지식을 생성하고 있습니다...",
+      "error": "죄송합니다. 오류가 발생했습니다."
+    },
+    "knowledge": {
+      "title": "생성된 지식 ({{count}})",
+      "saveButton": "저장",
+      "saveSuccess": "지식 \"{{title}}\"을(를) 저장했습니다."
+    }
   }
 }

@@ -13,6 +13,7 @@ import type {
   CategoryOption
 } from '../types';
 import { TranslateFunction } from '../../../i18n/types';
+import { defaultThemeColors, defaultCardStyle, defaultTabStyle } from '../utils/styleDefaults';
 
 interface User {
   id: string;
@@ -50,10 +51,10 @@ interface KnowledgeArticlesTabProps {
   reviewArticle: (articleId: string, action: 'approve' | 'reject' | 'request_changes') => Promise<void>;
   createKnowledgeArticle: () => void;
 
-  // Styles
-  themeColors: ThemeColors;
-  cardStyle: React.CSSProperties;
-  tabStyle: (isActive: boolean) => React.CSSProperties;
+  // Styles (optional - CSS classes used by default)
+  themeColors?: ThemeColors;
+  cardStyle?: React.CSSProperties;
+  tabStyle?: (isActive: boolean) => React.CSSProperties;
 
   // User context
   user: User | null;
@@ -89,6 +90,11 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
   user,
   t
 }) => {
+  // Use defaults when style props are not provided
+  const actualThemeColors = themeColors || defaultThemeColors;
+  const actualCardStyle = cardStyle || defaultCardStyle;
+  const actualTabStyle = tabStyle || defaultTabStyle;
+
   return (
     <motion.div
       key="knowledge-articles"
@@ -98,17 +104,17 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
       style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}
     >
       {/* Header */}
-      <div style={cardStyle}>
+      <div style={actualCardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h2 style={{ margin: 0 }}>{t('knowledge.knowledgeBase.title' as keyof import('../../../i18n/types').TranslationKeys)}</h2>
-            <p style={{ color: themeColors.textSecondary, margin: '8px 0 0' }}>
+            <p style={{ color: actualThemeColors.textSecondary, margin: '8px 0 0' }}>
               {t('knowledge.knowledgeBase.subtitle' as keyof import('../../../i18n/types').TranslationKeys)}
             </p>
           </div>
           <button
             onClick={() => setShowCreateArticle(true)}
-            style={{ ...tabStyle(true), display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ ...actualTabStyle(true), display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             {t('knowledge.knowledgeBase.newKnowledge' as keyof import('../../../i18n/types').TranslationKeys)}
           </button>
@@ -122,7 +128,7 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
           <h3 style={{ margin: '0 0 16px' }}>{t('knowledge.knowledgeBase.publishedKnowledge' as keyof import('../../../i18n/types').TranslationKeys)}</h3>
 
           {knowledgeArticles.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: themeColors.textSecondary }}>
+            <div style={{ textAlign: 'center', padding: '40px', color: actualThemeColors.textSecondary }}>
               <div style={{ fontSize: '48px', marginBottom: '16px' }}>📚</div>
               <p>{t('knowledge.knowledgeBase.noArticles' as keyof import('../../../i18n/types').TranslationKeys)}</p>
             </div>
@@ -137,17 +143,17 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                     background: selectedArticle?.id === article.id ? 'rgba(74,144,217,0.2)' : 'rgba(255,255,255,0.05)',
                     borderRadius: '8px',
                     cursor: 'pointer',
-                    border: selectedArticle?.id === article.id ? `2px solid ${themeColors.accent}` : '1px solid transparent'
+                    border: selectedArticle?.id === article.id ? `2px solid ${actualThemeColors.accent}` : '1px solid transparent'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600, fontSize: '16px' }}>{article.title}</div>
-                      <div style={{ fontSize: '12px', color: themeColors.textSecondary, marginTop: '4px' }}>
+                      <div style={{ fontSize: '12px', color: actualThemeColors.textSecondary, marginTop: '4px' }}>
                         {article.author_name} | {article.category} | {new Date(article.created_at).toLocaleDateString()}
                       </div>
                       {article.summary && (
-                        <div style={{ fontSize: '13px', color: themeColors.textSecondary, marginTop: '8px' }}>
+                        <div style={{ fontSize: '13px', color: actualThemeColors.textSecondary, marginTop: '8px' }}>
                           {article.summary}
                         </div>
                       )}
@@ -162,7 +168,7 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                       }}>
                         {getStatusLabel(article.status)}
                       </span>
-                      <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: themeColors.textSecondary }}>
+                      <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: actualThemeColors.textSecondary }}>
                         <span>👁️ {article.view_count}</span>
                         <span>👍 {article.recommendation_count}</span>
                       </div>
@@ -190,7 +196,7 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
         <div style={{ width: '300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Pending Reviews (for reviewers only) */}
           {(user?.role === 'senior' || user?.role === 'leader' || user?.role === 'admin') && pendingReviews.length > 0 && (
-            <div style={cardStyle}>
+            <div style={actualCardStyle}>
               <h3 style={{ margin: '0 0 12px', color: '#F39C12' }}>Pending Reviews ({pendingReviews.length})</h3>
               {pendingReviews.map(article => (
                 <div
@@ -205,7 +211,7 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                   }}
                 >
                   <div style={{ fontWeight: 500, fontSize: '13px' }}>{article.title}</div>
-                  <div style={{ fontSize: '11px', color: themeColors.textSecondary }}>
+                  <div style={{ fontSize: '11px', color: actualThemeColors.textSecondary }}>
                     by {article.author_name}
                   </div>
                 </div>
@@ -214,10 +220,10 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
           )}
 
           {/* Top Contributors */}
-          <div style={cardStyle}>
+          <div style={actualCardStyle}>
             <h3 style={{ margin: '0 0 12px' }}>{t('knowledge.knowledgeBase.topContributors' as keyof import('../../../i18n/types').TranslationKeys)}</h3>
             {topContributors.length === 0 ? (
-              <div style={{ color: themeColors.textSecondary, fontSize: '13px' }}>
+              <div style={{ color: actualThemeColors.textSecondary, fontSize: '13px' }}>
                 {t('knowledge.knowledgeBase.noContributors' as keyof import('../../../i18n/types').TranslationKeys)}
               </div>
             ) : (
@@ -229,14 +235,14 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                     alignItems: 'center',
                     gap: '10px',
                     padding: '8px 0',
-                    borderBottom: idx < topContributors.length - 1 ? `1px solid ${themeColors.cardBorder}` : 'none'
+                    borderBottom: idx < topContributors.length - 1 ? `1px solid ${actualThemeColors.cardBorder}` : 'none'
                   }}
                 >
                   <div style={{
                     width: '24px',
                     height: '24px',
                     borderRadius: '50%',
-                    background: idx < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][idx] : themeColors.cardBg,
+                    background: idx < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][idx] : actualThemeColors.cardBg,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -247,7 +253,7 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 500, fontSize: '13px' }}>{contributor.username}</div>
-                    <div style={{ fontSize: '11px', color: themeColors.textSecondary }}>
+                    <div style={{ fontSize: '11px', color: actualThemeColors.textSecondary }}>
                       {contributor.article_count} {t('knowledge.knowledgeBase.articles' as keyof import('../../../i18n/types').TranslationKeys)} | {contributor.total_recommendations} {t('knowledge.knowledgeBase.recommendations' as keyof import('../../../i18n/types').TranslationKeys)}
                     </div>
                   </div>
@@ -257,7 +263,7 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
           </div>
 
           {/* Categories */}
-          <div style={cardStyle}>
+          <div style={actualCardStyle}>
             <h3 style={{ margin: '0 0 12px' }}>{t('knowledge.knowledgeBase.categories' as keyof import('../../../i18n/types').TranslationKeys)}</h3>
             {categories.map(cat => (
               <div
@@ -325,13 +331,13 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                     {getStatusLabel(selectedArticle.status)}
                   </span>
                   <h2 style={{ margin: '8px 0 0' }}>{selectedArticle.title}</h2>
-                  <div style={{ fontSize: '13px', color: themeColors.textSecondary, marginTop: '8px' }}>
+                  <div style={{ fontSize: '13px', color: actualThemeColors.textSecondary, marginTop: '8px' }}>
                     {selectedArticle.author_name} {selectedArticle.author_department && `(${selectedArticle.author_department})`} | {new Date(selectedArticle.created_at).toLocaleString()}
                   </div>
                 </div>
                 <button
                   onClick={() => setSelectedArticle(null)}
-                  style={{ background: 'transparent', border: 'none', color: themeColors.text, fontSize: '24px', cursor: 'pointer' }}
+                  style={{ background: 'transparent', border: 'none', color: actualThemeColors.text, fontSize: '24px', cursor: 'pointer' }}
                 >
                   ×
                 </button>
@@ -347,8 +353,8 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                       padding: '6px 12px',
                       border: 'none',
                       borderRadius: '4px',
-                      background: articleLanguage === lang ? themeColors.accent : 'rgba(255,255,255,0.1)',
-                      color: articleLanguage === lang ? '#fff' : themeColors.text,
+                      background: articleLanguage === lang ? actualThemeColors.accent : 'rgba(255,255,255,0.1)',
+                      color: articleLanguage === lang ? '#fff' : actualThemeColors.text,
                       cursor: 'pointer',
                       fontSize: '12px'
                     }}
@@ -391,7 +397,7 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                   👍 Recommend ({selectedArticle.recommendation_count})
                 </button>
 
-                <div style={{ marginLeft: 'auto', fontSize: '13px', color: themeColors.textSecondary }}>
+                <div style={{ marginLeft: 'auto', fontSize: '13px', color: actualThemeColors.textSecondary }}>
                   Views: {selectedArticle.view_count}
                 </div>
 
@@ -406,9 +412,9 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                       style={{
                         padding: '8px 12px',
                         background: 'rgba(255,255,255,0.1)',
-                        border: `1px solid ${themeColors.cardBorder}`,
+                        border: `1px solid ${actualThemeColors.cardBorder}`,
                         borderRadius: '6px',
-                        color: themeColors.text,
+                        color: actualThemeColors.text,
                         width: '200px'
                       }}
                     />
@@ -471,7 +477,7 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                 <button
                   onClick={() => !savingArticle && setShowCreateArticle(false)}
                   disabled={savingArticle}
-                  style={{ background: 'transparent', border: 'none', color: themeColors.text, fontSize: '24px', cursor: 'pointer' }}
+                  style={{ background: 'transparent', border: 'none', color: actualThemeColors.text, fontSize: '24px', cursor: 'pointer' }}
                 >
                   ×
                 </button>
@@ -489,9 +495,9 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                       width: '100%',
                       padding: '12px',
                       background: 'rgba(255,255,255,0.1)',
-                      border: `1px solid ${themeColors.cardBorder}`,
+                      border: `1px solid ${actualThemeColors.cardBorder}`,
                       borderRadius: '8px',
-                      color: themeColors.text,
+                      color: actualThemeColors.text,
                       fontSize: '16px'
                     }}
                   />
@@ -506,9 +512,9 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                       width: '100%',
                       padding: '12px',
                       background: 'rgba(255,255,255,0.1)',
-                      border: `1px solid ${themeColors.cardBorder}`,
+                      border: `1px solid ${actualThemeColors.cardBorder}`,
                       borderRadius: '8px',
-                      color: themeColors.text,
+                      color: actualThemeColors.text,
                       fontSize: '14px'
                     }}
                   >
@@ -529,9 +535,9 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                       width: '100%',
                       padding: '12px',
                       background: 'rgba(255,255,255,0.1)',
-                      border: `1px solid ${themeColors.cardBorder}`,
+                      border: `1px solid ${actualThemeColors.cardBorder}`,
                       borderRadius: '8px',
-                      color: themeColors.text,
+                      color: actualThemeColors.text,
                       fontSize: '14px'
                     }}
                   />
@@ -548,9 +554,9 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                       height: '300px',
                       padding: '12px',
                       background: 'rgba(255,255,255,0.1)',
-                      border: `1px solid ${themeColors.cardBorder}`,
+                      border: `1px solid ${actualThemeColors.cardBorder}`,
                       borderRadius: '8px',
-                      color: themeColors.text,
+                      color: actualThemeColors.text,
                       fontSize: '14px',
                       resize: 'vertical'
                     }}
@@ -563,7 +569,7 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                     disabled={savingArticle || !newArticle.title.trim() || !newArticle.content.trim()}
                     style={{
                       padding: '12px 24px',
-                      background: themeColors.accent,
+                      background: actualThemeColors.accent,
                       border: 'none',
                       borderRadius: '8px',
                       color: '#fff',
@@ -581,7 +587,7 @@ export const KnowledgeArticlesTab: React.FC<KnowledgeArticlesTabProps> = ({
                       background: 'rgba(255,255,255,0.1)',
                       border: 'none',
                       borderRadius: '8px',
-                      color: themeColors.text,
+                      color: actualThemeColors.text,
                       cursor: 'pointer'
                     }}
                   >

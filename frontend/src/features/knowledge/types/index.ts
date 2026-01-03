@@ -217,6 +217,8 @@ export interface ThemeColors {
   textSecondary: string;
   accent: string;
   accentHover: string;
+  inputBg: string;
+  inputText: string;
 }
 
 // External Connection type

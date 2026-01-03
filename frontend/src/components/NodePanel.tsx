@@ -80,10 +80,10 @@ const NodePanel: React.FC<NodePanelProps> = ({
   // Get node type color and label
   const getTypeInfo = (type: string) => {
     const types: Record<string, { color: string; label: string }> = {
-      root: { color: '#2563eb', label: 'Root' },
-      concept: { color: '#3b82f6', label: 'Concept' },
+      root: { color: '#6366f1', label: 'Root' },
+      concept: { color: '#818cf8', label: 'Concept' },
       entity: { color: '#10b981', label: 'Entity' },
-      topic: { color: '#8b5cf6', label: 'Topic' },
+      topic: { color: '#a78bfa', label: 'Topic' },
       keyword: { color: '#f59e0b', label: 'Keyword' },
     };
     return types[type] || types.concept;

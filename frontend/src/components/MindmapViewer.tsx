@@ -186,7 +186,7 @@ const MindmapViewer: React.FC<MindmapViewerProps> = ({
         />
         <MiniMap
           position="bottom-right"
-          nodeColor={(node) => node.data?.color || '#3b82f6'}
+          nodeColor={(node) => node.data?.color || '#818cf8'}
           maskColor="rgba(15, 23, 42, 0.8)"
           style={{ marginBottom: '20px', marginRight: '20px' }}
         />
@@ -217,10 +217,10 @@ const MindmapViewer: React.FC<MindmapViewerProps> = ({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {[
-            { color: '#2563eb', label: 'Root' },
-            { color: '#3b82f6', label: 'Concept' },
+            { color: '#6366f1', label: 'Root' },
+            { color: '#818cf8', label: 'Concept' },
             { color: '#10b981', label: 'Entity' },
-            { color: '#8b5cf6', label: 'Topic' },
+            { color: '#a78bfa', label: 'Topic' },
             { color: '#f59e0b', label: 'Keyword' },
           ].map((item) => (
             <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

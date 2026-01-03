@@ -20,6 +20,7 @@
     "startPrompt": "Enter a question to start the conversation.",
     "inputPlaceholder": "Enter your question...",
     "send": "Send",
+    "attachFile": "Attach File",
     "generating": "Generating response...",
     "noResponse": "Unable to generate response.",
     "errorOccurred": "An error occurred. Please try again.",
@@ -84,9 +85,7 @@
     "chat": "Chat",
     "documents": "Documents",
     "webSources": "Web Sources",
-    "notes": "Notes",
-    "aiContent": "AI Content",
-    "projects": "Projects",
+    "imsKnowledge": "IMS Knowledge Service",
     "mindmap": "Mindmap",
     "knowledgeGraph": "Knowledge Graph",
     "knowledgeBase": "Knowledge Base",
@@ -284,5 +283,39 @@
     "error": "Error",
     "close": "Close",
     "retry": "Retry"
+  },
+  "imsKnowledge": {
+    "header": {
+      "title": "IMS Knowledge Service with AI Agent",
+      "subtitle": "Generate and manage knowledge by integrating company IMS system with AI Agent"
+    },
+    "connection": {
+      "title": "IMS System Connection",
+      "urlLabel": "IMS URL",
+      "urlPlaceholder": "https://ims.company.com",
+      "connectButton": "Connect via SSO",
+      "connecting": "Connecting...",
+      "disconnect": "Disconnect",
+      "connected": "✓ Connected",
+      "helpText": "💡 Enter IMS URL and connect to the system through SSO authentication",
+      "errors": {
+        "emptyUrl": "Please enter URL",
+        "connectionFailed": "Failed to connect to IMS system"
+      },
+      "welcomeMessage": "Connected to IMS system.\nConnected URL: {{url}}\n\nHow can I help you?"
+    },
+    "chat": {
+      "title": "AI Knowledge Generation Chat",
+      "inputPlaceholder": "Enter your question...",
+      "sendButton": "Send",
+      "generating": "AI is responding...",
+      "assistantResponse": "Based on IMS system information.\n\nGenerating knowledge about {{query}}...",
+      "error": "Sorry, an error occurred."
+    },
+    "knowledge": {
+      "title": "Generated Knowledge ({{count}})",
+      "saveButton": "Save",
+      "saveSuccess": "Knowledge \"{{title}}\" saved."
+    }
   }
 }

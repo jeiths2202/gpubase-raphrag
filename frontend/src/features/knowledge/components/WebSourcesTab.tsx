@@ -5,6 +5,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ThemeColors, WebSource } from '../types';
 import { TranslateFunction } from '../../../i18n/types';
+import { defaultThemeColors, defaultCardStyle, defaultTabStyle, defaultInputStyle } from '../utils/styleDefaults';
 
 interface WebSourcesTabProps {
   // State
@@ -24,11 +25,11 @@ interface WebSourcesTabProps {
   refreshWebSource: (id: string) => void;
   deleteWebSource: (id: string) => void;
 
-  // Styles
-  themeColors: ThemeColors;
-  cardStyle: React.CSSProperties;
-  tabStyle: (isActive: boolean) => React.CSSProperties;
-  inputStyle: React.CSSProperties;
+  // Styles (optional - CSS classes used by default)
+  themeColors?: ThemeColors;
+  cardStyle?: React.CSSProperties;
+  tabStyle?: (isActive: boolean) => React.CSSProperties;
+  inputStyle?: React.CSSProperties;
 
   // i18n
   t: TranslateFunction;
@@ -52,6 +53,12 @@ export const WebSourcesTab: React.FC<WebSourcesTabProps> = ({
   inputStyle,
   t
 }) => {
+  // Use defaults when style props are not provided
+  const actualThemeColors = themeColors || defaultThemeColors;
+  const actualCardStyle = cardStyle || defaultCardStyle;
+  const actualTabStyle = tabStyle || defaultTabStyle;
+  const actualInputStyle = inputStyle || defaultInputStyle;
+
   return (
     <motion.div
       key="web-sources"
@@ -64,13 +71,13 @@ export const WebSourcesTab: React.FC<WebSourcesTabProps> = ({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
             <h2 style={{ margin: 0 }}>🌐 Web Sources</h2>
-            <p style={{ color: themeColors.textSecondary, margin: '8px 0 0' }}>
+            <p style={{ color: actualThemeColors.textSecondary, margin: '8px 0 0' }}>
               {t('knowledge.webSources.subtitle' as keyof import('../../../i18n/types').TranslationKeys)}
             </p>
           </div>
           <button
             onClick={() => setShowAddUrlModal(true)}
-            style={{ ...tabStyle(true), display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ ...actualTabStyle(true), display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             ➕ Add URL
           </button>
@@ -82,8 +89,8 @@ export const WebSourcesTab: React.FC<WebSourcesTabProps> = ({
             <div
               key={ws.id}
               style={{
-                ...cardStyle,
-                border: `1px solid ${themeColors.cardBorder}`,
+                ...actualCardStyle,
+                border: `1px solid ${actualThemeColors.cardBorder}`,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '12px'
@@ -111,7 +118,7 @@ export const WebSourcesTab: React.FC<WebSourcesTabProps> = ({
                   <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {ws.display_name || ws.metadata?.title || ws.domain}
                   </div>
-                  <div style={{ fontSize: '12px', color: themeColors.textSecondary, marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: '12px', color: actualThemeColors.textSecondary, marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     🔗 {ws.url}
                   </div>
                   <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
@@ -157,22 +164,22 @@ export const WebSourcesTab: React.FC<WebSourcesTabProps> = ({
                   {ws.error_message}
                 </div>
               )}
-              <div style={{ display: 'flex', gap: '8px', borderTop: `1px solid ${themeColors.cardBorder}`, paddingTop: '12px' }}>
+              <div style={{ display: 'flex', gap: '8px', borderTop: `1px solid ${actualThemeColors.cardBorder}`, paddingTop: '12px' }}>
                 <button
                   onClick={() => refreshWebSource(ws.id)}
-                  style={{ ...tabStyle(false), flex: 1, fontSize: '12px' }}
+                  style={{ ...actualTabStyle(false), flex: 1, fontSize: '12px' }}
                 >
                   🔄 Refresh
                 </button>
                 <button
                   onClick={() => window.open(ws.url, '_blank')}
-                  style={{ ...tabStyle(false), flex: 1, fontSize: '12px' }}
+                  style={{ ...actualTabStyle(false), flex: 1, fontSize: '12px' }}
                 >
                   🔗 Open
                 </button>
                 <button
                   onClick={() => deleteWebSource(ws.id)}
-                  style={{ ...tabStyle(false), flex: 1, fontSize: '12px', color: '#E74C3C' }}
+                  style={{ ...actualTabStyle(false), flex: 1, fontSize: '12px', color: '#E74C3C' }}
                 >
                   🗑️ Delete
                 </button>
@@ -182,13 +189,13 @@ export const WebSourcesTab: React.FC<WebSourcesTabProps> = ({
         </div>
 
         {webSources.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px', color: themeColors.textSecondary }}>
+          <div style={{ textAlign: 'center', padding: '40px', color: actualThemeColors.textSecondary }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>🌐</div>
             <p>No web sources added yet.</p>
             <p style={{ fontSize: '14px', marginTop: '8px' }}>Add web URLs to index their content for RAG queries.</p>
             <button
               onClick={() => setShowAddUrlModal(true)}
-              style={{ ...tabStyle(true), marginTop: '16px' }}
+              style={{ ...actualTabStyle(true), marginTop: '16px' }}
             >
               Add your first URL
             </button>
@@ -218,11 +225,11 @@ export const WebSourcesTab: React.FC<WebSourcesTabProps> = ({
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              style={{ ...cardStyle, width: '500px', maxWidth: '90%' }}
+              style={{ ...actualCardStyle, width: '500px', maxWidth: '90%' }}
               onClick={e => e.stopPropagation()}
             >
               <h3 style={{ margin: '0 0 16px' }}>🌐 Add Web URLs</h3>
-              <p style={{ color: themeColors.textSecondary, fontSize: '14px', marginBottom: '16px' }}>
+              <p style={{ color: actualThemeColors.textSecondary, fontSize: '14px', marginBottom: '16px' }}>
                 Enter one or more URLs (one per line) to fetch and index their content.
               </p>
 
@@ -231,7 +238,7 @@ export const WebSourcesTab: React.FC<WebSourcesTabProps> = ({
                 value={newUrls}
                 onChange={e => setNewUrls(e.target.value)}
                 style={{
-                  ...inputStyle,
+                  ...actualInputStyle,
                   width: '100%',
                   minHeight: '120px',
                   resize: 'vertical',
@@ -240,7 +247,7 @@ export const WebSourcesTab: React.FC<WebSourcesTabProps> = ({
               />
 
               <div style={{ marginTop: '16px' }}>
-                <label style={{ color: themeColors.textSecondary, fontSize: '12px' }}>
+                <label style={{ color: actualThemeColors.textSecondary, fontSize: '12px' }}>
                   Tags (optional, comma-separated)
                 </label>
                 <input
@@ -248,14 +255,14 @@ export const WebSourcesTab: React.FC<WebSourcesTabProps> = ({
                   placeholder="docs, tutorial, api"
                   value={webSourceTags.join(', ')}
                   onChange={e => setWebSourceTags(e.target.value.split(',').map(t => t.trim()).filter(t => t))}
-                  style={{ ...inputStyle, width: '100%', marginTop: '4px' }}
+                  style={{ ...actualInputStyle, width: '100%', marginTop: '4px' }}
                 />
               </div>
 
               <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
                 <button
                   onClick={() => setShowAddUrlModal(false)}
-                  style={{ ...tabStyle(false), flex: 1 }}
+                  style={{ ...actualTabStyle(false), flex: 1 }}
                 >
                   Cancel
                 </button>
@@ -263,7 +270,7 @@ export const WebSourcesTab: React.FC<WebSourcesTabProps> = ({
                   onClick={addWebSources}
                   disabled={!newUrls.trim() || addingUrls}
                   style={{
-                    ...tabStyle(true),
+                    ...actualTabStyle(true),
                     flex: 1,
                     opacity: !newUrls.trim() || addingUrls ? 0.5 : 1,
                     cursor: !newUrls.trim() || addingUrls ? 'not-allowed' : 'pointer'

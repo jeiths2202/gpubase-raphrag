@@ -7,6 +7,7 @@ import { mindmapApi } from '../services/api';
 import type { MindmapFull, MindmapNode, MindmapInfo } from '../types/mindmap';
 import { useAuthStore } from '../store/authStore';
 import { useTranslation } from '../hooks/useTranslation';
+import './MindmapApp.css';
 
 const MindmapApp: React.FC = () => {
   const navigate = useNavigate();
@@ -139,12 +140,7 @@ const MindmapApp: React.FC = () => {
   }, [currentMindmap]);
 
   return (
-    <div className="app-container" style={{
-      display: 'flex',
-      width: '100vw',
-      height: '100vh',
-      overflow: 'hidden',
-    }}>
+    <div className="mindmap-app-container">
       {/* Sidebar */}
       {showSidebar && (
         <Sidebar
@@ -158,110 +154,45 @@ const MindmapApp: React.FC = () => {
       )}
 
       {/* Main Content */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'relative',
-      }}>
+      <div className="mindmap-main-content">
         {/* Header */}
-        <header style={{
-          padding: '12px 20px',
-          background: 'var(--color-bg-card)',
-          borderBottom: '1px solid var(--color-border)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <header className="mindmap-header">
+          <div className="mindmap-header-left">
             <button
               onClick={() => setShowSidebar(!showSidebar)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--color-text-secondary)',
-                cursor: 'pointer',
-                fontSize: '20px',
-                padding: '4px',
-              }}
+              className="mindmap-sidebar-toggle"
             >
               {showSidebar ? '◀' : '▶'}
             </button>
-            <h1 style={{
-              fontSize: '18px',
-              fontWeight: '600',
-              color: 'var(--color-text-primary)',
-            }}>
+            <h1 className="mindmap-header-title">
               {currentMindmap ? currentMindmap.title : 'KMS Mindmap'}
             </h1>
             {currentMindmap && (
-              <span style={{
-                fontSize: '13px',
-                color: 'var(--color-text-muted)',
-              }}>
+              <span className="mindmap-header-meta">
                 {currentMindmap.node_count} {t('mindmap.header.nodes')} / {currentMindmap.edge_count} {t('mindmap.header.edges')}
               </span>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="mindmap-header-right">
             {isLoading && (
-              <span style={{
-                fontSize: '13px',
-                color: 'var(--color-primary)',
-              }} className="loading">
+              <span className="mindmap-loading-text">
                 {t('mindmap.header.processing')}
               </span>
             )}
             {user?.role === 'admin' && (
               <button
                 onClick={() => navigate('/admin')}
-                style={{
-                  padding: '8px 16px',
-                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))',
-                  border: '1px solid rgba(139, 92, 246, 0.3)',
-                  borderRadius: '6px',
-                  color: '#a5b4fc',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  transition: 'all 0.2s',
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(139, 92, 246, 0.3))';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))';
-                }}
+                className="mindmap-admin-button"
               >
                 {t('mindmap.header.admin')}
               </button>
             )}
-            <span style={{
-              fontSize: '13px',
-              color: 'var(--color-text-muted)',
-            }}>
+            <span className="mindmap-user-name">
               {user?.name || user?.email}
             </span>
             <button
               onClick={() => logout()}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid var(--color-border)',
-                borderRadius: '6px',
-                color: 'var(--color-text-secondary)',
-                cursor: 'pointer',
-                fontSize: '13px',
-                transition: 'all 0.2s',
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.borderColor = 'var(--color-error)';
-                e.currentTarget.style.color = 'var(--color-error)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.borderColor = 'var(--color-border)';
-                e.currentTarget.style.color = 'var(--color-text-secondary)';
-              }}
+              className="mindmap-logout-button"
             >
               {t('mindmap.header.logout')}
             </button>
@@ -270,25 +201,11 @@ const MindmapApp: React.FC = () => {
 
         {/* Error Display */}
         {error && (
-          <div style={{
-            padding: '12px 20px',
-            background: 'rgba(239, 68, 68, 0.1)',
-            borderBottom: '1px solid var(--color-error)',
-            color: 'var(--color-error)',
-            fontSize: '14px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
+          <div className="mindmap-error-banner">
             <span>{error}</span>
             <button
               onClick={() => setError(null)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--color-error)',
-                cursor: 'pointer',
-              }}
+              className="mindmap-error-close"
             >
               ✕
             </button>
@@ -296,7 +213,7 @@ const MindmapApp: React.FC = () => {
         )}
 
         {/* Mindmap Viewer */}
-        <div style={{ flex: 1, position: 'relative' }}>
+        <div className="mindmap-viewer-container">
           {currentMindmap ? (
             <MindmapViewer
               mindmap={currentMindmap}
@@ -305,20 +222,12 @@ const MindmapApp: React.FC = () => {
               onExpandNode={handleExpandNode}
             />
           ) : (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              color: 'var(--color-text-secondary)',
-              gap: '20px',
-            }}>
-              <div style={{ fontSize: '64px' }}>🧠</div>
-              <h2 style={{ fontSize: '24px', fontWeight: '500' }}>
+            <div className="mindmap-empty-state">
+              <div className="mindmap-empty-state-icon">🧠</div>
+              <h2 className="mindmap-empty-state-title">
                 {t('mindmap.empty.title')}
               </h2>
-              <p style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>
+              <p className="mindmap-empty-state-description">
                 {t('mindmap.empty.description')}
               </p>
               <button

@@ -1,0 +1,287 @@
+/* MindmapApp Premium Styles
+ * Enhanced with design token system for consistent premium aesthetics
+ */
+
+/* App Container - Full viewport layout */
+.mindmap-app-container {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--gradient-bg);
+}
+
+/* Main Content Area */
+.mindmap-main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Header */
+.mindmap-header {
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-bg-card);
+  backdrop-filter: blur(var(--glass-blur));
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 60px;
+}
+
+.mindmap-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.mindmap-sidebar-toggle {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  fontSize: var(--text-xl);
+  padding: var(--space-1);
+  transition: all var(--duration-normal) var(--ease-default);
+  border-radius: var(--radius-base);
+}
+
+.mindmap-sidebar-toggle:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-hover);
+}
+
+.mindmap-sidebar-toggle:active {
+  transform: scale(0.95);
+}
+
+.mindmap-header-title {
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.mindmap-header-meta {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.mindmap-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.mindmap-loading-text {
+  font-size: var(--text-xs);
+  color: var(--color-primary);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.mindmap-admin-button {
+  padding: var(--space-2) var(--space-4);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2));
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: var(--radius-base);
+  color: #a5b4fc;
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  transition: all var(--duration-normal) var(--ease-default);
+}
+
+.mindmap-admin-button:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(139, 92, 246, 0.3));
+  border-color: rgba(139, 92, 246, 0.4);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.mindmap-admin-button:active {
+  transform: translateY(0);
+}
+
+.mindmap-user-name {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.mindmap-logout-button {
+  padding: var(--space-2) var(--space-4);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  transition: all var(--duration-normal) var(--ease-default);
+}
+
+.mindmap-logout-button:hover {
+  border-color: var(--color-error);
+  color: var(--color-error);
+  background: rgba(239, 68, 68, 0.05);
+  transform: translateY(-1px);
+}
+
+.mindmap-logout-button:active {
+  transform: translateY(0);
+}
+
+/* Error Banner */
+.mindmap-error-banner {
+  padding: var(--space-3) var(--space-5);
+  background: rgba(239, 68, 68, 0.1);
+  backdrop-filter: blur(var(--glass-blur));
+  border-bottom: 1px solid var(--color-error);
+  color: var(--color-error);
+  font-size: var(--text-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: slideDown var(--duration-normal) var(--ease-default);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mindmap-error-close {
+  background: none;
+  border: none;
+  color: var(--color-error);
+  cursor: pointer;
+  font-size: var(--text-lg);
+  padding: var(--space-1);
+  transition: all var(--duration-fast) var(--ease-default);
+  border-radius: var(--radius-sm);
+}
+
+.mindmap-error-close:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Mindmap Viewer Container */
+.mindmap-viewer-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Empty State */
+.mindmap-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-text-secondary);
+  gap: var(--space-5);
+  padding: var(--space-8);
+}
+
+.mindmap-empty-state-icon {
+  font-size: 64px;
+  animation: float 3s infinite ease-in-out;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.mindmap-empty-state-title {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.mindmap-empty-state-description {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+  text-align: center;
+  max-width: 400px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .mindmap-header {
+    padding: var(--space-2) var(--space-3);
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: flex-start;
+  }
+
+  .mindmap-header-left,
+  .mindmap-header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .mindmap-header-title {
+    font-size: var(--text-base);
+  }
+
+  .mindmap-empty-state {
+    padding: var(--space-4);
+  }
+
+  .mindmap-empty-state-icon {
+    font-size: 48px;
+  }
+
+  .mindmap-empty-state-title {
+    font-size: var(--text-xl);
+  }
+}
+
+/* Accessibility & Motion Preferences */
+@media (prefers-reduced-motion: reduce) {
+  .mindmap-empty-state-icon,
+  .mindmap-loading-text {
+    animation: none;
+  }
+
+  .mindmap-admin-button:hover,
+  .mindmap-logout-button:hover {
+    transform: none;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .mindmap-header {
+    border-bottom-width: 2px;
+  }
+
+  .mindmap-admin-button,
+  .mindmap-logout-button {
+    border-width: 2px;
+  }
+
+  .mindmap-error-banner {
+    border-bottom-width: 2px;
+  }
+}
