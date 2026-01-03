@@ -78,14 +78,13 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
 
   return (
     <motion.aside
+      className="knowledge-sidebar"
       initial={{ width: 280 }}
       animate={{ width: sidebarCollapsed ? 60 : 280 }}
       style={{
         ...actualCardStyle,
         borderRadius: 0,
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
+        height: '100%',  /* Changed from 100vh to 100% to fill parent container */
         gap: '16px',
         overflowY: 'auto',
         overflowX: 'hidden'

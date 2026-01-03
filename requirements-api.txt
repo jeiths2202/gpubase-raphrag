@@ -50,6 +50,7 @@ pycryptodomex>=3.19.0  # AES encryption for cookie decryption
 requests>=2.31.0  # HTTP requests for SSO connection
 pywin32>=306; sys_platform == 'win32'  # Windows DPAPI (Windows only)
 secretstorage>=3.3.0; sys_platform == 'linux'  # Linux GNOME Keyring (Linux only)
+playwright>=1.40.0  # Browser automation for IMS scraper
 
 # Development
 pytest>=7.4.0

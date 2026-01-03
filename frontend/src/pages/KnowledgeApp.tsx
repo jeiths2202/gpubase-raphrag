@@ -1176,27 +1176,6 @@ const KnowledgeApp: React.FC = () => {
 
   return (
     <div className="knowledge-app">
-      {/* Sidebar */}
-      <KnowledgeSidebar
-        sidebarCollapsed={sidebarCollapsed}
-        showNotifications={showNotifications}
-        notifications={notifications}
-        unreadCount={unreadCount}
-        activeTab={activeTab}
-        theme={theme}
-        user={user}
-        setSidebarCollapsed={setSidebarCollapsed}
-        setShowNotifications={setShowNotifications}
-        setActiveTab={setActiveTab}
-        setShowSettingsPopup={setShowSettingsPopup}
-        markAllNotificationsAsRead={markAllNotificationsAsRead}
-        markNotificationAsRead={markNotificationAsRead}
-        toggleTheme={toggleTheme}
-        logout={logout}
-        navigate={navigate}
-        t={t}
-      />
-
       {/* Settings Popup - using extracted component */}
       <SettingsPopup
         isOpen={showSettingsPopup}
@@ -1206,8 +1185,31 @@ const KnowledgeApp: React.FC = () => {
         t={t}
       />
 
-      {/* Main Content */}
-      <main className="knowledge-main">
+      {/* Content wrapper for horizontal layout (sidebar + main) */}
+      <div className="knowledge-content">
+        {/* Sidebar */}
+        <KnowledgeSidebar
+          sidebarCollapsed={sidebarCollapsed}
+          showNotifications={showNotifications}
+          notifications={notifications}
+          unreadCount={unreadCount}
+          activeTab={activeTab}
+          theme={theme}
+          user={user}
+          setSidebarCollapsed={setSidebarCollapsed}
+          setShowNotifications={setShowNotifications}
+          setActiveTab={setActiveTab}
+          setShowSettingsPopup={setShowSettingsPopup}
+          markAllNotificationsAsRead={markAllNotificationsAsRead}
+          markNotificationAsRead={markNotificationAsRead}
+          toggleTheme={toggleTheme}
+          logout={logout}
+          navigate={navigate}
+          t={t}
+        />
+
+        {/* Main Content */}
+        <main className="knowledge-main">
         <AnimatePresence mode="wait">
           {/* Chat Tab */}
           {activeTab === 'chat' && (
@@ -1355,6 +1357,7 @@ const KnowledgeApp: React.FC = () => {
           )}
         </AnimatePresence>
       </main>
+      </div> {/* Close knowledge-content */}
     </div>
   );
 };

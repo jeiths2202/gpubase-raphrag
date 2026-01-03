@@ -91,32 +91,16 @@ class ChromeCookieExtractor:
             ChromeCookieError: If extraction fails
             CookieDBLockedError: If database is locked
         """
-        # Check if Chrome is running (Windows only for now)
-        if self.system == "Windows":
-            import subprocess
-            try:
-                result = subprocess.run(
-                    ["tasklist", "/FI", "IMAGENAME eq chrome.exe"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                    creationflags=subprocess.CREATE_NO_WINDOW
-                )
-                if "chrome.exe" in result.stdout.lower():
-                    raise CookieDBLockedError(
-                        "Chrome is currently running. Please close all Chrome windows and try again. "
-                        "Chrome locks its cookie database while running, preventing access."
-                    )
-            except subprocess.TimeoutExpired:
-                pass  # Proceed if check times out
-            except FileNotFoundError:
-                pass  # tasklist not available
+        # NOTE: Chrome running check removed - copy_cookie_db() handles locked files
+        # via Windows File Sharing API (win32file with FILE_FLAG_BACKUP_SEMANTICS)
+        # This allows cookie extraction while Chrome is running
 
         try:
             # Get cookie database path
             cookie_db_path = get_chrome_cookie_db_path(self.profile)
 
             # Copy database to avoid lock issues
+            # On Windows, uses win32file API to read locked database
             temp_db_path = copy_cookie_db(cookie_db_path)
 
             try:

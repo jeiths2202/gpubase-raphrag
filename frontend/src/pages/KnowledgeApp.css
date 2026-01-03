@@ -163,7 +163,7 @@
   flex: 1;
   overflow: hidden;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;  /* Changed from column to row - sidebar and main should be horizontal */
 }
 
 .knowledge-main {
@@ -172,7 +172,6 @@
   overflow: hidden;
   display: flex;
   gap: var(--space-6);
-  height: 100vh;
 }
 
 /* ============================================
