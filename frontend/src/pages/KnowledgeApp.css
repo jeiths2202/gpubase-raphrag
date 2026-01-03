@@ -1,0 +1,385 @@
+/**
+ * KnowledgeApp Premium Styles
+ *
+ * Replaces themeUtils.ts with CSS classes using the design token system.
+ * Provides glassmorphism, premium gradients, and indigo color palette.
+ */
+
+/* ============================================
+   Page Layout
+   ============================================ */
+
+.knowledge-app {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: background-color var(--theme-transition-duration) var(--theme-transition-timing),
+              color var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+/* Background gradients using design tokens */
+[data-theme="dark"] .knowledge-app {
+  background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+  color: var(--color-text-primary);
+}
+
+[data-theme="light"] .knowledge-app {
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e9f2 50%, #d3dce6 100%);
+  color: var(--color-text-primary);
+}
+
+/* ============================================
+   Premium Cards (replacing getCardStyle)
+   ============================================ */
+
+.knowledge-card {
+  background: var(--color-bg-card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--spacing-card-padding);
+  transition: var(--transition-colors);
+}
+
+[data-theme="dark"] .knowledge-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="light"] .knowledge-card {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Card variants */
+.knowledge-card-elevated {
+  box-shadow: var(--shadow-md);
+}
+
+.knowledge-card-interactive {
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-default),
+              box-shadow var(--duration-fast) var(--ease-default);
+}
+
+.knowledge-card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ============================================
+   Tabs (replacing getTabStyle)
+   ============================================ */
+
+.knowledge-tab {
+  padding: var(--space-3) var(--space-6);
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-base);
+  cursor: pointer;
+  font-weight: var(--font-weight-normal);
+  font-size: var(--text-base);
+  transition: all var(--duration-fast) var(--ease-default);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.knowledge-tab:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.knowledge-tab-active {
+  background: var(--gradient-primary);
+  color: var(--color-text-inverse);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: var(--shadow-sm);
+}
+
+.knowledge-tab-active:hover {
+  background: var(--gradient-primary);
+  box-shadow: var(--shadow-md), var(--shadow-glow-primary);
+}
+
+/* Tab container */
+.knowledge-tabs {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+}
+
+/* ============================================
+   Inputs (replacing getInputStyle)
+   ============================================ */
+
+.knowledge-input {
+  padding: var(--spacing-input-padding-y) var(--spacing-input-padding-x);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input);
+  color: var(--color-text-primary);
+  font-size: var(--text-base);
+  width: 100%;
+  transition: all var(--duration-fast) var(--ease-default);
+}
+
+[data-theme="dark"] .knowledge-input {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="light"] .knowledge-input {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.knowledge-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.knowledge-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-subtle);
+}
+
+.knowledge-input:disabled {
+  background: var(--color-bg-disabled);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* ============================================
+   Content Areas
+   ============================================ */
+
+.knowledge-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.knowledge-main {
+  flex: 1;
+  padding: var(--space-6);
+  overflow: hidden;
+  display: flex;
+  gap: var(--space-6);
+  height: 100vh;
+}
+
+/* ============================================
+   Sidebar
+   ============================================ */
+
+.knowledge-sidebar {
+  width: 280px;
+  background: var(--color-bg-card);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .knowledge-sidebar {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="light"] .knowledge-sidebar {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+/* ============================================
+   Settings Popup
+   ============================================ */
+
+.knowledge-settings {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: var(--z-dropdown);
+}
+
+/* ============================================
+   Text Utilities
+   ============================================ */
+
+.knowledge-text-primary {
+  color: var(--color-text-primary);
+}
+
+.knowledge-text-secondary {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.knowledge-text-muted {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+/* ============================================
+   Loading States
+   ============================================ */
+
+.knowledge-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  color: var(--color-text-muted);
+}
+
+.knowledge-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin var(--duration-slow) linear infinite;
+}
+
+/* ============================================
+   Empty States
+   ============================================ */
+
+.knowledge-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.knowledge-empty-icon {
+  font-size: 48px;
+  margin-bottom: var(--space-4);
+  opacity: 0.5;
+}
+
+.knowledge-empty-text {
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--space-2);
+}
+
+.knowledge-empty-description {
+  font-size: var(--text-sm);
+  max-width: 400px;
+}
+
+/* ============================================
+   Source Panel
+   ============================================ */
+
+.knowledge-source-panel {
+  width: 400px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.knowledge-source-close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  background: transparent;
+  border: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-size: 20px;
+  padding: var(--space-1);
+  line-height: 1;
+  transition: color var(--duration-fast) var(--ease-default);
+}
+
+.knowledge-source-close:hover {
+  color: var(--color-primary);
+}
+
+.knowledge-source-title {
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--space-2);
+  color: var(--color-text-primary);
+}
+
+.knowledge-source-meta {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-4);
+}
+
+.knowledge-source-content {
+  padding: var(--space-3);
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-base);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  max-height: 400px;
+  overflow: auto;
+  color: var(--color-text-primary);
+}
+
+[data-theme="dark"] .knowledge-source-content {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="light"] .knowledge-source-content {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+
+@media (max-width: 768px) {
+  .knowledge-sidebar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: var(--z-modal-backdrop);
+    transform: translateX(-100%);
+    transition: transform var(--duration-normal) var(--ease-default);
+  }
+
+  .knowledge-sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .knowledge-tabs {
+    flex-wrap: wrap;
+  }
+
+  .knowledge-tab {
+    flex: 1;
+    min-width: 80px;
+    justify-content: center;
+  }
+}
+
+/* ============================================
+   Accessibility
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .knowledge-app,
+  .knowledge-card,
+  .knowledge-tab,
+  .knowledge-input,
+  .knowledge-sidebar {
+    transition: none !important;
+  }
+
+  .knowledge-spinner {
+    animation: none !important;
+  }
+}

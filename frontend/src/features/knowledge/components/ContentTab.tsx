@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import axios from 'axios';
 import type { ThemeColors } from '../types';
 import { TranslateFunction } from '../../../i18n/types';
+import { defaultThemeColors, defaultCardStyle } from '../utils/styleDefaults';
 
 const API_BASE_URL = '/api/v1';
 const api = axios.create({
@@ -30,9 +31,9 @@ interface KnowledgeItem {
 }
 
 interface ContentTabProps {
-  // Styles
-  themeColors: ThemeColors;
-  cardStyle: React.CSSProperties;
+  // Styles (optional - CSS classes used by default)
+  themeColors?: ThemeColors;
+  cardStyle?: React.CSSProperties;
 
   // i18n
   t: TranslateFunction;
@@ -43,6 +44,10 @@ export const ContentTab: React.FC<ContentTabProps> = ({
   cardStyle,
   t
 }) => {
+  // Use defaults when style props are not provided
+  const actualThemeColors = themeColors || defaultThemeColors;
+  const actualCardStyle = cardStyle || defaultCardStyle;
+
   // IMS URL connection state
   const [imsUrl, setImsUrl] = useState('https://ims.tmaxsoft.com');
   const [isConnected, setIsConnected] = useState(false);
@@ -193,15 +198,15 @@ export const ContentTab: React.FC<ContentTabProps> = ({
       style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'auto' }}
     >
       {/* Header */}
-      <div style={cardStyle}>
+      <div style={actualCardStyle}>
         <h2>{t('knowledge.imsKnowledge.header.title' as keyof import('../../../i18n/types').TranslationKeys)}</h2>
-        <p style={{ color: themeColors.textSecondary, marginTop: '8px' }}>
+        <p style={{ color: actualThemeColors.textSecondary, marginTop: '8px' }}>
           {t('knowledge.imsKnowledge.header.subtitle' as keyof import('../../../i18n/types').TranslationKeys)}
         </p>
       </div>
 
       {/* IMS Connection Section */}
-      <div style={cardStyle}>
+      <div style={actualCardStyle}>
         <h3 style={{ marginBottom: '16px' }}>{t('knowledge.imsKnowledge.connection.title' as keyof import('../../../i18n/types').TranslationKeys)}</h3>
 
         {!isConnected ? (
@@ -219,10 +224,10 @@ export const ContentTab: React.FC<ContentTabProps> = ({
                 style={{
                   width: '100%',
                   padding: '12px',
-                  background: themeColors.inputBg,
-                  border: `1px solid ${themeColors.cardBorder}`,
+                  background: actualThemeColors.inputBg,
+                  border: `1px solid ${actualThemeColors.cardBorder}`,
                   borderRadius: '8px',
-                  color: themeColors.inputText,
+                  color: actualThemeColors.inputText,
                   fontSize: '14px'
                 }}
                 onKeyPress={(e) => e.key === 'Enter' && connectToIMS()}
@@ -247,7 +252,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
               disabled={connecting}
               style={{
                 padding: '12px 24px',
-                background: connecting ? themeColors.cardBg : themeColors.accent,
+                background: connecting ? actualThemeColors.cardBg : actualThemeColors.accent,
                 border: 'none',
                 borderRadius: '8px',
                 color: 'white',
@@ -267,7 +272,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
               background: 'rgba(52, 152, 219, 0.1)',
               borderRadius: '8px',
               fontSize: '13px',
-              color: themeColors.textSecondary
+              color: actualThemeColors.textSecondary
             }}>
               {t('knowledge.imsKnowledge.connection.helpText' as keyof import('../../../i18n/types').TranslationKeys)}
             </div>
@@ -286,7 +291,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
             }}>
               <div>
                 <div style={{ fontWeight: 600, color: '#2ECC71' }}>{t('knowledge.imsKnowledge.connection.connected' as keyof import('../../../i18n/types').TranslationKeys)}</div>
-                <div style={{ fontSize: '13px', color: themeColors.textSecondary, marginTop: '4px' }}>
+                <div style={{ fontSize: '13px', color: actualThemeColors.textSecondary, marginTop: '4px' }}>
                   {imsUrl}
                 </div>
               </div>
@@ -295,9 +300,9 @@ export const ContentTab: React.FC<ContentTabProps> = ({
                 style={{
                   padding: '8px 16px',
                   background: 'transparent',
-                  border: `1px solid ${themeColors.cardBorder}`,
+                  border: `1px solid ${actualThemeColors.cardBorder}`,
                   borderRadius: '6px',
-                  color: themeColors.text,
+                  color: actualThemeColors.text,
                   cursor: 'pointer'
                 }}
               >
@@ -337,9 +342,9 @@ export const ContentTab: React.FC<ContentTabProps> = ({
                   padding: '12px 16px',
                   borderRadius: '12px',
                   background: msg.role === 'user'
-                    ? themeColors.accent
+                    ? actualThemeColors.accent
                     : 'rgba(255,255,255,0.05)',
-                  color: themeColors.text
+                  color: actualThemeColors.text
                 }}>
                   <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                     {msg.content}
@@ -360,7 +365,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                color: themeColors.textSecondary
+                color: actualThemeColors.textSecondary
               }}>
                 <span>{t('knowledge.imsKnowledge.chat.generating' as keyof import('../../../i18n/types').TranslationKeys)}</span>
                 <span className="loading-dots">...</span>
@@ -380,10 +385,10 @@ export const ContentTab: React.FC<ContentTabProps> = ({
               style={{
                 flex: 1,
                 padding: '12px',
-                background: themeColors.inputBg,
-                border: `1px solid ${themeColors.cardBorder}`,
+                background: actualThemeColors.inputBg,
+                border: `1px solid ${actualThemeColors.cardBorder}`,
                 borderRadius: '8px',
-                color: themeColors.inputText,
+                color: actualThemeColors.inputText,
                 fontSize: '14px'
               }}
             />
@@ -392,7 +397,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
               disabled={isGenerating || !inputMessage.trim()}
               style={{
                 padding: '12px 24px',
-                background: isGenerating || !inputMessage.trim() ? themeColors.cardBg : themeColors.accent,
+                background: isGenerating || !inputMessage.trim() ? actualThemeColors.cardBg : actualThemeColors.accent,
                 border: 'none',
                 borderRadius: '8px',
                 color: 'white',
@@ -409,7 +414,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
 
       {/* Knowledge Items List */}
       {isConnected && knowledgeItems.length > 0 && (
-        <div style={cardStyle}>
+        <div style={actualCardStyle}>
           <h3 style={{ marginBottom: '16px' }}>
             {t('knowledge.imsKnowledge.knowledge.title' as keyof import('../../../i18n/types').TranslationKeys, { count: knowledgeItems.length })}
           </h3>
@@ -421,7 +426,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
                 style={{
                   padding: '16px',
                   background: 'rgba(255,255,255,0.02)',
-                  border: `1px solid ${themeColors.cardBorder}`,
+                  border: `1px solid ${actualThemeColors.cardBorder}`,
                   borderRadius: '8px'
                 }}
               >
@@ -430,7 +435,7 @@ export const ContentTab: React.FC<ContentTabProps> = ({
                 </div>
                 <div style={{
                   fontSize: '13px',
-                  color: themeColors.textSecondary,
+                  color: actualThemeColors.textSecondary,
                   marginBottom: '12px',
                   lineHeight: 1.5,
                   maxHeight: '60px',
@@ -443,14 +448,14 @@ export const ContentTab: React.FC<ContentTabProps> = ({
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   fontSize: '12px',
-                  color: themeColors.textSecondary
+                  color: actualThemeColors.textSecondary
                 }}>
                   <span>{item.createdAt.toLocaleString()}</span>
                   <button
                     onClick={() => saveKnowledge(item)}
                     style={{
                       padding: '6px 12px',
-                      background: themeColors.accent,
+                      background: actualThemeColors.accent,
                       border: 'none',
                       borderRadius: '6px',
                       color: 'white',
