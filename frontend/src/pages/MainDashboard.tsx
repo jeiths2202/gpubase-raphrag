@@ -72,7 +72,7 @@ const ENV_LABELS: Record<string, { label: string; color: string }> = {
 // ─────────────────────────────────────────────────────────────
 
 const QUICK_ACTIONS_CONFIG = [
-  { id: 'knowledge', icon: '📚', route: '/knowledge', color: '#3b82f6' },
+  { id: 'knowledge', icon: '📚', route: '/knowledge', color: '#818cf8' },
   { id: 'mindmap', icon: '🧠', route: '/mindmap', color: '#8b5cf6' },
   { id: 'documents', icon: '📄', route: '/documents', color: '#10b981' },
   { id: 'analytics', icon: '📊', route: '/analytics', color: '#f59e0b' },
@@ -499,7 +499,7 @@ const MainDashboard: React.FC = () => {
                             className="metric-bar"
                             style={{
                               width: `${(systemStatus.gpu.memory_used / systemStatus.gpu.memory_total) * 100}%`,
-                              background: systemStatus.gpu.memory_used / systemStatus.gpu.memory_total > 0.8 ? '#ef4444' : '#3b82f6',
+                              background: systemStatus.gpu.memory_used / systemStatus.gpu.memory_total > 0.8 ? '#ef4444' : '#818cf8',
                             }}
                           />
                         </div>

@@ -254,7 +254,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = memo(({
 
         .language-option-check {
           margin-left: auto;
-          color: var(--color-primary, #3b82f6);
+          color: var(--color-primary, #6366f1);
           font-size: 14px;
         }
 
