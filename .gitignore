@@ -1,11 +1,107 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment
+.env
+.env.local
+.env.*.local
+.venv
+venv/
+ENV/
+
+# Neo4j
 neo4j/
+
+# Docker
 docker/.env
+
+# Files
 *.pdf
 Thumbs.db
 *.log
 *.jar
 
-# Embedding classifier cache
+# Cache
 app/src/.cache/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.npm
+.yarn-integrity
+
+# Frontend build
+frontend/build/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache
+test-results/
+playwright-report/
+*.png
+*.jpg
+*.jpeg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary & debug files
+*.tmp
+*.bak
+*.swp
+debug/
+temp/
+test_*.py
+!verify_tracing_setup.py
+cookies*.txt
+token.txt
+*.bat
+*.ps1
+*.sh
+!scripts/*.sh
+
+# Documentation working files (exclude important ones)
+*_COMPLETE.md
+!E2E_TRACING_IMPLEMENTATION_COMPLETE.md
+!docs/IMS_ENHANCEMENTS_COMPLETE.md
+*_SUMMARY.md
+!SUCCESS_SUMMARY.md
+*_REPORT.md
+
+# Embedded repos
+local-llm/
+chrome-extension-ims/
