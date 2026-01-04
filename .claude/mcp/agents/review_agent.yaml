@@ -1,0 +1,38 @@
+# mcp/agents/review_agent.yaml
+agent:
+  id: review-agent
+  role: ReviewAgent
+  model: codex
+  description: >
+    Reviews code artifacts for correctness, security,
+    performance, and architectural compliance.
+
+capabilities:
+  - analyze_code
+  - detect_bugs
+  - security_review
+  - style_review
+
+restrictions:
+  - read_only
+  - cannot_modify_files
+  - cannot_generate_new_code
+
+inputs:
+  allowed:
+    - git_diff
+    - review_guidelines
+  denied:
+    - full_repository
+    - architecture_docs
+    - business_logic_context
+
+outputs:
+  - type: review_report
+    format: structured_markdown
+
+review_levels:
+  - CRITICAL
+  - WARNING
+  - SUGGESTION
+  - OK

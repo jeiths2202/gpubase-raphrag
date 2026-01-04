@@ -5,14 +5,15 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LANGUAGES, LanguageCode, TranslateFunction } from '../../../i18n/types';
 import type { ThemeColors } from '../types';
+import { defaultThemeColors, defaultCardStyle } from '../utils/styleDefaults';
 
 interface SettingsPopupProps {
   isOpen: boolean;
   onClose: () => void;
   language: LanguageCode;
   setLanguage: (lang: LanguageCode) => void;
-  themeColors: ThemeColors;
-  cardStyle: React.CSSProperties;
+  themeColors?: ThemeColors;
+  cardStyle?: React.CSSProperties;
   t: TranslateFunction;
 }
 
@@ -25,6 +26,10 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({
   cardStyle,
   t
 }) => {
+  // Use defaults when style props are not provided
+  const actualThemeColors = themeColors || defaultThemeColors;
+  const actualCardStyle = cardStyle || defaultCardStyle;
+
   if (!isOpen) return null;
 
   return (
@@ -54,7 +59,7 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({
             exit={{ scale: 0.9, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
             style={{
-              ...cardStyle,
+              ...actualCardStyle,
               width: '400px',
               maxWidth: '90vw',
               padding: '24px'
@@ -67,7 +72,7 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: themeColors.text,
+                  color: actualThemeColors.text,
                   fontSize: '24px',
                   cursor: 'pointer',
                   padding: '4px'
@@ -79,7 +84,7 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({
 
             {/* Language Settings */}
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: themeColors.textSecondary }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500, color: actualThemeColors.textSecondary }}>
                 Language / 언어 / 言語
               </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -95,10 +100,10 @@ export const SettingsPopup: React.FC<SettingsPopupProps> = ({
                         alignItems: 'center',
                         gap: '12px',
                         padding: '12px 16px',
-                        background: isSelected ? themeColors.accent : 'rgba(255, 255, 255, 0.05)',
-                        border: isSelected ? `2px solid ${themeColors.accent}` : '2px solid transparent',
+                        background: isSelected ? actualThemeColors.accent : 'rgba(255, 255, 255, 0.05)',
+                        border: isSelected ? `2px solid ${actualThemeColors.accent}` : '2px solid transparent',
                         borderRadius: '8px',
-                        color: isSelected ? '#fff' : themeColors.text,
+                        color: isSelected ? '#fff' : actualThemeColors.text,
                         cursor: 'pointer',
                         transition: 'all 0.2s',
                         textAlign: 'left'

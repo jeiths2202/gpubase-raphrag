@@ -15,6 +15,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from hybrid_rag import HybridRAG, get_hybrid_rag
 from query_router import QueryRouter, QueryType
 
+from ..core.tracing import get_trace_context_from_request
+from ..core.trace_context import SpanType
+
 
 class RAGService:
     """
@@ -192,8 +195,15 @@ class RAGService:
         else:
             answer = global_result.get("answer", "")
 
-        # Get query features for analysis
-        features = self._query_router.get_query_features(question)
+        # Get query features for analysis with trace span
+        trace_ctx = get_trace_context_from_request()
+        features = None
+
+        if trace_ctx:
+            with trace_ctx.create_span("query_classification", SpanType.CLASSIFICATION, metadata={"strategy": strategy}):
+                features = self._query_router.get_query_features(question)
+        else:
+            features = self._query_router.get_query_features(question)
 
         return {
             "answer": answer,

@@ -9,6 +9,7 @@ import { ChatMessageList } from './ChatMessageList';
 import { NewConversationButton } from './NewConversationButton';
 import { ConversationHistorySidebar } from './ConversationHistorySidebar';
 import { useWorkspaceStore } from '../../../store/workspaceStore';
+import { defaultThemeColors, defaultCardStyle, defaultTabStyle, defaultInputStyle } from '../utils/styleDefaults';
 
 // Session document type (inline as it's specific to chat)
 interface SessionDocument {
@@ -91,11 +92,11 @@ interface ChatTabProps {
   disconnectExternalResource: (connectionId: string) => void;
   syncExternalResource: (connectionId: string) => void;
 
-  // Styles
-  themeColors: ThemeColors;
-  cardStyle: React.CSSProperties;
-  tabStyle: (isActive: boolean) => React.CSSProperties;
-  inputStyle: React.CSSProperties;
+  // Styles (optional - CSS classes used by default)
+  themeColors?: ThemeColors;
+  cardStyle?: React.CSSProperties;
+  tabStyle?: (isActive: boolean) => React.CSSProperties;
+  inputStyle?: React.CSSProperties;
 
   // i18n
   t: TranslateFunction;
@@ -145,6 +146,12 @@ export const ChatTab: React.FC<ChatTabProps> = ({
   inputStyle,
   t
 }) => {
+  // Use defaults when style props are not provided
+  const actualThemeColors = themeColors || defaultThemeColors;
+  const actualCardStyle = cardStyle || defaultCardStyle;
+  const actualTabStyle = tabStyle || defaultTabStyle;
+  const actualInputStyle = inputStyle || defaultInputStyle;
+
   // Conversation history sidebar state
   const [showConversationSidebar, setShowConversationSidebar] = useState(false);
 
@@ -185,20 +192,20 @@ export const ChatTab: React.FC<ChatTabProps> = ({
       <ConversationHistorySidebar
         isOpen={showConversationSidebar}
         onClose={() => setShowConversationSidebar(false)}
-        themeColors={themeColors}
+        themeColors={actualThemeColors}
         t={t}
-        cardStyle={cardStyle}
+        cardStyle={actualCardStyle}
       />
 
       {/* Chat Header with New Chat Button - FIXED (doesn't scroll) */}
-      <div style={{ ...cardStyle, flexShrink: 0 }}>
+      <div style={{ ...actualCardStyle, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
           <h2 style={{ margin: 0 }}>{t('knowledge.chat.title')}</h2>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
               onClick={() => setShowConversationSidebar(true)}
               style={{
-                ...tabStyle(false),
+                ...actualTabStyle(false),
                 fontSize: '14px',
                 padding: '6px 12px'
               }}
@@ -209,12 +216,12 @@ export const ChatTab: React.FC<ChatTabProps> = ({
             <NewConversationButton
               onClick={handleNewConversation}
               isLoading={isCreatingConversation}
-              themeColors={themeColors}
+              themeColors={actualThemeColors}
               t={t}
             />
           </div>
         </div>
-        <p style={{ color: themeColors.textSecondary, margin: 0 }}>
+        <p style={{ color: actualThemeColors.textSecondary, margin: 0 }}>
           {t('knowledge.chat.subtitle', { count: selectedDocuments.length })}
         </p>
       </div>
@@ -223,7 +230,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
       <ChatMessageList
         messages={messages}
         isLoading={isLoading}
-        themeColors={themeColors}
+        themeColors={actualThemeColors}
         onSelectSource={(source) => {
           setSelectedSource(source);
           setShowSourcePanel(true);
@@ -231,8 +238,8 @@ export const ChatTab: React.FC<ChatTabProps> = ({
         onSaveResponse={saveAIResponse}
         onSetInputMessage={setInputMessage}
         t={t}
-        cardStyle={cardStyle}
-        tabStyle={tabStyle}
+        cardStyle={actualCardStyle}
+        tabStyle={actualTabStyle}
         initialScrollPosition={workspaceStore.menuStates.chat?.scrollPosition}
         onScrollPositionChange={(scrollTop) => {
           workspaceStore.setMenuState('chat', { scrollPosition: scrollTop });
@@ -246,7 +253,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
             <button
               key={i}
               onClick={() => setInputMessage(q)}
-              style={{ ...tabStyle(false), fontSize: '12px' }}
+              style={{ ...actualTabStyle(false), fontSize: '12px' }}
             >
               {q}
             </button>
@@ -257,7 +264,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
       {/* Session Documents - FIXED (doesn't scroll) */}
       {sessionDocuments.length > 0 && (
         <div style={{
-          ...cardStyle,
+          ...actualCardStyle,
           flexShrink: 0,
           background: 'rgba(46, 204, 113, 0.1)',
           border: '1px solid rgba(46, 204, 113, 0.3)',
@@ -321,12 +328,12 @@ export const ChatTab: React.FC<ChatTabProps> = ({
       {/* Input with File Upload - FIXED (doesn't scroll) */}
       <div
         style={{
-          ...cardStyle,
+          ...actualCardStyle,
           flexShrink: 0,
           display: 'flex',
           flexDirection: 'column',
           gap: '12px',
-          border: dragOver ? `2px dashed ${themeColors.accent}` : undefined,
+          border: dragOver ? `2px dashed ${actualThemeColors.accent}` : undefined,
           background: dragOver ? 'rgba(74, 144, 217, 0.1)' : undefined
         }}
         onDragOver={handleDragOver}
@@ -380,14 +387,14 @@ export const ChatTab: React.FC<ChatTabProps> = ({
                 : '1px solid rgba(74, 144, 217, 0.5)',
               color: externalConnections.some(c => c.status === 'connected')
                 ? '#2ECC71'
-                : themeColors.accent
+                : actualThemeColors.accent
             }}
             title={t('knowledge.external.buttonTitle' as keyof import('../../../i18n/types').TranslationKeys)}
           >
             ➕ {t('knowledge.external.button' as keyof import('../../../i18n/types').TranslationKeys)}
           </button>
           {uploadingSessionDoc && (
-            <span style={{ color: themeColors.textSecondary, fontSize: '12px' }}>
+            <span style={{ color: actualThemeColors.textSecondary, fontSize: '12px' }}>
               {t('knowledge.clipboard.processing' as keyof import('../../../i18n/types').TranslationKeys)}
             </span>
           )}
@@ -457,7 +464,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
               ) : (
                 <div style={{
                   fontSize: '13px',
-                  color: themeColors.textSecondary,
+                  color: actualThemeColors.textSecondary,
                   lineHeight: 1.4,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -516,7 +523,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
             style={{
               padding: '12px',
               background: 'rgba(255,255,255,0.1)',
-              border: `1px solid ${themeColors.cardBorder}`,
+              border: `1px solid ${actualThemeColors.cardBorder}`,
               borderRadius: '8px',
               cursor: 'pointer',
               fontSize: '20px',
@@ -529,11 +536,11 @@ export const ChatTab: React.FC<ChatTabProps> = ({
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
-              e.currentTarget.style.borderColor = themeColors.accent;
+              e.currentTarget.style.borderColor = actualThemeColors.accent;
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-              e.currentTarget.style.borderColor = themeColors.cardBorder;
+              e.currentTarget.style.borderColor = actualThemeColors.cardBorder;
             }}
             title={t('knowledge.chat.attachFile' as keyof import('../../../i18n/types').TranslationKeys) || 'Attach file'}
           >
@@ -575,9 +582,9 @@ export const ChatTab: React.FC<ChatTabProps> = ({
               flex: 1,
               padding: '12px 16px',
               background: 'rgba(255,255,255,0.1)',
-              border: `1px solid ${themeColors.cardBorder}`,
+              border: `1px solid ${actualThemeColors.cardBorder}`,
               borderRadius: '8px',
-              color: themeColors.text,
+              color: actualThemeColors.text,
               fontSize: '16px'
             }}
           />
@@ -586,7 +593,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
             disabled={isLoading || !inputMessage.trim()}
             style={{
               padding: '12px 24px',
-              background: themeColors.accent,
+              background: actualThemeColors.accent,
               color: '#fff',
               border: 'none',
               borderRadius: '8px',
@@ -621,11 +628,11 @@ export const ChatTab: React.FC<ChatTabProps> = ({
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              style={{ ...cardStyle, width: '600px', maxWidth: '90%' }}
+              style={{ ...actualCardStyle, width: '600px', maxWidth: '90%' }}
               onClick={e => e.stopPropagation()}
             >
               <h3 style={{ margin: '0 0 16px' }}>📝 {t('knowledge.paste.modalTitle')}</h3>
-              <p style={{ color: themeColors.textSecondary, fontSize: '14px', marginBottom: '16px' }}>
+              <p style={{ color: actualThemeColors.textSecondary, fontSize: '14px', marginBottom: '16px' }}>
                 {t('knowledge.paste.description')}
               </p>
 
@@ -657,7 +664,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
               <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
                 <button
                   onClick={() => setShowPasteModal(false)}
-                  style={{ ...tabStyle(false), flex: 1 }}
+                  style={{ ...actualTabStyle(false), flex: 1 }}
                 >
                   {t('knowledge.paste.cancel')}
                 </button>
@@ -665,7 +672,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
                   onClick={pasteSessionText}
                   disabled={!pasteContent.trim() || uploadingSessionDoc}
                   style={{
-                    ...tabStyle(true),
+                    ...actualTabStyle(true),
                     flex: 1,
                     opacity: !pasteContent.trim() || uploadingSessionDoc ? 0.5 : 1,
                     cursor: !pasteContent.trim() || uploadingSessionDoc ? 'not-allowed' : 'pointer'
@@ -701,20 +708,20 @@ export const ChatTab: React.FC<ChatTabProps> = ({
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              style={{ ...cardStyle, width: '600px', maxWidth: '90%', maxHeight: '80vh', overflow: 'auto' }}
+              style={{ ...actualCardStyle, width: '600px', maxWidth: '90%', maxHeight: '80vh', overflow: 'auto' }}
               onClick={e => e.stopPropagation()}
             >
               <h3 style={{ margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 🔗 {t('knowledge.external.title' as keyof import('../../../i18n/types').TranslationKeys)}
               </h3>
-              <p style={{ color: themeColors.textSecondary, fontSize: '14px', marginBottom: '20px' }}>
+              <p style={{ color: actualThemeColors.textSecondary, fontSize: '14px', marginBottom: '20px' }}>
                 {t('knowledge.external.description' as keyof import('../../../i18n/types').TranslationKeys)}
               </p>
 
               {/* Connected Resources */}
               {externalConnections.length > 0 && (
                 <div style={{ marginBottom: '24px' }}>
-                  <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: themeColors.textSecondary }}>
+                  <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: actualThemeColors.textSecondary }}>
                     {t('knowledge.external.connectedResources' as keyof import('../../../i18n/types').TranslationKeys)}
                   </h4>
                   {externalConnections.map(conn => {
@@ -733,7 +740,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
                           <span style={{ fontSize: '24px' }}>{resource?.icon}</span>
                           <div>
                             <div style={{ fontWeight: 500 }}>{resource?.name}</div>
-                            <div style={{ fontSize: '12px', color: themeColors.textSecondary }}>
+                            <div style={{ fontSize: '12px', color: actualThemeColors.textSecondary }}>
                               {conn.status === 'connected' ? (
                                 <span style={{ color: '#2ECC71' }}>
                                   ✓ {t('knowledge.external.connected' as keyof import('../../../i18n/types').TranslationKeys)} • {conn.document_count} {t('knowledge.external.documents' as keyof import('../../../i18n/types').TranslationKeys)} • {conn.chunk_count} {t('knowledge.external.chunks' as keyof import('../../../i18n/types').TranslationKeys)}
@@ -761,7 +768,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
                                 transition: 'all 0.2s',
                                 background: 'rgba(74, 144, 217, 0.15)',
                                 border: '1px solid rgba(74, 144, 217, 0.5)',
-                                color: themeColors.accent
+                                color: actualThemeColors.accent
                               }}
                             >
                               {syncingConnection === conn.id ? t('knowledge.external.syncing' as keyof import('../../../i18n/types').TranslationKeys) : `🔄 ${t('knowledge.external.syncButton' as keyof import('../../../i18n/types').TranslationKeys)}`}
@@ -790,7 +797,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
               )}
 
               {/* Available Resources */}
-              <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: themeColors.textSecondary }}>
+              <h4 style={{ margin: '0 0 12px', fontSize: '14px', color: actualThemeColors.textSecondary }}>
                 {t('knowledge.external.availableResources' as keyof import('../../../i18n/types').TranslationKeys)}
               </h4>
               <div style={{ display: 'grid', gap: '12px' }}>
@@ -816,12 +823,12 @@ export const ChatTab: React.FC<ChatTabProps> = ({
                           <div style={{ fontWeight: 600, fontSize: '16px' }}>
                             {t(`knowledge.external.resources.${resource.type === 'google_drive' ? 'googleDrive' : resource.type}.name` as keyof import('../../../i18n/types').TranslationKeys)}
                           </div>
-                          <div style={{ fontSize: '13px', color: themeColors.textSecondary }}>
+                          <div style={{ fontSize: '13px', color: actualThemeColors.textSecondary }}>
                             {t(`knowledge.external.resources.${resource.type === 'google_drive' ? 'googleDrive' : resource.type}.description` as keyof import('../../../i18n/types').TranslationKeys)}
                           </div>
                           <div style={{
                             fontSize: '11px',
-                            color: themeColors.textSecondary,
+                            color: actualThemeColors.textSecondary,
                             marginTop: '4px'
                           }}>
                             {resource.authType === 'oauth2' ? `🔐 ${t('knowledge.external.oauthAuth' as keyof import('../../../i18n/types').TranslationKeys)}` : `🔑 ${t('knowledge.external.apiToken' as keyof import('../../../i18n/types').TranslationKeys)}`}
@@ -865,7 +872,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({
                     transition: 'all 0.2s',
                     background: 'rgba(255, 255, 255, 0.1)',
                     border: '1px solid rgba(255, 255, 255, 0.2)',
-                    color: themeColors.text
+                    color: actualThemeColors.text
                   }}
                 >
                   {t('knowledge.external.close' as keyof import('../../../i18n/types').TranslationKeys)}

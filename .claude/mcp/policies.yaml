@@ -1,0 +1,16 @@
+# mcp/policies.yaml
+policies:
+  context_isolation:
+    enabled: true
+
+  agent_visibility:
+    develop-agent:
+      cannot_see:
+        - review_report.raw
+    review-agent:
+      cannot_see:
+        - full_repo
+        - architecture_docs
+
+  artifact_integrity:
+    immutable_after_review: true

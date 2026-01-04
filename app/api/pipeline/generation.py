@@ -9,6 +9,9 @@ from enum import Enum
 import logging
 import time
 
+from ..core.tracing import get_trace_context_from_request
+from ..core.trace_context import SpanType
+
 logger = logging.getLogger(__name__)
 
 
@@ -157,6 +160,32 @@ class GenerationStage:
         Returns:
             GenerationResult with answer and metadata
         """
+        # Get trace context for E2E tracing
+        trace_ctx = get_trace_context_from_request()
+
+        # Prepare span metadata
+        span_metadata = {
+            "model": getattr(self.llm, 'model_name', 'unknown'),
+            "temperature": self.config.temperature,
+            "max_tokens": self.config.max_tokens,
+            "language": self.config.language
+        }
+
+        # Wrap in trace span if available
+        if trace_ctx:
+            with trace_ctx.create_span("generation", SpanType.GENERATION, metadata=span_metadata):
+                return await self._execute_generation(question, context, system_prompt, additional_params)
+        else:
+            return await self._execute_generation(question, context, system_prompt, additional_params)
+
+    async def _execute_generation(
+        self,
+        question: str,
+        context: str = "",
+        system_prompt: Optional[str] = None,
+        additional_params: Optional[Dict[str, Any]] = None
+    ) -> GenerationResult:
+        """Execute generation with timing"""
         start_time = time.time()
 
         # Prepare context
@@ -169,6 +198,9 @@ class GenerationStage:
             system_prompt=system_prompt,
             additional_params=additional_params or {}
         )
+
+        # Estimate input tokens (rough approximation: 1 token ≈ 4 chars)
+        prompt_tokens = sum(len(m.get("content", "")) for m in messages) // 4
 
         # Generate response
         try:
@@ -186,8 +218,14 @@ class GenerationStage:
         # Parse response
         answer = self._parse_response(response)
 
+        # Estimate output tokens
+        completion_tokens = len(answer) // 4
+
         return GenerationResult(
             answer=answer,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            model=getattr(self.llm, 'model_name', 'unknown'),
             duration_ms=duration,
             metadata={
                 "question": question,

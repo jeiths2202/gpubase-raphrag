@@ -9,6 +9,9 @@ from enum import Enum
 import logging
 import time
 
+from ..core.tracing import get_trace_context_from_request
+from ..core.trace_context import SpanType
+
 logger = logging.getLogger(__name__)
 
 
@@ -204,6 +207,32 @@ class RetrievalStage:
         Returns:
             RetrievalResult with ranked documents
         """
+        # Get trace context for E2E tracing
+        trace_ctx = get_trace_context_from_request()
+
+        # Prepare span metadata
+        span_metadata = {
+            "strategy": self.config.strategy.value,
+            "top_k": self.config.top_k,
+            "reranking": self.config.reranking.value
+        }
+
+        # Wrap in trace span if available
+        if trace_ctx:
+            with trace_ctx.create_span("retrieval", SpanType.RETRIEVAL, metadata=span_metadata):
+                return await self._execute_retrieval(query, query_vector, user_id, session_id, filters)
+        else:
+            return await self._execute_retrieval(query, query_vector, user_id, session_id, filters)
+
+    async def _execute_retrieval(
+        self,
+        query: str,
+        query_vector: List[float],
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> RetrievalResult:
+        """Execute retrieval with timing"""
         start_time = time.time()
 
         # Build filters
@@ -230,6 +259,9 @@ class RetrievalStage:
 
         duration = (time.time() - start_time) * 1000
 
+        # Calculate average score for span metadata
+        avg_score = sum(d.score for d in documents) / len(documents) if documents else 0.0
+
         return RetrievalResult(
             documents=documents,
             query=query,
@@ -237,7 +269,9 @@ class RetrievalStage:
             duration_ms=duration,
             metadata={
                 "filters": merged_filters,
-                "reranking": self.config.reranking.value
+                "reranking": self.config.reranking.value,
+                "result_count": len(documents),
+                "avg_score": avg_score
             }
         )
 

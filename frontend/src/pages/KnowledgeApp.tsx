@@ -23,9 +23,10 @@ import {
   ThemeType,
 } from '../features/knowledge/types';
 import { API_BASE } from '../features/knowledge/constants';
-import { getThemeColors, getCardStyle, getTabStyle, getInputStyle } from '../features/knowledge/utils';
-import { SettingsPopup, ChatTab, WebSourcesTab, ContentTab, KnowledgeGraphTab, KnowledgeArticlesTab, KnowledgeSidebar } from '../features/knowledge/components';
+import { SettingsPopup, ChatTab, WebSourcesTab, KnowledgeGraphTab, KnowledgeArticlesTab, KnowledgeSidebar } from '../features/knowledge/components';
+import { IMSCrawlerPage } from '../features/ims/pages/IMSCrawlerPage';
 import { useWorkspaceStore, useChatMessages, useMessagesLoading, useActiveConversation } from '../store/workspaceStore';
+import './KnowledgeApp.css';
 
 const KnowledgeApp: React.FC = () => {
   const navigate = useNavigate();
@@ -1174,64 +1175,42 @@ const KnowledgeApp: React.FC = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
-  // Styles - using extracted utility functions
-  const themeColors = getThemeColors(theme);
-  const cardStyle = getCardStyle(themeColors);
-  const tabStyle = (isActive: boolean) => getTabStyle(isActive, themeColors);
-  const inputStyle = getInputStyle(themeColors);
-
   return (
-    <div style={{
-      height: '100vh', // Fixed height to enable viewport-based layout
-      background: themeColors.bg,
-      color: themeColors.text,
-      display: 'flex',
-      overflow: 'hidden' // Prevent page-level scrolling
-    }}>
-      {/* Sidebar */}
-      <KnowledgeSidebar
-        sidebarCollapsed={sidebarCollapsed}
-        showNotifications={showNotifications}
-        notifications={notifications}
-        unreadCount={unreadCount}
-        activeTab={activeTab}
-        theme={theme}
-        user={user}
-        setSidebarCollapsed={setSidebarCollapsed}
-        setShowNotifications={setShowNotifications}
-        setActiveTab={setActiveTab}
-        setShowSettingsPopup={setShowSettingsPopup}
-        markAllNotificationsAsRead={markAllNotificationsAsRead}
-        markNotificationAsRead={markNotificationAsRead}
-        toggleTheme={toggleTheme}
-        logout={logout}
-        navigate={navigate}
-        themeColors={themeColors}
-        cardStyle={cardStyle}
-        tabStyle={tabStyle}
-        t={t}
-      />
-
+    <div className="knowledge-app">
       {/* Settings Popup - using extracted component */}
       <SettingsPopup
         isOpen={showSettingsPopup}
         onClose={() => setShowSettingsPopup(false)}
         language={language}
         setLanguage={setLanguage}
-        themeColors={themeColors}
-        cardStyle={cardStyle}
         t={t}
       />
 
-      {/* Main Content */}
-      <main style={{
-        flex: 1,
-        padding: '24px',
-        overflow: 'hidden', // Prevent main content scrolling - only ChatMessageList scrolls
-        display: 'flex',
-        gap: '24px',
-        height: '100vh' // Ensure full viewport height
-      }}>
+      {/* Content wrapper for horizontal layout (sidebar + main) */}
+      <div className="knowledge-content">
+        {/* Sidebar */}
+        <KnowledgeSidebar
+          sidebarCollapsed={sidebarCollapsed}
+          showNotifications={showNotifications}
+          notifications={notifications}
+          unreadCount={unreadCount}
+          activeTab={activeTab}
+          theme={theme}
+          user={user}
+          setSidebarCollapsed={setSidebarCollapsed}
+          setShowNotifications={setShowNotifications}
+          setActiveTab={setActiveTab}
+          setShowSettingsPopup={setShowSettingsPopup}
+          markAllNotificationsAsRead={markAllNotificationsAsRead}
+          markNotificationAsRead={markNotificationAsRead}
+          toggleTheme={toggleTheme}
+          logout={logout}
+          navigate={navigate}
+          t={t}
+        />
+
+        {/* Main Content */}
+        <main className="knowledge-main">
         <AnimatePresence mode="wait">
           {/* Chat Tab */}
           {activeTab === 'chat' && (
@@ -1272,10 +1251,6 @@ const KnowledgeApp: React.FC = () => {
               connectExternalResource={connectExternalResource}
               disconnectExternalResource={disconnectExternalResource}
               syncExternalResource={syncExternalResource}
-              themeColors={themeColors}
-              cardStyle={cardStyle}
-              tabStyle={tabStyle}
-              inputStyle={inputStyle}
               t={t}
             />
           )}
@@ -1294,21 +1269,13 @@ const KnowledgeApp: React.FC = () => {
               addWebSources={addWebSources}
               refreshWebSource={refreshWebSource}
               deleteWebSource={deleteWebSource}
-              themeColors={themeColors}
-              cardStyle={cardStyle}
-              tabStyle={tabStyle}
-              inputStyle={inputStyle}
               t={t}
             />
           )}
 
           {/* Content Tab - IMS Knowledge Service */}
           {activeTab === 'content' && (
-            <ContentTab
-              themeColors={themeColors}
-              cardStyle={cardStyle}
-              t={t}
-            />
+            <IMSCrawlerPage t={t} />
           )}
 
           {/* Knowledge Graph Tab */}
@@ -1327,9 +1294,6 @@ const KnowledgeApp: React.FC = () => {
               queryKnowledgeGraph={queryKnowledgeGraph}
               deleteKnowledgeGraph={deleteKnowledgeGraph}
               getEntityColor={getEntityColor}
-              themeColors={themeColors}
-              cardStyle={cardStyle}
-              tabStyle={tabStyle}
               t={t}
             />
           )}
@@ -1357,9 +1321,6 @@ const KnowledgeApp: React.FC = () => {
               recommendArticle={recommendArticle}
               reviewArticle={reviewArticle}
               createKnowledgeArticle={createKnowledgeArticle}
-              themeColors={themeColors}
-              cardStyle={cardStyle}
-              tabStyle={tabStyle}
               user={user}
               t={t}
             />
@@ -1373,43 +1334,21 @@ const KnowledgeApp: React.FC = () => {
               initial={{ x: 300, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 300, opacity: 0 }}
-              style={{
-                ...cardStyle,
-                width: '400px',
-                flexShrink: 0,
-                position: 'relative'
-              }}
+              className="knowledge-card knowledge-source-panel"
             >
               <button
                 onClick={() => setShowSourcePanel(false)}
-                style={{
-                  position: 'absolute',
-                  top: '12px',
-                  right: '12px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: themeColors.text,
-                  cursor: 'pointer',
-                  fontSize: '20px'
-                }}
+                className="knowledge-source-close"
               >
                 ×
               </button>
               <h3>Source Detail</h3>
               <div style={{ marginTop: '16px' }}>
-                <div style={{ fontWeight: 600, marginBottom: '8px' }}>{selectedSource.doc_name}</div>
-                <div style={{ fontSize: '12px', color: themeColors.textSecondary, marginBottom: '16px' }}>
+                <div className="knowledge-source-title">{selectedSource.doc_name}</div>
+                <div className="knowledge-source-meta">
                   Chunk #{selectedSource.chunk_index} | 신뢰도: {(selectedSource.score * 100).toFixed(0)}%
                 </div>
-                <div style={{
-                  padding: '12px',
-                  background: 'rgba(255,255,255,0.05)',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  lineHeight: 1.6,
-                  maxHeight: '400px',
-                  overflow: 'auto'
-                }}>
+                <div className="knowledge-source-content">
                   {selectedSource.content}
                 </div>
               </div>
@@ -1417,6 +1356,7 @@ const KnowledgeApp: React.FC = () => {
           )}
         </AnimatePresence>
       </main>
+      </div> {/* Close knowledge-content */}
     </div>
   );
 };

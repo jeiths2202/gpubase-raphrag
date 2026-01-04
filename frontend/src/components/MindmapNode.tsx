@@ -19,7 +19,7 @@ const MindmapNodeComponent: React.FC<NodeProps<MindmapNodeData>> = ({ data }) =>
     nodeType,
     description,
     importance,
-    color = '#3b82f6',
+    color = '#818cf8',
     size = 30,
     isSelected = false,
     isRoot = false,

@@ -8,7 +8,7 @@ import time
 import random
 import logging
 import traceback
-from typing import Optional, Dict, Any, List, Callable
+from typing import Optional, Dict, Any, List, Callable, TYPE_CHECKING
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
 from contextlib import contextmanager
@@ -17,6 +17,9 @@ from enum import Enum
 import threading
 
 from .app_mode import get_app_mode_manager, AppMode, ModeConfig
+
+if TYPE_CHECKING:
+    from .trace_context import TraceContext
 
 
 class LogCategory(str, Enum):
@@ -47,6 +50,7 @@ class RequestContext:
     user_agent: Optional[str] = None
     start_time: float = field(default_factory=time.time)
     extra: Dict[str, Any] = field(default_factory=dict)
+    trace_context: Optional["TraceContext"] = None  # E2E message tracing context
 
     def to_dict(self) -> Dict[str, Any]:
         return {

@@ -23,6 +23,9 @@ from ..models.query import (
     QueryAnalysis,
 )
 from ..core.deps import get_current_user, get_rag_service
+from ..core.tracing import get_trace_context_from_request, detect_response_quality, should_sample_trace
+from ..core.app_mode import get_app_mode_manager
+from ..infrastructure.services.trace_writer import get_trace_writer
 
 router = APIRouter(prefix="/query", tags=["Query"])
 
@@ -85,6 +88,101 @@ async def execute_query(
                 section_title=s.get("section_title")
             )
             sources.append(source_info)
+
+        # ==================== Trace Persistence ====================
+        # Detect quality and persist trace data for E2E message tracing
+        trace_ctx = get_trace_context_from_request()
+        if trace_ctx:
+            try:
+                # Detect response quality
+                response_quality_flag = detect_response_quality(
+                    response=result["answer"],
+                    rag_confidence=result.get("confidence", 0.0),
+                    user_feedback=None  # TODO: Get from conversation feedback if available
+                )
+
+                # Mode-aware sampling: DEVELOP=100%, PRODUCT=10% success/100% errors
+                mode_manager = get_app_mode_manager()
+                is_error = response_quality_flag == "ERROR"
+                if not should_sample_trace(mode_manager, is_error=is_error):
+                    # Skip trace persistence for this request (sampling decision)
+                    return SuccessResponse(
+                        data=QueryResponse(
+                            answer=result["answer"],
+                            strategy=StrategyType(result["strategy"]),
+                            language=LanguageType(result["language"]),
+                            confidence=result.get("confidence", 0.85),
+                            sources=sources,
+                            query_analysis=QueryAnalysis(**result["query_analysis"]) if result.get("query_analysis") else None
+                        ),
+                        meta=MetaInfo(
+                            request_id=request_id,
+                            processing_time_ms=processing_time
+                        )
+                    )
+
+                # Assemble trace data
+                trace_data = {
+                    'trace_id': trace_ctx.trace_id,
+                    'user_id': current_user.get("user_id") or current_user.get("id", "unknown"),
+                    'session_id': opts.session_id if opts else None,
+                    'conversation_id': opts.conversation_id if opts else None,
+                    'original_prompt': request.question,
+                    'normalized_prompt': request.question,  # TODO: Add normalization if needed
+                    'model_name': 'hybrid-rag',  # TODO: Get actual model from result
+                    'model_version': None,
+                    'inference_params': {},
+                    'start_time': trace_ctx.spans[trace_ctx.root_span_id].start_time,
+                    'end_time': trace_ctx.spans[trace_ctx.root_span_id].end_time,
+                    'total_latency_ms': processing_time,
+                    'embedding_latency_ms': None,  # Will be filled from spans
+                    'retrieval_latency_ms': None,  # Will be filled from spans
+                    'generation_latency_ms': None,  # Will be filled from spans
+                    'response_content': result["answer"],
+                    'response_length': len(result["answer"]),
+                    'input_tokens': 0,  # TODO: Calculate from prompt
+                    'output_tokens': 0,  # TODO: Calculate from response
+                    'total_tokens': 0,
+                    'response_quality_flag': response_quality_flag,
+                    'error_code': None,
+                    'error_message': None,
+                    'error_stacktrace': None,
+                    'strategy': result.get("strategy", "auto"),
+                    'language': result.get("language", "auto"),
+                    'rag_confidence_score': result.get("confidence", 0.0),
+                    'rag_result_count': len(sources),
+                    'metadata': {
+                        'used_session_docs': result.get("query_analysis", {}).get("used_session_docs", False),
+                        'used_external_resources': result.get("query_analysis", {}).get("used_external_resources", False)
+                    }
+                }
+
+                # Extract latencies from spans
+                for span in trace_ctx.spans.values():
+                    if span.span_type.value == "EMBEDDING" and span.latency_ms:
+                        trace_data['embedding_latency_ms'] = span.latency_ms
+                    elif span.span_type.value == "RETRIEVAL" and span.latency_ms:
+                        trace_data['retrieval_latency_ms'] = span.latency_ms
+                    elif span.span_type.value == "GENERATION" and span.latency_ms:
+                        trace_data['generation_latency_ms'] = span.latency_ms
+                        # Try to extract token counts from metadata
+                        if 'input_tokens' in span.metadata:
+                            trace_data['input_tokens'] = span.metadata['input_tokens']
+                        if 'output_tokens' in span.metadata:
+                            trace_data['output_tokens'] = span.metadata['output_tokens']
+
+                # Calculate total tokens
+                trace_data['total_tokens'] = trace_data['input_tokens'] + trace_data['output_tokens']
+
+                # Submit to trace writer for background persistence
+                trace_writer = get_trace_writer()
+                await trace_writer.submit_trace(trace_data, trace_ctx.get_all_spans())
+
+            except Exception as e:
+                # Log trace persistence failure but don't fail the request
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Trace persistence failed: {e}", exc_info=True)
 
         return SuccessResponse(
             data=QueryResponse(

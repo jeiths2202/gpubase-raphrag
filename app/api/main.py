@@ -27,7 +27,8 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, ims_sso
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces
+from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 
 
 # Initialize mode manager and logger
@@ -129,12 +130,52 @@ async def lifespan(app: FastAPI):
             category=LogCategory.BUSINESS
         )
 
+        # ==================== Trace System Initialization ====================
+        # Initialize trace repository and writer for E2E message tracing
+        from .infrastructure.postgres.trace_repository import TraceRepository
+        from .infrastructure.services.trace_writer import initialize_trace_writer
+
+        trace_repo = TraceRepository(db_pool)
+        trace_writer = initialize_trace_writer(trace_repo)
+        await trace_writer.start()
+
+        # Register in container
+        container.register_singleton("trace_repository", trace_repo)
+        container.register_singleton("trace_writer", trace_writer)
+
+        logger.info(
+            "[OK] Trace system initialized (E2E message tracing enabled)",
+            category=LogCategory.BUSINESS,
+            extra_data={
+                "batch_size": trace_writer.batch_size,
+                "batch_timeout_seconds": trace_writer.batch_timeout
+            }
+        )
+
     except Exception as e:
         logger.warning(
             f"PostgreSQL pool initialization failed, using in-memory storage: {e}",
             category=LogCategory.BUSINESS
         )
         # Continue without PostgreSQL - will fall back to in-memory storage
+        trace_writer = None
+
+    # ==================== Background Task Queue Initialization ====================
+    from .ims_crawler.infrastructure.services import get_task_queue
+    try:
+        task_queue = get_task_queue(max_concurrent=3)
+        await task_queue.start()
+        logger.info(
+            "[OK] Background task queue initialized",
+            category=LogCategory.BUSINESS,
+            extra_data={"max_concurrent_tasks": 3}
+        )
+    except Exception as e:
+        logger.warning(
+            f"Background task queue initialization failed: {e}",
+            category=LogCategory.BUSINESS
+        )
+        task_queue = None
 
     # ==================== Application Startup ====================
     logger.info(
@@ -163,6 +204,22 @@ async def lifespan(app: FastAPI):
 
     # ==================== Application Shutdown ====================
     logger.info("Shutting down application", category=LogCategory.BUSINESS)
+
+    # Stop trace writer (flush remaining traces)
+    if trace_writer is not None:
+        try:
+            await trace_writer.stop()
+            logger.info("Trace writer stopped and flushed", category=LogCategory.BUSINESS)
+        except Exception as e:
+            logger.warning(f"Error stopping trace writer: {e}", category=LogCategory.BUSINESS)
+
+    # Stop background task queue
+    if task_queue is not None:
+        try:
+            await task_queue.stop()
+            logger.info("Background task queue stopped", category=LogCategory.BUSINESS)
+        except Exception as e:
+            logger.warning(f"Error stopping task queue: {e}", category=LogCategory.BUSINESS)
 
     # Close database pool
     if db_pool is not None:
@@ -279,8 +336,8 @@ app.add_exception_handler(APIException, api_exception_handler)
 API_PREFIX = "/api/v1"
 
 app.include_router(auth.router, prefix=API_PREFIX)
-app.include_router(ims_sso.router, prefix=API_PREFIX)
 app.include_router(admin.router, prefix=API_PREFIX)
+app.include_router(admin_traces.router, prefix=API_PREFIX)  # E2E trace query API (admin only)
 app.include_router(query.router, prefix=API_PREFIX)
 app.include_router(documents.router, prefix=API_PREFIX)
 app.include_router(history.router, prefix=API_PREFIX)
@@ -303,6 +360,15 @@ app.include_router(system.router, prefix=API_PREFIX)
 app.include_router(preferences.router, prefix=API_PREFIX)
 app.include_router(vision.router, prefix=API_PREFIX)
 app.include_router(workspace.router, prefix=API_PREFIX)  # Persistent workspace state management
+
+# IMS Crawler routers
+app.include_router(credentials_router, prefix=API_PREFIX)  # IMS credentials management
+app.include_router(search_router, prefix=API_PREFIX)  # IMS natural language search
+app.include_router(jobs_router, prefix=API_PREFIX)  # IMS crawl jobs with SSE streaming
+app.include_router(reports_router, prefix=API_PREFIX)  # IMS markdown report generation
+app.include_router(dashboard_router, prefix=API_PREFIX)  # IMS dashboard statistics
+app.include_router(cache_router, prefix=API_PREFIX)  # IMS cache management
+app.include_router(tasks_router, prefix=API_PREFIX)  # IMS background task queue management
 
 
 # Root endpoint

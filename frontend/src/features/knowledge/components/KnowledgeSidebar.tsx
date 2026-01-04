@@ -5,6 +5,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import type { ThemeColors, TabType, Notification, ThemeType } from '../types';
 import { TranslateFunction } from '../../../i18n/types';
+import { defaultThemeColors, defaultCardStyle, defaultTabStyle } from '../utils/styleDefaults';
 
 interface User {
   id: string;
@@ -39,10 +40,10 @@ interface KnowledgeSidebarProps {
   logout: () => void;
   navigate: (path: string) => void;
 
-  // Styles
-  themeColors: ThemeColors;
-  cardStyle: React.CSSProperties;
-  tabStyle: (isActive: boolean) => React.CSSProperties;
+  // Styles (optional - CSS classes used by default)
+  themeColors?: ThemeColors;
+  cardStyle?: React.CSSProperties;
+  tabStyle?: (isActive: boolean) => React.CSSProperties;
 
   // i18n
   t: TranslateFunction;
@@ -70,16 +71,20 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
   tabStyle,
   t
 }) => {
+  // Use defaults when style props are not provided
+  const actualThemeColors = themeColors || defaultThemeColors;
+  const actualCardStyle = cardStyle || defaultCardStyle;
+  const actualTabStyle = tabStyle || defaultTabStyle;
+
   return (
     <motion.aside
+      className="knowledge-sidebar"
       initial={{ width: 280 }}
       animate={{ width: sidebarCollapsed ? 60 : 280 }}
       style={{
-        ...cardStyle,
+        ...actualCardStyle,
         borderRadius: 0,
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
+        height: '100%',  /* Changed from 100vh to 100% to fill parent container */
         gap: '16px',
         overflowY: 'auto',
         overflowX: 'hidden'
@@ -90,7 +95,7 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
         {!sidebarCollapsed && <h1 style={{ fontSize: '20px', fontWeight: 700 }}>KMS</h1>}
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          style={{ background: 'transparent', border: 'none', color: themeColors.text, cursor: 'pointer', fontSize: '20px' }}
+          style={{ background: 'transparent', border: 'none', color: actualThemeColors.text, cursor: 'pointer', fontSize: '20px' }}
         >
           {sidebarCollapsed ? '>' : '<'}
         </button>
@@ -102,7 +107,7 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ fontWeight: 600 }}>{user?.username || 'User'}</div>
-              <div style={{ fontSize: '12px', color: themeColors.textSecondary }}>{user?.email}</div>
+              <div style={{ fontSize: '12px', color: actualThemeColors.textSecondary }}>{user?.email}</div>
             </div>
             <div style={{ position: 'relative' }}>
               <button
@@ -145,25 +150,25 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
                   width: '300px',
                   maxHeight: '400px',
                   overflow: 'auto',
-                  background: themeColors.cardBg,
-                  border: `1px solid ${themeColors.cardBorder}`,
+                  background: actualThemeColors.cardBg,
+                  border: `1px solid ${actualThemeColors.cardBorder}`,
                   borderRadius: '8px',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                   zIndex: 1000
                 }}>
-                  <div style={{ padding: '12px', borderBottom: `1px solid ${themeColors.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ padding: '12px', borderBottom: `1px solid ${actualThemeColors.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontWeight: 600 }}>{t('knowledge.notifications.title')}</span>
                     {unreadCount > 0 && (
                       <button
                         onClick={markAllNotificationsAsRead}
-                        style={{ background: 'transparent', border: 'none', color: themeColors.accent, cursor: 'pointer', fontSize: '12px' }}
+                        style={{ background: 'transparent', border: 'none', color: actualThemeColors.accent, cursor: 'pointer', fontSize: '12px' }}
                       >
                         {t('knowledge.notifications.markAllRead')}
                       </button>
                     )}
                   </div>
                   {notifications.length === 0 ? (
-                    <div style={{ padding: '20px', textAlign: 'center', color: themeColors.textSecondary }}>
+                    <div style={{ padding: '20px', textAlign: 'center', color: actualThemeColors.textSecondary }}>
                       {t('knowledge.notifications.empty')}
                     </div>
                   ) : (
@@ -179,13 +184,13 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
                         }}
                         style={{
                           padding: '12px',
-                          borderBottom: `1px solid ${themeColors.cardBorder}`,
+                          borderBottom: `1px solid ${actualThemeColors.cardBorder}`,
                           cursor: 'pointer',
                           background: notif.is_read ? 'transparent' : 'rgba(74,144,217,0.1)'
                         }}
                       >
                         <div style={{ fontWeight: notif.is_read ? 400 : 600, fontSize: '13px' }}>{notif.title}</div>
-                        <div style={{ fontSize: '12px', color: themeColors.textSecondary, marginTop: '4px' }}>{notif.message}</div>
+                        <div style={{ fontSize: '12px', color: actualThemeColors.textSecondary, marginTop: '4px' }}>{notif.message}</div>
                       </div>
                     ))
                   )}
@@ -216,7 +221,7 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
               }
             }}
             style={{
-              ...tabStyle(activeTab === tab.key),
+              ...actualTabStyle(activeTab === tab.key),
               display: 'flex',
               alignItems: 'center',
               gap: '12px',
@@ -233,7 +238,7 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <button
           onClick={toggleTheme}
-          style={{ ...tabStyle(false), display: 'flex', alignItems: 'center', gap: '12px', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
+          style={{ ...actualTabStyle(false), display: 'flex', alignItems: 'center', gap: '12px', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
         >
           <span>{theme === 'dark' ? '🌙' : '☀️'}</span>
           {!sidebarCollapsed && <span>{theme === 'dark' ? t('knowledge.sidebar.dark') : t('knowledge.sidebar.light')}</span>}
@@ -241,7 +246,7 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
         {user?.role === 'admin' && (
           <button
             onClick={() => navigate('/admin')}
-            style={{ ...tabStyle(false), display: 'flex', alignItems: 'center', gap: '12px', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
+            style={{ ...actualTabStyle(false), display: 'flex', alignItems: 'center', gap: '12px', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
           >
             <span>👤</span>
             {!sidebarCollapsed && <span>{t('knowledge.sidebar.admin')}</span>}
@@ -249,14 +254,14 @@ export const KnowledgeSidebar: React.FC<KnowledgeSidebarProps> = ({
         )}
         <button
           onClick={logout}
-          style={{ ...tabStyle(false), display: 'flex', alignItems: 'center', gap: '12px', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
+          style={{ ...actualTabStyle(false), display: 'flex', alignItems: 'center', gap: '12px', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
         >
           <span>🚪</span>
           {!sidebarCollapsed && <span>{t('knowledge.sidebar.logout')}</span>}
         </button>
         <button
           onClick={() => setShowSettingsPopup(true)}
-          style={{ ...tabStyle(false), display: 'flex', alignItems: 'center', gap: '12px', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
+          style={{ ...actualTabStyle(false), display: 'flex', alignItems: 'center', gap: '12px', justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}
         >
           <span>⚙️</span>
           {!sidebarCollapsed && <span>{t('knowledge.sidebar.settings')}</span>}
