@@ -23,7 +23,8 @@ import {
   ThemeType,
 } from '../features/knowledge/types';
 import { API_BASE } from '../features/knowledge/constants';
-import { SettingsPopup, ChatTab, WebSourcesTab, ContentTab, KnowledgeGraphTab, KnowledgeArticlesTab, KnowledgeSidebar } from '../features/knowledge/components';
+import { SettingsPopup, ChatTab, WebSourcesTab, KnowledgeGraphTab, KnowledgeArticlesTab, KnowledgeSidebar } from '../features/knowledge/components';
+import { IMSCrawlerPage } from '../features/ims/pages/IMSCrawlerPage';
 import { useWorkspaceStore, useChatMessages, useMessagesLoading, useActiveConversation } from '../store/workspaceStore';
 import './KnowledgeApp.css';
 
@@ -1274,9 +1275,7 @@ const KnowledgeApp: React.FC = () => {
 
           {/* Content Tab - IMS Knowledge Service */}
           {activeTab === 'content' && (
-            <ContentTab
-              t={t}
-            />
+            <IMSCrawlerPage t={t} />
           )}
 
           {/* Knowledge Graph Tab */}

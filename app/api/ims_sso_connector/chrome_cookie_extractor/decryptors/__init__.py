@@ -1,3 +1,0 @@
-"""
-OS-specific cookie decryptors
-"""

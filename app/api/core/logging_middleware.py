@@ -13,6 +13,7 @@ from .app_mode import get_app_mode_manager
 from .logging_framework import (
     AppLogger, RequestContext, LogCategory, get_logger
 )
+from .trace_context import TraceContext
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):
@@ -58,6 +59,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         if hasattr(request.state, "user"):
             user_id = getattr(request.state.user, "id", None)
 
+        # Create trace context for E2E message tracing
+        trace_ctx = TraceContext.create()
+
         # Create request context
         context = RequestContext(
             request_id=request_id,
@@ -66,7 +70,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             endpoint=str(request.url.path),
             method=request.method,
             ip_address=self._get_client_ip(request),
-            user_agent=request.headers.get("User-Agent", "")[:200]
+            user_agent=request.headers.get("User-Agent", "")[:200],
+            trace_context=trace_ctx  # Attach trace context
         )
 
         # Set context for logging
@@ -116,6 +121,10 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             raise
 
         finally:
+            # End root span before clearing context
+            if context.trace_context:
+                context.trace_context.end_root_span()
+
             # Clear context
             AppLogger.clear_request_context()
 

@@ -8,6 +8,9 @@ from typing import List, Optional, Dict, Any, Protocol
 import logging
 import time
 
+from ..core.tracing import get_trace_context_from_request
+from ..core.trace_context import SpanType
+
 logger = logging.getLogger(__name__)
 
 
@@ -134,6 +137,30 @@ class EmbeddingStage:
         Returns:
             EmbeddingResult with embeddings
         """
+        # Get trace context for E2E tracing
+        trace_ctx = get_trace_context_from_request()
+
+        # Prepare span metadata
+        span_metadata = {
+            "model": self.config.model_name,
+            "dimension": self.config.dimension,
+            "input_count": len(texts),
+            "input_length": sum(len(t) for t in texts)
+        }
+
+        # Wrap in trace span if available
+        if trace_ctx:
+            with trace_ctx.create_span("embedding", SpanType.EMBEDDING, metadata=span_metadata):
+                return await self._execute_embedding(texts, use_cache)
+        else:
+            return await self._execute_embedding(texts, use_cache)
+
+    async def _execute_embedding(
+        self,
+        texts: List[str],
+        use_cache: bool = True
+    ) -> EmbeddingResult:
+        """Execute embedding with timing"""
         start_time = time.time()
 
         # Preprocess texts

@@ -1,0 +1,24 @@
+# mcp/workflows/feature_workflow.yaml
+workflow:
+  id: feature-development
+  trigger:
+    type: manual
+    input: feature_spec
+
+steps:
+  - step: implement
+    agent: develop-agent
+    input:
+      task_description: "{{feature_spec}}"
+
+  - step: review
+    agent: review-agent
+    input:
+      git_diff: "{{implement.output.git_diff}}"
+
+  - step: architecture_check
+    agent: architect-agent
+    when: diff_contains_arch_changes == true
+
+  - step: decision
+    orchestrator: default
