@@ -210,7 +210,8 @@
       "Bash(uvicorn:*)",
       "Bash(git diff:*)",
       "Bash(git clone:*)",
-      "Bash(git for-each-ref:*)"
+      "Bash(git for-each-ref:*)",
+      "Bash(git prune:*)"
     ]
   }
 }

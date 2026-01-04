@@ -1,0 +1,520 @@
+{
+  "api_examples": {
+    "load_workspace_state": {
+      "endpoint": "GET /api/v1/workspace/state/load",
+      "description": "Load complete workspace state on login",
+      "request": {
+        "method": "GET",
+        "headers": {
+          "Authorization": "Bearer <jwt_token>",
+          "Content-Type": "application/json"
+        }
+      },
+      "response": {
+        "success": true,
+        "data": {
+          "menu_states": {
+            "chat": {
+              "activeConversationId": "550e8400-e29b-41d4-a716-446655440000",
+              "scrollPosition": 420,
+              "filterSettings": {
+                "archived": false,
+                "dateRange": "7days",
+                "searchQuery": ""
+              },
+              "viewMode": "list",
+              "sidebarWidth": 300,
+              "sortBy": "updated_at"
+            },
+            "documents": {
+              "selectedDocuments": [
+                "doc_550e8400-e29b-41d4-a716-446655440001",
+                "doc_550e8400-e29b-41d4-a716-446655440002"
+              ],
+              "filterSettings": {
+                "type": "pdf",
+                "tags": ["research", "gpu", "rag"],
+                "favorite": false
+              },
+              "sortBy": "title",
+              "viewMode": "grid",
+              "previewPanelOpen": true
+            },
+            "mindmap": {
+              "activeGraphId": "550e8400-e29b-41d4-a716-446655440003",
+              "viewportState": {
+                "zoom": 1.5,
+                "centerX": 200,
+                "centerY": 300
+              },
+              "selectedNodes": ["node_1", "node_2"],
+              "editMode": true,
+              "layoutAlgorithm": "force-directed"
+            },
+            "knowledge_graph": {
+              "activeGraphId": "550e8400-e29b-41d4-a716-446655440004",
+              "viewportState": {
+                "zoom": 1.0,
+                "centerX": 0,
+                "centerY": 0
+              },
+              "selectedNodes": [],
+              "filterSettings": {
+                "nodeTypes": ["concept", "entity", "relation"],
+                "minConnections": 2
+              }
+            }
+          },
+          "graph_states": {
+            "mindmap": [
+              {
+                "id": "550e8400-e29b-41d4-a716-446655440003",
+                "user_id": "550e8400-e29b-41d4-a716-446655440005",
+                "graph_type": "mindmap",
+                "graph_name": "GPU Architecture Overview",
+                "state": {
+                  "nodes": [
+                    {
+                      "id": "n1",
+                      "label": "GPU",
+                      "x": 100,
+                      "y": 200,
+                      "type": "concept",
+                      "metadata": {
+                        "color": "#3498db",
+                        "size": 60
+                      }
+                    },
+                    {
+                      "id": "n2",
+                      "label": "RAG Pipeline",
+                      "x": 300,
+                      "y": 200,
+                      "type": "concept",
+                      "metadata": {
+                        "color": "#2ecc71",
+                        "size": 60
+                      }
+                    },
+                    {
+                      "id": "n3",
+                      "label": "Vector Search",
+                      "x": 200,
+                      "y": 350,
+                      "type": "technique",
+                      "metadata": {
+                        "color": "#e74c3c",
+                        "size": 45
+                      }
+                    }
+                  ],
+                  "edges": [
+                    {
+                      "source": "n1",
+                      "target": "n2",
+                      "label": "enables",
+                      "weight": 1.0
+                    },
+                    {
+                      "source": "n2",
+                      "target": "n3",
+                      "label": "uses",
+                      "weight": 0.8
+                    }
+                  ],
+                  "viewport": {
+                    "zoom": 1.5,
+                    "center_x": 200,
+                    "center_y": 250
+                  },
+                  "selected_nodes": ["n1"],
+                  "layout": "force-directed"
+                },
+                "node_count": 3,
+                "edge_count": 2,
+                "created_at": "2025-12-28T12:00:00Z",
+                "updated_at": "2025-12-28T14:30:00Z"
+              }
+            ],
+            "knowledge_graph": []
+          },
+          "recent_conversations": [
+            {
+              "id": "550e8400-e29b-41d4-a716-446655440006",
+              "user_id": "550e8400-e29b-41d4-a716-446655440005",
+              "title": "GPU-accelerated RAG System",
+              "model_name": "nemotron-nano-9b",
+              "temperature": 0.7,
+              "max_tokens": 2048,
+              "created_at": "2025-12-28T10:00:00Z",
+              "updated_at": "2025-12-28T14:00:00Z",
+              "last_message_at": "2025-12-28T14:00:00Z",
+              "message_count": 15,
+              "is_archived": false,
+              "is_pinned": true
+            },
+            {
+              "id": "550e8400-e29b-41d4-a716-446655440007",
+              "user_id": "550e8400-e29b-41d4-a716-446655440005",
+              "title": "Knowledge Graph Construction",
+              "model_name": "nemotron-nano-9b",
+              "temperature": 0.7,
+              "max_tokens": 2048,
+              "created_at": "2025-12-27T15:00:00Z",
+              "updated_at": "2025-12-27T18:00:00Z",
+              "last_message_at": "2025-12-27T18:00:00Z",
+              "message_count": 8,
+              "is_archived": false,
+              "is_pinned": false
+            }
+          ],
+          "session": {
+            "id": "550e8400-e29b-41d4-a716-446655440008",
+            "user_id": "550e8400-e29b-41d4-a716-446655440005",
+            "last_active_menu": "chat",
+            "last_conversation_id": "550e8400-e29b-41d4-a716-446655440006",
+            "preferences": {
+              "theme": "dark",
+              "language": "en",
+              "notifications": true,
+              "layout": "comfortable",
+              "auto_save_interval": 5000
+            },
+            "last_login_at": "2025-12-28T09:00:00Z",
+            "last_activity_at": "2025-12-28T14:30:00Z",
+            "session_count": 42,
+            "created_at": "2025-12-01T00:00:00Z",
+            "updated_at": "2025-12-28T14:30:00Z"
+          },
+          "last_active_menu": "chat",
+          "last_conversation_id": "550e8400-e29b-41d4-a716-446655440006"
+        },
+        "meta": {
+          "request_id": "req_a1b2c3d4e5f6"
+        }
+      }
+    },
+    "save_menu_state": {
+      "endpoint": "POST /api/v1/workspace/state/save",
+      "description": "Save or update menu state (upsert)",
+      "request": {
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer <jwt_token>",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "menu_type": "chat",
+          "state": {
+            "activeConversationId": "550e8400-e29b-41d4-a716-446655440006",
+            "scrollPosition": 520,
+            "filterSettings": {
+              "archived": false,
+              "dateRange": "30days",
+              "searchQuery": "GPU architecture"
+            },
+            "viewMode": "list",
+            "sidebarWidth": 350
+          }
+        }
+      },
+      "response": {
+        "success": true,
+        "data": {
+          "id": "550e8400-e29b-41d4-a716-446655440009",
+          "user_id": "550e8400-e29b-41d4-a716-446655440005",
+          "menu_type": "chat",
+          "state": {
+            "activeConversationId": "550e8400-e29b-41d4-a716-446655440006",
+            "scrollPosition": 520,
+            "filterSettings": {
+              "archived": false,
+              "dateRange": "30days",
+              "searchQuery": "GPU architecture"
+            },
+            "viewMode": "list",
+            "sidebarWidth": 350
+          },
+          "created_at": "2025-12-28T12:00:00Z",
+          "updated_at": "2025-12-28T14:35:00Z"
+        },
+        "meta": {
+          "request_id": "req_b2c3d4e5f6a1"
+        }
+      }
+    },
+    "save_graph_state": {
+      "endpoint": "POST /api/v1/workspace/graph/save",
+      "description": "Save mindmap or knowledge graph state",
+      "request": {
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer <jwt_token>",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "graph_type": "mindmap",
+          "graph_name": "RAG System Components",
+          "state": {
+            "nodes": [
+              {
+                "id": "node_1",
+                "label": "Document Ingestion",
+                "x": 50,
+                "y": 100,
+                "type": "process",
+                "metadata": {
+                  "color": "#3498db",
+                  "description": "Upload and parse documents"
+                }
+              },
+              {
+                "id": "node_2",
+                "label": "Embedding Generation",
+                "x": 250,
+                "y": 100,
+                "type": "process",
+                "metadata": {
+                  "color": "#2ecc71",
+                  "description": "Generate vector embeddings"
+                }
+              },
+              {
+                "id": "node_3",
+                "label": "Vector Store",
+                "x": 150,
+                "y": 250,
+                "type": "database",
+                "metadata": {
+                  "color": "#e74c3c",
+                  "description": "Neo4j vector index"
+                }
+              }
+            ],
+            "edges": [
+              {
+                "source": "node_1",
+                "target": "node_2",
+                "label": "feeds",
+                "weight": 1.0
+              },
+              {
+                "source": "node_2",
+                "target": "node_3",
+                "label": "stores in",
+                "weight": 1.0
+              }
+            ],
+            "viewport": {
+              "zoom": 1.2,
+              "center_x": 150,
+              "center_y": 175
+            },
+            "selected_nodes": [],
+            "layout": "manual"
+          }
+        }
+      },
+      "response": {
+        "success": true,
+        "data": {
+          "id": "550e8400-e29b-41d4-a716-446655440010",
+          "user_id": "550e8400-e29b-41d4-a716-446655440005",
+          "graph_type": "mindmap",
+          "graph_name": "RAG System Components",
+          "state": {
+            "nodes": [...],
+            "edges": [...],
+            "viewport": {...}
+          },
+          "node_count": 3,
+          "edge_count": 2,
+          "created_at": "2025-12-28T15:00:00Z",
+          "updated_at": "2025-12-28T15:00:00Z"
+        },
+        "meta": {
+          "request_id": "req_c3d4e5f6a1b2"
+        }
+      }
+    },
+    "update_workspace_session": {
+      "endpoint": "PUT /api/v1/workspace/session",
+      "description": "Update workspace session and preferences",
+      "request": {
+        "method": "PUT",
+        "headers": {
+          "Authorization": "Bearer <jwt_token>",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "last_active_menu": "mindmap",
+          "last_conversation_id": "550e8400-e29b-41d4-a716-446655440006",
+          "preferences": {
+            "theme": "dark",
+            "language": "ko",
+            "notifications": true,
+            "layout": "compact",
+            "auto_save_interval": 3000
+          }
+        }
+      },
+      "response": {
+        "success": true,
+        "data": {
+          "id": "550e8400-e29b-41d4-a716-446655440008",
+          "user_id": "550e8400-e29b-41d4-a716-446655440005",
+          "last_active_menu": "mindmap",
+          "last_conversation_id": "550e8400-e29b-41d4-a716-446655440006",
+          "preferences": {
+            "theme": "dark",
+            "language": "ko",
+            "notifications": true,
+            "layout": "compact",
+            "auto_save_interval": 3000
+          },
+          "last_login_at": "2025-12-28T09:00:00Z",
+          "last_activity_at": "2025-12-28T15:10:00Z",
+          "session_count": 42,
+          "created_at": "2025-12-01T00:00:00Z",
+          "updated_at": "2025-12-28T15:10:00Z"
+        },
+        "meta": {
+          "request_id": "req_d4e5f6a1b2c3"
+        }
+      }
+    },
+    "create_conversation": {
+      "endpoint": "POST /api/v1/workspace/conversations",
+      "description": "Create a new RAG conversation",
+      "request": {
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer <jwt_token>",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "title": "Enterprise Knowledge Management Strategy",
+          "model_name": "nemotron-nano-9b",
+          "temperature": 0.7,
+          "max_tokens": 2048,
+          "is_pinned": false,
+          "is_archived": false
+        }
+      },
+      "response": {
+        "success": true,
+        "data": {
+          "id": "550e8400-e29b-41d4-a716-446655440011",
+          "user_id": "550e8400-e29b-41d4-a716-446655440005",
+          "title": "Enterprise Knowledge Management Strategy",
+          "model_name": "nemotron-nano-9b",
+          "temperature": 0.7,
+          "max_tokens": 2048,
+          "created_at": "2025-12-28T15:30:00Z",
+          "updated_at": "2025-12-28T15:30:00Z",
+          "last_message_at": null,
+          "message_count": 0,
+          "is_archived": false,
+          "is_pinned": false,
+          "parent_conversation_id": null,
+          "fork_point_message_id": null
+        },
+        "meta": {
+          "request_id": "req_e5f6a1b2c3d4"
+        }
+      }
+    },
+    "add_message": {
+      "endpoint": "POST /api/v1/workspace/messages",
+      "description": "Add a message to a conversation",
+      "request": {
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer <jwt_token>",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "conversation_id": "550e8400-e29b-41d4-a716-446655440011",
+          "role": "user",
+          "content": "Explain the benefits of GPU-accelerated RAG systems for enterprise knowledge management.",
+          "context_documents": [
+            {
+              "doc_id": "doc_1",
+              "title": "GPU Architecture for AI",
+              "relevance_score": 0.95,
+              "chunks_used": 3
+            },
+            {
+              "doc_id": "doc_2",
+              "title": "RAG Best Practices",
+              "relevance_score": 0.88,
+              "chunks_used": 2
+            }
+          ],
+          "retrieval_strategy": "hybrid"
+        }
+      },
+      "response": {
+        "success": true,
+        "data": {
+          "id": "550e8400-e29b-41d4-a716-446655440012",
+          "conversation_id": "550e8400-e29b-41d4-a716-446655440011",
+          "role": "user",
+          "content": "Explain the benefits of GPU-accelerated RAG systems for enterprise knowledge management.",
+          "token_count": 18,
+          "prompt_tokens": null,
+          "completion_tokens": null,
+          "context_documents": [...],
+          "retrieval_strategy": "hybrid",
+          "created_at": "2025-12-28T15:31:00Z",
+          "version": 1,
+          "parent_message_id": null,
+          "is_regenerated": false,
+          "regeneration_count": 0,
+          "metadata": null
+        },
+        "meta": {
+          "request_id": "req_f6a1b2c3d4e5"
+        }
+      }
+    },
+    "error_examples": {
+      "unauthenticated": {
+        "status": 401,
+        "response": {
+          "detail": {
+            "code": "UNAUTHORIZED",
+            "message": "Authentication required"
+          }
+        }
+      },
+      "invalid_state": {
+        "status": 400,
+        "response": {
+          "detail": {
+            "code": "INVALID_STATE",
+            "message": "Menu state validation failed"
+          }
+        }
+      },
+      "state_not_found": {
+        "status": 404,
+        "response": {
+          "detail": {
+            "code": "STATE_NOT_FOUND",
+            "message": "No state found for menu: knowledge_graph"
+          }
+        }
+      },
+      "internal_error": {
+        "status": 500,
+        "response": {
+          "detail": {
+            "code": "STATE_SAVE_ERROR",
+            "message": "Failed to save menu state"
+          }
+        }
+      }
+    }
+  }
+}
