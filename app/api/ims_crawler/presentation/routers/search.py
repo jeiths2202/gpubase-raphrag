@@ -1,12 +1,12 @@
 """
-IMS Search Router - Natural language search with vector similarity
+IMS Search Router - Natural language search with hybrid BM25 + semantic search
 
-Endpoints for searching IMS issues using NL queries and semantic search.
+Endpoints for searching IMS issues using NL queries with hybrid search support.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Literal
 from uuid import UUID
 import time
 
@@ -29,7 +29,14 @@ class SearchRequest(BaseModel):
     max_results: int = Field(default=50, ge=1, le=500, description="Maximum results")
     include_attachments: bool = Field(default=True, description="Include attachment text in search")
     include_related: bool = Field(default=False, description="Crawl related issues")
-    use_semantic_search: bool = Field(default=True, description="Use vector similarity search")
+    search_strategy: Literal['semantic', 'hybrid', 'recent'] = Field(
+        default='hybrid',
+        description="Search strategy: 'hybrid' (BM25 30% + Semantic 70%, default), 'semantic' (pure vector), 'recent' (chronological)"
+    )
+    use_semantic_search: Optional[bool] = Field(
+        default=None,
+        description="Deprecated: use search_strategy instead"
+    )
 
 
 class IssueSearchResult(BaseModel):
@@ -47,6 +54,7 @@ class IssueSearchResult(BaseModel):
     created_at: str
     updated_at: str
     similarity_score: Optional[float] = None  # For semantic search results
+    hybrid_score: Optional[float] = None  # For hybrid search results (BM25 30% + Semantic 70%)
 
 
 class SearchResponse(BaseModel):
@@ -69,19 +77,22 @@ async def search_issues(
     use_case: SearchIssuesUseCase = Depends(get_search_issues_use_case)
 ):
     """
-    Search IMS issues using natural language query.
+    Search IMS issues using natural language query with hybrid search.
 
     Workflow:
     1. Parse NL query using NVIDIA NIM → SearchIntent
-    2. Convert intent to IMS search syntax
-    3. Execute search (keyword or vector-based)
-    4. Optionally crawl related issues
-    5. Return ranked results
+    2. Execute search based on strategy:
+       - 'hybrid' (default): BM25 30% + Semantic 70% with CJK tokenization
+       - 'semantic': Pure vector similarity search
+       - 'recent': Chronological order
+    3. Optionally crawl related issues
+    4. Return ranked results
 
     **Example Queries**:
     - "Show me critical bugs from last week"
     - "Find issues assigned to John with status open"
     - "Search for authentication problems in mobile project"
+    - "인증 문제" (Korean: authentication problems with hybrid search)
     """
     start_time = time.time()
     user_id = UUID(current_user["id"])
@@ -92,7 +103,8 @@ async def search_issues(
             query=request.query,
             user_id=user_id,
             max_results=request.max_results,
-            use_semantic=request.use_semantic_search
+            search_strategy=request.search_strategy,
+            use_semantic=request.use_semantic_search  # Backward compatibility
         )
 
         # Convert domain entities to response models
@@ -110,7 +122,8 @@ async def search_issues(
                 labels=issue.labels,
                 created_at=issue.created_at.isoformat(),
                 updated_at=issue.updated_at.isoformat(),
-                similarity_score=getattr(issue, 'similarity_score', None)
+                similarity_score=getattr(issue, 'similarity_score', None),
+                hybrid_score=issue.custom_fields.get('hybrid_score') if hasattr(issue, 'custom_fields') else None
             )
             for issue in issues
         ]

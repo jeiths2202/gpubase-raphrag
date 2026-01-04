@@ -162,6 +162,71 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
                 issues.append(issue)
             return issues
 
+    async def search_hybrid(
+        self,
+        query_text: str,
+        user_id: UUID,
+        limit: int = 20,
+        candidate_limit: int = 100
+    ) -> List[Issue]:
+        """
+        Hybrid search using BM25 + Semantic scoring.
+
+        Retrieves candidate issues from database, then applies
+        in-memory hybrid ranking with CJK-optimized tokenization.
+
+        Args:
+            query_text: Natural language query
+            user_id: User UUID filter
+            limit: Final result count
+            candidate_limit: Initial candidates from DB (for hybrid reranking)
+
+        Returns:
+            List of issues sorted by hybrid score DESC
+        """
+        # Get candidates from database (broader retrieval)
+        query = """
+            SELECT i.*
+            FROM ims_issues i
+            WHERE i.user_id = $1
+            ORDER BY i.created_date DESC
+            LIMIT $2
+        """
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, user_id, candidate_limit)
+            candidates = [self._row_to_issue(row) for row in rows]
+
+        if not candidates:
+            return []
+
+        # Apply hybrid search in-memory
+        from ..services.hybrid_search_service import HybridSearchService
+
+        searcher = HybridSearchService()
+
+        # Convert issues to searchable documents
+        documents = []
+        for issue in candidates:
+            documents.append({
+                'id': issue.id,
+                'content': f"{issue.title} {issue.description}",
+                'issue': issue
+            })
+
+        # Index and search
+        searcher.index_documents(documents)
+        results = searcher.search(query_text, top_k=limit)
+
+        # Extract issues with hybrid scores
+        ranked_issues = []
+        for doc, score in results:
+            issue = doc['issue']
+            issue.custom_fields['hybrid_score'] = score
+            ranked_issues.append(issue)
+
+        return ranked_issues
+
     def _row_to_issue(self, row: asyncpg.Record) -> Issue:
         """Convert database row to Issue entity"""
         from ...domain.entities import IssueStatus, IssuePriority

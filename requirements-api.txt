@@ -52,6 +52,10 @@ pywin32>=306; sys_platform == 'win32'  # Windows DPAPI (Windows only)
 secretstorage>=3.3.0; sys_platform == 'linux'  # Linux GNOME Keyring (Linux only)
 playwright>=1.40.0  # Browser automation for IMS scraper
 
+# Hybrid Search (BM25 + Semantic)
+rank-bm25>=0.2.2  # BM25 keyword search
+sentence-transformers>=2.2.0  # Semantic embedding for multilingual search
+
 # Development
 pytest>=7.4.0
 pytest-asyncio>=0.21.0

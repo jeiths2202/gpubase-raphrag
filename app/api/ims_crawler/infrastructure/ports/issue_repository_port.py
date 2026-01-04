@@ -20,3 +20,8 @@ class IssueRepositoryPort(ABC):
     @abstractmethod
     async def search_by_vector(self, embedding: List[float], user_id: UUID, limit: int = 20) -> List[Issue]:
         pass
+
+    @abstractmethod
+    async def search_hybrid(self, query_text: str, user_id: UUID, limit: int = 20, candidate_limit: int = 100) -> List[Issue]:
+        """Hybrid search using BM25 + Semantic scoring"""
+        pass
