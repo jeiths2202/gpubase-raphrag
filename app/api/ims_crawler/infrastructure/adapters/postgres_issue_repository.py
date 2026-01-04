@@ -1,0 +1,190 @@
+"""
+PostgreSQL Issue Repository - Store and retrieve IMS issues with vector search
+
+Implements issue storage with pgvector semantic search support.
+"""
+
+import asyncpg
+from typing import List, Optional
+from uuid import UUID
+
+from ...domain.entities import Issue
+from ..ports.issue_repository_port import IssueRepositoryPort
+
+
+class PostgreSQLIssueRepository(IssueRepositoryPort):
+    """
+    PostgreSQL implementation of issue repository with vector search.
+
+    Uses pgvector for semantic similarity search.
+    """
+
+    def __init__(self, pool: asyncpg.Pool):
+        """
+        Initialize repository with connection pool.
+
+        Args:
+            pool: asyncpg connection pool
+        """
+        self.pool = pool
+
+    async def save(self, issue: Issue) -> None:
+        """
+        Save or update issue.
+
+        Uses UPSERT for idempotent saves.
+        """
+        query = """
+            INSERT INTO ims_issues (
+                id, ims_id, user_id, title, description,
+                status, priority, reporter, assignee,
+                project_key, issue_type, labels,
+                comments_count, attachments_count,
+                created_at, updated_at, resolved_at,
+                crawled_at, source_url, custom_fields
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+            ON CONFLICT (user_id, ims_id)
+            DO UPDATE SET
+                title = EXCLUDED.title,
+                description = EXCLUDED.description,
+                status = EXCLUDED.status,
+                priority = EXCLUDED.priority,
+                assignee = EXCLUDED.assignee,
+                labels = EXCLUDED.labels,
+                comments_count = EXCLUDED.comments_count,
+                attachments_count = EXCLUDED.attachments_count,
+                updated_at = EXCLUDED.updated_at,
+                resolved_at = EXCLUDED.resolved_at
+        """
+
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                query,
+                issue.id, issue.ims_id, issue.user_id,
+                issue.title, issue.description,
+                issue.status.value, issue.priority.value,
+                issue.reporter, issue.assignee,
+                issue.project_key, issue.issue_type, issue.labels,
+                issue.comments_count, issue.attachments_count,
+                issue.created_at, issue.updated_at, issue.resolved_at,
+                issue.crawled_at, issue.source_url, issue.custom_fields
+            )
+
+    async def save_embedding(self, issue_id: UUID, embedding: List[float], embedded_text: str) -> None:
+        """
+        Save vector embedding for issue.
+
+        Args:
+            issue_id: Issue UUID
+            embedding: 4096-dim vector
+            embedded_text: Text that was embedded
+        """
+        query = """
+            INSERT INTO ims_issue_embeddings (issue_id, embedding, embedded_text)
+            VALUES ($1, $2::vector, $3)
+            ON CONFLICT (issue_id)
+            DO UPDATE SET
+                embedding = EXCLUDED.embedding,
+                embedded_text = EXCLUDED.embedded_text,
+                created_at = NOW()
+        """
+
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, issue_id, embedding, embedded_text)
+
+    async def find_by_id(self, issue_id: UUID) -> Optional[Issue]:
+        """Find issue by ID"""
+        query = """
+            SELECT * FROM ims_issues WHERE id = $1
+        """
+
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(query, issue_id)
+            return self._row_to_issue(row) if row else None
+
+    async def find_by_user_id(self, user_id: UUID, limit: int = 100) -> List[Issue]:
+        """
+        Find recent issues for user.
+
+        Args:
+            user_id: User UUID
+            limit: Max results
+
+        Returns:
+            List of issues sorted by crawled_at DESC
+        """
+        query = """
+            SELECT * FROM ims_issues
+            WHERE user_id = $1
+            ORDER BY crawled_at DESC
+            LIMIT $2
+        """
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, user_id, limit)
+            return [self._row_to_issue(row) for row in rows]
+
+    async def search_by_vector(
+        self,
+        embedding: List[float],
+        user_id: UUID,
+        limit: int = 20
+    ) -> List[Issue]:
+        """
+        Semantic search using vector similarity.
+
+        Args:
+            embedding: Query embedding (4096-dim)
+            user_id: User UUID (filter)
+            limit: Max results
+
+        Returns:
+            List of issues sorted by similarity DESC
+        """
+        query = """
+            SELECT
+                i.*,
+                1 - (e.embedding <=> $1::vector) AS similarity_score
+            FROM ims_issues i
+            INNER JOIN ims_issue_embeddings e ON i.id = e.issue_id
+            WHERE i.user_id = $2
+            ORDER BY e.embedding <=> $1::vector
+            LIMIT $3
+        """
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, embedding, user_id, limit)
+            issues = []
+            for row in rows:
+                issue = self._row_to_issue(row)
+                # Add similarity score as custom field
+                issue.custom_fields['similarity_score'] = float(row['similarity_score'])
+                issues.append(issue)
+            return issues
+
+    def _row_to_issue(self, row: asyncpg.Record) -> Issue:
+        """Convert database row to Issue entity"""
+        from ...domain.entities import IssueStatus, IssuePriority
+
+        return Issue(
+            id=row['id'],
+            ims_id=row['ims_id'],
+            user_id=row['user_id'],
+            title=row['title'],
+            description=row['description'] or "",
+            status=IssueStatus(row['status']),
+            priority=IssuePriority(row['priority']),
+            reporter=row['reporter'] or "",
+            assignee=row['assignee'],
+            project_key=row['project_key'] or "",
+            issue_type=row['issue_type'] or "Task",
+            labels=list(row['labels']) if row['labels'] else [],
+            comments_count=row['comments_count'] or 0,
+            attachments_count=row['attachments_count'] or 0,
+            created_at=row['created_at'],
+            updated_at=row['updated_at'],
+            resolved_at=row['resolved_at'],
+            crawled_at=row['crawled_at'],
+            source_url=row['source_url'] or "",
+            custom_fields=dict(row['custom_fields']) if row['custom_fields'] else {}
+        )
