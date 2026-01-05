@@ -4,8 +4,8 @@ Use case for getting dashboard statistics
 from uuid import UUID
 from datetime import datetime
 
-from app.api.ims_crawler.domain.ports.dashboard_repository import DashboardRepositoryPort
-from app.api.ims_crawler.domain.models.dashboard import DashboardStatistics
+from ...domain.ports.dashboard_repository import DashboardRepositoryPort
+from ...domain.models.dashboard import DashboardStatistics
 
 
 class GetDashboardStatisticsUseCase:

@@ -7,10 +7,10 @@ from uuid import UUID
 import hashlib
 import json
 
-from app.api.ims_crawler.domain.ports.cache_port import CachePort
-from app.api.ims_crawler.domain.entities.issue import Issue
-from app.api.ims_crawler.domain.value_objects.search_intent import SearchIntent
-from app.api.ims_crawler.application.use_cases.search_issues import SearchIssuesUseCase
+from ...domain.ports.cache_port import CachePort
+from ...domain.entities.issue import Issue
+from ...domain.value_objects.search_intent import SearchIntent
+from ...application.use_cases.search_issues import SearchIssuesUseCase
 
 
 class CachedSearchService:

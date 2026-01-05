@@ -5,9 +5,9 @@ from typing import Optional
 from datetime import timedelta
 from uuid import UUID
 
-from app.api.ims_crawler.domain.ports.cache_port import CachePort
-from app.api.ims_crawler.domain.models.dashboard import DashboardStatistics
-from app.api.ims_crawler.application.use_cases.get_dashboard_statistics import GetDashboardStatisticsUseCase
+from ...domain.ports.cache_port import CachePort
+from ...domain.models.dashboard import DashboardStatistics
+from ...application.use_cases.get_dashboard_statistics import GetDashboardStatisticsUseCase
 
 
 class CachedDashboardService:

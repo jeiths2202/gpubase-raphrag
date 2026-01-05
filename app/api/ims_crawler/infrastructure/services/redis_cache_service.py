@@ -8,7 +8,7 @@ from datetime import timedelta
 import redis.asyncio as redis
 from redis.asyncio import Redis
 
-from app.api.ims_crawler.domain.ports.cache_port import CachePort
+from ...domain.ports.cache_port import CachePort
 
 
 class RedisCacheService(CachePort):

@@ -7,7 +7,6 @@ from .redis_cache_service import RedisCacheService, InMemoryCacheService
 from .cached_search_service import CachedSearchService
 from .cached_dashboard_service import CachedDashboardService
 from .background_task_queue import BackgroundTaskQueue, get_task_queue
-from .hybrid_search_service import HybridSearchService
 
 __all__ = [
     "CredentialEncryptionService",
@@ -20,6 +19,5 @@ __all__ = [
     "CachedSearchService",
     "CachedDashboardService",
     "BackgroundTaskQueue",
-    "get_task_queue",
-    "HybridSearchService"
+    "get_task_queue"
 ]

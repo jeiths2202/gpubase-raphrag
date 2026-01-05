@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 from uuid import UUID
 import asyncpg
 
-from app.api.ims_crawler.domain.ports.dashboard_repository import DashboardRepositoryPort
-from app.api.ims_crawler.domain.models.dashboard import (
+from ...domain.ports.dashboard_repository import DashboardRepositoryPort
+from ...domain.models.dashboard import (
     ActivityMetrics,
     IssueMetrics,
     ProjectMetrics,
