@@ -43,6 +43,7 @@ from ...ports.embedding_port import EmbeddingPort
 _db_pool: asyncpg.Pool | None = None
 _redis_client: Optional[redis.Redis] = None
 _cache_service: Optional[CachePort] = None
+_crawl_jobs_use_case: Optional[CrawlJobsUseCase] = None
 
 
 async def get_db_pool() -> asyncpg.Pool:
@@ -161,23 +162,32 @@ def get_playwright_crawler() -> PlaywrightCrawler:
 
 async def get_crawl_jobs_use_case() -> CrawlJobsUseCase:
     """
-    Get CrawlJobs use case instance.
+    Get CrawlJobs use case instance (singleton).
 
     Dependency for FastAPI endpoints.
-    """
-    crawler = get_playwright_crawler()
-    credentials_repo = await get_credentials_repository()
-    issue_repo = await get_issue_repository()
-    embedding = get_nv_embedqa_service()
-    attachment_processor = get_attachment_processor()
 
-    return CrawlJobsUseCase(
-        crawler=crawler,
-        credentials_repository=credentials_repo,
-        issue_repository=issue_repo,
-        embedding_service=embedding,
-        attachment_processor=attachment_processor
-    )
+    IMPORTANT: Returns singleton instance to maintain in-memory job state
+    across multiple HTTP requests.
+    """
+    global _crawl_jobs_use_case
+
+    if _crawl_jobs_use_case is None:
+        crawler = get_playwright_crawler()
+        credentials_repo = await get_credentials_repository()
+        issue_repo = await get_issue_repository()
+        embedding = get_nv_embedqa_service()
+        attachment_processor = get_attachment_processor()
+
+        _crawl_jobs_use_case = CrawlJobsUseCase(
+            crawler=crawler,
+            credentials_repository=credentials_repo,
+            issue_repository=issue_repo,
+            embedding_service=embedding,
+            attachment_processor=attachment_processor
+        )
+        print("[OK] CrawlJobsUseCase singleton initialized")
+
+    return _crawl_jobs_use_case
 
 
 def get_markdown_report_generator() -> MarkdownReportGenerator:
@@ -269,11 +279,11 @@ async def get_cache_service() -> CachePort:
                 key_prefix="ims:",
                 default_ttl=timedelta(minutes=15)
             )
-            print("✓ Redis cache service initialized")
+            print("[OK] Redis cache service initialized")
 
         except Exception as e:
             # Fallback to in-memory cache
-            print(f"⚠ Redis unavailable ({e}), using in-memory cache")
+            print(f"[WARN] Redis unavailable ({e}), using in-memory cache")
             _cache_service = InMemoryCacheService(
                 default_ttl=timedelta(minutes=15)
             )

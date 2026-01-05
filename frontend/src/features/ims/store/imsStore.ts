@@ -62,6 +62,7 @@ interface IMSState {
   setSearchQuery: (query: string) => void;
   setSearchResults: (results: IMSIssue[]) => void;
   setCurrentJob: (job?: IMSJob) => void;
+  setJobProgress: (progress: Partial<IMSJob>) => void;
   setViewMode: (mode: ViewMode) => void;
   checkCredentials: () => Promise<void>;
   clearSearch: () => void;
@@ -84,6 +85,9 @@ export const useIMSStore = create<IMSState>((set) => ({
   setSearchQuery: (query) => set({ searchQuery: query }),
   setSearchResults: (results) => set({ searchResults: results }),
   setCurrentJob: (job) => set({ currentJob: job }),
+  setJobProgress: (progress) => set((state) => ({
+    currentJob: state.currentJob ? { ...state.currentJob, ...progress } : undefined
+  })),
   setViewMode: (mode) => set({ viewMode: mode }),
 
   checkCredentials: async () => {

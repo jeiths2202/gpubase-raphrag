@@ -58,9 +58,20 @@ class PlaywrightCrawler(CrawlerPort):
         if self._browser is None:
             self._playwright = await async_playwright().start()
             self._browser = await self._playwright.chromium.launch(headless=self.headless)
-            self._context = await self._browser.new_context()
-            self._page = await self._context.new_page()
             logger.info("Browser initialized")
+
+        # Always create fresh context and page for each session
+        # This prevents stale context issues when crawler is reused
+        if self._context:
+            try:
+                await self._context.close()
+            except:
+                pass
+
+        self._context = await self._browser.new_context()
+        self._page = await self._context.new_page()
+        self._authenticated = False  # Reset auth state with new context
+        logger.info("Fresh browser context created")
 
     async def authenticate(self, credentials: UserCredentials) -> bool:
         """

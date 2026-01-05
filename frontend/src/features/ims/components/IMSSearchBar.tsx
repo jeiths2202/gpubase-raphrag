@@ -13,7 +13,7 @@ interface Props {
 }
 
 export const IMSSearchBar: React.FC<Props> = ({ t }) => {
-  const { setIsSearching, setSearchQuery, setCurrentJob } = useIMSStore();
+  const { setIsSearching, setSearchQuery, setCurrentJob, setJobProgress } = useIMSStore();
   const [query, setQuery] = useState('');
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -31,7 +31,35 @@ export const IMSSearchBar: React.FC<Props> = ({ t }) => {
         max_issues: 100
       });
       setCurrentJob(job);
-      // TODO: Start SSE stream to monitor progress
+
+      // Start SSE stream to monitor progress
+      const streamUrl = `/api/v1/ims-jobs/${job.id}/stream`;
+      const eventSource = new EventSource(streamUrl, { withCredentials: true });
+
+      eventSource.onmessage = (event) => {
+        try {
+          const progress = JSON.parse(event.data);
+          console.log('Job progress:', progress);
+
+          // Update job progress in store
+          setJobProgress(progress);
+
+          // Close connection on completion or failure
+          if (progress.event === 'job_completed' || progress.event === 'job_failed') {
+            eventSource.close();
+            setIsSearching(false);
+          }
+        } catch (err) {
+          console.error('Failed to parse SSE event:', err);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('SSE error:', error);
+        eventSource.close();
+        setIsSearching(false);
+      };
+
     } catch (error) {
       console.error('Search failed:', error);
       setIsSearching(false);
