@@ -8,8 +8,8 @@ import hashlib
 import json
 
 from app.api.ims_crawler.domain.ports.cache_port import CachePort
-from app.api.ims_crawler.domain.models.issue import Issue
-from app.api.ims_crawler.domain.models.search import SearchIntent
+from app.api.ims_crawler.domain.entities.issue import Issue
+from app.api.ims_crawler.domain.value_objects.search_intent import SearchIntent
 from app.api.ims_crawler.application.use_cases.search_issues import SearchIssuesUseCase
 
 

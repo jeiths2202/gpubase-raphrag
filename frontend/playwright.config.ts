@@ -30,11 +30,14 @@ export default defineConfig({
     // Base URL for navigation
     baseURL: 'http://localhost:3000',
 
-    // Collect trace when retrying the failed test
-    trace: 'on-first-retry',
+    // MANDATORY: Enable trace for all tests
+    trace: 'on',
 
-    // Screenshot settings
-    screenshot: 'only-on-failure',
+    // MANDATORY: Enable screenshots for all tests
+    screenshot: 'on',
+
+    // MANDATORY: Enable video recording for all tests
+    video: 'on',
   },
 
   // Configure projects for major browsers

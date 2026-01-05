@@ -33,11 +33,10 @@ from ..infrastructure.services import (
     CachedDashboardService
 )
 from ..domain.ports.cache_port import CachePort
-from ...core.config import get_settings
+from ...core.config import api_settings
+from ...core.container import get_container
 from ...ports.llm_port import LLMPort
 from ...ports.embedding_port import EmbeddingPort
-from ...adapters.llm_adapters import get_llm_adapter
-from ...adapters.embedding_adapters import get_embedding_adapter
 
 
 # Global connection pools (singletons)
@@ -56,7 +55,7 @@ async def get_db_pool() -> asyncpg.Pool:
     global _db_pool
 
     if _db_pool is None:
-        settings = get_settings()
+        settings = api_settings
         _db_pool = await asyncpg.create_pool(
             settings.get_postgres_dsn(),
             min_size=2,
@@ -114,7 +113,8 @@ def get_nvidia_nim_parser() -> NvidiaNIMParser:
 
     Dependency for FastAPI endpoints.
     """
-    llm = get_llm_adapter()
+    container = get_container()
+    llm = container.llm
     return NvidiaNIMParser(llm)
 
 
@@ -124,7 +124,8 @@ def get_nv_embedqa_service() -> NvEmbedQAService:
 
     Dependency for FastAPI endpoints.
     """
-    embedding = get_embedding_adapter()
+    container = get_container()
+    embedding = container.embedding
     return NvEmbedQAService(embedding)
 
 
@@ -147,7 +148,7 @@ def get_playwright_crawler() -> PlaywrightCrawler:
 
     Dependency for FastAPI endpoints.
     """
-    settings = get_settings()
+    settings = api_settings
     encryption = get_encryption_service()
     attachments_dir = Path(settings.UPLOAD_DIR) / "ims_attachments"
 
@@ -236,7 +237,7 @@ async def get_redis_client() -> redis.Redis:
     global _redis_client
 
     if _redis_client is None:
-        settings = get_settings()
+        settings = api_settings
         redis_url = getattr(settings, 'REDIS_URL', None) or "redis://localhost:6379/0"
 
         _redis_client = await redis.from_url(

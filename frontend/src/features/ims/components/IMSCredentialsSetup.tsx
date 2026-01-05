@@ -50,8 +50,8 @@ export const IMSCredentialsSetup: React.FC<Props> = ({ t, onClose, onSuccess }) 
       zIndex: 1000
     }}>
       <div style={{
-        background: 'var(--card-bg)',
-        border: '1px solid var(--border)',
+        background: 'var(--color-bg-card)',
+        border: '1px solid var(--color-border)',
         borderRadius: '12px',
         padding: '32px',
         maxWidth: '500px',
@@ -71,10 +71,10 @@ export const IMSCredentialsSetup: React.FC<Props> = ({ t, onClose, onSuccess }) 
               style={{
                 width: '100%',
                 padding: '10px',
-                background: 'var(--input-bg)',
-                border: '1px solid var(--border)',
+                background: 'var(--color-bg-input)',
+                border: '1px solid var(--color-border)',
                 borderRadius: '6px',
-                color: 'var(--text-primary)',
+                color: 'var(--color-text-primary)',
                 fontSize: '14px'
               }}
             />
@@ -91,10 +91,10 @@ export const IMSCredentialsSetup: React.FC<Props> = ({ t, onClose, onSuccess }) 
               style={{
                 width: '100%',
                 padding: '10px',
-                background: 'var(--input-bg)',
-                border: '1px solid var(--border)',
+                background: 'var(--color-bg-input)',
+                border: '1px solid var(--color-border)',
                 borderRadius: '6px',
-                color: 'var(--text-primary)',
+                color: 'var(--color-text-primary)',
                 fontSize: '14px'
               }}
             />
@@ -111,10 +111,10 @@ export const IMSCredentialsSetup: React.FC<Props> = ({ t, onClose, onSuccess }) 
               style={{
                 width: '100%',
                 padding: '10px',
-                background: 'var(--input-bg)',
-                border: '1px solid var(--border)',
+                background: 'var(--color-bg-input)',
+                border: '1px solid var(--color-border)',
                 borderRadius: '6px',
-                color: 'var(--text-primary)',
+                color: 'var(--color-text-primary)',
                 fontSize: '14px'
               }}
             />
@@ -139,9 +139,9 @@ export const IMSCredentialsSetup: React.FC<Props> = ({ t, onClose, onSuccess }) 
               style={{
                 padding: '10px 20px',
                 background: 'transparent',
-                border: '1px solid var(--border)',
+                border: '1px solid var(--color-border)',
                 borderRadius: '6px',
-                color: 'var(--text-primary)',
+                color: 'var(--color-text-primary)',
                 cursor: 'pointer',
                 fontSize: '14px'
               }}
@@ -153,7 +153,7 @@ export const IMSCredentialsSetup: React.FC<Props> = ({ t, onClose, onSuccess }) 
               disabled={isSubmitting}
               style={{
                 padding: '10px 20px',
-                background: 'var(--accent)',
+                background: 'var(--color-primary)',
                 border: 'none',
                 borderRadius: '6px',
                 color: 'white',

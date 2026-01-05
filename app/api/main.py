@@ -284,7 +284,7 @@ app.add_middleware(
 
 # CORS middleware with hardened settings
 # SECURITY: Explicit methods and headers instead of wildcards
-cors_config = get_cors_config(api_settings.APP_ENV)
+cors_config = get_cors_config(api_settings.APP_ENV, api_settings.CORS_ORIGINS)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_config["allow_origins"],

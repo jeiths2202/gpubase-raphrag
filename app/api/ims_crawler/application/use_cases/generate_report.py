@@ -5,14 +5,14 @@ from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
 
-from app.api.ims_crawler.domain.ports.issue_repository import IssueRepositoryPort
+from app.api.ims_crawler.infrastructure.ports.issue_repository_port import IssueRepositoryPort
 from app.api.ims_crawler.domain.ports.report_generator import ReportGeneratorPort
 from app.api.ims_crawler.domain.models.report import (
     MarkdownReport,
     ReportMetadata,
     IssueSummary
 )
-from app.api.ims_crawler.domain.models.issue import Issue
+from app.api.ims_crawler.domain.entities.issue import Issue
 
 
 class GenerateReportUseCase:

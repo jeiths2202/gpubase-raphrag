@@ -12,7 +12,7 @@ Security Features:
 - Permissions-Policy - Restricts browser features
 """
 import os
-from typing import Optional
+from typing import Optional, List
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
@@ -173,7 +173,7 @@ class CSPReportingMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-def get_cors_config(environment: str = "production") -> dict:
+def get_cors_config(environment: str = "production", cors_origins: Optional[list] = None) -> dict:
     """
     Get CORS configuration based on environment.
 
@@ -184,16 +184,9 @@ def get_cors_config(environment: str = "production") -> dict:
     """
     is_production = environment.lower() in ["production", "prod"]
 
-    # Get allowed origins from environment
-    cors_origins_env = os.environ.get("CORS_ORIGINS", "")
-
-    if cors_origins_env:
-        # Parse comma-separated origins
-        allowed_origins = [
-            origin.strip()
-            for origin in cors_origins_env.split(",")
-            if origin.strip()
-        ]
+    # Use provided cors_origins if available, otherwise use defaults
+    if cors_origins:
+        allowed_origins = cors_origins
     else:
         # Default origins
         if is_production:

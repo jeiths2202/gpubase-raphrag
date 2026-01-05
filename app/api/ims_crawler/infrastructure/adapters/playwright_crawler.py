@@ -13,7 +13,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from ...domain.entities import Issue, Attachment, UserCredentials, IssueStatus, IssuePriority
-from ...domain.value_objects import AttachmentType
+from ...domain.entities.attachment import AttachmentType
 from ..ports.crawler_port import CrawlerPort
 from ..services.credential_encryption_service import CredentialEncryptionService
 

@@ -6,13 +6,15 @@ Contains no business rules (those live in domain) and no infrastructure details 
 """
 
 from .use_cases.search_issues import SearchIssuesUseCase
-from .use_cases.crawl_issues import CrawlIssuesUseCase
+from .use_cases.crawl_jobs import CrawlJobsUseCase
 from .use_cases.manage_credentials import ManageCredentialsUseCase
-from .services.crawler_orchestrator import CrawlerOrchestrator
+from .use_cases.generate_report import GenerateReportUseCase
+from .use_cases.get_dashboard_statistics import GetDashboardStatisticsUseCase
 
 __all__ = [
     "SearchIssuesUseCase",
-    "CrawlIssuesUseCase",
+    "CrawlJobsUseCase",
     "ManageCredentialsUseCase",
-    "CrawlerOrchestrator",
+    "GenerateReportUseCase",
+    "GetDashboardStatisticsUseCase",
 ]

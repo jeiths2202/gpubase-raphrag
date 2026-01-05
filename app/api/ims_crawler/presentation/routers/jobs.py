@@ -85,7 +85,7 @@ async def create_crawl_job(
         return CrawlJobResponse(
             id=job.id,
             user_id=job.user_id,
-            raw_query=job.search_query,
+            raw_query=job.raw_query,
             parsed_query=None,
             status=job.status.value,
             current_step="pending",
@@ -198,20 +198,20 @@ async def get_job_status(
 
         # Return job response
         progress = 0
-        if job.total_issues > 0:
-            progress = int((job.crawled_issues / job.total_issues) * 100)
+        if job.issues_found > 0:
+            progress = int((job.issues_crawled / job.issues_found) * 100)
 
         return CrawlJobResponse(
             id=job.id,
             user_id=job.user_id,
-            raw_query=job.search_query,
-            parsed_query=None,
+            raw_query=job.raw_query,
+            parsed_query=job.parsed_query,
             status=job.status.value,
-            current_step=job.status.value,
+            current_step=job.current_step,
             progress_percentage=progress,
-            issues_found=job.total_issues,
-            issues_crawled=job.crawled_issues,
-            attachments_processed=0,
+            issues_found=job.issues_found,
+            issues_crawled=job.issues_crawled,
+            attachments_processed=job.attachments_processed,
             created_at=job.created_at.isoformat(),
             started_at=job.started_at.isoformat() if job.started_at else None,
             completed_at=job.completed_at.isoformat() if job.completed_at else None,

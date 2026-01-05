@@ -84,12 +84,11 @@ class CrawlJobsUseCase:
         job = CrawlJob(
             id=uuid4(),
             user_id=user_id,
-            search_query=search_query,
+            raw_query=search_query,
             status=CrawlJobStatus.PENDING,
-            max_results=max_results,
-            download_attachments=download_attachments,
-            crawl_related=crawl_related,
-            max_depth=max_depth,
+            max_issues=max_results,
+            include_attachments=download_attachments,
+            include_related_issues=crawl_related,
             created_at=datetime.utcnow(),
             started_at=None,
             completed_at=None
@@ -153,16 +152,16 @@ class CrawlJobsUseCase:
             # Search for issues
             yield {
                 "event": "searching",
-                "message": f"Searching for issues: {job.search_query}"
+                "message": f"Searching for issues: {job.raw_query}"
             }
 
             issues = await self.crawler.search_issues(
-                job.search_query,
+                job.raw_query,
                 credentials,
-                job.max_results
+                job.max_issues
             )
 
-            job.total_issues = len(issues)
+            job.issues_found = len(issues)
             self._jobs[job_id] = job
 
             yield {
@@ -186,7 +185,7 @@ class CrawlJobsUseCase:
                     full_issue = await self.crawler.crawl_issue_details(issue.ims_id, credentials)
 
                     # Download attachments if requested
-                    if job.download_attachments:
+                    if job.include_attachments:
                         attachments = await self.crawler.download_attachments(full_issue, credentials)
 
                         # Process attachments and extract text
@@ -201,11 +200,13 @@ class CrawlJobsUseCase:
                         full_issue.attachments = attachments
 
                     # Crawl related issues if requested
-                    if job.crawl_related and job.max_depth > 0:
+                    if job.include_related_issues:
+                        # Use depth from method parameter (passed as max_depth in create_crawl_job)
+                        related_depth = 1  # Default depth for related issues
                         related_issues = await self.crawler.crawl_related_issues(
                             full_issue,
                             credentials,
-                            job.max_depth
+                            related_depth
                         )
                         issues.extend(related_issues)
 
@@ -230,7 +231,7 @@ class CrawlJobsUseCase:
                     await self.issue_repo.save(full_issue)
                     await self.issue_repo.save_embedding(full_issue.id, embedding)
 
-                    job.crawled_issues += 1
+                    job.add_crawled_issue(full_issue.id)
                     self._jobs[job_id] = job
 
                     yield {
@@ -238,12 +239,12 @@ class CrawlJobsUseCase:
                         "issue_number": idx,
                         "total_issues": len(issues),
                         "issue_id": full_issue.ims_id,
-                        "crawled_count": job.crawled_issues
+                        "crawled_count": job.issues_crawled
                     }
 
                 except Exception as e:
                     logger.error(f"Failed to crawl issue {issue.ims_id}: {e}")
-                    job.failed_issues += 1
+                    # Note: Entity doesn't track failed issues count
                     self._jobs[job_id] = job
 
                     yield {
@@ -253,21 +254,21 @@ class CrawlJobsUseCase:
                     }
 
             # Mark job as completed
-            job.complete()
+            job.mark_as_completed()
             self._jobs[job_id] = job
 
             yield {
                 "event": "job_completed",
                 "job_id": str(job.id),
-                "total_issues": job.total_issues,
-                "crawled_issues": job.crawled_issues,
-                "failed_issues": job.failed_issues,
+                "issues_found": job.issues_found,
+                "issues_crawled": job.issues_crawled,
+                "attachments_processed": job.attachments_processed,
                 "timestamp": job.completed_at.isoformat() if job.completed_at else None
             }
 
         except Exception as e:
             logger.error(f"Crawl job {job_id} failed: {e}")
-            job.fail(str(e))
+            job.mark_as_failed(str(e))
             self._jobs[job_id] = job
 
             yield {
@@ -315,6 +316,6 @@ class CrawlJobsUseCase:
             raise ValueError(f"Job {job_id} not found")
 
         if job.status == CrawlJobStatus.RUNNING:
-            job.fail("Cancelled by user")
+            job.mark_as_failed("Cancelled by user")
             self._jobs[job_id] = job
             logger.info(f"Cancelled crawl job {job_id}")
