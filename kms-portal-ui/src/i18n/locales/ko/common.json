@@ -27,6 +27,9 @@
   "nav": {
     "home": "홈",
     "knowledge": "지식 베이스",
+    "productManual": "제품 매뉴얼",
+    "installGuide": "제품설치 가이드",
+    "faq": "FAQ",
     "ims": "IMS",
     "mindmap": "AI 스튜디오",
     "documents": "문서",
@@ -35,5 +38,13 @@
     "settings": "설정",
     "logout": "로그아웃",
     "externalPortal": "외부 포털"
+  },
+  "products": {
+    "tmax": "Tmax",
+    "jeus": "JEUS",
+    "tibero": "Tibero",
+    "openframe": "OpenFrame",
+    "openframeCobol": "OpenFrame COBOL",
+    "openframeAsm": "OpenFrame ASM"
   }
 }

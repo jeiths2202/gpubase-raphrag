@@ -27,6 +27,9 @@
   "nav": {
     "home": "Home",
     "knowledge": "Knowledge Base",
+    "productManual": "Product Manual",
+    "installGuide": "Install Guide",
+    "faq": "FAQ",
     "ims": "IMS",
     "mindmap": "AI Studio",
     "documents": "Documents",
@@ -35,5 +38,13 @@
     "settings": "Settings",
     "logout": "Logout",
     "externalPortal": "External Portal"
+  },
+  "products": {
+    "tmax": "Tmax",
+    "jeus": "JEUS",
+    "tibero": "Tibero",
+    "openframe": "OpenFrame",
+    "openframeCobol": "OpenFrame COBOL",
+    "openframeAsm": "OpenFrame ASM"
   }
 }

@@ -27,6 +27,9 @@
   "nav": {
     "home": "ホーム",
     "knowledge": "ナレッジベース",
+    "productManual": "製品マニュアル",
+    "installGuide": "インストールガイド",
+    "faq": "FAQ",
     "ims": "IMS",
     "mindmap": "AIスタジオ",
     "documents": "ドキュメント",
@@ -35,5 +38,13 @@
     "settings": "設定",
     "logout": "ログアウト",
     "externalPortal": "外部ポータル"
+  },
+  "products": {
+    "tmax": "Tmax",
+    "jeus": "JEUS",
+    "tibero": "Tibero",
+    "openframe": "OpenFrame",
+    "openframeCobol": "OpenFrame COBOL",
+    "openframeAsm": "OpenFrame ASM"
   }
 }

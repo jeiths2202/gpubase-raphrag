@@ -21,6 +21,7 @@ import { ArticleDetailPage } from './pages/ArticleDetailPage';
 import { IMSCrawlerPage } from './pages/IMSCrawlerPage';
 import { AIStudioPage } from './pages/AIStudioPage';
 import { ExternalPortalPage } from './pages/ExternalPortalPage';
+import { FAQPage } from './pages/FAQPage';
 
 // Import global styles
 import './styles/index.css';
@@ -96,6 +97,9 @@ export const App: React.FC = () => {
 
               {/* AI Studio / Mindmap (Phase 5) */}
               <Route path="/mindmap" element={<AIStudioPage />} />
+
+              {/* FAQ */}
+              <Route path="/faq" element={<FAQPage />} />
 
               {/* Documents */}
               <Route path="/documents" element={<PlaceholderPage title="Documents" />} />

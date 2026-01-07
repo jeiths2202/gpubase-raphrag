@@ -1,0 +1,57 @@
+{
+  "title": "FAQ - 자주 묻는 질문",
+  "subtitle": "OpenFrame 제품에 관한 자주 묻는 질문과 답변입니다",
+  "searchPlaceholder": "질문 검색...",
+  "top5Title": "인기 질문 Top 5",
+  "questionsFound": "개의 질문",
+  "noResults": "검색 결과가 없습니다",
+  "noResultsDescription": "다른 검색어나 카테고리를 선택해 보세요",
+  "clearSearch": "검색 초기화",
+  "wasHelpful": "이 답변이 도움이 되었나요?",
+  "yes": "예",
+  "no": "아니오",
+  "thanksFeedback": "피드백 감사합니다!",
+  "categories": {
+    "all": "전체",
+    "openframe": "OpenFrame",
+    "ofcobol": "OFCOBOL",
+    "ofasm": "OFASM"
+  },
+  "items": {
+    "faq001": {
+      "question": "OFASM에서 EBCDIC정렬을 사용하는 방법",
+      "answer": "OFASM에서 EBCDIC 정렬을 사용하려면 다음 단계를 따르세요:\n\n1. **환경 설정**\n   - ofasm.conf 파일에서 SORT_COLLATE=EBCDIC 옵션을 설정합니다.\n   - export OFASM_SORT_COLLATE=EBCDIC 환경변수를 설정합니다.\n\n2. **프로그램 내 설정**\n   ```assembly\n   SORT FIELDS=(1,10,CH,A),COLLATE=EBCDIC\n   ```\n\n3. **런타임 옵션**\n   - tjclrun 실행 시 -DCOLLATE=EBCDIC 옵션을 추가합니다.\n\n4. **주의사항**\n   - EBCDIC 정렬은 ASCII와 다른 순서로 정렬됩니다.\n   - 특수문자와 숫자의 정렬 순서가 다를 수 있습니다.\n   - 성능 영향을 고려하여 필요한 경우에만 사용하세요.",
+      "tags": ["OFASM", "EBCDIC", "SORT", "정렬"]
+    },
+    "faq002": {
+      "question": "OFCOBOL에서 EBCDIC정렬을 사용하는 방법",
+      "answer": "OFCOBOL에서 EBCDIC 정렬을 구현하는 방법입니다:\n\n1. **SORT 문 사용**\n   ```cobol\n   SORT SORT-FILE\n       ON ASCENDING KEY SORT-KEY\n       COLLATING SEQUENCE IS EBCDIC-SEQ\n       USING INPUT-FILE\n       GIVING OUTPUT-FILE.\n   ```\n\n2. **SPECIAL-NAMES 설정**\n   ```cobol\n   SPECIAL-NAMES.\n       ALPHABET EBCDIC-SEQ IS EBCDIC.\n   ```\n\n3. **환경 설정**\n   - ofcobol.conf에서 DEFAULT_COLLATE=EBCDIC 설정\n   - 컴파일 시 -DCOLLATE=EBCDIC 옵션 추가\n\n4. **문자열 비교 시**\n   - PROGRAM COLLATING SEQUENCE 절을 사용하여 전체 프로그램에 적용 가능\n   - 개별 SORT/MERGE 문에서만 적용하려면 COLLATING SEQUENCE 절 사용",
+      "tags": ["OFCOBOL", "EBCDIC", "SORT", "COBOL"]
+    },
+    "faq003": {
+      "question": "OpenFrame에서 성능향상을 위한 파라미터와 설정방법",
+      "answer": "OpenFrame 성능 최적화를 위한 주요 파라미터와 설정입니다:\n\n1. **메모리 관련 설정**\n   ```\n   # oframe.m\n   MAX_REGION_SIZE=2048M\n   REGION_POOL_SIZE=4096M\n   SHARED_MEMORY_SIZE=8192M\n   ```\n\n2. **프로세스 관련 설정**\n   ```\n   # tjes.conf\n   MAX_JOB_PROC=100\n   MAX_SPOOL_SIZE=10G\n   JOB_QUEUE_SIZE=1000\n   ```\n\n3. **I/O 최적화**\n   - VSAM 버퍼 크기 조정: BUFND, BUFNI 파라미터\n   - 파일 캐시 설정: FILE_CACHE_SIZE=1024M\n   - 비동기 I/O 활성화: ASYNC_IO=YES\n\n4. **데이터베이스 연결**\n   - 커넥션 풀 크기: DB_POOL_SIZE=50\n   - 쿼리 캐시: QUERY_CACHE=ON\n   - 배치 커밋 간격: COMMIT_INTERVAL=1000",
+      "tags": ["OpenFrame", "성능", "튜닝", "파라미터"]
+    },
+    "faq004": {
+      "question": "HiDB 마이그레이션 방법",
+      "answer": "HiDB 마이그레이션 절차와 방법을 안내합니다:\n\n1. **사전 준비**\n   - 소스 데이터베이스 스키마 분석\n   - 데이터 볼륨 산정\n   - 마이그레이션 전략 수립 (Big Bang vs Phased)\n\n2. **스키마 변환**\n   ```sql\n   -- HiDB 스키마 생성\n   CREATE HIDB DATABASE mydb\n       SEGMENT SIZE 100M\n       BUFFER POOL BP1;\n   ```\n\n3. **데이터 마이그레이션**\n   - hidbload 유틸리티 사용\n   - 배치 크기 조정으로 성능 최적화\n   - 체크포인트 설정으로 재시작 가능하게 구성\n\n4. **검증 단계**\n   - 레코드 카운트 비교\n   - 샘플 데이터 검증\n   - 인덱스 무결성 확인",
+      "tags": ["HiDB", "마이그레이션", "데이터베이스", "IMS"]
+    },
+    "faq005": {
+      "question": "OFASM 컴파일 방법",
+      "answer": "OFASM 프로그램 컴파일 절차입니다:\n\n1. **기본 컴파일**\n   ```bash\n   ofasm -i source.asm -o output.asmo\n   ```\n\n2. **컴파일 옵션**\n   ```bash\n   ofasm -i source.asm -o output.asmo \\\n       -L /opt/ofasm/maclib \\\n       -D DEBUG \\\n       -W 2 \\\n       -E EBCDIC\n   ```\n\n3. **주요 옵션 설명**\n   - `-i`: 입력 소스 파일\n   - `-o`: 출력 오브젝트 파일\n   - `-L`: 매크로 라이브러리 경로\n   - `-D`: 전처리기 정의\n   - `-W`: 경고 레벨 (0-3)\n   - `-E`: 문자셋 (ASCII/EBCDIC)\n\n4. **링크 및 실행**\n   ```bash\n   ofasml -o program.so output.asmo\n   tjclrun -p program.so\n   ```",
+      "tags": ["OFASM", "컴파일", "ASM", "어셈블러"]
+    },
+    "faq006": {
+      "question": "OFCOBOL에서 지원하는 COBOL종류",
+      "answer": "OFCOBOL에서 지원하는 COBOL 표준과 방언입니다:\n\n1. **표준 COBOL**\n   - COBOL-85 (ANS85)\n   - COBOL-2002\n   - COBOL-2014 (부분 지원)\n\n2. **메인프레임 방언**\n   - IBM Enterprise COBOL\n   - IBM COBOL for MVS\n   - IBM VS COBOL II\n   - Micro Focus COBOL (호환 모드)\n\n3. **지원 기능**\n   - EXEC SQL: 지원\n   - EXEC CICS: 지원\n   - EXEC DLI: 지원\n   - XML/JSON PARSE: 지원\n\n4. **컴파일러 옵션으로 방언 선택**\n   ```bash\n   ofcob -dialect IBM source.cob\n   ofcob -dialect MF source.cob\n   ofcob -std 85 source.cob\n   ```",
+      "tags": ["OFCOBOL", "COBOL", "표준", "방언"]
+    },
+    "faq007": {
+      "question": "OpenFrame 설치시 필요한 OS패키지",
+      "answer": "OpenFrame 설치에 필요한 OS 패키지 목록입니다:\n\n1. **RHEL/CentOS 필수 패키지**\n   ```bash\n   yum install -y gcc gcc-c++ glibc glibc-devel \\\n       libaio libaio-devel ncurses ncurses-devel \\\n       openssl openssl-devel unixODBC unixODBC-devel \\\n       libtool strace gdb sysstat net-tools\n   ```\n\n2. **Java Runtime**\n   - OpenJDK 8 이상 또는 Oracle JDK 8 이상\n   - JAVA_HOME 환경변수 설정 필수\n\n3. **데이터베이스 클라이언트**\n   - Oracle: oracle-instantclient\n   - Tibero: Tibero 클라이언트\n   - PostgreSQL: postgresql-libs\n\n4. **커널 파라미터 설정**\n   ```bash\n   # /etc/sysctl.conf\n   kernel.shmmax = 4294967296\n   kernel.shmall = 2097152\n   fs.file-max = 65536\n   ```",
+      "tags": ["OpenFrame", "설치", "OS", "패키지", "Linux"]
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "title": "FAQ - Frequently Asked Questions",
+  "subtitle": "Find answers to common questions about OpenFrame products",
+  "searchPlaceholder": "Search questions...",
+  "top5Title": "Top 5 Popular Questions",
+  "questionsFound": "questions found",
+  "noResults": "No results found",
+  "noResultsDescription": "Try different keywords or browse other categories",
+  "clearSearch": "Clear search",
+  "wasHelpful": "Was this answer helpful?",
+  "yes": "Yes",
+  "no": "No",
+  "thanksFeedback": "Thanks for your feedback!",
+  "categories": {
+    "all": "All",
+    "openframe": "OpenFrame",
+    "ofcobol": "OFCOBOL",
+    "ofasm": "OFASM"
+  },
+  "items": {
+    "faq001": {
+      "question": "How to use EBCDIC sorting in OFASM",
+      "answer": "To use EBCDIC sorting in OFASM, follow these steps:\n\n1. **Environment Configuration**\n   - Set the SORT_COLLATE=EBCDIC option in ofasm.conf file.\n   - Set the environment variable: export OFASM_SORT_COLLATE=EBCDIC\n\n2. **Program Configuration**\n   ```assembly\n   SORT FIELDS=(1,10,CH,A),COLLATE=EBCDIC\n   ```\n\n3. **Runtime Options**\n   - Add -DCOLLATE=EBCDIC option when running tjclrun.\n\n4. **Notes**\n   - EBCDIC sort order differs from ASCII.\n   - Special characters and numbers may have different sort orders.\n   - Consider performance impact and use only when necessary.",
+      "tags": ["OFASM", "EBCDIC", "SORT", "Sorting"]
+    },
+    "faq002": {
+      "question": "How to use EBCDIC sorting in OFCOBOL",
+      "answer": "Here's how to implement EBCDIC sorting in OFCOBOL:\n\n1. **Using SORT Statement**\n   ```cobol\n   SORT SORT-FILE\n       ON ASCENDING KEY SORT-KEY\n       COLLATING SEQUENCE IS EBCDIC-SEQ\n       USING INPUT-FILE\n       GIVING OUTPUT-FILE.\n   ```\n\n2. **SPECIAL-NAMES Configuration**\n   ```cobol\n   SPECIAL-NAMES.\n       ALPHABET EBCDIC-SEQ IS EBCDIC.\n   ```\n\n3. **Environment Configuration**\n   - Set DEFAULT_COLLATE=EBCDIC in ofcobol.conf\n   - Add -DCOLLATE=EBCDIC option during compilation\n\n4. **String Comparison**\n   - Use PROGRAM COLLATING SEQUENCE clause to apply to entire program\n   - Use COLLATING SEQUENCE clause for individual SORT/MERGE statements",
+      "tags": ["OFCOBOL", "EBCDIC", "SORT", "COBOL"]
+    },
+    "faq003": {
+      "question": "Performance tuning parameters and configuration for OpenFrame",
+      "answer": "Key parameters and settings for OpenFrame performance optimization:\n\n1. **Memory Settings**\n   ```\n   # oframe.m\n   MAX_REGION_SIZE=2048M\n   REGION_POOL_SIZE=4096M\n   SHARED_MEMORY_SIZE=8192M\n   ```\n\n2. **Process Settings**\n   ```\n   # tjes.conf\n   MAX_JOB_PROC=100\n   MAX_SPOOL_SIZE=10G\n   JOB_QUEUE_SIZE=1000\n   ```\n\n3. **I/O Optimization**\n   - VSAM buffer size adjustment: BUFND, BUFNI parameters\n   - File cache setting: FILE_CACHE_SIZE=1024M\n   - Enable async I/O: ASYNC_IO=YES\n\n4. **Database Connection**\n   - Connection pool size: DB_POOL_SIZE=50\n   - Query cache: QUERY_CACHE=ON\n   - Batch commit interval: COMMIT_INTERVAL=1000",
+      "tags": ["OpenFrame", "Performance", "Tuning", "Parameters"]
+    },
+    "faq004": {
+      "question": "HiDB Migration Method",
+      "answer": "Guide to HiDB migration procedures and methods:\n\n1. **Preparation**\n   - Analyze source database schema\n   - Estimate data volume\n   - Establish migration strategy (Big Bang vs Phased)\n\n2. **Schema Conversion**\n   ```sql\n   -- Create HiDB schema\n   CREATE HIDB DATABASE mydb\n       SEGMENT SIZE 100M\n       BUFFER POOL BP1;\n   ```\n\n3. **Data Migration**\n   - Use hidbload utility\n   - Optimize performance by adjusting batch size\n   - Configure checkpoint for restart capability\n\n4. **Verification**\n   - Compare record counts\n   - Validate sample data\n   - Verify index integrity",
+      "tags": ["HiDB", "Migration", "Database", "IMS"]
+    },
+    "faq005": {
+      "question": "How to compile OFASM programs",
+      "answer": "OFASM program compilation procedure:\n\n1. **Basic Compilation**\n   ```bash\n   ofasm -i source.asm -o output.asmo\n   ```\n\n2. **Compilation Options**\n   ```bash\n   ofasm -i source.asm -o output.asmo \\\n       -L /opt/ofasm/maclib \\\n       -D DEBUG \\\n       -W 2 \\\n       -E EBCDIC\n   ```\n\n3. **Key Options**\n   - `-i`: Input source file\n   - `-o`: Output object file\n   - `-L`: Macro library path\n   - `-D`: Preprocessor definition\n   - `-W`: Warning level (0-3)\n   - `-E`: Character set (ASCII/EBCDIC)\n\n4. **Link and Execute**\n   ```bash\n   ofasml -o program.so output.asmo\n   tjclrun -p program.so\n   ```",
+      "tags": ["OFASM", "Compile", "ASM", "Assembler"]
+    },
+    "faq006": {
+      "question": "COBOL types supported by OFCOBOL",
+      "answer": "COBOL standards and dialects supported by OFCOBOL:\n\n1. **Standard COBOL**\n   - COBOL-85 (ANS85)\n   - COBOL-2002\n   - COBOL-2014 (partial support)\n\n2. **Mainframe Dialects**\n   - IBM Enterprise COBOL\n   - IBM COBOL for MVS\n   - IBM VS COBOL II\n   - Micro Focus COBOL (compatibility mode)\n\n3. **Supported Features**\n   - EXEC SQL: Supported\n   - EXEC CICS: Supported\n   - EXEC DLI: Supported\n   - XML/JSON PARSE: Supported\n\n4. **Select Dialect via Compiler Options**\n   ```bash\n   ofcob -dialect IBM source.cob\n   ofcob -dialect MF source.cob\n   ofcob -std 85 source.cob\n   ```",
+      "tags": ["OFCOBOL", "COBOL", "Standards", "Dialects"]
+    },
+    "faq007": {
+      "question": "Required OS packages for OpenFrame installation",
+      "answer": "List of OS packages required for OpenFrame installation:\n\n1. **RHEL/CentOS Required Packages**\n   ```bash\n   yum install -y gcc gcc-c++ glibc glibc-devel \\\n       libaio libaio-devel ncurses ncurses-devel \\\n       openssl openssl-devel unixODBC unixODBC-devel \\\n       libtool strace gdb sysstat net-tools\n   ```\n\n2. **Java Runtime**\n   - OpenJDK 8 or higher, or Oracle JDK 8 or higher\n   - JAVA_HOME environment variable must be set\n\n3. **Database Client**\n   - Oracle: oracle-instantclient\n   - Tibero: Tibero client\n   - PostgreSQL: postgresql-libs\n\n4. **Kernel Parameter Settings**\n   ```bash\n   # /etc/sysctl.conf\n   kernel.shmmax = 4294967296\n   kernel.shmall = 2097152\n   fs.file-max = 65536\n   ```",
+      "tags": ["OpenFrame", "Installation", "OS", "Packages", "Linux"]
+    }
+  }
+}
