@@ -11,7 +11,7 @@
  * - Message copy and feedback buttons
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   MessageSquare,
   FileText,
@@ -32,9 +32,45 @@ import {
   Edit2,
   Save,
   ExternalLink,
+  GripHorizontal,
+  Minimize2,
+  Maximize2,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useUIStore } from '../store/uiStore';
+
+// Storage key for AI sidebar position
+const AI_SIDEBAR_POSITION_KEY = 'kms-portal-ai-sidebar-position';
+
+// Default panel position (right side)
+const DEFAULT_SIDEBAR_POSITION = { x: -420, y: 80 }; // Relative to right edge
+
+interface SidebarPosition {
+  x: number;
+  y: number;
+}
+
+// Load saved panel position from localStorage
+const loadSidebarPosition = (): SidebarPosition => {
+  try {
+    const saved = localStorage.getItem(AI_SIDEBAR_POSITION_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.warn('Failed to load sidebar position:', e);
+  }
+  return DEFAULT_SIDEBAR_POSITION;
+};
+
+// Save panel position to localStorage
+const saveSidebarPosition = (position: SidebarPosition) => {
+  try {
+    localStorage.setItem(AI_SIDEBAR_POSITION_KEY, JSON.stringify(position));
+  } catch (e) {
+    console.warn('Failed to save sidebar position:', e);
+  }
+};
 
 // Tab type
 type TabId = 'chat' | 'conversations' | 'sources' | 'notes';
@@ -210,6 +246,12 @@ export const AISidebar: React.FC = () => {
   const { t } = useTranslation();
   const { rightSidebarOpen, toggleRightSidebar } = useUIStore();
 
+  // Floating panel state
+  const [sidebarPosition, setSidebarPosition] = useState<SidebarPosition>(loadSidebarPosition);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
   // State
   const [activeTab, setActiveTab] = useState<TabId>('chat');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -293,6 +335,54 @@ export const AISidebar: React.FC = () => {
     sources.sort((a, b) => b.relevance - a.relevance);
     setAllSources(sources);
   }, [messages]);
+
+  // Drag handlers for floating panel
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX - sidebarPosition.x,
+      y: e.clientY - sidebarPosition.y
+    });
+  }, [sidebarPosition]);
+
+  const handleDragMove = useCallback((e: MouseEvent) => {
+    if (isDragging) {
+      const newX = e.clientX - dragStart.x;
+      const newY = e.clientY - dragStart.y;
+
+      // Constrain to viewport with padding
+      const constrainedX = Math.max(-window.innerWidth + 100, Math.min(newX, window.innerWidth - 100));
+      const constrainedY = Math.max(60, Math.min(newY, window.innerHeight - 100));
+
+      setSidebarPosition({ x: constrainedX, y: constrainedY });
+    }
+  }, [isDragging, dragStart]);
+
+  const handleDragEnd = useCallback(() => {
+    if (isDragging) {
+      setIsDragging(false);
+      saveSidebarPosition(sidebarPosition);
+    }
+  }, [isDragging, sidebarPosition]);
+
+  // Drag event listeners
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleDragMove);
+      window.addEventListener('mouseup', handleDragEnd);
+      return () => {
+        window.removeEventListener('mousemove', handleDragMove);
+        window.removeEventListener('mouseup', handleDragEnd);
+      };
+    }
+  }, [isDragging, handleDragMove, handleDragEnd]);
+
+  // Toggle minimize
+  const toggleMinimize = useCallback(() => {
+    setIsMinimized(prev => !prev);
+  }, []);
 
   // Fetch conversations
   const fetchConversations = async () => {
@@ -605,29 +695,63 @@ export const AISidebar: React.FC = () => {
     { id: 'notes', icon: <StickyNote size={16} />, label: t('knowledge.sidebar.notes') },
   ];
 
+  // FAB button when sidebar is closed
   if (!rightSidebarOpen) {
-    return null;
+    return (
+      <button
+        className="ai-sidebar-fab"
+        onClick={toggleRightSidebar}
+        title={t('knowledge.chat.title')}
+      >
+        <Sparkles size={24} />
+      </button>
+    );
   }
 
   return (
-    <aside className="portal-ai-sidebar">
-      {/* Header */}
-      <div className="ai-sidebar-header">
+    <aside
+      className={`portal-ai-sidebar floating ${isMinimized ? 'minimized' : ''} ${isDragging ? 'dragging' : ''}`}
+      style={{
+        left: sidebarPosition.x < 0 ? 'auto' : sidebarPosition.x,
+        right: sidebarPosition.x < 0 ? Math.abs(sidebarPosition.x) : 'auto',
+        top: sidebarPosition.y,
+      }}
+    >
+      {/* Draggable Header */}
+      <div
+        className="ai-sidebar-header ai-sidebar-drag-handle"
+        onMouseDown={handleDragStart}
+      >
+        <div className="ai-sidebar-drag-indicator">
+          <GripHorizontal size={16} />
+        </div>
         <div className="ai-sidebar-title">
           <Sparkles size={18} className="ai-sidebar-icon" />
           <span>{t('knowledge.chat.title')}</span>
         </div>
-        <button
-          className="btn btn-ghost ai-sidebar-close"
-          onClick={toggleRightSidebar}
-          aria-label="Close AI sidebar"
-        >
-          <X size={18} />
-        </button>
+        <div className="ai-sidebar-header-actions">
+          <button
+            className="btn btn-ghost btn-xs"
+            onClick={toggleMinimize}
+            title={isMinimized ? 'Expand' : 'Minimize'}
+          >
+            {isMinimized ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+          </button>
+          <button
+            className="btn btn-ghost btn-xs"
+            onClick={toggleRightSidebar}
+            aria-label="Close AI sidebar"
+          >
+            <X size={14} />
+          </button>
+        </div>
       </div>
 
-      {/* Tabs */}
-      <div className="ai-sidebar-tabs">
+      {/* Collapsible Content */}
+      {!isMinimized && (
+        <>
+          {/* Tabs */}
+          <div className="ai-sidebar-tabs">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -979,6 +1103,8 @@ export const AISidebar: React.FC = () => {
           </div>
         )}
       </div>
+        </>
+      )}
     </aside>
   );
 };
