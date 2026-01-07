@@ -770,7 +770,7 @@ app/api/
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/ims-credentials` | Store IMS credentials |
-| POST | `/ims-search` | Natural language issue search |
+| POST | `/ims-search` | Hybrid search (BM25 30% + Semantic 70%) with CJK-optimized tokenization |
 | POST | `/ims-jobs` | Create crawl job |
 | GET | `/ims-jobs/{id}/stream` | SSE stream for job status |
 | POST | `/ims-reports` | Generate markdown report |
@@ -793,11 +793,13 @@ app/api/
 | POST | `/enterprise/mfa/enable` | Enable MFA |
 | GET | `/enterprise/audit-logs` | Retrieve audit logs |
 
-#### System Monitoring
+#### System Monitoring & E2E Tracing
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/health` | Health status |
 | GET | `/system/status` | System status |
+| GET | `/admin/traces` | Query E2E traces with quality flags (Admin) |
+| GET | `/admin/traces/metrics` | Latency & token statistics |
 | GET | `/system/gpu` | GPU utilization |
 | GET | `/system/models` | LLM model status |
 | GET | `/metrics` | Prometheus metrics |
