@@ -46,5 +46,12 @@
     "openframe": "OpenFrame",
     "openframeCobol": "OpenFrame COBOL",
     "openframeAsm": "OpenFrame ASM"
+  },
+  "settings": {
+    "language": "Language / 언어 / 言語",
+    "theme": "テーマ",
+    "themeLight": "ライト",
+    "themeDark": "ダーク",
+    "themeSystem": "システム"
   }
 }

@@ -1,0 +1,159 @@
+/**
+ * Settings Popup Styles
+ */
+
+/* Overlay */
+.settings-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+
+/* Popup Container */
+.settings-popup {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  width: 420px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+/* Header */
+.settings-popup__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settings-popup__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.settings-popup__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.settings-popup__close:hover {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text);
+}
+
+/* Content */
+.settings-popup__content {
+  padding: 24px;
+  overflow-y: auto;
+}
+
+/* Section */
+.settings-section {
+  margin-bottom: 24px;
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+}
+
+.settings-section__label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+/* Language List */
+.settings-language-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-language-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--color-bg-tertiary);
+  border: 2px solid transparent;
+  border-radius: 10px;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.settings-language-btn:hover {
+  background: var(--color-bg-hover);
+}
+
+.settings-language-btn.active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+
+.settings-language-flag {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.settings-language-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.settings-language-native {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.settings-language-name {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.settings-language-check {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .settings-popup {
+  background: var(--color-bg-secondary);
+}
+
+[data-theme="dark"] .settings-language-btn {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .settings-language-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}

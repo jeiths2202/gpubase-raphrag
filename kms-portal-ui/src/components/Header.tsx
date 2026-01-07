@@ -21,6 +21,7 @@ import {
 import { useTranslation } from '../hooks/useTranslation';
 import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
+import { SettingsPopup } from './SettingsPopup';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -35,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, showAISidebarToggle
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const langMenuRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +64,11 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, showAISidebarToggle
   const handleLogout = () => {
     logout();
     setShowUserMenu(false);
+  };
+
+  const handleOpenSettings = () => {
+    setShowUserMenu(false);
+    setShowSettings(true);
   };
 
   const toggleTheme = () => {
@@ -192,7 +199,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, showAISidebarToggle
                   <User size={16} />
                   <span>Profile</span>
                 </button>
-                <button className="header-dropdown-item">
+                <button className="header-dropdown-item" onClick={handleOpenSettings}>
                   <Settings size={16} />
                   <span>{t('common.nav.settings')}</span>
                 </button>
@@ -206,6 +213,12 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, showAISidebarToggle
           </div>
         )}
       </div>
+
+      {/* Settings Popup */}
+      <SettingsPopup
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </header>
   );
 };
