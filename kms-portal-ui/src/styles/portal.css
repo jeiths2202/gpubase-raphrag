@@ -805,6 +805,93 @@
   }
 }
 
+/* Resize Handles */
+.ai-sidebar-resize-handle {
+  position: absolute;
+  z-index: 10;
+}
+
+/* Edge handles */
+.ai-sidebar-resize-handle.resize-n {
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.ai-sidebar-resize-handle.resize-s {
+  bottom: 0;
+  left: 8px;
+  right: 8px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.ai-sidebar-resize-handle.resize-e {
+  top: 8px;
+  right: 0;
+  bottom: 8px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.ai-sidebar-resize-handle.resize-w {
+  top: 8px;
+  left: 0;
+  bottom: 8px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+/* Corner handles */
+.ai-sidebar-resize-handle.resize-ne {
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}
+
+.ai-sidebar-resize-handle.resize-se {
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+
+.ai-sidebar-resize-handle.resize-sw {
+  bottom: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}
+
+.ai-sidebar-resize-handle.resize-nw {
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+
+/* Hover effect on resize handles */
+.ai-sidebar-resize-handle:hover {
+  background: rgba(99, 102, 241, 0.2);
+}
+
+/* Resizing state */
+.portal-ai-sidebar.floating.resizing {
+  transition: none;
+  user-select: none;
+}
+
+.portal-ai-sidebar.floating.resizing * {
+  user-select: none;
+}
+
 .ai-sidebar-title {
   display: flex;
   align-items: center;

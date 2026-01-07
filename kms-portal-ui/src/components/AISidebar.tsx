@@ -39,15 +39,26 @@ import {
 import { useTranslation } from '../hooks/useTranslation';
 import { useUIStore } from '../store/uiStore';
 
-// Storage key for AI sidebar position
+// Storage keys
 const AI_SIDEBAR_POSITION_KEY = 'kms-portal-ai-sidebar-position';
+const AI_SIDEBAR_SIZE_KEY = 'kms-portal-ai-sidebar-size';
 
 // Default panel position (right side)
 const DEFAULT_SIDEBAR_POSITION = { x: -420, y: 80 }; // Relative to right edge
 
+// Default and constraints for panel size
+const DEFAULT_SIDEBAR_SIZE = { width: 380, height: 500 };
+const MIN_SIDEBAR_SIZE = { width: 280, height: 300 };
+const MAX_SIDEBAR_SIZE = { width: 600, height: 800 };
+
 interface SidebarPosition {
   x: number;
   y: number;
+}
+
+interface SidebarSize {
+  width: number;
+  height: number;
 }
 
 // Load saved panel position from localStorage
@@ -69,6 +80,28 @@ const saveSidebarPosition = (position: SidebarPosition) => {
     localStorage.setItem(AI_SIDEBAR_POSITION_KEY, JSON.stringify(position));
   } catch (e) {
     console.warn('Failed to save sidebar position:', e);
+  }
+};
+
+// Load saved panel size from localStorage
+const loadSidebarSize = (): SidebarSize => {
+  try {
+    const saved = localStorage.getItem(AI_SIDEBAR_SIZE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.warn('Failed to load sidebar size:', e);
+  }
+  return DEFAULT_SIDEBAR_SIZE;
+};
+
+// Save panel size to localStorage
+const saveSidebarSize = (size: SidebarSize) => {
+  try {
+    localStorage.setItem(AI_SIDEBAR_SIZE_KEY, JSON.stringify(size));
+  } catch (e) {
+    console.warn('Failed to save sidebar size:', e);
   }
 };
 
@@ -248,9 +281,15 @@ export const AISidebar: React.FC = () => {
 
   // Floating panel state
   const [sidebarPosition, setSidebarPosition] = useState<SidebarPosition>(loadSidebarPosition);
+  const [sidebarSize, setSidebarSize] = useState<SidebarSize>(loadSidebarSize);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  // Resize state
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeDirection, setResizeDirection] = useState<string | null>(null);
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
   // State
   const [activeTab, setActiveTab] = useState<TabId>('chat');
@@ -378,6 +417,70 @@ export const AISidebar: React.FC = () => {
       };
     }
   }, [isDragging, handleDragMove, handleDragEnd]);
+
+  // Resize handlers
+  const handleResizeStart = useCallback((e: React.MouseEvent, direction: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(true);
+    setResizeDirection(direction);
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      width: sidebarSize.width,
+      height: sidebarSize.height
+    });
+  }, [sidebarSize]);
+
+  const handleResizeMove = useCallback((e: MouseEvent) => {
+    if (!isResizing || !resizeDirection) return;
+
+    const deltaX = e.clientX - resizeStart.x;
+    const deltaY = e.clientY - resizeStart.y;
+
+    let newWidth = resizeStart.width;
+    let newHeight = resizeStart.height;
+
+    // Handle different resize directions
+    if (resizeDirection.includes('e')) {
+      newWidth = resizeStart.width + deltaX;
+    }
+    if (resizeDirection.includes('w')) {
+      newWidth = resizeStart.width - deltaX;
+    }
+    if (resizeDirection.includes('s')) {
+      newHeight = resizeStart.height + deltaY;
+    }
+    if (resizeDirection.includes('n')) {
+      newHeight = resizeStart.height - deltaY;
+    }
+
+    // Apply constraints
+    newWidth = Math.max(MIN_SIDEBAR_SIZE.width, Math.min(newWidth, MAX_SIDEBAR_SIZE.width));
+    newHeight = Math.max(MIN_SIDEBAR_SIZE.height, Math.min(newHeight, MAX_SIDEBAR_SIZE.height));
+
+    setSidebarSize({ width: newWidth, height: newHeight });
+  }, [isResizing, resizeDirection, resizeStart]);
+
+  const handleResizeEnd = useCallback(() => {
+    if (isResizing) {
+      setIsResizing(false);
+      setResizeDirection(null);
+      saveSidebarSize(sidebarSize);
+    }
+  }, [isResizing, sidebarSize]);
+
+  // Resize event listeners
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', handleResizeMove);
+      window.addEventListener('mouseup', handleResizeEnd);
+      return () => {
+        window.removeEventListener('mousemove', handleResizeMove);
+        window.removeEventListener('mouseup', handleResizeEnd);
+      };
+    }
+  }, [isResizing, handleResizeMove, handleResizeEnd]);
 
   // Toggle minimize
   const toggleMinimize = useCallback(() => {
@@ -710,13 +813,29 @@ export const AISidebar: React.FC = () => {
 
   return (
     <aside
-      className={`portal-ai-sidebar floating ${isMinimized ? 'minimized' : ''} ${isDragging ? 'dragging' : ''}`}
+      className={`portal-ai-sidebar floating ${isMinimized ? 'minimized' : ''} ${isDragging ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
       style={{
         left: sidebarPosition.x < 0 ? 'auto' : sidebarPosition.x,
         right: sidebarPosition.x < 0 ? Math.abs(sidebarPosition.x) : 'auto',
         top: sidebarPosition.y,
+        width: isMinimized ? undefined : sidebarSize.width,
+        height: isMinimized ? undefined : sidebarSize.height,
       }}
     >
+      {/* Resize Handles */}
+      {!isMinimized && (
+        <>
+          <div className="ai-sidebar-resize-handle resize-n" onMouseDown={(e) => handleResizeStart(e, 'n')} />
+          <div className="ai-sidebar-resize-handle resize-e" onMouseDown={(e) => handleResizeStart(e, 'e')} />
+          <div className="ai-sidebar-resize-handle resize-s" onMouseDown={(e) => handleResizeStart(e, 's')} />
+          <div className="ai-sidebar-resize-handle resize-w" onMouseDown={(e) => handleResizeStart(e, 'w')} />
+          <div className="ai-sidebar-resize-handle resize-ne" onMouseDown={(e) => handleResizeStart(e, 'ne')} />
+          <div className="ai-sidebar-resize-handle resize-se" onMouseDown={(e) => handleResizeStart(e, 'se')} />
+          <div className="ai-sidebar-resize-handle resize-sw" onMouseDown={(e) => handleResizeStart(e, 'sw')} />
+          <div className="ai-sidebar-resize-handle resize-nw" onMouseDown={(e) => handleResizeStart(e, 'nw')} />
+        </>
+      )}
+
       {/* Draggable Header */}
       <div
         className="ai-sidebar-header ai-sidebar-drag-handle"
