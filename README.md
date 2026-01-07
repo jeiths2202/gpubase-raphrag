@@ -127,47 +127,205 @@ def fibonacci(n):
 ## Project Structure
 
 ```
-graphrag/
-├── app/
+gpubase-raphrag/
+│
+├── app/                                    # Backend Application
 │   ├── requirements.txt
-│   ├── docs/                    # PDF documents (JP/KR/EN)
+│   ├── docs/                               # PDF documents (JP/KR/EN)
+│   ├── src/                                # Legacy RAG implementation
+│   │   ├── config.py                       # Configuration management
+│   │   ├── embeddings.py                   # NeMo Embedding service
+│   │   ├── query_router.py                 # Query classification
+│   │   ├── hybrid_rag.py                   # Hybrid RAG orchestrator
+│   │   ├── graphrag.py                     # Core HybridRAG class
+│   │   └── chat_rag.py                     # Interactive chat interface
+│   │
+│   └── api/                                # FastAPI Backend (Main)
+│       ├── main.py                         # App entry, middleware, router registration
+│       ├── run.py                          # Server runner
+│       │
+│       ├── core/                           # Framework infrastructure
+│       │   ├── config.py                   # API settings from environment
+│       │   ├── deps.py                     # Main DI container (94KB)
+│       │   ├── app_mode.py                 # Develop/Product mode
+│       │   ├── secrets_manager.py          # Secrets validation
+│       │   ├── security_middleware.py      # CSP, CORS, security headers
+│       │   ├── cookie_auth.py              # HttpOnly cookie management
+│       │   ├── logging_framework.py        # Advanced logging
+│       │   ├── circuit_breaker.py          # Fault tolerance
+│       │   └── exceptions.py               # Custom exceptions
+│       │
+│       ├── routers/                        # API endpoints (27 files)
+│       │   ├── auth.py                     # Authentication
+│       │   ├── query.py                    # RAG query execution
+│       │   ├── documents.py                # Document management
+│       │   ├── conversations.py            # Multi-turn conversations
+│       │   ├── mindmap.py                  # Mind map generation
+│       │   ├── vision.py                   # Vision LLM queries
+│       │   ├── knowledge_graph.py          # Knowledge graph
+│       │   ├── knowledge_article.py        # Knowledge workflow
+│       │   ├── content.py                  # AI content generation
+│       │   ├── external_connection.py      # External connectors
+│       │   ├── admin.py                    # Admin dashboard
+│       │   ├── enterprise.py               # Enterprise features
+│       │   └── workspace.py                # Workspace state
+│       │
+│       ├── services/                       # Business logic (30+ files)
+│       │   ├── rag_service.py              # Core RAG integration
+│       │   ├── auth_service.py             # Authentication
+│       │   ├── conversation_service.py     # Conversation management
+│       │   ├── document_parser.py          # Document parsing
+│       │   ├── mindmap_service.py          # Mind map generation
+│       │   ├── knowledge_graph_service.py  # Knowledge graph
+│       │   ├── vision_router.py            # Vision LLM routing
+│       │   ├── vision_rag_integration.py   # Vision + RAG
+│       │   ├── vlm_service.py              # Vision LLM service
+│       │   └── external_document_service.py # External resources
+│       │
+│       ├── models/                         # Pydantic schemas (25+ files)
+│       │   ├── auth.py                     # Auth models
+│       │   ├── query.py                    # Query models
+│       │   ├── conversation.py             # Conversation models
+│       │   ├── document.py                 # Document models
+│       │   └── vision.py                   # Vision models
+│       │
+│       ├── adapters/                       # External service adapters
+│       │   ├── langchain/                  # LangChain adapters
+│       │   │   ├── llm_adapter.py          # ChatOpenAI wrapper
+│       │   │   └── embedding_adapter.py    # Embedding wrapper
+│       │   ├── mock/                       # Mock for testing
+│       │   └── vision/                     # Vision LLM adapters
+│       │       ├── anthropic_vision_adapter.py
+│       │       └── openai_vision_adapter.py
+│       │
+│       ├── ports/                          # Hexagonal architecture interfaces
+│       │   ├── llm_port.py
+│       │   ├── embedding_port.py
+│       │   ├── vector_store_port.py
+│       │   ├── graph_store_port.py
+│       │   └── vision_llm_port.py
+│       │
+│       ├── chains/                         # RAG chain implementations
+│       │   ├── retrieval_chain.py
+│       │   ├── generation_chain.py
+│       │   └── rag_chain.py
+│       │
+│       ├── pipeline/                       # Vision LLM orchestration
+│       │   ├── orchestrator.py
+│       │   └── vision_orchestrator.py
+│       │
+│       ├── connectors/                     # External connectors
+│       │   ├── confluence_connector.py
+│       │   ├── github_connector.py
+│       │   ├── google_drive_connector.py
+│       │   ├── notion_connector.py
+│       │   └── onenote_connector.py
+│       │
+│       ├── repositories/                   # Data access layer
+│       │   ├── conversation_repository.py
+│       │   ├── document_repository.py
+│       │   └── user_repository.py
+│       │
+│       ├── infrastructure/                 # Infrastructure implementations
+│       │   ├── memory/                     # In-memory (testing)
+│       │   ├── postgres/                   # PostgreSQL (production)
+│       │   └── services/
+│       │       └── trace_writer.py         # E2E message tracing
+│       │
+│       └── ims_crawler/                    # IMS Crawler (DDD architecture)
+│           ├── application/                # Use cases
+│           ├── domain/                     # Entities, models, ports
+│           ├── infrastructure/             # Adapters, services
+│           └── presentation/               # Routers
+│
+├── frontend/                               # React Frontend Application
 │   ├── src/
-│   │   ├── config.py            # Configuration management
-│   │   ├── embeddings.py        # NeMo Embedding service
-│   │   ├── query_router.py      # Query classification
-│   │   ├── vector_rag.py        # Vector-based RAG
-│   │   ├── hybrid_rag.py        # Hybrid RAG orchestrator
-│   │   ├── graphrag.py          # Core HybridRAG class
-│   │   ├── chat_rag.py          # Interactive chat interface
-│   │   ├── pdf_rag_test.py      # PDF processing test
-│   │   ├── simple_pdf_test.py   # Quick PDF test
-│   │   ├── rag_qa.py            # QA module
-│   │   └── batch_upload.py      # Batch upload utility
-│   └── api/
-│       ├── main.py              # FastAPI application
-│       ├── routers/
-│       │   ├── query.py         # RAG query API
-│       │   ├── documents.py     # Document management API
-│       │   └── mindmap.py       # Mindmap API
-│       ├── services/
-│       │   ├── rag_service.py   # RAG service wrapper
-│       │   └── mindmap_service.py # Mindmap generation service
-│       └── models/
-│           └── mindmap.py       # Mindmap data models
-├── frontend/                    # React Mindmap UI
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── MindmapViewer.tsx  # React Flow visualization
-│   │   │   ├── MindmapNode.tsx    # Custom node component
-│   │   │   ├── NodePanel.tsx      # Node detail/query panel
-│   │   │   └── Sidebar.tsx        # Mindmap management
-│   │   ├── services/api.ts      # API client
-│   │   └── types/mindmap.ts     # TypeScript types
-│   └── package.json
-├── docker/
-│   ├── docker-compose.yml       # Container orchestration
-│   └── .env                     # Environment configuration
-└── neo4j/                       # Neo4j data directory
+│   │   ├── main.tsx                        # React app entry point
+│   │   ├── App.tsx                         # Root component (routing, auth guards)
+│   │   │
+│   │   ├── pages/                          # Page components
+│   │   │   ├── LoginPage.tsx               # Authentication UI
+│   │   │   ├── MainDashboard.tsx           # Main dashboard
+│   │   │   ├── KnowledgeApp.tsx            # RAG chat interface
+│   │   │   ├── MindmapApp.tsx              # Mindmap visualization
+│   │   │   ├── AdminDashboard.tsx          # Admin interface
+│   │   │   └── SSOCallbackPage.tsx         # SSO callback handler
+│   │   │
+│   │   ├── components/                     # Shared UI components
+│   │   │   ├── MindmapViewer.tsx           # React Flow visualization
+│   │   │   ├── MindmapNode.tsx             # Custom node component
+│   │   │   ├── NodePanel.tsx               # Node detail/query panel
+│   │   │   ├── Sidebar.tsx                 # Navigation sidebar
+│   │   │   ├── LanguageSelector.tsx        # Multi-language dropdown
+│   │   │   └── ThemeToggle.tsx             # Dark/light/system theme
+│   │   │
+│   │   ├── features/                       # Feature modules
+│   │   │   ├── knowledge/                  # Knowledge RAG feature
+│   │   │   │   ├── components/             # ChatTab, DocumentsTab, etc.
+│   │   │   │   ├── hooks/                  # useConversationHistory
+│   │   │   │   ├── services/               # knowledge-api.ts
+│   │   │   │   └── types/
+│   │   │   │
+│   │   │   └── ims/                        # IMS Crawler feature
+│   │   │       ├── components/             # IMSDashboard, IMSSearchBar
+│   │   │       ├── hooks/                  # useSSEStream
+│   │   │       ├── services/               # ims-api.ts
+│   │   │       └── store/                  # imsStore.ts
+│   │   │
+│   │   ├── store/                          # Zustand state management
+│   │   │   ├── authStore.ts                # Authentication state
+│   │   │   ├── preferencesStore.ts         # Theme & language
+│   │   │   └── workspaceStore.ts           # Workspace state
+│   │   │
+│   │   ├── services/
+│   │   │   └── api.ts                      # Mindmap API client
+│   │   │
+│   │   ├── hooks/                          # Custom React hooks
+│   │   │   ├── useTranslation.ts           # i18n hook
+│   │   │   ├── useTheme.ts                 # Theme management
+│   │   │   ├── useLanguagePolicy.ts        # Language restrictions
+│   │   │   └── useLocaleFormat.ts          # Locale formatting
+│   │   │
+│   │   ├── i18n/                           # Internationalization
+│   │   │   ├── I18nContext.tsx             # React Context
+│   │   │   ├── index.ts                    # Translation logic
+│   │   │   └── locales/                    # Translation files
+│   │   │       ├── en/                     # English (9 namespaces)
+│   │   │       ├── ko/                     # Korean (9 namespaces)
+│   │   │       └── ja/                     # Japanese (9 namespaces)
+│   │   │
+│   │   ├── types/
+│   │   │   └── mindmap.ts                  # TypeScript types
+│   │   │
+│   │   └── __tests__/                      # Tests
+│   │       └── e2e/                        # Playwright E2E tests
+│   │
+│   ├── package.json
+│   ├── vite.config.ts                      # Vite build configuration
+│   ├── tsconfig.json                       # TypeScript configuration
+│   └── playwright.config.ts                # E2E test configuration
+│
+├── docker/                                 # Container orchestration
+│   ├── docker-compose.yml                  # Service definitions
+│   ├── start-services.sh                   # Start script
+│   ├── stop-services.sh                    # Stop script
+│   └── status-services.sh                  # Health check script
+│
+├── tests/                                  # Backend tests
+│   ├── api/                                # API endpoint tests
+│   ├── integration/                        # Integration tests
+│   └── mocks/                              # Mock services
+│
+├── migrations/                             # Database migrations
+├── scripts/                                # Utility scripts
+├── docs/                                   # Documentation
+│
+├── requirements-api.txt                    # Backend dependencies
+├── .env.example                            # Environment template
+├── CLAUDE.md                               # Claude Code guidance
+├── README.md                               # This file
+│
+└── neo4j/                                  # Neo4j data directory
 ```
 
 ## Installation
@@ -365,6 +523,825 @@ environment:
 ```
 
 **Note:** The container sees only the specified GPU(s), mapped to logical device 0 internally.
+
+## Backend Architecture
+
+### Tech Stack
+
+| Category | Technology | Version |
+|----------|------------|---------|
+| **Framework** | FastAPI | 0.104+ |
+| **Language** | Python | 3.10+ |
+| **Async Runtime** | Uvicorn | Latest |
+| **Data Validation** | Pydantic | 2.5+ |
+| **Database** | PostgreSQL (asyncpg) | 14+ |
+| **Graph Database** | Neo4j | 5.14+ |
+| **LLM Framework** | LangChain, LangGraph | 0.1+ |
+| **HTTP Client** | aiohttp, httpx | 3.9+, 0.25+ |
+| **Authentication** | PyJWT, bcrypt | Latest |
+| **Encryption** | PyCryptodomex | Latest |
+| **Document Processing** | PyPDF2, python-docx | Latest |
+| **Web Scraping** | Playwright, BeautifulSoup, trafilatura | 1.40+ |
+
+### Directory Structure
+
+```
+app/api/
+├── main.py                      # FastAPI app entry, middleware, router registration
+├── run.py                       # Server runner script
+│
+├── core/                        # Framework infrastructure (22 files)
+│   ├── config.py                # API settings from environment
+│   ├── deps.py                  # Main DI container (94KB)
+│   ├── app_mode.py              # Develop/Product mode configuration
+│   ├── secrets_manager.py       # Secrets validation at startup
+│   ├── security_middleware.py   # CSP, CORS, security headers
+│   ├── cookie_auth.py           # HttpOnly cookie management
+│   ├── logging_framework.py     # Advanced logging with categories
+│   ├── circuit_breaker.py       # Fault tolerance
+│   ├── trace_context.py         # Distributed tracing
+│   └── exceptions.py            # Custom exceptions
+│
+├── routers/                     # API endpoint definitions (27 files)
+│   ├── auth.py                  # Authentication (login, refresh, logout)
+│   ├── query.py                 # RAG query execution
+│   ├── documents.py             # Document upload and management
+│   ├── conversations.py         # Multi-turn conversation management
+│   ├── mindmap.py               # Mind map generation
+│   ├── vision.py                # Vision LLM queries
+│   ├── knowledge_graph.py       # Knowledge graph generation
+│   ├── knowledge_article.py     # Knowledge article workflow
+│   ├── content.py               # AI content generation
+│   ├── external_connection.py   # External connectors (GitHub, Notion, etc.)
+│   ├── admin.py                 # Admin dashboard
+│   ├── enterprise.py            # Enterprise features (MFA, audit)
+│   ├── workspace.py             # Persistent workspace state
+│   └── ...                      # 14 more routers
+│
+├── services/                    # Business logic layer (30+ files)
+│   ├── rag_service.py           # Core RAG integration
+│   ├── auth_service.py          # PostgreSQL-backed authentication
+│   ├── conversation_service.py  # Conversation management
+│   ├── document_parser.py       # Document parsing
+│   ├── mindmap_service.py       # Mind map generation
+│   ├── knowledge_graph_service.py # Knowledge graph generation
+│   ├── vision_router.py         # Vision LLM routing
+│   ├── vision_rag_integration.py # Vision + RAG integration
+│   ├── vlm_service.py           # Vision language model service
+│   ├── external_document_service.py # External resource indexing
+│   └── ...                      # 20+ more services
+│
+├── models/                      # Pydantic schemas (25+ files)
+│   ├── auth.py                  # Authentication models
+│   ├── query.py                 # Query models with strategy types
+│   ├── conversation.py          # Conversation models
+│   ├── document.py              # Document models
+│   ├── vision.py                # Vision LLM models
+│   └── ...                      # 20+ more models
+│
+├── adapters/                    # External service adapters
+│   ├── langchain/               # LangChain adapters
+│   │   ├── llm_adapter.py       # ChatOpenAI wrapper
+│   │   └── embedding_adapter.py # Embedding wrapper
+│   ├── mock/                    # Mock implementations for testing
+│   │   ├── llm_adapter.py
+│   │   ├── embedding_adapter.py
+│   │   ├── vector_store_adapter.py
+│   │   └── graph_store_adapter.py
+│   └── vision/                  # Vision LLM adapters
+│       ├── anthropic_vision_adapter.py  # Claude Vision
+│       └── openai_vision_adapter.py     # GPT-4V
+│
+├── ports/                       # Hexagonal architecture interfaces
+│   ├── llm_port.py              # LLM interface
+│   ├── embedding_port.py        # Embedding interface
+│   ├── vector_store_port.py     # Vector store interface
+│   ├── graph_store_port.py      # Graph store interface
+│   └── vision_llm_port.py       # Vision LLM interface
+│
+├── chains/                      # Composable RAG chains
+│   ├── base.py                  # Base chain infrastructure
+│   ├── retrieval_chain.py       # Retrieval stage
+│   ├── generation_chain.py      # Generation stage
+│   └── rag_chain.py             # Complete RAG chain
+│
+├── pipeline/                    # Vision LLM orchestration
+│   ├── orchestrator.py          # Main pipeline orchestrator
+│   ├── vision_orchestrator.py   # Vision-specific orchestration
+│   ├── embedding.py             # Embedding stage
+│   ├── retrieval.py             # Retrieval stage
+│   └── generation.py            # Generation stage
+│
+├── connectors/                  # External resource connectors
+│   ├── base.py                  # Base connector interface
+│   ├── confluence_connector.py  # Confluence sync
+│   ├── github_connector.py      # GitHub sync
+│   ├── google_drive_connector.py # Google Drive sync
+│   ├── notion_connector.py      # Notion sync
+│   ├── onenote_connector.py     # OneNote sync
+│   └── resilient_connector.py   # Fault-tolerant wrapper
+│
+├── repositories/                # Data access layer
+│   ├── base.py                  # Generic CRUD interface
+│   ├── conversation_repository.py
+│   ├── document_repository.py
+│   ├── user_repository.py
+│   └── ...
+│
+├── infrastructure/              # Infrastructure implementations
+│   ├── memory/                  # In-memory (testing)
+│   ├── postgres/                # PostgreSQL (production)
+│   │   ├── conversation_repository.py
+│   │   ├── user_repository.py
+│   │   └── trace_repository.py
+│   └── services/
+│       └── trace_writer.py      # E2E message tracing
+│
+├── events/                      # Event-driven architecture
+│   ├── domain_events.py         # Domain event definitions
+│   ├── event_bus.py             # In-memory event bus
+│   └── handlers.py              # Event handlers
+│
+├── prompts/                     # LLM prompt templates
+│   ├── rag_prompts.py           # RAG-specific prompts
+│   ├── system_prompts.py        # System role prompts
+│   └── mindmap_prompts.py       # Mind map prompts
+│
+├── usecases/                    # Use case implementations
+│   ├── query.py                 # Query use cases
+│   ├── document.py              # Document use cases
+│   └── mindmap.py               # Mind map use cases
+│
+├── middleware/                  # Custom middleware
+│   └── vision_rate_limiter.py   # Vision API rate limiting
+│
+└── ims_crawler/                 # IMS Issue crawler system (DDD)
+    ├── application/             # Application layer (use cases)
+    │   └── use_cases/
+    │       ├── crawl_jobs.py
+    │       ├── search_issues.py
+    │       └── generate_report.py
+    ├── domain/                  # Domain layer
+    │   ├── entities/            # Issue, CrawlJob, Attachment
+    │   ├── models/              # Dashboard, Report
+    │   └── ports/               # Repository interfaces
+    ├── infrastructure/          # Infrastructure layer
+    │   ├── adapters/            # PostgreSQL, Playwright, NIM
+    │   └── services/            # Cache, Search, Encryption
+    └── presentation/            # Presentation layer (routers)
+        └── routers/             # credentials, jobs, search, reports
+```
+
+### API Endpoints
+
+**Base Path:** `/api/v1`
+
+#### Authentication
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/auth/login` | User authentication |
+| POST | `/auth/refresh` | Token refresh |
+| POST | `/auth/logout` | Token revocation |
+| POST | `/auth/register` | User registration |
+| POST | `/auth/verify-email` | Email verification |
+| POST | `/auth/google` | Google OAuth login |
+| POST | `/auth/sso` | Enterprise SSO login |
+
+#### RAG Query
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/query` | Execute hybrid RAG query |
+| POST | `/query/classify` | Query classification analysis |
+| GET | `/query/history` | Get query history |
+
+#### Document Management
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/documents` | Upload document |
+| GET | `/documents` | List documents |
+| GET | `/documents/{id}` | Get document |
+| DELETE | `/documents/{id}` | Delete document |
+| POST | `/documents/{id}/reprocess` | Reprocess document |
+
+#### Conversation
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/conversations` | Create conversation |
+| GET | `/conversations` | List conversations |
+| GET | `/conversations/{id}` | Get conversation detail |
+| POST | `/conversations/{id}/messages` | Add message |
+| POST | `/conversations/{id}/regenerate` | Regenerate response |
+| POST | `/conversations/{id}/fork` | Fork conversation |
+
+#### Mind Map
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/mindmap/generate` | Generate mind map |
+| POST | `/mindmap/from-all-documents` | Generate from all documents |
+| GET | `/mindmap` | List mind maps |
+| GET | `/mindmap/{id}` | Get mind map |
+| POST | `/mindmap/{id}/expand` | Expand node |
+| POST | `/mindmap/{id}/query` | RAG query about node |
+
+#### Vision LLM
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/vision/query` | Vision-aware document query |
+| POST | `/vision/analyze-image` | Direct image analysis |
+| POST | `/vision/analyze-document` | Document visual analysis |
+| POST | `/vision/extract-data` | Extract data from visuals |
+
+#### Knowledge Graph
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/knowledge-graph/generate` | Generate knowledge graph |
+| GET | `/knowledge-graph/{id}` | Get graph |
+| POST | `/knowledge-graph/{id}/explore` | Explore graph nodes |
+
+#### Content Generation
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/content/summarize` | Generate summary |
+| POST | `/content/faq` | Generate FAQ |
+| POST | `/content/guide` | Generate learning guide |
+| POST | `/content/timeline` | Generate timeline |
+
+#### IMS Crawler
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/ims-credentials` | Store IMS credentials |
+| POST | `/ims-search` | Natural language issue search |
+| POST | `/ims-jobs` | Create crawl job |
+| GET | `/ims-jobs/{id}/stream` | SSE stream for job status |
+| POST | `/ims-reports` | Generate markdown report |
+| GET | `/ims-dashboard/stats` | Dashboard statistics |
+
+#### External Connectors
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/external-connection` | Create connection |
+| GET | `/external-connection` | List connections |
+| POST | `/external-connection/{id}/sync` | Sync documents |
+| DELETE | `/external-connection/{id}` | Remove connection |
+
+#### Admin & Enterprise
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/admin/users` | List users |
+| POST | `/admin/users` | Create user |
+| GET | `/admin-traces` | Query E2E traces |
+| POST | `/enterprise/mfa/enable` | Enable MFA |
+| GET | `/enterprise/audit-logs` | Retrieve audit logs |
+
+#### System Monitoring
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health status |
+| GET | `/system/status` | System status |
+| GET | `/system/gpu` | GPU utilization |
+| GET | `/system/models` | LLM model status |
+| GET | `/metrics` | Prometheus metrics |
+
+### Key Services
+
+| Service | Purpose |
+|---------|---------|
+| `rag_service.py` | Core RAG integration, query execution, streaming |
+| `auth_service.py` | PostgreSQL-backed authentication, JWT management |
+| `conversation_service.py` | Multi-turn conversation, context window optimization |
+| `document_parser.py` | Document parsing and chunking |
+| `mindmap_service.py` | LLM-based concept extraction |
+| `knowledge_graph_service.py` | Knowledge graph generation |
+| `vision_router.py` | 3-level vision routing (document, query, context) |
+| `vision_rag_integration.py` | Vision LLM + RAG integration |
+| `vlm_service.py` | Vision language model orchestration |
+| `external_document_service.py` | External resource indexing |
+| `web_content_service.py` | Web content extraction |
+
+### Design Patterns
+
+#### 1. Hexagonal Architecture (Ports & Adapters)
+```
+┌─────────────────────────────────────────────────────┐
+│                   Application Core                   │
+│  ┌─────────────────────────────────────────────┐    │
+│  │              Business Logic                  │    │
+│  │         (Services, Use Cases)               │    │
+│  └─────────────────────────────────────────────┘    │
+│           ▲              ▲              ▲           │
+│           │              │              │           │
+│      ┌────┴────┐    ┌────┴────┐    ┌────┴────┐     │
+│      │ LLMPort │    │EmbedPort│    │VectorPort│    │
+│      └────┬────┘    └────┬────┘    └────┬────┘     │
+└───────────┼──────────────┼──────────────┼───────────┘
+            │              │              │
+     ┌──────┴──────┐ ┌─────┴─────┐ ┌──────┴──────┐
+     │  LangChain  │ │ LangChain │ │   Neo4j     │
+     │  Adapter    │ │  Adapter  │ │   Adapter   │
+     └─────────────┘ └───────────┘ └─────────────┘
+```
+
+#### 2. Repository Pattern
+```python
+# Base repository interface
+class BaseRepository(ABC):
+    async def create(self, entity: T) -> T
+    async def get(self, id: str) -> Optional[T]
+    async def update(self, id: str, entity: T) -> T
+    async def delete(self, id: str) -> bool
+    async def list(self, filters: dict) -> List[T]
+
+# PostgreSQL implementation
+class PostgresConversationRepository(BaseRepository):
+    def __init__(self, pool: asyncpg.Pool):
+        self.pool = pool
+```
+
+#### 3. Strategy Pattern (Query Routing)
+```python
+class StrategyType(str, Enum):
+    AUTO = "auto"      # Automatic classification
+    VECTOR = "vector"  # Semantic similarity search
+    GRAPH = "graph"    # Entity-based graph traversal
+    HYBRID = "hybrid"  # Combined vector + graph
+    CODE = "code"      # Direct to Code LLM
+```
+
+#### 4. Chain of Responsibility (RAG Pipeline)
+```
+Query → RetrievalChain → GenerationChain → Response
+              │                  │
+              ▼                  ▼
+        Vector Search      LLM Generation
+        Graph Search       Response Format
+```
+
+#### 5. Factory Pattern
+```python
+class VisionLLMFactory:
+    @staticmethod
+    def create(provider: str) -> VisionLLMPort:
+        if provider == "anthropic":
+            return AnthropicVisionAdapter()
+        elif provider == "openai":
+            return OpenAIVisionAdapter()
+```
+
+### Security Configuration
+
+#### Middleware Stack
+```python
+# Security headers applied to all responses
+app.add_middleware(SecurityHeadersMiddleware)
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+#### Security Headers
+| Header | Value |
+|--------|-------|
+| Content-Security-Policy | Environment-based CSP |
+| X-Frame-Options | DENY |
+| X-Content-Type-Options | nosniff |
+| Strict-Transport-Security | max-age=31536000 (production) |
+| X-XSS-Protection | 1; mode=block |
+| Referrer-Policy | strict-origin-when-cross-origin |
+
+#### Authentication Flow
+```
+1. Login request → POST /api/v1/auth/login
+2. Validate credentials → auth_service.authenticate()
+3. Generate JWT → PyJWT with RS256/HS256
+4. Set HttpOnly cookie → Secure, SameSite=Strict
+5. Return user info → (token in cookie, not body)
+6. Subsequent requests → Cookie sent automatically
+7. Token refresh → POST /api/v1/auth/refresh
+```
+
+### App Mode System
+
+| Setting | Develop Mode | Product Mode |
+|---------|--------------|--------------|
+| Logging Level | DEBUG | INFO |
+| Token Logging | Enabled | Disabled |
+| Error Details | Full stack trace | Minimal message |
+| Trace Sampling | 100% | 10% |
+| Workers | 1 | 4 (configurable) |
+
+### Database Connections
+
+#### PostgreSQL (asyncpg)
+```python
+# Connection pool configuration
+pool = await asyncpg.create_pool(
+    dsn=settings.POSTGRES_URL,
+    min_size=5,
+    max_size=20,
+)
+```
+
+#### Neo4j
+```python
+# Graph database for vector + graph search
+driver = GraphDatabase.driver(
+    settings.NEO4J_URI,
+    auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD)
+)
+```
+
+### Environment Variables
+
+**Required:**
+```bash
+JWT_SECRET_KEY=<min 32 chars>      # openssl rand -base64 32
+ENCRYPTION_MASTER_KEY=<min 32 chars>
+ENCRYPTION_SALT=<min 16 chars>
+NEO4J_PASSWORD=<required>
+POSTGRES_PASSWORD=<required>
+```
+
+**Optional:**
+```bash
+APP_ENV=development|production|testing
+APP_MODE=develop|product
+ADMIN_INITIAL_PASSWORD=<for admin user>
+GOOGLE_CLIENT_ID=<for OAuth>
+ANTHROPIC_API_KEY=<for Vision>
+OPENAI_API_KEY=<for Vision>
+CORP_EMAIL_DOMAINS=tmaxsoft.co.jp,tmax.co.kr
+```
+
+### Development
+
+```bash
+# Install dependencies
+pip install -r requirements-api.txt
+
+# Development server (with auto-reload)
+python -m app.api.main --mode develop
+
+# Production server
+python -m app.api.main --mode product
+
+# Run tests
+pytest tests/ -v
+
+# Single test file
+python -m pytest tests/api/test_auth_endpoints.py -v
+```
+
+## Frontend Architecture
+
+### Tech Stack
+
+| Category | Technology | Version |
+|----------|------------|---------|
+| **Framework** | React | 18.2+ |
+| **Language** | TypeScript | 5.3+ |
+| **Build Tool** | Vite | 5.0+ |
+| **State Management** | Zustand | 4.4+ |
+| **Routing** | React Router DOM | 6.21+ |
+| **HTTP Client** | Axios | 1.6+ |
+| **Graph Visualization** | ReactFlow | 11.11+ |
+| **Graph Layout** | Dagre | 0.8.5 |
+| **Animation** | Framer Motion | 11+ |
+| **Authentication** | @react-oauth/google | 0.12.1 |
+| **Testing** | Vitest, Playwright | 2.0+, 1.57+ |
+
+### Directory Structure
+
+```
+frontend/src/
+├── main.tsx                    # React app entry point
+├── App.tsx                     # Root component (routing, auth guards)
+├── index.css                   # Global styles
+│
+├── pages/                      # Page-level components
+│   ├── LoginPage.tsx           # Auth UI (email/password, Google OAuth, SSO)
+│   ├── MainDashboard.tsx       # Main dashboard (GPU status, model info)
+│   ├── KnowledgeApp.tsx        # RAG chat interface
+│   ├── MindmapApp.tsx          # Mindmap visualization
+│   ├── AdminDashboard.tsx      # Admin interface
+│   └── SSOCallbackPage.tsx     # SSO callback handler
+│
+├── components/                 # Shared UI components
+│   ├── LanguageSelector.tsx    # Language dropdown (en/ko/ja)
+│   ├── ThemeToggle.tsx         # Theme toggle (light/dark/system)
+│   ├── MindmapViewer.tsx       # ReactFlow graph viewer
+│   ├── MindmapNode.tsx         # Mindmap node component
+│   ├── NodePanel.tsx           # Node detail panel
+│   └── Sidebar.tsx             # Navigation sidebar
+│
+├── features/                   # Feature modules
+│   ├── knowledge/              # Knowledge management feature
+│   │   ├── components/         # 13 components
+│   │   │   ├── ChatTab.tsx
+│   │   │   ├── ChatMessageList.tsx
+│   │   │   ├── DocumentsTab.tsx
+│   │   │   ├── WebSourcesTab.tsx
+│   │   │   ├── NotesTab.tsx
+│   │   │   ├── ProjectsTab.tsx
+│   │   │   ├── KnowledgeArticlesTab.tsx
+│   │   │   ├── KnowledgeGraphTab.tsx
+│   │   │   ├── ConversationHistorySidebar.tsx
+│   │   │   └── SettingsPopup.tsx
+│   │   ├── hooks/
+│   │   │   ├── useConversationHistory.ts
+│   │   │   └── useChatScroll.ts
+│   │   ├── services/
+│   │   │   └── knowledge-api.ts
+│   │   └── types/
+│   │
+│   └── ims/                    # IMS Crawler feature
+│       ├── components/         # 10 components
+│       │   ├── IMSDashboard.tsx
+│       │   ├── IMSCardView.tsx
+│       │   ├── IMSTableView.tsx
+│       │   ├── IMSGraphView.tsx
+│       │   ├── IMSSearchBar.tsx
+│       │   ├── IMSSearchResults.tsx
+│       │   ├── IMSCredentialsSetup.tsx
+│       │   └── IMSCrawlJobProgress.tsx
+│       ├── hooks/
+│       │   └── useSSEStream.ts  # Server-Sent Events
+│       ├── services/
+│       │   └── ims-api.ts
+│       └── store/
+│           └── imsStore.ts
+│
+├── store/                      # Zustand global stores
+│   ├── authStore.ts            # Authentication (HttpOnly cookies)
+│   ├── preferencesStore.ts     # Theme & language preferences
+│   └── workspaceStore.ts       # Workspace state (770+ lines)
+│
+├── services/
+│   └── api.ts                  # Mindmap API client
+│
+├── hooks/                      # Custom React hooks
+│   ├── useTranslation.ts       # i18n translation hook
+│   ├── useTheme.ts             # Theme management
+│   ├── useLanguagePolicy.ts    # Role-based language restrictions
+│   └── useLocaleFormat.ts      # Locale-aware formatting
+│
+├── i18n/                       # Internationalization
+│   ├── I18nContext.tsx         # React Context provider
+│   ├── index.ts                # Translation logic
+│   └── locales/                # Translation files
+│       ├── en/                 # English (9 namespaces)
+│       ├── ko/                 # Korean (9 namespaces)
+│       └── ja/                 # Japanese (9 namespaces)
+│
+├── types/
+│   └── mindmap.ts              # Mindmap type definitions
+│
+└── __tests__/                  # Tests
+    ├── accessibility.test.tsx
+    └── e2e/                    # Playwright E2E tests
+```
+
+### State Management (Zustand Stores)
+
+#### authStore.ts - Authentication State
+```typescript
+interface AuthState {
+  user: User | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+
+  // Actions
+  login(userId, password): Promise<bool>;
+  loginWithGoogle(credential): Promise<bool>;
+  loginWithSSO(email): Promise<string>;
+  logout(): Promise<void>;
+  checkAuth(): Promise<bool>;
+}
+// Security: Uses HttpOnly cookies (no localStorage tokens)
+```
+
+#### preferencesStore.ts - User Preferences
+```typescript
+interface PreferencesState {
+  theme: 'light' | 'dark' | 'system';
+  language: 'en' | 'ko' | 'ja';
+  resolvedTheme: 'light' | 'dark';
+
+  setTheme(theme): void;
+  setLanguage(language): void;
+  syncWithServer(): Promise<void>;
+}
+```
+
+#### workspaceStore.ts - Workspace State
+```typescript
+interface WorkspaceState {
+  session: WorkspaceSession | null;
+  activeMenu: MenuType;
+  menuStates: Record<MenuType, MenuState>;
+  recentConversations: Conversation[];
+  autoSaveEnabled: boolean;
+
+  // Conversation management
+  createConversation(title): Promise<Conversation>;
+  loadConversationMessages(id): Promise<void>;
+  addMessageToConversation(id, role, content): Promise<Message>;
+
+  // Auto-save with debounce
+  saveMenuState(menuType): Promise<void>;
+  saveAllMenuStates(): Promise<void>;
+}
+
+// MenuType: 'chat' | 'documents' | 'web_sources' | 'notes'
+//         | 'mindmap' | 'knowledge_graph' | 'knowledge_base'
+```
+
+### Frontend API Services
+
+#### Mindmap API (`services/api.ts`)
+
+```typescript
+const mindmapApi = {
+  // Generate mindmap from documents
+  generate(request: GenerateMindmapRequest): Promise<MindmapFull>;
+
+  // Generate from all documents
+  generateFromAll(params?: { title?, max_nodes?, depth? }): Promise<MindmapFull>;
+
+  // List mindmaps with pagination
+  list(page: number, limit: number): Promise<{ mindmaps, total }>;
+
+  // Get mindmap by ID
+  get(mindmapId: string): Promise<MindmapFull>;
+
+  // Delete mindmap
+  delete(mindmapId: string): Promise<boolean>;
+
+  // Expand node (add sub-concepts)
+  expand(mindmapId: string, request: ExpandNodeRequest): Promise<ExpandNodeResponse>;
+
+  // Query node with RAG
+  query(mindmapId: string, request: QueryNodeRequest): Promise<QueryNodeResponse>;
+
+  // Get node detail
+  getNodeDetail(mindmapId: string, nodeId: string): Promise<NodeDetailResponse>;
+};
+
+const documentsApi = {
+  // List available documents
+  list(): Promise<Array<{ id: string, name: string }>>;
+};
+```
+
+#### IMS API (`features/ims/services/ims-api.ts`)
+
+```typescript
+const imsApiService = {
+  // Credentials management
+  createCredentials(data: CredentialsRequest): Promise<any>;
+  getCredentials(): Promise<any>;
+  validateCredentials(): Promise<any>;
+  deleteCredentials(): Promise<void>;
+
+  // Issue search
+  searchIssues(request: SearchRequest): Promise<any>;
+  getRecentIssues(limit: number): Promise<any>;
+  getIssueDetails(issueId: string): Promise<any>;
+
+  // Crawl job management
+  createCrawlJob(request: CrawlJobRequest): Promise<any>;
+  getJobStatus(jobId: string): Promise<any>;
+  listJobs(limit: number): Promise<any>;
+  cancelJob(jobId: string): Promise<void>;
+};
+
+// Request types
+interface SearchRequest {
+  query: string;
+  max_results?: number;
+  include_attachments?: boolean;
+  include_related?: boolean;
+  use_semantic_search?: boolean;
+}
+
+interface CrawlJobRequest {
+  query: string;
+  include_attachments?: boolean;
+  include_related_issues?: boolean;
+  max_issues?: number;
+}
+```
+
+#### Workspace API (inside `workspaceStore.ts`)
+
+```typescript
+const workspaceApi = {
+  loadWorkspace(): Promise<any>;                      // GET /workspace/state/load
+  saveMenuState(menuType, state): Promise<void>;      // POST /workspace/state/save
+  saveGraphState(graphType, name, state): Promise<void>; // POST /workspace/graph/save
+  updateSession(updates): Promise<void>;              // PUT /workspace/session
+  loadConversations(limit): Promise<Conversation[]>;  // GET /conversations/recent
+  createConversation(title): Promise<Conversation>;   // POST /conversations
+  loadConversationMessages(id): Promise<Message[]>;   // GET /conversations/{id}/messages
+  addMessage(id, role, content, metadata): Promise<Message>; // POST /messages
+  deleteConversation(id, hardDelete): Promise<bool>;  // DELETE /conversations/{id}
+};
+```
+
+### Routing Structure
+
+```typescript
+<Routes>
+  {/* Public routes */}
+  <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+  <Route path="/auth/sso/callback" element={<SSOCallbackPage />} />
+
+  {/* Protected routes */}
+  <Route path="/" element={<ProtectedRoute><MainDashboard /></ProtectedRoute>} />
+  <Route path="/knowledge" element={<ProtectedRoute><KnowledgeApp /></ProtectedRoute>} />
+  <Route path="/mindmap" element={<ProtectedRoute><MindmapApp /></ProtectedRoute>} />
+  <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+
+  {/* Catch-all */}
+  <Route path="*" element={<Navigate to="/" replace />} />
+</Routes>
+```
+
+### Custom Hooks
+
+| Hook | Purpose |
+|------|---------|
+| `useTranslation()` | Multi-language translation (`t('common.appName')`) |
+| `useTheme()` | Theme management (`isDark`, `toggleTheme()`) |
+| `useLanguagePolicy()` | Role-based language restrictions |
+| `useLocaleFormat()` | Date/number/currency formatting |
+| `useConversationHistory()` | Conversation list management |
+| `useChatScroll()` | Auto-scroll to latest message |
+| `useSSEStream()` | Server-Sent Events for real-time updates |
+
+### Internationalization (i18n)
+
+**Supported Languages**: English (en), Korean (ko), Japanese (ja)
+
+**Namespaces** (9 per language):
+- `common` - Common UI elements
+- `auth` - Authentication
+- `dashboard` - Dashboard
+- `knowledge` - Knowledge management
+- `mindmap` - Mindmap
+- `admin` - Admin interface
+- `errors` - Error messages
+- `time` - Time expressions
+- `status` - Status messages
+
+**Usage Example**:
+```typescript
+const { t, language, setLanguage } = useTranslation();
+return <h1>{t('common.appName')}</h1>;
+```
+
+### Styling Approach
+
+- **Method**: CSS-in-JS with inline `<style>` tags
+- **Theme**: CSS variables (`--color-bg-primary`, `--color-text-primary`)
+- **Theme Application**: `<html data-theme="dark">` attribute
+- **System Detection**: `prefers-color-scheme` media query
+
+### Authentication Flow
+
+```
+1. User login → LoginPage
+2. API call → POST /api/v1/auth/login
+3. Server sets HttpOnly cookie
+4. Call /api/v1/auth/me to fetch user info
+5. Update Zustand store
+6. ProtectedRoute checks isAuthenticated
+7. Initialize workspace
+```
+
+### Development
+
+```bash
+# Install dependencies
+cd frontend && npm install
+
+# Development server (port 3000)
+npm run dev
+
+# Production build
+npm run build
+
+# Unit tests
+npm run test
+
+# E2E tests
+npx playwright test
+```
 
 ## Features
 
