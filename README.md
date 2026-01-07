@@ -16,36 +16,86 @@ HybridRAG combines knowledge graph technology with vector embeddings and LLM cap
 
 ## Architecture
 
-```
-                     +------------------+
-                     |   User Query     |
-                     +--------+---------+
-                              |
-                     +--------v---------+
-                     |  Query Router    |
-                     +--------+---------+
-                              |
-   +------------+-------------+-------------+------------+
-   |            |             |             |            |
-   v            v             v             v            |
-+--+---+   +----+----+   +----+----+   +----+----+      |
-|Vector|   | Graph   |   | Hybrid  |   |  Code   |      |
-| RAG  |   |  RAG    |   |   RAG   |   | Agent   |      |
-+--+---+   +----+----+   +----+----+   +----+----+      |
-   |            |             |             |            |
-   v            v             v             v            |
-+--+--------+   +--+------+   +--+-----+   +--+--------+ |
-|Neo4j      |   |Neo4j    |   | Both   |   |Mistral   | |
-|Vector Idx |   |Graph    |   |Methods |   |NeMo 12B  | |
-+-----------+   +---------+   +--------+   +----------+ |
+Our system follows a **Hexagonal Architecture (Ports & Adapters)** to ensure high maintainability, testability, and decoupling from external technologies. This design allows us to switch LLM providers, database engines, or frontend frameworks with minimal impact on the core business logic.
+
+### Unified System Structure
+
+```mermaid
+graph TB
+    subgraph "Frontend Layer (React)"
+        A["User Interface (Mindmap, Chat, Admin)"]
+        B["Zustand State Management"]
+        C["API Services (Axios)"]
+    end
+
+    subgraph "API Gateway (FastAPI)"
+        D["Routers & Middleware"]
+        E["Authentication & Security"]
+    end
+
+    subgraph "Application Core (Hexagonal)"
+        subgraph "Business Logic"
+            F["Services (RAG, Mindmap, Trace)"]
+            G["Use Cases & Domain Events"]
+        end
+        subgraph "Ports (Interfaces)"
+            H["LLMPort"]
+            I["EmbedPort"]
+            J["VectorStorePort"]
+            K["GraphStorePort"]
+            L["VisionPort"]
+        end
+    end
+
+    subgraph "Adapters & Infrastructure"
+        M["NVIDIA NIM Adapters"]
+        N["Neo4j Graph/Vector Adapter"]
+        O["PostgreSQL Repository"]
+        P["External API Adapters (Claude, GPT-4)"]
+    end
+
+    A <--> C
+    C <--> D
+    D <--> F
+    F <--> H & I & J & K & L
+    H <--> M
+    I <--> M
+    J <--> N
+    K <--> N
+    L <--> P
+    
+    subgraph "External Services / GPU"
+        Q[("Neo4j DB")]
+        R[("PostgreSQL")]
+        S["GPU Containers (Nemotron, NV-Embed)"]
+    end
+    
+    N <--> Q
+    O <--> R
+    M <--> S
 ```
 
-### Graph Schema
-```
-Document --CONTAINS--> Chunk --MENTIONS--> Entity
-                         |
-                         +-- embedding: LIST<FLOAT> (4096 dimensions)
-```
+### 1. Hexagonal Architecture (Ports & Adapters)
+
+The core principle is the isolation of business logic from external factors.
+
+| Layer | Responsibility | Key Components |
+|-------|----------------|----------------|
+| **Core** | Pure business logic and domain entities | RAG Service, Trace Writer, Domain Events |
+| **Ports** | Abstract interfaces defining required services | LLMPort, EmbeddingPort, GraphStorePort |
+| **Adapters** | Concrete implementations for specific technologies | LangChainAdapter, Neo4jAdapter, PostgresRepo |
+| **Drivers** | Entry points that trigger the business logic | FastAPI Routers, CLI Chat Interface |
+
+### 2. Information Flow
+
+1.  **Request**: The Frontend sends a multilingual query via the FastAPI Gateway.
+2.  **Routing**: The Query Router (App Core) classifies the intent (Vector, Graph, Hybrid, or Code).
+3.  **Orchestration**: A Composable Chain orchestrates retrieval through the respective Ports.
+4.  **Retrieval**: Adapters fetch data from Neo4j (Graph/Vector) or external APIs.
+5.  **Generation**: The LLM Adapter (NVIDIA NIM) generates the final response.
+6.  **Tracing**: The entire flow is captured by the E2E Trace System for monitoring.
+
+---
 
 ### Query Routing Logic
 
@@ -820,69 +870,6 @@ app/api/
 | `external_document_service.py` | External resource indexing |
 | `web_content_service.py` | Web content extraction |
 
-### Design Patterns
-
-#### 1. Hexagonal Architecture (Ports & Adapters)
-
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                            APPLICATION CORE                                   │
-│  ┌────────────────────────────────────────────────────────────────────────┐  │
-│  │                         Business Logic                                  │  │
-│  │                    (Services, Use Cases)                               │  │
-│  └────────────────────────────────────────────────────────────────────────┘  │
-│         ▲              ▲              ▲              ▲              ▲        │
-│         │              │              │              │              │        │
-│    ┌────┴────┐   ┌─────┴─────┐  ┌─────┴─────┐  ┌─────┴─────┐  ┌─────┴─────┐  │
-│    │ LLMPort │   │EmbedPort  │  │VectorPort │  │GraphPort  │  │VisionPort │  │
-│    └────┬────┘   └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  │
-└─────────┼──────────────┼──────────────┼──────────────┼──────────────┼────────┘
-          │              │              │              │              │
-          ▼              ▼              ▼              ▼              ▼
-┌─────────┴──────────────┴──────────────┴──────────────┴──────────────┴────────┐
-│                              ADAPTERS                                         │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────┐ │
-│  │ LangChain   │ │ LangChain   │ │   Neo4j     │ │   Neo4j     │ │Anthropic│ │
-│  │ LLM Adapter │ │Embed Adapter│ │VectorAdapter│ │GraphAdapter │ │ Vision  │ │
-│  └──────┬──────┘ └──────┬──────┘ └──────┬──────┘ └──────┬──────┘ └────┬────┘ │
-│         │              │              │              │              │        │
-│  ┌──────┴──────┐ ┌─────┴──────┐      │              │        ┌─────┴─────┐  │
-│  │  Mock LLM   │ │ Mock Embed │      │              │        │  OpenAI   │  │
-│  │  (Testing)  │ │ (Testing)  │      │              │        │  Vision   │  │
-│  └─────────────┘ └────────────┘      │              │        └─────┬─────┘  │
-└──────────────────────────────────────┼──────────────┼──────────────┼────────┘
-                                       │              │              │
-                                       ▼              ▼              ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                           EXTERNAL SERVICES                                   │
-│   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐  ┌─────────────┐ │
-│   │   NVIDIA NIM    │  │    Neo4j DB     │  │  Anthropic  │  │   OpenAI    │ │
-│   │  (GPU 4,5,7)    │  │  (Port 7687)    │  │     API     │  │    API      │ │
-│   └─────────────────┘  └─────────────────┘  └─────────────┘  └─────────────┘ │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
-
-**Port Interfaces:**
-
-| Port | Interface | Purpose |
-|------|-----------|---------|
-| LLMPort | `generate()`, `generate_stream()` | Text generation |
-| EmbeddingPort | `embed_text()`, `embed_batch()` | Vector embedding |
-| VectorStorePort | `similarity_search()`, `add_vectors()` | Vector search |
-| GraphStorePort | `query()`, `traverse()` | Graph operations |
-| VisionLLMPort | `analyze_image()`, `extract_data()` | Vision analysis |
-
-**Adapter Implementations:**
-
-| Port | Adapter | External Service |
-|------|---------|------------------|
-| LLMPort | LangChainLLMAdapter | NVIDIA Nemotron 9B |
-| LLMPort | MockLLMAdapter | In-memory (Testing) |
-| EmbeddingPort | LangChainEmbeddingAdapter | NVIDIA NV-EmbedQA 7B |
-| VectorStorePort | Neo4jVectorAdapter | Neo4j Vector Index |
-| GraphStorePort | Neo4jGraphAdapter | Neo4j Graph DB |
-| VisionLLMPort | AnthropicVisionAdapter | Claude 3 Vision API |
-| VisionLLMPort | OpenAIVisionAdapter | GPT-4V API |
 
 #### 2. Repository Pattern
 ```python
