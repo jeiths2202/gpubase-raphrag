@@ -821,25 +821,100 @@ app/api/
 ### Design Patterns
 
 #### 1. Hexagonal Architecture (Ports & Adapters)
+
+```mermaid
+flowchart TB
+    subgraph Core["🎯 Application Core"]
+        subgraph BL["Business Logic"]
+            Services["Services<br/>(RAG, Vision, Mindmap)"]
+            UseCases["Use Cases<br/>(Query, Document, Graph)"]
+        end
+
+        subgraph Ports["📌 Ports (Interfaces)"]
+            LLMPort["LLMPort"]
+            EmbedPort["EmbeddingPort"]
+            VectorPort["VectorStorePort"]
+            GraphPort["GraphStorePort"]
+            VisionPort["VisionLLMPort"]
+        end
+
+        Services --> Ports
+        UseCases --> Ports
+    end
+
+    subgraph Adapters["🔌 Adapters (Implementations)"]
+        subgraph LLMAdapters["LLM Adapters"]
+            LangChainLLM["LangChain LLM<br/>Nemotron 9B"]
+            MockLLM["Mock LLM<br/>(Testing)"]
+        end
+
+        subgraph EmbedAdapters["Embedding Adapters"]
+            LangChainEmbed["LangChain Embed<br/>NV-EmbedQA 7B"]
+            MockEmbed["Mock Embed<br/>(Testing)"]
+        end
+
+        subgraph StoreAdapters["Store Adapters"]
+            Neo4jVector["Neo4j Vector<br/>Index"]
+            Neo4jGraph["Neo4j Graph<br/>Traversal"]
+        end
+
+        subgraph VisionAdapters["Vision LLM Adapters"]
+            AnthropicVision["Anthropic<br/>Claude Vision"]
+            OpenAIVision["OpenAI<br/>GPT-4V"]
+        end
+    end
+
+    LLMPort --> LangChainLLM
+    LLMPort -.-> MockLLM
+    EmbedPort --> LangChainEmbed
+    EmbedPort -.-> MockEmbed
+    VectorPort --> Neo4jVector
+    GraphPort --> Neo4jGraph
+    VisionPort --> AnthropicVision
+    VisionPort --> OpenAIVision
+
+    subgraph External["🌐 External Services"]
+        NVIDIA["NVIDIA NIM<br/>GPU 4,5,7"]
+        Neo4j["Neo4j DB<br/>Port 7687"]
+        AnthropicAPI["Anthropic API"]
+        OpenAIAPI["OpenAI API"]
+    end
+
+    LangChainLLM --> NVIDIA
+    LangChainEmbed --> NVIDIA
+    Neo4jVector --> Neo4j
+    Neo4jGraph --> Neo4j
+    AnthropicVision --> AnthropicAPI
+    OpenAIVision --> OpenAIAPI
+
+    style Core fill:#e1f5fe,stroke:#01579b
+    style Ports fill:#fff3e0,stroke:#e65100
+    style Adapters fill:#f3e5f5,stroke:#7b1fa2
+    style External fill:#e8f5e9,stroke:#2e7d32
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Application Core                   │
-│  ┌─────────────────────────────────────────────┐    │
-│  │              Business Logic                  │    │
-│  │         (Services, Use Cases)               │    │
-│  └─────────────────────────────────────────────┘    │
-│           ▲              ▲              ▲           │
-│           │              │              │           │
-│      ┌────┴────┐    ┌────┴────┐    ┌────┴────┐     │
-│      │ LLMPort │    │EmbedPort│    │VectorPort│    │
-│      └────┬────┘    └────┬────┘    └────┬────┘     │
-└───────────┼──────────────┼──────────────┼───────────┘
-            │              │              │
-     ┌──────┴──────┐ ┌─────┴─────┐ ┌──────┴──────┐
-     │  LangChain  │ │ LangChain │ │   Neo4j     │
-     │  Adapter    │ │  Adapter  │ │   Adapter   │
-     └─────────────┘ └───────────┘ └─────────────┘
-```
+
+**Port Interfaces:**
+
+| Port | Interface | Purpose |
+|------|-----------|---------|
+| `LLMPort` | `generate()`, `generate_stream()`, `count_tokens()` | Text generation with LLM |
+| `EmbeddingPort` | `embed_text()`, `embed_batch()` | Vector embedding generation |
+| `VectorStorePort` | `similarity_search()`, `add_vectors()` | Vector similarity search |
+| `GraphStorePort` | `query()`, `add_nodes()`, `traverse()` | Graph database operations |
+| `VisionLLMPort` | `analyze_image()`, `extract_data()`, `describe()` | Vision/multimodal analysis |
+
+**Adapter Implementations:**
+
+| Port | Adapter | External Service |
+|------|---------|------------------|
+| LLMPort | `LangChainLLMAdapter` | NVIDIA Nemotron 9B (NIM) |
+| LLMPort | `MockLLMAdapter` | In-memory (Testing) |
+| EmbeddingPort | `LangChainEmbeddingAdapter` | NVIDIA NV-EmbedQA 7B (NIM) |
+| EmbeddingPort | `MockEmbeddingAdapter` | In-memory (Testing) |
+| VectorStorePort | `Neo4jVectorAdapter` | Neo4j Vector Index |
+| GraphStorePort | `Neo4jGraphAdapter` | Neo4j Graph Database |
+| VisionLLMPort | `AnthropicVisionAdapter` | Claude 3 Vision API |
+| VisionLLMPort | `OpenAIVisionAdapter` | GPT-4V API |
 
 #### 2. Repository Pattern
 ```python
