@@ -213,13 +213,10 @@
   color: var(--color-text-secondary);
 }
 
-/* AI Generation Panel */
+/* AI Generation Panel - Floating */
 .studio-ai-panel {
   position: absolute;
-  bottom: var(--space-4);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 480px;
+  width: 380px;
   max-width: calc(100% - var(--space-8));
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
@@ -227,39 +224,85 @@
   box-shadow: var(--shadow-2xl);
   overflow: hidden;
   z-index: 100;
+  transition: box-shadow 0.2s ease, width 0.2s ease;
+}
+
+.studio-ai-panel.floating {
+  /* Position is set inline via style prop */
+}
+
+.studio-ai-panel.dragging {
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  opacity: 0.95;
+  cursor: grabbing;
+}
+
+.studio-ai-panel.minimized {
+  width: 280px;
 }
 
 .studio-ai-panel-header {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
   border-bottom: 1px solid var(--color-border);
+  cursor: grab;
+  user-select: none;
+}
+
+.studio-ai-panel.dragging .studio-ai-panel-header {
+  cursor: grabbing;
+}
+
+.studio-ai-panel-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  margin-right: var(--space-1);
 }
 
 .studio-ai-icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   color: var(--color-primary);
+  flex-shrink: 0;
 }
 
 .studio-ai-panel-header h3 {
   flex: 1;
-  font-size: var(--text-lg);
+  font-size: var(--text-base);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.studio-ai-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.studio-ai-panel-actions .btn {
+  padding: var(--space-1);
+  min-width: auto;
 }
 
 .studio-ai-panel-body {
   padding: var(--space-4);
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .studio-ai-description {
   font-size: var(--text-sm);
   color: var(--color-text-secondary);
-  margin: 0 0 var(--space-4) 0;
+  margin: 0 0 var(--space-3) 0;
   line-height: var(--line-height-normal);
 }
 
@@ -269,10 +312,10 @@
   background: var(--color-bg-input);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-base);
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   color: var(--color-text-primary);
   resize: none;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
   font-family: inherit;
   transition: var(--transition-colors);
 }
@@ -289,6 +332,53 @@
 
 .studio-ai-panel-body .btn {
   width: 100%;
+}
+
+/* Floating AI Button (FAB) */
+.studio-ai-fab {
+  position: absolute;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gradient-primary);
+  border: none;
+  border-radius: var(--radius-full);
+  color: white;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg), 0 0 20px rgba(99, 102, 241, 0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  z-index: 90;
+}
+
+.studio-ai-fab:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-xl), 0 0 30px rgba(99, 102, 241, 0.5);
+}
+
+.studio-ai-fab:active {
+  transform: scale(0.98);
+}
+
+/* Animation for FAB pulse effect */
+@keyframes fab-pulse {
+  0%, 100% {
+    box-shadow: var(--shadow-lg), 0 0 20px rgba(99, 102, 241, 0.4);
+  }
+  50% {
+    box-shadow: var(--shadow-lg), 0 0 30px rgba(99, 102, 241, 0.6);
+  }
+}
+
+.studio-ai-fab {
+  animation: fab-pulse 2s ease-in-out infinite;
+}
+
+.studio-ai-fab:hover {
+  animation: none;
 }
 
 /* Status Bar */

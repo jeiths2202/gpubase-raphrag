@@ -18,10 +18,46 @@ import {
   Sparkles,
   Circle,
   X,
-  Wand2
+  Wand2,
+  Minimize2,
+  GripHorizontal,
+  MessageSquare
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import './AIStudioPage.css';
+
+// Storage key for AI panel position
+const AI_PANEL_POSITION_KEY = 'kms-studio-ai-panel-position';
+
+// Default panel position (right side)
+const DEFAULT_PANEL_POSITION = { x: -500, y: 100 }; // Relative to right edge
+
+interface PanelPosition {
+  x: number;
+  y: number;
+}
+
+// Load saved panel position from localStorage
+const loadPanelPosition = (): PanelPosition => {
+  try {
+    const saved = localStorage.getItem(AI_PANEL_POSITION_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.warn('Failed to load panel position:', e);
+  }
+  return DEFAULT_PANEL_POSITION;
+};
+
+// Save panel position to localStorage
+const savePanelPosition = (position: PanelPosition) => {
+  try {
+    localStorage.setItem(AI_PANEL_POSITION_KEY, JSON.stringify(position));
+  } catch (e) {
+    console.warn('Failed to save panel position:', e);
+  }
+};
 
 // Node types
 type NodeType = 'concept' | 'topic' | 'detail' | 'question' | 'insight';
@@ -196,6 +232,12 @@ export const AIStudioPage: React.FC = () => {
   const [showNodeEditor, setShowNodeEditor] = useState(false);
   const [editingLabel, setEditingLabel] = useState('');
 
+  // AI Panel floating state
+  const [aiPanelPosition, setAiPanelPosition] = useState<PanelPosition>(loadPanelPosition);
+  const [isAiPanelMinimized, setIsAiPanelMinimized] = useState(false);
+  const [isAiPanelDragging, setIsAiPanelDragging] = useState(false);
+  const [aiPanelDragStart, setAiPanelDragStart] = useState({ x: 0, y: 0 });
+
   // Handle canvas mouse events for panning
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
@@ -248,6 +290,54 @@ export const AIStudioPage: React.FC = () => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
   };
+
+  // AI Panel drag handlers
+  const handleAiPanelDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsAiPanelDragging(true);
+    setAiPanelDragStart({
+      x: e.clientX - aiPanelPosition.x,
+      y: e.clientY - aiPanelPosition.y
+    });
+  }, [aiPanelPosition]);
+
+  const handleAiPanelDragMove = useCallback((e: MouseEvent) => {
+    if (isAiPanelDragging) {
+      const newX = e.clientX - aiPanelDragStart.x;
+      const newY = e.clientY - aiPanelDragStart.y;
+
+      // Constrain to viewport with some padding
+      const constrainedX = Math.max(-window.innerWidth + 100, Math.min(newX, window.innerWidth - 100));
+      const constrainedY = Math.max(60, Math.min(newY, window.innerHeight - 100));
+
+      setAiPanelPosition({ x: constrainedX, y: constrainedY });
+    }
+  }, [isAiPanelDragging, aiPanelDragStart]);
+
+  const handleAiPanelDragEnd = useCallback(() => {
+    if (isAiPanelDragging) {
+      setIsAiPanelDragging(false);
+      savePanelPosition(aiPanelPosition);
+    }
+  }, [isAiPanelDragging, aiPanelPosition]);
+
+  // AI Panel drag effect
+  useEffect(() => {
+    if (isAiPanelDragging) {
+      window.addEventListener('mousemove', handleAiPanelDragMove);
+      window.addEventListener('mouseup', handleAiPanelDragEnd);
+      return () => {
+        window.removeEventListener('mousemove', handleAiPanelDragMove);
+        window.removeEventListener('mouseup', handleAiPanelDragEnd);
+      };
+    }
+  }, [isAiPanelDragging, handleAiPanelDragMove, handleAiPanelDragEnd]);
+
+  // Toggle AI Panel minimize
+  const toggleAiPanelMinimize = useCallback(() => {
+    setIsAiPanelMinimized(prev => !prev);
+  }, []);
 
   // Add new node
   const handleAddNode = useCallback((type: NodeType) => {
@@ -582,49 +672,89 @@ export const AIStudioPage: React.FC = () => {
           </div>
         )}
 
-        {/* AI Generation Panel */}
+        {/* Floating AI Generation Panel */}
         {showAIPanel && (
-          <div className="studio-ai-panel">
-            <div className="studio-ai-panel-header">
+          <div
+            className={`studio-ai-panel floating ${isAiPanelMinimized ? 'minimized' : ''} ${isAiPanelDragging ? 'dragging' : ''}`}
+            style={{
+              left: aiPanelPosition.x < 0 ? 'auto' : aiPanelPosition.x,
+              right: aiPanelPosition.x < 0 ? Math.abs(aiPanelPosition.x) : 'auto',
+              top: aiPanelPosition.y,
+              transform: 'none'
+            }}
+          >
+            {/* Drag Handle Header */}
+            <div
+              className="studio-ai-panel-header"
+              onMouseDown={handleAiPanelDragStart}
+            >
+              <div className="studio-ai-panel-drag-handle">
+                <GripHorizontal size={16} />
+              </div>
               <Wand2 className="studio-ai-icon" />
               <h3>{t('studio.aiAssistant')}</h3>
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={() => setShowAIPanel(false)}
-              >
-                <X size={16} />
-              </button>
+              <div className="studio-ai-panel-actions">
+                <button
+                  className="btn btn-ghost btn-xs"
+                  onClick={toggleAiPanelMinimize}
+                  title={isAiPanelMinimized ? 'Expand' : 'Minimize'}
+                >
+                  {isAiPanelMinimized ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+                </button>
+                <button
+                  className="btn btn-ghost btn-xs"
+                  onClick={() => setShowAIPanel(false)}
+                  title="Close"
+                >
+                  <X size={14} />
+                </button>
+              </div>
             </div>
-            <div className="studio-ai-panel-body">
-              <p className="studio-ai-description">
-                {t('studio.aiDescription')}
-              </p>
-              <textarea
-                className="studio-ai-input"
-                placeholder={t('studio.aiPlaceholder')}
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                rows={4}
-              />
-              <button
-                className="btn btn-primary"
-                onClick={handleAIGenerate}
-                disabled={!aiPrompt.trim() || isGenerating}
-              >
-                {isGenerating ? (
-                  <>
-                    <RefreshCw size={16} className="spin" />
-                    {t('studio.generating')}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={16} />
-                    {t('studio.generateConcepts')}
-                  </>
-                )}
-              </button>
-            </div>
+
+            {/* Collapsible Body */}
+            {!isAiPanelMinimized && (
+              <div className="studio-ai-panel-body">
+                <p className="studio-ai-description">
+                  {t('studio.aiDescription')}
+                </p>
+                <textarea
+                  className="studio-ai-input"
+                  placeholder={t('studio.aiPlaceholder')}
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  rows={4}
+                />
+                <button
+                  className="btn btn-primary"
+                  onClick={handleAIGenerate}
+                  disabled={!aiPrompt.trim() || isGenerating}
+                >
+                  {isGenerating ? (
+                    <>
+                      <RefreshCw size={16} className="spin" />
+                      {t('studio.generating')}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={16} />
+                      {t('studio.generateConcepts')}
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
+        )}
+
+        {/* Floating AI Button (when panel is closed) */}
+        {!showAIPanel && (
+          <button
+            className="studio-ai-fab"
+            onClick={() => setShowAIPanel(true)}
+            title={t('studio.aiAssistant')}
+          >
+            <MessageSquare size={24} />
+          </button>
         )}
       </div>
 
