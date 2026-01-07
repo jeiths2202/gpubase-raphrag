@@ -1,0 +1,40 @@
+{
+  "title": "AIスタジオ",
+  "subtitle": "ナレッジの繋がりを視覚化して探索",
+  "createNew": "新しいマインドマップを作成",
+  "addNode": "ノードを追加",
+  "deleteNode": "ノードを削除",
+  "editNode": "ノードを編集",
+  "sidebar": {
+    "title": "AIスタジオ",
+    "subtitle": "マインドマップを生成して探索",
+    "newMindmap": "新しいマインドマップ",
+    "titlePlaceholder": "タイトルを入力...",
+    "topicPlaceholder": "分析するトピックを入力...",
+    "maxNodes": "最大ノード数",
+    "generating": "生成中...",
+    "generate": "生成",
+    "cancel": "キャンセル",
+    "savedMindmaps": "保存されたマインドマップ",
+    "noMindmaps": "マインドマップがありません"
+  },
+  "panel": {
+    "importance": "重要度",
+    "expand": "展開",
+    "summarize": "要約",
+    "sourceDocuments": "ソースドキュメント",
+    "askPlaceholder": "この概念について質問...",
+    "ask": "質問",
+    "answer": "回答",
+    "relatedConcepts": "関連概念"
+  },
+  "header": {
+    "nodes": "ノード",
+    "edges": "エッジ",
+    "processing": "処理中..."
+  },
+  "empty": {
+    "title": "マインドマップが選択されていません",
+    "description": "新しいマインドマップを作成するか、既存のものを選択してください"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "title": "AI Studio",
+  "newNode": "New Node",
+  "aiGenerate": "AI Generate",
+  "export": "Export",
+  "import": "Import",
+  "addNode": "Add Node",
+  "editNode": "Edit Node",
+  "nodeLabel": "Label",
+  "nodeType": "Type",
+  "nodeTypes": {
+    "concept": "Concept",
+    "topic": "Topic",
+    "detail": "Detail",
+    "question": "Question",
+    "insight": "Insight"
+  },
+  "aiAssistant": "AI Assistant",
+  "aiDescription": "Describe a topic and AI will generate related concepts for your mindmap.",
+  "aiPlaceholder": "Enter a topic to explore...",
+  "generating": "Generating...",
+  "generateConcepts": "Generate Concepts",
+  "nodes": "Nodes",
+  "selected": "Selected",
+  "none": "None",
+  "lastSaved": "Last saved"
+}

@@ -1,0 +1,55 @@
+{
+  "title": "Knowledge Base",
+  "searchPlaceholder": "Search knowledge...",
+  "askQuestion": "Ask a question",
+  "noResults": "No results found",
+  "sources": "Sources",
+  "relevance": "Relevance",
+  "newConversation": "New Conversation",
+  "conversationHistory": "Conversation History",
+  "relatedDocuments": "Related Documents",
+  "categories": {
+    "all": "All",
+    "documents": "Documents",
+    "faqs": "FAQs",
+    "guides": "Guides",
+    "policies": "Policies"
+  },
+  "filters": {
+    "date": "Date",
+    "type": "Type",
+    "status": "Status",
+    "author": "Author"
+  },
+  "article": {
+    "views": "views",
+    "lastUpdated": "Last updated",
+    "helpful": "Was this helpful?",
+    "yes": "Yes",
+    "no": "No",
+    "relatedArticles": "Related Articles",
+    "notHelpful": "Not helpful"
+  },
+  "chat": {
+    "title": "AI Assistant",
+    "subtitle": "Ask me anything about your knowledge base",
+    "inputPlaceholder": "Type your question...",
+    "send": "Send",
+    "thinking": "Thinking...",
+    "suggestions": "Suggested questions",
+    "clearHistory": "Clear history",
+    "errorMessage": "Sorry, I encountered an error. Please try again.",
+    "noConversations": "No conversations yet",
+    "startNewConversation": "Start a new conversation",
+    "noSourcesYet": "Referenced sources will appear here after chatting",
+    "addNote": "Add Note",
+    "noNotesYet": "Your notes will appear here",
+    "messages": "messages"
+  },
+  "sidebar": {
+    "chat": "Chat",
+    "documents": "Documents",
+    "sources": "Sources",
+    "notes": "Notes"
+  }
+}

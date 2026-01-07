@@ -1,0 +1,106 @@
+{
+  "title": "IMS Crawler",
+  "description": "Manage and monitor IMS crawling jobs",
+  "crawler": {
+    "title": "Crawler Status",
+    "start": "Start Crawling",
+    "stop": "Stop",
+    "pause": "Pause",
+    "resume": "Resume",
+    "status": {
+      "idle": "Idle",
+      "running": "Running",
+      "paused": "Paused",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "progress": "Progress",
+    "currentUrl": "Current URL",
+    "elapsedTime": "Elapsed Time",
+    "estimatedRemaining": "Estimated Remaining"
+  },
+  "jobs": {
+    "title": "Crawling Jobs",
+    "newJob": "New Job",
+    "schedule": "Schedule",
+    "history": "History",
+    "id": "Job ID",
+    "url": "Target URL",
+    "status": "Status",
+    "documentCount": "Documents",
+    "createdAt": "Created",
+    "actions": "Actions",
+    "viewDetails": "View Details",
+    "delete": "Delete",
+    "noJobs": "No crawling jobs found",
+    "createFirst": "Create your first crawling job to get started"
+  },
+  "newJobForm": {
+    "title": "Create New Crawling Job",
+    "targetUrl": "Target URL",
+    "targetUrlPlaceholder": "https://example.com/docs",
+    "jobName": "Job Name",
+    "jobNamePlaceholder": "Documentation Crawl",
+    "description": "Description",
+    "descriptionPlaceholder": "Crawl documentation pages",
+    "cancel": "Cancel",
+    "create": "Create Job",
+    "validation": {
+      "urlRequired": "Target URL is required",
+      "urlInvalid": "Please enter a valid URL",
+      "nameRequired": "Job name is required"
+    }
+  },
+  "jobDetail": {
+    "title": "Job Details",
+    "overview": "Overview",
+    "logs": "Logs",
+    "documents": "Crawled Documents",
+    "errors": "Errors",
+    "close": "Close"
+  },
+  "documents": {
+    "title": "Crawled Documents",
+    "total": "Total Documents",
+    "new": "New",
+    "updated": "Updated",
+    "failed": "Failed"
+  },
+  "settings": {
+    "title": "Crawler Settings",
+    "depth": "Crawl Depth",
+    "depthHelp": "Maximum number of link levels to follow",
+    "interval": "Crawl Interval",
+    "intervalHelp": "Time between requests (seconds)",
+    "timeout": "Timeout",
+    "timeoutHelp": "Request timeout (seconds)",
+    "documentTypes": "Document Types",
+    "documentTypesHelp": "File types to crawl",
+    "save": "Save Settings",
+    "reset": "Reset to Default"
+  },
+  "logs": {
+    "title": "Real-time Logs",
+    "clear": "Clear Logs",
+    "download": "Download",
+    "noLogs": "No logs available",
+    "levels": {
+      "info": "Info",
+      "warning": "Warning",
+      "error": "Error",
+      "debug": "Debug"
+    }
+  },
+  "stats": {
+    "totalCrawled": "Total Crawled",
+    "newDocuments": "New Documents",
+    "updatedDocuments": "Updated Documents",
+    "failedDocuments": "Failed Documents",
+    "lastUpdated": "Last Updated"
+  },
+  "actions": {
+    "refresh": "Refresh",
+    "export": "Export",
+    "import": "Import"
+  }
+}

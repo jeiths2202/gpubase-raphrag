@@ -1,0 +1,27 @@
+{
+  "title": "AIスタジオ",
+  "newNode": "新規ノード",
+  "aiGenerate": "AI生成",
+  "export": "エクスポート",
+  "import": "インポート",
+  "addNode": "ノード追加",
+  "editNode": "ノード編集",
+  "nodeLabel": "ラベル",
+  "nodeType": "タイプ",
+  "nodeTypes": {
+    "concept": "コンセプト",
+    "topic": "トピック",
+    "detail": "詳細",
+    "question": "質問",
+    "insight": "インサイト"
+  },
+  "aiAssistant": "AIアシスタント",
+  "aiDescription": "トピックを説明すると、AIがマインドマップに関連する概念を生成します。",
+  "aiPlaceholder": "探索するトピックを入力...",
+  "generating": "生成中...",
+  "generateConcepts": "概念を生成",
+  "nodes": "ノード",
+  "selected": "選択中",
+  "none": "なし",
+  "lastSaved": "最終保存"
+}

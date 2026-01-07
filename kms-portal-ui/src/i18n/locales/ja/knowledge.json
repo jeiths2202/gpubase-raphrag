@@ -1,0 +1,55 @@
+{
+  "title": "ナレッジベース",
+  "searchPlaceholder": "ナレッジを検索...",
+  "askQuestion": "質問する",
+  "noResults": "結果が見つかりません",
+  "sources": "ソース",
+  "relevance": "関連度",
+  "newConversation": "新しい会話",
+  "conversationHistory": "会話履歴",
+  "relatedDocuments": "関連ドキュメント",
+  "categories": {
+    "all": "すべて",
+    "documents": "ドキュメント",
+    "faqs": "FAQ",
+    "guides": "ガイド",
+    "policies": "ポリシー"
+  },
+  "filters": {
+    "date": "日付",
+    "type": "タイプ",
+    "status": "ステータス",
+    "author": "作成者"
+  },
+  "article": {
+    "views": "閲覧数",
+    "lastUpdated": "最終更新",
+    "helpful": "お役に立ちましたか？",
+    "yes": "はい",
+    "no": "いいえ",
+    "relatedArticles": "関連記事",
+    "notHelpful": "役に立たなかった"
+  },
+  "chat": {
+    "title": "AIアシスタント",
+    "subtitle": "ナレッジベースについて何でも聞いてください",
+    "inputPlaceholder": "質問を入力してください...",
+    "send": "送信",
+    "thinking": "考え中...",
+    "suggestions": "おすすめの質問",
+    "clearHistory": "履歴をクリア",
+    "errorMessage": "申し訳ございません。エラーが発生しました。もう一度お試しください。",
+    "noConversations": "会話がありません",
+    "startNewConversation": "新しい会話を開始してください",
+    "noSourcesYet": "チャット後に参照されたソースがここに表示されます",
+    "addNote": "ノートを追加",
+    "noNotesYet": "ノートがここに表示されます",
+    "messages": "件のメッセージ"
+  },
+  "sidebar": {
+    "chat": "チャット",
+    "documents": "ドキュメント",
+    "sources": "ソース",
+    "notes": "ノート"
+  }
+}

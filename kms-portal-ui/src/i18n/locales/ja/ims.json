@@ -1,0 +1,106 @@
+{
+  "title": "IMSクローラー",
+  "description": "IMSクローリングジョブの管理と監視",
+  "crawler": {
+    "title": "クローラーステータス",
+    "start": "クローリング開始",
+    "stop": "停止",
+    "pause": "一時停止",
+    "resume": "再開",
+    "status": {
+      "idle": "待機中",
+      "running": "実行中",
+      "paused": "一時停止中",
+      "completed": "完了",
+      "failed": "失敗"
+    },
+    "progress": "進捗",
+    "currentUrl": "現在のURL",
+    "elapsedTime": "経過時間",
+    "estimatedRemaining": "推定残り時間"
+  },
+  "jobs": {
+    "title": "クローリングジョブ",
+    "newJob": "新規ジョブ",
+    "schedule": "スケジュール",
+    "history": "履歴",
+    "id": "ジョブID",
+    "url": "対象URL",
+    "status": "ステータス",
+    "documentCount": "ドキュメント数",
+    "createdAt": "作成日",
+    "actions": "アクション",
+    "viewDetails": "詳細を表示",
+    "delete": "削除",
+    "noJobs": "クローリングジョブがありません",
+    "createFirst": "最初のクローリングジョブを作成して開始してください"
+  },
+  "newJobForm": {
+    "title": "新規クローリングジョブ作成",
+    "targetUrl": "対象URL",
+    "targetUrlPlaceholder": "https://example.com/docs",
+    "jobName": "ジョブ名",
+    "jobNamePlaceholder": "ドキュメントクロール",
+    "description": "説明",
+    "descriptionPlaceholder": "ドキュメントページをクロール",
+    "cancel": "キャンセル",
+    "create": "ジョブ作成",
+    "validation": {
+      "urlRequired": "対象URLは必須です",
+      "urlInvalid": "有効なURLを入力してください",
+      "nameRequired": "ジョブ名は必須です"
+    }
+  },
+  "jobDetail": {
+    "title": "ジョブ詳細",
+    "overview": "概要",
+    "logs": "ログ",
+    "documents": "クロールされたドキュメント",
+    "errors": "エラー",
+    "close": "閉じる"
+  },
+  "documents": {
+    "title": "クロールされたドキュメント",
+    "total": "総ドキュメント数",
+    "new": "新規",
+    "updated": "更新済み",
+    "failed": "失敗"
+  },
+  "settings": {
+    "title": "クローラー設定",
+    "depth": "クロール深度",
+    "depthHelp": "フォローするリンクの最大レベル数",
+    "interval": "クロール間隔",
+    "intervalHelp": "リクエスト間の時間（秒）",
+    "timeout": "タイムアウト",
+    "timeoutHelp": "リクエストタイムアウト（秒）",
+    "documentTypes": "ドキュメントタイプ",
+    "documentTypesHelp": "クロールするファイルタイプ",
+    "save": "設定を保存",
+    "reset": "デフォルトにリセット"
+  },
+  "logs": {
+    "title": "リアルタイムログ",
+    "clear": "ログをクリア",
+    "download": "ダウンロード",
+    "noLogs": "ログがありません",
+    "levels": {
+      "info": "情報",
+      "warning": "警告",
+      "error": "エラー",
+      "debug": "デバッグ"
+    }
+  },
+  "stats": {
+    "totalCrawled": "総クロール数",
+    "newDocuments": "新規ドキュメント",
+    "updatedDocuments": "更新されたドキュメント",
+    "failedDocuments": "失敗したドキュメント",
+    "lastUpdated": "最終更新"
+  },
+  "actions": {
+    "refresh": "更新",
+    "export": "エクスポート",
+    "import": "インポート"
+  }
+}

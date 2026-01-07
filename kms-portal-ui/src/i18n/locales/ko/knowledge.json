@@ -1,0 +1,55 @@
+{
+  "title": "지식 베이스",
+  "searchPlaceholder": "지식 검색...",
+  "askQuestion": "질문하기",
+  "noResults": "결과가 없습니다",
+  "sources": "출처",
+  "relevance": "관련도",
+  "newConversation": "새 대화",
+  "conversationHistory": "대화 기록",
+  "relatedDocuments": "관련 문서",
+  "categories": {
+    "all": "전체",
+    "documents": "문서",
+    "faqs": "FAQ",
+    "guides": "가이드",
+    "policies": "정책"
+  },
+  "filters": {
+    "date": "날짜",
+    "type": "유형",
+    "status": "상태",
+    "author": "작성자"
+  },
+  "article": {
+    "views": "조회수",
+    "lastUpdated": "최종 수정",
+    "helpful": "도움이 되셨나요?",
+    "yes": "예",
+    "no": "아니오",
+    "relatedArticles": "관련 문서",
+    "notHelpful": "도움이 안 됨"
+  },
+  "chat": {
+    "title": "AI 어시스턴트",
+    "subtitle": "지식 베이스에 대해 무엇이든 물어보세요",
+    "inputPlaceholder": "질문을 입력하세요...",
+    "send": "전송",
+    "thinking": "생각 중...",
+    "suggestions": "추천 질문",
+    "clearHistory": "기록 삭제",
+    "errorMessage": "죄송합니다. 오류가 발생했습니다. 다시 시도해 주세요.",
+    "noConversations": "대화 기록이 없습니다",
+    "startNewConversation": "새 대화를 시작하세요",
+    "noSourcesYet": "채팅 후 참조된 소스가 여기에 표시됩니다",
+    "addNote": "노트 추가",
+    "noNotesYet": "노트가 여기에 표시됩니다",
+    "messages": "개 메시지"
+  },
+  "sidebar": {
+    "chat": "채팅",
+    "documents": "문서",
+    "sources": "출처",
+    "notes": "노트"
+  }
+}

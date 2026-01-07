@@ -1,0 +1,247 @@
+/**
+ * KMS Theme System
+ * CSS Variables for Dark/Light Mode
+ *
+ * Usage:
+ * - Variables are applied via [data-theme="light"] or [data-theme="dark"]
+ * - All components should use var(--color-*) instead of hardcoded colors
+ * - Transitions are applied for smooth theme switching
+ */
+
+/* ============================================
+   Base Configuration
+   ============================================ */
+:root {
+  /* Color scheme hint for browser */
+  color-scheme: light dark;
+
+  /* Theme transition timing */
+  --theme-transition-duration: 0.2s;
+  --theme-transition-timing: ease-out;
+
+  /* Accent colors (consistent across themes, WCAG AA compliant) */
+  --color-primary: #6366f1;
+  --color-primary-hover: #4f46e5;
+  --color-primary-light: rgba(99, 102, 241, 0.15);
+  --color-primary-subtle: rgba(99, 102, 241, 0.12);
+  --color-secondary: #64748b;
+  --color-success: #059669;
+  --color-success-light: rgba(5, 150, 105, 0.15);
+  --color-warning: #d97706;
+  --color-warning-light: rgba(217, 119, 6, 0.15);
+  --color-error: #dc2626;
+  --color-error-light: rgba(220, 38, 38, 0.15);
+  --color-info: #0284c7;
+  --color-info-light: rgba(2, 132, 199, 0.15);
+
+  /* Node type colors for mindmap (indigo theme) */
+  --node-root: #6366f1;
+  --node-concept: #818cf8;
+  --node-entity: #10b981;
+  --node-topic: #a78bfa;
+  --node-keyword: #f59e0b;
+}
+
+/* ============================================
+   Dark Theme (Default)
+   ============================================ */
+[data-theme="dark"] {
+  /* Background colors */
+  --color-bg-primary: #0f172a;
+  --color-bg-secondary: #1e293b;
+  --color-bg-tertiary: #334155;
+  --color-bg-card: rgba(255, 255, 255, 0.03);
+  --color-bg-hover: rgba(255, 255, 255, 0.05);
+  --color-bg-active: #475569;
+  --color-bg-input: #1e293b;
+  --color-bg-overlay: rgba(0, 0, 0, 0.7);
+  --color-bg-modal: #1e293b;
+  --color-bg-dropdown: rgba(30, 30, 50, 0.98);
+
+  /* Text colors */
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-text-inverse: #0f172a;
+  --color-text-link: #60a5fa;
+  --color-text-link-hover: #93c5fd;
+
+  /* Border colors */
+  --color-border: #334155;
+  --color-border-light: #1e293b;
+  --color-border-focus: #60a5fa;
+  --color-border-error: #ef4444;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.6);
+  --shadow-2xl: 0 24px 48px rgba(0, 0, 0, 0.7);
+
+  /* Premium Glow Effects */
+  --shadow-glow-primary: 0 0 20px rgba(99, 102, 241, 0.3);
+  --shadow-glow-accent: 0 0 20px rgba(34, 211, 238, 0.3);
+
+  /* Gradients */
+  --gradient-bg: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  --gradient-card: linear-gradient(180deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+  --gradient-header: linear-gradient(90deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%);
+  --gradient-scroll-indicator: linear-gradient(to top, rgba(10, 10, 26, 0.8), transparent);
+
+  /* Scrollbar */
+  --scrollbar-track: rgba(255, 255, 255, 0.02);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+
+  /* Focus ring */
+  --focus-ring-color: rgba(59, 130, 246, 0.5);
+
+  /* Status colors (adjusted for dark) */
+  --status-online: #34d399;
+  --status-offline: #94a3b8;
+  --status-busy: #fbbf24;
+  --status-error: #f87171;
+
+  /* Error/Danger button colors */
+  --color-error-bg: rgba(239, 68, 68, 0.15);
+  --color-error-border: rgba(239, 68, 68, 0.2);
+  --color-error-hover: rgba(239, 68, 68, 0.25);
+
+  /* Primary background (for highlights) */
+  --color-primary-bg: rgba(59, 130, 246, 0.08);
+}
+
+/* ============================================
+   Light Theme
+   ============================================ */
+[data-theme="light"] {
+  /* Background colors */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f8fafc;
+  --color-bg-tertiary: #f1f5f9;
+  --color-bg-card: #ffffff;
+  --color-bg-hover: #f1f5f9;
+  --color-bg-active: #e2e8f0;
+  --color-bg-input: #ffffff;
+  --color-bg-overlay: rgba(0, 0, 0, 0.5);
+  --color-bg-modal: #ffffff;
+  --color-bg-dropdown: rgba(255, 255, 255, 0.98);
+
+  /* Text colors */
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+  --color-text-inverse: #ffffff;
+  --color-text-link: #6366f1;
+  --color-text-link-hover: #4f46e5;
+
+  /* Border colors (WCAG compliant contrast) */
+  --color-border: #cbd5e1;
+  --color-border-light: #e2e8f0;
+  --color-border-focus: #6366f1;
+  --color-border-error: #ef4444;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+  --shadow-2xl: 0 24px 48px rgba(0, 0, 0, 0.2);
+
+  /* Premium Glow Effects */
+  --shadow-glow-primary: 0 0 16px rgba(99, 102, 241, 0.2);
+  --shadow-glow-accent: 0 0 16px rgba(34, 211, 238, 0.2);
+
+  /* Gradients */
+  --gradient-bg: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  --gradient-card: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  --gradient-header: linear-gradient(90deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%);
+  --gradient-scroll-indicator: linear-gradient(to top, rgba(248, 250, 252, 0.8), transparent);
+
+  /* Scrollbar */
+  --scrollbar-track: rgba(0, 0, 0, 0.02);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.25);
+
+  /* Focus ring */
+  --focus-ring-color: rgba(59, 130, 246, 0.4);
+
+  /* Status colors */
+  --status-online: #10b981;
+  --status-offline: #64748b;
+  --status-busy: #f59e0b;
+  --status-error: #ef4444;
+
+  /* Error/Danger button colors */
+  --color-error-bg: rgba(239, 68, 68, 0.1);
+  --color-error-border: rgba(239, 68, 68, 0.3);
+  --color-error-hover: rgba(239, 68, 68, 0.2);
+
+  /* Primary background (for highlights) */
+  --color-primary-bg: rgba(59, 130, 246, 0.1);
+}
+
+/* ============================================
+   Theme Transitions
+   ============================================ */
+body,
+.theme-transition {
+  transition:
+    background-color var(--theme-transition-duration) var(--theme-transition-timing),
+    color var(--theme-transition-duration) var(--theme-transition-timing),
+    border-color var(--theme-transition-duration) var(--theme-transition-timing),
+    box-shadow var(--theme-transition-duration) var(--theme-transition-timing);
+}
+
+/* Disable transitions during initial load to prevent flash */
+.no-transitions,
+.no-transitions * {
+  transition: none !important;
+}
+
+/* ============================================
+   Scrollbar Styles
+   ============================================ */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* ============================================
+   Focus Styles
+   ============================================ */
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* ============================================
+   Reduced Motion Preference
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  body,
+  .theme-transition {
+    transition: none;
+  }
+}
