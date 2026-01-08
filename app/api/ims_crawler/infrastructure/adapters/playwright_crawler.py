@@ -4,6 +4,7 @@ Playwright Crawler Adapter - Concrete implementation using Playwright
 Web automation implementation for crawling IMS system.
 """
 
+import sys
 import asyncio
 import logging
 from typing import List, Optional, Set
@@ -11,6 +12,12 @@ from pathlib import Path
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from datetime import datetime
 from uuid import uuid4
+
+# Windows asyncio fix: Enable subprocess support for Playwright
+# SelectorEventLoop (default on Windows) doesn't support subprocesses
+# ProactorEventLoop is required for asyncio.create_subprocess_exec()
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from ...domain.entities import Issue, Attachment, UserCredentials, IssueStatus, IssuePriority
 from ...domain.entities.attachment import AttachmentType
@@ -65,16 +72,39 @@ class PlaywrightCrawler(CrawlerPort):
                 browser_needs_init = True
 
         if browser_needs_init:
+            # Windows asyncio fix: Must set ProactorEventLoop before Playwright starts
+            # This is needed because uvicorn reload may reset the event loop policy
+            if sys.platform == 'win32':
+                try:
+                    # Get the current event loop
+                    loop = asyncio.get_running_loop()
+                    # Check if we're using ProactorEventLoop
+                    if not isinstance(loop, asyncio.ProactorEventLoop):
+                        logger.warning(f"Current event loop is {type(loop).__name__}, not ProactorEventLoop")
+                        logger.warning("Playwright may fail on Windows. Consider running without --reload")
+                except Exception as e:
+                    logger.warning(f"Could not check event loop type: {e}")
+
             # Clean up any existing playwright instance
             if self._playwright:
                 try:
                     await self._playwright.stop()
                 except:
                     pass
-            self._playwright = await async_playwright().start()
-            self._browser = await self._playwright.chromium.launch(headless=self.headless)
-            self._context = None  # Reset context when browser is restarted
-            logger.info("Browser initialized")
+
+            logger.info("Starting Playwright browser...")
+            try:
+                self._playwright = await async_playwright().start()
+                self._browser = await self._playwright.chromium.launch(headless=self.headless)
+                self._context = None  # Reset context when browser is restarted
+                logger.info("Browser initialized successfully")
+            except NotImplementedError as e:
+                logger.error(f"Playwright failed to start - Windows asyncio subprocess issue: {e}")
+                logger.error("Try running the server without --reload: python -m app.api.main --mode product --port 9000")
+                raise RuntimeError(
+                    "Playwright cannot start on Windows with uvicorn reload mode. "
+                    "Please restart the server with: python -m app.api.main --mode product --port 9000"
+                ) from e
 
         # Always create fresh context and page for each session
         # This prevents stale context issues when crawler is reused
@@ -144,19 +174,94 @@ class PlaywrightCrawler(CrawlerPort):
             logger.error(f"Authentication error: {e}")
             raise
 
+    # Default products to select for search (TmaxSoft IMS product codes)
+    # OpenFrame products, ProSort, ProTrieve
+    DEFAULT_PRODUCT_CODES = [
+        # OpenFrame products
+        '128',   # OpenFrame AIM
+        '520',   # OpenFrame ASM
+        '129',   # OpenFrame Base
+        '123',   # OpenFrame Batch
+        '500',   # OpenFrame COBOL
+        '137',   # OpenFrame Common
+        '141',   # OpenFrame GW
+        '126',   # OpenFrame HiDB
+        '147',   # OpenFrame ISPF
+        '145',   # OpenFrame Manager
+        '135',   # OpenFrame Map GUI Editor
+        '143',   # OpenFrame Miner
+        '138',   # OpenFrame OSC
+        '134',   # OpenFrame OSI
+        '142',   # OpenFrame OpenStudio Web
+        '510',   # OpenFrame PLI
+        '127',   # OpenFrame Studio
+        '124',   # OpenFrame TACF
+        # Other products
+        '640',   # ProSort
+        '425',   # ProTrieve
+    ]
+
+    # Product name patterns for fallback matching
+    DEFAULT_PRODUCTS = [
+        'OpenFrame',  # Will match all products starting with OpenFrame
+        'ProSort',
+        'ProTrieve',
+    ]
+
+    @staticmethod
+    def _transform_to_ims_query(query: str) -> str:
+        """
+        Transform natural language query to IMS search syntax.
+
+        IMS Search Pattern Rules:
+        1. Space-separated words = OR search
+           ex) "티맥스 티베로" → searches for '티맥스' OR '티베로'
+
+        2. +word (no space before word) = AND search
+           ex) "IMS +에러" → 'IMS' AND '에러'
+
+        3. 'phrase' (single quotes) = exact match
+           ex) '에러 로그' → exact match for "에러 로그"
+
+        4. Can combine above rules
+           ex) "티맥스 '에러 로그' +티베로" → '티맥스' or '에러 로그' with '티베로'
+
+        5. Issue Number, Bug Number - multiple values separated by space
+
+        Args:
+            query: Natural language search query
+
+        Returns:
+            IMS-compatible search query string
+        """
+        if not query:
+            return ""
+
+        # The query is already in IMS format, just clean it up
+        cleaned_query = query.strip()
+
+        # Log the transformation for debugging
+        logger.debug(f"Query transformation: '{query}' -> '{cleaned_query}'")
+
+        return cleaned_query
+
     async def search_issues(
         self,
         query: str,
         credentials: UserCredentials,
-        max_results: int = 100
+        product_codes: Optional[List[str]] = None
     ) -> List[Issue]:
         """
         Search for issues matching the query.
 
         Args:
-            query: IMS search syntax query
+            query: IMS search syntax query (supports OR/AND/exact match patterns)
+                   - Space-separated words = OR search (word1 word2)
+                   - +word = AND search (word1 +word2)
+                   - 'phrase' = exact match ('exact phrase')
             credentials: User credentials for authentication
-            max_results: Maximum number of issues to return
+            product_codes: Optional list of product codes to filter (e.g., ['128', '520']).
+                          If None, uses DEFAULT_PRODUCT_CODES.
 
         Returns:
             List of Issue entities
@@ -168,43 +273,64 @@ class PlaywrightCrawler(CrawlerPort):
             await self.authenticate(credentials)
 
         try:
-            # Navigate to search page
-            search_url = f"{credentials.ims_base_url}/search?q={query}"
+            # Transform query to IMS search syntax
+            ims_query = self._transform_to_ims_query(query)
+            logger.info(f"Search query: '{query}' -> IMS query: '{ims_query}'")
+
+            # Navigate to IMS issue search page
+            search_url = f"{credentials.ims_base_url}/tody/ims/issue/issueSearchList.do?searchType=1&menuCode=issue_search"
             await self._page.goto(search_url)
             await self._page.wait_for_load_state('networkidle')
+            logger.info(f"Navigated to search page: {search_url}")
 
-            # Extract issue links from search results
-            issue_elements = await self._page.query_selector_all('.issue-row a.issue-link')
+            # Wait for search form to load
+            await self._page.wait_for_selector('#SearchDiv', timeout=10000)
 
-            issues = []
-            for idx, element in enumerate(issue_elements[:max_results]):
-                try:
-                    # Extract issue ID and URL
-                    issue_url = await element.get_attribute('href')
-                    issue_id = issue_url.split('/')[-1] if issue_url else f"unknown-{idx}"
+            # Debug: Dump form structure to understand the DOM
+            await self._debug_dump_search_form()
 
-                    # Extract basic info from search results
-                    title_elem = await element.query_selector('.issue-title')
-                    title = await title_elem.inner_text() if title_elem else "Untitled"
+            # Select products (use provided product_codes or default)
+            codes_to_select = product_codes if product_codes else self.DEFAULT_PRODUCT_CODES
+            await self._select_products(codes_to_select)
 
-                    # Create minimal Issue entity (details will be populated by crawl_issue_details)
-                    issue = Issue(
-                        id=uuid4(),
-                        user_id=credentials.user_id,
-                        ims_id=issue_id,
-                        title=title.strip(),
-                        description="",  # Will be populated later
-                        status=IssueStatus.OPEN,  # Default
-                        priority=IssuePriority.MEDIUM,  # Default
-                        ims_url=f"{credentials.ims_base_url}{issue_url}" if not issue_url.startswith('http') else issue_url,
-                        created_at=datetime.utcnow(),
-                        updated_at=datetime.utcnow()
-                    )
-                    issues.append(issue)
+            # Enter search keyword - try multiple selectors
+            keyword_input = await self._find_keyword_input()
+            if keyword_input:
+                await keyword_input.fill(ims_query)
+                logger.info(f"Entered search keyword: {ims_query}")
+            else:
+                logger.warning("Could not find keyword input field - search may return all results")
 
-                except Exception as e:
-                    logger.warning(f"Failed to extract issue {idx}: {e}")
-                    continue
+            # Click search button - this triggers a form submission that reloads the page
+            # We need to wait for the navigation to complete before extracting results
+            try:
+                # Start waiting for navigation before clicking
+                async with self._page.expect_navigation(timeout=30000, wait_until='networkidle'):
+                    await self._click_search_button()
+                logger.info("Search form submitted and page navigation completed")
+            except Exception as nav_error:
+                # If expect_navigation fails, the page might not navigate (AJAX search)
+                logger.info(f"Navigation wait completed or timed out: {nav_error}")
+                await self._page.wait_for_load_state('networkidle')
+
+            # Wait for results to be visible
+            # Try to wait for common result indicators
+            await asyncio.sleep(2)  # Additional wait for dynamic content
+
+            # Wait for result table or result count to appear
+            try:
+                await self._page.wait_for_selector(
+                    'table.list, #listTable, div.listCnt, span.total, #resultDiv table, table.dataTable',
+                    timeout=10000
+                )
+            except Exception:
+                logger.warning("Could not find result table selector, proceeding anyway")
+
+            # Change page size to show all results (DataTables pagination fix)
+            await self._set_page_size_to_all()
+
+            # Extract issue rows from search results table
+            issues = await self._extract_search_results(credentials)
 
             logger.info(f"Found {len(issues)} issues from search")
             return issues
@@ -213,10 +339,653 @@ class PlaywrightCrawler(CrawlerPort):
             logger.error(f"Search failed: {e}")
             raise
 
+    async def _set_page_size_to_all(self) -> None:
+        """Change page size to show all results.
+
+        TmaxSoft IMS uses a custom #pageSize select element with options:
+        10, 20, 30, 50, 100, 500, 1000
+
+        The onchange handler triggers a page navigation/reload.
+        """
+        try:
+            print("[PageSize] Attempting to change page size to 1000...", flush=True)
+
+            # TmaxSoft IMS uses #pageSize select element
+            page_size_select = await self._page.query_selector('#pageSize')
+            if page_size_select:
+                print("[PageSize] Found #pageSize selector", flush=True)
+
+                # Check current value
+                current_value = await page_size_select.evaluate('el => el.value')
+                print(f"[PageSize] Current page size: {current_value}", flush=True)
+
+                if current_value == '1000':
+                    print("[PageSize] Already set to 1000, skipping", flush=True)
+                    return
+
+                # Select 1000 - this triggers pageSizeChange() which causes page navigation
+                # We need to wait for the navigation to complete
+                try:
+                    async with self._page.expect_navigation(timeout=30000):
+                        await page_size_select.select_option(value='1000')
+                    print("[PageSize] Navigation completed after page size change", flush=True)
+                except Exception as nav_error:
+                    print(f"[PageSize] Navigation wait: {nav_error}", flush=True)
+                    # Even if navigation fails, wait for page to stabilize
+                    await asyncio.sleep(2)
+
+                # Wait for page to fully load
+                await self._page.wait_for_load_state('networkidle')
+                await self._page.wait_for_load_state('domcontentloaded')
+
+                # Wait for table to be rendered
+                try:
+                    await self._page.wait_for_selector('table.dataTable tbody tr', timeout=10000)
+                    print("[PageSize] Table rows found after page size change", flush=True)
+                except Exception:
+                    print("[PageSize] Table rows selector timeout, continuing anyway", flush=True)
+
+                # Additional stabilization wait
+                await asyncio.sleep(1)
+                print("[PageSize] Page reloaded with 1000 rows", flush=True)
+                return
+
+            # Fallback: try other common selectors
+            fallback_selectors = [
+                'select[name="pageSize"]',
+                'select.custom-select[name="pageSize"]',
+            ]
+
+            for selector in fallback_selectors:
+                page_size_select = await self._page.query_selector(selector)
+                if page_size_select:
+                    print(f"[PageSize] Found fallback selector: {selector}", flush=True)
+                    try:
+                        async with self._page.expect_navigation(timeout=30000):
+                            await page_size_select.select_option(value='1000')
+                    except Exception:
+                        await asyncio.sleep(2)
+                    await self._page.wait_for_load_state('networkidle')
+                    print("[PageSize] Selected page size: 1000 (fallback)", flush=True)
+                    return
+
+            print("[PageSize] No page size selector found", flush=True)
+
+        except Exception as e:
+            print(f"[PageSize] Failed to set page size: {e}", flush=True)
+
+    async def _debug_dump_search_form(self) -> None:
+        """Dump search form structure for debugging."""
+        try:
+            # Get all form elements in SearchDiv
+            form_structure = await self._page.evaluate('''() => {
+                const searchDiv = document.querySelector('#SearchDiv');
+                if (!searchDiv) return { error: 'SearchDiv not found' };
+
+                const result = {
+                    selects: [],
+                    inputs: [],
+                    checkboxes: [],
+                    buttons: [],
+                    links: []
+                };
+
+                // Find all select elements
+                searchDiv.querySelectorAll('select').forEach(sel => {
+                    const options = Array.from(sel.options).slice(0, 10).map(opt => ({
+                        value: opt.value,
+                        text: opt.textContent?.trim().substring(0, 50)
+                    }));
+                    result.selects.push({
+                        name: sel.name,
+                        id: sel.id,
+                        className: sel.className,
+                        optionCount: sel.options.length,
+                        sampleOptions: options
+                    });
+                });
+
+                // Find all text inputs
+                searchDiv.querySelectorAll('input[type="text"], input:not([type])').forEach(inp => {
+                    result.inputs.push({
+                        name: inp.name,
+                        id: inp.id,
+                        className: inp.className,
+                        placeholder: inp.placeholder,
+                        value: inp.value
+                    });
+                });
+
+                // Find all checkboxes
+                searchDiv.querySelectorAll('input[type="checkbox"]').forEach(chk => {
+                    const label = chk.parentElement?.textContent?.trim().substring(0, 30) || '';
+                    result.checkboxes.push({
+                        name: chk.name,
+                        id: chk.id,
+                        value: chk.value,
+                        checked: chk.checked,
+                        label: label
+                    });
+                });
+
+                // Find all buttons
+                searchDiv.querySelectorAll('input[type="button"], input[type="submit"], button').forEach(btn => {
+                    result.buttons.push({
+                        type: btn.type,
+                        value: btn.value,
+                        id: btn.id,
+                        className: btn.className,
+                        onclick: btn.getAttribute('onclick')?.substring(0, 50)
+                    });
+                });
+
+                // Find links with onclick
+                searchDiv.querySelectorAll('a[onclick]').forEach(link => {
+                    result.links.push({
+                        text: link.textContent?.trim().substring(0, 30),
+                        onclick: link.getAttribute('onclick')?.substring(0, 50)
+                    });
+                });
+
+                return result;
+            }''')
+
+            logger.info(f"=== SEARCH FORM STRUCTURE ===")
+            logger.info(f"Selects: {form_structure.get('selects', [])}")
+            logger.info(f"Text Inputs: {form_structure.get('inputs', [])}")
+            logger.info(f"Checkboxes: {form_structure.get('checkboxes', [])}")
+            logger.info(f"Buttons: {form_structure.get('buttons', [])}")
+            logger.info(f"Links: {form_structure.get('links', [])}")
+            logger.info(f"=== END FORM STRUCTURE ===")
+
+        except Exception as e:
+            logger.warning(f"Failed to dump form structure: {e}")
+
+    async def _find_keyword_input(self):
+        """Find keyword input field with multiple fallback selectors."""
+        # Primary selector for TmaxSoft IMS: input#keyword
+        selectors = [
+            '#keyword',                    # TmaxSoft IMS primary keyword field
+            'input[name="keyword"]',       # By name attribute
+            '#searchKeyword',
+            'input[name="searchKeyword"]',
+            'input[name="searchWord"]',
+            'input[name="searchText"]',
+            '#searchWord',
+            # TmaxSoft IMS specific selectors
+            'input[name="issueSearchVO.searchText"]',
+            'input[name="issueSearchVO.searchKeyword"]',
+        ]
+
+        for selector in selectors:
+            try:
+                element = await self._page.query_selector(selector)
+                if element:
+                    # Verify it's a text input
+                    input_type = await element.get_attribute('type')
+                    if input_type is None or input_type == 'text':
+                        logger.info(f"Found keyword input with selector: {selector}")
+                        return element
+            except Exception:
+                continue
+
+        # Fallback: Try to find by class or position
+        fallback_selectors = [
+            'input.width290px[type="text"]',  # TmaxSoft IMS uses this class
+            '#SearchDiv input[type="text"]:not([readonly])',
+        ]
+
+        for selector in fallback_selectors:
+            try:
+                element = await self._page.query_selector(selector)
+                if element:
+                    logger.info(f"Found keyword input with fallback selector: {selector}")
+                    return element
+            except Exception:
+                continue
+
+        logger.warning("Could not find keyword input with any known selector")
+        return None
+
+    async def _click_search_button(self) -> bool:
+        """Click the search button with multiple fallback strategies."""
+        # Primary Strategy: TmaxSoft IMS uses goReportSearch() function
+        try:
+            search_executed = await self._page.evaluate('''() => {
+                // TmaxSoft IMS specific search function
+                if (typeof goReportSearch === 'function' && document.issueSearchForm) {
+                    goReportSearch(document.issueSearchForm, '1');
+                    return 'goReportSearch';
+                }
+                return null;
+            }''')
+
+            if search_executed:
+                logger.info(f"Executed search via JavaScript function: {search_executed}")
+                return True
+        except Exception as e:
+            logger.debug(f"goReportSearch execution failed: {e}")
+
+        # Fallback Strategy 1: Click the Search button/link
+        selectors = [
+            'a[onclick*="goReportSearch"]',    # TmaxSoft IMS search link
+            'a:has-text("Search")',
+            'input[type="button"][value*="Search"]',
+            'input[type="button"][value*="검색"]',
+            'input[type="submit"][value*="검색"]',
+            'button:has-text("검색")',
+            'a[onclick*="search"]',
+            '#btnSearch',
+            '#searchBtn',
+        ]
+
+        for selector in selectors:
+            try:
+                element = await self._page.query_selector(selector)
+                if element:
+                    await element.click()
+                    logger.info(f"Clicked search button with selector: {selector}")
+                    return True
+            except Exception:
+                continue
+
+        # Fallback Strategy 2: Try other common search function names
+        try:
+            search_executed = await self._page.evaluate('''() => {
+                const searchFunctions = ['fnSearch', 'search', 'doSearch', 'searchList', 'issueSearch'];
+                for (const fn of searchFunctions) {
+                    if (typeof window[fn] === 'function') {
+                        window[fn]();
+                        return fn;
+                    }
+                }
+                return null;
+            }''')
+
+            if search_executed:
+                logger.info(f"Executed search via JavaScript function: {search_executed}")
+                return True
+        except Exception as e:
+            logger.debug(f"JavaScript search execution failed: {e}")
+
+        # Last resort: press Enter
+        await self._page.keyboard.press('Enter')
+        logger.info("Pressed Enter to submit search (fallback)")
+        return True
+
+    async def _select_products(self, product_codes: List[str]) -> None:
+        """Select products for search based on provided product codes.
+
+        Args:
+            product_codes: List of product codes to select (e.g., ['128', '520'])
+        """
+        try:
+            logger.info(f"Selecting {len(product_codes)} products: {product_codes[:5]}...")
+
+            # Primary Strategy: TmaxSoft IMS uses select#productCodes (multi-select)
+            product_select = await self._page.query_selector('#productCodes')
+            if product_select:
+                logger.info("Found product select element: #productCodes")
+
+                # Select products by their code values directly
+                try:
+                    await product_select.select_option(value=product_codes)
+                    logger.info(f"Selected {len(product_codes)} products by code values")
+                    return
+                except Exception as e:
+                    logger.warning(f"Failed to select by code values: {e}")
+                    # Fallback: try selecting by text matching
+                    options = await product_select.query_selector_all('option')
+                    values_to_select = []
+
+                    for option in options:
+                        text = await option.inner_text()
+                        value = await option.get_attribute('value')
+
+                        # Check if value is in our provided codes
+                        if value in product_codes:
+                            values_to_select.append(value)
+                            logger.info(f"Will select product: {text} (value={value})")
+                        # Or check by name pattern for fallback
+                        elif any(text.startswith(prod) or prod in text for prod in self.DEFAULT_PRODUCTS):
+                            if value in self.DEFAULT_PRODUCT_CODES and value in product_codes:
+                                values_to_select.append(value)
+                                logger.info(f"Will select product by name: {text} (value={value})")
+
+                    if values_to_select:
+                        await product_select.select_option(value=values_to_select)
+                        logger.info(f"Selected {len(values_to_select)} products by fallback matching")
+                        return
+
+            # Fallback Strategy 1: Look for other select elements
+            select_selectors = [
+                'select[name="productCodes"]',
+                'select[name*="product"]',
+                'select[name*="Product"]',
+                'select[id*="product"]',
+            ]
+
+            for selector in select_selectors:
+                product_select = await self._page.query_selector(selector)
+                if product_select:
+                    logger.info(f"Found product select with selector: {selector}")
+                    options = await product_select.query_selector_all('option')
+                    values_to_select = []
+
+                    for option in options:
+                        text = await option.inner_text()
+                        value = await option.get_attribute('value')
+
+                        # Check by code
+                        if value in product_codes:
+                            values_to_select.append(value)
+                            logger.info(f"Will select product option: {text} (value={value})")
+
+                    if values_to_select:
+                        is_multiple = await product_select.get_attribute('multiple')
+                        if is_multiple:
+                            await product_select.select_option(value=values_to_select)
+                        else:
+                            await product_select.select_option(value=values_to_select[0])
+                        logger.info(f"Selected {len(values_to_select)} product options")
+                        return
+
+            # Fallback Strategy 2: Look for checkboxes
+            product_checkboxes = await self._page.query_selector_all('input[type="checkbox"][name*="product"]')
+            if product_checkboxes:
+                logger.info(f"Found {len(product_checkboxes)} product checkboxes")
+                selected_count = 0
+                for checkbox in product_checkboxes:
+                    try:
+                        value = await checkbox.get_attribute('value')
+                        label = await checkbox.evaluate('el => el.parentElement?.textContent?.trim().substring(0, 50) || el.value || ""')
+
+                        should_select = value in product_codes
+
+                        if should_select:
+                            is_checked = await checkbox.is_checked()
+                            if not is_checked:
+                                await checkbox.click()
+                                selected_count += 1
+                                logger.info(f"Selected product checkbox: {label}")
+                    except Exception as e:
+                        logger.debug(f"Failed to process checkbox: {e}")
+                        continue
+
+                if selected_count > 0:
+                    logger.info(f"Selected {selected_count} product checkboxes")
+                    return
+
+            logger.warning("Could not find product selection element")
+
+        except Exception as e:
+            logger.warning(f"Failed to select products: {e}")
+
+    async def _select_products_in_popup(self) -> None:
+        """Select products in a popup dialog."""
+        try:
+            # Wait for popup to appear
+            await asyncio.sleep(0.3)
+
+            # Look for checkboxes in popup/modal
+            popup_selectors = [
+                '.popup input[type="checkbox"]',
+                '.modal input[type="checkbox"]',
+                '#productLayer input[type="checkbox"]',
+                '[role="dialog"] input[type="checkbox"]',
+                '.layer input[type="checkbox"]',
+            ]
+
+            for selector in popup_selectors:
+                checkboxes = await self._page.query_selector_all(selector)
+                if checkboxes:
+                    logger.info(f"Found {len(checkboxes)} checkboxes in popup")
+                    for checkbox in checkboxes:
+                        label = await checkbox.evaluate('el => el.parentElement?.textContent?.trim().substring(0, 50) || el.value || ""')
+
+                        should_select = any(
+                            label.startswith(prod) or prod in label
+                            for prod in self.DEFAULT_PRODUCTS
+                        )
+
+                        if should_select:
+                            is_checked = await checkbox.is_checked()
+                            if not is_checked:
+                                await checkbox.click()
+                                logger.info(f"Selected product in popup: {label}")
+
+                    # Click confirm/OK button in popup
+                    confirm_selectors = [
+                        '.popup input[type="button"][value*="확인"]',
+                        '.modal button:has-text("확인")',
+                        '.modal button:has-text("OK")',
+                        '[role="dialog"] button:has-text("확인")',
+                        'input[type="button"][value="확인"]',
+                    ]
+                    for btn_selector in confirm_selectors:
+                        confirm_btn = await self._page.query_selector(btn_selector)
+                        if confirm_btn:
+                            await confirm_btn.click()
+                            logger.info("Clicked confirm button in popup")
+                            break
+                    return
+
+        except Exception as e:
+            logger.warning(f"Failed to select products in popup: {e}")
+
+    async def _select_products_by_pattern(self) -> None:
+        """Select products by finding elements with matching text patterns."""
+        try:
+            # Use JavaScript to find and click elements containing product names
+            result = await self._page.evaluate('''(products) => {
+                const selected = [];
+
+                // Find all clickable elements containing product names
+                const clickables = document.querySelectorAll('input[type="checkbox"], a, span, div, td');
+
+                for (const el of clickables) {
+                    const text = el.textContent?.trim() || el.value || '';
+
+                    for (const product of products) {
+                        if (text.includes(product)) {
+                            // If it's a checkbox, check it
+                            if (el.type === 'checkbox' && !el.checked) {
+                                el.click();
+                                selected.push(text.substring(0, 50));
+                            }
+                            // If it's inside a row with a checkbox, click the checkbox
+                            else if (el.tagName !== 'INPUT') {
+                                const row = el.closest('tr');
+                                if (row) {
+                                    const checkbox = row.querySelector('input[type="checkbox"]');
+                                    if (checkbox && !checkbox.checked) {
+                                        checkbox.click();
+                                        selected.push(text.substring(0, 50));
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                return selected;
+            }''', self.DEFAULT_PRODUCTS)
+
+            if result:
+                logger.info(f"Selected products by pattern: {result}")
+            else:
+                logger.warning("No products found matching the pattern")
+
+        except Exception as e:
+            logger.warning(f"Pattern-based product selection failed: {e}")
+
+    async def _extract_search_results(
+        self,
+        credentials: UserCredentials
+    ) -> List[Issue]:
+        """Extract issues from search results table.
+
+        TmaxSoft IMS uses DataTables with the following structure:
+        - Table class: 'table table-bordered dataTable'
+        - Parent div class: 'dataTables_wrapper'
+        - Row onclick: popBlankIssueView('issueId', 'menuCode')
+        - Cell structure: No, Issue Number, Category, Product, Version, Module, Subject, Customer, Project, Reporter
+        """
+        issues = []
+        extracted_ids = set()  # Track extracted issue IDs to avoid duplicates
+        import re
+
+        try:
+            page_num = 1
+            max_pages = 20  # Safety limit
+
+            while page_num <= max_pages:
+                # TmaxSoft IMS DataTables selector (most specific first)
+                result_rows = await self._page.query_selector_all('table.dataTable tr[onclick*="popBlankIssueView"]')
+                if not result_rows:
+                    result_rows = await self._page.query_selector_all('table.dataTable tbody tr')
+                if not result_rows:
+                    result_rows = await self._page.query_selector_all('.dataTables_wrapper table tr:not(:first-child)')
+                if not result_rows:
+                    # Fallback to older selectors
+                    result_rows = await self._page.query_selector_all('table.list tbody tr')
+                if not result_rows:
+                    result_rows = await self._page.query_selector_all('#listTable tbody tr')
+
+                print(f"[Extract] Page {page_num}: Found {len(result_rows)} result rows", flush=True)
+
+                new_issues_on_page = 0
+                for idx, row in enumerate(result_rows):
+                    try:
+                        # Extract cells from each row
+                        cells = await row.query_selector_all('td')
+                        if len(cells) < 3:
+                            continue
+
+                        issue_id = ""
+                        issue_url = ""
+                        title = ""
+
+                        # Primary method: Extract issue ID from row onclick handler
+                        # Format: popBlankIssueView('350475', 'issue_search')
+                        row_onclick = await row.get_attribute('onclick')
+                        if row_onclick:
+                            id_match = re.search(r"popBlankIssueView\s*\(\s*['\"](\d+)['\"]", row_onclick)
+                            if id_match:
+                                issue_id = id_match.group(1)
+                                logger.debug(f"Extracted issue ID from onclick: {issue_id}")
+
+                        # TmaxSoft IMS cell structure:
+                        # Cell 0: Row number (8194)
+                        # Cell 1: Issue Number (350475)
+                        # Cell 2: Category (Technical Support)
+                        # Cell 3: Product (OpenFrame Base)
+                        # Cell 4: Version (7.3)
+                        # Cell 5: Module (General)
+                        # Cell 6: Subject (title)
+                        # Cell 7: Customer
+                        # Cell 8: Project
+                        # Cell 9: Reporter
+
+                        if not issue_id and len(cells) > 1:
+                            # Get issue ID from cell 1 (Issue Number column)
+                            issue_num_cell = await cells[1].inner_text()
+                            if issue_num_cell.strip().isdigit():
+                                issue_id = issue_num_cell.strip()
+
+                        # Skip if already extracted (pagination duplicate prevention)
+                        if issue_id in extracted_ids:
+                            continue
+                        extracted_ids.add(issue_id)
+
+                        # Get title from cell 6 (Subject column)
+                        # Title may be inside <a> tag or other nested elements
+                        if len(cells) > 6:
+                            subject_cell = cells[6]
+                            # Try getting text from <a> tag first (most common)
+                            link_elem = await subject_cell.query_selector('a')
+                            if link_elem:
+                                title = await link_elem.inner_text()
+                            else:
+                                # Try getting all text content using JavaScript
+                                title = await subject_cell.evaluate('el => el.textContent || el.innerText || ""')
+                            title = title.strip() if title else ""
+                            logger.debug(f"Row {idx}: Subject cell text = '{title[:100] if title else 'EMPTY'}'")
+
+                        # Fallback: try to get title from other cells with longer text
+                        if not title or len(title) < 3:
+                            for cell_idx in range(len(cells)):
+                                if cell_idx < len(cells):
+                                    cell_text = await cells[cell_idx].evaluate('el => el.textContent || ""')
+                                    cell_text = cell_text.strip()
+                                    # Subject/title usually has longer text than other cells
+                                    if len(cell_text) > 10 and not cell_text.isdigit():
+                                        title = cell_text
+                                        logger.debug(f"Row {idx}: Found title from cell {cell_idx}: '{title[:50]}'")
+                                        break
+
+                        if not issue_id:
+                            issue_id = f"unknown-{idx}"
+
+                        # Create Issue entity
+                        issue = Issue(
+                            id=uuid4(),
+                            user_id=credentials.user_id,
+                            ims_id=issue_id,
+                            title=title.strip() if title else f"Issue {issue_id}",
+                            description="",
+                            status=IssueStatus.OPEN,
+                            priority=IssuePriority.MEDIUM,
+                            source_url=issue_url or f"{credentials.ims_base_url}/tody/ims/issue/issueView.do?issueId={issue_id}",
+                            created_at=datetime.utcnow(),
+                            updated_at=datetime.utcnow()
+                        )
+                        issues.append(issue)
+                        new_issues_on_page += 1
+                        logger.debug(f"Extracted issue: {issue_id} - {title[:50] if title else 'No title'}")
+
+                    except Exception as e:
+                        logger.warning(f"Failed to extract issue from row {idx}: {e}")
+                        continue
+
+                print(f"[Extract] Page {page_num}: Extracted {new_issues_on_page} new issues (total: {len(issues)})", flush=True)
+
+                # With page size set to 1000, we should have all results on one page
+                # Only check for next page if we have exactly the page limit (indicating more pages)
+                if len(result_rows) < 1000:
+                    print(f"[Extract] All {len(issues)} issues extracted (less than page limit)", flush=True)
+                    break
+
+                # Check for next page button if needed
+                next_button = await self._page.query_selector('.dataTables_paginate .next:not(.disabled), .paginate_button.next:not(.disabled)')
+                if next_button:
+                    # Check if next button is disabled
+                    next_class = await next_button.get_attribute('class') or ''
+                    if 'disabled' in next_class:
+                        print("[Extract] Next button is disabled - reached last page", flush=True)
+                        break
+
+                    print(f"[Extract] Clicking next page button...", flush=True)
+                    await next_button.click()
+                    await asyncio.sleep(1)
+                    await self._page.wait_for_load_state('networkidle')
+                    page_num += 1
+                else:
+                    print("[Extract] No next page button found - single page or last page", flush=True)
+                    break
+
+        except Exception as e:
+            print(f"[Extract] Failed to extract search results: {e}", flush=True)
+
+        print(f"[Extract] Total issues extracted from all pages: {len(issues)}", flush=True)
+        return issues
+
     async def crawl_issue_details(
         self,
         issue_id: str,
-        credentials: UserCredentials
+        credentials: UserCredentials,
+        fallback_issue: Issue = None
     ) -> Issue:
         """
         Crawl detailed information for a single issue.
@@ -224,6 +993,7 @@ class PlaywrightCrawler(CrawlerPort):
         Args:
             issue_id: IMS issue identifier
             credentials: User credentials
+            fallback_issue: Optional issue from search results to use as fallback
 
         Returns:
             Complete Issue entity with all details
@@ -235,65 +1005,181 @@ class PlaywrightCrawler(CrawlerPort):
             await self.authenticate(credentials)
 
         try:
-            # Navigate to issue page
-            issue_url = f"{credentials.ims_base_url}/issue/{issue_id}"
+            # TmaxSoft IMS issue detail URL format
+            issue_url = f"{credentials.ims_base_url}/tody/ims/issue/issueView.do?issueId={issue_id}"
+            logger.info(f"Navigating to issue detail page: {issue_url}")
+
             await self._page.goto(issue_url)
             await self._page.wait_for_load_state('networkidle')
 
-            # Extract issue details
-            title_elem = await self._page.query_selector('h1.issue-title')
-            title = await title_elem.inner_text() if title_elem else "Untitled"
+            # TmaxSoft IMS specific selectors
+            # Try multiple selectors for title
+            title = ""
+            title_selectors = [
+                '#subject',  # TmaxSoft IMS subject field
+                'input[name="subject"]',
+                '.issue-subject',
+                '#issueSubject',
+                'td:has-text("Subject") + td',
+                'h1.issue-title',
+                '.detail-title',
+                '#detailSubject'
+            ]
 
-            desc_elem = await self._page.query_selector('.issue-description')
-            description = await desc_elem.inner_text() if desc_elem else ""
+            for selector in title_selectors:
+                try:
+                    title_elem = await self._page.query_selector(selector)
+                    if title_elem:
+                        # Check if it's an input element
+                        tag_name = await title_elem.evaluate('el => el.tagName.toLowerCase()')
+                        if tag_name == 'input':
+                            title = await title_elem.get_attribute('value') or ""
+                        else:
+                            title = await title_elem.inner_text()
+                        title = title.strip()
+                        if title and title != "Untitled":
+                            logger.debug(f"Found title with selector '{selector}': {title[:50]}")
+                            break
+                except Exception:
+                    continue
 
-            status_elem = await self._page.query_selector('.issue-status')
-            status_text = await status_elem.inner_text() if status_elem else "OPEN"
-            status = self._parse_status(status_text)
+            # Fallback to issue from search results if title not found
+            if not title or title == "Untitled":
+                if fallback_issue and fallback_issue.title:
+                    title = fallback_issue.title
+                    logger.debug(f"Using fallback title from search: {title[:50]}")
+                else:
+                    title = f"Issue {issue_id}"
 
-            priority_elem = await self._page.query_selector('.issue-priority')
-            priority_text = await priority_elem.inner_text() if priority_elem else "MEDIUM"
-            priority = self._parse_priority(priority_text)
+            # Try multiple selectors for description
+            description = ""
+            desc_selectors = [
+                '#contents',  # TmaxSoft IMS contents field
+                'textarea[name="contents"]',
+                '.issue-description',
+                '#issueContents',
+                '.detail-description',
+                '#detailContents'
+            ]
 
-            reporter_elem = await self._page.query_selector('.issue-reporter')
-            reporter = await reporter_elem.inner_text() if reporter_elem else "Unknown"
+            for selector in desc_selectors:
+                try:
+                    desc_elem = await self._page.query_selector(selector)
+                    if desc_elem:
+                        tag_name = await desc_elem.evaluate('el => el.tagName.toLowerCase()')
+                        if tag_name == 'textarea':
+                            description = await desc_elem.evaluate('el => el.value || el.textContent || ""')
+                        else:
+                            description = await desc_elem.inner_text()
+                        description = description.strip()
+                        if description:
+                            break
+                except Exception:
+                    continue
 
-            assignee_elem = await self._page.query_selector('.issue-assignee')
-            assignee = await assignee_elem.inner_text() if assignee_elem else None
+            # Status - TmaxSoft IMS format
+            status = IssueStatus.OPEN
+            status_selectors = ['#status', 'select[name="status"]', '.issue-status']
+            for selector in status_selectors:
+                try:
+                    status_elem = await self._page.query_selector(selector)
+                    if status_elem:
+                        status_text = await status_elem.evaluate('el => el.value || el.textContent || ""')
+                        status = self._parse_status(status_text.strip())
+                        break
+                except Exception:
+                    continue
 
-            project_elem = await self._page.query_selector('.issue-project')
-            project_key = await project_elem.inner_text() if project_elem else "UNKNOWN"
+            # Priority
+            priority = IssuePriority.MEDIUM
+            priority_selectors = ['#priority', 'select[name="priority"]', '.issue-priority']
+            for selector in priority_selectors:
+                try:
+                    priority_elem = await self._page.query_selector(selector)
+                    if priority_elem:
+                        priority_text = await priority_elem.evaluate('el => el.value || el.textContent || ""')
+                        priority = self._parse_priority(priority_text.strip())
+                        break
+                except Exception:
+                    continue
 
-            # Extract labels
-            label_elements = await self._page.query_selector_all('.issue-label')
+            # Reporter
+            reporter = "Unknown"
+            reporter_selectors = ['#reporter', 'input[name="reporter"]', '.issue-reporter']
+            for selector in reporter_selectors:
+                try:
+                    reporter_elem = await self._page.query_selector(selector)
+                    if reporter_elem:
+                        reporter = await reporter_elem.evaluate('el => el.value || el.textContent || ""')
+                        reporter = reporter.strip() or "Unknown"
+                        break
+                except Exception:
+                    continue
+
+            # Assignee
+            assignee = None
+            assignee_selectors = ['#assignee', 'input[name="assignee"]', '.issue-assignee']
+            for selector in assignee_selectors:
+                try:
+                    assignee_elem = await self._page.query_selector(selector)
+                    if assignee_elem:
+                        assignee = await assignee_elem.evaluate('el => el.value || el.textContent || ""')
+                        assignee = assignee.strip() or None
+                        break
+                except Exception:
+                    continue
+
+            # Project
+            project_key = "UNKNOWN"
+            project_selectors = ['#project', 'select[name="project"]', '.issue-project']
+            for selector in project_selectors:
+                try:
+                    project_elem = await self._page.query_selector(selector)
+                    if project_elem:
+                        project_key = await project_elem.evaluate('el => el.value || el.textContent || ""')
+                        project_key = project_key.strip() or "UNKNOWN"
+                        break
+                except Exception:
+                    continue
+
+            # Labels
             labels = []
-            for label_elem in label_elements:
-                label_text = await label_elem.inner_text()
-                labels.append(label_text.strip())
+            try:
+                label_elements = await self._page.query_selector_all('.issue-label, .label-tag, .tag')
+                for label_elem in label_elements:
+                    label_text = await label_elem.inner_text()
+                    if label_text.strip():
+                        labels.append(label_text.strip())
+            except Exception:
+                pass
 
             # Create Issue entity
             issue = Issue(
                 id=uuid4(),
                 user_id=credentials.user_id,
                 ims_id=issue_id,
-                title=title.strip(),
-                description=description.strip(),
+                title=title,
+                description=description,
                 status=status,
                 priority=priority,
-                reporter=reporter.strip(),
-                assignee=assignee.strip() if assignee else None,
-                project_key=project_key.strip(),
+                reporter=reporter,
+                assignee=assignee,
+                project_key=project_key,
                 labels=labels,
-                ims_url=issue_url,
+                source_url=issue_url,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
             )
 
-            logger.info(f"Crawled issue details: {issue_id}")
+            logger.info(f"Crawled issue details: {issue_id} - '{title[:50]}'")
             return issue
 
         except Exception as e:
             logger.error(f"Failed to crawl issue {issue_id}: {e}")
+            # Return fallback issue if available
+            if fallback_issue:
+                logger.info(f"Returning fallback issue for {issue_id}")
+                return fallback_issue
             raise
 
     async def download_attachments(
@@ -321,8 +1207,8 @@ class PlaywrightCrawler(CrawlerPort):
 
         try:
             # Navigate to issue page if not already there
-            if self._page.url != issue.ims_url:
-                await self._page.goto(issue.ims_url)
+            if self._page.url != issue.source_url:
+                await self._page.goto(issue.source_url)
                 await self._page.wait_for_load_state('networkidle')
 
             # Find attachment links
@@ -414,8 +1300,8 @@ class PlaywrightCrawler(CrawlerPort):
 
         try:
             # Navigate to issue page
-            if self._page.url != issue.ims_url:
-                await self._page.goto(issue.ims_url)
+            if self._page.url != issue.source_url:
+                await self._page.goto(issue.source_url)
                 await self._page.wait_for_load_state('networkidle')
 
             # Find related issue links

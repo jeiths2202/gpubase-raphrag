@@ -5,7 +5,7 @@ Manages crawl job lifecycle: creation, execution, progress updates, and result s
 """
 
 import asyncio
-from typing import List, AsyncGenerator, Dict, Any
+from typing import List, AsyncGenerator, Dict, Any, Optional
 from uuid import UUID, uuid4
 from datetime import datetime
 import logging
@@ -14,6 +14,7 @@ from ...domain.entities import Issue, Attachment, CrawlJob, UserCredentials, Cra
 from ...infrastructure.ports.crawler_port import CrawlerPort
 from ...infrastructure.ports.credentials_repository_port import CredentialsRepositoryPort
 from ...infrastructure.ports.issue_repository_port import IssueRepositoryPort
+from ...infrastructure.ports.crawl_job_repository_port import CrawlJobRepositoryPort
 from ...infrastructure.ports.embedding_service_port import EmbeddingServicePort
 from ...infrastructure.services.attachment_processor import AttachmentProcessor
 
@@ -36,6 +37,7 @@ class CrawlJobsUseCase:
         crawler: CrawlerPort,
         credentials_repository: CredentialsRepositoryPort,
         issue_repository: IssueRepositoryPort,
+        crawl_job_repository: CrawlJobRepositoryPort,
         embedding_service: EmbeddingServicePort,
         attachment_processor: AttachmentProcessor
     ):
@@ -46,16 +48,18 @@ class CrawlJobsUseCase:
             crawler: Web crawler implementation
             credentials_repository: For retrieving user credentials
             issue_repository: For storing crawled issues
+            crawl_job_repository: For persisting crawl job state
             embedding_service: For generating embeddings
             attachment_processor: For extracting text from attachments
         """
         self.crawler = crawler
         self.credentials_repo = credentials_repository
         self.issue_repo = issue_repository
+        self.crawl_job_repo = crawl_job_repository
         self.embedding = embedding_service
         self.attachment_processor = attachment_processor
 
-        # In-memory job tracking (in production, use Redis or database)
+        # In-memory job tracking (also persisted to database for recovery)
         self._jobs: Dict[UUID, CrawlJob] = {}
 
     async def create_crawl_job(
@@ -65,7 +69,8 @@ class CrawlJobsUseCase:
         max_results: int = 100,
         download_attachments: bool = True,
         crawl_related: bool = False,
-        max_depth: int = 1
+        max_depth: int = 1,
+        product_codes: Optional[List[str]] = None
     ) -> CrawlJob:
         """
         Create a new crawl job.
@@ -77,6 +82,7 @@ class CrawlJobsUseCase:
             download_attachments: Whether to download attachments
             crawl_related: Whether to crawl related issues
             max_depth: Maximum depth for related issue crawling
+            product_codes: List of product codes to filter search (e.g., ['128', '520'])
 
         Returns:
             Created CrawlJob entity
@@ -94,8 +100,14 @@ class CrawlJobsUseCase:
             completed_at=None
         )
 
+        # Store product_codes for use during execution
+        job.product_codes = product_codes
+
         self._jobs[job.id] = job
-        logger.info(f"Created crawl job {job.id} for user {user_id}")
+
+        # Persist to database
+        await self.crawl_job_repo.save(job)
+        logger.info(f"Created crawl job {job.id} for user {user_id} with product_codes={product_codes}")
 
         return job
 
@@ -122,6 +134,7 @@ class CrawlJobsUseCase:
             # Update job status
             job.start()
             self._jobs[job_id] = job
+            await self.crawl_job_repo.save(job)  # Persist job start
 
             yield {
                 "event": "job_started",
@@ -155,10 +168,12 @@ class CrawlJobsUseCase:
                 "message": f"Searching for issues: {job.raw_query}"
             }
 
+            # Get product_codes from job (if set during creation)
+            product_codes = getattr(job, 'product_codes', None)
             issues = await self.crawler.search_issues(
                 job.raw_query,
                 credentials,
-                job.max_issues
+                product_codes=product_codes
             )
 
             job.issues_found = len(issues)
@@ -181,8 +196,12 @@ class CrawlJobsUseCase:
                         "message": f"Crawling issue {idx}/{len(issues)}: {issue.ims_id}"
                     }
 
-                    # Crawl full issue details
-                    full_issue = await self.crawler.crawl_issue_details(issue.ims_id, credentials)
+                    # Crawl full issue details (pass search result as fallback for title)
+                    full_issue = await self.crawler.crawl_issue_details(
+                        issue.ims_id,
+                        credentials,
+                        fallback_issue=issue  # Use search result as fallback
+                    )
 
                     # Download attachments if requested
                     if job.include_attachments:
@@ -208,6 +227,23 @@ class CrawlJobsUseCase:
                             credentials,
                             related_depth
                         )
+
+                        # Save relations for each related issue
+                        for related_issue in related_issues:
+                            try:
+                                # Save the related issue first
+                                await self.issue_repo.save(related_issue)
+
+                                # Save the relation (source -> target)
+                                await self.issue_repo.save_relation(
+                                    source_issue_id=full_issue.id,
+                                    target_issue_id=related_issue.id,
+                                    relation_type='relates_to'
+                                )
+                                job.related_issues_crawled += 1
+                            except Exception as rel_error:
+                                logger.warning(f"Failed to save relation for {related_issue.ims_id}: {rel_error}")
+
                         issues.extend(related_issues)
 
                         yield {
@@ -216,23 +252,29 @@ class CrawlJobsUseCase:
                             "related_count": len(related_issues)
                         }
 
-                    # Generate embedding for semantic search
-                    embedding_text = f"{full_issue.title} {full_issue.description}"
-                    if full_issue.attachments:
-                        attachment_texts = [
-                            att.extracted_text for att in full_issue.attachments
-                            if att.extracted_text
-                        ]
-                        embedding_text += " " + " ".join(attachment_texts)
+                    # Save issue to database FIRST (before embedding)
+                    # Use the returned ID (may differ from full_issue.id on UPSERT conflict)
+                    saved_issue_id = await self.issue_repo.save(full_issue)
+                    job.add_crawled_issue(saved_issue_id)
 
-                    embedding = await self.embedding.embed_text(embedding_text)
+                    # Try to generate and save embedding (non-blocking on failure)
+                    try:
+                        embedding_text = f"{full_issue.title} {full_issue.description}"
+                        if full_issue.attachments:
+                            attachment_texts = [
+                                att.extracted_text for att in full_issue.attachments
+                                if att.extracted_text
+                            ]
+                            embedding_text += " " + " ".join(attachment_texts)
 
-                    # Save issue to database
-                    await self.issue_repo.save(full_issue)
-                    await self.issue_repo.save_embedding(full_issue.id, embedding)
+                        embedding = await self.embedding.embed_text(embedding_text)
+                        await self.issue_repo.save_embedding(saved_issue_id, embedding, embedding_text)
+                    except Exception as emb_error:
+                        # Log embedding failure but don't fail the issue crawl
+                        logger.warning(f"Failed to save embedding for {full_issue.ims_id}: {emb_error}")
 
-                    job.add_crawled_issue(full_issue.id)
                     self._jobs[job_id] = job
+                    await self.crawl_job_repo.save(job)  # Persist after each issue
 
                     yield {
                         "event": "issue_completed",
@@ -256,6 +298,7 @@ class CrawlJobsUseCase:
             # Mark job as completed
             job.mark_as_completed()
             self._jobs[job_id] = job
+            await self.crawl_job_repo.save(job)  # Persist completion
 
             yield {
                 "event": "job_completed",
@@ -263,13 +306,15 @@ class CrawlJobsUseCase:
                 "issues_found": job.issues_found,
                 "issues_crawled": job.issues_crawled,
                 "attachments_processed": job.attachments_processed,
-                "timestamp": job.completed_at.isoformat() if job.completed_at else None
+                "timestamp": job.completed_at.isoformat() if job.completed_at else None,
+                "result_issue_ids": [str(iid) for iid in job.result_issue_ids]  # Include crawled issue IDs
             }
 
         except Exception as e:
             logger.error(f"Crawl job {job_id} failed: {e}")
             job.mark_as_failed(str(e))
             self._jobs[job_id] = job
+            await self.crawl_job_repo.save(job)  # Persist failure
 
             yield {
                 "event": "job_failed",
@@ -295,10 +340,18 @@ class CrawlJobsUseCase:
         Raises:
             ValueError: If job not found
         """
+        # First check in-memory cache
         job = self._jobs.get(job_id)
+        if job:
+            return job
+
+        # Fall back to database
+        job = await self.crawl_job_repo.find_by_id(job_id)
         if not job:
             raise ValueError(f"Job {job_id} not found")
 
+        # Cache it for future access
+        self._jobs[job_id] = job
         return job
 
     async def cancel_job(self, job_id: UUID) -> None:
@@ -313,9 +366,13 @@ class CrawlJobsUseCase:
         """
         job = self._jobs.get(job_id)
         if not job:
-            raise ValueError(f"Job {job_id} not found")
+            job = await self.crawl_job_repo.find_by_id(job_id)
+            if not job:
+                raise ValueError(f"Job {job_id} not found")
 
-        if job.status == CrawlJobStatus.RUNNING:
+        # Check if job is in a running state (not terminal)
+        if not job.is_terminal_state():
             job.mark_as_failed("Cancelled by user")
             self._jobs[job_id] = job
+            await self.crawl_job_repo.save(job)  # Persist cancellation
             logger.info(f"Cancelled crawl job {job_id}")

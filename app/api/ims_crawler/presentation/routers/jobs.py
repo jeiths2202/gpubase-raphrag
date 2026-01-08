@@ -7,7 +7,7 @@ Endpoints for managing crawl jobs with Server-Sent Events (SSE) progress updates
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from typing import Optional, AsyncGenerator
+from typing import Optional, AsyncGenerator, List
 from uuid import UUID
 import json
 import asyncio
@@ -29,7 +29,8 @@ class CrawlJobCreateRequest(BaseModel):
     query: str = Field(..., min_length=1, description="Natural language query")
     include_attachments: bool = Field(default=True)
     include_related_issues: bool = Field(default=True)
-    max_issues: int = Field(default=100, ge=1, le=500)
+    max_issues: Optional[int] = Field(default=None, description="Maximum issues to crawl (None = unlimited)")
+    product_codes: Optional[List[str]] = Field(default=None, description="Product codes to filter search (e.g., ['128', '520'])")
 
 
 class CrawlJobResponse(BaseModel):
@@ -71,14 +72,15 @@ async def create_crawl_job(
     user_id = UUID(current_user["id"])
 
     try:
-        # Create crawl job
+        # Create crawl job (max_results=None means crawl all issues)
         job = await use_case.create_crawl_job(
             user_id=user_id,
             search_query=request.query,
-            max_results=request.max_issues,
+            max_results=request.max_issues if request.max_issues else 10000,  # Unlimited (use high number)
             download_attachments=request.include_attachments,
             crawl_related=request.include_related_issues,
-            max_depth=2 if request.include_related_issues else 0
+            max_depth=2 if request.include_related_issues else 0,
+            product_codes=request.product_codes
         )
 
         # Return job response

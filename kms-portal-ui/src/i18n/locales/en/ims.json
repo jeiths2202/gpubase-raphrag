@@ -1,106 +1,107 @@
 {
-  "title": "IMS Crawler",
-  "description": "Manage and monitor IMS crawling jobs",
-  "crawler": {
-    "title": "Crawler Status",
-    "start": "Start Crawling",
-    "stop": "Stop",
-    "pause": "Pause",
-    "resume": "Resume",
-    "status": {
-      "idle": "Idle",
-      "running": "Running",
-      "paused": "Paused",
-      "completed": "Completed",
-      "failed": "Failed"
-    },
-    "progress": "Progress",
-    "currentUrl": "Current URL",
-    "elapsedTime": "Elapsed Time",
-    "estimatedRemaining": "Estimated Remaining"
+  "title": "IMS Knowledge Service",
+  "subtitle": "Search and analyze issues from your IMS system using AI-powered hybrid search",
+  "tabs": {
+    "search": "Search"
   },
-  "jobs": {
-    "title": "Crawling Jobs",
-    "newJob": "New Job",
-    "schedule": "Schedule",
-    "history": "History",
-    "id": "Job ID",
-    "url": "Target URL",
+  "credentials": {
+    "title": "IMS Credentials",
+    "subtitle": "Enter your IMS login credentials to connect",
+    "imsUrl": "IMS URL",
+    "username": "Username",
+    "usernamePlaceholder": "Enter your username",
+    "password": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "save": "Save & Validate",
+    "validating": "Validating...",
+    "success": "Credentials validated successfully!",
+    "error": "Failed to validate credentials",
+    "connected": "Connected to IMS"
+  },
+  "search": {
+    "placeholder": "Enter your search query in natural language...",
+    "button": "Search",
+    "searching": "Searching...",
+    "includeAttachments": "Include attachments",
+    "includeRelated": "Include related issues",
+    "maxIssues": "Max issues",
+    "allProducts": "All Products",
+    "noProducts": "Select Products",
+    "productsSelected": "products selected",
+    "selectAll": "Select All",
+    "clearAll": "Clear",
+    "otherProducts": "Other"
+  },
+  "progress": {
+    "connecting": "Connecting...",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "reconnecting": "Reconnecting...",
+    "authenticating": "Authenticating...",
+    "authenticated": "Authenticated successfully",
+    "searching": "Searching issues...",
+    "searchCompleted": "Search completed",
+    "crawling": "Crawling issues",
+    "crawlingIssue": "Crawling issue",
+    "relatedFound": "Related issues found",
+    "processing": "Processing attachments...",
+    "embedding": "Generating embeddings...",
+    "completed": "Completed successfully",
+    "failed": "Failed",
+    "jobStarted": "Job started",
+    "viewResults": "View Results",
+    "activityLog": "Activity Log"
+  },
+  "results": {
+    "found": "Found",
+    "crawled": "Crawled",
+    "related": "Related",
+    "issues": "issues",
+    "table": "Table",
+    "cards": "Cards",
+    "graph": "Graph",
+    "noResults": "No results found"
+  },
+  "table": {
+    "id": "ID",
+    "title": "Title",
     "status": "Status",
-    "documentCount": "Documents",
-    "createdAt": "Created",
-    "actions": "Actions",
-    "viewDetails": "View Details",
-    "delete": "Delete",
-    "noJobs": "No crawling jobs found",
-    "createFirst": "Create your first crawling job to get started"
+    "priority": "Priority",
+    "reporter": "Reporter",
+    "assignee": "Assignee",
+    "created": "Created",
+    "score": "Score",
+    "allStatuses": "All Statuses",
+    "allPriorities": "All Priorities"
   },
-  "newJobForm": {
-    "title": "Create New Crawling Job",
-    "targetUrl": "Target URL",
-    "targetUrlPlaceholder": "https://example.com/docs",
-    "jobName": "Job Name",
-    "jobNamePlaceholder": "Documentation Crawl",
-    "description": "Description",
-    "descriptionPlaceholder": "Crawl documentation pages",
-    "cancel": "Cancel",
-    "create": "Create Job",
-    "validation": {
-      "urlRequired": "Target URL is required",
-      "urlInvalid": "Please enter a valid URL",
-      "nameRequired": "Job name is required"
-    }
+  "status": {
+    "open": "Open",
+    "in_progress": "In Progress",
+    "resolved": "Resolved",
+    "closed": "Closed",
+    "pending": "Pending",
+    "rejected": "Rejected"
   },
-  "jobDetail": {
-    "title": "Job Details",
-    "overview": "Overview",
-    "logs": "Logs",
-    "documents": "Crawled Documents",
-    "errors": "Errors",
-    "close": "Close"
+  "priority": {
+    "critical": "Critical",
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low",
+    "trivial": "Trivial"
   },
-  "documents": {
-    "title": "Crawled Documents",
-    "total": "Total Documents",
-    "new": "New",
-    "updated": "Updated",
+  "snapshot": {
+    "success": "Completed Successfully",
+    "partial": "Partially Completed",
     "failed": "Failed"
   },
-  "settings": {
-    "title": "Crawler Settings",
-    "depth": "Crawl Depth",
-    "depthHelp": "Maximum number of link levels to follow",
-    "interval": "Crawl Interval",
-    "intervalHelp": "Time between requests (seconds)",
-    "timeout": "Timeout",
-    "timeoutHelp": "Request timeout (seconds)",
-    "documentTypes": "Document Types",
-    "documentTypesHelp": "File types to crawl",
-    "save": "Save Settings",
-    "reset": "Reset to Default"
+  "graph": {
+    "legend": "Link Types",
+    "similarity": "Similar Score",
+    "sameProject": "Same Project",
+    "sharedLabels": "Shared Labels"
   },
-  "logs": {
-    "title": "Real-time Logs",
-    "clear": "Clear Logs",
-    "download": "Download",
-    "noLogs": "No logs available",
-    "levels": {
-      "info": "Info",
-      "warning": "Warning",
-      "error": "Error",
-      "debug": "Debug"
-    }
-  },
-  "stats": {
-    "totalCrawled": "Total Crawled",
-    "newDocuments": "New Documents",
-    "updatedDocuments": "Updated Documents",
-    "failedDocuments": "Failed Documents",
-    "lastUpdated": "Last Updated"
-  },
-  "actions": {
-    "refresh": "Refresh",
-    "export": "Export",
-    "import": "Import"
+  "empty": {
+    "title": "Start Your Search",
+    "description": "Enter a natural language query to search for issues in your IMS system"
   }
 }

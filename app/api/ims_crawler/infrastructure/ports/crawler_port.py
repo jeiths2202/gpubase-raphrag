@@ -5,7 +5,7 @@ Abstract interface that crawler adapters must implement.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, AsyncGenerator
+from typing import List, AsyncGenerator, Optional
 from uuid import UUID
 
 from ...domain.entities import Issue, Attachment, UserCredentials
@@ -39,7 +39,7 @@ class CrawlerPort(ABC):
         self,
         query: str,
         credentials: UserCredentials,
-        max_results: int = 100
+        product_codes: Optional[List[str]] = None
     ) -> List[Issue]:
         """
         Search for issues matching the query.
@@ -47,7 +47,7 @@ class CrawlerPort(ABC):
         Args:
             query: IMS search syntax query
             credentials: User credentials for authentication
-            max_results: Maximum number of issues to return
+            product_codes: Optional list of product codes to filter (e.g., ['128', '520'])
 
         Returns:
             List of Issue entities
@@ -61,7 +61,8 @@ class CrawlerPort(ABC):
     async def crawl_issue_details(
         self,
         issue_id: str,
-        credentials: UserCredentials
+        credentials: UserCredentials,
+        fallback_issue: Issue = None
     ) -> Issue:
         """
         Crawl detailed information for a single issue.
@@ -69,6 +70,7 @@ class CrawlerPort(ABC):
         Args:
             issue_id: IMS issue identifier
             credentials: User credentials
+            fallback_issue: Optional issue from search results to use as fallback
 
         Returns:
             Complete Issue entity with all details
