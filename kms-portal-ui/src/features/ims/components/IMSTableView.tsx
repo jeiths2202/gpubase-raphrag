@@ -184,11 +184,17 @@ export const IMSTableView: React.FC<IMSTableViewProps> = ({ issues, onIssueClick
     const key = column.key;
     const value = issue[key];
 
+    // Truncate text to specified length with ellipsis
+    const truncateText = (text: string, maxLength: number = 30): string => {
+      if (!text) return '';
+      return text.length > maxLength ? text.slice(0, maxLength) + '...' : text;
+    };
+
     switch (key) {
       case 'ims_id':
         return <span className="ims-table__id">{issue.ims_id}</span>;
       case 'title':
-        return <span className="ims-table__title" title={issue.title}>{issue.title}</span>;
+        return <span className="ims-table__title" title={issue.title}>{truncateText(issue.title, 30)}</span>;
       case 'status':
         return issue.status ? (
           <span className={`ims-badge ${STATUS_COLORS[issue.status] || ''}`}>

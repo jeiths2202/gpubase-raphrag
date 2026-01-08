@@ -5,6 +5,7 @@ Web automation implementation for crawling IMS system.
 """
 
 import sys
+import re
 import asyncio
 import logging
 from typing import List, Optional, Set
@@ -876,14 +877,16 @@ class PlaywrightCrawler(CrawlerPort):
                                 issue_id = id_match.group(1)
                                 logger.debug(f"Extracted issue ID from onclick: {issue_id}")
 
-                        # Debug: Log row info and ALL cell contents
+                        # Debug: Log row info and ALL cell contents (ASCII-safe for Windows)
                         if idx == 0:  # Only first row to understand structure
-                            print(f"[Extract] Row {idx}: cells={len(cells)}, onclick={'yes' if row_onclick else 'no'}, issue_id={issue_id}", flush=True)
+                            logger.info(f"[Extract] Row {idx}: cells={len(cells)}, onclick={'yes' if row_onclick else 'no'}, issue_id={issue_id}")
                             # Print ALL cell contents for debugging (all 31 cells)
                             for ci in range(len(cells)):
                                 cell_text = await cells[ci].evaluate('el => el.textContent || ""')
                                 cell_text = cell_text.strip()[:80]  # Truncate for readability
-                                print(f"[Extract] Row {idx} Cell {ci}: '{cell_text}'", flush=True)
+                                # Use ASCII-safe encoding for Windows console
+                                safe_text = cell_text.encode('ascii', 'replace').decode('ascii')
+                                logger.info(f"[Extract] Row {idx} Cell {ci}: '{safe_text}'")
 
                         # TmaxSoft IMS cell structure:
                         # Cell 0: Row number (8194)
@@ -906,6 +909,9 @@ class PlaywrightCrawler(CrawlerPort):
                         customer = ""
                         issued_date = None
                         reporter = ""
+
+                        # Debug: Print first 3 rows' extraction data
+                        debug_row = idx < 3
 
                         if not issue_id and len(cells) > 1:
                             # Get issue ID from cell 1 (Issue Number column)
@@ -932,6 +938,10 @@ class PlaywrightCrawler(CrawlerPort):
                         if len(cells) > 5:
                             module = (await cells[5].evaluate('el => el.textContent || ""')).strip()
 
+                        # Debug: Print extracted column data for first 3 rows
+                        if debug_row:
+                            print(f"[Extract] Row {idx} Columns: cat='{category[:20]}' prod='{product[:20]}' ver='{version}' mod='{module[:20]}'", flush=True)
+
                         # Skip if already extracted (pagination duplicate prevention)
                         if issue_id in extracted_ids:
                             continue
@@ -948,8 +958,11 @@ class PlaywrightCrawler(CrawlerPort):
                             else:
                                 # Try getting all text content using JavaScript
                                 title = await subject_cell.evaluate('el => el.textContent || el.innerText || ""')
-                            title = title.strip() if title else ""
-                            logger.debug(f"Row {idx}: Subject cell text = '{title[:100] if title else 'EMPTY'}'")
+                            # Normalize whitespace: replace multiple spaces/newlines/tabs with single space
+                            title = re.sub(r'\s+', ' ', title).strip() if title else ""
+                            # Use ASCII-safe logging for Windows
+                            safe_title = (title[:100] if title else 'EMPTY').encode('ascii', 'replace').decode('ascii')
+                            logger.debug(f"Row {idx}: Subject cell text = '{safe_title}'")
 
                         # Extract Customer (cell 7)
                         if len(cells) > 7:
@@ -979,7 +992,8 @@ class PlaywrightCrawler(CrawlerPort):
                             for cell_idx in range(len(cells)):
                                 if cell_idx < len(cells):
                                     cell_text = await cells[cell_idx].evaluate('el => el.textContent || ""')
-                                    cell_text = cell_text.strip()
+                                    # Normalize whitespace
+                                    cell_text = re.sub(r'\s+', ' ', cell_text).strip()
                                     # Subject/title usually has longer text than other cells
                                     if len(cell_text) > 10 and not cell_text.isdigit():
                                         title = cell_text
@@ -1223,7 +1237,7 @@ class PlaywrightCrawler(CrawlerPort):
             except Exception:
                 pass
 
-            # Create Issue entity
+            # Create Issue entity, preserving IMS-specific fields from fallback_issue if available
             issue = Issue(
                 id=uuid4(),
                 user_id=credentials.user_id,
@@ -1232,7 +1246,15 @@ class PlaywrightCrawler(CrawlerPort):
                 description=description,
                 status=status,
                 priority=priority,
-                reporter=reporter,
+                # Preserve IMS-specific fields from search results (fallback_issue)
+                category=fallback_issue.category if fallback_issue else "",
+                product=fallback_issue.product if fallback_issue else "",
+                version=fallback_issue.version if fallback_issue else "",
+                module=fallback_issue.module if fallback_issue else "",
+                customer=fallback_issue.customer if fallback_issue else "",
+                issued_date=fallback_issue.issued_date if fallback_issue else None,
+                # Metadata from detail page
+                reporter=reporter or (fallback_issue.reporter if fallback_issue else ""),
                 assignee=assignee,
                 project_key=project_key,
                 labels=labels,
@@ -1558,7 +1580,7 @@ class PlaywrightCrawler(CrawlerPort):
                         # Labels
                         labels = issue.labels if issue.labels else []
 
-                        # Create Issue entity
+                        # Create Issue entity, preserving IMS-specific fields from original issue
                         crawled_issue = Issue(
                             id=uuid4(),
                             user_id=credentials.user_id,
@@ -1567,6 +1589,14 @@ class PlaywrightCrawler(CrawlerPort):
                             description=description,
                             status=status,
                             priority=priority,
+                            # Preserve IMS-specific fields from search results
+                            category=issue.category,
+                            product=issue.product,
+                            version=issue.version,
+                            module=issue.module,
+                            customer=issue.customer,
+                            issued_date=issue.issued_date,
+                            # Metadata
                             reporter=reporter,
                             assignee=assignee,
                             project_key=project_key,

@@ -47,6 +47,14 @@ class IssueSearchResult(BaseModel):
     description: str
     status: str
     priority: str
+    # IMS-specific fields
+    category: Optional[str] = None
+    product: Optional[str] = None
+    version: Optional[str] = None
+    module: Optional[str] = None
+    customer: Optional[str] = None
+    issued_date: Optional[str] = None
+    # Metadata
     reporter: str
     assignee: Optional[str]
     project_key: str
@@ -116,6 +124,14 @@ async def search_issues(
                 description=issue.description,
                 status=issue.status.value,
                 priority=issue.priority.value,
+                # IMS-specific fields
+                category=issue.category or None,
+                product=issue.product or None,
+                version=issue.version or None,
+                module=issue.module or None,
+                customer=issue.customer or None,
+                issued_date=issue.issued_date.isoformat() if issue.issued_date else None,
+                # Metadata
                 reporter=issue.reporter,
                 assignee=issue.assignee,
                 project_key=issue.project_key,
@@ -171,6 +187,14 @@ async def get_recent_issues(
                 description=issue.description,
                 status=issue.status.value,
                 priority=issue.priority.value,
+                # IMS-specific fields
+                category=issue.category or None,
+                product=issue.product or None,
+                version=issue.version or None,
+                module=issue.module or None,
+                customer=issue.customer or None,
+                issued_date=issue.issued_date.isoformat() if issue.issued_date else None,
+                # Metadata
                 reporter=issue.reporter,
                 assignee=issue.assignee,
                 project_key=issue.project_key,
@@ -222,6 +246,14 @@ async def get_issues_by_ids(
                         description=issue.description,
                         status=issue.status.value,
                         priority=issue.priority.value,
+                        # IMS-specific fields
+                        category=issue.category or None,
+                        product=issue.product or None,
+                        version=issue.version or None,
+                        module=issue.module or None,
+                        customer=issue.customer or None,
+                        issued_date=issue.issued_date.isoformat() if issue.issued_date else None,
+                        # Metadata
                         reporter=issue.reporter,
                         assignee=issue.assignee,
                         project_key=issue.project_key,
@@ -278,6 +310,14 @@ async def get_issue_details(
             description=issue.description,
             status=issue.status.value,
             priority=issue.priority.value,
+            # IMS-specific fields
+            category=issue.category or None,
+            product=issue.product or None,
+            version=issue.version or None,
+            module=issue.module or None,
+            customer=issue.customer or None,
+            issued_date=issue.issued_date.isoformat() if issue.issued_date else None,
+            # Metadata
             reporter=issue.reporter,
             assignee=issue.assignee,
             project_key=issue.project_key,
