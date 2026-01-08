@@ -94,6 +94,17 @@ token.txt
 *.sh
 !scripts/*.sh
 
+# Temporary test scripts
+call_*.py
+check_*.py
+list_emails.py
+trigger_api.py
+verification.txt
+nul
+
+# Temporary UI projects
+kms-portal-ui-antigraphy/
+
 # Documentation working files (exclude important ones)
 *_COMPLETE.md
 !E2E_TRACING_IMPLEMENTATION_COMPLETE.md
