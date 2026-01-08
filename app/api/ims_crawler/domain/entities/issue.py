@@ -51,6 +51,14 @@ class Issue:
     status: IssueStatus = IssueStatus.OPEN
     priority: IssuePriority = IssuePriority.MEDIUM
 
+    # IMS-specific fields (from TmaxSoft IMS)
+    category: str = ""      # Category (e.g., Technical Support)
+    product: str = ""       # Product (e.g., OpenFrame Base)
+    version: str = ""       # Version (e.g., 7.3)
+    module: str = ""        # Module (e.g., General)
+    customer: str = ""      # Customer name
+    issued_date: Optional[datetime] = None  # Issue registration date
+
     # Metadata
     reporter: str = ""
     assignee: Optional[str] = None
@@ -129,6 +137,14 @@ class Issue:
             "description": self.description,
             "status": self.status.value,
             "priority": self.priority.value,
+            # IMS-specific fields
+            "category": self.category,
+            "product": self.product,
+            "version": self.version,
+            "module": self.module,
+            "customer": self.customer,
+            "issued_date": self.issued_date.isoformat() if self.issued_date else None,
+            # Metadata
             "reporter": self.reporter,
             "assignee": self.assignee,
             "project_key": self.project_key,
@@ -155,6 +171,14 @@ class Issue:
             description=data.get("description", ""),
             status=IssueStatus(data.get("status", "open")),
             priority=IssuePriority(data.get("priority", "medium")),
+            # IMS-specific fields
+            category=data.get("category", ""),
+            product=data.get("product", ""),
+            version=data.get("version", ""),
+            module=data.get("module", ""),
+            customer=data.get("customer", ""),
+            issued_date=datetime.fromisoformat(data["issued_date"]) if data.get("issued_date") else None,
+            # Metadata
             reporter=data.get("reporter", ""),
             assignee=data.get("assignee"),
             project_key=data.get("project_key", ""),

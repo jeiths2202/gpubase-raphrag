@@ -66,6 +66,12 @@
   "table": {
     "id": "ID",
     "title": "Title",
+    "category": "Category",
+    "product": "Product",
+    "version": "Version",
+    "module": "Module",
+    "customer": "Customer",
+    "issuedDate": "Issued Date",
     "status": "Status",
     "priority": "Priority",
     "reporter": "Reporter",
@@ -73,7 +79,9 @@
     "created": "Created",
     "score": "Score",
     "allStatuses": "All Statuses",
-    "allPriorities": "All Priorities"
+    "allPriorities": "All Priorities",
+    "columns": "Columns",
+    "selectColumns": "Select Columns"
   },
   "status": {
     "open": "Open",

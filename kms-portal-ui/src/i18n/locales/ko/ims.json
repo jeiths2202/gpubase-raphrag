@@ -66,6 +66,12 @@
   "table": {
     "id": "ID",
     "title": "제목",
+    "category": "카테고리",
+    "product": "제품",
+    "version": "버전",
+    "module": "모듈",
+    "customer": "고객사",
+    "issuedDate": "등록일",
     "status": "상태",
     "priority": "우선순위",
     "reporter": "보고자",
@@ -73,7 +79,9 @@
     "created": "생성일",
     "score": "점수",
     "allStatuses": "전체 상태",
-    "allPriorities": "전체 우선순위"
+    "allPriorities": "전체 우선순위",
+    "columns": "컬럼",
+    "selectColumns": "컬럼 선택"
   },
   "status": {
     "open": "열림",

@@ -860,6 +860,7 @@ class PlaywrightCrawler(CrawlerPort):
                         # Extract cells from each row
                         cells = await row.query_selector_all('td')
                         if len(cells) < 3:
+                            print(f"[Extract] Row {idx}: Skipped - only {len(cells)} cells", flush=True)
                             continue
 
                         issue_id = ""
@@ -875,6 +876,15 @@ class PlaywrightCrawler(CrawlerPort):
                                 issue_id = id_match.group(1)
                                 logger.debug(f"Extracted issue ID from onclick: {issue_id}")
 
+                        # Debug: Log row info and ALL cell contents
+                        if idx == 0:  # Only first row to understand structure
+                            print(f"[Extract] Row {idx}: cells={len(cells)}, onclick={'yes' if row_onclick else 'no'}, issue_id={issue_id}", flush=True)
+                            # Print ALL cell contents for debugging (all 31 cells)
+                            for ci in range(len(cells)):
+                                cell_text = await cells[ci].evaluate('el => el.textContent || ""')
+                                cell_text = cell_text.strip()[:80]  # Truncate for readability
+                                print(f"[Extract] Row {idx} Cell {ci}: '{cell_text}'", flush=True)
+
                         # TmaxSoft IMS cell structure:
                         # Cell 0: Row number (8194)
                         # Cell 1: Issue Number (350475)
@@ -886,12 +896,41 @@ class PlaywrightCrawler(CrawlerPort):
                         # Cell 7: Customer
                         # Cell 8: Project
                         # Cell 9: Reporter
+                        # Cell 10: Issued Date (등록일)
+
+                        # Extract all fields from cells
+                        category = ""
+                        product = ""
+                        version = ""
+                        module = ""
+                        customer = ""
+                        issued_date = None
+                        reporter = ""
 
                         if not issue_id and len(cells) > 1:
                             # Get issue ID from cell 1 (Issue Number column)
                             issue_num_cell = await cells[1].inner_text()
-                            if issue_num_cell.strip().isdigit():
-                                issue_id = issue_num_cell.strip()
+                            cell1_text = issue_num_cell.strip()
+                            if cell1_text.isdigit():
+                                issue_id = cell1_text
+                            elif idx < 5:
+                                print(f"[Extract] Row {idx}: Cell 1 text '{cell1_text}' is not a digit", flush=True)
+
+                        # Extract Category (cell 2)
+                        if len(cells) > 2:
+                            category = (await cells[2].evaluate('el => el.textContent || ""')).strip()
+
+                        # Extract Product (cell 3)
+                        if len(cells) > 3:
+                            product = (await cells[3].evaluate('el => el.textContent || ""')).strip()
+
+                        # Extract Version (cell 4)
+                        if len(cells) > 4:
+                            version = (await cells[4].evaluate('el => el.textContent || ""')).strip()
+
+                        # Extract Module (cell 5)
+                        if len(cells) > 5:
+                            module = (await cells[5].evaluate('el => el.textContent || ""')).strip()
 
                         # Skip if already extracted (pagination duplicate prevention)
                         if issue_id in extracted_ids:
@@ -912,6 +951,29 @@ class PlaywrightCrawler(CrawlerPort):
                             title = title.strip() if title else ""
                             logger.debug(f"Row {idx}: Subject cell text = '{title[:100] if title else 'EMPTY'}'")
 
+                        # Extract Customer (cell 7)
+                        if len(cells) > 7:
+                            customer = (await cells[7].evaluate('el => el.textContent || ""')).strip()
+
+                        # Extract Reporter (cell 9)
+                        if len(cells) > 9:
+                            reporter = (await cells[9].evaluate('el => el.textContent || ""')).strip()
+
+                        # Extract Issued Date (cell 10)
+                        if len(cells) > 10:
+                            date_str = (await cells[10].evaluate('el => el.textContent || ""')).strip()
+                            if date_str:
+                                try:
+                                    # Try common date formats
+                                    for fmt in ['%Y-%m-%d', '%Y/%m/%d', '%Y.%m.%d', '%d-%m-%Y', '%d/%m/%Y']:
+                                        try:
+                                            issued_date = datetime.strptime(date_str, fmt)
+                                            break
+                                        except ValueError:
+                                            continue
+                                except Exception:
+                                    pass
+
                         # Fallback: try to get title from other cells with longer text
                         if not title or len(title) < 3:
                             for cell_idx in range(len(cells)):
@@ -925,9 +987,10 @@ class PlaywrightCrawler(CrawlerPort):
                                         break
 
                         if not issue_id:
-                            issue_id = f"unknown-{idx}"
+                            print(f"[Extract] Row {idx}: No issue_id found, skipping", flush=True)
+                            continue
 
-                        # Create Issue entity
+                        # Create Issue entity with all extracted fields
                         issue = Issue(
                             id=uuid4(),
                             user_id=credentials.user_id,
@@ -936,6 +999,14 @@ class PlaywrightCrawler(CrawlerPort):
                             description="",
                             status=IssueStatus.OPEN,
                             priority=IssuePriority.MEDIUM,
+                            # IMS-specific fields
+                            category=category,
+                            product=product,
+                            version=version,
+                            module=module,
+                            customer=customer,
+                            issued_date=issued_date,
+                            reporter=reporter,
                             source_url=issue_url or f"{credentials.ims_base_url}/tody/ims/issue/issueView.do?issueId={issue_id}",
                             created_at=datetime.utcnow(),
                             updated_at=datetime.utcnow()

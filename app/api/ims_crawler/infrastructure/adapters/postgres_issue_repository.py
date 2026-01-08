@@ -43,8 +43,9 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
                 project_key, issue_type, labels,
                 comments_count, attachments_count,
                 created_at, updated_at, resolved_at,
-                crawled_at, source_url, custom_fields
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+                crawled_at, source_url, custom_fields,
+                category, product, version, module, customer, issued_date
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
             ON CONFLICT (user_id, ims_id)
             DO UPDATE SET
                 title = EXCLUDED.title,
@@ -56,7 +57,13 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
                 comments_count = EXCLUDED.comments_count,
                 attachments_count = EXCLUDED.attachments_count,
                 updated_at = EXCLUDED.updated_at,
-                resolved_at = EXCLUDED.resolved_at
+                resolved_at = EXCLUDED.resolved_at,
+                category = EXCLUDED.category,
+                product = EXCLUDED.product,
+                version = EXCLUDED.version,
+                module = EXCLUDED.module,
+                customer = EXCLUDED.customer,
+                issued_date = EXCLUDED.issued_date
             RETURNING id
         """
 
@@ -71,7 +78,9 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
                 issue.comments_count, issue.attachments_count,
                 issue.created_at, issue.updated_at, issue.resolved_at,
                 issue.crawled_at, issue.source_url,
-                json.dumps(issue.custom_fields) if issue.custom_fields else "{}"
+                json.dumps(issue.custom_fields) if issue.custom_fields else "{}",
+                issue.category, issue.product, issue.version,
+                issue.module, issue.customer, issue.issued_date
             )
             return row['id']
 
@@ -311,6 +320,14 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
             description=row['description'] or "",
             status=IssueStatus(row['status']),
             priority=IssuePriority(row['priority']),
+            # IMS-specific fields
+            category=row.get('category') or "",
+            product=row.get('product') or "",
+            version=row.get('version') or "",
+            module=row.get('module') or "",
+            customer=row.get('customer') or "",
+            issued_date=row.get('issued_date'),
+            # Metadata
             reporter=row['reporter'] or "",
             assignee=row['assignee'],
             project_key=row['project_key'] or "",

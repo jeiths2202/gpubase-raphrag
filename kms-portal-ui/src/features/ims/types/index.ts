@@ -33,6 +33,14 @@ export interface IMSIssue {
   description: string;
   status: IssueStatus;
   priority: IssuePriority;
+  // IMS-specific fields
+  category?: string;
+  product?: string;
+  version?: string;
+  module?: string;
+  customer?: string;
+  issued_date?: string;
+  // Metadata
   reporter: string;
   assignee?: string;
   project_key: string;

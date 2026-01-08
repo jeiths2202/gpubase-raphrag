@@ -66,6 +66,12 @@
   "table": {
     "id": "ID",
     "title": "タイトル",
+    "category": "カテゴリ",
+    "product": "製品",
+    "version": "バージョン",
+    "module": "モジュール",
+    "customer": "顧客",
+    "issuedDate": "登録日",
     "status": "ステータス",
     "priority": "優先度",
     "reporter": "報告者",
@@ -73,7 +79,9 @@
     "created": "作成日",
     "score": "スコア",
     "allStatuses": "全ステータス",
-    "allPriorities": "全優先度"
+    "allPriorities": "全優先度",
+    "columns": "カラム",
+    "selectColumns": "カラムを選択"
   },
   "status": {
     "open": "オープン",
