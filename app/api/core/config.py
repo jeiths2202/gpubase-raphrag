@@ -135,19 +135,19 @@ class APISettings(BaseSettings):
 
     # IMS Crawler Timeouts (in milliseconds)
     IMS_CRAWLER_DEFAULT_TIMEOUT: int = Field(
-        default=36000000,
+        default=30000,
         description="Default timeout for IMS crawler operations (ms)"
     )
     IMS_CRAWLER_LOGIN_TIMEOUT: int = Field(
-        default=36000000,
+        default=30000,
         description="Timeout for login form wait (ms)"
     )
     IMS_CRAWLER_NAVIGATION_TIMEOUT: int = Field(
-        default=36000000,
+        default=30000,
         description="Timeout for page navigation (ms)"
     )
     IMS_CRAWLER_SELECTOR_TIMEOUT: int = Field(
-        default=36000000,
+        default=30000,
         description="Timeout for element selector wait (ms)"
     )
 

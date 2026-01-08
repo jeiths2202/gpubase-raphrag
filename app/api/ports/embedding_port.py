@@ -11,7 +11,7 @@ from typing import Optional, List, Dict, Any
 class EmbeddingConfig:
     """Embedding configuration"""
     model: str = "text-embedding-3-small"
-    dimensions: int = 1536
+    dimensions: int = 4096  # Match NV-EmbedQA-Mistral-7B v2 output
     batch_size: int = 100
     timeout: int = 60
 

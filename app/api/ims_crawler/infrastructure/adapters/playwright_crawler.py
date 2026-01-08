@@ -76,19 +76,6 @@ class PlaywrightCrawler(CrawlerPort):
                 browser_needs_init = True
 
         if browser_needs_init:
-            # Windows asyncio fix: Must set ProactorEventLoop before Playwright starts
-            # This is needed because uvicorn reload may reset the event loop policy
-            if sys.platform == 'win32':
-                try:
-                    # Get the current event loop
-                    loop = asyncio.get_running_loop()
-                    # Check if we're using ProactorEventLoop
-                    if not isinstance(loop, asyncio.ProactorEventLoop):
-                        logger.warning(f"Current event loop is {type(loop).__name__}, not ProactorEventLoop")
-                        logger.warning("Playwright may fail on Windows. Consider running without --reload")
-                except Exception as e:
-                    logger.warning(f"Could not check event loop type: {e}")
-
             # Clean up any existing playwright instance
             if self._playwright:
                 try:
@@ -97,17 +84,25 @@ class PlaywrightCrawler(CrawlerPort):
                     pass
 
             logger.info("Starting Playwright browser...")
+
+            # Windows: uvicorn reload is disabled in main.py, so ProactorEventLoop is always used
+            # This ensures async subprocess creation works correctly for Playwright
             try:
                 self._playwright = await async_playwright().start()
                 self._browser = await self._playwright.chromium.launch(headless=self.headless)
-                self._context = None  # Reset context when browser is restarted
+                self._context = None
                 logger.info("Browser initialized successfully")
-            except NotImplementedError as e:
-                logger.error(f"Playwright failed to start - Windows asyncio subprocess issue: {e}")
-                logger.error("Try running the server without --reload: python -m app.api.main --mode product --port 9000")
+            except NotImplementedError as nie:
+                # This happens if SelectorEventLoop is used (should not happen with our fix)
+                logger.error(f"Playwright failed - likely SelectorEventLoop issue: {nie}")
                 raise RuntimeError(
-                    "Playwright cannot start on Windows with uvicorn reload mode. "
-                    "Please restart the server with: python -m app.api.main --mode product --port 9000"
+                    "Playwright requires ProactorEventLoop on Windows. "
+                    "Ensure you are running: python -m app.api.main --mode develop"
+                ) from nie
+            except Exception as e:
+                logger.error(f"Playwright startup failed: {e}")
+                raise RuntimeError(
+                    f"Playwright cannot start: {e}"
                 ) from e
 
         # Always create fresh context and page for each session

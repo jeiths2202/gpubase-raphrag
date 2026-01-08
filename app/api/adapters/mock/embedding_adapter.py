@@ -24,7 +24,7 @@ class MockEmbeddingAdapter(EmbeddingPort):
 
     def __init__(
         self,
-        dimensions: int = 1536,
+        dimensions: int = 4096,  # Match NV-EmbedQA-Mistral-7B v2 output
         model: str = "mock-embedding",
         simulate_delay: bool = True,
         delay_ms: int = 50

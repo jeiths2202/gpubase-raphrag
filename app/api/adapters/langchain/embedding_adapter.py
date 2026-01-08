@@ -27,7 +27,7 @@ class LangChainEmbeddingAdapter(EmbeddingPort):
         self,
         api_key: str,
         model: str = "text-embedding-3-small",
-        dimensions: int = 1536,
+        dimensions: int = 4096,  # Match NV-EmbedQA-Mistral-7B v2 output
         base_url: Optional[str] = None,
         default_config: Optional[EmbeddingConfig] = None
     ):

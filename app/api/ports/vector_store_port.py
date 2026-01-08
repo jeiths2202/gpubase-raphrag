@@ -19,7 +19,7 @@ class DistanceMetric(str, Enum):
 class VectorStoreConfig:
     """Vector store configuration"""
     collection_name: str = "default"
-    dimensions: int = 1536
+    dimensions: int = 4096  # Match NV-EmbedQA-Mistral-7B v2 output
     distance_metric: DistanceMetric = DistanceMetric.COSINE
     index_type: str = "hnsw"
 

@@ -454,12 +454,17 @@ if __name__ == "__main__":
         mode_manager.set_mode(AppMode.from_string(args.mode))
 
     # Configure uvicorn based on mode
-    reload = mode_manager.is_develop
-    # Windows: Force workers=1 to avoid asyncio subprocess issues with Playwright
-    # Multiprocessing workers on Windows don't inherit ProactorEventLoopPolicy
+    # Windows: Disable reload to ensure ProactorEventLoop is used for Playwright
+    # uvicorn reload spawns a subprocess that doesn't inherit the event loop policy,
+    # causing Playwright to fail with NotImplementedError on Windows
     if sys.platform == 'win32':
+        reload = False
         workers = 1
+        if mode_manager.is_develop:
+            print("[Windows] Auto-reload disabled for Playwright compatibility")
+            print("[Windows] Restart manually after code changes")
     else:
+        reload = mode_manager.is_develop
         workers = 1 if mode_manager.is_develop else api_settings.WORKERS
     log_level = mode_manager.get_log_level().lower()
 
