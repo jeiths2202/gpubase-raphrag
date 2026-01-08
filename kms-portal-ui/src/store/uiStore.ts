@@ -120,13 +120,16 @@ export const useUIStore = create<UIState>()(
         set({ theme, resolvedTheme: resolved });
       },
 
-      // Set mobile state
+      // Set mobile state - only close sidebars when transitioning to mobile
       setIsMobile: (isMobile: boolean) => {
-        set({ isMobile });
-        // Close sidebars on mobile
-        if (isMobile) {
-          set({ leftSidebarOpen: false, rightSidebarOpen: false });
-        }
+        set((state) => {
+          // Only close sidebars when transitioning from desktop to mobile
+          if (isMobile && !state.isMobile) {
+            return { isMobile, leftSidebarOpen: false, rightSidebarOpen: false };
+          }
+          // Just update isMobile without affecting sidebars
+          return { isMobile };
+        });
       },
 
       // Toggle mobile menu
