@@ -55,9 +55,25 @@ class PlaywrightCrawler(CrawlerPort):
 
     async def _ensure_browser(self) -> None:
         """Ensure browser is initialized (lazy initialization)."""
-        if self._browser is None:
+        # Check if browser needs to be (re)initialized
+        browser_needs_init = self._browser is None
+        if not browser_needs_init:
+            try:
+                # Check if browser is still connected
+                browser_needs_init = not self._browser.is_connected()
+            except:
+                browser_needs_init = True
+
+        if browser_needs_init:
+            # Clean up any existing playwright instance
+            if self._playwright:
+                try:
+                    await self._playwright.stop()
+                except:
+                    pass
             self._playwright = await async_playwright().start()
             self._browser = await self._playwright.chromium.launch(headless=self.headless)
+            self._context = None  # Reset context when browser is restarted
             logger.info("Browser initialized")
 
         # Always create fresh context and page for each session
@@ -95,24 +111,28 @@ class PlaywrightCrawler(CrawlerPort):
                 credentials.encrypted_password
             )
 
-            # Navigate to IMS login page
+            # Navigate to IMS login page (TmaxSoft IMS uses /tody/auth/login.do)
             ims_url = credentials.ims_base_url
-            await self._page.goto(f"{ims_url}/login")
-            logger.info(f"Navigating to {ims_url}/login")
+            login_url = f"{ims_url}/tody/auth/login.do"
+            await self._page.goto(login_url)
+            logger.info(f"Navigating to {login_url}")
 
-            # Fill login form
-            await self._page.fill('input[name="username"]', username)
+            # Wait for login form to be visible
+            await self._page.wait_for_selector('input[name="id"]', timeout=15000)
+
+            # Fill login form (IMS uses 'id' not 'username')
+            await self._page.fill('input[name="id"]', username)
             await self._page.fill('input[name="password"]', password)
 
-            # Submit login
-            await self._page.click('button[type="submit"]')
+            # Submit login (IMS uses image button)
+            await self._page.click('input[type="image"]')
 
             # Wait for navigation after login
-            await self._page.wait_for_load_state('networkidle', timeout=10000)
+            await self._page.wait_for_load_state('networkidle', timeout=15000)
 
             # Verify authentication success
             current_url = self._page.url
-            if '/login' not in current_url and '/error' not in current_url:
+            if '/login' not in current_url and '/auth/login' not in current_url and '/error' not in current_url:
                 self._authenticated = True
                 logger.info("Authentication successful")
                 return True

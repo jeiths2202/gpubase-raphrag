@@ -2,6 +2,15 @@
 KMS API Main Application
 GPU Hybrid RAG based Knowledge Management System
 """
+import sys
+import asyncio
+
+# Windows asyncio fix: Enable subprocess support for Playwright
+# SelectorEventLoop (default on Windows) doesn't support subprocesses
+# ProactorEventLoop is required for asyncio.create_subprocess_exec()
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 import time
 import uuid
 import argparse
@@ -27,7 +36,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 
 
@@ -360,6 +369,8 @@ app.include_router(system.router, prefix=API_PREFIX)
 app.include_router(preferences.router, prefix=API_PREFIX)
 app.include_router(vision.router, prefix=API_PREFIX)
 app.include_router(workspace.router, prefix=API_PREFIX)  # Persistent workspace state management
+app.include_router(system_metrics.router, prefix=API_PREFIX)  # System resource monitoring
+app.include_router(db_stats.router, prefix=API_PREFIX)  # PostgreSQL database monitoring
 
 # IMS Crawler routers
 app.include_router(credentials_router, prefix=API_PREFIX)  # IMS credentials management
