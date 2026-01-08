@@ -23,8 +23,12 @@ from ...domain.entities import Issue, Attachment, UserCredentials, IssueStatus, 
 from ...domain.entities.attachment import AttachmentType
 from ..ports.crawler_port import CrawlerPort
 from ..services.credential_encryption_service import CredentialEncryptionService
+from ....core.config import get_api_settings
 
 logger = logging.getLogger(__name__)
+
+# Load API settings for timeout configuration
+_api_settings = get_api_settings()
 
 
 class PlaywrightCrawler(CrawlerPort):
@@ -148,7 +152,7 @@ class PlaywrightCrawler(CrawlerPort):
             logger.info(f"Navigating to {login_url}")
 
             # Wait for login form to be visible
-            await self._page.wait_for_selector('input[name="id"]', timeout=15000)
+            await self._page.wait_for_selector('input[name="id"]', timeout=_api_settings.IMS_CRAWLER_LOGIN_TIMEOUT)
 
             # Fill login form (IMS uses 'id' not 'username')
             await self._page.fill('input[name="id"]', username)
@@ -158,7 +162,7 @@ class PlaywrightCrawler(CrawlerPort):
             await self._page.click('input[type="image"]')
 
             # Wait for navigation after login
-            await self._page.wait_for_load_state('networkidle', timeout=15000)
+            await self._page.wait_for_load_state('networkidle', timeout=_api_settings.IMS_CRAWLER_NAVIGATION_TIMEOUT)
 
             # Verify authentication success
             current_url = self._page.url
@@ -284,7 +288,7 @@ class PlaywrightCrawler(CrawlerPort):
             logger.info(f"Navigated to search page: {search_url}")
 
             # Wait for search form to load
-            await self._page.wait_for_selector('#SearchDiv', timeout=10000)
+            await self._page.wait_for_selector('#SearchDiv', timeout=_api_settings.IMS_CRAWLER_SELECTOR_TIMEOUT)
 
             # Debug: Dump form structure to understand the DOM
             await self._debug_dump_search_form()
@@ -305,7 +309,7 @@ class PlaywrightCrawler(CrawlerPort):
             # We need to wait for the navigation to complete before extracting results
             try:
                 # Start waiting for navigation before clicking
-                async with self._page.expect_navigation(timeout=30000, wait_until='networkidle'):
+                async with self._page.expect_navigation(timeout=_api_settings.IMS_CRAWLER_NAVIGATION_TIMEOUT, wait_until='networkidle'):
                     await self._click_search_button()
                 logger.info("Search form submitted and page navigation completed")
             except Exception as nav_error:
@@ -321,7 +325,7 @@ class PlaywrightCrawler(CrawlerPort):
             try:
                 await self._page.wait_for_selector(
                     'table.list, #listTable, div.listCnt, span.total, #resultDiv table, table.dataTable',
-                    timeout=10000
+                    timeout=_api_settings.IMS_CRAWLER_SELECTOR_TIMEOUT
                 )
             except Exception:
                 logger.warning("Could not find result table selector, proceeding anyway")
@@ -366,7 +370,7 @@ class PlaywrightCrawler(CrawlerPort):
                 # Select 1000 - this triggers pageSizeChange() which causes page navigation
                 # We need to wait for the navigation to complete
                 try:
-                    async with self._page.expect_navigation(timeout=30000):
+                    async with self._page.expect_navigation(timeout=_api_settings.IMS_CRAWLER_NAVIGATION_TIMEOUT):
                         await page_size_select.select_option(value='1000')
                     print("[PageSize] Navigation completed after page size change", flush=True)
                 except Exception as nav_error:
@@ -380,7 +384,7 @@ class PlaywrightCrawler(CrawlerPort):
 
                 # Wait for table to be rendered
                 try:
-                    await self._page.wait_for_selector('table.dataTable tbody tr', timeout=10000)
+                    await self._page.wait_for_selector('table.dataTable tbody tr', timeout=_api_settings.IMS_CRAWLER_SELECTOR_TIMEOUT)
                     print("[PageSize] Table rows found after page size change", flush=True)
                 except Exception:
                     print("[PageSize] Table rows selector timeout, continuing anyway", flush=True)
@@ -401,7 +405,7 @@ class PlaywrightCrawler(CrawlerPort):
                 if page_size_select:
                     print(f"[PageSize] Found fallback selector: {selector}", flush=True)
                     try:
-                        async with self._page.expect_navigation(timeout=30000):
+                        async with self._page.expect_navigation(timeout=_api_settings.IMS_CRAWLER_NAVIGATION_TIMEOUT):
                             await page_size_select.select_option(value='1000')
                     except Exception:
                         await asyncio.sleep(2)

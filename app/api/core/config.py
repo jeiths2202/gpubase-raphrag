@@ -133,6 +133,24 @@ class APISettings(BaseSettings):
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
 
+    # IMS Crawler Timeouts (in milliseconds)
+    IMS_CRAWLER_DEFAULT_TIMEOUT: int = Field(
+        default=36000000,
+        description="Default timeout for IMS crawler operations (ms)"
+    )
+    IMS_CRAWLER_LOGIN_TIMEOUT: int = Field(
+        default=36000000,
+        description="Timeout for login form wait (ms)"
+    )
+    IMS_CRAWLER_NAVIGATION_TIMEOUT: int = Field(
+        default=36000000,
+        description="Timeout for page navigation (ms)"
+    )
+    IMS_CRAWLER_SELECTOR_TIMEOUT: int = Field(
+        default=36000000,
+        description="Timeout for element selector wait (ms)"
+    )
+
     # Email/SMTP Configuration
     SMTP_ENABLED: bool = Field(default=False, description="Enable SMTP email sending")
     SMTP_HOST: str = Field(default="localhost", description="SMTP server host")

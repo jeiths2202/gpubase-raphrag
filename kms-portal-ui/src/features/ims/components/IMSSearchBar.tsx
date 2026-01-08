@@ -5,9 +5,10 @@
  */
 
 import React, { useState } from 'react';
-import { Search, Loader2, Settings2, ChevronDown, Check } from 'lucide-react';
+import { Search, Loader2, Settings2, ChevronDown, Check, Sparkles } from 'lucide-react';
 import { createCrawlJob } from '../services/ims-api';
 import { useIMSStore } from '../store/imsStore';
+import { useAuthStore } from '../../../store/authStore';
 import { IMS_PRODUCTS } from '../types';
 import type { IMSJob } from '../types';
 
@@ -21,6 +22,10 @@ interface IMSSearchBarProps {
 
 export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated, t }) => {
   const { isSearching, setIsSearching, setSearchQuery, setCurrentJob } = useIMSStore();
+  const { user } = useAuthStore();
+
+  // Check if user has Pro or Enterprise subscription
+  const hasProAccess = user?.subscription === 'pro' || user?.subscription === 'enterprise';
 
   const [query, setQuery] = useState('');
   const [showOptions, setShowOptions] = useState(false);
@@ -29,6 +34,7 @@ export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated, t }) =
   const [options, setOptions] = useState({
     includeAttachments: true,
     includeRelated: true,
+    enableDeepSearch: false,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -206,6 +212,19 @@ export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated, t }) =
                 onChange={(e) => handleOptionChange('includeRelated', e.target.checked)}
               />
               <span>{t('ims.search.includeRelated')}</span>
+            </label>
+          </div>
+          <div className="ims-search__option">
+            <label className={`ims-checkbox ims-checkbox--pro ${!hasProAccess ? 'disabled' : ''}`}>
+              <input
+                type="checkbox"
+                checked={options.enableDeepSearch}
+                onChange={(e) => hasProAccess && handleOptionChange('enableDeepSearch', e.target.checked)}
+                disabled={!hasProAccess}
+              />
+              <Sparkles size={14} className="ims-checkbox__icon" />
+              <span>{t('ims.search.deepSearch')}</span>
+              <span className="ims-pro-badge">Pro</span>
             </label>
           </div>
         </div>

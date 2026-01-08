@@ -17,6 +17,7 @@ export interface User {
   role: 'admin' | 'user' | 'viewer';
   department?: string;
   avatar?: string | null;
+  subscription?: 'free' | 'pro' | 'enterprise';
 }
 
 // Auth state interface
@@ -61,20 +62,48 @@ export const useAuthStore = create<AuthState>()(
           const response = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, password }),
+            credentials: 'include',
+            body: JSON.stringify({ username: userId, password }),
           });
 
           if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || 'Login failed');
+            throw new Error(errorData.error?.message || 'Login failed');
           }
 
           const data = await response.json();
+          const accessToken = data.data?.access_token || data.accessToken;
+          const refreshToken = data.data?.refresh_token || data.refreshToken;
+
+          // Fetch user info from /me endpoint
+          const meResponse = await fetch(`${API_BASE}/auth/me`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            credentials: 'include',
+          });
+
+          let user: User | null = null;
+          if (meResponse.ok) {
+            const meData = await meResponse.json();
+            const userData = meData.data || meData;
+            user = {
+              id: userData.id,
+              userId: userData.email,
+              email: userData.email,
+              name: userData.username || userData.display_name || userData.email,
+              role: userData.role || 'user',
+              department: userData.department,
+              subscription: userData.subscription || 'free',
+            };
+          }
 
           set({
-            user: data.user,
-            accessToken: data.accessToken,
-            refreshToken: data.refreshToken,
+            user,
+            accessToken,
+            refreshToken,
             isAuthenticated: true,
             isLoading: false,
             error: null,
