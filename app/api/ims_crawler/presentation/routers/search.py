@@ -133,7 +133,7 @@ async def search_issues(
         return SearchResponse(
             total_results=len(results),
             query_used=request.query,
-            search_intent=intent.original_query,
+            search_intent=intent.raw_query,
             results=results,
             execution_time_ms=execution_time_ms
         )
@@ -187,6 +187,56 @@ async def get_recent_issues(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve recent issues: {str(e)}"
+        )
+
+
+class GetByIdsRequest(BaseModel):
+    """Request model for getting issues by IDs"""
+    issue_ids: List[UUID] = Field(..., min_length=1, max_length=500, description="List of issue UUIDs to fetch")
+
+
+@router.post("/by-ids", response_model=List[IssueSearchResult])
+async def get_issues_by_ids(
+    request: GetByIdsRequest,
+    current_user: dict = Depends(get_current_user),
+    repository: PostgreSQLIssueRepository = Depends(get_issue_repository)
+):
+    """
+    Get multiple issues by their IDs.
+
+    Use this endpoint to fetch specific issues that were just crawled.
+    Returns issues in the same order as the input IDs.
+    """
+    user_id = UUID(current_user["id"])
+
+    try:
+        results = []
+        for issue_id in request.issue_ids:
+            issue = await repository.find_by_id(issue_id)
+            if issue and issue.user_id == user_id:
+                results.append(
+                    IssueSearchResult(
+                        id=issue.id,
+                        ims_id=issue.ims_id,
+                        title=issue.title,
+                        description=issue.description,
+                        status=issue.status.value,
+                        priority=issue.priority.value,
+                        reporter=issue.reporter,
+                        assignee=issue.assignee,
+                        project_key=issue.project_key,
+                        labels=issue.labels,
+                        created_at=issue.created_at.isoformat(),
+                        updated_at=issue.updated_at.isoformat()
+                    )
+                )
+
+        return results
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve issues by IDs: {str(e)}"
         )
 
 

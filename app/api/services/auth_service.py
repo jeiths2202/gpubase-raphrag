@@ -14,8 +14,9 @@ DESIGN:
 import logging
 import random
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
 from uuid import UUID
+from pydantic import ValidationError
 
 from jose import jwt
 
@@ -495,6 +496,15 @@ If you didn't request this code, please ignore this email.
         logger.info(f"📧 Verification Code: {code}")
         logger.info(f"📧 ========================================")
 
+        # Also write to a file for easier access if logs are hard to read
+        try:
+            with open("verification.txt", "w", encoding="utf-8") as f:
+                f.write(f"Email: {email}\nCode: {code}\nTime: {datetime.utcnow().isoformat()}Z")
+            # Direct print for terminal visibility
+            print(f"\n>>> VERIFICATION_CODE_FOR_{email}: {code} <<<\n")
+        except Exception as e:
+            logger.warning(f"Could not write verification file: {e}")
+
         if not api_settings.SMTP_ENABLED:
             logger.info("📧 SMTP_ENABLED=false, email not sent (development mode)")
             return
@@ -574,16 +584,16 @@ Content-Type: text/html; charset=utf-8
         Returns:
             Success dict or error dict
         """
-        # Check if email already exists
-        existing_user = await self.user_repo.get_user_by_email(email)
-        if existing_user:
-            return {
-                "error": "EMAIL_ALREADY_EXISTS",
-                "message": "이미 등록된 이메일입니다."
-            }
-
         # Create user
         try:
+            # Check if email already exists (Moved inside try block to catch DB connection errors)
+            existing_user = await self.user_repo.get_user_by_email(email)
+            if existing_user:
+                return {
+                    "error": "EMAIL_ALREADY_EXISTS",
+                    "message": "이미 등록된 이메일입니다."
+                }
+
             user_create = UserCreate(
                 email=email,
                 display_name=user_id,  # Use user_id as display_name
@@ -620,6 +630,14 @@ Content-Type: text/html; charset=utf-8
                 "message": "회원가입이 완료되었습니다."
             }
 
+        except ValidationError as e:
+            logger.warning(f"Registration validation error: {e}")
+            # Extract the first error message if possible
+            error_msg = e.errors()[0]["msg"] if e.errors() else "입력값이 유효하지 않습니다."
+            return {
+                "error": "VALIDATION_ERROR",
+                "message": error_msg
+            }
         except Exception as e:
             logger.error(f"User registration error: {e}")
             return {
@@ -701,6 +719,116 @@ Content-Type: text/html; charset=utf-8
                 "error": "VERIFICATION_FAILED",
                 "message": "이메일 인증에 실패했습니다."
             }
+
+    # ==================== Admin Management ====================
+
+    async def list_users(
+        self,
+        page: int = 1,
+        limit: int = 20,
+        search: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        List users for admin dashboard with pagination and search.
+        """
+        offset = (page - 1) * limit
+        # Pass search parameter to repository
+        users, total = await self.user_repo.list_users(offset=offset, limit=limit, search=search)
+
+        return {
+            "users": [
+                {
+                    "id": str(u.id),
+                    "username": u.display_name,
+                    "email": u.email,
+                    "role": u.role.value,
+                    "is_active": u.status == UserStatus.ACTIVE,
+                    "is_verified": u.status != UserStatus.PENDING,
+                    "created_at": u.created_at.isoformat() if u.created_at else None
+                }
+                for u in users
+            ],
+            "total_count": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit
+        }
+
+    async def get_user(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get single user by ID for admin"""
+        try:
+            user = await self.user_repo.get_user_by_id(UUID(user_id))
+            if not user:
+                return None
+            return {
+                "id": str(user.id),
+                "username": user.display_name,
+                "email": user.email,
+                "role": user.role.value,
+                "is_active": user.status == UserStatus.ACTIVE,
+                "is_verified": user.status != UserStatus.PENDING,
+                "created_at": user.created_at.isoformat() if user.created_at else None
+            }
+        except Exception:
+            return None
+
+    async def update_user(self, user_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update user by ID for admin"""
+        try:
+            # Convert string role to enum if present
+            if "role" in updates:
+                updates["role"] = UserRole(updates["role"])
+            
+            # Convert is_active to status if present
+            if "is_active" in updates:
+                is_active = updates.pop("is_active")
+                updates["status"] = UserStatus.ACTIVE if is_active else UserStatus.INACTIVE
+
+            user_update = UserUpdate(**updates)
+            user = await self.user_repo.update_user(UUID(user_id), user_update)
+            if not user:
+                return None
+
+            return {
+                "id": str(user.id),
+                "username": user.display_name,
+                "email": user.email,
+                "role": user.role.value,
+                "is_active": user.status == UserStatus.ACTIVE,
+                "is_verified": user.status != UserStatus.PENDING,
+                "created_at": user.created_at.isoformat() if user.created_at else None
+            }
+        except Exception as e:
+            logger.error(f"Error updating user: {e}")
+            return None
+
+    async def delete_user(self, user_id: str) -> bool:
+        """Delete user by ID for admin"""
+        try:
+            # Prevent deleting 'admin' email user
+            user = await self.user_repo.get_user_by_id(UUID(user_id))
+            if user and user.email == FIXED_ADMIN_EMAIL:
+                return False
+            
+            return await self.user_repo.delete_user(UUID(user_id))
+        except Exception:
+            return False
+
+    async def get_user_stats(self) -> Dict[str, int]:
+        """Get user statistics for admin dashboard"""
+        return await self.user_repo.get_user_stats()
+
+    async def invalidate_tokens(self, user_id: str) -> bool:
+        """
+        Invalidate all tokens for a user (logout).
+
+        TODO: Implement proper token blacklist with Redis/PostgreSQL
+        For now, this is a no-op since we use stateless JWT tokens.
+        Cookie clearing happens in the router.
+        """
+        logger.info(f"Token invalidation requested for user: {user_id}")
+        # TODO: Implement token blacklist if needed
+        return True
 
 
 # ==================== Factory Function ====================

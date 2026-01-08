@@ -16,6 +16,7 @@ from ..application.use_cases import ManageCredentialsUseCase, SearchIssuesUseCas
 from ..infrastructure.adapters import (
     PostgreSQLCredentialsRepository,
     PostgreSQLIssueRepository,
+    PostgreSQLCrawlJobRepository,
     PostgreSQLDashboardRepository,
     NvidiaNIMParser,
     NvEmbedQAService,
@@ -108,6 +109,16 @@ async def get_issue_repository() -> PostgreSQLIssueRepository:
     return PostgreSQLIssueRepository(pool)
 
 
+async def get_crawl_job_repository() -> PostgreSQLCrawlJobRepository:
+    """
+    Get crawl job repository instance.
+
+    Dependency for FastAPI endpoints.
+    """
+    pool = await get_db_pool()
+    return PostgreSQLCrawlJobRepository(pool)
+
+
 def get_nvidia_nim_parser() -> NvidiaNIMParser:
     """
     Get NVIDIA NIM parser instance.
@@ -175,6 +186,7 @@ async def get_crawl_jobs_use_case() -> CrawlJobsUseCase:
         crawler = get_playwright_crawler()
         credentials_repo = await get_credentials_repository()
         issue_repo = await get_issue_repository()
+        crawl_job_repo = await get_crawl_job_repository()
         embedding = get_nv_embedqa_service()
         attachment_processor = get_attachment_processor()
 
@@ -182,6 +194,7 @@ async def get_crawl_jobs_use_case() -> CrawlJobsUseCase:
             crawler=crawler,
             credentials_repository=credentials_repo,
             issue_repository=issue_repo,
+            crawl_job_repository=crawl_job_repo,
             embedding_service=embedding,
             attachment_processor=attachment_processor
         )

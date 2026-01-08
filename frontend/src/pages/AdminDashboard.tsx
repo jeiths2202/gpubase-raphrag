@@ -106,7 +106,7 @@ const AdminDashboard: React.FC = () => {
       const data = await response.json();
       if (data.data) {
         setUsers(data.data.users);
-        setTotalPages(data.data.total_pages);
+        setTotalPages(data.data.total_pages || 1);
       }
     } catch {
       setError('사용자 목록을 불러오는데 실패했습니다.');

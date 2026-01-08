@@ -455,14 +455,27 @@ if __name__ == "__main__":
 
     # Configure uvicorn based on mode
     reload = mode_manager.is_develop
-    workers = 1 if mode_manager.is_develop else api_settings.WORKERS
+    # Windows: Force workers=1 to avoid asyncio subprocess issues with Playwright
+    # Multiprocessing workers on Windows don't inherit ProactorEventLoopPolicy
+    if sys.platform == 'win32':
+        workers = 1
+    else:
+        workers = 1 if mode_manager.is_develop else api_settings.WORKERS
     log_level = mode_manager.get_log_level().lower()
 
-    uvicorn.run(
-        "app.api.main:app",
-        host=args.host,
-        port=args.port,
-        reload=reload,
-        workers=workers,
-        log_level=log_level
-    )
+    # Windows asyncio fix for uvicorn subprocess
+    # When using reload=True, uvicorn spawns a new process that needs the event loop policy
+    uvicorn_config = {
+        "app": "app.api.main:app",
+        "host": args.host,
+        "port": args.port,
+        "reload": reload,
+        "workers": workers,
+        "log_level": log_level,
+    }
+
+    # On Windows, use asyncio event loop to ensure ProactorEventLoop is used
+    if sys.platform == 'win32':
+        uvicorn_config["loop"] = "asyncio"
+
+    uvicorn.run(**uvicorn_config)

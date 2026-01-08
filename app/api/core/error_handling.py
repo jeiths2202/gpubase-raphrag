@@ -370,10 +370,18 @@ class ErrorHandler:
         """Handle FastAPI HTTPException"""
         context = self._extract_context(request, exc)
 
+        # Extract message and code from detail if it's a dict
+        message = str(exc.detail)
+        code = f"HTTP_{exc.status_code}"
+
+        if isinstance(exc.detail, dict):
+            message = exc.detail.get("message", message)
+            code = exc.detail.get("code", code)
+
         self._logger.warning(
-            f"HTTP {exc.status_code}: {exc.detail}",
+            f"HTTP {exc.status_code}: {message}",
             category=LogCategory.ERROR,
-            extra_data={"status_code": exc.status_code}
+            extra_data={"status_code": exc.status_code, "code": code}
         )
 
         if self._mode_manager.is_develop:
@@ -383,7 +391,8 @@ class ErrorHandler:
                     "success": False,
                     "error": {
                         "type": "HTTPException",
-                        "message": str(exc.detail),
+                        "message": message,
+                        "code": code,
                         "status_code": exc.status_code
                     },
                     "request_id": context.request_id,
@@ -396,8 +405,9 @@ class ErrorHandler:
             content={
                 "success": False,
                 "error": {
-                    "message": str(exc.detail),
-                    "code": f"HTTP_{exc.status_code}"
+                    "message": message,
+                    "code": code,
+                    "reference_id": context.request_id or "unknown"
                 },
                 "request_id": context.request_id,
                 "timestamp": datetime.utcnow().isoformat() + "Z"

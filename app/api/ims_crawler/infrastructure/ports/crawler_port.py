@@ -123,3 +123,28 @@ class CrawlerPort(ABC):
             CrawlerError: If crawling fails
         """
         pass
+
+    @abstractmethod
+    async def crawl_issues_parallel(
+        self,
+        issues: List[Issue],
+        credentials: UserCredentials,
+        batch_size: int = 10
+    ) -> List[Issue]:
+        """
+        Crawl multiple issues in parallel using multiple browser pages.
+
+        Args:
+            issues: List of issues to crawl (from search results)
+            credentials: User credentials
+            batch_size: Number of concurrent pages to use (default: 10)
+
+        Returns:
+            List of crawled Issue entities sorted by ims_id descending
+        """
+        pass
+
+    @abstractmethod
+    async def close(self) -> None:
+        """Clean up browser resources."""
+        pass

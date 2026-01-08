@@ -3,7 +3,7 @@ Authentication Pydantic models
 """
 from enum import Enum
 from typing import Optional, List
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, validator
 from datetime import datetime
 
 
@@ -66,9 +66,34 @@ class RegisterRequest(BaseModel):
             "example": {
                 "user_id": "newuser",
                 "email": "user@example.com",
-                "password": "securepassword123"
+                "password": "SecurePassword123!"
             }
         }
+
+    @validator('password')
+    def validate_password_strength(cls, v):
+        """
+        Validate password strength for registration
+
+        Requirements:
+        - Minimum 8 characters
+        - At least one uppercase, lowercase, number, special char
+        """
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+
+        has_upper = any(c.isupper() for c in v)
+        has_lower = any(c.islower() for c in v)
+        has_digit = any(c.isdigit() for c in v)
+        has_special = any(c in "!@#$%^&*()_+-=[]{}|;:',.<>?/" for c in v)
+
+        if not (has_upper and has_lower and has_digit and has_special):
+            raise ValueError(
+                "Password must contain at least one uppercase, "
+                "lowercase, number, and special character"
+            )
+
+        return v
 
 
 class VerifyEmailRequest(BaseModel):

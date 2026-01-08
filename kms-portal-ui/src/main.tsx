@@ -12,8 +12,9 @@ import App from './App';
  * Initialize MSW and render app
  */
 async function enableMocking() {
-  // Only enable MSW in development
-  if (import.meta.env.DEV) {
+  // MSW disabled for real API testing
+  // To re-enable, set VITE_ENABLE_MSW=true
+  if (import.meta.env.DEV && import.meta.env.VITE_ENABLE_MSW === 'true') {
     const { worker } = await import('./mocks/browser');
 
     // Start the worker

@@ -193,6 +193,28 @@ let logs = [...MOCK_LOGS];
 let nextJobId = 5;
 let nextLogId = 9;
 
+// IMS Knowledge Service - Stored credentials per user
+const imsCredentialsStore = new Map<string, {
+  id: string;
+  user_id: string;
+  ims_url: string;
+  is_validated: boolean;
+  last_validated_at: string | null;
+  validation_error: string | null;
+  created_at: string;
+  updated_at: string;
+}>();
+
+// Valid IMS test credentials
+const VALID_IMS_CREDENTIALS = [
+  { username: 'yijae.shin', password: '12qwaszx' },
+  { username: 'admin', password: 'admin123' },
+  { username: 'test', password: 'test123' },
+];
+
+// Store IMS username/password for validation
+const imsPasswordStore = new Map<string, { username: string; password: string }>();
+
 // Progress simulation interval
 let progressInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -536,5 +558,313 @@ export const imsHandlers = [
     await delay(200);
     logs = [];
     return HttpResponse.json({ success: true, message: 'Logs cleared successfully' });
+  }),
+
+  // ============================================
+  // IMS Knowledge Service - Credentials API
+  // ============================================
+
+  // Create/Update IMS credentials
+  http.post('/api/v1/ims-credentials/', async ({ request }) => {
+    await delay(300);
+
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader) {
+      return HttpResponse.json(
+        { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
+        { status: 401 }
+      );
+    }
+
+    const body = (await request.json()) as {
+      ims_url: string;
+      username: string;
+      password: string;
+    };
+
+    const userId = authHeader.replace('Bearer ', '').split('-')[2] || 'mock-user';
+    const now = new Date().toISOString();
+
+    const credentials = {
+      id: `ims-cred-${Date.now()}`,
+      user_id: userId,
+      ims_url: body.ims_url,
+      is_validated: false,
+      last_validated_at: null,
+      validation_error: null,
+      created_at: now,
+      updated_at: now,
+    };
+
+    imsCredentialsStore.set(userId, credentials);
+    imsPasswordStore.set(userId, { username: body.username, password: body.password });
+
+    return HttpResponse.json(credentials, { status: 201 });
+  }),
+
+  // Get IMS credentials
+  http.get('/api/v1/ims-credentials/', async ({ request }) => {
+    await delay(200);
+
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader) {
+      return HttpResponse.json(
+        { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
+        { status: 401 }
+      );
+    }
+
+    const userId = authHeader.replace('Bearer ', '').split('-')[2] || 'mock-user';
+    const credentials = imsCredentialsStore.get(userId);
+
+    if (!credentials) {
+      return HttpResponse.json(
+        { error: 'No credentials found', code: 'NOT_FOUND' },
+        { status: 404 }
+      );
+    }
+
+    return HttpResponse.json(credentials);
+  }),
+
+  // Validate IMS credentials
+  http.post('/api/v1/ims-credentials/validate', async ({ request }) => {
+    await delay(500);
+
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader) {
+      return HttpResponse.json(
+        { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
+        { status: 401 }
+      );
+    }
+
+    const userId = authHeader.replace('Bearer ', '').split('-')[2] || 'mock-user';
+    const credentials = imsCredentialsStore.get(userId);
+    const storedPassword = imsPasswordStore.get(userId);
+
+    if (!credentials || !storedPassword) {
+      return HttpResponse.json(
+        { is_valid: false, message: 'No credentials found to validate' },
+        { status: 400 }
+      );
+    }
+
+    // Check against valid credentials
+    const isValid = VALID_IMS_CREDENTIALS.some(
+      (c) => c.username === storedPassword.username && c.password === storedPassword.password
+    );
+
+    const now = new Date().toISOString();
+    credentials.is_validated = isValid;
+    credentials.last_validated_at = now;
+    credentials.validation_error = isValid ? null : 'Invalid IMS credentials';
+    credentials.updated_at = now;
+
+    imsCredentialsStore.set(userId, credentials);
+
+    return HttpResponse.json({
+      is_valid: isValid,
+      message: isValid ? 'Credentials validated successfully' : 'Invalid IMS credentials',
+      validated_at: now,
+    });
+  }),
+
+  // Delete IMS credentials
+  http.delete('/api/v1/ims-credentials/', async ({ request }) => {
+    await delay(200);
+
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader) {
+      return HttpResponse.json(
+        { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
+        { status: 401 }
+      );
+    }
+
+    const userId = authHeader.replace('Bearer ', '').split('-')[2] || 'mock-user';
+    imsCredentialsStore.delete(userId);
+    imsPasswordStore.delete(userId);
+
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // ============================================
+  // IMS Knowledge Service - Jobs API
+  // ============================================
+
+  // Create crawl job
+  http.post('/api/v1/ims-jobs/', async ({ request }) => {
+    await delay(300);
+
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader) {
+      return HttpResponse.json(
+        { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
+        { status: 401 }
+      );
+    }
+
+    const body = (await request.json()) as {
+      query: string;
+      max_issues?: number;
+      include_attachments?: boolean;
+      include_related?: boolean;
+    };
+
+    const jobId = `job-${Date.now()}`;
+    const now = new Date().toISOString();
+
+    return HttpResponse.json({
+      id: jobId,
+      query: body.query,
+      status: 'running',
+      created_at: now,
+      started_at: now,
+      stats: {
+        found: 0,
+        crawled: 0,
+        related: 0,
+      },
+    }, { status: 201 });
+  }),
+
+  // Get job status
+  http.get('/api/v1/ims-jobs/:jobId', async ({ params }) => {
+    await delay(200);
+
+    return HttpResponse.json({
+      id: params.jobId,
+      status: 'completed',
+      stats: {
+        found: 5,
+        crawled: 5,
+        related: 2,
+      },
+    });
+  }),
+
+  // SSE stream for job progress (mock with regular response)
+  http.get('/api/v1/ims-jobs/:jobId/stream', async ({ params }) => {
+    // Return a simple JSON response for mock purposes
+    // Real SSE would require different handling
+    return HttpResponse.json({
+      event: 'job_completed',
+      data: {
+        job_id: params.jobId,
+        status: 'completed',
+        stats: {
+          found: 5,
+          crawled: 5,
+          related: 2,
+          duration: 3.5,
+        },
+      },
+    });
+  }),
+
+  // ============================================
+  // IMS Knowledge Service - Search API
+  // ============================================
+
+  // Search issues
+  http.post('/api/v1/ims-search/', async ({ request }) => {
+    await delay(500);
+
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader) {
+      return HttpResponse.json(
+        { error: 'Unauthorized', code: 'AUTH_REQUIRED' },
+        { status: 401 }
+      );
+    }
+
+    const body = (await request.json()) as { query: string };
+
+    // Mock search results for "oscboot"
+    const mockIssues = [
+      {
+        id: 'IMS-1234',
+        title: 'oscboot initialization failure on cluster startup',
+        description: 'The oscboot process fails to initialize properly when starting the cluster in cold boot mode.',
+        status: 'open',
+        priority: 'high',
+        reporter: 'kim.developer',
+        assignee: 'lee.engineer',
+        created_at: '2024-01-15T09:00:00Z',
+        updated_at: '2024-01-18T14:30:00Z',
+        labels: ['oscboot', 'cluster', 'startup'],
+        project: 'OpenFrame',
+        score: 0.95,
+      },
+      {
+        id: 'IMS-1235',
+        title: 'oscboot configuration not loading environment variables',
+        description: 'Environment variables defined in oscboot.conf are not being loaded during system initialization.',
+        status: 'in_progress',
+        priority: 'medium',
+        reporter: 'park.admin',
+        assignee: 'kim.developer',
+        created_at: '2024-01-10T11:00:00Z',
+        updated_at: '2024-01-17T16:45:00Z',
+        labels: ['oscboot', 'configuration', 'environment'],
+        project: 'OpenFrame',
+        score: 0.89,
+      },
+      {
+        id: 'IMS-1236',
+        title: 'Memory leak in oscboot service after prolonged operation',
+        description: 'After running for extended periods, the oscboot service exhibits memory leak behavior.',
+        status: 'resolved',
+        priority: 'critical',
+        reporter: 'choi.ops',
+        assignee: 'lee.engineer',
+        created_at: '2024-01-05T08:30:00Z',
+        updated_at: '2024-01-12T10:00:00Z',
+        labels: ['oscboot', 'memory', 'performance'],
+        project: 'OpenFrame',
+        score: 0.85,
+      },
+      {
+        id: 'IMS-1237',
+        title: 'oscboot startup script compatibility with new kernel',
+        description: 'The oscboot startup scripts need to be updated for compatibility with kernel 5.x series.',
+        status: 'closed',
+        priority: 'low',
+        reporter: 'jung.devops',
+        assignee: 'park.admin',
+        created_at: '2023-12-20T14:00:00Z',
+        updated_at: '2024-01-08T09:15:00Z',
+        labels: ['oscboot', 'kernel', 'compatibility'],
+        project: 'OpenFrame',
+        score: 0.78,
+      },
+      {
+        id: 'IMS-1238',
+        title: 'oscboot logging enhancement request',
+        description: 'Request to add more detailed logging to oscboot for better troubleshooting capabilities.',
+        status: 'open',
+        priority: 'low',
+        reporter: 'song.support',
+        assignee: null,
+        created_at: '2024-01-20T10:30:00Z',
+        updated_at: '2024-01-20T10:30:00Z',
+        labels: ['oscboot', 'logging', 'enhancement'],
+        project: 'OpenFrame',
+        score: 0.72,
+      },
+    ];
+
+    return HttpResponse.json({
+      query: body.query,
+      total: mockIssues.length,
+      issues: mockIssues,
+    });
+  }),
+
+  // Get recent issues
+  http.get('/api/v1/ims-search/recent', async () => {
+    await delay(200);
+    return HttpResponse.json([]);
   }),
 ];

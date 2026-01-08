@@ -185,23 +185,34 @@ class CrawlJobsUseCase:
                 "message": f"Found {len(issues)} issues"
             }
 
-            # Crawl each issue
-            for idx, issue in enumerate(issues, 1):
+            # Parallel crawling: batch_size=10, sorted by ims_id descending
+            BATCH_SIZE = 10
+            total_issues = len(issues)
+
+            yield {
+                "event": "crawling_started",
+                "total_issues": total_issues,
+                "batch_size": BATCH_SIZE,
+                "message": f"Starting parallel crawl of {total_issues} issues (batch size: {BATCH_SIZE})"
+            }
+
+            # Crawl all issues in parallel batches (returns sorted by ims_id desc)
+            crawled_issues = await self.crawler.crawl_issues_parallel(
+                issues,
+                credentials,
+                batch_size=BATCH_SIZE
+            )
+
+            # Process each crawled issue (save to DB, generate embeddings)
+            for idx, full_issue in enumerate(crawled_issues, 1):
                 try:
                     yield {
-                        "event": "crawling_issue",
+                        "event": "processing_issue",
                         "issue_number": idx,
-                        "total_issues": len(issues),
-                        "issue_id": issue.ims_id,
-                        "message": f"Crawling issue {idx}/{len(issues)}: {issue.ims_id}"
+                        "total_issues": total_issues,
+                        "issue_id": full_issue.ims_id,
+                        "message": f"Processing issue {idx}/{total_issues}: {full_issue.ims_id}"
                     }
-
-                    # Crawl full issue details (pass search result as fallback for title)
-                    full_issue = await self.crawler.crawl_issue_details(
-                        issue.ims_id,
-                        credentials,
-                        fallback_issue=issue  # Use search result as fallback
-                    )
 
                     # Download attachments if requested
                     if job.include_attachments:
@@ -220,21 +231,16 @@ class CrawlJobsUseCase:
 
                     # Crawl related issues if requested
                     if job.include_related_issues:
-                        # Use depth from method parameter (passed as max_depth in create_crawl_job)
-                        related_depth = 1  # Default depth for related issues
+                        related_depth = 1
                         related_issues = await self.crawler.crawl_related_issues(
                             full_issue,
                             credentials,
                             related_depth
                         )
 
-                        # Save relations for each related issue
                         for related_issue in related_issues:
                             try:
-                                # Save the related issue first
                                 await self.issue_repo.save(related_issue)
-
-                                # Save the relation (source -> target)
                                 await self.issue_repo.save_relation(
                                     source_issue_id=full_issue.id,
                                     target_issue_id=related_issue.id,
@@ -244,20 +250,17 @@ class CrawlJobsUseCase:
                             except Exception as rel_error:
                                 logger.warning(f"Failed to save relation for {related_issue.ims_id}: {rel_error}")
 
-                        issues.extend(related_issues)
-
                         yield {
                             "event": "related_issues_found",
                             "issue_id": full_issue.ims_id,
                             "related_count": len(related_issues)
                         }
 
-                    # Save issue to database FIRST (before embedding)
-                    # Use the returned ID (may differ from full_issue.id on UPSERT conflict)
+                    # Save issue to database
                     saved_issue_id = await self.issue_repo.save(full_issue)
                     job.add_crawled_issue(saved_issue_id)
 
-                    # Try to generate and save embedding (non-blocking on failure)
+                    # Generate and save embedding
                     try:
                         embedding_text = f"{full_issue.title} {full_issue.description}"
                         if full_issue.attachments:
@@ -270,28 +273,26 @@ class CrawlJobsUseCase:
                         embedding = await self.embedding.embed_text(embedding_text)
                         await self.issue_repo.save_embedding(saved_issue_id, embedding, embedding_text)
                     except Exception as emb_error:
-                        # Log embedding failure but don't fail the issue crawl
                         logger.warning(f"Failed to save embedding for {full_issue.ims_id}: {emb_error}")
 
                     self._jobs[job_id] = job
-                    await self.crawl_job_repo.save(job)  # Persist after each issue
+                    await self.crawl_job_repo.save(job)
 
                     yield {
                         "event": "issue_completed",
                         "issue_number": idx,
-                        "total_issues": len(issues),
+                        "total_issues": total_issues,
                         "issue_id": full_issue.ims_id,
                         "crawled_count": job.issues_crawled
                     }
 
                 except Exception as e:
-                    logger.error(f"Failed to crawl issue {issue.ims_id}: {e}")
-                    # Note: Entity doesn't track failed issues count
+                    logger.error(f"Failed to process issue {full_issue.ims_id}: {e}")
                     self._jobs[job_id] = job
 
                     yield {
                         "event": "issue_failed",
-                        "issue_id": issue.ims_id,
+                        "issue_id": full_issue.ims_id,
                         "error": str(e)
                     }
 

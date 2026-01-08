@@ -9,6 +9,7 @@
  */
 
 import { create } from 'zustand';
+import type { CompletionStats } from '../types/progress';
 
 export type ViewMode = 'table' | 'cards' | 'graph';
 
@@ -39,6 +40,15 @@ export interface IMSJob {
   error_message?: string;
 }
 
+export interface IMSSearchTab {
+  id: string;
+  query: string;
+  timestamp: string;
+  results: IMSIssue[];
+  viewMode: ViewMode;
+  completionStats?: CompletionStats;
+}
+
 interface IMSState {
   // Credentials
   hasCredentials: boolean;
@@ -50,6 +60,10 @@ interface IMSState {
   searchQuery: string;
   searchResults: IMSIssue[];
   currentJob?: IMSJob;
+
+  // Tabs
+  searchTabs: IMSSearchTab[];
+  activeTabId: string | null;
 
   // UI State
   viewMode: ViewMode;
@@ -66,15 +80,24 @@ interface IMSState {
   setViewMode: (mode: ViewMode) => void;
   checkCredentials: () => Promise<void>;
   clearSearch: () => void;
+
+  // Tab Actions
+  fetchResults: (query: string, completionStats?: CompletionStats) => Promise<void>;
+  setActiveTab: (id: string) => void;
+  removeSearchTab: (id: string) => void;
+  updateTabViewMode: (id: string, mode: ViewMode) => void;
+  getActiveTab: () => IMSSearchTab | null;
 }
 
-export const useIMSStore = create<IMSState>((set) => ({
+export const useIMSStore = create<IMSState>((set, get) => ({
   // Initial state
   hasCredentials: false,
   credentialsValidated: false,
   isSearching: false,
   searchQuery: '',
   searchResults: [],
+  searchTabs: [],
+  activeTabId: null,
   viewMode: 'table',
 
   // Actions
@@ -93,6 +116,7 @@ export const useIMSStore = create<IMSState>((set) => ({
   checkCredentials: async () => {
     try {
       const response = await fetch('/api/v1/ims-credentials', {
+        headers: { 'Accept': 'application/json' },
         credentials: 'include'
       });
 
@@ -117,5 +141,63 @@ export const useIMSStore = create<IMSState>((set) => ({
     searchResults: [],
     currentJob: undefined,
     isSearching: false
-  })
+  }),
+
+  // Tab Actions
+  fetchResults: async (query, completionStats) => {
+    set({ isSearching: true, searchQuery: query });
+    try {
+      // In a real scenario, we might fetch from API
+      // For now, let's assume we search and get results
+      const response = await fetch('/api/v1/ims-search/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, max_results: 50 })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const results = data.results || [];
+
+        const newTab: IMSSearchTab = {
+          id: Math.random().toString(36).substr(2, 9),
+          query,
+          timestamp: new Date().toISOString(),
+          results,
+          viewMode: get().viewMode,
+          completionStats
+        };
+
+        set((state) => ({
+          searchTabs: [newTab, ...state.searchTabs],
+          activeTabId: newTab.id,
+          isSearching: false,
+          searchResults: results
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch results:', error);
+      set({ isSearching: false });
+    }
+  },
+
+  setActiveTab: (id) => set({ activeTabId: id }),
+
+  removeSearchTab: (id) => set((state) => {
+    const newTabs = state.searchTabs.filter(t => t.id !== id);
+    let newActiveId = state.activeTabId;
+    if (newActiveId === id) {
+      newActiveId = newTabs.length > 0 ? newTabs[0].id : null;
+    }
+    return { searchTabs: newTabs, activeTabId: newActiveId };
+  }),
+
+  updateTabViewMode: (id, mode) => set((state) => ({
+    searchTabs: state.searchTabs.map(t => t.id === id ? { ...t, viewMode: mode } : t)
+  })),
+
+  getActiveTab: () => {
+    const { searchTabs, activeTabId } = get();
+    return searchTabs.find(t => t.id === activeTabId) || null;
+  }
 }));

@@ -289,11 +289,12 @@ class PostgresUserRepository:
         *,
         role: Optional[UserRole] = None,
         status: Optional[UserStatus] = None,
+        search: Optional[str] = None,
         offset: int = 0,
         limit: int = 20
     ) -> Tuple[List[User], int]:
         """
-        List users with optional filtering and pagination.
+        List users with optional filtering, search and pagination.
 
         Returns:
             (users, total_count)
@@ -310,6 +311,11 @@ class PostgresUserRepository:
         if status is not None:
             where_clauses.append(f"status = ${param_idx}")
             values.append(status.value)
+            param_idx += 1
+
+        if search:
+            where_clauses.append(f"(email ILIKE ${param_idx} OR display_name ILIKE ${param_idx})")
+            values.append(f"%{search}%")
             param_idx += 1
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
@@ -621,3 +627,47 @@ class PostgresUserRepository:
         logger.info(f"Admin user created: {email}")
 
         return user, True
+    async def delete_user(self, user_id: UUID) -> bool:
+        """
+        Delete user from database.
+
+        Args:
+            user_id: User UUID to delete
+
+        Returns:
+            True if deleted, False if not found
+        """
+        query = "DELETE FROM users WHERE id = $1"
+        async with self._pool.acquire() as conn:
+            result = await conn.execute(query, user_id)
+            # result is something like 'DELETE 1'
+            return result == "DELETE 1"
+
+    async def get_user_stats(self) -> Dict[str, int]:
+        """
+        Get aggregate statistics for users.
+
+        Returns:
+            Dictionary with counts for total, active, inactive, admin, regular, pending
+        """
+        query = """
+            SELECT
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE status = 'active') as active,
+                COUNT(*) FILTER (WHERE status != 'active') as inactive,
+                COUNT(*) FILTER (WHERE role = 'admin') as admins,
+                COUNT(*) FILTER (WHERE role = 'user') as regulars,
+                COUNT(*) FILTER (WHERE status = 'pending') as pending
+            FROM users
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(query)
+
+        return {
+            "total_users": row["total"],
+            "active_users": row["active"],
+            "inactive_users": row["inactive"],
+            "admin_users": row["admins"],
+            "regular_users": row["regulars"],
+            "pending_verification": row["pending"]
+        }

@@ -211,7 +211,24 @@
       "Bash(git diff:*)",
       "Bash(git clone:*)",
       "Bash(git for-each-ref:*)",
-      "Bash(git prune:*)"
+      "Bash(git prune:*)",
+      "Bash(npx msw:*)",
+      "Bash(npx eslint:*)",
+      "Bash(docker ps:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhY2YxYTQxYi04ODBjLTRkZWMtOTVhZC0xYjI1YWFkYWRjOTUiLCJ1c2VybmFtZSI6IlN5c3RlbSBBZG1pbmlzdHJhdG9yIiwiZW1haWwiOiJhZG1pbkBleGFtcGxlLmNvbSIsInJvbGUiOiJhZG1pbiIsImV4cCI6MTc2Nzg0MDAxMH0.PRSJOXLpC5It-fFSJG4VJeSxok98sL31X8qDFddd01M\")",
+      "Bash(timeout 30 curl:*)",
+      "Bash(git stash:*)",
+      "Bash(timeout 60 curl:*)",
+      "Bash(timeout 90 curl:*)",
+      "Bash(timeout:*)",
+      "Bash(cmd //c \"taskkill /PID 20680 /F\")",
+      "Bash(cmd //c \"taskkill /PID 22468 /F\")",
+      "Bash(cmd //c \"taskkill /PID 36400 /F\")",
+      "Bash(PGPASSWORD=ragpassword psql:*)",
+      "Bash(docker-compose stop:*)",
+      "Bash(docker-compose rm:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

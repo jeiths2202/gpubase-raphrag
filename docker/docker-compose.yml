@@ -103,6 +103,25 @@ services:
       retries: 10
       start_period: 180s
 
+  # PostgreSQL Database with pgvector (port 5432)
+  postgres:
+    container_name: postgres-graphrag
+    image: pgvector/pgvector:pg15
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-ragdb}
+      - POSTGRES_USER=${POSTGRES_USER:-raguser}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ragpassword}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raguser} -d ${POSTGRES_DB:-ragdb} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 # Named volumes for model caches (persist across container restarts)
 volumes:
   nim_llm_cache:
@@ -111,3 +130,5 @@ volumes:
     name: graphrag_nim_embed_cache
   huggingface_cache:
     name: graphrag_huggingface_cache
+  postgres_data:
+    name: graphrag_postgres_data

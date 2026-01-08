@@ -309,6 +309,32 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    max-height: 500px;
+    overflow-y: auto;
+    padding-right: 8px;
+  }
+
+  /* Custom Scrollbar */
+  .users-table::-webkit-scrollbar,
+  .token-table::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .users-table::-webkit-scrollbar-track,
+  .token-table::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+  }
+
+  .users-table::-webkit-scrollbar-thumb,
+  .token-table::-webkit-scrollbar-thumb {
+    background: rgba(99, 102, 241, 0.4);
+    border-radius: 4px;
+  }
+
+  .users-table::-webkit-scrollbar-thumb:hover,
+  .token-table::-webkit-scrollbar-thumb:hover {
+    background: rgba(99, 102, 241, 0.6);
   }
 
   .table-header, .table-row {

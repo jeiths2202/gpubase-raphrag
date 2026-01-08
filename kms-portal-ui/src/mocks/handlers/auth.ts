@@ -70,8 +70,9 @@ export const authHandlers = [
   http.post('/api/v1/auth/login', async ({ request }) => {
     await delay(500); // Simulate network delay
 
-    const body = (await request.json()) as { userId: string; password: string };
-    const { userId, password } = body;
+    const body = (await request.json()) as { userId?: string; username?: string; password: string };
+    const userId = body.userId || body.username; // Support both userId and username
+    const { password } = body;
 
     const user = MOCK_USERS.find((u) => u.userId === userId && u.password === password);
 

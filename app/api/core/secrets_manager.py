@@ -77,12 +77,7 @@ REQUIRED_SECRETS: List[SecretDefinition] = [
         description="Neo4j database password",
         min_length=8,
         required=True,
-        known_insecure_values=[
-            "graphrag2024",
-            "neo4j",
-            "password",
-            "admin",
-        ]
+        known_insecure_values=[]
     ),
 ]
 

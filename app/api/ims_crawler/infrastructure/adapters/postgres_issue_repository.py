@@ -5,6 +5,7 @@ Implements issue storage with pgvector semantic search support.
 """
 
 import asyncpg
+import json
 from typing import List, Optional
 from uuid import UUID
 
@@ -28,11 +29,12 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
         """
         self.pool = pool
 
-    async def save(self, issue: Issue) -> None:
+    async def save(self, issue: Issue) -> UUID:
         """
         Save or update issue.
 
         Uses UPSERT for idempotent saves.
+        Returns the actual ID stored in DB (may differ on conflict).
         """
         query = """
             INSERT INTO ims_issues (
@@ -55,10 +57,11 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
                 attachments_count = EXCLUDED.attachments_count,
                 updated_at = EXCLUDED.updated_at,
                 resolved_at = EXCLUDED.resolved_at
+            RETURNING id
         """
 
         async with self.pool.acquire() as conn:
-            await conn.execute(
+            row = await conn.fetchrow(
                 query,
                 issue.id, issue.ims_id, issue.user_id,
                 issue.title, issue.description,
@@ -67,8 +70,10 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
                 issue.project_key, issue.issue_type, issue.labels,
                 issue.comments_count, issue.attachments_count,
                 issue.created_at, issue.updated_at, issue.resolved_at,
-                issue.crawled_at, issue.source_url, issue.custom_fields
+                issue.crawled_at, issue.source_url,
+                json.dumps(issue.custom_fields) if issue.custom_fields else "{}"
             )
+            return row['id']
 
     async def save_embedding(self, issue_id: UUID, embedding: List[float], embedded_text: str) -> None:
         """
@@ -79,6 +84,9 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
             embedding: 4096-dim vector
             embedded_text: Text that was embedded
         """
+        # Convert embedding list to pgvector string format: '[0.1, 0.2, ...]'
+        embedding_str = '[' + ','.join(str(v) for v in embedding) + ']'
+
         query = """
             INSERT INTO ims_issue_embeddings (issue_id, embedding, embedded_text)
             VALUES ($1, $2::vector, $3)
@@ -90,7 +98,31 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
         """
 
         async with self.pool.acquire() as conn:
-            await conn.execute(query, issue_id, embedding, embedded_text)
+            await conn.execute(query, issue_id, embedding_str, embedded_text)
+
+    async def save_relation(
+        self,
+        source_issue_id: UUID,
+        target_issue_id: UUID,
+        relation_type: str
+    ) -> None:
+        """
+        Save a relationship between two issues.
+
+        Args:
+            source_issue_id: Source issue UUID
+            target_issue_id: Target issue UUID
+            relation_type: Type of relation ('relates_to', 'blocks', 'duplicates')
+        """
+        query = """
+            INSERT INTO ims_issue_relations (source_issue_id, target_issue_id, relation_type)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (source_issue_id, target_issue_id, relation_type)
+            DO NOTHING
+        """
+
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, source_issue_id, target_issue_id, relation_type)
 
     async def find_by_id(self, issue_id: UUID) -> Optional[Issue]:
         """Find issue by ID"""
@@ -141,6 +173,9 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
         Returns:
             List of issues sorted by similarity DESC
         """
+        # Convert embedding list to pgvector string format
+        embedding_str = '[' + ','.join(str(v) for v in embedding) + ']'
+
         query = """
             SELECT
                 i.*,
@@ -153,7 +188,7 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
         """
 
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch(query, embedding, user_id, limit)
+            rows = await conn.fetch(query, embedding_str, user_id, limit)
             issues = []
             for row in rows:
                 issue = self._row_to_issue(row)
@@ -227,9 +262,46 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
 
         return ranked_issues
 
+    async def get_embedded_ims_ids(self, user_id: UUID, ims_ids: List[str]) -> set:
+        """
+        Get set of ims_ids that already have embeddings stored.
+
+        Args:
+            user_id: User UUID
+            ims_ids: List of ims_ids to check
+
+        Returns:
+            Set of ims_ids that have embeddings
+        """
+        if not ims_ids:
+            return set()
+
+        query = """
+            SELECT i.ims_id
+            FROM ims_issues i
+            INNER JOIN ims_issue_embeddings e ON i.id = e.issue_id
+            WHERE i.user_id = $1 AND i.ims_id = ANY($2)
+        """
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, user_id, ims_ids)
+            return {row['ims_id'] for row in rows}
+
     def _row_to_issue(self, row: asyncpg.Record) -> Issue:
         """Convert database row to Issue entity"""
         from ...domain.entities import IssueStatus, IssuePriority
+
+        # Parse custom_fields - handle both JSON string and dict
+        custom_fields_raw = row['custom_fields']
+        if custom_fields_raw:
+            if isinstance(custom_fields_raw, str):
+                custom_fields = json.loads(custom_fields_raw)
+            elif isinstance(custom_fields_raw, dict):
+                custom_fields = custom_fields_raw
+            else:
+                custom_fields = {}
+        else:
+            custom_fields = {}
 
         return Issue(
             id=row['id'],
@@ -251,5 +323,5 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
             resolved_at=row['resolved_at'],
             crawled_at=row['crawled_at'],
             source_url=row['source_url'] or "",
-            custom_fields=dict(row['custom_fields']) if row['custom_fields'] else {}
+            custom_fields=custom_fields
         )

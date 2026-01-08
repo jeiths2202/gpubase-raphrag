@@ -41,8 +41,10 @@ class NvEmbedQAService(EmbeddingServicePort):
             >>> len(vector)
             4096
         """
-        vectors = await self.embedding.embed_texts([text])
-        return vectors[0] if vectors else []
+        result = await self.embedding.embed_texts([text])
+        # BatchEmbeddingResult.embeddings is List[EmbeddingResult]
+        # EmbeddingResult.embedding is List[float]
+        return result.embeddings[0].embedding if result.embeddings else []
 
     async def embed_batch(self, texts: List[str]) -> List[List[float]]:
         """
@@ -62,4 +64,5 @@ class NvEmbedQAService(EmbeddingServicePort):
             >>> all(len(v) == 4096 for v in vectors)
             True
         """
-        return await self.embedding.embed_texts(texts)
+        result = await self.embedding.embed_texts(texts)
+        return [emb.embedding for emb in result.embeddings]

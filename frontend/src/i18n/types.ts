@@ -136,15 +136,18 @@ export interface TranslationKeys {
   'auth.termsOfService': string;
   'auth.privacyPolicy': string;
   'auth.errors.enterIdAndPassword': string;
+  'auth.errors.invalidUserId': string;
   'auth.errors.fillAllFields': string;
   'auth.errors.passwordsDoNotMatch': string;
   'auth.errors.passwordTooShort': string;
+  'auth.errors.passwordComplexity': string;
   'auth.errors.registrationFailed': string;
   'auth.errors.networkError': string;
   'auth.errors.enterVerificationCode': string;
   'auth.errors.verificationFailed': string;
   'auth.errors.googleLoginFailed': string;
   'auth.errors.invalidCorporateEmail': string;
+  'auth.errors.ssoInitiationFailed': string;
 
   // Dashboard
   'dashboard.welcome': string;

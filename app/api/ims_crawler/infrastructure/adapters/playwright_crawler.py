@@ -1358,6 +1358,189 @@ class PlaywrightCrawler(CrawlerPort):
         self._authenticated = False
         logger.info("Browser resources cleaned up")
 
+    async def crawl_issues_parallel(
+        self,
+        issues: List[Issue],
+        credentials: UserCredentials,
+        batch_size: int = 10
+    ) -> List[Issue]:
+        """
+        Crawl multiple issues in parallel using multiple browser pages.
+
+        Args:
+            issues: List of issues to crawl (from search results)
+            credentials: User credentials
+            batch_size: Number of concurrent pages to use (default: 10)
+
+        Returns:
+            List of crawled Issue entities sorted by ims_id descending
+        """
+        if not issues:
+            return []
+
+        if not self._authenticated:
+            await self.authenticate(credentials)
+
+        # Sort issues by ims_id descending (largest first) for output order
+        sorted_issues = sorted(issues, key=lambda x: int(x.ims_id) if x.ims_id.isdigit() else 0, reverse=True)
+
+        crawled_results: List[Issue] = []
+        total_issues = len(sorted_issues)
+
+        # Process in batches
+        for batch_start in range(0, total_issues, batch_size):
+            batch_end = min(batch_start + batch_size, total_issues)
+            batch = sorted_issues[batch_start:batch_end]
+
+            print(f"[Parallel] Crawling batch {batch_start // batch_size + 1}: issues {batch_start + 1}-{batch_end} of {total_issues}", flush=True)
+
+            # Create pages for this batch
+            pages: List[Page] = []
+            try:
+                for _ in batch:
+                    page = await self._context.new_page()
+                    pages.append(page)
+
+                # Crawl all issues in batch concurrently
+                async def crawl_single_issue(page: Page, issue: Issue) -> Issue:
+                    """Crawl a single issue using the provided page."""
+                    try:
+                        issue_url = f"{credentials.ims_base_url}/tody/ims/issue/issueView.do?issueId={issue.ims_id}"
+                        await page.goto(issue_url)
+                        await page.wait_for_load_state('networkidle')
+
+                        # Extract title
+                        title = ""
+                        title_selectors = [
+                            '#subject', 'input[name="subject"]', '.issue-subject',
+                            '#issueSubject', 'h1.issue-title', '.detail-title', '#detailSubject'
+                        ]
+                        for selector in title_selectors:
+                            try:
+                                title_elem = await page.query_selector(selector)
+                                if title_elem:
+                                    tag_name = await title_elem.evaluate('el => el.tagName.toLowerCase()')
+                                    if tag_name == 'input':
+                                        title = await title_elem.get_attribute('value') or ""
+                                    else:
+                                        title = await title_elem.inner_text()
+                                    title = title.strip()
+                                    if title and title != "Untitled":
+                                        break
+                            except:
+                                continue
+
+                        if not title or title == "Untitled":
+                            title = issue.title if issue.title else f"Issue {issue.ims_id}"
+
+                        # Extract description
+                        description = ""
+                        desc_selectors = [
+                            '#contents', 'textarea[name="contents"]', '.issue-description',
+                            '#issueContents', '.detail-description', '#detailContents'
+                        ]
+                        for selector in desc_selectors:
+                            try:
+                                desc_elem = await page.query_selector(selector)
+                                if desc_elem:
+                                    tag_name = await desc_elem.evaluate('el => el.tagName.toLowerCase()')
+                                    if tag_name == 'textarea':
+                                        description = await desc_elem.evaluate('el => el.value || el.textContent || ""')
+                                    else:
+                                        description = await desc_elem.inner_text()
+                                    description = description.strip()
+                                    if description:
+                                        break
+                            except:
+                                continue
+
+                        # Status
+                        status = IssueStatus.OPEN
+                        status_selectors = ['#status', 'select[name="status"]', '.issue-status']
+                        for selector in status_selectors:
+                            try:
+                                status_elem = await page.query_selector(selector)
+                                if status_elem:
+                                    status_text = await status_elem.evaluate('el => el.value || el.textContent || ""')
+                                    status = self._parse_status(status_text.strip())
+                                    break
+                            except:
+                                continue
+
+                        # Priority
+                        priority = IssuePriority.MEDIUM
+                        priority_selectors = ['#priority', 'select[name="priority"]', '.issue-priority']
+                        for selector in priority_selectors:
+                            try:
+                                priority_elem = await page.query_selector(selector)
+                                if priority_elem:
+                                    priority_text = await priority_elem.evaluate('el => el.value || el.textContent || ""')
+                                    priority = self._parse_priority(priority_text.strip())
+                                    break
+                            except:
+                                continue
+
+                        # Reporter
+                        reporter = issue.reporter if issue.reporter else "Unknown"
+
+                        # Assignee
+                        assignee = issue.assignee
+
+                        # Project
+                        project_key = issue.project_key if issue.project_key else "UNKNOWN"
+
+                        # Labels
+                        labels = issue.labels if issue.labels else []
+
+                        # Create Issue entity
+                        crawled_issue = Issue(
+                            id=uuid4(),
+                            user_id=credentials.user_id,
+                            ims_id=issue.ims_id,
+                            title=title,
+                            description=description,
+                            status=status,
+                            priority=priority,
+                            reporter=reporter,
+                            assignee=assignee,
+                            project_key=project_key,
+                            labels=labels,
+                            source_url=issue_url,
+                            created_at=datetime.utcnow(),
+                            updated_at=datetime.utcnow()
+                        )
+
+                        return crawled_issue
+
+                    except Exception as e:
+                        logger.warning(f"[Parallel] Failed to crawl {issue.ims_id}: {e}")
+                        # Return the original issue as fallback
+                        return issue
+
+                # Execute parallel crawling for this batch
+                tasks = [crawl_single_issue(pages[i], batch[i]) for i in range(len(batch))]
+                batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                # Collect results
+                for i, result in enumerate(batch_results):
+                    if isinstance(result, Exception):
+                        logger.warning(f"[Parallel] Exception for issue {batch[i].ims_id}: {result}")
+                        crawled_results.append(batch[i])  # Use original as fallback
+                    else:
+                        crawled_results.append(result)
+
+            finally:
+                # Clean up pages after batch
+                for page in pages:
+                    try:
+                        await page.close()
+                    except:
+                        pass
+
+        # Results are already in descending order by ims_id
+        print(f"[Parallel] Completed crawling {len(crawled_results)} issues", flush=True)
+        return crawled_results
+
     # Helper methods
 
     @staticmethod

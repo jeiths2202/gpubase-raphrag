@@ -18,7 +18,7 @@ import { LoginPage } from './pages/LoginPage';
 import { HomePage } from './pages/HomePage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 import { ArticleDetailPage } from './pages/ArticleDetailPage';
-import { IMSCrawlerPage } from './pages/IMSCrawlerPage';
+import { IMSPage } from './pages/IMSPage';
 import { AIStudioPage } from './pages/AIStudioPage';
 import { ExternalPortalPage } from './pages/ExternalPortalPage';
 import { FAQPage } from './pages/FAQPage';
@@ -93,7 +93,7 @@ export const App: React.FC = () => {
               <Route path="/knowledge/:articleId" element={<ArticleDetailPage />} />
 
               {/* IMS (Phase 3) */}
-              <Route path="/ims" element={<IMSCrawlerPage />} />
+              <Route path="/ims" element={<IMSPage />} />
 
               {/* AI Studio / Mindmap (Phase 5) */}
               <Route path="/mindmap" element={<AIStudioPage />} />

@@ -14,7 +14,7 @@ import { useIMSStore } from '../store/imsStore';
 import { IMSCredentialsSetup } from '../components/IMSCredentialsSetup';
 import { IMSSearchBar } from '../components/IMSSearchBar';
 import { IMSSearchResults } from '../components/IMSSearchResults';
-import { IMSEnhancedProgressTracker } from '../components/progress';
+import { IMSEnhancedProgressTracker } from '../components/IMSEnhancedProgressTracker';
 import { TabProgressSnapshot } from '../components/TabProgressSnapshot';
 import type { TranslateFunction } from '../../../i18n/types';
 import type { CompletionStats } from '../types/progress';
@@ -159,8 +159,8 @@ export const IMSCrawlerPage: React.FC<IMSCrawlerPageProps> = ({ t }) => {
 
     // Only show setup if no credentials and not currently active
     if ((!hasCredentials || !credentialsValidated) &&
-        !isSearching &&
-        searchTabs.length === 0) {
+      !isSearching &&
+      searchTabs.length === 0) {
       setShowCredentialsSetup(true);
     }
   }, [hasCredentials, credentialsValidated, isSearching, searchTabs.length]);
@@ -313,7 +313,7 @@ export const IMSCrawlerPage: React.FC<IMSCrawlerPageProps> = ({ t }) => {
               const isActive = currentTabType === 'results' && activeTabId === tab.id;
               const outcomeColor = tab.completionStats?.outcome === 'success' ? '#10b981'
                 : tab.completionStats?.outcome === 'partial' ? '#f59e0b'
-                : '#ef4444';
+                  : '#ef4444';
 
               return (
                 <button
@@ -407,7 +407,7 @@ export const IMSCrawlerPage: React.FC<IMSCrawlerPageProps> = ({ t }) => {
           {currentTabType === 'search' ? (
             <>
               {/* Search Bar */}
-              <IMSSearchBar />
+              <IMSSearchBar t={t} />
 
               {/* Enhanced Progress Tracker - Show during crawling */}
               {isSearching && currentJob && (
@@ -510,12 +510,12 @@ export const IMSCrawlerPage: React.FC<IMSCrawlerPageProps> = ({ t }) => {
                           fontWeight: 700,
                           color: activeTab.completionStats.outcome === 'success' ? '#10b981'
                             : activeTab.completionStats.outcome === 'partial' ? '#f59e0b'
-                            : '#ef4444',
+                              : '#ef4444',
                           textTransform: 'uppercase'
                         }}>
                           {activeTab.completionStats.outcome === 'success' ? '✓ Success'
                             : activeTab.completionStats.outcome === 'partial' ? '⚠ Partial'
-                            : '✗ Failed'}
+                              : '✗ Failed'}
                         </span>
                       </div>
                     </div>
@@ -541,6 +541,7 @@ export const IMSCrawlerPage: React.FC<IMSCrawlerPageProps> = ({ t }) => {
 
               {/* Search Results */}
               <IMSSearchResults
+                t={t}
                 results={activeTab.results}
                 viewMode={activeTab.viewMode}
                 onViewModeChange={(mode) => updateTabViewMode(activeTab.id, mode)}

@@ -16,8 +16,6 @@ import {
   Settings,
   Shield,
   ExternalLink,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   Book,
   Download,
@@ -143,7 +141,7 @@ export const Sidebar: React.FC = () => {
   const { t } = useTranslation();
   const location = useLocation();
   const { user } = useAuthStore();
-  const { leftSidebarOpen, toggleLeftSidebar } = useUIStore();
+  const { leftSidebarOpen } = useUIStore();
 
   // Track expanded submenus
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
@@ -190,22 +188,17 @@ export const Sidebar: React.FC = () => {
       return (
         <div key={item.id} className="sidebar-nav-group">
           <button
-            className={`sidebar-nav-item ${isActive || childActive ? 'active' : ''} ${!leftSidebarOpen ? 'collapsed' : ''}`}
-            onClick={() => leftSidebarOpen && toggleSubmenu(item.id)}
-            title={!leftSidebarOpen ? t(item.labelKey) : undefined}
+            className={`sidebar-nav-item ${isActive || childActive ? 'active' : ''}`}
+            onClick={() => toggleSubmenu(item.id)}
           >
             <span className="sidebar-nav-icon">{item.icon}</span>
-            {leftSidebarOpen && (
-              <>
-                <span className="sidebar-nav-label">{t(item.labelKey)}</span>
-                <ChevronDown
-                  size={16}
-                  className={`sidebar-nav-chevron ${isExpanded ? 'expanded' : ''}`}
-                />
-              </>
-            )}
+            <span className="sidebar-nav-label">{t(item.labelKey)}</span>
+            <ChevronDown
+              size={16}
+              className={`sidebar-nav-chevron ${isExpanded ? 'expanded' : ''}`}
+            />
           </button>
-          {leftSidebarOpen && isExpanded && (
+          {isExpanded && (
             <div className="sidebar-submenu">
               {item.children!.map(child => (
                 <NavLink
@@ -222,7 +215,7 @@ export const Sidebar: React.FC = () => {
       );
     }
 
-    const className = `sidebar-nav-item ${isActive ? 'active' : ''} ${!leftSidebarOpen ? 'collapsed' : ''}`;
+    const className = `sidebar-nav-item ${isActive ? 'active' : ''}`;
 
     if (item.external) {
       return (
@@ -232,10 +225,9 @@ export const Sidebar: React.FC = () => {
           target="_blank"
           rel="noopener noreferrer"
           className={className}
-          title={!leftSidebarOpen ? t(item.labelKey) : undefined}
         >
           <span className="sidebar-nav-icon">{item.icon}</span>
-          {leftSidebarOpen && <span className="sidebar-nav-label">{t(item.labelKey)}</span>}
+          <span className="sidebar-nav-label">{t(item.labelKey)}</span>
         </a>
       );
     }
@@ -245,10 +237,9 @@ export const Sidebar: React.FC = () => {
         key={item.id}
         to={item.path}
         className={className}
-        title={!leftSidebarOpen ? t(item.labelKey) : undefined}
       >
         <span className="sidebar-nav-icon">{item.icon}</span>
-        {leftSidebarOpen && <span className="sidebar-nav-label">{t(item.labelKey)}</span>}
+        <span className="sidebar-nav-label">{t(item.labelKey)}</span>
       </NavLink>
     );
   };
@@ -267,15 +258,6 @@ export const Sidebar: React.FC = () => {
           {BOTTOM_NAV_ITEMS.map(renderNavItem)}
         </div>
       </nav>
-
-      {/* Collapse toggle */}
-      <button
-        className="sidebar-toggle"
-        onClick={toggleLeftSidebar}
-        aria-label={leftSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-      >
-        {leftSidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-      </button>
     </aside>
   );
 };
