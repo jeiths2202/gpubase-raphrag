@@ -22,6 +22,7 @@ import { IMSPage } from './pages/IMSPage';
 import { AIStudioPage } from './pages/AIStudioPage';
 import { ExternalPortalPage } from './pages/ExternalPortalPage';
 import { FAQPage } from './pages/FAQPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 // Import global styles
 import './styles/index.css';
@@ -111,7 +112,7 @@ export const App: React.FC = () => {
               <Route path="/admin" element={<PlaceholderPage title="Admin Dashboard" />} />
 
               {/* Settings */}
-              <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+              <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>
 

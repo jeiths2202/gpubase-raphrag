@@ -1,0 +1,60 @@
+{
+  "title": "Settings",
+  "nav": {
+    "general": "General",
+    "notifications": "Notifications",
+    "security": "Security",
+    "account": "Account",
+    "subscription": "Subscription"
+  },
+  "general": {
+    "title": "General",
+    "appearance": "Appearance",
+    "appearanceDesc": "Choose your preferred color theme",
+    "language": "Language",
+    "languageDesc": "Select your display language"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "email": "Email Notifications",
+    "emailDesc": "Receive email updates about your account",
+    "push": "Push Notifications",
+    "pushDesc": "Receive browser push notifications",
+    "weekly": "Weekly Digest",
+    "weeklyDesc": "Get a summary of your activity"
+  },
+  "security": {
+    "title": "Security",
+    "password": "Password",
+    "passwordDesc": "Last changed 30 days ago",
+    "changePassword": "Change Password",
+    "twoFactor": "Two-Factor Authentication",
+    "twoFactorDesc": "Add an extra layer of security",
+    "sessions": "Active Sessions",
+    "sessionsDesc": "2 active sessions",
+    "manageSessions": "Manage"
+  },
+  "account": {
+    "title": "Account",
+    "editProfile": "Edit Profile",
+    "email": "Email Address",
+    "change": "Change",
+    "timezone": "Timezone",
+    "deleteAccount": "Delete Account",
+    "deleteDesc": "Permanently delete your account and data",
+    "delete": "Delete"
+  },
+  "subscription": {
+    "title": "Subscription",
+    "description": "Choose the plan that best fits your needs. Upgrade or downgrade at any time.",
+    "current": "Current",
+    "currentPlan": "Current Plan",
+    "upgrade": "Upgrade",
+    "contactSales": "Contact Sales"
+  }
+}
