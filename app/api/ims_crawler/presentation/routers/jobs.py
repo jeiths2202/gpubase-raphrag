@@ -31,6 +31,7 @@ class CrawlJobCreateRequest(BaseModel):
     include_related_issues: bool = Field(default=True)
     max_issues: Optional[int] = Field(default=None, description="Maximum issues to crawl (None = unlimited)")
     product_codes: Optional[List[str]] = Field(default=None, description="Product codes to filter search (e.g., ['128', '520'])")
+    force_refresh: bool = Field(default=False, description="Skip cache and force new crawl")
 
 
 class CrawlJobResponse(BaseModel):
@@ -49,6 +50,7 @@ class CrawlJobResponse(BaseModel):
     started_at: Optional[str]
     completed_at: Optional[str]
     error_message: Optional[str]
+    is_cached: bool = Field(default=False, description="True if results are from cache")
 
 
 # ============================================================================
@@ -62,43 +64,55 @@ async def create_crawl_job(
     use_case: CrawlJobsUseCase = Depends(get_crawl_jobs_use_case)
 ):
     """
-    Create a new IMS crawl job.
+    Create a new IMS crawl job or return cached results.
+
+    If a completed crawl job with the same query exists within the cache period
+    (configured by IMS_QUERY_CACHE_HOURS, default 24h), returns the cached job.
+    Use `force_refresh=true` to skip cache and force a new crawl.
 
     The job is created in PENDING status and can be monitored via SSE stream.
 
-    Returns job ID and initial status.
-    Use GET /ims-jobs/{job_id}/stream to monitor real-time progress.
+    Returns job ID, initial status, and is_cached flag.
+    - If is_cached=true, the job is already completed (no need to stream)
+    - If is_cached=false, use GET /ims-jobs/{job_id}/stream to monitor real-time progress.
     """
     user_id = UUID(current_user["id"])
 
     try:
-        # Create crawl job (max_results=None means crawl all issues)
-        job = await use_case.create_crawl_job(
+        # Create crawl job or get cached results
+        job, is_cached = await use_case.create_crawl_job(
             user_id=user_id,
             search_query=request.query,
             max_results=request.max_issues if request.max_issues else 10000,  # Unlimited (use high number)
             download_attachments=request.include_attachments,
             crawl_related=request.include_related_issues,
             max_depth=2 if request.include_related_issues else 0,
-            product_codes=request.product_codes
+            product_codes=request.product_codes,
+            force_refresh=request.force_refresh
         )
+
+        # Calculate progress for cached jobs
+        progress = 0
+        if is_cached and job.issues_found > 0:
+            progress = int((job.issues_crawled / job.issues_found) * 100)
 
         # Return job response
         return CrawlJobResponse(
             id=job.id,
             user_id=job.user_id,
             raw_query=job.raw_query,
-            parsed_query=None,
+            parsed_query=job.parsed_query if is_cached else None,
             status=job.status.value,
-            current_step="pending",
-            progress_percentage=0,
-            issues_found=0,
-            issues_crawled=0,
-            attachments_processed=0,
+            current_step=job.current_step if is_cached else "pending",
+            progress_percentage=progress if is_cached else 0,
+            issues_found=job.issues_found if is_cached else 0,
+            issues_crawled=job.issues_crawled if is_cached else 0,
+            attachments_processed=job.attachments_processed if is_cached else 0,
             created_at=job.created_at.isoformat(),
-            started_at=None,
-            completed_at=None,
-            error_message=None
+            started_at=job.started_at.isoformat() if job.started_at else None,
+            completed_at=job.completed_at.isoformat() if job.completed_at else None,
+            error_message=job.error_message if is_cached else None,
+            is_cached=is_cached
         )
 
     except Exception as e:
@@ -217,7 +231,8 @@ async def get_job_status(
             created_at=job.created_at.isoformat(),
             started_at=job.started_at.isoformat() if job.started_at else None,
             completed_at=job.completed_at.isoformat() if job.completed_at else None,
-            error_message=job.error_message
+            error_message=job.error_message,
+            is_cached=False  # Status endpoint always returns current state, not cached
         )
 
     except ValueError:

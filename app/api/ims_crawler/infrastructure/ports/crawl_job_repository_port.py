@@ -29,6 +29,39 @@ class CrawlJobRepositoryPort(ABC):
         pass
 
     @abstractmethod
+    async def find_by_query(
+        self,
+        user_id: UUID,
+        query: str,
+        max_age_hours: int = 24
+    ) -> Optional[CrawlJob]:
+        """
+        Find a completed crawl job with the same query within the cache period.
+
+        Args:
+            user_id: User UUID
+            query: Search query string (exact match)
+            max_age_hours: Maximum age of cached results in hours
+
+        Returns:
+            Most recent completed CrawlJob if found within cache period, None otherwise
+        """
+        pass
+
+    @abstractmethod
     async def delete(self, job_id: UUID) -> None:
         """Delete a crawl job"""
+        pass
+
+    @abstractmethod
+    async def delete_expired_jobs(self, max_age_hours: int = 24) -> int:
+        """
+        Delete crawl jobs older than the specified age.
+
+        Args:
+            max_age_hours: Maximum age in hours before deletion
+
+        Returns:
+            Number of deleted jobs
+        """
         pass

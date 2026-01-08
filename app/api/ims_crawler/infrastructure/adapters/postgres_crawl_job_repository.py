@@ -149,6 +149,86 @@ class PostgreSQLCrawlJobRepository(CrawlJobRepositoryPort):
         async with self.pool.acquire() as conn:
             await conn.execute(query, job_id)
 
+    async def find_by_query(
+        self,
+        user_id: UUID,
+        query: str,
+        max_age_hours: int = 24
+    ) -> Optional[CrawlJob]:
+        """
+        Find a completed crawl job with the same query within the cache period.
+
+        Args:
+            user_id: User UUID
+            query: Search query string (exact match)
+            max_age_hours: Maximum age of cached results in hours
+
+        Returns:
+            Most recent completed CrawlJob if found within cache period, None otherwise
+        """
+        # If cache is disabled (0 hours), always return None
+        if max_age_hours <= 0:
+            return None
+
+        sql = """
+            SELECT * FROM ims_crawl_jobs
+            WHERE user_id = $1
+              AND raw_query = $2
+              AND status = 'completed'
+              AND created_at > NOW() - INTERVAL '%s hours'
+            ORDER BY created_at DESC
+            LIMIT 1
+        """ % max_age_hours  # Safe: max_age_hours is an int from config
+
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(sql, user_id, query)
+            return self._row_to_job(row) if row else None
+
+    async def delete_expired_jobs(self, max_age_hours: int = 24) -> int:
+        """
+        Delete crawl jobs and their associated issues older than the specified age.
+
+        Args:
+            max_age_hours: Maximum age in hours before deletion
+
+        Returns:
+            Number of deleted jobs
+        """
+        if max_age_hours <= 0:
+            return 0
+
+        # First, delete associated issues for expired jobs
+        delete_issues_query = """
+            DELETE FROM ims_issues
+            WHERE user_id IN (
+                SELECT user_id FROM ims_crawl_jobs
+                WHERE created_at < NOW() - INTERVAL '%s hours'
+            )
+            AND created_at < NOW() - INTERVAL '%s hours'
+        """ % (max_age_hours, max_age_hours)
+
+        # Then delete the expired jobs
+        delete_jobs_query = """
+            DELETE FROM ims_crawl_jobs
+            WHERE created_at < NOW() - INTERVAL '%s hours'
+            RETURNING id
+        """ % max_age_hours
+
+        async with self.pool.acquire() as conn:
+            # Delete issues first (due to potential foreign key constraints)
+            await conn.execute(delete_issues_query)
+
+            # Delete jobs and count
+            result = await conn.fetch(delete_jobs_query)
+            deleted_count = len(result)
+
+            if deleted_count > 0:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"Cleaned up {deleted_count} expired crawl jobs (older than {max_age_hours} hours)")
+
+            return deleted_count
+
     def _row_to_job(self, row: asyncpg.Record) -> CrawlJob:
         """Convert database row to CrawlJob entity"""
         return CrawlJob(

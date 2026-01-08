@@ -151,6 +151,16 @@ class APISettings(BaseSettings):
         description="Timeout for element selector wait (ms)"
     )
 
+    # IMS Query Cache Settings
+    IMS_QUERY_CACHE_HOURS: int = Field(
+        default=24,
+        description="Hours to cache IMS query results before re-crawling (0 = always re-crawl)"
+    )
+    IMS_QUERY_CACHE_CLEANUP_ENABLED: bool = Field(
+        default=True,
+        description="Enable automatic cleanup of expired crawl jobs"
+    )
+
     # Email/SMTP Configuration
     SMTP_ENABLED: bool = Field(default=False, description="Enable SMTP email sending")
     SMTP_HOST: str = Field(default="localhost", description="SMTP server host")

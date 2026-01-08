@@ -2,10 +2,11 @@
 Crawl Jobs Use Case - Orchestrates async crawling operations with progress tracking
 
 Manages crawl job lifecycle: creation, execution, progress updates, and result storage.
+Includes DB caching to avoid re-crawling the same queries within a configurable time period.
 """
 
 import asyncio
-from typing import List, AsyncGenerator, Dict, Any, Optional
+from typing import List, AsyncGenerator, Dict, Any, Optional, Tuple
 from uuid import UUID, uuid4
 from datetime import datetime
 import logging
@@ -17,8 +18,12 @@ from ...infrastructure.ports.issue_repository_port import IssueRepositoryPort
 from ...infrastructure.ports.crawl_job_repository_port import CrawlJobRepositoryPort
 from ...infrastructure.ports.embedding_service_port import EmbeddingServicePort
 from ...infrastructure.services.attachment_processor import AttachmentProcessor
+from ....core.config import get_api_settings
 
 logger = logging.getLogger(__name__)
+
+# Load API settings for cache configuration
+_api_settings = get_api_settings()
 
 
 class CrawlJobsUseCase:
@@ -70,10 +75,15 @@ class CrawlJobsUseCase:
         download_attachments: bool = True,
         crawl_related: bool = False,
         max_depth: int = 1,
-        product_codes: Optional[List[str]] = None
-    ) -> CrawlJob:
+        product_codes: Optional[List[str]] = None,
+        force_refresh: bool = False
+    ) -> Tuple[CrawlJob, bool]:
         """
-        Create a new crawl job.
+        Create a new crawl job or return cached results.
+
+        First checks if a completed crawl job with the same query exists within
+        the cache period (IMS_QUERY_CACHE_HOURS). If found, returns the cached job.
+        Otherwise creates a new job.
 
         Args:
             user_id: User ID who initiated the crawl
@@ -83,10 +93,42 @@ class CrawlJobsUseCase:
             crawl_related: Whether to crawl related issues
             max_depth: Maximum depth for related issue crawling
             product_codes: List of product codes to filter search (e.g., ['128', '520'])
+            force_refresh: If True, skip cache and always create new job
 
         Returns:
-            Created CrawlJob entity
+            Tuple of (CrawlJob entity, is_cached: bool)
+            - is_cached=True means returning existing cached results
+            - is_cached=False means a new job was created
         """
+        cache_hours = _api_settings.IMS_QUERY_CACHE_HOURS
+
+        # Check for cached results (unless force_refresh is True)
+        if not force_refresh and cache_hours > 0:
+            cached_job = await self.crawl_job_repo.find_by_query(
+                user_id=user_id,
+                query=search_query,
+                max_age_hours=cache_hours
+            )
+
+            if cached_job:
+                logger.info(
+                    f"Found cached crawl job {cached_job.id} for query '{search_query}' "
+                    f"(cached {cache_hours}h, created at {cached_job.created_at})"
+                )
+                # Store in memory cache for quick access
+                self._jobs[cached_job.id] = cached_job
+                return cached_job, True
+
+        # Run cleanup of expired jobs if enabled
+        if _api_settings.IMS_QUERY_CACHE_CLEANUP_ENABLED:
+            try:
+                deleted_count = await self.crawl_job_repo.delete_expired_jobs(cache_hours)
+                if deleted_count > 0:
+                    logger.info(f"Cleaned up {deleted_count} expired crawl jobs")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to cleanup expired jobs: {cleanup_error}")
+
+        # Create new crawl job
         job = CrawlJob(
             id=uuid4(),
             user_id=user_id,
@@ -107,9 +149,9 @@ class CrawlJobsUseCase:
 
         # Persist to database
         await self.crawl_job_repo.save(job)
-        logger.info(f"Created crawl job {job.id} for user {user_id} with product_codes={product_codes}")
+        logger.info(f"Created new crawl job {job.id} for user {user_id} with product_codes={product_codes}")
 
-        return job
+        return job, False
 
     async def execute_crawl_job(
         self,
