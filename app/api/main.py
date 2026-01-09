@@ -36,7 +36,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 
 
@@ -380,6 +380,7 @@ app.include_router(reports_router, prefix=API_PREFIX)  # IMS markdown report gen
 app.include_router(dashboard_router, prefix=API_PREFIX)  # IMS dashboard statistics
 app.include_router(cache_router, prefix=API_PREFIX)  # IMS cache management
 app.include_router(tasks_router, prefix=API_PREFIX)  # IMS background task queue management
+app.include_router(ims_chat.router, prefix=API_PREFIX)  # IMS AI chat (limited to searched issues)
 
 
 # Root endpoint

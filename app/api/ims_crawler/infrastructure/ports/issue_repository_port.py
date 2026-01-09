@@ -63,3 +63,31 @@ class IssueRepositoryPort(ABC):
             Set of ims_ids that have embeddings
         """
         pass
+
+    @abstractmethod
+    async def find_by_ids(self, issue_ids: List[UUID], user_id: UUID) -> List[Issue]:
+        """
+        Find multiple issues by their IDs (batch loading).
+
+        Args:
+            issue_ids: List of issue UUIDs to fetch
+            user_id: User UUID for authorization
+
+        Returns:
+            List of Issue entities that match the IDs and belong to the user
+        """
+        pass
+
+    @abstractmethod
+    async def find_by_ids_with_details(self, issue_ids: List[UUID], user_id: UUID) -> List[Issue]:
+        """
+        Find multiple issues by their IDs with full details (including issue_details, action_no).
+
+        Args:
+            issue_ids: List of issue UUIDs to fetch
+            user_id: User UUID for authorization
+
+        Returns:
+            List of Issue entities with full details
+        """
+        pass

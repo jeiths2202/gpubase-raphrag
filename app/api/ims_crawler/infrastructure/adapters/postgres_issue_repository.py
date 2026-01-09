@@ -304,6 +304,71 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
             rows = await conn.fetch(query, user_id, ims_ids)
             return {row['ims_id'] for row in rows}
 
+    async def find_by_ids(self, issue_ids: List[UUID], user_id: UUID) -> List[Issue]:
+        """
+        Find multiple issues by their IDs (batch loading).
+
+        Args:
+            issue_ids: List of issue UUIDs to fetch
+            user_id: User UUID for authorization
+
+        Returns:
+            List of Issue entities that match the IDs and belong to the user
+        """
+        if not issue_ids:
+            return []
+
+        query = """
+            SELECT * FROM ims_issues
+            WHERE id = ANY($1) AND user_id = $2
+            ORDER BY created_at DESC
+        """
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, issue_ids, user_id)
+            return [self._row_to_issue(row) for row in rows]
+
+    async def find_by_ids_with_details(self, issue_ids: List[UUID], user_id: UUID) -> List[Issue]:
+        """
+        Find multiple issues by their IDs with full details (including issue_details, action_no).
+
+        Args:
+            issue_ids: List of issue UUIDs to fetch
+            user_id: User UUID for authorization
+
+        Returns:
+            List of Issue entities with full details
+        """
+        if not issue_ids:
+            return []
+
+        query = """
+            SELECT
+                id, ims_id, user_id, title, description,
+                status, priority, status_raw, priority_raw,
+                reporter, assignee, project_key, issue_type, labels,
+                comments_count, attachments_count,
+                created_at, updated_at, resolved_at, crawled_at, source_url,
+                custom_fields, category, product, version, module, customer, issued_date,
+                issue_details, action_no
+            FROM ims_issues
+            WHERE id = ANY($1) AND user_id = $2
+            ORDER BY created_at DESC
+        """
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, issue_ids, user_id)
+            issues = []
+            for row in rows:
+                issue = self._row_to_issue(row)
+                # Add extra fields that may not be in the standard mapping
+                if 'issue_details' in row.keys():
+                    issue.issue_details = row['issue_details'] or ""
+                if 'action_no' in row.keys():
+                    issue.action_no = row['action_no'] or ""
+                issues.append(issue)
+            return issues
+
     def _row_to_issue(self, row: asyncpg.Record) -> Issue:
         """Convert database row to Issue entity"""
         from ...domain.entities import IssueStatus, IssuePriority
