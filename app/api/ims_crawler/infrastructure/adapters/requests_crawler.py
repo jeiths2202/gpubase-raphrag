@@ -404,7 +404,8 @@ class RequestsBasedCrawler(CrawlerPort):
         issue_id: str,
         user_id,
         base_url: str,
-        fallback_issue: Issue = None
+        fallback_issue: Issue = None,
+        fetch_related: bool = True
     ) -> Issue:
         """Synchronous issue detail crawling implementation."""
         session = self._ensure_session()
@@ -419,9 +420,42 @@ class RequestsBasedCrawler(CrawlerPort):
                 timeout=60
             )
 
-            return self._parse_issue_detail(
+            issue = self._parse_issue_detail(
                 response.text, issue_id, user_id, base_url, fallback_issue
             )
+
+            # Fetch related issue IDs if requested
+            if fetch_related:
+                all_related_ids = []
+                patch_ids = []
+
+                # 1. Fetch from Related Issue API
+                related_ids = self._fetch_related_issue_ids_sync(issue_id, base_url)
+                if related_ids:
+                    all_related_ids.extend(related_ids)
+                    logger.debug(f"Issue {issue_id}: {len(related_ids)} from Related Issue API")
+
+                # 2. Fetch from Patch List API
+                patch_params = self._parse_patch_list_params(response.text)
+                if patch_params:
+                    patch_ids = self._fetch_patch_list_issue_ids_sync(patch_params, base_url)
+                    if patch_ids:
+                        all_related_ids.extend(patch_ids)
+                        logger.debug(f"Issue {issue_id}: {len(patch_ids)} from Patch List API")
+
+                # Deduplicate while preserving order
+                seen = set()
+                unique_ids = []
+                for id in all_related_ids:
+                    if id not in seen and id != issue_id:  # Exclude self
+                        seen.add(id)
+                        unique_ids.append(id)
+
+                issue.related_issue_ids = unique_ids
+                if unique_ids:
+                    logger.info(f"Issue {issue_id} has {len(unique_ids)} related issues (Related: {len(related_ids)}, Patch: {len(patch_ids)})")
+
+            return issue
 
         except Exception as e:
             logger.error(f"Failed to crawl issue {issue_id}: {e}")
@@ -433,7 +467,8 @@ class RequestsBasedCrawler(CrawlerPort):
         self,
         issue_id: str,
         credentials: UserCredentials,
-        fallback_issue: Issue = None
+        fallback_issue: Issue = None,
+        fetch_related: bool = True
     ) -> Issue:
         """
         Crawl detailed information for a single issue.
@@ -442,9 +477,10 @@ class RequestsBasedCrawler(CrawlerPort):
             issue_id: IMS issue identifier
             credentials: User credentials
             fallback_issue: Optional issue from search results to use as fallback
+            fetch_related: Whether to fetch related issue IDs (default True)
 
         Returns:
-            Complete Issue entity with all details
+            Complete Issue entity with all details including related_issue_ids
         """
         if not self._authenticated:
             await self.authenticate(credentials)
@@ -457,7 +493,8 @@ class RequestsBasedCrawler(CrawlerPort):
             issue_id,
             credentials.user_id,
             base_url,
-            fallback_issue
+            fallback_issue,
+            fetch_related
         )
 
     def _parse_issue_detail(
@@ -610,7 +647,14 @@ class RequestsBasedCrawler(CrawlerPort):
         return []
 
     def _fetch_related_issue_ids_sync(self, ims_id: str, base_url: str) -> List[str]:
-        """Synchronous fetch of related issue IDs."""
+        """Synchronous fetch of related issue IDs.
+
+        API Response structure:
+        - relationIssueId=0: root issue (self)
+        - relationIssueId=N: child issue related to issue N
+
+        Only returns actual related issues, excluding the root (self).
+        """
         session = self._ensure_session()
 
         try:
@@ -625,6 +669,11 @@ class RequestsBasedCrawler(CrawlerPort):
                 data = response.json()
                 if isinstance(data, list):
                     for item in data:
+                        # Skip root issue (relationIssueId=0 means it's the queried issue itself)
+                        relation_issue_id = item.get('relationIssueId', 0)
+                        if relation_issue_id == 0:
+                            continue
+
                         related_id = str(item.get('issueId', ''))
                         if related_id:
                             related_ids.append(related_id)
@@ -635,6 +684,101 @@ class RequestsBasedCrawler(CrawlerPort):
 
         except Exception as e:
             logger.error(f"Failed to fetch related issue IDs: {e}")
+            return []
+
+    def _parse_patch_list_params(self, html: str) -> dict:
+        """
+        Parse Patch List popup parameters from issue detail HTML.
+
+        Looks for: popupPatchList('projectCode','siteCode', 'productCode', 'projectName', 'siteName')
+
+        Returns:
+            Dict with projectCode, siteCode, productCode, projectName, siteName
+            or empty dict if not found
+        """
+        # Match pattern: popupPatchList('param1','param2', 'param3', 'param4', 'param5')
+        pattern = r"popupPatchList\s*\(\s*'([^']+)'\s*,\s*'([^']+)'\s*,\s*'([^']+)'\s*,\s*'([^']+)'\s*,\s*'([^']+)'\s*\)"
+        match = re.search(pattern, html)
+
+        if match:
+            return {
+                'projectCode': match.group(1),
+                'siteCode': match.group(2),
+                'productCode': match.group(3),
+                'projectName': match.group(4),
+                'siteName': match.group(5)
+            }
+        return {}
+
+    def _fetch_patch_list_issue_ids_sync(self, patch_params: dict, base_url: str) -> List[str]:
+        """
+        Fetch Patch List and extract Issue Numbers.
+
+        Calls /tody/ims/patch/patchList.do and parses the HTML response
+        to extract Issue Numbers from the table.
+
+        Args:
+            patch_params: Dict with projectCode, siteCode, productCode, projectName, siteName
+            base_url: IMS base URL
+
+        Returns:
+            List of IMS issue IDs from Patch List
+        """
+        if not patch_params:
+            return []
+
+        session = self._ensure_session()
+
+        try:
+            url = f"{base_url}/tody/ims/patch/patchList.do"
+            response = session.get(url, params=patch_params, timeout=60)
+
+            if response.status_code != 200:
+                logger.warning(f"Patch List API returned {response.status_code}")
+                return []
+
+            # Parse HTML to extract Issue Numbers
+            soup = BeautifulSoup(response.text, 'html.parser')
+            issue_ids = []
+
+            # Method 1: Look for links to issueView.do
+            issue_links = soup.find_all('a', href=lambda h: h and 'issueView' in h)
+            for link in issue_links:
+                href = link.get('href', '')
+                # Extract issueId from URL like: issueView.do?issueId=123456
+                id_match = re.search(r'issueId=(\d+)', href)
+                if id_match:
+                    issue_ids.append(id_match.group(1))
+
+            # Method 2: Look for table cells with Issue No pattern (5-6 digit numbers)
+            if not issue_ids:
+                # Find table rows
+                tables = soup.find_all('table')
+                for table in tables:
+                    rows = table.find_all('tr')
+                    for row in rows:
+                        cells = row.find_all(['td', 'th'])
+                        for cell in cells:
+                            text = cell.get_text(strip=True)
+                            # Look for 5-6 digit issue numbers (IMS IDs range from 10000+)
+                            if text.isdigit() and 5 <= len(text) <= 6:
+                                issue_ids.append(text)
+
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_ids = []
+            for id in issue_ids:
+                if id not in seen:
+                    seen.add(id)
+                    unique_ids.append(id)
+
+            if unique_ids:
+                logger.info(f"Patch List: found {len(unique_ids)} issue IDs: {unique_ids[:5]}...")
+
+            return unique_ids
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch Patch List: {e}")
             return []
 
     async def crawl_related_issues(
