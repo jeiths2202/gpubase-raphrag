@@ -150,6 +150,10 @@ class APISettings(BaseSettings):
         default=30000,
         description="Timeout for element selector wait (ms)"
     )
+    IMS_CRAWLER_TYPE: str = Field(
+        default="requests",
+        description="Crawler type: 'playwright' (browser-based) or 'requests' (lightweight HTTP)"
+    )
 
     # IMS Query Cache Settings
     IMS_QUERY_CACHE_HOURS: int = Field(

@@ -7,6 +7,7 @@ from .postgres_dashboard_repository import PostgreSQLDashboardRepository
 from .nvidia_nim_parser import NvidiaNIMParser
 from .nv_embedqa_service import NvEmbedQAService
 from .playwright_crawler import PlaywrightCrawler
+from .requests_crawler import RequestsBasedCrawler
 
 __all__ = [
     "PostgreSQLCredentialsRepository",
@@ -16,4 +17,5 @@ __all__ = [
     "NvidiaNIMParser",
     "NvEmbedQAService",
     "PlaywrightCrawler",
+    "RequestsBasedCrawler",
 ]

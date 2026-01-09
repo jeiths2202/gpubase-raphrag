@@ -20,8 +20,10 @@ from ..infrastructure.adapters import (
     PostgreSQLDashboardRepository,
     NvidiaNIMParser,
     NvEmbedQAService,
-    PlaywrightCrawler
+    PlaywrightCrawler,
+    RequestsBasedCrawler
 )
+from ..infrastructure.ports.crawler_port import CrawlerPort
 from ..infrastructure.services import (
     CredentialEncryptionService,
     get_encryption_service,
@@ -158,7 +160,8 @@ def get_playwright_crawler() -> PlaywrightCrawler:
     """
     Get Playwright crawler instance.
 
-    Dependency for FastAPI endpoints.
+    Browser-based crawler using Playwright for JavaScript-heavy pages.
+    Higher resource usage (~500MB) but supports all page interactions.
     """
     settings = api_settings
     encryption = get_encryption_service()
@@ -171,6 +174,45 @@ def get_playwright_crawler() -> PlaywrightCrawler:
     )
 
 
+def get_requests_crawler() -> RequestsBasedCrawler:
+    """
+    Get requests-based crawler instance.
+
+    Lightweight HTTP crawler using requests library.
+    Lower resource usage (~50MB), faster, but no JavaScript support.
+    Recommended for IMS which uses server-side rendering.
+    """
+    encryption = get_encryption_service()
+
+    return RequestsBasedCrawler(
+        encryption_service=encryption,
+        base_url="https://ims.tmaxsoft.com",
+        max_workers=5
+    )
+
+
+def get_crawler() -> CrawlerPort:
+    """
+    Get crawler instance based on configuration.
+
+    Uses IMS_CRAWLER_TYPE setting:
+    - 'requests': Lightweight HTTP crawler (default, recommended)
+    - 'playwright': Browser-based crawler
+
+    Returns:
+        CrawlerPort implementation
+    """
+    settings = api_settings
+    crawler_type = getattr(settings, 'IMS_CRAWLER_TYPE', 'requests').lower()
+
+    if crawler_type == 'playwright':
+        print("[Crawler] Using Playwright (browser-based)")
+        return get_playwright_crawler()
+    else:
+        print("[Crawler] Using Requests (lightweight HTTP)")
+        return get_requests_crawler()
+
+
 async def get_crawl_jobs_use_case() -> CrawlJobsUseCase:
     """
     Get CrawlJobs use case instance (singleton).
@@ -179,11 +221,15 @@ async def get_crawl_jobs_use_case() -> CrawlJobsUseCase:
 
     IMPORTANT: Returns singleton instance to maintain in-memory job state
     across multiple HTTP requests.
+
+    Crawler type is determined by IMS_CRAWLER_TYPE setting:
+    - 'requests': Lightweight HTTP crawler (default)
+    - 'playwright': Browser-based crawler
     """
     global _crawl_jobs_use_case
 
     if _crawl_jobs_use_case is None:
-        crawler = get_playwright_crawler()
+        crawler = get_crawler()  # Factory selects based on config
         credentials_repo = await get_credentials_repository()
         issue_repo = await get_issue_repository()
         crawl_job_repo = await get_crawl_job_repository()
