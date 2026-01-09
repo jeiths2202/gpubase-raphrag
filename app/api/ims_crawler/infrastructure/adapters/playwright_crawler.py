@@ -900,6 +900,8 @@ class PlaywrightCrawler(CrawlerPort):
                         # Cell 8: Project
                         # Cell 9: Reporter
                         # Cell 10: Issued Date (등록일)
+                        # Cell 11: Issue Details (상세 내용)
+                        # Cell 12: Action No (액션 번호)
 
                         # Extract all fields from cells
                         category = ""
@@ -909,6 +911,8 @@ class PlaywrightCrawler(CrawlerPort):
                         customer = ""
                         issued_date = None
                         reporter = ""
+                        issue_details = ""
+                        action_no = ""
 
                         # Debug: Print first 3 rows' extraction data
                         debug_row = idx < 3
@@ -938,9 +942,17 @@ class PlaywrightCrawler(CrawlerPort):
                         if len(cells) > 5:
                             module = (await cells[5].evaluate('el => el.textContent || ""')).strip()
 
+                        # Extract Issue Details (cell 11)
+                        if len(cells) > 11:
+                            issue_details = (await cells[11].evaluate('el => el.textContent || ""')).strip()
+
+                        # Extract Action No (cell 12)
+                        if len(cells) > 12:
+                            action_no = (await cells[12].evaluate('el => el.textContent || ""')).strip()
+
                         # Debug: Print extracted column data for first 3 rows
                         if debug_row:
-                            print(f"[Extract] Row {idx} Columns: cat='{category[:20]}' prod='{product[:20]}' ver='{version}' mod='{module[:20]}'", flush=True)
+                            print(f"[Extract] Row {idx} Columns: cat='{category[:20]}' prod='{product[:20]}' ver='{version}' mod='{module[:20]}' details='{issue_details[:30]}' action='{action_no}'", flush=True)
 
                         # Skip if already extracted (pagination duplicate prevention)
                         if issue_id in extracted_ids:
@@ -1020,6 +1032,8 @@ class PlaywrightCrawler(CrawlerPort):
                             module=module,
                             customer=customer,
                             issued_date=issued_date,
+                            issue_details=issue_details,
+                            action_no=action_no,
                             reporter=reporter,
                             source_url=issue_url or f"{credentials.ims_base_url}/tody/ims/issue/issueView.do?issueId={issue_id}",
                             created_at=datetime.utcnow(),
@@ -1253,6 +1267,8 @@ class PlaywrightCrawler(CrawlerPort):
                 module=fallback_issue.module if fallback_issue else "",
                 customer=fallback_issue.customer if fallback_issue else "",
                 issued_date=fallback_issue.issued_date if fallback_issue else None,
+                issue_details=fallback_issue.issue_details if fallback_issue else "",
+                action_no=fallback_issue.action_no if fallback_issue else "",
                 # Metadata from detail page
                 reporter=reporter or (fallback_issue.reporter if fallback_issue else ""),
                 assignee=assignee,
@@ -1450,7 +1466,8 @@ class PlaywrightCrawler(CrawlerPort):
         self,
         issues: List[Issue],
         credentials: UserCredentials,
-        batch_size: int = 10
+        batch_size: int = 10,
+        progress_callback: Optional[callable] = None
     ) -> List[Issue]:
         """
         Crawl multiple issues in parallel using multiple browser pages.
@@ -1459,6 +1476,7 @@ class PlaywrightCrawler(CrawlerPort):
             issues: List of issues to crawl (from search results)
             credentials: User credentials
             batch_size: Number of concurrent pages to use (default: 10)
+            progress_callback: Optional callback for progress updates
 
         Returns:
             List of crawled Issue entities sorted by ims_id descending
@@ -1474,13 +1492,35 @@ class PlaywrightCrawler(CrawlerPort):
 
         crawled_results: List[Issue] = []
         total_issues = len(sorted_issues)
+        total_batches = (total_issues + batch_size - 1) // batch_size
+
+        if progress_callback:
+            progress_callback({
+                "phase": "crawl_start",
+                "total_issues": total_issues,
+                "total_batches": total_batches,
+                "batch_size": batch_size
+            })
 
         # Process in batches
         for batch_start in range(0, total_issues, batch_size):
             batch_end = min(batch_start + batch_size, total_issues)
             batch = sorted_issues[batch_start:batch_end]
+            batch_num = batch_start // batch_size + 1
+            progress_pct = min(100, int((batch_num / total_batches) * 100))
 
-            print(f"[Parallel] Crawling batch {batch_start // batch_size + 1}: issues {batch_start + 1}-{batch_end} of {total_issues}", flush=True)
+            print(f"[Parallel] Crawling batch {batch_num}/{total_batches}: issues {batch_start + 1}-{batch_end} of {total_issues} ({progress_pct}%)", flush=True)
+
+            if progress_callback:
+                progress_callback({
+                    "phase": "crawl_batch_start",
+                    "batch_num": batch_num,
+                    "total_batches": total_batches,
+                    "batch_start": batch_start + 1,
+                    "batch_end": batch_end,
+                    "total_issues": total_issues,
+                    "progress_percent": progress_pct
+                })
 
             # Create pages for this batch
             pages: List[Page] = []
@@ -1596,6 +1636,8 @@ class PlaywrightCrawler(CrawlerPort):
                             module=issue.module,
                             customer=issue.customer,
                             issued_date=issue.issued_date,
+                            issue_details=issue.issue_details,
+                            action_no=issue.action_no,
                             # Metadata
                             reporter=reporter,
                             assignee=assignee,
@@ -1618,12 +1660,28 @@ class PlaywrightCrawler(CrawlerPort):
                 batch_results = await asyncio.gather(*tasks, return_exceptions=True)
 
                 # Collect results
+                success_count = 0
+                fail_count = 0
                 for i, result in enumerate(batch_results):
                     if isinstance(result, Exception):
                         logger.warning(f"[Parallel] Exception for issue {batch[i].ims_id}: {result}")
                         crawled_results.append(batch[i])  # Use original as fallback
+                        fail_count += 1
                     else:
                         crawled_results.append(result)
+                        success_count += 1
+
+                if progress_callback:
+                    progress_callback({
+                        "phase": "crawl_batch_complete",
+                        "batch_num": batch_num,
+                        "total_batches": total_batches,
+                        "batch_success": success_count,
+                        "batch_fail": fail_count,
+                        "crawled_count": len(crawled_results),
+                        "total_issues": total_issues,
+                        "progress_percent": progress_pct
+                    })
 
             finally:
                 # Clean up pages after batch
@@ -1632,6 +1690,13 @@ class PlaywrightCrawler(CrawlerPort):
                         await page.close()
                     except:
                         pass
+
+        if progress_callback:
+            progress_callback({
+                "phase": "crawl_complete",
+                "crawled_count": len(crawled_results),
+                "total_issues": total_issues
+            })
 
         # Results are already in descending order by ims_id
         print(f"[Parallel] Completed crawling {len(crawled_results)} issues", flush=True)

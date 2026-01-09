@@ -129,6 +129,7 @@ class RequestsBasedCrawler(CrawlerPort):
             self._user_grade = 'TMAX'
 
         jsessionid = session.cookies.get('JSESSIONID', '')[:20]
+        print(f"[IMS Crawler] Authentication successful - Session: {jsessionid}...")
         logger.info(f"Authentication successful - Session: {jsessionid}...")
         return True
 
@@ -155,7 +156,8 @@ class RequestsBasedCrawler(CrawlerPort):
         query: str,
         user_id,
         base_url: str,
-        products: List[str]
+        products: List[str],
+        progress_callback: Optional[callable] = None
     ) -> List[Issue]:
         """Synchronous search implementation."""
         session = self._ensure_session()
@@ -163,9 +165,17 @@ class RequestsBasedCrawler(CrawlerPort):
         all_issues: List[Issue] = []
         total_count = None
         page = 1
-        max_pages = 50  # Safety limit
+        max_pages = 100  # Safety limit increased
 
+        print(f"[IMS Crawler] Searching for '{query}' in {len(products)} products")
         logger.info(f"Searching for '{query}' in {len(products)} products")
+
+        if progress_callback:
+            progress_callback({
+                "phase": "search_start",
+                "query": query,
+                "products_count": len(products)
+            })
 
         while page <= max_pages:
             # Build search params
@@ -192,18 +202,46 @@ class RequestsBasedCrawler(CrawlerPort):
             }
 
             search_url = f"{base_url}/tody/ims/issue/issueSearchList.do"
-            response = session.get(search_url, params=params, headers={
-                'Referer': f"{base_url}/tody/ims/issue/issueSearchList.do?searchType=1&menuCode=issue_search"
-            }, timeout=60)
+            print(f"[IMS Crawler] Requesting page {page}...")
+            try:
+                response = session.get(search_url, params=params, headers={
+                    'Referer': f"{base_url}/tody/ims/issue/issueSearchList.do?searchType=1&menuCode=issue_search"
+                }, timeout=60)
+                print(f"[IMS Crawler] Response status: {response.status_code}, length: {len(response.text)}")
+            except Exception as e:
+                print(f"[IMS Crawler] Request error: {e}")
+                raise
 
             # Get total count on first page
             if total_count is None:
                 total_count = self._get_total_count(response.text)
+                total_pages = (total_count + 9) // 10  # 10 items per page
+                print(f"[IMS Crawler] Total count: {total_count} ({total_pages} pages)")
                 logger.info(f"Total count: {total_count}")
+                if progress_callback:
+                    progress_callback({
+                        "phase": "search_count",
+                        "total_count": total_count,
+                        "total_pages": total_pages
+                    })
 
             # Parse issues from this page
             page_issues = self._parse_search_results(response.text, user_id, base_url)
+            total_pages = (total_count + 9) // 10 if total_count else 1
+            progress_pct = min(100, int((page / total_pages) * 100))
+            print(f"[IMS Crawler] Page {page}/{total_pages}: {len(page_issues)} issues ({progress_pct}%)")
             logger.info(f"Page {page}: {len(page_issues)} issues")
+
+            if progress_callback:
+                progress_callback({
+                    "phase": "search_page",
+                    "current_page": page,
+                    "total_pages": total_pages,
+                    "page_issues": len(page_issues),
+                    "fetched_count": len(all_issues) + len(page_issues),
+                    "total_count": total_count,
+                    "progress_percent": progress_pct
+                })
 
             if not page_issues:
                 break
@@ -216,14 +254,24 @@ class RequestsBasedCrawler(CrawlerPort):
 
             page += 1
 
+        print(f"[IMS Crawler] Search completed: {len(all_issues)} issues (Total: {total_count})")
         logger.info(f"Search completed: {len(all_issues)} issues (Total: {total_count})")
+
+        if progress_callback:
+            progress_callback({
+                "phase": "search_complete",
+                "fetched_count": len(all_issues),
+                "total_count": total_count
+            })
+
         return all_issues
 
     async def search_issues(
         self,
         query: str,
         credentials: UserCredentials,
-        product_codes: Optional[List[str]] = None
+        product_codes: Optional[List[str]] = None,
+        progress_callback: Optional[callable] = None
     ) -> List[Issue]:
         """
         Search for issues matching the query with pagination.
@@ -235,6 +283,7 @@ class RequestsBasedCrawler(CrawlerPort):
             query: Search keyword
             credentials: User credentials for authentication
             product_codes: Optional list of product codes to filter
+            progress_callback: Optional callback for progress updates
 
         Returns:
             List of Issue entities
@@ -251,13 +300,14 @@ class RequestsBasedCrawler(CrawlerPort):
             query,
             credentials.user_id,
             base_url,
-            products
+            products,
+            progress_callback
         )
 
     def _get_total_count(self, html: str) -> int:
         """Extract total count from search result HTML."""
-        # Method 1: Look for "Total X" pattern
-        match = re.search(r'[Tt]otal[:\s]+(\d+)', html)
+        # Method 1: Look for "[ Total X ]" pattern (IMS search result format)
+        match = re.search(r'\[\s*[Tt]otal\s+(\d+)\s*\]', html)
         if match:
             return int(match.group(1))
 
@@ -272,6 +322,11 @@ class RequestsBasedCrawler(CrawlerPort):
 
         # Method 3: Look for JS variable
         match = re.search(r'totalCount["\']?\s*[=:]\s*["\']?(\d+)', html)
+        if match:
+            return int(match.group(1))
+
+        # Method 4: Fallback - Look for "Total X" pattern (less specific)
+        match = re.search(r'[Tt]otal[:\s]+(\d+)', html)
         if match:
             return int(match.group(1))
 
@@ -418,11 +473,27 @@ class RequestsBasedCrawler(CrawlerPort):
 
         def get_table_field(label: str) -> str:
             """Extract value from table row with given label."""
+            # Method 1: Look for tableHeaderTitle pattern
             pattern = rf'<td[^>]*class=["\']tableHeaderTitle["\'][^>]*>\s*{label}\s*</td>\s*<td[^>]*>(.*?)</td>'
             match = re.search(pattern, html, re.DOTALL | re.I)
             if match:
                 value = re.sub(r'<[^>]+>', '', match.group(1))
                 return value.replace('&nbsp;', ' ').strip()
+
+            # Method 2: Look for th/td pattern
+            pattern2 = rf'<th[^>]*>\s*{label}\s*</th>\s*<td[^>]*>(.*?)</td>'
+            match2 = re.search(pattern2, html, re.DOTALL | re.I)
+            if match2:
+                value = re.sub(r'<[^>]+>', '', match2.group(1))
+                return value.replace('&nbsp;', ' ').strip()
+
+            # Method 3: Use BeautifulSoup for more flexible matching
+            for td in soup.find_all('td', class_='tableHeaderTitle'):
+                if label.lower() in td.get_text(strip=True).lower():
+                    next_td = td.find_next_sibling('td')
+                    if next_td:
+                        return next_td.get_text(strip=True).replace('\xa0', ' ')
+
             return ''
 
         # Extract subject
@@ -461,6 +532,7 @@ class RequestsBasedCrawler(CrawlerPort):
         status = IssueStatus.OPEN
         status_text = get_table_field('Status')
         if status_text:
+            print(f"[IMS Parser] Issue {issue_id} Status: '{status_text}'")
             status_upper = status_text.upper()
             if 'CLOSED' in status_upper or 'CLOSED_P' in status_upper:
                 status = IssueStatus.CLOSED
@@ -473,6 +545,24 @@ class RequestsBasedCrawler(CrawlerPort):
             elif 'PENDING' in status_upper:
                 status = IssueStatus.PENDING
 
+        # Parse priority
+        priority = IssuePriority.MEDIUM
+        priority_text = get_table_field('Priority') or get_table_field('Urgency')
+        if priority_text:
+            print(f"[IMS Parser] Issue {issue_id} Priority: '{priority_text}'")
+            priority_upper = priority_text.upper()
+            if 'CRITICAL' in priority_upper or 'URGENT' in priority_upper or '긴급' in priority_text:
+                priority = IssuePriority.CRITICAL
+            elif 'HIGH' in priority_upper or '높음' in priority_text:
+                priority = IssuePriority.HIGH
+            elif 'LOW' in priority_upper or '낮음' in priority_text:
+                priority = IssuePriority.LOW
+            elif 'TRIVIAL' in priority_upper or '사소' in priority_text:
+                priority = IssuePriority.TRIVIAL
+            # MEDIUM is default
+        else:
+            print(f"[IMS Parser] Issue {issue_id} Priority not found, using default MEDIUM")
+
         # Build issue entity
         return Issue(
             id=uuid4(),
@@ -481,7 +571,7 @@ class RequestsBasedCrawler(CrawlerPort):
             title=re.sub(r'\s+', ' ', subject).strip() or f"Issue {issue_id}",
             description=issue_details[:5000],
             status=status,
-            priority=IssuePriority.MEDIUM,
+            priority=priority,
             category=get_table_field('Category') or (fallback_issue.category if fallback_issue else ''),
             product=get_table_field('Product') or (fallback_issue.product if fallback_issue else ''),
             version=get_table_field('Version') or (fallback_issue.version if fallback_issue else ''),
@@ -590,7 +680,8 @@ class RequestsBasedCrawler(CrawlerPort):
         self,
         issues: List[Issue],
         credentials: UserCredentials,
-        batch_size: int = 10
+        batch_size: int = 10,
+        progress_callback: Optional[callable] = None
     ) -> List[Issue]:
         """
         Crawl multiple issues in parallel using thread pool.
@@ -599,6 +690,7 @@ class RequestsBasedCrawler(CrawlerPort):
             issues: List of issues to crawl
             credentials: User credentials
             batch_size: Number of concurrent requests
+            progress_callback: Optional callback for progress updates
 
         Returns:
             List of crawled Issue entities sorted by ims_id descending
@@ -618,13 +710,36 @@ class RequestsBasedCrawler(CrawlerPort):
 
         crawled_results: List[Issue] = []
         total = len(sorted_issues)
+        total_batches = (total + batch_size - 1) // batch_size
+
+        if progress_callback:
+            progress_callback({
+                "phase": "crawl_start",
+                "total_issues": total,
+                "total_batches": total_batches,
+                "batch_size": batch_size
+            })
 
         # Process in batches
         for batch_start in range(0, total, batch_size):
             batch_end = min(batch_start + batch_size, total)
             batch = sorted_issues[batch_start:batch_end]
+            batch_num = batch_start // batch_size + 1
+            progress_pct = min(100, int((batch_num / total_batches) * 100))
 
-            logger.info(f"Crawling batch: issues {batch_start + 1}-{batch_end} of {total}")
+            print(f"[IMS Crawler] Crawling batch {batch_num}/{total_batches}: issues {batch_start + 1}-{batch_end} of {total} ({progress_pct}%)")
+            logger.info(f"Crawling batch {batch_num}/{total_batches}: issues {batch_start + 1}-{batch_end} of {total}")
+
+            if progress_callback:
+                progress_callback({
+                    "phase": "crawl_batch_start",
+                    "batch_num": batch_num,
+                    "total_batches": total_batches,
+                    "batch_start": batch_start + 1,
+                    "batch_end": batch_end,
+                    "total_issues": total,
+                    "progress_percent": progress_pct
+                })
 
             # Crawl batch concurrently
             tasks = [
@@ -634,12 +749,35 @@ class RequestsBasedCrawler(CrawlerPort):
             batch_results = await asyncio.gather(*tasks, return_exceptions=True)
 
             # Collect results
+            success_count = 0
+            fail_count = 0
             for i, result in enumerate(batch_results):
                 if isinstance(result, Exception):
                     logger.warning(f"Exception for issue {batch[i].ims_id}: {result}")
                     crawled_results.append(batch[i])  # Use fallback
+                    fail_count += 1
                 else:
                     crawled_results.append(result)
+                    success_count += 1
+
+            if progress_callback:
+                progress_callback({
+                    "phase": "crawl_batch_complete",
+                    "batch_num": batch_num,
+                    "total_batches": total_batches,
+                    "batch_success": success_count,
+                    "batch_fail": fail_count,
+                    "crawled_count": len(crawled_results),
+                    "total_issues": total,
+                    "progress_percent": progress_pct
+                })
+
+        if progress_callback:
+            progress_callback({
+                "phase": "crawl_complete",
+                "crawled_count": len(crawled_results),
+                "total_issues": total
+            })
 
         logger.info(f"Parallel crawl completed: {len(crawled_results)} issues")
         return crawled_results

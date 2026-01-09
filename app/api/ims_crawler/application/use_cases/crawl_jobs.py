@@ -204,46 +204,82 @@ class CrawlJobsUseCase:
                 "message": "Authentication successful"
             }
 
-            # Search for issues
+            # Search for issues with progress tracking
             yield {
                 "event": "searching",
                 "message": f"Searching for issues: {job.raw_query}"
             }
+
+            # Progress tracking via shared state
+            search_progress = {"last_event": None, "total_pages": 0}
+            crawl_progress = {"last_event": None}
+
+            def on_search_progress(progress_data):
+                search_progress["last_event"] = progress_data
+                phase = progress_data.get("phase", "")
+                if phase == "search_count":
+                    search_progress["total_pages"] = progress_data.get("total_pages", 0)
+                    print(f"[IMS Job] Found {progress_data['total_count']} issues to fetch ({progress_data['total_pages']} pages)")
+                elif phase == "search_page":
+                    print(f"[IMS Job] Fetching page {progress_data['current_page']}/{progress_data['total_pages']} ({progress_data['progress_percent']}%)")
+
+            def on_crawl_progress(progress_data):
+                crawl_progress["last_event"] = progress_data
+                phase = progress_data.get("phase", "")
+                if phase == "crawl_batch_start":
+                    print(f"[IMS Job] Crawling batch {progress_data['batch_num']}/{progress_data['total_batches']} ({progress_data['progress_percent']}%)")
+                elif phase == "crawl_batch_complete":
+                    print(f"[IMS Job] Batch {progress_data['batch_num']} completed: {progress_data['crawled_count']}/{progress_data['total_issues']} crawled")
 
             # Get product_codes from job (if set during creation)
             product_codes = getattr(job, 'product_codes', None)
             issues = await self.crawler.search_issues(
                 job.raw_query,
                 credentials,
-                product_codes=product_codes
+                product_codes=product_codes,
+                progress_callback=on_search_progress
             )
 
             job.issues_found = len(issues)
             self._jobs[job_id] = job
 
+            # Include search details from progress callback
+            search_pages = search_progress.get("total_pages", 0)
             yield {
                 "event": "search_completed",
                 "total_issues": len(issues),
-                "message": f"Found {len(issues)} issues"
+                "total_pages": search_pages,
+                "message": f"Found {len(issues)} issues ({search_pages} pages fetched)"
             }
 
             # Parallel crawling: batch_size=10, sorted by ims_id descending
             BATCH_SIZE = 10
             total_issues = len(issues)
+            total_batches = (total_issues + BATCH_SIZE - 1) // BATCH_SIZE if total_issues > 0 else 0
 
             yield {
                 "event": "crawling_started",
                 "total_issues": total_issues,
                 "batch_size": BATCH_SIZE,
-                "message": f"Starting parallel crawl of {total_issues} issues (batch size: {BATCH_SIZE})"
+                "total_batches": total_batches,
+                "message": f"Starting parallel crawl of {total_issues} issues ({total_batches} batches)"
             }
 
             # Crawl all issues in parallel batches (returns sorted by ims_id desc)
             crawled_issues = await self.crawler.crawl_issues_parallel(
                 issues,
                 credentials,
-                batch_size=BATCH_SIZE
+                batch_size=BATCH_SIZE,
+                progress_callback=on_crawl_progress
             )
+
+            # Yield crawl fetch completed event
+            yield {
+                "event": "crawl_fetch_completed",
+                "fetched_count": len(crawled_issues),
+                "total_issues": total_issues,
+                "message": f"Fetched {len(crawled_issues)} issue details. Starting DB save and embedding generation..."
+            }
 
             # Process each crawled issue (save to DB, generate embeddings)
             for idx, full_issue in enumerate(crawled_issues, 1):
@@ -271,6 +307,11 @@ class CrawlJobsUseCase:
 
                         full_issue.attachments = attachments
 
+                    # Save issue to database FIRST (before relations)
+                    saved_issue_id = await self.issue_repo.save(full_issue)
+                    job.add_crawled_issue(saved_issue_id)
+                    print(f"[IMS Crawler] Saved issue {full_issue.ims_id} (DB ID: {saved_issue_id})")
+
                     # Crawl related issues if requested
                     if job.include_related_issues:
                         related_depth = 1
@@ -282,10 +323,12 @@ class CrawlJobsUseCase:
 
                         for related_issue in related_issues:
                             try:
-                                await self.issue_repo.save(related_issue)
+                                # Save related issue first and get its DB ID
+                                saved_related_id = await self.issue_repo.save(related_issue)
+                                # Use the returned DB ID for the relation
                                 await self.issue_repo.save_relation(
-                                    source_issue_id=full_issue.id,
-                                    target_issue_id=related_issue.id,
+                                    source_issue_id=saved_issue_id,
+                                    target_issue_id=saved_related_id,
                                     relation_type='relates_to'
                                 )
                                 job.related_issues_crawled += 1
@@ -297,10 +340,6 @@ class CrawlJobsUseCase:
                             "issue_id": full_issue.ims_id,
                             "related_count": len(related_issues)
                         }
-
-                    # Save issue to database
-                    saved_issue_id = await self.issue_repo.save(full_issue)
-                    job.add_crawled_issue(saved_issue_id)
 
                     # Generate and save embedding
                     try:

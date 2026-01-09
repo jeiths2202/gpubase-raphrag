@@ -129,7 +129,8 @@ class CrawlerPort(ABC):
         self,
         issues: List[Issue],
         credentials: UserCredentials,
-        batch_size: int = 10
+        batch_size: int = 10,
+        progress_callback: Optional[callable] = None
     ) -> List[Issue]:
         """
         Crawl multiple issues in parallel using multiple browser pages.
@@ -138,6 +139,9 @@ class CrawlerPort(ABC):
             issues: List of issues to crawl (from search results)
             credentials: User credentials
             batch_size: Number of concurrent pages to use (default: 10)
+            progress_callback: Optional callback for progress updates.
+                Callback receives dict with: phase, batch_num, total_batches,
+                batch_start, batch_end, total_issues, progress_percent
 
         Returns:
             List of crawled Issue entities sorted by ims_id descending
