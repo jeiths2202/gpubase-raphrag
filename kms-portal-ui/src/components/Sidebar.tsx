@@ -164,8 +164,18 @@ export const Sidebar: React.FC = () => {
     if (!requiredRole) return true;
     if (!user) return false;
 
-    const roleHierarchy = { admin: 3, user: 2, viewer: 1 };
-    return roleHierarchy[user.role] >= roleHierarchy[requiredRole];
+    // Role hierarchy: admin > leader > senior > user > guest/viewer
+    const roleHierarchy: Record<string, number> = {
+      admin: 5,
+      leader: 4,
+      senior: 3,
+      user: 2,
+      viewer: 1,
+      guest: 1,
+    };
+    const userLevel = roleHierarchy[user.role] ?? 1;
+    const requiredLevel = roleHierarchy[requiredRole] ?? 1;
+    return userLevel >= requiredLevel;
   };
 
   // Check if any child is active

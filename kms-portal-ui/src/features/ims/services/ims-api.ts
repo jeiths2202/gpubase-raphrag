@@ -12,20 +12,11 @@ import type {
   CrawlJobResponse,
   IMSIssue,
 } from '../types';
-import { useAuthStore } from '../../../store/authStore';
 
 const API_BASE = '/api/v1';
 
-/**
- * Get authorization headers
- */
-function getAuthHeaders(): Record<string, string> {
-  const token = useAuthStore.getState().accessToken;
-  if (token) {
-    return { Authorization: `Bearer ${token}` };
-  }
-  return {};
-}
+// Note: Authorization is handled via HttpOnly cookies
+// All requests use credentials: 'include' to send cookies automatically
 
 /**
  * Helper function to handle API responses
@@ -48,7 +39,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
 export async function createCredentials(data: CredentialsRequest): Promise<CredentialsResponse> {
   const response = await fetch(`${API_BASE}/ims-credentials/`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify(data),
   });
@@ -61,8 +52,7 @@ export async function createCredentials(data: CredentialsRequest): Promise<Crede
 export async function getCredentials(): Promise<CredentialsResponse> {
   const response = await fetch(`${API_BASE}/ims-credentials/`, {
     method: 'GET',
-    headers: { ...getAuthHeaders() },
-    credentials: 'include',
+        credentials: 'include',
   });
   return handleResponse<CredentialsResponse>(response);
 }
@@ -73,8 +63,7 @@ export async function getCredentials(): Promise<CredentialsResponse> {
 export async function validateCredentials(): Promise<ValidationResponse> {
   const response = await fetch(`${API_BASE}/ims-credentials/validate`, {
     method: 'POST',
-    headers: { ...getAuthHeaders() },
-    credentials: 'include',
+        credentials: 'include',
   });
   return handleResponse<ValidationResponse>(response);
 }
@@ -85,8 +74,7 @@ export async function validateCredentials(): Promise<ValidationResponse> {
 export async function deleteCredentials(): Promise<void> {
   const response = await fetch(`${API_BASE}/ims-credentials/`, {
     method: 'DELETE',
-    headers: { ...getAuthHeaders() },
-    credentials: 'include',
+        credentials: 'include',
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Unknown error' }));
@@ -104,7 +92,7 @@ export async function deleteCredentials(): Promise<void> {
 export async function searchIssues(data: SearchRequest): Promise<SearchResponse> {
   const response = await fetch(`${API_BASE}/ims-search/`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify(data),
   });
@@ -117,8 +105,7 @@ export async function searchIssues(data: SearchRequest): Promise<SearchResponse>
 export async function getRecentIssues(limit: number = 20): Promise<IMSIssue[]> {
   const response = await fetch(`${API_BASE}/ims-search/recent?limit=${limit}`, {
     method: 'GET',
-    headers: { ...getAuthHeaders() },
-    credentials: 'include',
+        credentials: 'include',
   });
   return handleResponse<IMSIssue[]>(response);
 }
@@ -129,8 +116,7 @@ export async function getRecentIssues(limit: number = 20): Promise<IMSIssue[]> {
 export async function getIssueDetails(issueId: string): Promise<IMSIssue> {
   const response = await fetch(`${API_BASE}/ims-search/${issueId}`, {
     method: 'GET',
-    headers: { ...getAuthHeaders() },
-    credentials: 'include',
+        credentials: 'include',
   });
   return handleResponse<IMSIssue>(response);
 }
@@ -142,7 +128,7 @@ export async function getIssueDetails(issueId: string): Promise<IMSIssue> {
 export async function getIssuesByIds(issueIds: string[]): Promise<IMSIssue[]> {
   const response = await fetch(`${API_BASE}/ims-search/by-ids`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify({ issue_ids: issueIds }),
   });
@@ -159,7 +145,7 @@ export async function getIssuesByIds(issueIds: string[]): Promise<IMSIssue[]> {
 export async function createCrawlJob(data: CrawlJobRequest): Promise<CrawlJobResponse> {
   const response = await fetch(`${API_BASE}/ims-jobs/`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify(data),
   });
@@ -172,8 +158,7 @@ export async function createCrawlJob(data: CrawlJobRequest): Promise<CrawlJobRes
 export async function getJobStatus(jobId: string): Promise<CrawlJobResponse> {
   const response = await fetch(`${API_BASE}/ims-jobs/${jobId}`, {
     method: 'GET',
-    headers: { ...getAuthHeaders() },
-    credentials: 'include',
+        credentials: 'include',
   });
   return handleResponse<CrawlJobResponse>(response);
 }
@@ -191,8 +176,7 @@ export function getJobStreamUrl(jobId: string): string {
 export async function cancelCrawlJob(jobId: string): Promise<void> {
   const response = await fetch(`${API_BASE}/ims-jobs/${jobId}`, {
     method: 'DELETE',
-    headers: { ...getAuthHeaders() },
-    credentials: 'include',
+        credentials: 'include',
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Unknown error' }));
@@ -216,8 +200,7 @@ export async function getQuickStats(): Promise<{
 }> {
   const response = await fetch(`${API_BASE}/ims-dashboard/quick-stats`, {
     method: 'GET',
-    headers: { ...getAuthHeaders() },
-    credentials: 'include',
+        credentials: 'include',
   });
   return handleResponse(response);
 }
@@ -232,8 +215,7 @@ export async function getQuickStats(): Promise<{
 export async function invalidateSearchCache(): Promise<void> {
   const response = await fetch(`${API_BASE}/ims-cache/invalidate/search`, {
     method: 'DELETE',
-    headers: { ...getAuthHeaders() },
-    credentials: 'include',
+        credentials: 'include',
   });
   if (!response.ok) {
     console.warn('Failed to invalidate search cache');

@@ -24,8 +24,8 @@ export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated, t }) =
   const { isSearching, setIsSearching, setSearchQuery, setCurrentJob } = useIMSStore();
   const { user } = useAuthStore();
 
-  // Check if user has Pro or Enterprise subscription
-  const hasProAccess = user?.subscription === 'pro' || user?.subscription === 'enterprise';
+  // Check if user has Pro access (based on role - admin/leader have pro features)
+  const hasProAccess = user?.role === 'admin' || user?.role === 'leader';
 
   const [query, setQuery] = useState('');
   const [showOptions, setShowOptions] = useState(false);

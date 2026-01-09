@@ -6,6 +6,8 @@
  * - Registration with email verification
  * - Google OAuth
  * - Corporate SSO
+ *
+ * Uses the centralized auth store with HttpOnly cookie authentication.
  */
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,196 +17,126 @@ import { useTranslation } from '../hooks/useTranslation';
 import { isCorpEmail, APP_CONFIG, GOOGLE_CLIENT_ID } from '../config/constants';
 import ThemeToggle from '../components/ThemeToggle';
 import LanguageSelector from '../components/LanguageSelector';
+import {
+  LoginForm,
+  RegisterForm,
+  VerifyForm,
+  SSOForm,
+  type AuthMode,
+} from '../components/auth';
 import './LoginPage.css';
 
 // Check if Google OAuth is configured
 const isGoogleConfigured = !!GOOGLE_CLIENT_ID;
 
-type AuthMode = 'login' | 'register' | 'verify' | 'forgot';
-
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { login, loginWithGoogle, isLoading, error, clearError } = useAuthStore();
 
+  // Auth store - using new API layer with HttpOnly cookies
+  const {
+    login,
+    register,
+    verifyEmail,
+    loginWithGoogle,
+    loginWithSSO,
+    isLoading,
+    error,
+    clearError,
+  } = useAuthStore();
+
+  // Local state
   const [mode, setMode] = useState<AuthMode>('login');
-  const [email, setEmail] = useState('');
-  const [userId, setUserId] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [localError, setLocalError] = useState('');
+  const [registrationEmail, setRegistrationEmail] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLocalError('');
+  // Navigation helper after successful auth
+  const navigateAfterAuth = useCallback(() => {
+    const currentUser = useAuthStore.getState().user;
+    if (currentUser?.role === 'user') {
+      navigate('/knowledge');
+    } else {
+      navigate('/');
+    }
+  }, [navigate]);
+
+  // Mode change handler
+  const handleModeChange = useCallback((newMode: AuthMode) => {
+    setMode(newMode);
     clearError();
+    setSuccessMessage('');
+  }, [clearError]);
 
-    if (!userId || !password) {
-      setLocalError(t('auth.errors.enterIdAndPassword'));
-      return;
+  // =========================================================================
+  // Login Handler
+  // =========================================================================
+  const handleLogin = useCallback(async (userId: string, password: string): Promise<boolean> => {
+    clearError();
+    const success = await login(userId, password);
+    if (success) {
+      navigateAfterAuth();
     }
+    return success;
+  }, [login, clearError, navigateAfterAuth]);
 
-    try {
-      await login(userId, password);
-      // Route based on user role
-      const currentUser = useAuthStore.getState().user;
-      if (currentUser?.role === 'user') {
-        navigate('/knowledge');
-      } else {
-        navigate('/');
-      }
-    } catch {
-      // Error is handled by store
-    }
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLocalError('');
+  // =========================================================================
+  // Registration Handler
+  // =========================================================================
+  const handleRegister = useCallback(async (
+    userId: string,
+    email: string,
+    password: string
+  ): Promise<boolean> => {
+    clearError();
     setSuccessMessage('');
 
-    if (!/^[a-zA-Z0-9_]+$/.test(userId)) {
-      setLocalError(t('auth.errors.invalidUserId'));
-      return;
+    const success = await register(userId, email, password);
+    if (success) {
+      setRegistrationEmail(email);
+      setSuccessMessage(t('auth.verificationSent'));
+      return true;
     }
+    return false;
+  }, [register, clearError, t]);
 
-    if (!userId || !password || !email) {
-      setLocalError(t('auth.errors.fillAllFields'));
-      return;
+  // =========================================================================
+  // Email Verification Handler
+  // =========================================================================
+  const handleVerify = useCallback(async (code: string): Promise<boolean> => {
+    clearError();
+
+    const success = await verifyEmail(registrationEmail, code);
+    if (success) {
+      setSuccessMessage(t('auth.accountVerified'));
+      setTimeout(navigateAfterAuth, 1500);
+      return true;
     }
+    return false;
+  }, [verifyEmail, registrationEmail, clearError, navigateAfterAuth, t]);
 
-    if (password !== confirmPassword) {
-      setLocalError(t('auth.errors.passwordsDoNotMatch'));
-      return;
+  // =========================================================================
+  // Google OAuth Handler
+  // =========================================================================
+  const handleGoogleLogin = useCallback(async () => {
+    clearError();
+    // In a real implementation, this would receive the Google credential
+    // from the Google Sign-In button callback
+    const success = await loginWithGoogle('');
+    if (success) {
+      navigateAfterAuth();
     }
+  }, [loginWithGoogle, clearError, navigateAfterAuth]);
 
-    const hasUpper = /[A-Z]/.test(password);
-    const hasLower = /[a-z]/.test(password);
-    const hasDigit = /[0-9]/.test(password);
-    const hasSpecial = /[!@#$%^&*()_+\-=[\]{}|;:',.<>?/]/.test(password);
-
-    if (password.length < 8) {
-      setLocalError(t('auth.errors.passwordTooShort'));
-      return;
+  // =========================================================================
+  // SSO Login Handler
+  // =========================================================================
+  const handleSSOLogin = useCallback(async (email: string) => {
+    clearError();
+    const ssoUrl = await loginWithSSO(email);
+    if (ssoUrl) {
+      window.location.href = ssoUrl;
     }
-
-    if (!(hasUpper && hasLower && hasDigit && hasSpecial)) {
-      setLocalError(t('auth.errors.passwordComplexity'));
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch('/api/v1/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, password, email }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccessMessage(t('auth.verificationSent'));
-        setMode('verify');
-      } else {
-        const errorMsg = data.error?.message || data.detail?.message || t('auth.errors.registrationFailed');
-        setLocalError(errorMsg);
-      }
-    } catch {
-      setLocalError(t('auth.errors.networkError'));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLocalError('');
-
-    if (!verificationCode) {
-      setLocalError(t('auth.errors.enterVerificationCode'));
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch('/api/v1/auth/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: verificationCode }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccessMessage(t('auth.accountVerified'));
-        setTimeout(() => {
-          setMode('login');
-          setSuccessMessage('');
-        }, 2000);
-      } else {
-        setLocalError(data.detail?.message || t('auth.errors.verificationFailed'));
-      }
-    } catch {
-      setLocalError(t('auth.errors.networkError'));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleGoogleSuccess = useCallback(async () => {
-    try {
-      await loginWithGoogle();
-      // Google users (regular users) go directly to knowledge page
-      const { user } = useAuthStore.getState();
-      if (user?.role === 'user') {
-        navigate('/knowledge');
-      } else {
-        navigate('/');
-      }
-    } catch {
-      setLocalError(t('auth.errors.googleLoginFailed'));
-    }
-  }, [loginWithGoogle, navigate, t]);
-
-  const handleSSOLogin = async () => {
-    setLocalError('');
-    setIsSubmitting(true);
-
-    if (!isCorpEmail(email)) {
-      setLocalError(t('auth.errors.invalidCorporateEmail'));
-      setIsSubmitting(false);
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/v1/auth/sso', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        // Redirect to SSO URL provided by backend
-        window.location.href = data.data.sso_url;
-      } else {
-        setLocalError(data.detail?.message || t('auth.errors.ssoInitiationFailed'));
-      }
-    } catch {
-      setLocalError(t('auth.errors.networkError'));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const displayError = localError || error;
+  }, [loginWithSSO, clearError]);
 
   return (
     <div className="login-container">
@@ -246,13 +178,13 @@ const LoginPage: React.FC = () => {
         <div className="auth-tabs">
           <button
             className={`tab ${mode === 'login' ? 'active' : ''}`}
-            onClick={() => { setMode('login'); clearError(); setLocalError(''); }}
+            onClick={() => handleModeChange('login')}
           >
             {t('auth.signIn')}
           </button>
           <button
             className={`tab ${mode === 'register' || mode === 'verify' ? 'active' : ''}`}
-            onClick={() => { setMode('register'); clearError(); setLocalError(''); }}
+            onClick={() => handleModeChange('register')}
           >
             {t('auth.register')}
           </button>
@@ -260,14 +192,14 @@ const LoginPage: React.FC = () => {
 
         {/* Error/Success Messages */}
         <AnimatePresence>
-          {displayError && (
+          {error && (
             <motion.div
               className="message error"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
             >
-              {displayError}
+              {error}
             </motion.div>
           )}
           {successMessage && (
@@ -285,262 +217,50 @@ const LoginPage: React.FC = () => {
         {/* Forms */}
         <AnimatePresence mode="wait">
           {mode === 'login' && (
-            <motion.form
-              key="login"
+            <LoginForm
+              t={t}
+              isLoading={isLoading}
               onSubmit={handleLogin}
-              className="auth-form"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="input-group">
-                <label htmlFor="userId">{t('auth.userId')}</label>
-                <input
-                  id="userId"
-                  type="text"
-                  value={userId}
-                  onChange={(e) => setUserId(e.target.value)}
-                  placeholder={t('auth.userIdPlaceholder')}
-                  autoComplete="username"
-                />
-              </div>
-
-              <div className="input-group">
-                <label htmlFor="password">{t('auth.password')}</label>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={t('auth.passwordPlaceholder')}
-                  autoComplete="current-password"
-                />
-              </div>
-
-              <motion.button
-                type="submit"
-                className="btn-primary"
-                disabled={isLoading}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                {isLoading ? <span className="spinner" /> : t('auth.signIn')}
-              </motion.button>
-
-              <div className="divider">
-                <span>{t('auth.orContinueWith')}</span>
-              </div>
-
-              <div className="social-buttons">
-                {isGoogleConfigured && (
-                  <motion.button
-                    type="button"
-                    className="btn-google"
-                    onClick={handleGoogleSuccess}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <svg className="google-icon" viewBox="0 0 24 24" width="20" height="20">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                    </svg>
-                    {t('auth.googleLogin')}
-                  </motion.button>
-                )}
-
-                <motion.button
-                  type="button"
-                  className="btn-sso"
-                  onClick={() => setMode('forgot')}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <span className="sso-icon">🏢</span>
-                  {t('auth.corporateSSO')}
-                </motion.button>
-              </div>
-            </motion.form>
+              onSSOClick={() => handleModeChange('forgot')}
+              onGoogleClick={handleGoogleLogin}
+              isGoogleConfigured={isGoogleConfigured}
+            />
           )}
 
           {mode === 'register' && (
-            <motion.form
-              key="register"
+            <RegisterForm
+              t={t}
+              isLoading={isLoading}
               onSubmit={handleRegister}
-              className="auth-form"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="input-group">
-                <label htmlFor="regUserId">{t('auth.userId')}</label>
-                <input
-                  id="regUserId"
-                  type="text"
-                  value={userId}
-                  onChange={(e) => setUserId(e.target.value)}
-                  placeholder={t('auth.chooseUserId')}
-                  autoComplete="username"
-                />
-              </div>
-
-              <div className="input-group">
-                <label htmlFor="regEmail">{t('auth.emailForVerification')}</label>
-                <input
-                  id="regEmail"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t('auth.emailPlaceholder')}
-                  autoComplete="email"
-                />
-              </div>
-
-              <div className="input-group">
-                <label htmlFor="regPassword">{t('auth.password')}</label>
-                <input
-                  id="regPassword"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={t('auth.passwordMinLength')}
-                  autoComplete="new-password"
-                />
-              </div>
-
-              <div className="input-group">
-                <label htmlFor="regConfirmPassword">{t('auth.confirmPassword')}</label>
-                <input
-                  id="regConfirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder={t('auth.confirmPasswordPlaceholder')}
-                  autoComplete="new-password"
-                />
-              </div>
-
-              <motion.button
-                type="submit"
-                className="btn-primary"
-                disabled={isSubmitting}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                {isSubmitting ? <span className="spinner" /> : t('auth.createAccount')}
-              </motion.button>
-
-              <p className="hint">
-                {t('auth.verificationHint')}
-              </p>
-            </motion.form>
+              onModeChange={handleModeChange}
+            />
           )}
 
           {mode === 'verify' && (
-            <motion.form
-              key="verify"
+            <VerifyForm
+              t={t}
+              isLoading={isLoading}
+              email={registrationEmail}
               onSubmit={handleVerify}
-              className="auth-form"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="verify-icon">📧</div>
-              <p className="verify-text">
-                {t('auth.verificationEmailSent')}<br />
-                <strong>{email}</strong>
-              </p>
-
-              <div className="input-group">
-                <label htmlFor="verifyCode">{t('auth.verificationCode')}</label>
-                <input
-                  id="verifyCode"
-                  type="text"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value)}
-                  placeholder={t('auth.verificationCodePlaceholder')}
-                  maxLength={6}
-                  className="code-input"
-                  autoComplete="one-time-code"
-                />
-              </div>
-
-              <motion.button
-                type="submit"
-                className="btn-primary"
-                disabled={isSubmitting}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                {isSubmitting ? <span className="spinner" /> : t('auth.verifyEmail')}
-              </motion.button>
-
-              <button
-                type="button"
-                className="btn-link"
-                onClick={() => setMode('register')}
-              >
-                ← {t('auth.backToRegistration')}
-              </button>
-            </motion.form>
+              onBack={() => handleModeChange('register')}
+            />
           )}
 
           {mode === 'forgot' && (
-            <motion.form
-              key="sso"
-              onSubmit={(e) => { e.preventDefault(); handleSSOLogin(); }}
-              className="auth-form"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="verify-icon">🏢</div>
-              <p className="verify-text">
-                {t('auth.enterCorporateEmail')}
-              </p>
-
-              <div className="input-group">
-                <label htmlFor="corpEmail">{t('auth.corporateEmail')}</label>
-                <input
-                  id="corpEmail"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t('auth.corporateEmailPlaceholder')}
-                  autoComplete="email"
-                />
-              </div>
-
-              <motion.button
-                type="submit"
-                className="btn-primary"
-                disabled={isSubmitting}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                {isSubmitting ? <span className="spinner" /> : t('auth.continueWithSSO')}
-              </motion.button>
-
-              <button
-                type="button"
-                className="btn-link"
-                onClick={() => setMode('login')}
-              >
-                ← {t('auth.backToLogin')}
-              </button>
-            </motion.form>
+            <SSOForm
+              t={t}
+              isLoading={isLoading}
+              onSubmit={handleSSOLogin}
+              onBack={() => handleModeChange('login')}
+              validateEmail={isCorpEmail}
+            />
           )}
         </AnimatePresence>
 
         {/* Footer */}
         <div className="login-footer">
           <a href="#">{t('auth.termsOfService')}</a>
-          <span>•</span>
+          <span>&#8226;</span>
           <a href="#">{t('auth.privacyPolicy')}</a>
         </div>
       </motion.div>

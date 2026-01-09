@@ -1,13 +1,17 @@
 /**
  * App Component
  *
- * Main application component with routing and providers
+ * Main application component with routing and providers.
+ * Uses enhanced route guards with session validation.
  */
 
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { I18nProvider } from './i18n/I18nContext';
-import { useAuthStore } from './store/authStore';
+import { AuthProvider } from './providers';
+
+// Route Guards
+import { AuthGuard, PublicGuard } from './components/guards';
 
 // Layouts
 import { MainLayout } from './layouts/MainLayout';
@@ -28,34 +32,6 @@ import { SettingsPage } from './pages/SettingsPage';
 import './styles/index.css';
 
 /**
- * Protected Route Guard
- * Redirects to login if not authenticated
- */
-const ProtectedRoute: React.FC = () => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return <Outlet />;
-};
-
-/**
- * Public Route Guard
- * Redirects to home if already authenticated
- */
-const PublicRoute: React.FC = () => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-
-  if (isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
-
-  return <Outlet />;
-};
-
-/**
  * Placeholder page for unimplemented routes
  */
 const PlaceholderPage: React.FC<{ title: string }> = ({ title }) => (
@@ -74,17 +50,18 @@ const PlaceholderPage: React.FC<{ title: string }> = ({ title }) => (
 export const App: React.FC = () => {
   return (
     <I18nProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Public routes (login, etc.) */}
-          <Route element={<PublicRoute />}>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+          {/* Public routes (login, etc.) - redirects to home if authenticated */}
+          <Route element={<PublicGuard />}>
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<LoginPage />} />
             </Route>
           </Route>
 
-          {/* Protected routes */}
-          <Route element={<ProtectedRoute />}>
+          {/* Protected routes - redirects to login if not authenticated */}
+          <Route element={<AuthGuard />}>
             <Route element={<MainLayout />}>
               {/* Home/Dashboard */}
               <Route path="/" element={<HomePage />} />
@@ -108,11 +85,15 @@ export const App: React.FC = () => {
               {/* Analytics */}
               <Route path="/analytics" element={<PlaceholderPage title="Analytics" />} />
 
-              {/* Admin */}
-              <Route path="/admin" element={<PlaceholderPage title="Admin Dashboard" />} />
-
               {/* Settings */}
               <Route path="/settings" element={<SettingsPage />} />
+            </Route>
+          </Route>
+
+          {/* Admin routes - requires admin role */}
+          <Route element={<AuthGuard requiredRole="admin" />}>
+            <Route element={<MainLayout />}>
+              <Route path="/admin" element={<PlaceholderPage title="Admin Dashboard" />} />
             </Route>
           </Route>
 
@@ -122,8 +103,9 @@ export const App: React.FC = () => {
 
           {/* 404 - Redirect to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </I18nProvider>
   );
 };
