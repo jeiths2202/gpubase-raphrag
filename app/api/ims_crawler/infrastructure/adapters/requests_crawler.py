@@ -11,7 +11,6 @@ import logging
 from typing import List, Optional
 from datetime import datetime
 from uuid import uuid4
-from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from bs4 import BeautifulSoup
@@ -70,9 +69,6 @@ class RequestsBasedCrawler(CrawlerPort):
         self._user_name = ""
         self._user_grade = ""
 
-        # Thread pool for async operations
-        self._executor = ThreadPoolExecutor(max_workers=max_workers)
-
     def _ensure_session(self) -> requests.Session:
         """Ensure HTTP session is initialized."""
         if self._session is None:
@@ -84,6 +80,58 @@ class RequestsBasedCrawler(CrawlerPort):
             })
         return self._session
 
+    def _authenticate_sync(self, credentials: UserCredentials) -> bool:
+        """Synchronous authentication implementation."""
+        session = self._ensure_session()
+
+        # Decrypt credentials
+        username, password = self.encryption.decrypt_credentials(
+            credentials.encrypted_username,
+            credentials.encrypted_password
+        )
+
+        # Use base_url from credentials if provided
+        base_url = credentials.ims_base_url or self.base_url
+
+        # Get login page first (for cookies)
+        login_url = f"{base_url}/tody/auth/login.do"
+        session.get(login_url, timeout=30)
+
+        # Submit login form
+        response = session.post(
+            login_url,
+            data={'id': username, 'password': password},
+            allow_redirects=True,
+            timeout=30
+        )
+
+        # Check if login succeeded
+        if '/login' in response.url or '/auth/login' in response.url:
+            logger.error("Authentication failed - redirected back to login")
+            self._authenticated = False
+            return False
+
+        # Extract user info from session
+        self._user_id = username
+        self._authenticated = True
+
+        # Try to extract user info from response
+        try:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            user_name_elem = soup.find('input', {'name': 'userName'})
+            user_grade_elem = soup.find('input', {'name': 'userGrade'})
+            if user_name_elem:
+                self._user_name = user_name_elem.get('value', username)
+            if user_grade_elem:
+                self._user_grade = user_grade_elem.get('value', 'TMAX')
+        except Exception:
+            self._user_name = username
+            self._user_grade = 'TMAX'
+
+        jsessionid = session.cookies.get('JSESSIONID', '')[:20]
+        logger.info(f"Authentication successful - Session: {jsessionid}...")
+        return True
+
     async def authenticate(self, credentials: UserCredentials) -> bool:
         """
         Authenticate with IMS system using user credentials.
@@ -94,87 +142,23 @@ class RequestsBasedCrawler(CrawlerPort):
         Returns:
             True if authentication successful
         """
-        session = self._ensure_session()
-
         try:
-            # Decrypt credentials
-            username, password = self.encryption.decrypt_credentials(
-                credentials.encrypted_username,
-                credentials.encrypted_password
-            )
-
-            # Use base_url from credentials if provided
-            base_url = credentials.ims_base_url or self.base_url
-
-            # Get login page first (for cookies)
-            login_url = f"{base_url}/tody/auth/login.do"
-            session.get(login_url)
-
-            # Submit login form
-            response = session.post(
-                login_url,
-                data={'id': username, 'password': password},
-                allow_redirects=True
-            )
-
-            # Check if login succeeded
-            if '/login' in response.url or '/auth/login' in response.url:
-                logger.error("Authentication failed - redirected back to login")
-                self._authenticated = False
-                return False
-
-            # Extract user info from session
-            self._user_id = username
-            self._authenticated = True
-
-            # Try to extract user info from response
-            try:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                user_name_elem = soup.find('input', {'name': 'userName'})
-                user_grade_elem = soup.find('input', {'name': 'userGrade'})
-                if user_name_elem:
-                    self._user_name = user_name_elem.get('value', username)
-                if user_grade_elem:
-                    self._user_grade = user_grade_elem.get('value', 'TMAX')
-            except Exception:
-                self._user_name = username
-                self._user_grade = 'TMAX'
-
-            jsessionid = session.cookies.get('JSESSIONID', '')[:20]
-            logger.info(f"Authentication successful - Session: {jsessionid}...")
-            return True
-
+            # Run synchronous HTTP requests in thread pool
+            return await asyncio.to_thread(self._authenticate_sync, credentials)
         except Exception as e:
             logger.error(f"Authentication error: {e}")
             self._authenticated = False
             raise
 
-    async def search_issues(
+    def _search_issues_sync(
         self,
         query: str,
-        credentials: UserCredentials,
-        product_codes: Optional[List[str]] = None
+        user_id,
+        base_url: str,
+        products: List[str]
     ) -> List[Issue]:
-        """
-        Search for issues matching the query with pagination.
-
-        Note: IMS server ignores pageSize parameter and returns 10 items per page.
-        This method automatically fetches all pages.
-
-        Args:
-            query: Search keyword
-            credentials: User credentials for authentication
-            product_codes: Optional list of product codes to filter
-
-        Returns:
-            List of Issue entities
-        """
-        if not self._authenticated:
-            await self.authenticate(credentials)
-
+        """Synchronous search implementation."""
         session = self._ensure_session()
-        base_url = credentials.ims_base_url or self.base_url
-        products = product_codes or self.OPENFRAME_PRODUCTS
 
         all_issues: List[Issue] = []
         total_count = None
@@ -210,7 +194,7 @@ class RequestsBasedCrawler(CrawlerPort):
             search_url = f"{base_url}/tody/ims/issue/issueSearchList.do"
             response = session.get(search_url, params=params, headers={
                 'Referer': f"{base_url}/tody/ims/issue/issueSearchList.do?searchType=1&menuCode=issue_search"
-            })
+            }, timeout=60)
 
             # Get total count on first page
             if total_count is None:
@@ -218,7 +202,7 @@ class RequestsBasedCrawler(CrawlerPort):
                 logger.info(f"Total count: {total_count}")
 
             # Parse issues from this page
-            page_issues = self._parse_search_results(response.text, credentials.user_id, base_url)
+            page_issues = self._parse_search_results(response.text, user_id, base_url)
             logger.info(f"Page {page}: {len(page_issues)} issues")
 
             if not page_issues:
@@ -234,6 +218,41 @@ class RequestsBasedCrawler(CrawlerPort):
 
         logger.info(f"Search completed: {len(all_issues)} issues (Total: {total_count})")
         return all_issues
+
+    async def search_issues(
+        self,
+        query: str,
+        credentials: UserCredentials,
+        product_codes: Optional[List[str]] = None
+    ) -> List[Issue]:
+        """
+        Search for issues matching the query with pagination.
+
+        Note: IMS server ignores pageSize parameter and returns 10 items per page.
+        This method automatically fetches all pages.
+
+        Args:
+            query: Search keyword
+            credentials: User credentials for authentication
+            product_codes: Optional list of product codes to filter
+
+        Returns:
+            List of Issue entities
+        """
+        if not self._authenticated:
+            await self.authenticate(credentials)
+
+        base_url = credentials.ims_base_url or self.base_url
+        products = product_codes or self.OPENFRAME_PRODUCTS
+
+        # Run synchronous HTTP requests in thread pool
+        return await asyncio.to_thread(
+            self._search_issues_sync,
+            query,
+            credentials.user_id,
+            base_url,
+            products
+        )
 
     def _get_total_count(self, html: str) -> int:
         """Extract total count from search result HTML."""
@@ -325,6 +344,36 @@ class RequestsBasedCrawler(CrawlerPort):
 
         return issues
 
+    def _crawl_issue_details_sync(
+        self,
+        issue_id: str,
+        user_id,
+        base_url: str,
+        fallback_issue: Issue = None
+    ) -> Issue:
+        """Synchronous issue detail crawling implementation."""
+        session = self._ensure_session()
+
+        try:
+            # Fetch issue detail page
+            detail_url = f"{base_url}/tody/ims/issue/issueView.do"
+            response = session.post(
+                detail_url,
+                data={'issueId': issue_id, 'menuCode': 'issue_search'},
+                headers={'Referer': f"{base_url}/tody/ims/issue/issueSearchList.do"},
+                timeout=60
+            )
+
+            return self._parse_issue_detail(
+                response.text, issue_id, user_id, base_url, fallback_issue
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to crawl issue {issue_id}: {e}")
+            if fallback_issue:
+                return fallback_issue
+            raise
+
     async def crawl_issue_details(
         self,
         issue_id: str,
@@ -345,27 +394,16 @@ class RequestsBasedCrawler(CrawlerPort):
         if not self._authenticated:
             await self.authenticate(credentials)
 
-        session = self._ensure_session()
         base_url = credentials.ims_base_url or self.base_url
 
-        try:
-            # Fetch issue detail page
-            detail_url = f"{base_url}/tody/ims/issue/issueView.do"
-            response = session.post(
-                detail_url,
-                data={'issueId': issue_id, 'menuCode': 'issue_search'},
-                headers={'Referer': f"{base_url}/tody/ims/issue/issueSearchList.do"}
-            )
-
-            return self._parse_issue_detail(
-                response.text, issue_id, credentials.user_id, base_url, fallback_issue
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to crawl issue {issue_id}: {e}")
-            if fallback_issue:
-                return fallback_issue
-            raise
+        # Run synchronous HTTP request in thread pool
+        return await asyncio.to_thread(
+            self._crawl_issue_details_sync,
+            issue_id,
+            credentials.user_id,
+            base_url,
+            fallback_issue
+        )
 
     def _parse_issue_detail(
         self,
@@ -475,6 +513,34 @@ class RequestsBasedCrawler(CrawlerPort):
         logger.warning(f"Attachment download not implemented for requests crawler")
         return []
 
+    def _fetch_related_issue_ids_sync(self, ims_id: str, base_url: str) -> List[str]:
+        """Synchronous fetch of related issue IDs."""
+        session = self._ensure_session()
+
+        try:
+            response = session.get(
+                f"{base_url}/tody/ims/issue/findRelationIssues.do",
+                params={'issueId': ims_id},
+                timeout=30
+            )
+
+            related_ids = []
+            try:
+                data = response.json()
+                if isinstance(data, list):
+                    for item in data:
+                        related_id = str(item.get('issueId', ''))
+                        if related_id:
+                            related_ids.append(related_id)
+            except Exception as e:
+                logger.warning(f"Failed to parse related issues JSON: {e}")
+
+            return related_ids
+
+        except Exception as e:
+            logger.error(f"Failed to fetch related issue IDs: {e}")
+            return []
+
     async def crawl_related_issues(
         self,
         issue: Issue,
@@ -498,35 +564,27 @@ class RequestsBasedCrawler(CrawlerPort):
         if not self._authenticated:
             await self.authenticate(credentials)
 
-        session = self._ensure_session()
         base_url = credentials.ims_base_url or self.base_url
 
-        try:
-            # Fetch related issues via JSON API
-            response = session.get(
-                f"{base_url}/tody/ims/issue/findRelationIssues.do",
-                params={'issueId': issue.ims_id}
-            )
+        # Fetch related issue IDs in thread pool
+        related_ids = await asyncio.to_thread(
+            self._fetch_related_issue_ids_sync,
+            issue.ims_id,
+            base_url
+        )
 
-            related_issues = []
+        # Crawl each related issue (already async-safe)
+        related_issues = []
+        for related_id in related_ids:
             try:
-                data = response.json()
-                if isinstance(data, list):
-                    for item in data:
-                        related_id = str(item.get('issueId', ''))
-                        if related_id:
-                            related_issue = await self.crawl_issue_details(
-                                related_id, credentials
-                            )
-                            related_issues.append(related_issue)
+                related_issue = await self.crawl_issue_details(
+                    related_id, credentials
+                )
+                related_issues.append(related_issue)
             except Exception as e:
-                logger.warning(f"Failed to parse related issues: {e}")
+                logger.warning(f"Failed to crawl related issue {related_id}: {e}")
 
-            return related_issues
-
-        except Exception as e:
-            logger.error(f"Failed to crawl related issues: {e}")
-            return []
+        return related_issues
 
     async def crawl_issues_parallel(
         self,
@@ -592,6 +650,5 @@ class RequestsBasedCrawler(CrawlerPort):
             self._session.close()
             self._session = None
 
-        self._executor.shutdown(wait=False)
         self._authenticated = False
         logger.info("Requests crawler resources cleaned up")
