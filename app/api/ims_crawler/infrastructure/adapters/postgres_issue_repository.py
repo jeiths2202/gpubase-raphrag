@@ -39,19 +39,23 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
         query = """
             INSERT INTO ims_issues (
                 id, ims_id, user_id, title, description,
-                status, priority, reporter, assignee,
+                status, priority, status_raw, priority_raw,
+                reporter, assignee,
                 project_key, issue_type, labels,
                 comments_count, attachments_count,
                 created_at, updated_at, resolved_at,
                 crawled_at, source_url, custom_fields,
-                category, product, version, module, customer, issued_date
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+                category, product, version, module, customer, issued_date,
+                issue_details, action_no
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
             ON CONFLICT (user_id, ims_id)
             DO UPDATE SET
                 title = EXCLUDED.title,
                 description = EXCLUDED.description,
                 status = EXCLUDED.status,
                 priority = EXCLUDED.priority,
+                status_raw = EXCLUDED.status_raw,
+                priority_raw = EXCLUDED.priority_raw,
                 assignee = EXCLUDED.assignee,
                 labels = EXCLUDED.labels,
                 comments_count = EXCLUDED.comments_count,
@@ -63,7 +67,9 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
                 version = EXCLUDED.version,
                 module = EXCLUDED.module,
                 customer = EXCLUDED.customer,
-                issued_date = EXCLUDED.issued_date
+                issued_date = EXCLUDED.issued_date,
+                issue_details = EXCLUDED.issue_details,
+                action_no = EXCLUDED.action_no
             RETURNING id
         """
 
@@ -73,6 +79,7 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
                 issue.id, issue.ims_id, issue.user_id,
                 issue.title, issue.description,
                 issue.status.value, issue.priority.value,
+                issue.status_raw, issue.priority_raw,
                 issue.reporter, issue.assignee,
                 issue.project_key, issue.issue_type, issue.labels,
                 issue.comments_count, issue.attachments_count,
@@ -80,7 +87,8 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
                 issue.crawled_at, issue.source_url,
                 json.dumps(issue.custom_fields) if issue.custom_fields else "{}",
                 issue.category, issue.product, issue.version,
-                issue.module, issue.customer, issue.issued_date
+                issue.module, issue.customer, issue.issued_date,
+                issue.issue_details, issue.action_no
             )
             return row['id']
 

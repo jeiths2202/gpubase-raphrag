@@ -50,6 +50,8 @@ class Issue:
     description: str = ""
     status: IssueStatus = IssueStatus.OPEN
     priority: IssuePriority = IssuePriority.MEDIUM
+    status_raw: str = ""      # Raw status value from IMS (e.g., 'Closed_P', 'Rejected')
+    priority_raw: str = ""    # Raw priority value from IMS (e.g., 'Normal', 'High', 'Very high')
 
     # IMS-specific fields (from TmaxSoft IMS)
     category: str = ""      # Category (e.g., Technical Support)
@@ -58,6 +60,8 @@ class Issue:
     module: str = ""        # Module (e.g., General)
     customer: str = ""      # Customer name
     issued_date: Optional[datetime] = None  # Issue registration date
+    issue_details: str = ""  # Issue Details (상세 내용)
+    action_no: str = ""      # Action No (액션 번호)
 
     # Metadata
     reporter: str = ""
@@ -137,6 +141,8 @@ class Issue:
             "description": self.description,
             "status": self.status.value,
             "priority": self.priority.value,
+            "status_raw": self.status_raw,
+            "priority_raw": self.priority_raw,
             # IMS-specific fields
             "category": self.category,
             "product": self.product,
@@ -144,6 +150,8 @@ class Issue:
             "module": self.module,
             "customer": self.customer,
             "issued_date": self.issued_date.isoformat() if self.issued_date else None,
+            "issue_details": self.issue_details,
+            "action_no": self.action_no,
             # Metadata
             "reporter": self.reporter,
             "assignee": self.assignee,
@@ -171,6 +179,8 @@ class Issue:
             description=data.get("description", ""),
             status=IssueStatus(data.get("status", "open")),
             priority=IssuePriority(data.get("priority", "medium")),
+            status_raw=data.get("status_raw", ""),
+            priority_raw=data.get("priority_raw", ""),
             # IMS-specific fields
             category=data.get("category", ""),
             product=data.get("product", ""),
@@ -178,6 +188,8 @@ class Issue:
             module=data.get("module", ""),
             customer=data.get("customer", ""),
             issued_date=datetime.fromisoformat(data["issued_date"]) if data.get("issued_date") else None,
+            issue_details=data.get("issue_details", ""),
+            action_no=data.get("action_no", ""),
             # Metadata
             reporter=data.get("reporter", ""),
             assignee=data.get("assignee"),

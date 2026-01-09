@@ -528,10 +528,12 @@ class RequestsBasedCrawler(CrawlerPort):
         action_matches = re.findall(action_pattern, html)
         actions_count = len(action_matches)
 
-        # Parse status
+        # Parse status (keep raw value for display)
         status = IssueStatus.OPEN
+        status_raw = ""
         status_text = get_table_field('Status')
         if status_text:
+            status_raw = status_text  # Store raw value
             print(f"[IMS Parser] Issue {issue_id} Status: '{status_text}'")
             status_upper = status_text.upper()
             if 'CLOSED' in status_upper or 'CLOSED_P' in status_upper:
@@ -542,16 +544,18 @@ class RequestsBasedCrawler(CrawlerPort):
                 status = IssueStatus.IN_PROGRESS
             elif 'REJECT' in status_upper:
                 status = IssueStatus.REJECTED
-            elif 'PENDING' in status_upper:
+            elif 'PENDING' in status_upper or 'POSTPONED' in status_upper:
                 status = IssueStatus.PENDING
 
-        # Parse priority
+        # Parse priority (keep raw value for display)
         priority = IssuePriority.MEDIUM
+        priority_raw = ""
         priority_text = get_table_field('Priority') or get_table_field('Urgency')
         if priority_text:
+            priority_raw = priority_text  # Store raw value
             print(f"[IMS Parser] Issue {issue_id} Priority: '{priority_text}'")
             priority_upper = priority_text.upper()
-            if 'CRITICAL' in priority_upper or 'URGENT' in priority_upper or '긴급' in priority_text:
+            if 'CRITICAL' in priority_upper or 'URGENT' in priority_upper or 'VERY HIGH' in priority_upper or '긴급' in priority_text:
                 priority = IssuePriority.CRITICAL
             elif 'HIGH' in priority_upper or '높음' in priority_text:
                 priority = IssuePriority.HIGH
@@ -559,7 +563,7 @@ class RequestsBasedCrawler(CrawlerPort):
                 priority = IssuePriority.LOW
             elif 'TRIVIAL' in priority_upper or '사소' in priority_text:
                 priority = IssuePriority.TRIVIAL
-            # MEDIUM is default
+            # MEDIUM is default (Normal)
         else:
             print(f"[IMS Parser] Issue {issue_id} Priority not found, using default MEDIUM")
 
@@ -572,6 +576,8 @@ class RequestsBasedCrawler(CrawlerPort):
             description=issue_details[:5000],
             status=status,
             priority=priority,
+            status_raw=status_raw,
+            priority_raw=priority_raw,
             category=get_table_field('Category') or (fallback_issue.category if fallback_issue else ''),
             product=get_table_field('Product') or (fallback_issue.product if fallback_issue else ''),
             version=get_table_field('Version') or (fallback_issue.version if fallback_issue else ''),

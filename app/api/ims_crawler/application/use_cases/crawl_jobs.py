@@ -189,20 +189,30 @@ class CrawlJobsUseCase:
             if not credentials:
                 raise ValueError(f"Credentials not found for user {job.user_id}")
 
-            # Authenticate with IMS
-            yield {
-                "event": "authenticating",
-                "message": "Authenticating with IMS system..."
-            }
+            # Authenticate with IMS (check if already authenticated)
+            is_already_authenticated = getattr(self.crawler, '_authenticated', False)
 
-            authenticated = await self.crawler.authenticate(credentials)
-            if not authenticated:
-                raise Exception("Authentication failed")
+            if is_already_authenticated:
+                # Already authenticated - skip authentication step
+                yield {
+                    "event": "authenticated",
+                    "message": "인증 완료"
+                }
+            else:
+                # Need to authenticate
+                yield {
+                    "event": "authenticating",
+                    "message": "인증 중..."
+                }
 
-            yield {
-                "event": "authenticated",
-                "message": "Authentication successful"
-            }
+                authenticated = await self.crawler.authenticate(credentials)
+                if not authenticated:
+                    raise Exception("Authentication failed")
+
+                yield {
+                    "event": "authenticated",
+                    "message": "인증 완료"
+                }
 
             # Search for issues with progress tracking
             yield {
