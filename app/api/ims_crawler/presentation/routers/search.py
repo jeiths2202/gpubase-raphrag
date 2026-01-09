@@ -63,6 +63,21 @@ class IssueSearchResult(BaseModel):
     updated_at: str
     similarity_score: Optional[float] = None  # For semantic search results
     hybrid_score: Optional[float] = None  # For hybrid search results (BM25 30% + Semantic 70%)
+    # Related issues (IMS IDs from Related Issue tab)
+    related_issue_ids: List[str] = []  # List of related IMS issue IDs
+
+
+class IssueRelation(BaseModel):
+    """Issue relationship for graph visualization"""
+    source_ims_id: str
+    target_ims_id: str
+    relation_type: str
+
+
+class RelationsResponse(BaseModel):
+    """Response model for issue relations"""
+    total_relations: int
+    relations: List[IssueRelation]
 
 
 class SearchResponse(BaseModel):
@@ -216,7 +231,7 @@ async def get_recent_issues(
 
 class GetByIdsRequest(BaseModel):
     """Request model for getting issues by IDs"""
-    issue_ids: List[UUID] = Field(..., min_length=1, max_length=500, description="List of issue UUIDs to fetch")
+    issue_ids: List[UUID] = Field(..., min_length=1, max_length=2000, description="List of issue UUIDs to fetch")
 
 
 @router.post("/by-ids", response_model=List[IssueSearchResult])
@@ -332,4 +347,41 @@ async def get_issue_details(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve issue details: {str(e)}"
+        )
+
+
+@router.get("/relations/all", response_model=RelationsResponse)
+async def get_all_issue_relations(
+    current_user: dict = Depends(get_current_user),
+    repository: PostgreSQLIssueRepository = Depends(get_issue_repository)
+):
+    """
+    Get all issue relations for the current user.
+
+    Used by the graph visualization to show relationships between issues.
+    Returns all relations where either source or target belongs to the user.
+    """
+    user_id = UUID(current_user["id"])
+
+    try:
+        relations_data = await repository.get_all_relations_for_user(user_id)
+
+        relations = [
+            IssueRelation(
+                source_ims_id=rel['source_ims_id'],
+                target_ims_id=rel['target_ims_id'],
+                relation_type=rel['relation_type']
+            )
+            for rel in relations_data
+        ]
+
+        return RelationsResponse(
+            total_relations=len(relations),
+            relations=relations
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve issue relations: {str(e)}"
         )
