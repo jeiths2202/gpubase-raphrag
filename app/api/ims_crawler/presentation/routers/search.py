@@ -97,7 +97,8 @@ class SearchResponse(BaseModel):
 async def search_issues(
     request: SearchRequest,
     current_user: dict = Depends(get_current_user),
-    use_case: SearchIssuesUseCase = Depends(get_search_issues_use_case)
+    use_case: SearchIssuesUseCase = Depends(get_search_issues_use_case),
+    repository: PostgreSQLIssueRepository = Depends(get_issue_repository)
 ):
     """
     Search IMS issues using natural language query with hybrid search.
@@ -130,6 +131,12 @@ async def search_issues(
             use_semantic=request.use_semantic_search  # Backward compatibility
         )
 
+        # Fetch related issue IDs for each issue (for graph visualization)
+        issue_related_map = {}
+        for issue in issues:
+            related_ids = await repository.get_related_issue_ids(issue.id)
+            issue_related_map[issue.id] = related_ids
+
         # Convert domain entities to response models
         results = [
             IssueSearchResult(
@@ -154,7 +161,9 @@ async def search_issues(
                 created_at=issue.created_at.isoformat(),
                 updated_at=issue.updated_at.isoformat(),
                 similarity_score=getattr(issue, 'similarity_score', None),
-                hybrid_score=issue.custom_fields.get('hybrid_score') if hasattr(issue, 'custom_fields') else None
+                hybrid_score=issue.custom_fields.get('hybrid_score') if hasattr(issue, 'custom_fields') else None,
+                # Related issues for graph visualization
+                related_issue_ids=issue_related_map.get(issue.id, [])
             )
             for issue in issues
         ]
@@ -193,6 +202,12 @@ async def get_recent_issues(
         # Query repository for recent issues
         issues = await repository.find_by_user_id(user_id, limit)
 
+        # Fetch related issue IDs for each issue (for graph visualization)
+        issue_related_map = {}
+        for issue in issues:
+            related_ids = await repository.get_related_issue_ids(issue.id)
+            issue_related_map[issue.id] = related_ids
+
         # Convert domain entities to response models
         results = [
             IssueSearchResult(
@@ -215,7 +230,9 @@ async def get_recent_issues(
                 project_key=issue.project_key,
                 labels=issue.labels,
                 created_at=issue.created_at.isoformat(),
-                updated_at=issue.updated_at.isoformat()
+                updated_at=issue.updated_at.isoformat(),
+                # Related issues for graph visualization
+                related_issue_ids=issue_related_map.get(issue.id, [])
             )
             for issue in issues
         ]
@@ -253,6 +270,8 @@ async def get_issues_by_ids(
         for issue_id in request.issue_ids:
             issue = await repository.find_by_id(issue_id)
             if issue and issue.user_id == user_id:
+                # Fetch related issue IDs for graph visualization
+                related_ids = await repository.get_related_issue_ids(issue.id)
                 results.append(
                     IssueSearchResult(
                         id=issue.id,
@@ -274,7 +293,9 @@ async def get_issues_by_ids(
                         project_key=issue.project_key,
                         labels=issue.labels,
                         created_at=issue.created_at.isoformat(),
-                        updated_at=issue.updated_at.isoformat()
+                        updated_at=issue.updated_at.isoformat(),
+                        # Related issues for graph visualization
+                        related_issue_ids=related_ids
                     )
                 )
 
@@ -317,6 +338,9 @@ async def get_issue_details(
                 detail="You don't have permission to access this issue"
             )
 
+        # Fetch related issue IDs for graph visualization
+        related_ids = await repository.get_related_issue_ids(issue.id)
+
         # Convert domain entity to response model
         return IssueSearchResult(
             id=issue.id,
@@ -338,7 +362,9 @@ async def get_issue_details(
             project_key=issue.project_key,
             labels=issue.labels,
             created_at=issue.created_at.isoformat(),
-            updated_at=issue.updated_at.isoformat()
+            updated_at=issue.updated_at.isoformat(),
+            # Related issues for graph visualization
+            related_issue_ids=related_ids
         )
 
     except HTTPException:
