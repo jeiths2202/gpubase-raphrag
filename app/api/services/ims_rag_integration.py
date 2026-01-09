@@ -421,21 +421,45 @@ _ims_rag_service: Optional[IMSRAGIntegrationService] = None
 
 
 async def get_ims_rag_service() -> IMSRAGIntegrationService:
-    """Get the IMS RAG Integration Service singleton."""
+    """
+    Get the IMS RAG Integration Service singleton.
+
+    Uses Ollama for local testing if USE_OLLAMA=true environment variable is set.
+    Otherwise uses the container's default LLM.
+    """
     global _ims_rag_service
 
     if _ims_rag_service is None:
-        from ..core.container import get_container
+        import os
         from ..ims_crawler.infrastructure.dependencies import get_issue_repository
 
-        container = get_container()
-        llm = container.llm
         issue_repo = await get_issue_repository()
+
+        # Check if we should use Ollama for local testing
+        use_ollama = os.getenv("USE_OLLAMA", "false").lower() in ("true", "1", "yes")
+        ollama_model = os.getenv("OLLAMA_MODEL", "gemma3:1b")
+        ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+
+        if use_ollama:
+            from ..adapters.ollama import OllamaLLMAdapter
+            llm = OllamaLLMAdapter(model=ollama_model, base_url=ollama_url)
+            logger.info(f"[OK] IMSRAGIntegrationService initialized with Ollama ({ollama_model})")
+        else:
+            from ..core.container import get_container
+            container = get_container()
+            llm = container.llm
+            logger.info("[OK] IMSRAGIntegrationService initialized with default LLM")
 
         _ims_rag_service = IMSRAGIntegrationService(
             llm=llm,
             issue_repository=issue_repo
         )
-        logger.info("[OK] IMSRAGIntegrationService initialized")
 
     return _ims_rag_service
+
+
+def reset_ims_rag_service() -> None:
+    """Reset the singleton instance (useful for testing with different LLM)."""
+    global _ims_rag_service
+    _ims_rag_service = None
+    logger.info("[OK] IMSRAGIntegrationService singleton reset")
