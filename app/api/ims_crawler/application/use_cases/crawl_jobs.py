@@ -294,6 +294,9 @@ class CrawlJobsUseCase:
             # ============================================================
             # PHASE 1: Save all issues to DB and collect embedding texts
             # ============================================================
+            import time
+            phase1_start = time.time()
+            print(f"[IMS Crawler] Phase 1: Saving {total_issues} issues to database...")
             yield {
                 "event": "phase_started",
                 "phase": "saving",
@@ -375,11 +378,15 @@ class CrawlJobsUseCase:
                     }
 
             self._jobs[job_id] = job
+            phase1_elapsed = time.time() - phase1_start
+            print(f"[IMS Crawler] Phase 1 completed in {phase1_elapsed:.2f}s")
 
             # ============================================================
             # PHASE 2: Batch generate embeddings (PARALLELIZED)
             # ============================================================
             if embedding_data:
+                phase2_start = time.time()
+                print(f"[IMS Crawler] Phase 2: Generating embeddings for {len(embedding_data)} issues (batch processing)...")
                 yield {
                     "event": "phase_started",
                     "phase": "embedding",
@@ -409,9 +416,14 @@ class CrawlJobsUseCase:
                             "message": f"Generated embeddings: {batch_end}/{len(texts)}"
                         }
 
+                    phase2_elapsed = time.time() - phase2_start
+                    print(f"[IMS Crawler] Phase 2 completed in {phase2_elapsed:.2f}s - Generated {len(all_embeddings)} embeddings")
+
                     # ============================================================
                     # PHASE 3: Save embeddings to DB (can be parallelized)
                     # ============================================================
+                    phase3_start = time.time()
+                    print(f"[IMS Crawler] Phase 3: Saving {len(all_embeddings)} embeddings to database...")
                     yield {
                         "event": "phase_started",
                         "phase": "saving_embeddings",
@@ -441,6 +453,11 @@ class CrawlJobsUseCase:
                             "total_count": len(all_embeddings),
                             "message": f"Saved embeddings: {batch_end}/{len(all_embeddings)}"
                         }
+
+                    phase3_elapsed = time.time() - phase3_start
+                    total_elapsed = time.time() - phase1_start
+                    print(f"[IMS Crawler] Phase 3 completed in {phase3_elapsed:.2f}s")
+                    print(f"[IMS Crawler] All phases completed in {total_elapsed:.2f}s (Phase1: DB save, Phase2: Embedding, Phase3: Embedding save)")
 
                 except Exception as emb_error:
                     logger.error(f"Batch embedding failed: {emb_error}")

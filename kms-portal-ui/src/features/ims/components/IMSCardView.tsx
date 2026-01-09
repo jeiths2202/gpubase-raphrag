@@ -4,7 +4,7 @@
  * Responsive grid card display for issues
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { User, Calendar, Tag, Percent, FileText } from 'lucide-react';
 import type { IMSIssue, IssueStatus, IssuePriority } from '../types';
@@ -33,6 +33,17 @@ const PRIORITY_COLORS: Record<IssuePriority, string> = {
 };
 
 export const IMSCardView: React.FC<IMSCardViewProps> = ({ issues, onIssueClick, t }) => {
+  // Deduplicate issues by ID to prevent React key warnings
+  const uniqueIssues = useMemo(() => {
+    const uniqueMap = new Map<string, IMSIssue>();
+    issues.forEach(issue => {
+      if (!uniqueMap.has(issue.id)) {
+        uniqueMap.set(issue.id, issue);
+      }
+    });
+    return Array.from(uniqueMap.values());
+  }, [issues]);
+
   const truncateText = (text: string, maxLength: number) => {
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
@@ -47,7 +58,7 @@ export const IMSCardView: React.FC<IMSCardViewProps> = ({ issues, onIssueClick, 
     return `${(score * 100).toFixed(0)}%`;
   };
 
-  if (issues.length === 0) {
+  if (uniqueIssues.length === 0) {
     return (
       <div className="ims-cards__empty">
         <FileText size={48} />
@@ -58,7 +69,7 @@ export const IMSCardView: React.FC<IMSCardViewProps> = ({ issues, onIssueClick, 
 
   return (
     <div className="ims-cards">
-      {issues.map((issue, index) => (
+      {uniqueIssues.map((issue, index) => (
         <motion.div
           key={issue.id}
           className="ims-card"

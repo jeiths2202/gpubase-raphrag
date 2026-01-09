@@ -51,6 +51,7 @@ class CrawlJobResponse(BaseModel):
     completed_at: Optional[str]
     error_message: Optional[str]
     is_cached: bool = Field(default=False, description="True if results are from cache")
+    result_issue_ids: Optional[List[str]] = Field(default=None, description="Issue IDs for cached results")
 
 
 # ============================================================================
@@ -97,6 +98,11 @@ async def create_crawl_job(
             progress = int((job.issues_crawled / job.issues_found) * 100)
 
         # Return job response
+        # For cached jobs, include result_issue_ids so frontend can fetch results directly
+        cached_issue_ids = None
+        if is_cached and job.result_issue_ids:
+            cached_issue_ids = [str(iid) for iid in job.result_issue_ids]
+
         return CrawlJobResponse(
             id=job.id,
             user_id=job.user_id,
@@ -112,7 +118,8 @@ async def create_crawl_job(
             started_at=job.started_at.isoformat() if job.started_at else None,
             completed_at=job.completed_at.isoformat() if job.completed_at else None,
             error_message=job.error_message if is_cached else None,
-            is_cached=is_cached
+            is_cached=is_cached,
+            result_issue_ids=cached_issue_ids
         )
 
     except Exception as e:

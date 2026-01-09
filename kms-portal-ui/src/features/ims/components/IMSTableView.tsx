@@ -123,7 +123,14 @@ export const IMSTableView: React.FC<IMSTableViewProps> = ({ issues, onIssueClick
 
   // Sort and filter issues
   const processedIssues = useMemo(() => {
-    let result = [...issues];
+    // Deduplicate issues by ID to prevent React key warnings
+    const uniqueMap = new Map<string, IMSIssue>();
+    issues.forEach(issue => {
+      if (!uniqueMap.has(issue.id)) {
+        uniqueMap.set(issue.id, issue);
+      }
+    });
+    let result = Array.from(uniqueMap.values());
 
     // Apply filters
     if (filter.status) {

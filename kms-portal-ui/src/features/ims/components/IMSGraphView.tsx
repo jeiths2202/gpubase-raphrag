@@ -38,6 +38,17 @@ export const IMSGraphView: React.FC<IMSGraphViewProps> = ({ issues, onIssueClick
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const animationRef = useRef<number>();
 
+  // Deduplicate issues by ID to prevent React key warnings
+  const uniqueIssues = React.useMemo(() => {
+    const uniqueMap = new Map<string, IMSIssue>();
+    issues.forEach(issue => {
+      if (!uniqueMap.has(issue.id)) {
+        uniqueMap.set(issue.id, issue);
+      }
+    });
+    return Array.from(uniqueMap.values());
+  }, [issues]);
+
   // Initialize graph data
   useEffect(() => {
     if (!containerRef.current) return;
@@ -46,7 +57,7 @@ export const IMSGraphView: React.FC<IMSGraphViewProps> = ({ issues, onIssueClick
     const height = containerRef.current.clientHeight || 500;
 
     // Create nodes
-    const newNodes: GraphNode[] = issues.map((issue) => ({
+    const newNodes: GraphNode[] = uniqueIssues.map((issue) => ({
       id: issue.id,
       x: width / 2 + (Math.random() - 0.5) * width * 0.8,
       y: height / 2 + (Math.random() - 0.5) * height * 0.8,
@@ -59,10 +70,10 @@ export const IMSGraphView: React.FC<IMSGraphViewProps> = ({ issues, onIssueClick
     // Create links based on relationships
     const newLinks: GraphLink[] = [];
 
-    for (let i = 0; i < issues.length; i++) {
-      for (let j = i + 1; j < issues.length; j++) {
-        const issueA = issues[i];
-        const issueB = issues[j];
+    for (let i = 0; i < uniqueIssues.length; i++) {
+      for (let j = i + 1; j < uniqueIssues.length; j++) {
+        const issueA = uniqueIssues[i];
+        const issueB = uniqueIssues[j];
 
         // Similarity link (if both have similarity scores > 0.7)
         if (
@@ -103,7 +114,7 @@ export const IMSGraphView: React.FC<IMSGraphViewProps> = ({ issues, onIssueClick
 
     setNodes(newNodes);
     setLinks(newLinks);
-  }, [issues]);
+  }, [uniqueIssues]);
 
   // Force simulation
   const simulate = useCallback(() => {

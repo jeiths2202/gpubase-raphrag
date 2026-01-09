@@ -52,8 +52,34 @@ export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated, t }) =
         product_codes: selectedProducts.length > 0 ? selectedProducts : undefined,
       });
 
-      setCurrentJob(job);
-      onJobCreated(job);
+      // Check if job is cached - if so, fetch results directly without streaming
+      if (job.is_cached && job.result_issue_ids && job.result_issue_ids.length > 0) {
+        console.log('[IMS] Using cached results:', job.result_issue_ids.length, 'issues');
+        // Fetch cached results directly
+        const { fetchResults } = useIMSStore.getState();
+        await fetchResults(query.trim(), {
+          totalIssues: job.issues_found,
+          successfulIssues: job.issues_crawled,
+          duration: 0, // Cached = instant
+          outcome: 'success',
+          relatedIssues: 0,
+          attachments: job.attachments_processed,
+          resultIssueIds: job.result_issue_ids,
+          progressSnapshot: {
+            status: 'completed',
+            progress: 100,
+            currentStep: 'Cached results',
+            timestamp: new Date().toISOString(),
+            issuesFound: job.issues_found,
+            issuesCrawled: job.issues_crawled,
+            relatedCount: 0,
+          },
+        });
+      } else {
+        // New job - show progress tracker
+        setCurrentJob(job);
+        onJobCreated(job);
+      }
     } catch (error) {
       console.error('[IMS] Failed to create crawl job:', error);
       setIsSearching(false);

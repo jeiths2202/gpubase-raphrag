@@ -69,6 +69,8 @@ export interface IMSJob {
   started_at?: string;
   completed_at?: string;
   error_message?: string;
+  is_cached?: boolean;  // True if results are from cache (within 24h)
+  result_issue_ids?: string[];  // Issue IDs for cached results
 }
 
 /**
