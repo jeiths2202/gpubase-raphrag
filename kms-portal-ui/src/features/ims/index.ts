@@ -11,6 +11,7 @@ export { IMSTableView } from './components/IMSTableView';
 export { IMSCardView } from './components/IMSCardView';
 export { IMSGraphView } from './components/IMSGraphView';
 export { TabProgressSnapshot } from './components/TabProgressSnapshot';
+export { IMSAIAssistant } from './components/IMSAIAssistant';
 
 // Hooks
 export { useSSEStream } from './hooks/useSSEStream';

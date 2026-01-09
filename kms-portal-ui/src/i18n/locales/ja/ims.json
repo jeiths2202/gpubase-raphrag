@@ -112,5 +112,32 @@
   "empty": {
     "title": "検索を開始",
     "description": "IMSシステムの課題を検索するには自然言語クエリを入力してください"
+  },
+  "chat": {
+    "title": "AIアシスタント",
+    "description": "ナレッジベースについて何でも質問してください",
+    "tabs": {
+      "chat": "チャット",
+      "history": "履歴",
+      "sources": "参照元",
+      "notes": "ノート"
+    },
+    "inputPlaceholder": "質問を入力してください...",
+    "noIssuesPlaceholder": "まず課題を検索してください",
+    "noIssuesContext": "チャットする課題がありません。まず課題を検索してください。",
+    "suggestedQuestions": "おすすめの質問:",
+    "contextInfo": "{{count}}件の課題がコンテキストとして利用可能",
+    "thinking": "考え中...",
+    "send": "送信",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "close": "閉じる",
+    "clear": "チャットをクリア",
+    "historyPlaceholder": "会話履歴がここに表示されます",
+    "sourcesTitle": "{{count}}件の参照課題",
+    "noSourcesPlaceholder": "検索された課題がここに表示されます",
+    "notesPlaceholder": "ノート機能は準備中です",
+    "moreIssues": "件以上",
+    "openAssistant": "AIアシスタントを開く"
   }
 }

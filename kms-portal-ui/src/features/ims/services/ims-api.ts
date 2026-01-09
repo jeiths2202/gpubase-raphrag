@@ -11,6 +11,9 @@ import type {
   CrawlJobRequest,
   CrawlJobResponse,
   IMSIssue,
+  IMSChatRequest,
+  IMSChatResponse,
+  IMSChatConversation,
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -220,4 +223,103 @@ export async function invalidateSearchCache(): Promise<void> {
   if (!response.ok) {
     console.warn('Failed to invalidate search cache');
   }
+}
+
+// ============================================
+// AI Chat API
+// ============================================
+
+/**
+ * Send chat message (non-streaming)
+ */
+export async function sendChatMessage(data: IMSChatRequest): Promise<IMSChatResponse> {
+  const response = await fetch(`${API_BASE}/ims-chat/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ ...data, stream: false }),
+  });
+  return handleResponse<IMSChatResponse>(response);
+}
+
+/**
+ * Get SSE stream URL for chat (streaming)
+ */
+export function getChatStreamUrl(): string {
+  return `${API_BASE}/ims-chat/stream`;
+}
+
+/**
+ * Stream chat response using SSE
+ */
+export async function* streamChatMessage(
+  data: IMSChatRequest
+): AsyncGenerator<{ event: string; data: Record<string, unknown> }> {
+  const response = await fetch(`${API_BASE}/ims-chat/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ ...data, stream: true }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Unknown error' }));
+    throw new Error(error.detail || error.message || `HTTP ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('No response body');
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (line.startsWith('event: ')) {
+        // Event names are parsed but data lines are processed separately
+        continue;
+      }
+      if (line.startsWith('data: ')) {
+        try {
+          const data = JSON.parse(line.slice(6));
+          // Get event name from previous line or default to 'message'
+          yield { event: 'message', data };
+        } catch (e) {
+          // Skip invalid JSON
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Get chat conversation history
+ */
+export async function getChatConversations(limit: number = 20): Promise<{
+  conversations: IMSChatConversation[];
+  total: number;
+}> {
+  const response = await fetch(`${API_BASE}/ims-chat/conversations?limit=${limit}`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+  return handleResponse(response);
+}
+
+/**
+ * Get a specific conversation
+ */
+export async function getChatConversation(conversationId: string): Promise<IMSChatConversation> {
+  const response = await fetch(`${API_BASE}/ims-chat/conversations/${conversationId}`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+  return handleResponse<IMSChatConversation>(response);
 }

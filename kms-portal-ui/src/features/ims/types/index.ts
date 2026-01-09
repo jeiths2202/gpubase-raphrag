@@ -308,3 +308,96 @@ export interface GraphLink {
   type: 'similarity' | 'project' | 'label';
   strength: number;
 }
+
+// ============================================
+// AI Chat Types
+// ============================================
+
+/**
+ * Chat message role
+ */
+export type ChatRole = 'user' | 'assistant' | 'system';
+
+/**
+ * Chat message
+ */
+export interface ChatMessage {
+  id: string;
+  role: ChatRole;
+  content: string;
+  created_at: string;
+  referenced_issues?: string[];
+}
+
+/**
+ * AI Chat request
+ */
+export interface IMSChatRequest {
+  question: string;
+  issue_ids: string[];
+  conversation_id?: string;
+  language?: 'auto' | 'ko' | 'ja' | 'en';
+  stream?: boolean;
+  max_context_issues?: number;
+}
+
+/**
+ * AI Chat response (non-streaming)
+ */
+export interface IMSChatResponse {
+  conversation_id: string;
+  message_id: string;
+  content: string;
+  role: ChatRole;
+  referenced_issues: IMSIssueContext[];
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  created_at: string;
+}
+
+/**
+ * Issue context for AI chat
+ */
+export interface IMSIssueContext {
+  issue_id: string;
+  ims_id: string;
+  title: string;
+  status_raw?: string;
+  priority_raw?: string;
+  product?: string;
+  version?: string;
+  module?: string;
+  customer?: string;
+  description?: string;
+  relevance_score: number;
+}
+
+/**
+ * SSE event for streaming chat
+ */
+export interface IMSChatStreamEvent {
+  event: 'start' | 'token' | 'sources' | 'done' | 'error';
+  data: {
+    conversation_id?: string;
+    message_id?: string;
+    content?: string;
+    is_final?: boolean;
+    sources?: IMSIssueContext[];
+    issues_count?: number;
+    total_issues?: number;
+    message?: string;
+  };
+}
+
+/**
+ * Chat conversation
+ */
+export interface IMSChatConversation {
+  id: string;
+  title?: string;
+  issue_ids: string[];
+  messages: ChatMessage[];
+  created_at: string;
+  updated_at: string;
+}

@@ -112,5 +112,32 @@
   "empty": {
     "title": "Start Your Search",
     "description": "Enter a natural language query to search for issues in your IMS system"
+  },
+  "chat": {
+    "title": "AI Assistant",
+    "description": "Ask me anything about the knowledge base",
+    "tabs": {
+      "chat": "Chat",
+      "history": "History",
+      "sources": "Sources",
+      "notes": "Notes"
+    },
+    "inputPlaceholder": "Type your question...",
+    "noIssuesPlaceholder": "Search for issues first",
+    "noIssuesContext": "No issues to chat about. Please search for issues first.",
+    "suggestedQuestions": "Suggested questions:",
+    "contextInfo": "{{count}} issues available as context",
+    "thinking": "Thinking...",
+    "send": "Send",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "close": "Close",
+    "clear": "Clear chat",
+    "historyPlaceholder": "Conversation history will appear here",
+    "sourcesTitle": "{{count}} referenced issues",
+    "noSourcesPlaceholder": "Searched issues will appear here",
+    "notesPlaceholder": "Notes feature coming soon",
+    "moreIssues": "more",
+    "openAssistant": "Open AI Assistant"
   }
 }

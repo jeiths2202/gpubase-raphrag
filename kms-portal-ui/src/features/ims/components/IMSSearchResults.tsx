@@ -2,14 +2,16 @@
  * IMS Search Results Component
  *
  * Container for displaying search results with view mode selection
+ * and AI Assistant panel for chatting about searched issues
  */
 
-import React from 'react';
-import { Table, LayoutGrid, GitBranch } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { Table, LayoutGrid, GitBranch, Sparkles } from 'lucide-react';
 import { IMSTableView } from './IMSTableView';
 import { IMSCardView } from './IMSCardView';
 import { IMSGraphView } from './IMSGraphView';
 import { TabProgressSnapshot } from './TabProgressSnapshot';
+import { IMSAIAssistant } from './IMSAIAssistant';
 import type { IMSSearchTab, ViewMode, IMSIssue } from '../types';
 
 interface IMSSearchResultsProps {
@@ -26,6 +28,15 @@ export const IMSSearchResults: React.FC<IMSSearchResultsProps> = ({
   t,
 }) => {
   const { results, viewMode, completionStats } = tab;
+  const [isAssistantOpen, setIsAssistantOpen] = useState(true);
+
+  const handleOpenAssistant = useCallback(() => {
+    setIsAssistantOpen(true);
+  }, []);
+
+  const handleCloseAssistant = useCallback(() => {
+    setIsAssistantOpen(false);
+  }, []);
 
   const viewModeButtons: { mode: ViewMode; icon: React.ReactNode; label: string }[] = [
     { mode: 'table', icon: <Table size={16} />, label: t('ims.results.table') },
@@ -44,19 +55,33 @@ export const IMSSearchResults: React.FC<IMSSearchResultsProps> = ({
           <span className="ims-results__query">"{tab.query}"</span>
         </div>
 
-        {/* View Mode Selector */}
-        <div className="ims-results__view-modes">
-          {viewModeButtons.map(({ mode, icon, label }) => (
+        {/* View Mode Selector & AI Assistant Button */}
+        <div className="ims-results__actions">
+          <div className="ims-results__view-modes">
+            {viewModeButtons.map(({ mode, icon, label }) => (
+              <button
+                key={mode}
+                className={`ims-results__view-btn ${viewMode === mode ? 'active' : ''}`}
+                onClick={() => onViewModeChange(mode)}
+                title={label}
+              >
+                {icon}
+                <span className="ims-results__view-label">{label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* AI Assistant Toggle Button */}
+          {!isAssistantOpen && (
             <button
-              key={mode}
-              className={`ims-results__view-btn ${viewMode === mode ? 'active' : ''}`}
-              onClick={() => onViewModeChange(mode)}
-              title={label}
+              className="ims-results__ai-btn"
+              onClick={handleOpenAssistant}
+              title={t('ims.chat.openAssistant')}
             >
-              {icon}
-              <span className="ims-results__view-label">{label}</span>
+              <Sparkles size={18} />
+              <span>{t('ims.chat.title')}</span>
             </button>
-          ))}
+          )}
         </div>
       </div>
 
@@ -85,6 +110,14 @@ export const IMSSearchResults: React.FC<IMSSearchResultsProps> = ({
           </>
         )}
       </div>
+
+      {/* AI Assistant Panel */}
+      <IMSAIAssistant
+        issues={results}
+        isOpen={isAssistantOpen}
+        onClose={handleCloseAssistant}
+        t={t}
+      />
     </div>
   );
 };

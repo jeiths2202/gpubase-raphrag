@@ -822,6 +822,43 @@
   }
 }
 
+/* AI Assistant Button */
+.ims-results__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ims-results__ai-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, var(--color-accent) 0%, #6b21a8 100%);
+  border: none;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+}
+
+.ims-results__ai-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+}
+
+.ims-results__ai-btn svg {
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
 .ims-results__content {
   flex: 1;
   overflow: hidden;

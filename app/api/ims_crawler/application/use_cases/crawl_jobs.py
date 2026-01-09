@@ -291,17 +291,20 @@ class CrawlJobsUseCase:
                 "message": f"Fetched {len(crawled_issues)} issue details. Starting DB save and embedding generation..."
             }
 
-            # Process each crawled issue (save to DB, generate embeddings)
+            # ============================================================
+            # PHASE 1: Save all issues to DB and collect embedding texts
+            # ============================================================
+            yield {
+                "event": "phase_started",
+                "phase": "saving",
+                "message": f"Phase 1: Saving {total_issues} issues to database..."
+            }
+
+            # Collect data for batch embedding
+            embedding_data: List[Tuple[UUID, str]] = []  # (issue_db_id, embedding_text)
+
             for idx, full_issue in enumerate(crawled_issues, 1):
                 try:
-                    yield {
-                        "event": "processing_issue",
-                        "issue_number": idx,
-                        "total_issues": total_issues,
-                        "issue_id": full_issue.ims_id,
-                        "message": f"Processing issue {idx}/{total_issues}: {full_issue.ims_id}"
-                    }
-
                     # Download attachments if requested
                     if job.include_attachments:
                         attachments = await self.crawler.download_attachments(full_issue, credentials)
@@ -317,10 +320,21 @@ class CrawlJobsUseCase:
 
                         full_issue.attachments = attachments
 
-                    # Save issue to database FIRST (before relations)
+                    # Save issue to database
                     saved_issue_id = await self.issue_repo.save(full_issue)
                     job.add_crawled_issue(saved_issue_id)
-                    print(f"[IMS Crawler] Saved issue {full_issue.ims_id} (DB ID: {saved_issue_id})")
+                    logger.debug(f"[IMS Crawler] Saved issue {full_issue.ims_id} (DB ID: {saved_issue_id})")
+
+                    # Collect embedding text for batch processing
+                    embedding_text = f"{full_issue.title} {full_issue.description}"
+                    if full_issue.attachments:
+                        attachment_texts = [
+                            att.extracted_text for att in full_issue.attachments
+                            if att.extracted_text
+                        ]
+                        if attachment_texts:
+                            embedding_text += " " + " ".join(attachment_texts)
+                    embedding_data.append((saved_issue_id, embedding_text))
 
                     # Crawl related issues if requested
                     if job.include_related_issues:
@@ -333,9 +347,7 @@ class CrawlJobsUseCase:
 
                         for related_issue in related_issues:
                             try:
-                                # Save related issue first and get its DB ID
                                 saved_related_id = await self.issue_repo.save(related_issue)
-                                # Use the returned DB ID for the relation
                                 await self.issue_repo.save_relation(
                                     source_issue_id=saved_issue_id,
                                     target_issue_id=saved_related_id,
@@ -345,47 +357,100 @@ class CrawlJobsUseCase:
                             except Exception as rel_error:
                                 logger.warning(f"Failed to save relation for {related_issue.ims_id}: {rel_error}")
 
+                    # Progress update every 10 issues
+                    if idx % 10 == 0 or idx == total_issues:
                         yield {
-                            "event": "related_issues_found",
-                            "issue_id": full_issue.ims_id,
-                            "related_count": len(related_issues)
+                            "event": "saving_progress",
+                            "saved_count": idx,
+                            "total_issues": total_issues,
+                            "message": f"Saved {idx}/{total_issues} issues to database"
                         }
 
-                    # Generate and save embedding
-                    try:
-                        embedding_text = f"{full_issue.title} {full_issue.description}"
-                        if full_issue.attachments:
-                            attachment_texts = [
-                                att.extracted_text for att in full_issue.attachments
-                                if att.extracted_text
-                            ]
-                            embedding_text += " " + " ".join(attachment_texts)
-
-                        embedding = await self.embedding.embed_text(embedding_text)
-                        await self.issue_repo.save_embedding(saved_issue_id, embedding, embedding_text)
-                    except Exception as emb_error:
-                        logger.warning(f"Failed to save embedding for {full_issue.ims_id}: {emb_error}")
-
-                    self._jobs[job_id] = job
-                    await self.crawl_job_repo.save(job)
-
-                    yield {
-                        "event": "issue_completed",
-                        "issue_number": idx,
-                        "total_issues": total_issues,
-                        "issue_id": full_issue.ims_id,
-                        "crawled_count": job.issues_crawled
-                    }
-
                 except Exception as e:
-                    logger.error(f"Failed to process issue {full_issue.ims_id}: {e}")
-                    self._jobs[job_id] = job
-
+                    logger.error(f"Failed to save issue {full_issue.ims_id}: {e}")
                     yield {
-                        "event": "issue_failed",
+                        "event": "issue_save_failed",
                         "issue_id": full_issue.ims_id,
                         "error": str(e)
                     }
+
+            self._jobs[job_id] = job
+
+            # ============================================================
+            # PHASE 2: Batch generate embeddings (PARALLELIZED)
+            # ============================================================
+            if embedding_data:
+                yield {
+                    "event": "phase_started",
+                    "phase": "embedding",
+                    "message": f"Phase 2: Generating embeddings for {len(embedding_data)} issues (batch processing)..."
+                }
+
+                # Extract texts for batch embedding
+                issue_ids = [item[0] for item in embedding_data]
+                texts = [item[1] for item in embedding_data]
+
+                try:
+                    # Batch embedding - process all at once!
+                    EMBEDDING_BATCH_SIZE = 32  # Process in batches to avoid memory issues
+                    all_embeddings: List[List[float]] = []
+
+                    for batch_start in range(0, len(texts), EMBEDDING_BATCH_SIZE):
+                        batch_end = min(batch_start + EMBEDDING_BATCH_SIZE, len(texts))
+                        batch_texts = texts[batch_start:batch_end]
+
+                        batch_embeddings = await self.embedding.embed_batch(batch_texts)
+                        all_embeddings.extend(batch_embeddings)
+
+                        yield {
+                            "event": "embedding_progress",
+                            "processed_count": batch_end,
+                            "total_count": len(texts),
+                            "message": f"Generated embeddings: {batch_end}/{len(texts)}"
+                        }
+
+                    # ============================================================
+                    # PHASE 3: Save embeddings to DB (can be parallelized)
+                    # ============================================================
+                    yield {
+                        "event": "phase_started",
+                        "phase": "saving_embeddings",
+                        "message": f"Phase 3: Saving {len(all_embeddings)} embeddings to database..."
+                    }
+
+                    # Save embeddings in parallel batches
+                    SAVE_BATCH_SIZE = 20
+                    for batch_start in range(0, len(all_embeddings), SAVE_BATCH_SIZE):
+                        batch_end = min(batch_start + SAVE_BATCH_SIZE, len(all_embeddings))
+
+                        save_tasks = []
+                        for i in range(batch_start, batch_end):
+                            save_tasks.append(
+                                self.issue_repo.save_embedding(
+                                    issue_ids[i],
+                                    all_embeddings[i],
+                                    texts[i]
+                                )
+                            )
+
+                        await asyncio.gather(*save_tasks, return_exceptions=True)
+
+                        yield {
+                            "event": "embedding_save_progress",
+                            "saved_count": batch_end,
+                            "total_count": len(all_embeddings),
+                            "message": f"Saved embeddings: {batch_end}/{len(all_embeddings)}"
+                        }
+
+                except Exception as emb_error:
+                    logger.error(f"Batch embedding failed: {emb_error}")
+                    yield {
+                        "event": "embedding_failed",
+                        "error": str(emb_error),
+                        "message": "Failed to generate embeddings"
+                    }
+
+            await self.crawl_job_repo.save(job)
 
             # Mark job as completed
             job.mark_as_completed()
