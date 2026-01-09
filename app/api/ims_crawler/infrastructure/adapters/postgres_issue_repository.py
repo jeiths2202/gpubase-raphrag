@@ -131,6 +131,10 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
             target_issue_id: Target issue UUID
             relation_type: Type of relation ('relates_to', 'blocks', 'duplicates')
         """
+        # Skip self-reference
+        if source_issue_id == target_issue_id:
+            return
+
         query = """
             INSERT INTO ims_issue_relations (source_issue_id, target_issue_id, relation_type)
             VALUES ($1, $2, $3)
@@ -140,6 +144,116 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
 
         async with self.pool.acquire() as conn:
             await conn.execute(query, source_issue_id, target_issue_id, relation_type)
+
+    async def save_relations_bulk(
+        self,
+        source_issue_id: UUID,
+        source_ims_id: str,
+        related_ims_ids: List[str],
+        user_id: UUID,
+        relation_type: str = 'relates_to'
+    ) -> int:
+        """
+        Save multiple relationships for an issue.
+
+        Looks up target issue UUIDs by their IMS IDs and creates relations.
+
+        Args:
+            source_issue_id: Source issue UUID
+            source_ims_id: Source issue IMS ID (for logging)
+            related_ims_ids: List of related issue IMS IDs
+            user_id: User UUID (to look up target issues)
+            relation_type: Type of relation (default 'relates_to')
+
+        Returns:
+            Number of relations created
+        """
+        if not related_ims_ids:
+            return 0
+
+        # Find target issue UUIDs by IMS IDs
+        query_find = """
+            SELECT id, ims_id FROM ims_issues
+            WHERE user_id = $1 AND ims_id = ANY($2)
+        """
+
+        query_insert = """
+            INSERT INTO ims_issue_relations (source_issue_id, target_issue_id, relation_type)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (source_issue_id, target_issue_id, relation_type)
+            DO NOTHING
+        """
+
+        async with self.pool.acquire() as conn:
+            # Find existing target issues
+            rows = await conn.fetch(query_find, user_id, related_ims_ids)
+            target_map = {row['ims_id']: row['id'] for row in rows}
+
+            # Insert relations for found targets
+            created_count = 0
+            for ims_id in related_ims_ids:
+                if ims_id in target_map:
+                    target_id = target_map[ims_id]
+                    if target_id != source_issue_id:  # Don't self-reference
+                        await conn.execute(query_insert, source_issue_id, target_id, relation_type)
+                        created_count += 1
+
+            return created_count
+
+    async def get_related_issue_ids(self, issue_id: UUID) -> List[str]:
+        """
+        Get IMS IDs of related issues.
+
+        Args:
+            issue_id: Source issue UUID
+
+        Returns:
+            List of related issue IMS IDs
+        """
+        query = """
+            SELECT i.ims_id
+            FROM ims_issue_relations r
+            JOIN ims_issues i ON r.target_issue_id = i.id
+            WHERE r.source_issue_id = $1
+            UNION
+            SELECT i.ims_id
+            FROM ims_issue_relations r
+            JOIN ims_issues i ON r.source_issue_id = i.id
+            WHERE r.target_issue_id = $1
+        """
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, issue_id)
+            return [row['ims_id'] for row in rows]
+
+    async def get_all_relations_for_user(self, user_id: UUID) -> List[dict]:
+        """
+        Get all issue relations for a user.
+
+        Returns list of {source_ims_id, target_ims_id, relation_type} dicts.
+        Used by graph visualization.
+        """
+        query = """
+            SELECT
+                s.ims_id as source_ims_id,
+                t.ims_id as target_ims_id,
+                r.relation_type
+            FROM ims_issue_relations r
+            JOIN ims_issues s ON r.source_issue_id = s.id
+            JOIN ims_issues t ON r.target_issue_id = t.id
+            WHERE s.user_id = $1
+        """
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, user_id)
+            return [
+                {
+                    'source_ims_id': row['source_ims_id'],
+                    'target_ims_id': row['target_ims_id'],
+                    'relation_type': row['relation_type']
+                }
+                for row in rows
+            ]
 
     async def find_by_id(self, issue_id: UUID) -> Optional[Issue]:
         """Find issue by ID"""
