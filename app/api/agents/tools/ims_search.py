@@ -73,44 +73,72 @@ Can filter by status, priority, product, and other criteria."""
             return self.create_error_result("Query parameter is required")
 
         try:
-            # Try to use the IMS search service
-            from ...ims_crawler.application.use_cases.search_issues import SearchIssuesUseCase
+            # Use direct database search (no user filtering for agent access)
+            from ...ims_crawler.infrastructure.dependencies import get_db_pool
 
-            # Build filters
+            # Build SQL filters
             filters = {}
+            where_clauses = []
+            params = []
+            param_idx = 1
+
             if status != "all":
                 filters["status"] = status
+                where_clauses.append(f"status = ${param_idx}")
+                params.append(status)
+                param_idx += 1
+
             if priority != "all":
                 filters["priority"] = priority
+                where_clauses.append(f"priority = ${param_idx}")
+                params.append(priority)
+                param_idx += 1
+
             if product:
                 filters["product"] = product
+                where_clauses.append(f"product ILIKE ${param_idx}")
+                params.append(f"%{product}%")
+                param_idx += 1
 
-            # Execute search
-            use_case = SearchIssuesUseCase()
-            results = await use_case.execute(
-                query=query,
-                filters=filters,
-                limit=limit
-            )
+            # Build the query - search in title and description
+            # Use full-text search for better keyword matching
+            search_pattern = f"%{query}%"
+            where_clauses.append(f"(title ILIKE ${param_idx} OR description ILIKE ${param_idx + 1})")
+            params.extend([search_pattern, search_pattern])
+
+            where_clause = " AND ".join(where_clauses) if where_clauses else "TRUE"
+
+            sql = f"""
+                SELECT
+                    ims_id, title, description, status, priority,
+                    product, created_at
+                FROM ims_issues
+                WHERE {where_clause}
+                ORDER BY created_at DESC
+                LIMIT {limit}
+            """
+
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(sql, *params)
 
             # Format results
             formatted_issues = []
-            for issue in results.get("issues", [])[:limit]:
+            for row in rows:
                 formatted_issues.append({
-                    "id": issue.get("issue_id", ""),
-                    "title": issue.get("title", ""),
-                    "status": issue.get("status", ""),
-                    "priority": issue.get("priority", ""),
-                    "product": issue.get("product", ""),
-                    "description": issue.get("description", "")[:300],
-                    "created_at": issue.get("created_at", ""),
-                    "related_issues": issue.get("related_issue_ids", [])[:5]
+                    "id": row["ims_id"],
+                    "title": row["title"] or "",
+                    "status": row["status"] or "",
+                    "priority": row["priority"] or "",
+                    "product": row["product"] or "",
+                    "description": (row["description"] or "")[:300],
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else ""
                 })
 
             output = {
                 "query": query,
                 "filters": filters,
-                "total_count": results.get("total_count", len(formatted_issues)),
+                "total_count": len(formatted_issues),
                 "issues": formatted_issues
             }
 
