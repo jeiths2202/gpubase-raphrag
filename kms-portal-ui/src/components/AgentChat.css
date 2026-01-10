@@ -75,12 +75,17 @@
   top: calc(100% + var(--space-1));
   left: 0;
   min-width: 240px;
-  background: var(--surface-primary);
+  background: var(--color-bg-secondary, #1e293b);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  z-index: 100;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
   overflow: hidden;
+}
+
+[data-theme="light"] .agent-selector-dropdown {
+  background: #ffffff;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
 }
 
 .agent-selector-option {
@@ -89,7 +94,7 @@
   gap: var(--space-3);
   width: 100%;
   padding: var(--space-3);
-  background: transparent;
+  background: var(--color-bg-secondary, #1e293b);
   border: none;
   color: var(--text-primary);
   text-align: left;
@@ -98,11 +103,23 @@
 }
 
 .agent-selector-option:hover {
-  background: var(--surface-hover);
+  background: var(--color-bg-tertiary, #334155);
+}
+
+[data-theme="light"] .agent-selector-option {
+  background: #ffffff;
+}
+
+[data-theme="light"] .agent-selector-option:hover {
+  background: #f1f5f9;
 }
 
 .agent-selector-option.active {
-  background: var(--brand-primary-muted);
+  background: var(--color-bg-tertiary, #334155);
+}
+
+[data-theme="light"] .agent-selector-option.active {
+  background: #e0e7ff;
 }
 
 .agent-selector-option-info {
