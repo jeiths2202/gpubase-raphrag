@@ -149,9 +149,10 @@ class MemoryConversationRepository(ConversationRepository):
         skip: int = 0,
         limit: int = 50,
         include_archived: bool = False,
-        include_deleted: bool = False
+        include_deleted: bool = False,
+        agent_type: Optional[str] = None
     ) -> List[ConversationEntity]:
-        """Get conversations for a user"""
+        """Get conversations for a user, optionally filtered by agent_type"""
         conversations = []
 
         for conv in self._conversations.values():
@@ -160,6 +161,8 @@ class MemoryConversationRepository(ConversationRepository):
             if not include_deleted and conv.is_deleted:
                 continue
             if not include_archived and conv.is_archived:
+                continue
+            if agent_type and conv.agent_type != agent_type:
                 continue
             conversations.append(conv)
 

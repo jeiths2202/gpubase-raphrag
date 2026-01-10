@@ -141,6 +141,7 @@ class PostgresConversationRepository(ConversationRepository):
             deleted_by=row.get("deleted_by"),
             strategy=row.get("strategy", "auto"),
             language=row.get("language", "auto"),
+            agent_type=row.get("agent_type", "auto"),
             metadata=json.loads(row["metadata"]) if row.get("metadata") else {},
             created_at=row["created_at"],
             updated_at=row["updated_at"]
@@ -220,10 +221,10 @@ class PostgresConversationRepository(ConversationRepository):
                 INSERT INTO conversations (
                     id, user_id, project_id, session_id, title,
                     message_count, total_tokens, is_archived, is_starred,
-                    is_deleted, strategy, language, metadata,
+                    is_deleted, strategy, language, agent_type, metadata,
                     created_at, updated_at
                 ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
                 )
                 RETURNING *
                 """,
@@ -239,6 +240,7 @@ class PostgresConversationRepository(ConversationRepository):
                 entity.is_deleted,
                 entity.strategy,
                 entity.language,
+                entity.agent_type,
                 json.dumps(entity.metadata),
                 now,
                 now
@@ -258,7 +260,8 @@ class PostgresConversationRepository(ConversationRepository):
                     is_starred = $6,
                     strategy = $7,
                     language = $8,
-                    metadata = $9,
+                    agent_type = $9,
+                    metadata = $10,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $1
                 RETURNING *
@@ -271,6 +274,7 @@ class PostgresConversationRepository(ConversationRepository):
                 entity.is_starred,
                 entity.strategy,
                 entity.language,
+                entity.agent_type,
                 json.dumps(entity.metadata)
             )
             if not row:
@@ -372,9 +376,10 @@ class PostgresConversationRepository(ConversationRepository):
         skip: int = 0,
         limit: int = 50,
         include_archived: bool = False,
-        include_deleted: bool = False
+        include_deleted: bool = False,
+        agent_type: Optional[str] = None
     ) -> List[ConversationEntity]:
-        """Get conversations for a specific user."""
+        """Get conversations for a specific user, optionally filtered by agent_type."""
         async with self._pool.acquire() as conn:
             await self._set_user_context(conn, user_id)
 
@@ -382,14 +387,33 @@ class PostgresConversationRepository(ConversationRepository):
                 SELECT * FROM conversations
                 WHERE user_id = $1
             """
+            params = [user_id]
+            param_idx = 2
+
             if not include_deleted:
                 query += " AND is_deleted = FALSE"
             if not include_archived:
                 query += " AND is_archived = FALSE"
+            if agent_type:
+                query += f" AND agent_type = ${param_idx}"
+                params.append(agent_type)
+                param_idx += 1
 
-            query += " ORDER BY updated_at DESC LIMIT $2 OFFSET $3"
+            query += f" ORDER BY updated_at DESC LIMIT ${param_idx} OFFSET ${param_idx + 1}"
+            params.extend([limit, skip])
 
-            rows = await conn.fetch(query, user_id, limit, skip)
+            # Debug logging
+            logger.info(f"[get_by_user] agent_type={agent_type}, user_id={user_id}")
+            logger.info(f"[get_by_user] Query: {query}")
+            logger.info(f"[get_by_user] Params: {params}")
+
+            rows = await conn.fetch(query, *params)
+
+            # Log results
+            logger.info(f"[get_by_user] Returned {len(rows)} conversations for agent_type={agent_type}")
+            for row in rows:
+                logger.info(f"[get_by_user]   - id={row['id']}, agent_type={row['agent_type']}, title={row.get('title', 'N/A')}")
+
             return [self._row_to_conversation(row) for row in rows]
 
     async def get_by_project(

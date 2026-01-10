@@ -3,6 +3,7 @@
  *
  * Manages artifact state for the AI Agent chat.
  * Features:
+ * - Per-agent-type artifact collection
  * - Artifact collection and display
  * - Panel state management (open/close, resize)
  * - Selected artifact tracking
@@ -10,7 +11,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { ArtifactType, ArtifactLanguage } from '../api/agent.api';
+import type { ArtifactType, ArtifactLanguage, AgentType } from '../api/agent.api';
 
 // =============================================================================
 // Types
@@ -28,6 +29,7 @@ export interface Artifact {
   lineCount: number;
   charCount: number;
   messageId?: string;
+  agentType?: AgentType;
   createdAt: Date;
 }
 
@@ -41,20 +43,34 @@ export interface ArtifactPanelState {
 }
 
 /**
+ * Per-agent artifact state
+ */
+interface AgentArtifactState {
+  artifacts: Artifact[];
+  selectedArtifactId: string | null;
+}
+
+/**
  * Store state
  */
 interface ArtifactState {
-  // Artifacts list
-  artifacts: Artifact[];
+  // Per-agent artifacts
+  agentArtifacts: Record<AgentType, AgentArtifactState>;
 
-  // Panel state
+  // Panel state (shared across agents)
   panel: ArtifactPanelState;
 
-  // Actions - Artifacts
-  addArtifact: (artifact: Artifact) => void;
-  removeArtifact: (id: string) => void;
-  clearArtifacts: () => void;
-  updateArtifact: (id: string, updates: Partial<Artifact>) => void;
+  // Current agent type (for panel display)
+  currentAgentType: AgentType;
+
+  // Actions - Agent-specific Artifacts
+  addArtifact: (agentType: AgentType, artifact: Artifact) => void;
+  removeArtifact: (agentType: AgentType, id: string) => void;
+  clearArtifacts: (agentType: AgentType) => void;
+  updateArtifact: (agentType: AgentType, id: string, updates: Partial<Artifact>) => void;
+
+  // Actions - Agent switching
+  setCurrentAgentType: (agentType: AgentType) => void;
 
   // Actions - Panel
   openPanel: (artifactId?: string) => void;
@@ -64,8 +80,10 @@ interface ArtifactState {
   selectArtifact: (id: string) => void;
 
   // Getters
-  getArtifact: (id: string) => Artifact | undefined;
+  getArtifacts: (agentType: AgentType) => Artifact[];
+  getArtifact: (agentType: AgentType, id: string) => Artifact | undefined;
   getSelectedArtifact: () => Artifact | undefined;
+  getCurrentArtifacts: () => Artifact[];
 }
 
 // =============================================================================
@@ -76,6 +94,20 @@ const MIN_PANEL_WIDTH = 300;
 const MAX_PANEL_WIDTH = 1200;
 const DEFAULT_PANEL_WIDTH = 500;
 
+const createInitialAgentArtifactState = (): AgentArtifactState => ({
+  artifacts: [],
+  selectedArtifactId: null,
+});
+
+const initialAgentArtifacts: Record<AgentType, AgentArtifactState> = {
+  auto: createInitialAgentArtifactState(),
+  rag: createInitialAgentArtifactState(),
+  ims: createInitialAgentArtifactState(),
+  vision: createInitialAgentArtifactState(),
+  code: createInitialAgentArtifactState(),
+  planner: createInitialAgentArtifactState(),
+};
+
 // =============================================================================
 // Store
 // =============================================================================
@@ -84,73 +116,129 @@ export const useArtifactStore = create<ArtifactState>()(
   persist(
     (set, get) => ({
       // Initial state
-      artifacts: [],
+      agentArtifacts: initialAgentArtifacts,
       panel: {
         isOpen: false,
         width: DEFAULT_PANEL_WIDTH,
         selectedArtifactId: null,
       },
+      currentAgentType: 'auto',
 
-      // Artifact actions
-      addArtifact: (artifact: Artifact) => {
+      // Agent-specific artifact actions
+      addArtifact: (agentType: AgentType, artifact: Artifact) => {
         set((state) => {
+          const agentState = state.agentArtifacts[agentType];
           // Check if artifact with same ID already exists
-          const exists = state.artifacts.some((a) => a.id === artifact.id);
+          const exists = agentState.artifacts.some((a) => a.id === artifact.id);
           if (exists) {
             return state;
           }
 
+          // Add agent type to artifact
+          const artifactWithAgent = { ...artifact, agentType };
+
           return {
-            artifacts: [...state.artifacts, artifact],
-            // Auto-select the new artifact and open panel
-            panel: {
-              ...state.panel,
-              isOpen: true,
-              selectedArtifactId: artifact.id,
+            agentArtifacts: {
+              ...state.agentArtifacts,
+              [agentType]: {
+                ...agentState,
+                artifacts: [...agentState.artifacts, artifactWithAgent],
+                selectedArtifactId: artifact.id,
+              },
             },
+            // Auto-open panel if this is the current agent
+            panel: state.currentAgentType === agentType
+              ? {
+                  ...state.panel,
+                  isOpen: true,
+                  selectedArtifactId: artifact.id,
+                }
+              : state.panel,
           };
         });
       },
 
-      removeArtifact: (id: string) => {
+      removeArtifact: (agentType: AgentType, id: string) => {
         set((state) => {
-          const newArtifacts = state.artifacts.filter((a) => a.id !== id);
-          const wasSelected = state.panel.selectedArtifactId === id;
+          const agentState = state.agentArtifacts[agentType];
+          const newArtifacts = agentState.artifacts.filter((a) => a.id !== id);
+          const wasSelected = agentState.selectedArtifactId === id;
 
           return {
-            artifacts: newArtifacts,
-            panel: {
-              ...state.panel,
-              selectedArtifactId: wasSelected
-                ? newArtifacts[newArtifacts.length - 1]?.id || null
-                : state.panel.selectedArtifactId,
+            agentArtifacts: {
+              ...state.agentArtifacts,
+              [agentType]: {
+                ...agentState,
+                artifacts: newArtifacts,
+                selectedArtifactId: wasSelected
+                  ? newArtifacts[newArtifacts.length - 1]?.id || null
+                  : agentState.selectedArtifactId,
+              },
             },
+            panel: state.currentAgentType === agentType && wasSelected
+              ? {
+                  ...state.panel,
+                  selectedArtifactId: newArtifacts[newArtifacts.length - 1]?.id || null,
+                }
+              : state.panel,
           };
         });
       },
 
-      clearArtifacts: () => {
-        set({
-          artifacts: [],
-          panel: {
-            ...get().panel,
-            isOpen: false,
-            selectedArtifactId: null,
+      clearArtifacts: (agentType: AgentType) => {
+        set((state) => ({
+          agentArtifacts: {
+            ...state.agentArtifacts,
+            [agentType]: {
+              artifacts: [],
+              selectedArtifactId: null,
+            },
           },
-        });
+          panel: state.currentAgentType === agentType
+            ? {
+                ...state.panel,
+                isOpen: false,
+                selectedArtifactId: null,
+              }
+            : state.panel,
+        }));
       },
 
-      updateArtifact: (id: string, updates: Partial<Artifact>) => {
+      updateArtifact: (agentType: AgentType, id: string, updates: Partial<Artifact>) => {
         set((state) => ({
-          artifacts: state.artifacts.map((a) =>
-            a.id === id ? { ...a, ...updates } : a
-          ),
+          agentArtifacts: {
+            ...state.agentArtifacts,
+            [agentType]: {
+              ...state.agentArtifacts[agentType],
+              artifacts: state.agentArtifacts[agentType].artifacts.map((a) =>
+                a.id === id ? { ...a, ...updates } : a
+              ),
+            },
+          },
         }));
+      },
+
+      // Agent switching
+      setCurrentAgentType: (agentType: AgentType) => {
+        set((state) => {
+          const agentState = state.agentArtifacts[agentType];
+          return {
+            currentAgentType: agentType,
+            panel: {
+              ...state.panel,
+              // Update selected artifact to the current agent's selection
+              selectedArtifactId: agentState.selectedArtifactId,
+              // Close panel if switching agent has no artifacts
+              isOpen: agentState.artifacts.length > 0 ? state.panel.isOpen : false,
+            },
+          };
+        });
       },
 
       // Panel actions
       openPanel: (artifactId?: string) => {
         const state = get();
+        const currentArtifacts = state.agentArtifacts[state.currentAgentType].artifacts;
         set({
           panel: {
             ...state.panel,
@@ -158,7 +246,7 @@ export const useArtifactStore = create<ArtifactState>()(
             selectedArtifactId:
               artifactId ||
               state.panel.selectedArtifactId ||
-              state.artifacts[state.artifacts.length - 1]?.id ||
+              currentArtifacts[currentArtifacts.length - 1]?.id ||
               null,
           },
         });
@@ -197,26 +285,47 @@ export const useArtifactStore = create<ArtifactState>()(
       },
 
       selectArtifact: (id: string) => {
-        set((state) => ({
-          panel: {
-            ...state.panel,
-            selectedArtifactId: id,
-            isOpen: true,
-          },
-        }));
+        set((state) => {
+          // Also update the agent's selected artifact
+          const currentAgentState = state.agentArtifacts[state.currentAgentType];
+          return {
+            agentArtifacts: {
+              ...state.agentArtifacts,
+              [state.currentAgentType]: {
+                ...currentAgentState,
+                selectedArtifactId: id,
+              },
+            },
+            panel: {
+              ...state.panel,
+              selectedArtifactId: id,
+              isOpen: true,
+            },
+          };
+        });
       },
 
       // Getters
-      getArtifact: (id: string) => {
-        return get().artifacts.find((a) => a.id === id);
+      getArtifacts: (agentType: AgentType) => {
+        return get().agentArtifacts[agentType].artifacts;
+      },
+
+      getArtifact: (agentType: AgentType, id: string) => {
+        return get().agentArtifacts[agentType].artifacts.find((a) => a.id === id);
       },
 
       getSelectedArtifact: () => {
         const state = get();
+        const currentArtifacts = state.agentArtifacts[state.currentAgentType].artifacts;
         if (!state.panel.selectedArtifactId) return undefined;
-        return state.artifacts.find(
+        return currentArtifacts.find(
           (a) => a.id === state.panel.selectedArtifactId
         );
+      },
+
+      getCurrentArtifacts: () => {
+        const state = get();
+        return state.agentArtifacts[state.currentAgentType].artifacts;
       },
     }),
     {
@@ -231,6 +340,19 @@ export const useArtifactStore = create<ArtifactState>()(
     }
   )
 );
+
+// =============================================================================
+// Selectors for use in components
+// =============================================================================
+
+/**
+ * Get artifacts for the current agent (reactive)
+ */
+export const useCurrentArtifacts = () => {
+  return useArtifactStore((state) =>
+    state.agentArtifacts[state.currentAgentType].artifacts
+  );
+};
 
 // =============================================================================
 // Helper functions

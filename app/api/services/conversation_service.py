@@ -252,6 +252,8 @@ class ConversationService:
         Returns:
             List of conversation list items
         """
+        logger.info(f"[list_conversations] agent_type={agent_type}, user_id={user_id}, repository={type(self._repository).__name__}")
+
         conversations = await self._repository.get_by_user(
             user_id=user_id,
             skip=skip,
@@ -259,6 +261,10 @@ class ConversationService:
             include_archived=include_archived,
             agent_type=agent_type
         )
+
+        logger.info(f"[list_conversations] Returning {len(conversations)} conversations for agent_type={agent_type}")
+        for c in conversations:
+            logger.info(f"[list_conversations]   - id={c.id}, agent_type={c.agent_type}, title={c.title}")
 
         return [self._entity_to_list_item(c) for c in conversations]
 
@@ -959,15 +965,9 @@ def get_conversation_service() -> ConversationService:
         from ..core.container import Container
         container = Container.get_instance()
 
-        try:
-            # Try to get PostgreSQL repository from container
-            repository = container.get("conversation_repository")
-            logger.info("Using PostgreSQL conversation repository from container")
-        except KeyError:
-            # Fallback to memory repository if not registered (shouldn't happen in production)
-            logger.warning("PostgreSQL conversation repository not found in container, falling back to memory")
-            from ..infrastructure.memory.conversation_repository import MemoryConversationRepository
-            repository = MemoryConversationRepository()
+        # PostgreSQL repository is required - no fallback to memory
+        repository = container.get("conversation_repository")
+        logger.info(f"Using conversation repository: {type(repository).__name__}")
 
         _conversation_service = ConversationService(
             repository=repository

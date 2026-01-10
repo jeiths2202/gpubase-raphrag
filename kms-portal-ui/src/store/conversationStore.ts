@@ -118,6 +118,7 @@ export const useConversationStore = create<ConversationState>()(
 
       // Load conversations for an agent type
       loadConversations: async (agentType: AgentType) => {
+        console.log('[conversationStore] loadConversations called for:', agentType);
         set((state) => ({
           agentStates: {
             ...state.agentStates,
@@ -134,6 +135,8 @@ export const useConversationStore = create<ConversationState>()(
             agent_type: agentType,
             limit: 50,
           });
+
+          console.log('[conversationStore] Received conversations for', agentType, ':', conversations.length, conversations);
 
           set((state) => ({
             agentStates: {

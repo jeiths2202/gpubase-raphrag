@@ -162,12 +162,11 @@ async def lifespan(app: FastAPI):
         )
 
     except Exception as e:
-        logger.warning(
-            f"PostgreSQL pool initialization failed, using in-memory storage: {e}",
+        logger.error(
+            f"FATAL: PostgreSQL pool initialization failed: {e}",
             category=LogCategory.BUSINESS
         )
-        # Continue without PostgreSQL - will fall back to in-memory storage
-        trace_writer = None
+        raise RuntimeError(f"PostgreSQL connection required but failed: {e}")
 
     # ==================== Background Task Queue Initialization ====================
     from .ims_crawler.infrastructure.services import get_task_queue

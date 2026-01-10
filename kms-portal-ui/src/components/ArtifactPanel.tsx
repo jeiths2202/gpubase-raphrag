@@ -93,14 +93,18 @@ const PURIFY_CONFIG = {
 
 export function ArtifactPanel() {
   const {
-    artifacts,
     panel,
     closePanel,
     setPanelWidth,
     selectArtifact,
     removeArtifact,
     getSelectedArtifact,
+    getCurrentArtifacts,
+    currentAgentType,
   } = useArtifactStore();
+
+  // Get artifacts for the current agent
+  const artifacts = getCurrentArtifacts();
 
   const [isDragging, setIsDragging] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -325,7 +329,7 @@ export function ArtifactPanel() {
                   className="artifact-tab-close"
                   onClick={(e) => {
                     e.stopPropagation();
-                    removeArtifact(artifact.id);
+                    removeArtifact(currentAgentType, artifact.id);
                   }}
                 >
                   <X size={12} />

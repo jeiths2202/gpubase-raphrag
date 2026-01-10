@@ -84,23 +84,29 @@ export function ConversationSidebar({
   onNewConversation,
   onSelectConversation,
 }: ConversationSidebarProps) {
-  const {
-    agentStates,
-    loadConversations,
-    deleteConversation,
-    isDeleting,
-  } = useConversationStore();
+  // Use explicit selectors to ensure re-render on state changes
+  const loadConversations = useConversationStore((state) => state.loadConversations);
+  const deleteConversation = useConversationStore((state) => state.deleteConversation);
+  const isDeleting = useConversationStore((state) => state.isDeleting);
+
+  // Get ALL agent states and derive the current agent's state
+  // This ensures proper re-rendering when any agent state changes
+  const agentStates = useConversationStore((state) => state.agentStates);
+  const agentState = agentStates[agentType];
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const state = agentStates?.[agentType];
-  const conversations = state?.conversations || [];
-  const activeConversationId = state?.activeConversationId || null;
-  const isLoading = state?.isLoading || false;
-  const error = state?.error || null;
+  const conversations = agentState?.conversations || [];
+  const activeConversationId = agentState?.activeConversationId || null;
+  const isLoading = agentState?.isLoading || false;
+  const error = agentState?.error || null;
+
+  // Debug logging
+  console.log('[ConversationSidebar] agentType:', agentType, 'conversations:', conversations.length, 'agentState:', agentState);
 
   // Load conversations when agent type changes
   useEffect(() => {
+    console.log('[ConversationSidebar] Loading conversations for:', agentType);
     loadConversations(agentType);
   }, [agentType, loadConversations]);
 

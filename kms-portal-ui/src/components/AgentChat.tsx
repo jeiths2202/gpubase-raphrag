@@ -152,11 +152,12 @@ export const AgentChat: React.FC = () => {
 
   // Artifact store
   const {
-    artifacts,
     panel: artifactPanel,
     addArtifact,
     clearArtifacts,
     togglePanel: toggleArtifactPanel,
+    setCurrentAgentType: setArtifactAgentType,
+    getCurrentArtifacts,
   } = useArtifactStore();
 
   // Conversation store
@@ -170,19 +171,97 @@ export const AgentChat: React.FC = () => {
   } = useConversationStore();
 
   // State
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<AgentType>('auto');
+  const [inputValue, setInputValue] = useState('');
+  const [showAgentSelector, setShowAgentSelector] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
 
-  // Get active conversation ID for current agent (must be after selectedAgent declaration)
+  // Ref to track current selectedAgent (for async callbacks to check current value)
+  const selectedAgentRef = useRef<AgentType>(selectedAgent);
+  selectedAgentRef.current = selectedAgent;
+
+  // Per-agent local state structure
+  interface AgentLocalState {
+    messages: ChatMessage[];
+    streamingMessage: ChatMessage | null;
+    isLoading: boolean;
+    abortController: AbortController | null;
+  }
+
+  // Ref to store state for each agent (persists across renders)
+  const agentLocalStatesRef = useRef<Record<AgentType, AgentLocalState>>({
+    auto: { messages: [], streamingMessage: null, isLoading: false, abortController: null },
+    rag: { messages: [], streamingMessage: null, isLoading: false, abortController: null },
+    ims: { messages: [], streamingMessage: null, isLoading: false, abortController: null },
+    vision: { messages: [], streamingMessage: null, isLoading: false, abortController: null },
+    code: { messages: [], streamingMessage: null, isLoading: false, abortController: null },
+    planner: { messages: [], streamingMessage: null, isLoading: false, abortController: null },
+  });
+
+  // Current agent's state (derived from ref)
+  const [messages, setMessagesState] = useState<ChatMessage[]>([]);
+  const [streamingMessage, setStreamingMessageState] = useState<ChatMessage | null>(null);
+  const [isLoading, setIsLoadingState] = useState(false);
+  const [abortController, setAbortControllerState] = useState<AbortController | null>(null);
+
+  // Functions to update a SPECIFIC agent's state (for background streaming)
+  // These use selectedAgentRef.current to always get the CURRENT selected agent,
+  // not the one captured in the closure at function creation time
+  const updateAgentMessages = useCallback((targetAgent: AgentType, updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
+    const prev = agentLocalStatesRef.current[targetAgent].messages;
+    const newValue = typeof updater === 'function' ? updater(prev) : updater;
+    agentLocalStatesRef.current[targetAgent].messages = newValue;
+    // Only update React state if this is the currently selected agent
+    if (targetAgent === selectedAgentRef.current) {
+      setMessagesState(newValue);
+    }
+  }, []);
+
+  const updateAgentStreamingMessage = useCallback((targetAgent: AgentType, msg: ChatMessage | null) => {
+    agentLocalStatesRef.current[targetAgent].streamingMessage = msg;
+    if (targetAgent === selectedAgentRef.current) {
+      setStreamingMessageState(msg);
+    }
+  }, []);
+
+  const updateAgentIsLoading = useCallback((targetAgent: AgentType, loading: boolean) => {
+    agentLocalStatesRef.current[targetAgent].isLoading = loading;
+    if (targetAgent === selectedAgentRef.current) {
+      setIsLoadingState(loading);
+    }
+  }, []);
+
+  const updateAgentAbortController = useCallback((targetAgent: AgentType, controller: AbortController | null) => {
+    agentLocalStatesRef.current[targetAgent].abortController = controller;
+    if (targetAgent === selectedAgentRef.current) {
+      setAbortControllerState(controller);
+    }
+  }, []);
+
+  // Wrapper functions to update CURRENT agent's state (for direct UI interactions)
+  const setMessages = useCallback((updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
+    updateAgentMessages(selectedAgent, updater);
+  }, [selectedAgent, updateAgentMessages]);
+
+  const setStreamingMessage = useCallback((msg: ChatMessage | null) => {
+    updateAgentStreamingMessage(selectedAgent, msg);
+  }, [selectedAgent, updateAgentStreamingMessage]);
+
+  const setIsLoading = useCallback((loading: boolean) => {
+    updateAgentIsLoading(selectedAgent, loading);
+  }, [selectedAgent, updateAgentIsLoading]);
+
+  const setAbortController = useCallback((controller: AbortController | null) => {
+    updateAgentAbortController(selectedAgent, controller);
+  }, [selectedAgent, updateAgentAbortController]);
+
+  // Get active conversation ID for current agent
   const agentState = agentStates[selectedAgent] || { activeConversationId: null };
   const activeConversationId = agentState.activeConversationId;
-  const [showAgentSelector, setShowAgentSelector] = useState(false);
-  const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
-  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-  const [abortController, setAbortController] = useState<AbortController | null>(null);
-  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
+
+  // Get artifacts for current agent
+  const artifacts = getCurrentArtifacts();
 
   // IMS Credentials modal state
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
@@ -202,16 +281,21 @@ export const AgentChat: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingMessage]);
 
-  // Clear messages and load conversations when agent type changes
+  // Restore agent state and load conversations when agent type changes
   useEffect(() => {
-    // Clear current messages when switching agent types
-    setMessages([]);
-    setStreamingMessage(null);
-    clearArtifacts();
+    // Restore state from ref for the selected agent
+    const savedState = agentLocalStatesRef.current[selectedAgent];
+    setMessagesState(savedState.messages);
+    setStreamingMessageState(savedState.streamingMessage);
+    setIsLoadingState(savedState.isLoading);
+    setAbortControllerState(savedState.abortController);
+
+    // Update artifact store to show this agent's artifacts
+    setArtifactAgentType(selectedAgent);
 
     // Load conversations for the new agent type
     loadConversations(selectedAgent);
-  }, [selectedAgent, loadConversations, clearArtifacts]);
+  }, [selectedAgent, loadConversations, setArtifactAgentType]);
 
   // Auto-load active conversation when agent type changes and there's an active conversation
   useEffect(() => {
@@ -259,6 +343,11 @@ export const AgentChat: React.FC = () => {
   const handleSend = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
 
+    // IMPORTANT: Capture the agent type at the start - this won't change during streaming
+    const requestingAgent = selectedAgent;
+    // Also capture the active conversation ID for THIS agent (not current render state)
+    const requestingAgentConversationId = agentStates[requestingAgent]?.activeConversationId || null;
+
     const userMessage: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
@@ -266,17 +355,17 @@ export const AgentChat: React.FC = () => {
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    updateAgentMessages(requestingAgent, (prev) => [...prev, userMessage]);
     setInputValue('');
-    setIsLoading(true);
+    updateAgentIsLoading(requestingAgent, true);
 
     // Get or create conversation for auto-save
-    let conversationId = activeConversationId;
+    let conversationId = requestingAgentConversationId;
     if (!conversationId) {
       try {
         // Create new conversation with first message as title
         const title = userMessage.content.slice(0, 50) + (userMessage.content.length > 50 ? '...' : '');
-        const conversation = await createConversation(selectedAgent, title);
+        const conversation = await createConversation(requestingAgent, title);
         conversationId = conversation.id;
         console.log('[AgentChat] Created new conversation:', conversationId);
       } catch (error) {
@@ -302,16 +391,16 @@ export const AgentChat: React.FC = () => {
       role: 'assistant',
       content: t('common.agent.status.analyzing') || 'Analyzing your request...',
       timestamp: new Date(),
-      agentType: selectedAgent,
+      agentType: requestingAgent,
       toolCalls: [],
       sources: [],
       isStreaming: true,
     };
-    setStreamingMessage(streamingMsg);
+    updateAgentStreamingMessage(requestingAgent, streamingMsg);
 
     // Create abort controller for cancellation
     const controller = new AbortController();
-    setAbortController(controller);
+    updateAgentAbortController(requestingAgent, controller);
 
     try {
       let accumulatedContent = '';
@@ -319,12 +408,12 @@ export const AgentChat: React.FC = () => {
       let sources: AgentSource[] = [];
       let receivedAnyChunk = false;
 
-      console.log('[AgentChat] Starting stream for task:', userMessage.content, 'agent:', selectedAgent);
+      console.log('[AgentChat] Starting stream for task:', userMessage.content, 'agent:', requestingAgent);
 
       // When 'auto' is selected, don't send agent_type to let backend classify
-      const requestPayload = selectedAgent === 'auto'
+      const requestPayload = requestingAgent === 'auto'
         ? { task: userMessage.content }
-        : { task: userMessage.content, agent_type: selectedAgent };
+        : { task: userMessage.content, agent_type: requestingAgent };
 
       for await (const chunk of streamAgent(
         requestPayload,
@@ -334,9 +423,11 @@ export const AgentChat: React.FC = () => {
         console.log('[AgentChat] Received chunk:', chunk.chunk_type, chunk);
         switch (chunk.chunk_type) {
           case 'thinking':
-            // Update with thinking status
-            setStreamingMessage((prev) =>
-              prev ? { ...prev, content: chunk.content || 'Analyzing...' } : prev
+            // Update with thinking status - use captured requestingAgent
+            updateAgentStreamingMessage(requestingAgent,
+              agentLocalStatesRef.current[requestingAgent].streamingMessage
+                ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, content: chunk.content || 'Analyzing...' }
+                : null
             );
             break;
 
@@ -348,8 +439,10 @@ export const AgentChat: React.FC = () => {
                 input: chunk.tool_input || {},
                 status: 'pending',
               });
-              setStreamingMessage((prev) =>
-                prev ? { ...prev, toolCalls: [...toolCalls] } : prev
+              updateAgentStreamingMessage(requestingAgent,
+                agentLocalStatesRef.current[requestingAgent].streamingMessage
+                  ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, toolCalls: [...toolCalls] }
+                  : null
               );
             }
             break;
@@ -366,8 +459,10 @@ export const AgentChat: React.FC = () => {
                     ? 'error'
                     : 'success',
                 };
-                setStreamingMessage((prev) =>
-                  prev ? { ...prev, toolCalls: [...toolCalls] } : prev
+                updateAgentStreamingMessage(requestingAgent,
+                  agentLocalStatesRef.current[requestingAgent].streamingMessage
+                    ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, toolCalls: [...toolCalls] }
+                    : null
                 );
               }
             }
@@ -376,21 +471,25 @@ export const AgentChat: React.FC = () => {
           case 'text':
             // Accumulate text content
             accumulatedContent += chunk.content || '';
-            setStreamingMessage((prev) =>
-              prev ? { ...prev, content: accumulatedContent } : prev
+            updateAgentStreamingMessage(requestingAgent,
+              agentLocalStatesRef.current[requestingAgent].streamingMessage
+                ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, content: accumulatedContent }
+                : null
             );
             break;
 
           case 'sources':
             // Update sources
             sources = chunk.sources || [];
-            setStreamingMessage((prev) =>
-              prev ? { ...prev, sources } : prev
+            updateAgentStreamingMessage(requestingAgent,
+              agentLocalStatesRef.current[requestingAgent].streamingMessage
+                ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, sources }
+                : null
             );
             break;
 
           case 'artifact':
-            // Handle artifact chunk - add to artifact store
+            // Handle artifact chunk - add to artifact store for the requesting agent
             if (chunk.artifact_id && chunk.artifact_type && chunk.content) {
               const artifact = createArtifactFromChunk({
                 artifact_id: chunk.artifact_id,
@@ -403,7 +502,7 @@ export const AgentChat: React.FC = () => {
               });
 
               if (artifact) {
-                addArtifact(artifact);
+                addArtifact(requestingAgent, artifact);
               }
             }
             break;
@@ -418,8 +517,8 @@ export const AgentChat: React.FC = () => {
               if (statusKey === 'credentials_required') {
                 setPendingQuery(userMessage.content);
                 setShowCredentialsModal(true);
-                setIsLoading(false);
-                setStreamingMessage(null);
+                updateAgentIsLoading(requestingAgent, false);
+                updateAgentStreamingMessage(requestingAgent, null);
                 return; // Stop processing, user needs to enter credentials
               }
 
@@ -430,27 +529,27 @@ export const AgentChat: React.FC = () => {
                 timestamp: new Date(),
                 statusType: statusKey === 'crawling' ? 'crawling' : 'ready',
               };
-              setMessages((prev) => [...prev, statusMsg]);
+              updateAgentMessages(requestingAgent, (prev) => [...prev, statusMsg]);
             }
             break;
 
           case 'error':
             // Handle error
-            setStreamingMessage((prev) =>
-              prev
+            updateAgentStreamingMessage(requestingAgent,
+              agentLocalStatesRef.current[requestingAgent].streamingMessage
                 ? {
-                    ...prev,
+                    ...agentLocalStatesRef.current[requestingAgent].streamingMessage!,
                     content: chunk.content || 'An error occurred',
                     error: chunk.content || 'Unknown error',
                     isStreaming: false,
                   }
-                : prev
+                : null
             );
             break;
 
           case 'done':
             // Streaming complete - remove processing status messages
-            setMessages((prev) => prev.filter(msg =>
+            updateAgentMessages(requestingAgent, (prev) => prev.filter(msg =>
               !(msg.role === 'status' &&
                 (msg.content === 'processing' || msg.content === 'crawling' || msg.content === 'searching'))
             ));
@@ -469,33 +568,33 @@ export const AgentChat: React.FC = () => {
         role: 'assistant',
         content: accumulatedContent || (receivedAnyChunk ? 'No content in response.' : 'Failed to get response from server.'),
         timestamp: new Date(),
-        agentType: selectedAgent,
+        agentType: requestingAgent,
         toolCalls,
         sources,
         isStreaming: false,
       };
 
       console.log('[AgentChat] Final message:', finalMessage);
-      setMessages((prev) => [
+      updateAgentMessages(requestingAgent, (prev) => [
         ...prev.filter(msg =>
           !(msg.role === 'status' &&
             (msg.content === 'processing' || msg.content === 'crawling' || msg.content === 'searching'))
         ),
         finalMessage
       ]);
-      setStreamingMessage(null);
+      updateAgentStreamingMessage(requestingAgent, null);
 
       // Save assistant response to database
       if (conversationId && accumulatedContent) {
         saveMessageToDb(conversationId, 'assistant', accumulatedContent);
         // Reload conversation list to update counts
-        loadConversations(selectedAgent);
+        loadConversations(requestingAgent);
       }
     } catch (error) {
       console.error('[AgentChat] Stream error:', error);
       if (error instanceof Error && error.name === 'AbortError') {
         // Request was cancelled
-        setStreamingMessage(null);
+        updateAgentStreamingMessage(requestingAgent, null);
       } else {
         console.error('Agent chat error:', error);
         const errorMessage: ChatMessage = {
@@ -503,18 +602,18 @@ export const AgentChat: React.FC = () => {
           role: 'assistant',
           content: 'Sorry, I encountered an error. Please try again.',
           timestamp: new Date(),
-          agentType: selectedAgent,
+          agentType: requestingAgent,
           error: error instanceof Error ? error.message : 'Unknown error',
           isStreaming: false,
         };
-        setMessages((prev) => [...prev, errorMessage]);
-        setStreamingMessage(null);
+        updateAgentMessages(requestingAgent, (prev) => [...prev, errorMessage]);
+        updateAgentStreamingMessage(requestingAgent, null);
       }
     } finally {
-      setIsLoading(false);
-      setAbortController(null);
+      updateAgentIsLoading(requestingAgent, false);
+      updateAgentAbortController(requestingAgent, null);
     }
-  }, [inputValue, isLoading, selectedAgent, activeConversationId, createConversation, saveMessageToDb, loadConversations, t, addArtifact]);
+  }, [inputValue, isLoading, selectedAgent, agentStates, createConversation, saveMessageToDb, loadConversations, t, addArtifact, updateAgentMessages, updateAgentStreamingMessage, updateAgentIsLoading, updateAgentAbortController]);
 
   // Handle key press
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -548,7 +647,7 @@ export const AgentChat: React.FC = () => {
     }
     setMessages([]);
     setStreamingMessage(null);
-    clearArtifacts(); // Also clear artifacts
+    clearArtifacts(selectedAgent); // Also clear artifacts for this agent
   };
 
   // Cancel streaming
@@ -631,30 +730,49 @@ export const AgentChat: React.FC = () => {
     handleClearChat();
   }, [selectedAgent, startNewConversation, handleClearChat]);
 
+  // Track if we're manually selecting a conversation (to bypass agent_type check)
+  const [manuallySelectedConversationId, setManuallySelectedConversationId] = useState<string | null>(null);
+
   // Handle select conversation from sidebar
   const handleSelectConversation = useCallback(async (conversationId: string) => {
     try {
+      setManuallySelectedConversationId(conversationId);
       await selectConversation(selectedAgent, conversationId);
       // Messages will be loaded via useEffect when currentConversation changes
     } catch (error) {
       console.error('Failed to load conversation:', error);
+      setManuallySelectedConversationId(null);
     }
   }, [selectedAgent, selectConversation]);
 
   // Load messages when currentConversation changes
   useEffect(() => {
     if (currentConversation && currentConversation.messages) {
-      const loadedMessages: ChatMessage[] = currentConversation.messages.map((msg) => ({
-        id: msg.id,
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-        timestamp: new Date(msg.created_at),
-        agentType: selectedAgent,
-        sources: msg.sources,
-      }));
-      setMessages(loadedMessages);
+      // Load messages ONLY if:
+      // 1. The conversation was manually selected from sidebar, OR
+      // 2. The conversation agent_type EXACTLY matches selectedAgent
+      // NOTE: Do NOT load 'auto' conversations into other agents - each agent's state must be independent
+      const isManuallySelected = manuallySelectedConversationId === currentConversation.id;
+      const agentTypeMatches = currentConversation.agent_type === selectedAgent;
+
+      if (isManuallySelected || agentTypeMatches) {
+        const loadedMessages: ChatMessage[] = currentConversation.messages.map((msg) => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          timestamp: new Date(msg.created_at),
+          agentType: selectedAgent,
+          sources: msg.sources,
+        }));
+        setMessages(loadedMessages);
+
+        // Clear manual selection flag after loading
+        if (isManuallySelected) {
+          setManuallySelectedConversationId(null);
+        }
+      }
     }
-  }, [currentConversation, selectedAgent]);
+  }, [currentConversation, selectedAgent, manuallySelectedConversationId]);
 
   // Toggle history sidebar
   const toggleHistorySidebar = useCallback(() => {
