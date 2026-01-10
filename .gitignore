@@ -116,7 +116,8 @@ kms-portal-ui-antigraphy/
 # Embedded repos
 local-llm/
 chrome-extension-ims/
-agents/
+/agents/
+!app/api/agents/
 
 # OpenCode
 .opencode/node_modules/
