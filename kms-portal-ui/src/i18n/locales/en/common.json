@@ -54,5 +54,13 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "themeSystem": "System"
+  },
+  "agent": {
+    "status": {
+      "crawling": "Searching knowledge base (crawl). Please wait while data is being extracted.",
+      "ready": "Data is ready. How can I help you?",
+      "searching": "Searching database...",
+      "processing": "Processing your request..."
+    }
   }
 }

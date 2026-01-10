@@ -274,13 +274,15 @@ export const AgentChat: React.FC = () => {
 
           case 'status':
             // Handle status messages (crawl status, ready status)
+            // Backend sends status keys: "crawling", "ready", etc.
             if (chunk.content) {
+              const statusKey = chunk.content as 'crawling' | 'ready' | 'searching' | 'processing';
               const statusMsg: ChatMessage = {
                 id: `status-${Date.now()}`,
                 role: 'status',
-                content: chunk.content,
+                content: statusKey, // Store the key, translate in render
                 timestamp: new Date(),
-                statusType: chunk.content.includes('crawl') ? 'crawling' : 'ready',
+                statusType: statusKey === 'crawling' ? 'crawling' : 'ready',
               };
               setMessages((prev) => [...prev, statusMsg]);
             }
@@ -533,6 +535,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   copiedMessageId,
   onCancel,
 }) => {
+  const { t } = useTranslation();
   const isUser = message.role === 'user';
   const isStatus = message.role === 'status';
   const agentConfig = message.agentType ? AGENT_CONFIGS[message.agentType] : null;
@@ -540,6 +543,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   // Render status message differently
   if (isStatus) {
+    // Translate status key using i18n
+    const statusKey = message.content as 'crawling' | 'ready' | 'searching' | 'processing';
+    const translatedMessage = t(`common.agent.status.${statusKey}`) || message.content;
+
     return (
       <div className={`agent-status-message ${message.statusType || ''}`}>
         <div className="agent-status-icon">
@@ -550,7 +557,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           )}
         </div>
         <div className="agent-status-content">
-          <span>{message.content}</span>
+          <span>{translatedMessage}</span>
         </div>
       </div>
     );

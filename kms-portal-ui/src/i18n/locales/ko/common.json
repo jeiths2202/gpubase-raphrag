@@ -54,5 +54,13 @@
     "themeLight": "라이트",
     "themeDark": "다크",
     "themeSystem": "시스템"
+  },
+  "agent": {
+    "status": {
+      "crawling": "지식검색(crawl)하여 답변하겠습니다. 추출하는데 시간이 소요되니 잠시 기다려주세요.",
+      "ready": "데이터를 기반으로 답변할 준비가 되었습니다. 무엇을 도와 드릴까요?",
+      "searching": "데이터베이스 검색 중...",
+      "processing": "요청을 처리 중입니다..."
+    }
   }
 }

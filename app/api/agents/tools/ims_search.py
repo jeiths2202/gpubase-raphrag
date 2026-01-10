@@ -233,10 +233,8 @@ If no results found in local DB, will automatically crawl IMS for data."""
 
             # Step 2: If no results and not forcing crawl skip, trigger crawl
             if len(formatted_issues) == 0 or force_crawl:
-                # Emit status message for crawling
-                await self._emit_status(
-                    "지식검색(crawl)하여 답변하겠습니다. 추출하는데 시간이 소요되니 잠시 기다려주세요."
-                )
+                # Emit status key for crawling (frontend will translate using i18n)
+                await self._emit_status("crawling")
 
                 logger.info(f"No DB results for '{query}', triggering crawl...")
 
@@ -251,15 +249,11 @@ If no results found in local DB, will automatically crawl IMS for data."""
                     source = "crawl"
                     crawl_triggered = True
 
-                    # Emit ready status
-                    await self._emit_status(
-                        "데이터를 기반으로 답변할 준비가 되었습니다. 무엇을 도와 드릴까요?"
-                    )
+                    # Emit ready status key
+                    await self._emit_status("ready")
             else:
-                # DB has results, emit ready status
-                await self._emit_status(
-                    "데이터를 기반으로 답변할 준비가 되었습니다. 무엇을 도와 드릴까요?"
-                )
+                # DB has results, emit ready status key
+                await self._emit_status("ready")
 
             output = {
                 "query": query,
