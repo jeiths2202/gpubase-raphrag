@@ -59,7 +59,8 @@ export type AgentStreamChunkType =
   | 'text'
   | 'sources'
   | 'error'
-  | 'done';
+  | 'done'
+  | 'status';
 
 /**
  * Agent stream chunk

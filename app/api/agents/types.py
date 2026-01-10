@@ -169,7 +169,7 @@ class AgentResponse(BaseModel):
 
 class AgentStreamChunk(BaseModel):
     """Streaming chunk from agent execution"""
-    chunk_type: Literal["thinking", "tool_call", "tool_result", "text", "sources", "done", "error"]
+    chunk_type: Literal["thinking", "tool_call", "tool_result", "text", "sources", "done", "error", "status"]
     content: Optional[str] = None
     tool_name: Optional[str] = None
     tool_input: Optional[Dict[str, Any]] = None

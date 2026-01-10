@@ -597,3 +597,64 @@
 .agent-chat-messages::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
 }
+
+/* Status Messages */
+.agent-status-message {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin: var(--space-2) var(--space-4);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--info-border);
+}
+
+.agent-status-message.crawling {
+  background: var(--warning-background);
+  border-color: var(--warning-border);
+  border-left-color: var(--warning-text);
+}
+
+.agent-status-message.ready {
+  background: var(--success-background);
+  border-color: var(--success-border);
+  border-left-color: var(--success-text);
+}
+
+.agent-status-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-tertiary);
+}
+
+.agent-status-message.crawling .agent-status-icon {
+  color: var(--warning-text);
+  background: var(--warning-background);
+}
+
+.agent-status-message.ready .agent-status-icon {
+  color: var(--success-text);
+  background: var(--success-background);
+}
+
+.agent-status-content {
+  flex: 1;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.agent-status-message.crawling .agent-status-content {
+  color: var(--warning-text);
+}
+
+.agent-status-message.ready .agent-status-content {
+  color: var(--success-text);
+}

@@ -30,6 +30,7 @@ import {
   Brain,
   ChevronDown,
   AlertCircle,
+  Database,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import './AgentChat.css';
@@ -45,7 +46,7 @@ import {
 
 interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'status';
   content: string;
   timestamp: Date;
   agentType?: AgentType;
@@ -53,6 +54,7 @@ interface ChatMessage {
   sources?: AgentSource[];
   isStreaming?: boolean;
   error?: string;
+  statusType?: 'crawling' | 'ready';
 }
 
 interface ToolCallInfo {
@@ -268,6 +270,20 @@ export const AgentChat: React.FC = () => {
             setStreamingMessage((prev) =>
               prev ? { ...prev, sources } : prev
             );
+            break;
+
+          case 'status':
+            // Handle status messages (crawl status, ready status)
+            if (chunk.content) {
+              const statusMsg: ChatMessage = {
+                id: `status-${Date.now()}`,
+                role: 'status',
+                content: chunk.content,
+                timestamp: new Date(),
+                statusType: chunk.content.includes('crawl') ? 'crawling' : 'ready',
+              };
+              setMessages((prev) => [...prev, statusMsg]);
+            }
             break;
 
           case 'error':
@@ -518,8 +534,27 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   onCancel,
 }) => {
   const isUser = message.role === 'user';
+  const isStatus = message.role === 'status';
   const agentConfig = message.agentType ? AGENT_CONFIGS[message.agentType] : null;
   const AgentIcon = agentConfig?.icon || Bot;
+
+  // Render status message differently
+  if (isStatus) {
+    return (
+      <div className={`agent-status-message ${message.statusType || ''}`}>
+        <div className="agent-status-icon">
+          {message.statusType === 'crawling' ? (
+            <Loader2 size={18} className="spin" />
+          ) : (
+            <Database size={18} />
+          )}
+        </div>
+        <div className="agent-status-content">
+          <span>{message.content}</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`agent-message ${message.role} ${message.isStreaming ? 'streaming' : ''}`}>

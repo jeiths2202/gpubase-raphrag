@@ -240,6 +240,18 @@ class AgentExecutor:
         sources = []
         step = 0
 
+        # Queue for status messages from tools
+        status_queue: asyncio.Queue[str] = asyncio.Queue()
+
+        # Create status callback
+        async def status_callback(message: str):
+            await status_queue.put(message)
+
+        # Set up status callbacks for tools that support them
+        for tool in available_tools:
+            if hasattr(tool, 'set_status_callback'):
+                tool.set_status_callback(status_callback)
+
         yield AgentStreamChunk(chunk_type="thinking", content="Analyzing your request...")
 
         while step < context.max_steps:
@@ -263,7 +275,19 @@ class AgentExecutor:
                         tool_input=tool_call.arguments
                     )
 
+                    # Execute tool (may emit status messages)
                     result = await self._execute_tool(tool_call, context)
+
+                    # Drain status queue and yield status messages
+                    while not status_queue.empty():
+                        try:
+                            status_msg = status_queue.get_nowait()
+                            yield AgentStreamChunk(
+                                chunk_type="status",
+                                content=status_msg
+                            )
+                        except asyncio.QueueEmpty:
+                            break
 
                     yield AgentStreamChunk(
                         chunk_type="tool_result",
@@ -292,6 +316,11 @@ class AgentExecutor:
                     await asyncio.sleep(0.02)
 
                 break
+
+        # Clean up status callbacks
+        for tool in available_tools:
+            if hasattr(tool, 'set_status_callback'):
+                tool.set_status_callback(None)
 
         # Yield sources and done
         if sources:

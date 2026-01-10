@@ -1,20 +1,26 @@
 """
 IMS Search Tool
 Searches the IMS (Issue Management System) for issues.
+Supports DB search with crawl fallback when no results found.
 """
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable, Awaitable
+from uuid import UUID, uuid4
 import logging
+import asyncio
 
 from .base import BaseTool
 from ..types import ToolResult, AgentContext
 
 logger = logging.getLogger(__name__)
 
+# Status message callbacks type
+StatusCallback = Callable[[str], Awaitable[None]]
+
 
 class IMSSearchTool(BaseTool):
     """
     Tool for searching IMS issues.
-    Wraps the existing IMS crawler search functionality.
+    First searches local DB, then triggers crawl if no results found.
     """
 
     def __init__(self):
@@ -22,8 +28,19 @@ class IMSSearchTool(BaseTool):
             name="ims_search",
             description="""Search the Issue Management System (IMS) for issues.
 Use this tool to find bug reports, feature requests, or technical issues.
-Can filter by status, priority, product, and other criteria."""
+Can filter by status, priority, product, and other criteria.
+If no results found in local DB, will automatically crawl IMS for data."""
         )
+        self._status_callback: Optional[StatusCallback] = None
+
+    def set_status_callback(self, callback: StatusCallback):
+        """Set callback for status messages during search/crawl"""
+        self._status_callback = callback
+
+    async def _emit_status(self, message: str):
+        """Emit status message if callback is set"""
+        if self._status_callback:
+            await self._status_callback(message)
 
     def _get_default_parameters(self) -> Dict[str, Any]:
         return {
@@ -53,10 +70,135 @@ Can filter by status, priority, product, and other criteria."""
                     "type": "integer",
                     "description": "Maximum number of issues to return",
                     "default": 10
+                },
+                "force_crawl": {
+                    "type": "boolean",
+                    "description": "Force crawl even if DB has results",
+                    "default": False
                 }
             },
             "required": ["query"]
         }
+
+    async def _search_db(
+        self,
+        query: str,
+        status: str,
+        priority: str,
+        product: Optional[str],
+        limit: int
+    ) -> List[Dict[str, Any]]:
+        """Search issues in local database"""
+        from ...ims_crawler.infrastructure.dependencies import get_db_pool
+
+        # Build SQL filters
+        where_clauses = []
+        params = []
+        param_idx = 1
+
+        if status != "all":
+            where_clauses.append(f"status = ${param_idx}")
+            params.append(status)
+            param_idx += 1
+
+        if priority != "all":
+            where_clauses.append(f"priority = ${param_idx}")
+            params.append(priority)
+            param_idx += 1
+
+        if product:
+            where_clauses.append(f"product ILIKE ${param_idx}")
+            params.append(f"%{product}%")
+            param_idx += 1
+
+        # Search in title and description
+        search_pattern = f"%{query}%"
+        where_clauses.append(f"(title ILIKE ${param_idx} OR description ILIKE ${param_idx + 1})")
+        params.extend([search_pattern, search_pattern])
+
+        where_clause = " AND ".join(where_clauses) if where_clauses else "TRUE"
+
+        sql = f"""
+            SELECT
+                ims_id, title, description, status, priority,
+                product, created_at
+            FROM ims_issues
+            WHERE {where_clause}
+            ORDER BY created_at DESC
+            LIMIT {limit}
+        """
+
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+
+        # Format results
+        formatted_issues = []
+        for row in rows:
+            formatted_issues.append({
+                "id": row["ims_id"],
+                "title": row["title"] or "",
+                "status": row["status"] or "",
+                "priority": row["priority"] or "",
+                "product": row["product"] or "",
+                "description": (row["description"] or "")[:300],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else ""
+            })
+
+        return formatted_issues
+
+    async def _crawl_and_search(
+        self,
+        query: str,
+        user_id: str,
+        limit: int
+    ) -> List[Dict[str, Any]]:
+        """Trigger IMS crawl for the query and return results"""
+        from ...ims_crawler.infrastructure.dependencies import get_crawl_jobs_use_case
+
+        try:
+            # Parse user_id to UUID
+            try:
+                uid = UUID(user_id) if user_id else uuid4()
+            except (ValueError, TypeError):
+                uid = uuid4()
+
+            # Get crawl jobs use case
+            crawl_use_case = await get_crawl_jobs_use_case()
+
+            # Create crawl job
+            job, is_cached = await crawl_use_case.create_crawl_job(
+                user_id=uid,
+                search_query=query,
+                max_results=limit * 2,  # Get more to filter later
+                download_attachments=False,  # Skip attachments for faster crawl
+                crawl_related=False,
+                force_refresh=False  # Use cache if available
+            )
+
+            if is_cached:
+                logger.info(f"Using cached crawl results for query: {query}")
+            else:
+                # Execute the crawl job
+                logger.info(f"Starting new crawl for query: {query}")
+                async for progress in crawl_use_case.execute_crawl_job(job.id):
+                    event_type = progress.get("event", "")
+                    if event_type == "issue_saved":
+                        # Progress update - issue saved
+                        pass
+                    elif event_type == "job_completed":
+                        logger.info(f"Crawl completed: {progress}")
+                        break
+                    elif event_type == "job_failed":
+                        logger.error(f"Crawl failed: {progress}")
+                        break
+
+            # After crawl, search DB again for results
+            return await self._search_db(query, "all", "all", None, limit)
+
+        except Exception as e:
+            logger.error(f"Crawl error: {e}")
+            return []
 
     async def execute(
         self,
@@ -68,91 +210,77 @@ Can filter by status, priority, product, and other criteria."""
         priority = kwargs.get("priority", "all")
         product = kwargs.get("product")
         limit = kwargs.get("limit", 10)
+        force_crawl = kwargs.get("force_crawl", False)
 
         if not query:
             return self.create_error_result("Query parameter is required")
 
         try:
-            # Use direct database search (no user filtering for agent access)
-            from ...ims_crawler.infrastructure.dependencies import get_db_pool
-
-            # Build SQL filters
+            # Build filters for metadata
             filters = {}
-            where_clauses = []
-            params = []
-            param_idx = 1
-
             if status != "all":
                 filters["status"] = status
-                where_clauses.append(f"status = ${param_idx}")
-                params.append(status)
-                param_idx += 1
-
             if priority != "all":
                 filters["priority"] = priority
-                where_clauses.append(f"priority = ${param_idx}")
-                params.append(priority)
-                param_idx += 1
-
             if product:
                 filters["product"] = product
-                where_clauses.append(f"product ILIKE ${param_idx}")
-                params.append(f"%{product}%")
-                param_idx += 1
 
-            # Build the query - search in title and description
-            # Use full-text search for better keyword matching
-            search_pattern = f"%{query}%"
-            where_clauses.append(f"(title ILIKE ${param_idx} OR description ILIKE ${param_idx + 1})")
-            params.extend([search_pattern, search_pattern])
+            # Step 1: Search local DB first
+            formatted_issues = await self._search_db(query, status, priority, product, limit)
 
-            where_clause = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            source = "database"
+            crawl_triggered = False
 
-            sql = f"""
-                SELECT
-                    ims_id, title, description, status, priority,
-                    product, created_at
-                FROM ims_issues
-                WHERE {where_clause}
-                ORDER BY created_at DESC
-                LIMIT {limit}
-            """
+            # Step 2: If no results and not forcing crawl skip, trigger crawl
+            if len(formatted_issues) == 0 or force_crawl:
+                # Emit status message for crawling
+                await self._emit_status(
+                    "지식검색(crawl)하여 답변하겠습니다. 추출하는데 시간이 소요되니 잠시 기다려주세요."
+                )
 
-            pool = await get_db_pool()
-            async with pool.acquire() as conn:
-                rows = await conn.fetch(sql, *params)
+                logger.info(f"No DB results for '{query}', triggering crawl...")
 
-            # Format results
-            formatted_issues = []
-            for row in rows:
-                formatted_issues.append({
-                    "id": row["ims_id"],
-                    "title": row["title"] or "",
-                    "status": row["status"] or "",
-                    "priority": row["priority"] or "",
-                    "product": row["product"] or "",
-                    "description": (row["description"] or "")[:300],
-                    "created_at": row["created_at"].isoformat() if row["created_at"] else ""
-                })
+                # Get user_id from context
+                user_id = context.user_id or str(uuid4())
+
+                # Perform crawl
+                crawled_issues = await self._crawl_and_search(query, user_id, limit)
+
+                if crawled_issues:
+                    formatted_issues = crawled_issues
+                    source = "crawl"
+                    crawl_triggered = True
+
+                    # Emit ready status
+                    await self._emit_status(
+                        "데이터를 기반으로 답변할 준비가 되었습니다. 무엇을 도와 드릴까요?"
+                    )
+            else:
+                # DB has results, emit ready status
+                await self._emit_status(
+                    "데이터를 기반으로 답변할 준비가 되었습니다. 무엇을 도와 드릴까요?"
+                )
 
             output = {
                 "query": query,
                 "filters": filters,
                 "total_count": len(formatted_issues),
-                "issues": formatted_issues
+                "issues": formatted_issues,
+                "source": source,
+                "crawl_triggered": crawl_triggered
             }
 
             return self.create_success_result(
                 output,
                 metadata={
-                    "source": "ims",
-                    "filters_applied": filters
+                    "source": source,
+                    "filters_applied": filters,
+                    "crawl_triggered": crawl_triggered
                 }
             )
 
-        except ImportError:
-            # IMS module not available, return mock data
-            logger.warning("IMS module not available, returning mock data")
+        except ImportError as e:
+            logger.warning(f"IMS module not available: {e}")
             return self.create_success_result(
                 {
                     "query": query,
