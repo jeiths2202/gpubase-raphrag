@@ -523,9 +523,12 @@ Requires IMS credentials for crawling."""
             # Check if user wants user-specific filtering (e.g., "내가 검색한", "my issues")
             user_specific = intent.extracted_params.get("user_specific", False) if intent else False
 
+            # Use product from intent (more reliable) instead of LLM's query parameter (may have typos)
+            keyword = product if product else query
+
             # For list_all, ignore status/priority filters - return ALL matching issues
-            print(f"[IMS_SEARCH] Executing list_all with keyword={query}, limit={list_all_limit}, user_specific={user_specific}", flush=True)
-            return await self._execute_list_all(context, "all", "all", list_all_limit, keyword=query, user_specific=user_specific)
+            print(f"[IMS_SEARCH] Executing list_all with keyword={keyword}, limit={list_all_limit}, user_specific={user_specific}", flush=True)
+            return await self._execute_list_all(context, "all", "all", list_all_limit, keyword=keyword, user_specific=user_specific)
 
         # For search intent, require query
         if not query:
