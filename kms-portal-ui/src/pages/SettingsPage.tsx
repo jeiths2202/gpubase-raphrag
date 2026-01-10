@@ -10,6 +10,8 @@
  * - Subscription (with pricing tiers)
  */
 import React, { useState, memo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { X } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useTheme } from '../hooks/useTheme';
 import { LanguageCode } from '../i18n/types';
@@ -120,10 +122,15 @@ const sectionLabels: Record<SettingsSection, string> = {
 type TFunc = (key: string) => string;
 
 export const SettingsPage: React.FC = memo(() => {
+  const navigate = useNavigate();
   const { t, language, setLanguage } = useTranslation();
   const { theme, setTheme } = useTheme();
   const [activeSection, setActiveSection] = useState<SettingsSection>('general');
   const [currentPlan] = useState<string>('free'); // Mock current plan
+
+  const handleClose = () => {
+    navigate(-1); // Go back to previous page
+  };
 
   // Language options for inline toggle
   const languageOptions: { code: LanguageCode; label: string }[] = [
@@ -168,6 +175,15 @@ export const SettingsPage: React.FC = memo(() => {
   return (
     <>
       <style>{`
+        .settings-page-wrapper {
+          display: block;
+          width: 100% !important;
+          max-width: 100% !important;
+          height: calc(100vh - var(--header-height, 56px) - 48px);
+          overflow: hidden;
+          box-sizing: border-box;
+        }
+
         .settings-overlay {
           position: fixed;
           top: 0;
@@ -195,12 +211,15 @@ export const SettingsPage: React.FC = memo(() => {
 
         .settings-container {
           display: flex;
-          width: 100%;
+          width: 100% !important;
+          max-width: 100% !important;
           height: 100%;
-          min-height: 600px;
+          min-height: 0;
+          min-width: 0;
           background: var(--color-bg-primary);
           border-radius: 12px;
           overflow: hidden;
+          box-sizing: border-box;
         }
 
         .settings-sidebar {
@@ -212,9 +231,31 @@ export const SettingsPage: React.FC = memo(() => {
         }
 
         .settings-sidebar-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
           padding: 0 16px 16px;
           border-bottom: 1px solid var(--color-border);
           margin-bottom: 8px;
+        }
+
+        .settings-close-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          border: none;
+          background: transparent;
+          color: var(--color-text-secondary);
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+
+        .settings-close-btn:hover {
+          background: var(--color-bg-hover);
+          color: var(--color-text-primary);
         }
 
         .settings-sidebar-title {
@@ -261,9 +302,13 @@ export const SettingsPage: React.FC = memo(() => {
         }
 
         .settings-content {
-          flex: 1;
+          flex: 1 1 0;
+          min-width: 0;
+          max-width: 100%;
           padding: 24px 32px;
           overflow-y: auto;
+          overflow-x: hidden;
+          box-sizing: border-box;
         }
 
         .settings-section-title {
@@ -283,6 +328,8 @@ export const SettingsPage: React.FC = memo(() => {
           align-items: center;
           padding: 16px 0;
           border-bottom: 1px solid var(--color-border);
+          max-width: 100%;
+          overflow: hidden;
         }
 
         .settings-row:last-child {
@@ -566,10 +613,14 @@ export const SettingsPage: React.FC = memo(() => {
           color: var(--color-text-secondary);
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
+          .settings-page-wrapper {
+            height: auto;
+            overflow: visible;
+          }
+
           .settings-container {
             flex-direction: column;
-            min-height: auto;
           }
 
           .settings-sidebar {
@@ -603,29 +654,34 @@ export const SettingsPage: React.FC = memo(() => {
         }
       `}</style>
 
-      <div className="settings-container">
-        {/* Sidebar */}
-        <div className="settings-sidebar">
-          <div className="settings-sidebar-header">
-            <span className="settings-sidebar-title">{t('settings.title') || 'Settings'}</span>
+      <div className="settings-page-wrapper">
+        <div className="settings-container">
+          {/* Sidebar */}
+          <div className="settings-sidebar">
+            <div className="settings-sidebar-header">
+              <span className="settings-sidebar-title">{t('settings.title') || 'Settings'}</span>
+              <button className="settings-close-btn" onClick={handleClose} title="Close">
+                <X size={18} />
+              </button>
+            </div>
+            <ul className="settings-nav">
+              {(['general', 'notifications', 'security', 'account', 'subscription'] as SettingsSection[]).map((section) => (
+                <li
+                  key={section}
+                  className={`settings-nav-item ${activeSection === section ? 'active' : ''}`}
+                  onClick={() => setActiveSection(section)}
+                >
+                  <span className="settings-nav-icon">{sectionIcons[section]}</span>
+                  <span>{t(`settings.nav.${section}`) || sectionLabels[section]}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="settings-nav">
-            {(['general', 'notifications', 'security', 'account', 'subscription'] as SettingsSection[]).map((section) => (
-              <li
-                key={section}
-                className={`settings-nav-item ${activeSection === section ? 'active' : ''}`}
-                onClick={() => setActiveSection(section)}
-              >
-                <span className="settings-nav-icon">{sectionIcons[section]}</span>
-                <span>{t(`settings.nav.${section}`) || sectionLabels[section]}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
 
-        {/* Content */}
-        <div className="settings-content">
-          {renderSectionContent()}
+          {/* Content */}
+          <div className="settings-content">
+            {renderSectionContent()}
+          </div>
         </div>
       </div>
     </>

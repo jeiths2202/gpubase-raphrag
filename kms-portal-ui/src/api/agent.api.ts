@@ -24,6 +24,7 @@ export interface AgentExecuteRequest {
   agent_type?: AgentType;
   session_id?: string;
   max_steps?: number;
+  language?: 'auto' | 'en' | 'ko' | 'ja';
 }
 
 /**

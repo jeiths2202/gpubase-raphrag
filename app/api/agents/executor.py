@@ -95,9 +95,16 @@ class AgentExecutor:
         """
         start_time = time.time()
 
+        # Build system prompt with language preference
+        system_prompt = agent.system_prompt
+        if context.language and context.language != "auto":
+            language_names = {"en": "English", "ko": "Korean (한국어)", "ja": "Japanese (日本語)"}
+            lang_name = language_names.get(context.language, context.language)
+            system_prompt += f"\n\nIMPORTANT: Always respond in {lang_name} unless the user explicitly requests a different language in their message."
+
         # Initialize messages with system prompt and user task
         messages: List[AgentMessage] = [
-            AgentMessage(role=MessageRole.SYSTEM, content=agent.system_prompt),
+            AgentMessage(role=MessageRole.SYSTEM, content=system_prompt),
             AgentMessage(role=MessageRole.USER, content=task)
         ]
 
@@ -232,9 +239,16 @@ class AgentExecutor:
         """
         start_time = time.time()
 
+        # Build system prompt with language preference
+        system_prompt = agent.system_prompt
+        if context.language and context.language != "auto":
+            language_names = {"en": "English", "ko": "Korean (한국어)", "ja": "Japanese (日本語)"}
+            lang_name = language_names.get(context.language, context.language)
+            system_prompt += f"\n\nIMPORTANT: Always respond in {lang_name} unless the user explicitly requests a different language in their message."
+
         # Initialize messages
         messages: List[AgentMessage] = [
-            AgentMessage(role=MessageRole.SYSTEM, content=agent.system_prompt),
+            AgentMessage(role=MessageRole.SYSTEM, content=system_prompt),
             AgentMessage(role=MessageRole.USER, content=task)
         ]
 

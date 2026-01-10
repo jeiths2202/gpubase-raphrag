@@ -48,6 +48,7 @@ import {
 import { conversationApi } from '../api/conversation.api';
 import { useArtifactStore, createArtifactFromChunk } from '../store/artifactStore';
 import { useConversationStore } from '../store/conversationStore';
+import { usePreferencesStore } from '../store/preferencesStore';
 import { ArtifactPanel } from './ArtifactPanel';
 import { ConversationSidebar } from './ConversationSidebar';
 
@@ -149,6 +150,9 @@ const SUGGESTED_QUESTIONS: Record<AgentType, string[]> = {
 
 export const AgentChat: React.FC = () => {
   const { t } = useTranslation();
+
+  // User language preference for AI responses
+  const userLanguage = usePreferencesStore((state) => state.language);
 
   // Artifact store
   const {
@@ -411,9 +415,10 @@ export const AgentChat: React.FC = () => {
       console.log('[AgentChat] Starting stream for task:', userMessage.content, 'agent:', requestingAgent);
 
       // When 'auto' is selected, don't send agent_type to let backend classify
+      // Always include user's preferred language for AI responses
       const requestPayload = requestingAgent === 'auto'
-        ? { task: userMessage.content }
-        : { task: userMessage.content, agent_type: requestingAgent };
+        ? { task: userMessage.content, language: userLanguage }
+        : { task: userMessage.content, agent_type: requestingAgent, language: userLanguage };
 
       for await (const chunk of streamAgent(
         requestPayload,

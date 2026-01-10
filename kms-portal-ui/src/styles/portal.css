@@ -745,8 +745,10 @@
    ============================================ */
 .portal-content {
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--space-6);
   background: var(--color-bg-primary);
+  min-width: 0;
 }
 
 .portal-content__header {
@@ -1139,6 +1141,9 @@
   padding: var(--space-3) var(--space-4);
   font-size: var(--text-base);
   line-height: var(--line-height-normal);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 .ai-chat-message-content p {
@@ -2451,4 +2456,35 @@
   background: var(--color-error-light);
   color: var(--color-error);
   border-color: var(--color-error);
+}
+
+/* ============================================
+   Settings Page - Width Fix
+   ============================================ */
+.settings-page-wrapper,
+.settings-container,
+.settings-content {
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+.settings-page-wrapper {
+  width: 100% !important;
+}
+
+.settings-container {
+  width: 100% !important;
+}
+
+/* Force responsive layout at narrow widths */
+@media (max-width: 900px) {
+  .settings-container {
+    flex-direction: column !important;
+  }
+
+  .settings-sidebar {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--color-border) !important;
+  }
 }
