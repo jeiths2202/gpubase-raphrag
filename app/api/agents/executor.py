@@ -320,6 +320,38 @@ class AgentExecutor:
                         tool_output=result["output"][:500] if result["success"] else result["error"]
                     )
 
+                    # Check if tool result contains markdown_table - bypass LLM and output directly
+                    if result["success"] and result.get("output"):
+                        try:
+                            tool_output_data = json.loads(result["output"])
+                            if isinstance(tool_output_data, dict) and tool_output_data.get("markdown_table"):
+                                markdown_table = tool_output_data["markdown_table"]
+                                print(f"[Executor] Found markdown_table, bypassing LLM", flush=True)
+
+                                # Stream the markdown table directly
+                                chunk_size = 50
+                                for i in range(0, len(markdown_table), chunk_size):
+                                    chunk = markdown_table[i:i + chunk_size]
+                                    yield AgentStreamChunk(chunk_type="text", content=chunk)
+                                    await asyncio.sleep(0.02)
+
+                                # Clean up and finish
+                                for tool in available_tools:
+                                    if hasattr(tool, 'set_status_callback'):
+                                        tool.set_status_callback(None)
+
+                                yield AgentStreamChunk(
+                                    chunk_type="done",
+                                    metadata={
+                                        "steps": step,
+                                        "execution_time": time.time() - start_time,
+                                        "direct_output": True
+                                    }
+                                )
+                                return
+                        except (json.JSONDecodeError, TypeError):
+                            pass  # Not JSON or no markdown_table, continue normal flow
+
                     messages.append(AgentMessage(
                         role=MessageRole.TOOL,
                         content=result["output"] if result["success"] else f"Error: {result['error']}",

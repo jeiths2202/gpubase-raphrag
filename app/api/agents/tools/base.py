@@ -91,6 +91,10 @@ class BaseTool(ABC):
                 prop_schema = properties[key]
                 expected_type = prop_schema.get("type")
 
+                # Skip type check for None values on non-required parameters
+                if value is None and key not in required:
+                    continue
+
                 if expected_type:
                     if not self._check_type(value, expected_type):
                         return False, f"Parameter '{key}' should be {expected_type}, got {type(value).__name__}"

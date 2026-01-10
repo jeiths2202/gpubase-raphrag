@@ -164,8 +164,10 @@ Requires IMS credentials for crawling."""
         # Format results
         formatted_issues = []
         for row in rows:
+            ims_id = row["ims_id"]
             formatted_issues.append({
-                "id": row["ims_id"],
+                "id": ims_id,
+                "url": f"https://ims.tmaxsoft.com/tody/ims/issue/issueView.do?issueId={ims_id}&menuCode=issue_search",
                 "title": row["title"] or "",
                 "status": row["status"] or "",
                 "priority": row["priority"] or "",
@@ -256,8 +258,10 @@ Requires IMS credentials for crawling."""
             # Format results
             formatted_issues = []
             for row in rows:
+                ims_id = row["ims_id"]
                 formatted_issues.append({
-                    "id": row["ims_id"],
+                    "id": ims_id,
+                    "url": f"https://ims.tmaxsoft.com/tody/ims/issue/issueView.do?issueId={ims_id}&menuCode=issue_search",
                     "title": row["title"] or "",
                     "status": row["status"] or "",
                     "priority": row["priority"] or "",
@@ -333,6 +337,56 @@ Requires IMS credentials for crawling."""
         except Exception as e:
             logger.error(f"Crawl error: {e}")
             return []
+
+    def _format_as_markdown_table(self, issues: List[Dict[str, Any]], language: str = "en") -> str:
+        """
+        Format issues as a pre-formatted markdown table.
+        This ensures consistent output regardless of LLM behavior.
+        """
+        if not issues:
+            return ""
+
+        # Headers based on language
+        headers = {
+            "ko": ("No", "Issue ID", "제목", "상태", "제품"),
+            "ja": ("No", "Issue ID", "タイトル", "ステータス", "製品"),
+            "en": ("No", "Issue ID", "Title", "Status", "Product"),
+        }
+
+        # Normalize language code
+        lang = language.lower() if language else "en"
+        if lang.startswith("ko"):
+            lang = "ko"
+        elif lang.startswith("ja"):
+            lang = "ja"
+        else:
+            lang = "en"
+
+        h = headers.get(lang, headers["en"])
+
+        # Build table header
+        lines = [
+            f"| {h[0]} | {h[1]} | {h[2]} | {h[3]} | {h[4]} |",
+            "|------|----------|------|------|------|"
+        ]
+
+        # Build table rows
+        for idx, issue in enumerate(issues, 1):
+            ims_id = issue.get("id", "")
+            url = issue.get("url", "")
+            title = issue.get("title", "")[:60]  # Truncate long titles
+            status = issue.get("status", "")
+            product = issue.get("product", "")
+
+            # Create clickable link for IMS ID
+            if url:
+                id_cell = f"[{ims_id}]({url})"
+            else:
+                id_cell = ims_id
+
+            lines.append(f"| {idx} | {id_cell} | {title} | {status} | {product} |")
+
+        return "\n".join(lines)
 
     def _get_message(self, key: str, language: str, **kwargs) -> str:
         """Get localized message based on language"""
@@ -461,10 +515,29 @@ Requires IMS credentials for crawling."""
                     "issues": [],
                     "source": source,
                     "crawl_triggered": bool(keyword),
-                    "message": message
+                    "message": message,
+                    "markdown_table": ""
                 }
             else:
                 message = self._get_message("found_issues", language, count=len(formatted_issues))
+                # Generate pre-formatted markdown table
+                markdown_table = self._format_as_markdown_table(formatted_issues, language)
+                # Build header based on language
+                header_templates = {
+                    "ko": f"## 검색 결과: {len(formatted_issues)}건\n\n",
+                    "ja": f"## 検索結果: {len(formatted_issues)}件\n\n",
+                    "en": f"## Search Results: {len(formatted_issues)} issue(s)\n\n"
+                }
+                lang = language.lower() if language else "en"
+                if lang.startswith("ko"):
+                    lang = "ko"
+                elif lang.startswith("ja"):
+                    lang = "ja"
+                else:
+                    lang = "en"
+                header = header_templates.get(lang, header_templates["en"])
+                full_markdown = header + markdown_table
+
                 output = {
                     "intent": "list_all",
                     "query": keyword or "",
@@ -473,7 +546,8 @@ Requires IMS credentials for crawling."""
                     "issues": formatted_issues,
                     "source": source,
                     "crawl_triggered": bool(keyword),
-                    "message": message
+                    "message": message,
+                    "markdown_table": full_markdown
                 }
 
             return self.create_success_result(

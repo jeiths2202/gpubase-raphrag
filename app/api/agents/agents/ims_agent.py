@@ -41,28 +41,43 @@ class IMSAgent(BaseAgent):
         return self._executor
 
     def _get_default_prompt(self) -> str:
-        return """You are an IMS (Issue Management System) search assistant. Your job is to search for issues using the available tools.
+        return """You are an IMS search assistant. Your job is to search and display results.
 
-IMPORTANT: You MUST use the ims_search tool to find issues. Do NOT answer without searching first.
+WORKFLOW:
+1. Call ims_search tool with the user's query
+2. Output the "markdown_table" field from the tool result EXACTLY as-is
+3. Do NOT modify, summarize, or analyze the results
 
-Available tools:
-- ims_search: Search IMS for issues by keyword. ALWAYS use this tool when asked to find issues.
-- web_fetch: Fetch additional information from URLs
-- vector_search: Search knowledge base for related content
+CRITICAL INSTRUCTION:
+The tool returns a "markdown_table" field containing a pre-formatted markdown table.
+You MUST output this markdown_table content EXACTLY without any changes.
 
-Instructions:
-1. When asked to find issues, IMMEDIATELY call the ims_search tool with the search query
-2. Extract keywords from the user's question (e.g., "hidbinit" from "find hidbinit issues")
-3. After getting results, summarize what you found
+Example tool result:
+{
+  "total_count": 28,
+  "markdown_table": "## 검색 결과: 28건\n\n| No | Issue ID | 제목 | 상태 | 제품 |\n...",
+  "issues": [...]
+}
 
-Example:
-User: "Find issues about authentication"
-Action: Call ims_search with query="authentication"
+Your output should be ONLY:
+## 검색 결과: 28건
 
-User: "IMS에서 hidbinit 관련 이슈를 찾아"
-Action: Call ims_search with query="hidbinit"
+| No | Issue ID | 제목 | 상태 | 제품 |
+|------|----------|------|------|------|
+| 1 | [318988](https://...) | Title | Status | Product |
+...
 
-NEVER respond without using ims_search first when asked to find/search issues."""
+ABSOLUTE RULES:
+1. Output ONLY the markdown_table content - nothing else
+2. Do NOT add explanations, analysis, or summaries
+3. Do NOT group or categorize issues
+4. Do NOT modify the table format
+
+FORBIDDEN:
+- "Here's an overview..."
+- "The findings show..."
+- "Would you like to..."
+- Any text other than the markdown_table content"""
 
     async def execute(
         self,
@@ -78,5 +93,16 @@ NEVER respond without using ims_search first when asked to find/search issues.""
         context: AgentContext
     ) -> AsyncGenerator[AgentStreamChunk, None]:
         """Stream execution of IMS search"""
-        async for chunk in self.executor.stream(self, task, context):
-            yield chunk
+        import sys
+        print(f"[IMSAgent] stream called: task={task[:50]}...", file=sys.stderr, flush=True)
+        print(f"[IMSAgent] executor={self.executor}", file=sys.stderr, flush=True)
+
+        try:
+            async for chunk in self.executor.stream(self, task, context):
+                print(f"[IMSAgent] chunk={chunk.chunk_type}", file=sys.stderr, flush=True)
+                yield chunk
+        except Exception as e:
+            print(f"[IMSAgent] ERROR: {e}", file=sys.stderr, flush=True)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+            raise
