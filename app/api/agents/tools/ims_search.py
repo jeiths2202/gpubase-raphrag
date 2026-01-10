@@ -109,6 +109,46 @@ Requires IMS credentials for crawling."""
             "required": ["query"]
         }
 
+    async def _get_issue_detail(
+        self,
+        issue_id: str,
+        context: AgentContext
+    ) -> Dict[str, Any]:
+        """
+        Get detailed information for a specific issue by ID.
+        Used for DETAIL and ANALYZE intents when user asks about a specific issue.
+        """
+        from ...ims_crawler.infrastructure.dependencies import get_db_pool
+
+        sql = """
+            SELECT
+                ims_id, title, description, status, priority,
+                product, created_at, issue_details, action_log_text
+            FROM ims_issues
+            WHERE ims_id = $1
+            LIMIT 1
+        """
+
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(sql, issue_id)
+
+        if not row:
+            return None
+
+        return {
+            "id": row["ims_id"],
+            "url": f"https://ims.tmaxsoft.com/tody/ims/issue/issueView.do?issueId={row['ims_id']}&menuCode=issue_search",
+            "title": row["title"] or "",
+            "description": row["description"] or "",
+            "status": row["status"] or "",
+            "priority": row["priority"] or "",
+            "product": row["product"] or "",
+            "created_at": row["created_at"].isoformat() if row["created_at"] else "",
+            "issue_details": row["issue_details"] or "",
+            "action_log": row["action_log_text"] or "",
+        }
+
     async def _search_db(
         self,
         query: str,
@@ -410,6 +450,16 @@ Requires IMS credentials for crawling."""
                 "ko": "크롤링된 이슈를 조회하려면 로그인이 필요합니다.",
                 "ja": "クロールされたイシューを表示するにはログインが必要です。",
                 "en": "Login required to list crawled issues."
+            },
+            "issue_not_found": {
+                "ko": "이슈 {issue_id}을(를) 찾을 수 없습니다. 먼저 해당 이슈가 포함된 검색을 실행해 주세요.",
+                "ja": "イシュー {issue_id} が見つかりません。まず該当イシューを含む検索を実行してください。",
+                "en": "Issue {issue_id} not found. Please search for issues containing this ID first."
+            },
+            "issue_detail_found": {
+                "ko": "이슈 {issue_id}의 상세 정보입니다.",
+                "ja": "イシュー {issue_id} の詳細情報です。",
+                "en": "Details for issue {issue_id}."
             }
         }
 
@@ -603,6 +653,37 @@ Requires IMS credentials for crawling."""
             # For list_all, ignore status/priority filters - return ALL matching issues
             print(f"[IMS_SEARCH] Executing list_all with keyword={keyword}, limit={list_all_limit}, user_specific={user_specific}", flush=True)
             return await self._execute_list_all(context, "all", "all", list_all_limit, keyword=keyword, user_specific=user_specific)
+
+        # Handle DETAIL or ANALYZE intent with specific issue ID
+        issue_id = intent.extracted_params.get("issue_id") if intent else None
+        if issue_id and intent_type in (IntentType.DETAIL, IntentType.ANALYZE):
+            print(f"[IMS_SEARCH] Getting detail for issue_id={issue_id}", flush=True)
+
+            issue_detail = await self._get_issue_detail(issue_id, context)
+
+            if not issue_detail:
+                # Issue not found in DB - return error
+                language = context.language or "ko"
+                message = self._get_message("issue_not_found", language, issue_id=issue_id)
+                return self.create_error_result(message)
+
+            # Return detailed issue information
+            language = context.language or "ko"
+            output = {
+                "intent": intent_type.value,
+                "issue_id": issue_id,
+                "issue": issue_detail,
+                "message": self._get_message("issue_detail_found", language, issue_id=issue_id)
+            }
+
+            return self.create_success_result(
+                output,
+                metadata={
+                    "source": "database",
+                    "intent": intent_type.value,
+                    "issue_id": issue_id
+                }
+            )
 
         # For search intent, require query
         if not query:
