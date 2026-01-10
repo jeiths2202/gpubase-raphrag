@@ -33,10 +33,13 @@ export const MainLayout: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [setIsMobile]);
 
+  // Desktop: left sidebar always open, Mobile: controlled by state
+  const isLeftOpen = isMobile ? leftSidebarOpen : true;
+
   // Calculate layout class
   const layoutClass = [
     'portal-layout',
-    leftSidebarOpen ? 'left-open' : 'left-collapsed',
+    isLeftOpen ? 'left-open' : 'left-collapsed',
     rightSidebarOpen ? 'right-open' : 'right-closed',
     isMobile ? 'mobile' : '',
   ]
@@ -63,7 +66,7 @@ export const MainLayout: React.FC = () => {
       </div>
 
       {/* Mobile overlay */}
-      {isMobile && leftSidebarOpen && (
+      {isMobile && isLeftOpen && (
         <div className="portal-overlay" onClick={toggleLeftSidebar} aria-hidden="true" />
       )}
     </div>

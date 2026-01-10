@@ -148,7 +148,10 @@ export const Sidebar: React.FC = () => {
   const { t } = useTranslation();
   const location = useLocation();
   const { user } = useAuthStore();
-  const { leftSidebarOpen } = useUIStore();
+  const { leftSidebarOpen, isMobile } = useUIStore();
+
+  // Desktop: always open, Mobile: controlled by leftSidebarOpen
+  const isOpen = isMobile ? leftSidebarOpen : true;
 
   // Track expanded submenus
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
@@ -262,7 +265,7 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside className={`portal-sidebar ${leftSidebarOpen ? 'open' : 'collapsed'}`}>
+    <aside className={`portal-sidebar ${isOpen ? 'open' : 'collapsed'}`}>
       {/* Navigation */}
       <nav className="sidebar-nav">
         <div className="sidebar-nav-section">
