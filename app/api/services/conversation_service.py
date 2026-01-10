@@ -130,6 +130,7 @@ class ConversationService:
         session_id: Optional[str] = None,
         strategy: str = "auto",
         language: str = "auto",
+        agent_type: str = "auto",
         metadata: Optional[Dict[str, Any]] = None
     ) -> ConversationEntity:
         """
@@ -142,6 +143,7 @@ class ConversationService:
             session_id: Optional session association
             strategy: RAG strategy (auto, vector, graph, hybrid, code)
             language: Response language (auto, ko, ja, en)
+            agent_type: Agent type (auto, rag, ims, vision, code, planner)
             metadata: Additional metadata
 
         Returns:
@@ -155,6 +157,7 @@ class ConversationService:
             session_id=session_id,
             strategy=strategy,
             language=language,
+            agent_type=agent_type,
             metadata=metadata or {}
         )
 
@@ -233,7 +236,8 @@ class ConversationService:
         user_id: str,
         skip: int = 0,
         limit: int = 50,
-        include_archived: bool = False
+        include_archived: bool = False,
+        agent_type: Optional[str] = None
     ) -> List[ConversationListItem]:
         """
         List conversations for a user.
@@ -243,6 +247,7 @@ class ConversationService:
             skip: Number to skip
             limit: Maximum to return
             include_archived: Include archived conversations
+            agent_type: Filter by agent type (auto, rag, ims, vision, code, planner)
 
         Returns:
             List of conversation list items
@@ -251,7 +256,8 @@ class ConversationService:
             user_id=user_id,
             skip=skip,
             limit=limit,
-            include_archived=include_archived
+            include_archived=include_archived,
+            agent_type=agent_type
         )
 
         return [self._entity_to_list_item(c) for c in conversations]
@@ -916,6 +922,7 @@ Always cite sources when available."""
             is_starred=entity.is_starred,
             strategy=entity.strategy,
             language=entity.language,
+            agent_type=entity.agent_type,
             created_at=entity.created_at,
             updated_at=entity.updated_at
         )

@@ -53,6 +53,7 @@ async def list_conversations(
     skip: int = Query(0, ge=0, description="건너뛸 항목 수"),
     limit: int = Query(50, ge=1, le=100, description="최대 조회 수"),
     include_archived: bool = Query(False, description="보관된 대화 포함 여부"),
+    agent_type: Optional[str] = Query(None, pattern="^(auto|rag|ims|vision|code|planner)$", description="에이전트 유형 필터"),
     current_user: dict = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):
@@ -60,6 +61,7 @@ async def list_conversations(
     List conversations for the authenticated user.
 
     Returns paginated list of conversations ordered by updated_at DESC.
+    Optionally filter by agent_type (auto, rag, ims, vision, code, planner).
     """
     request_id = _generate_request_id()
 
@@ -67,7 +69,8 @@ async def list_conversations(
         user_id=current_user["id"],
         skip=skip,
         limit=limit,
-        include_archived=include_archived
+        include_archived=include_archived,
+        agent_type=agent_type
     )
 
     # Get total count for pagination
@@ -116,6 +119,7 @@ async def create_conversation(
         session_id=request.session_id,
         strategy=request.strategy or "auto",
         language=request.language or "auto",
+        agent_type=request.agent_type or "auto",
         metadata=request.metadata
     )
 

@@ -2,13 +2,19 @@
  * Agent Chat Component Styles
  */
 
-/* Wrapper for chat + artifact panel layout */
+/* Wrapper for chat + sidebar + artifact panel layout */
 .agent-chat-wrapper {
   display: flex;
   height: 100%;
   width: 100%;
   overflow: hidden;
   gap: 0;
+  position: relative;
+}
+
+/* Adjust main chat when history sidebar is open */
+.agent-chat-wrapper.with-history-sidebar .agent-chat {
+  margin-left: 0;
 }
 
 /* Container */
@@ -204,6 +210,44 @@
 .agent-chat-clear:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
+}
+
+/* History Toggle Button */
+.agent-chat-history-toggle,
+.agent-chat-new-conversation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.agent-chat-history-toggle:hover,
+.agent-chat-new-conversation:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.agent-chat-history-toggle.active {
+  background: var(--brand-primary-muted, rgba(99, 102, 241, 0.15));
+  color: var(--brand-primary, #6366f1);
+}
+
+.agent-chat-new-conversation {
+  background: var(--brand-primary-muted, rgba(99, 102, 241, 0.15));
+  color: var(--brand-primary, #6366f1);
+}
+
+.agent-chat-new-conversation:hover {
+  background: var(--brand-primary, #6366f1);
+  color: white;
 }
 
 /* Messages Area */

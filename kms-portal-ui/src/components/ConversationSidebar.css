@@ -1,0 +1,398 @@
+/**
+ * Conversation Sidebar Styles
+ *
+ * Styling for the conversation history sidebar.
+ */
+
+/* ============================================
+   Sidebar Container
+   ============================================ */
+.conversation-sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  height: 100%;
+  background: var(--surface-secondary, #0f172a);
+  border-right: 1px solid var(--border-primary, #334155);
+  transition: width 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.conversation-sidebar.closed {
+  width: 0;
+  border-right: none;
+}
+
+/* ============================================
+   Toggle Button (Collapsed State)
+   ============================================ */
+.conversation-sidebar-toggle {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 48px;
+  padding: 0;
+  background: var(--surface-secondary, #0f172a);
+  border: 1px solid var(--border-primary, #334155);
+  border-left: none;
+  border-radius: 0 var(--radius-md, 8px) var(--radius-md, 8px) 0;
+  color: var(--text-secondary, #94a3b8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.conversation-sidebar-toggle:hover {
+  background: var(--surface-hover, #1e293b);
+  color: var(--text-primary, #f1f5f9);
+}
+
+/* ============================================
+   Header
+   ============================================ */
+.conversation-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  border-bottom: 1px solid var(--border-primary, #334155);
+  background: var(--surface-primary, #1e293b);
+}
+
+.conversation-sidebar-title {
+  font-size: var(--text-sm, 14px);
+  font-weight: 600;
+  color: var(--text-primary, #f1f5f9);
+}
+
+.conversation-sidebar-collapse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  color: var(--text-secondary, #94a3b8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.conversation-sidebar-collapse:hover {
+  background: var(--surface-hover, #334155);
+  color: var(--text-primary, #f1f5f9);
+}
+
+/* ============================================
+   New Conversation Button
+   ============================================ */
+.new-conversation-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2, 8px);
+  margin: var(--space-3, 12px) var(--space-3, 12px) var(--space-2, 8px);
+  padding: var(--space-3, 12px);
+  background: linear-gradient(135deg, var(--brand-primary, #6366f1) 0%, var(--violet-500, #8b5cf6) 100%);
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  color: white;
+  font-size: var(--text-sm, 14px);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.new-conversation-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.new-conversation-btn:active {
+  transform: translateY(0);
+}
+
+/* ============================================
+   Conversation List
+   ============================================ */
+.conversation-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2, 8px);
+}
+
+.conversation-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.conversation-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.conversation-list::-webkit-scrollbar-thumb {
+  background: var(--border-secondary, #475569);
+  border-radius: 3px;
+}
+
+.conversation-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary, #64748b);
+}
+
+/* Loading State */
+.conversation-list-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3, 12px);
+  padding: var(--space-8, 32px) var(--space-4, 16px);
+  color: var(--text-secondary, #94a3b8);
+  font-size: var(--text-sm, 14px);
+}
+
+/* Error State */
+.conversation-list-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2, 8px);
+  padding: var(--space-6, 24px) var(--space-4, 16px);
+  color: var(--error-text, #f87171);
+  font-size: var(--text-sm, 14px);
+  text-align: center;
+}
+
+/* Empty State */
+.conversation-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2, 8px);
+  padding: var(--space-8, 32px) var(--space-4, 16px);
+  color: var(--text-secondary, #94a3b8);
+  font-size: var(--text-sm, 14px);
+  text-align: center;
+}
+
+.conversation-list-empty-hint {
+  font-size: var(--text-xs, 12px);
+  color: var(--text-tertiary, #64748b);
+}
+
+/* ============================================
+   Conversation Item
+   ============================================ */
+.conversation-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3, 12px);
+  padding: var(--space-3, 12px);
+  margin-bottom: var(--space-1, 4px);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.conversation-item:hover {
+  background: var(--surface-hover, #1e293b);
+  border-color: var(--border-primary, #334155);
+}
+
+.conversation-item.active {
+  background: var(--brand-primary-muted, rgba(99, 102, 241, 0.15));
+  border-color: var(--brand-primary, #6366f1);
+}
+
+.conversation-item.deleting {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Icon */
+.conversation-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  background: var(--surface-tertiary, #334155);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.conversation-item.active .conversation-item-icon {
+  background: var(--brand-primary, #6366f1);
+  color: white;
+}
+
+/* Content */
+.conversation-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.conversation-item-title {
+  font-size: var(--text-sm, 14px);
+  font-weight: 500;
+  color: var(--text-primary, #f1f5f9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conversation-item-preview {
+  margin-top: var(--space-1, 4px);
+  font-size: var(--text-xs, 12px);
+  color: var(--text-tertiary, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conversation-item-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  margin-top: var(--space-1, 4px);
+  font-size: var(--text-xs, 12px);
+  color: var(--text-tertiary, #64748b);
+}
+
+.conversation-item-count::after {
+  content: '\00B7';
+  margin-left: var(--space-2, 8px);
+}
+
+/* Delete Button */
+.conversation-item-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  color: var(--text-tertiary, #64748b);
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.conversation-item:hover .conversation-item-delete {
+  opacity: 1;
+}
+
+.conversation-item-delete:hover {
+  background: var(--error-background, rgba(239, 68, 68, 0.15));
+  color: var(--error-text, #f87171);
+}
+
+.conversation-item-delete:disabled {
+  cursor: not-allowed;
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+@media (max-width: 768px) {
+  .conversation-sidebar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    width: 280px;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
+  }
+
+  .conversation-sidebar.closed {
+    transform: translateX(-100%);
+  }
+
+  .conversation-sidebar-toggle.collapsed {
+    left: 0;
+  }
+}
+
+/* ============================================
+   Light Theme
+   ============================================ */
+[data-theme="light"] .conversation-sidebar {
+  background: #f8fafc;
+  border-right-color: #e2e8f0;
+}
+
+[data-theme="light"] .conversation-sidebar-toggle {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+[data-theme="light"] .conversation-sidebar-toggle:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+[data-theme="light"] .conversation-sidebar-header {
+  background: #ffffff;
+  border-bottom-color: #e2e8f0;
+}
+
+[data-theme="light"] .conversation-sidebar-title {
+  color: #1e293b;
+}
+
+[data-theme="light"] .conversation-item:hover {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .conversation-item.active {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: #6366f1;
+}
+
+[data-theme="light"] .conversation-item-icon {
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+[data-theme="light"] .conversation-item-title {
+  color: #1e293b;
+}
+
+[data-theme="light"] .conversation-item-preview,
+[data-theme="light"] .conversation-item-meta {
+  color: #94a3b8;
+}

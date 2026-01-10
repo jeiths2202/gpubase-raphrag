@@ -35,6 +35,8 @@ import {
   X,
   PanelRightOpen,
   PanelRightClose,
+  History,
+  Plus,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import './AgentChat.css';
@@ -44,7 +46,9 @@ import {
   type AgentSource,
 } from '../api/agent.api';
 import { useArtifactStore, createArtifactFromChunk } from '../store/artifactStore';
+import { useConversationStore } from '../store/conversationStore';
 import { ArtifactPanel } from './ArtifactPanel';
+import { ConversationSidebar } from './ConversationSidebar';
 
 // =============================================================================
 // Types
@@ -154,6 +158,15 @@ export const AgentChat: React.FC = () => {
     togglePanel: toggleArtifactPanel,
   } = useArtifactStore();
 
+  // Conversation store
+  const {
+    currentConversation,
+    loadConversations,
+    createConversation,
+    selectConversation,
+    startNewConversation,
+  } = useConversationStore();
+
   // State
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -163,6 +176,7 @@ export const AgentChat: React.FC = () => {
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
 
   // IMS Credentials modal state
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
@@ -544,8 +558,49 @@ export const AgentChat: React.FC = () => {
   // Get agent icon
   const AgentIcon = AGENT_CONFIGS[selectedAgent].icon;
 
+  // Handle new conversation
+  const handleNewConversation = useCallback(() => {
+    startNewConversation(selectedAgent);
+    handleClearChat();
+  }, [selectedAgent, startNewConversation, handleClearChat]);
+
+  // Handle select conversation from sidebar
+  const handleSelectConversation = useCallback(async (conversationId: string) => {
+    try {
+      await selectConversation(selectedAgent, conversationId);
+      // Load messages from current conversation
+      if (currentConversation) {
+        const loadedMessages: ChatMessage[] = currentConversation.messages.map((msg) => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          timestamp: new Date(msg.created_at),
+          agentType: selectedAgent,
+          sources: msg.sources,
+        }));
+        setMessages(loadedMessages);
+      }
+    } catch (error) {
+      console.error('Failed to load conversation:', error);
+    }
+  }, [selectedAgent, selectConversation, currentConversation]);
+
+  // Toggle history sidebar
+  const toggleHistorySidebar = useCallback(() => {
+    setShowHistorySidebar((prev) => !prev);
+  }, []);
+
   return (
-    <div className={`agent-chat-wrapper ${artifactPanel.isOpen ? 'with-artifact-panel' : ''}`}>
+    <div className={`agent-chat-wrapper ${artifactPanel.isOpen ? 'with-artifact-panel' : ''} ${showHistorySidebar ? 'with-history-sidebar' : ''}`}>
+    {/* Conversation History Sidebar */}
+    <ConversationSidebar
+      agentType={selectedAgent}
+      isOpen={showHistorySidebar}
+      onToggle={toggleHistorySidebar}
+      onNewConversation={handleNewConversation}
+      onSelectConversation={handleSelectConversation}
+    />
+
     <div className="agent-chat">
       {/* Header with agent selector */}
       <div className="agent-chat-header">
@@ -586,6 +641,24 @@ export const AgentChat: React.FC = () => {
         </div>
 
         <div className="agent-chat-header-actions">
+          {/* History sidebar toggle button */}
+          <button
+            className={`agent-chat-history-toggle ${showHistorySidebar ? 'active' : ''}`}
+            onClick={toggleHistorySidebar}
+            title={showHistorySidebar ? 'Close history' : 'Open history'}
+          >
+            <History size={16} />
+          </button>
+
+          {/* New conversation button */}
+          <button
+            className="agent-chat-new-conversation"
+            onClick={handleNewConversation}
+            title="New conversation"
+          >
+            <Plus size={16} />
+          </button>
+
           {/* Artifact panel toggle button */}
           {artifacts.length > 0 && (
             <button

@@ -141,6 +141,7 @@ class ConversationCreate(BaseModel):
     session_id: Optional[str] = None
     strategy: Optional[str] = Field(default="auto", pattern="^(auto|vector|graph|hybrid|code)$")
     language: Optional[str] = Field(default="auto", pattern="^(auto|ko|ja|en)$")
+    agent_type: Optional[str] = Field(default="auto", pattern="^(auto|rag|ims|vision|code|planner)$")
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @field_validator('title')
@@ -157,6 +158,7 @@ class ConversationUpdate(BaseModel):
     is_starred: Optional[bool] = None
     strategy: Optional[str] = Field(None, pattern="^(auto|vector|graph|hybrid|code)$")
     language: Optional[str] = Field(None, pattern="^(auto|ko|ja|en)$")
+    agent_type: Optional[str] = Field(None, pattern="^(auto|rag|ims|vision|code|planner)$")
     metadata: Optional[Dict[str, Any]] = None
 
 
@@ -170,6 +172,7 @@ class ConversationListItem(BaseModel):
     is_starred: bool = False
     strategy: Optional[str] = None
     language: Optional[str] = None
+    agent_type: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

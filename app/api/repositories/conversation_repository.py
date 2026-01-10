@@ -37,6 +37,7 @@ class ConversationEntity(Entity):
     deleted_by: Optional[str] = None
     strategy: str = "auto"
     language: str = "auto"
+    agent_type: str = "auto"  # auto, rag, ims, vision, code, planner
     metadata: Dict[str, Any] = field(default_factory=dict)
     first_message_preview: Optional[str] = None
     last_message_preview: Optional[str] = None
@@ -108,7 +109,8 @@ class ConversationRepository(BaseRepository[ConversationEntity]):
         skip: int = 0,
         limit: int = 50,
         include_archived: bool = False,
-        include_deleted: bool = False
+        include_deleted: bool = False,
+        agent_type: Optional[str] = None
     ) -> List[ConversationEntity]:
         """
         Get conversations for a specific user.
@@ -119,6 +121,7 @@ class ConversationRepository(BaseRepository[ConversationEntity]):
             limit: Maximum number to return
             include_archived: Whether to include archived conversations
             include_deleted: Whether to include soft-deleted conversations
+            agent_type: Filter by agent type (auto, rag, ims, vision, code, planner)
 
         Returns:
             List of conversations ordered by updated_at DESC
