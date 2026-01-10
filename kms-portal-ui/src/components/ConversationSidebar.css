@@ -28,24 +28,7 @@
    Toggle Button (Collapsed State)
    ============================================ */
 .conversation-sidebar-toggle {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 48px;
-  padding: 0;
-  background: var(--surface-secondary, #0f172a);
-  border: 1px solid var(--border-primary, #334155);
-  border-left: none;
-  border-radius: 0 var(--radius-md, 8px) var(--radius-md, 8px) 0;
-  color: var(--text-secondary, #94a3b8);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 10;
+  display: none; /* Hide the toggle button - we use header button instead */
 }
 
 .conversation-sidebar-toggle:hover {

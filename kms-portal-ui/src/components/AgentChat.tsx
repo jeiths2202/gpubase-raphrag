@@ -45,6 +45,7 @@ import {
   type AgentType,
   type AgentSource,
 } from '../api/agent.api';
+import { conversationApi } from '../api/conversation.api';
 import { useArtifactStore, createArtifactFromChunk } from '../store/artifactStore';
 import { useConversationStore } from '../store/conversationStore';
 import { ArtifactPanel } from './ArtifactPanel';
@@ -161,6 +162,7 @@ export const AgentChat: React.FC = () => {
   // Conversation store
   const {
     currentConversation,
+    agentStates,
     loadConversations,
     createConversation,
     selectConversation,
@@ -172,6 +174,10 @@ export const AgentChat: React.FC = () => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<AgentType>('auto');
+
+  // Get active conversation ID for current agent (must be after selectedAgent declaration)
+  const agentState = agentStates[selectedAgent] || { activeConversationId: null };
+  const activeConversationId = agentState.activeConversationId;
   const [showAgentSelector, setShowAgentSelector] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -196,6 +202,26 @@ export const AgentChat: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingMessage]);
 
+  // Clear messages and load conversations when agent type changes
+  useEffect(() => {
+    // Clear current messages when switching agent types
+    setMessages([]);
+    setStreamingMessage(null);
+    clearArtifacts();
+
+    // Load conversations for the new agent type
+    loadConversations(selectedAgent);
+  }, [selectedAgent, loadConversations, clearArtifacts]);
+
+  // Auto-load active conversation when agent type changes and there's an active conversation
+  useEffect(() => {
+    if (activeConversationId) {
+      selectConversation(selectedAgent, activeConversationId).catch(err => {
+        console.error('Failed to auto-load conversation:', err);
+      });
+    }
+  }, [selectedAgent, activeConversationId, selectConversation]);
+
   // Close agent selector when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -215,6 +241,20 @@ export const AgentChat: React.FC = () => {
     e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
   };
 
+  // Helper to save message to database
+  const saveMessageToDb = useCallback(async (
+    conversationId: string,
+    role: 'user' | 'assistant',
+    content: string
+  ) => {
+    try {
+      await conversationApi.addMessage(conversationId, { role, content });
+      console.log('[AgentChat] Message saved to conversation:', conversationId);
+    } catch (error) {
+      console.error('[AgentChat] Failed to save message:', error);
+    }
+  }, []);
+
   // Handle send message
   const handleSend = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
@@ -229,6 +269,26 @@ export const AgentChat: React.FC = () => {
     setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
+
+    // Get or create conversation for auto-save
+    let conversationId = activeConversationId;
+    if (!conversationId) {
+      try {
+        // Create new conversation with first message as title
+        const title = userMessage.content.slice(0, 50) + (userMessage.content.length > 50 ? '...' : '');
+        const conversation = await createConversation(selectedAgent, title);
+        conversationId = conversation.id;
+        console.log('[AgentChat] Created new conversation:', conversationId);
+      } catch (error) {
+        console.error('[AgentChat] Failed to create conversation:', error);
+        // Continue without persistence
+      }
+    }
+
+    // Save user message to database
+    if (conversationId) {
+      saveMessageToDb(conversationId, 'user', userMessage.content);
+    }
 
     // Reset textarea height
     if (inputRef.current) {
@@ -424,6 +484,13 @@ export const AgentChat: React.FC = () => {
         finalMessage
       ]);
       setStreamingMessage(null);
+
+      // Save assistant response to database
+      if (conversationId && accumulatedContent) {
+        saveMessageToDb(conversationId, 'assistant', accumulatedContent);
+        // Reload conversation list to update counts
+        loadConversations(selectedAgent);
+      }
     } catch (error) {
       console.error('[AgentChat] Stream error:', error);
       if (error instanceof Error && error.name === 'AbortError') {
@@ -447,7 +514,7 @@ export const AgentChat: React.FC = () => {
       setIsLoading(false);
       setAbortController(null);
     }
-  }, [inputValue, isLoading, selectedAgent]);
+  }, [inputValue, isLoading, selectedAgent, activeConversationId, createConversation, saveMessageToDb, loadConversations, t, addArtifact]);
 
   // Handle key press
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -568,22 +635,26 @@ export const AgentChat: React.FC = () => {
   const handleSelectConversation = useCallback(async (conversationId: string) => {
     try {
       await selectConversation(selectedAgent, conversationId);
-      // Load messages from current conversation
-      if (currentConversation) {
-        const loadedMessages: ChatMessage[] = currentConversation.messages.map((msg) => ({
-          id: msg.id,
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-          timestamp: new Date(msg.created_at),
-          agentType: selectedAgent,
-          sources: msg.sources,
-        }));
-        setMessages(loadedMessages);
-      }
+      // Messages will be loaded via useEffect when currentConversation changes
     } catch (error) {
       console.error('Failed to load conversation:', error);
     }
-  }, [selectedAgent, selectConversation, currentConversation]);
+  }, [selectedAgent, selectConversation]);
+
+  // Load messages when currentConversation changes
+  useEffect(() => {
+    if (currentConversation && currentConversation.messages) {
+      const loadedMessages: ChatMessage[] = currentConversation.messages.map((msg) => ({
+        id: msg.id,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        timestamp: new Date(msg.created_at),
+        agentType: selectedAgent,
+        sources: msg.sources,
+      }));
+      setMessages(loadedMessages);
+    }
+  }, [currentConversation, selectedAgent]);
 
   // Toggle history sidebar
   const toggleHistorySidebar = useCallback(() => {

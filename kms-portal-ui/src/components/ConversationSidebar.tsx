@@ -15,7 +15,6 @@ import {
   MessageSquare,
   Trash2,
   ChevronLeft,
-  ChevronRight,
   Loader2,
   AlertCircle,
 } from 'lucide-react';
@@ -94,8 +93,11 @@ export function ConversationSidebar({
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const state = agentStates[agentType];
-  const { conversations, activeConversationId, isLoading, error } = state;
+  const state = agentStates?.[agentType];
+  const conversations = state?.conversations || [];
+  const activeConversationId = state?.activeConversationId || null;
+  const isLoading = state?.isLoading || false;
+  const error = state?.error || null;
 
   // Load conversations when agent type changes
   useEffect(() => {
@@ -166,13 +168,6 @@ export function ConversationSidebar({
 
   return (
     <>
-      {/* Toggle button (visible when collapsed) */}
-      {!isOpen && (
-        <button className="conversation-sidebar-toggle collapsed" onClick={onToggle}>
-          <ChevronRight size={20} />
-        </button>
-      )}
-
       {/* Sidebar */}
       <div className={`conversation-sidebar ${isOpen ? 'open' : 'closed'}`}>
         {/* Header */}
