@@ -62,14 +62,18 @@ class AgentExecutor:
                 from .adapters.ollama_adapter import get_ollama_adapter
                 self._llm_adapter = get_ollama_adapter()
                 logger.info("Using Ollama LLM adapter")
-            except ImportError:
+            except ImportError as e:
+                logger.warning(f"Ollama adapter import failed: {e}")
                 # Fallback to LangChain adapter
                 try:
                     from ..adapters.langchain.llm_adapter import get_langchain_llm
                     self._llm_adapter = get_langchain_llm()
                     logger.info("Using LangChain LLM adapter")
-                except ImportError:
+                except ImportError as e2:
+                    logger.warning(f"LangChain adapter import failed: {e2}")
                     logger.warning("No LLM adapter available")
+            except Exception as e:
+                logger.error(f"Unexpected error loading LLM adapter: {e}")
         return self._llm_adapter
 
     async def run(
@@ -254,6 +258,11 @@ class AgentExecutor:
 
         yield AgentStreamChunk(chunk_type="thinking", content="Analyzing your request...")
 
+        import sys
+        print(f"[Executor] Starting stream for task: {task[:50]}...", file=sys.stderr, flush=True)
+        print(f"[Executor] Agent: {agent.name}, Tools: {[t.name for t in available_tools]}", file=sys.stderr, flush=True)
+        print(f"[Executor] LLM adapter: {self.llm_adapter}", file=sys.stderr, flush=True)
+
         while step < context.max_steps:
             step += 1
 
@@ -308,8 +317,28 @@ class AgentExecutor:
             else:
                 # Stream final answer
                 answer = response.content or ""
-                chunk_size = 50
 
+                # Detect artifacts in the response
+                from .artifact_detector import detect_artifacts
+                detected_artifacts = detect_artifacts(answer)
+
+                # Yield artifact chunks first (before text)
+                for artifact in detected_artifacts:
+                    yield AgentStreamChunk(
+                        chunk_type="artifact",
+                        content=artifact.content,
+                        artifact_id=artifact.id,
+                        artifact_type=artifact.type,
+                        artifact_title=artifact.title,
+                        artifact_language=artifact.language,
+                        metadata={
+                            "line_count": artifact.line_count,
+                            "char_count": artifact.char_count,
+                        }
+                    )
+
+                # Stream text content
+                chunk_size = 50
                 for i in range(0, len(answer), chunk_size):
                     chunk = answer[i:i + chunk_size]
                     yield AgentStreamChunk(chunk_type="text", content=chunk)
@@ -341,8 +370,12 @@ class AgentExecutor:
     ) -> Optional[AgentMessage]:
         """Call the LLM with messages and tools"""
         try:
+            import sys
+            print(f"[Executor] _call_llm called, adapter={self.llm_adapter}, tools={len(tools)}", file=sys.stderr, flush=True)
+
             if self.llm_adapter is None:
                 # Mock response for testing
+                logger.warning("[Executor] No LLM adapter - returning mock response")
                 return AgentMessage(
                     role=MessageRole.ASSISTANT,
                     content="LLM adapter not configured. This is a mock response."
@@ -384,10 +417,12 @@ class AgentExecutor:
             ]
 
             # Call LLM
+            logger.info(f"[Executor] Calling LLM with {len(formatted_messages)} messages, {len(formatted_tools)} tools")
             response = await self.llm_adapter.generate(
                 messages=formatted_messages,
                 tools=formatted_tools if formatted_tools else None
             )
+            logger.info(f"[Executor] LLM response: content_len={len(response.get('content', ''))}, tool_calls={len(response.get('tool_calls', []))}")
 
             # Parse response
             content = response.get("content", "")

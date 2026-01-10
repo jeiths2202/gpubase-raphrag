@@ -2,15 +2,33 @@
  * Agent Chat Component Styles
  */
 
+/* Wrapper for chat + artifact panel layout */
+.agent-chat-wrapper {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  gap: 0;
+}
+
 /* Container */
 .agent-chat {
   display: flex;
   flex-direction: column;
   height: 100%;
+  flex: 1;
+  min-width: 300px;
   background: var(--surface-primary);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-primary);
   overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.agent-chat-wrapper.with-artifact-panel .agent-chat {
+  border-top-right-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-lg);
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.2);
 }
 
 /* Header */
@@ -101,6 +119,54 @@
 .agent-selector-option-description {
   font-size: var(--text-xs);
   color: var(--text-secondary);
+}
+
+/* Header actions container */
+.agent-chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Artifact toggle button */
+.agent-chat-artifact-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.agent-chat-artifact-toggle:hover {
+  background: var(--surface-hover);
+  border-color: var(--brand-primary);
+  color: var(--text-primary);
+}
+
+.agent-chat-artifact-toggle.active {
+  background: var(--brand-primary-muted);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+}
+
+.agent-chat-artifact-toggle .artifact-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  background: var(--brand-primary);
+  border-radius: var(--radius-full);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
 }
 
 /* Clear button */
@@ -657,6 +723,89 @@
 
 .agent-status-message.ready .agent-status-content {
   color: var(--success-text);
+}
+
+/* Processing/Searching status */
+.agent-status-message.processing,
+.agent-status-message.searching {
+  background: var(--brand-primary-muted);
+  border-color: var(--brand-primary);
+  border-left-color: var(--brand-primary);
+}
+
+.agent-status-message.processing .agent-status-icon,
+.agent-status-message.searching .agent-status-icon {
+  color: var(--brand-primary);
+  background: var(--brand-primary-muted);
+}
+
+.agent-status-message.processing .agent-status-content,
+.agent-status-message.searching .agent-status-content {
+  color: var(--brand-primary);
+}
+
+/* Animated dots for loading states */
+.agent-status-dots {
+  display: inline-flex;
+  margin-left: var(--space-1);
+}
+
+.agent-status-dots .dot {
+  animation: dotBounce 1.4s infinite ease-in-out both;
+  font-weight: bold;
+}
+
+.agent-status-dots .dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.agent-status-dots .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.agent-status-dots .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dotBounce {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* Pulse animation for search icon */
+.pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+/* Spin animation improvement */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* IMS Credentials Modal */

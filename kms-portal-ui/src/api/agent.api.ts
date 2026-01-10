@@ -14,7 +14,7 @@ import apiClient from './client';
 /**
  * Agent types available in the system
  */
-export type AgentType = 'rag' | 'ims' | 'vision' | 'code' | 'planner';
+export type AgentType = 'auto' | 'rag' | 'ims' | 'vision' | 'code' | 'planner';
 
 /**
  * Agent execution request
@@ -50,6 +50,24 @@ export interface AgentSource {
 }
 
 /**
+ * Artifact types
+ */
+export type ArtifactType = 'code' | 'text' | 'markdown' | 'html' | 'json' | 'diff' | 'log' | 'image';
+
+/**
+ * Artifact language for code highlighting
+ */
+export type ArtifactLanguage =
+  | 'python' | 'javascript' | 'typescript' | 'java' | 'go' | 'rust'
+  | 'c' | 'cpp' | 'csharp' | 'ruby' | 'php' | 'swift' | 'kotlin'
+  | 'sql' | 'bash' | 'powershell' | 'batch'
+  | 'html' | 'css' | 'scss'
+  | 'json' | 'yaml' | 'xml' | 'toml'
+  | 'markdown' | 'text' | 'plaintext'
+  | 'docker' | 'dockerfile'
+  | 'diff' | 'patch';
+
+/**
  * Agent stream chunk types
  */
 export type AgentStreamChunkType =
@@ -60,7 +78,8 @@ export type AgentStreamChunkType =
   | 'sources'
   | 'error'
   | 'done'
-  | 'status';
+  | 'status'
+  | 'artifact';
 
 /**
  * Agent stream chunk
@@ -73,6 +92,12 @@ export interface AgentStreamChunk {
   tool_output: string | null;
   sources: AgentSource[] | null;
   metadata: Record<string, unknown> | null;
+
+  // Artifact-specific fields
+  artifact_id?: string;
+  artifact_type?: ArtifactType;
+  artifact_title?: string;
+  artifact_language?: ArtifactLanguage;
 }
 
 /**

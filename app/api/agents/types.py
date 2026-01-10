@@ -3,11 +3,14 @@ Agent System Types and Models
 Defines core types, enums, and Pydantic models for the agent system.
 """
 from enum import Enum
-from typing import Dict, List, Any, Optional, TypedDict, Literal, Union
+from typing import Dict, List, Any, Optional, TypedDict, Literal, Union, TYPE_CHECKING
 from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
 from datetime import datetime
 import uuid
+
+if TYPE_CHECKING:
+    from .intent import IntentResult
 
 
 class AgentType(str, Enum):
@@ -118,6 +121,9 @@ class AgentContext:
     uploaded_documents: List[str] = field(default_factory=list)
     external_resources: Dict[str, Any] = field(default_factory=dict)
 
+    # Intent classification result (set by orchestrator)
+    intent: Optional["IntentResult"] = None
+
 
 @dataclass
 class AgentResult:
@@ -167,15 +173,32 @@ class AgentResponse(BaseModel):
     error: Optional[str] = None
 
 
+class ArtifactType(str, Enum):
+    """Types of artifacts that can be extracted from agent responses"""
+    CODE = "code"
+    TEXT = "text"
+    MARKDOWN = "markdown"
+    HTML = "html"
+    JSON = "json"
+    DIFF = "diff"
+    LOG = "log"
+
+
 class AgentStreamChunk(BaseModel):
     """Streaming chunk from agent execution"""
-    chunk_type: Literal["thinking", "tool_call", "tool_result", "text", "sources", "done", "error", "status"]
+    chunk_type: Literal["thinking", "tool_call", "tool_result", "text", "sources", "done", "error", "status", "artifact"]
     content: Optional[str] = None
     tool_name: Optional[str] = None
     tool_input: Optional[Dict[str, Any]] = None
     tool_output: Optional[str] = None
     sources: Optional[List[Dict[str, Any]]] = None
     metadata: Optional[Dict[str, Any]] = None
+
+    # Artifact-specific fields
+    artifact_id: Optional[str] = None
+    artifact_type: Optional[str] = None  # code, text, markdown, html, json, diff, log
+    artifact_title: Optional[str] = None
+    artifact_language: Optional[str] = None  # python, javascript, typescript, etc.
 
 
 # Permission Models

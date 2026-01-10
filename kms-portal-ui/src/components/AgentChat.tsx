@@ -33,6 +33,8 @@ import {
   Database,
   Lock,
   X,
+  PanelRightOpen,
+  PanelRightClose,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import './AgentChat.css';
@@ -41,6 +43,8 @@ import {
   type AgentType,
   type AgentSource,
 } from '../api/agent.api';
+import { useArtifactStore, createArtifactFromChunk } from '../store/artifactStore';
+import { ArtifactPanel } from './ArtifactPanel';
 
 // =============================================================================
 // Types
@@ -68,6 +72,11 @@ interface ToolCallInfo {
 
 // Agent type configuration
 const AGENT_CONFIGS: Record<AgentType, { icon: React.ElementType; label: string; description: string }> = {
+  auto: {
+    icon: Sparkles,
+    label: 'Auto',
+    description: 'Automatically detect the best agent',
+  },
   rag: {
     icon: Search,
     label: 'RAG',
@@ -97,6 +106,11 @@ const AGENT_CONFIGS: Record<AgentType, { icon: React.ElementType; label: string;
 
 // Suggested questions per agent type
 const SUGGESTED_QUESTIONS: Record<AgentType, string[]> = {
+  auto: [
+    'osctdlupdate 이슈 찾아줘',
+    'What is HybridRAG?',
+    'Find authentication issues',
+  ],
   rag: [
     'What is HybridRAG?',
     'How does vector search work?',
@@ -131,11 +145,20 @@ const SUGGESTED_QUESTIONS: Record<AgentType, string[]> = {
 export const AgentChat: React.FC = () => {
   const { t } = useTranslation();
 
+  // Artifact store
+  const {
+    artifacts,
+    panel: artifactPanel,
+    addArtifact,
+    clearArtifacts,
+    togglePanel: toggleArtifactPanel,
+  } = useArtifactStore();
+
   // State
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState<AgentType>('rag');
+  const [selectedAgent, setSelectedAgent] = useState<AgentType>('auto');
   const [showAgentSelector, setShowAgentSelector] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -198,12 +221,12 @@ export const AgentChat: React.FC = () => {
       inputRef.current.style.height = 'auto';
     }
 
-    // Create streaming message placeholder
+    // Create streaming message placeholder with initial thinking state
     const assistantMessageId = `msg-${Date.now()}-assistant`;
     const streamingMsg: ChatMessage = {
       id: assistantMessageId,
       role: 'assistant',
-      content: '',
+      content: t('common.agent.status.analyzing') || 'Analyzing your request...',
       timestamp: new Date(),
       agentType: selectedAgent,
       toolCalls: [],
@@ -220,11 +243,21 @@ export const AgentChat: React.FC = () => {
       let accumulatedContent = '';
       const toolCalls: ToolCallInfo[] = [];
       let sources: AgentSource[] = [];
+      let receivedAnyChunk = false;
+
+      console.log('[AgentChat] Starting stream for task:', userMessage.content, 'agent:', selectedAgent);
+
+      // When 'auto' is selected, don't send agent_type to let backend classify
+      const requestPayload = selectedAgent === 'auto'
+        ? { task: userMessage.content }
+        : { task: userMessage.content, agent_type: selectedAgent };
 
       for await (const chunk of streamAgent(
-        { task: userMessage.content, agent_type: selectedAgent },
+        requestPayload,
         controller.signal
       )) {
+        receivedAnyChunk = true;
+        console.log('[AgentChat] Received chunk:', chunk.chunk_type, chunk);
         switch (chunk.chunk_type) {
           case 'thinking':
             // Update with thinking status
@@ -282,6 +315,25 @@ export const AgentChat: React.FC = () => {
             );
             break;
 
+          case 'artifact':
+            // Handle artifact chunk - add to artifact store
+            if (chunk.artifact_id && chunk.artifact_type && chunk.content) {
+              const artifact = createArtifactFromChunk({
+                artifact_id: chunk.artifact_id,
+                artifact_type: chunk.artifact_type,
+                artifact_title: chunk.artifact_title,
+                artifact_language: chunk.artifact_language,
+                content: chunk.content,
+                metadata: chunk.metadata,
+                messageId: assistantMessageId,
+              });
+
+              if (artifact) {
+                addArtifact(artifact);
+              }
+            }
+            break;
+
           case 'status':
             // Handle status messages (crawl status, ready status, credentials_required)
             // Backend sends status keys: "crawling", "ready", "credentials_required", etc.
@@ -323,16 +375,25 @@ export const AgentChat: React.FC = () => {
             break;
 
           case 'done':
-            // Streaming complete
+            // Streaming complete - remove processing status messages
+            setMessages((prev) => prev.filter(msg =>
+              !(msg.role === 'status' &&
+                (msg.content === 'processing' || msg.content === 'crawling' || msg.content === 'searching'))
+            ));
             break;
         }
       }
 
-      // Finalize message
+      // Log if no chunks received
+      if (!receivedAnyChunk) {
+        console.warn('[AgentChat] No chunks received from stream');
+      }
+
+      // Finalize message - also filter out any remaining processing status messages
       const finalMessage: ChatMessage = {
         id: assistantMessageId,
         role: 'assistant',
-        content: accumulatedContent || 'No response generated.',
+        content: accumulatedContent || (receivedAnyChunk ? 'No content in response.' : 'Failed to get response from server.'),
         timestamp: new Date(),
         agentType: selectedAgent,
         toolCalls,
@@ -340,9 +401,17 @@ export const AgentChat: React.FC = () => {
         isStreaming: false,
       };
 
-      setMessages((prev) => [...prev, finalMessage]);
+      console.log('[AgentChat] Final message:', finalMessage);
+      setMessages((prev) => [
+        ...prev.filter(msg =>
+          !(msg.role === 'status' &&
+            (msg.content === 'processing' || msg.content === 'crawling' || msg.content === 'searching'))
+        ),
+        finalMessage
+      ]);
       setStreamingMessage(null);
     } catch (error) {
+      console.error('[AgentChat] Stream error:', error);
       if (error instanceof Error && error.name === 'AbortError') {
         // Request was cancelled
         setStreamingMessage(null);
@@ -398,6 +467,7 @@ export const AgentChat: React.FC = () => {
     }
     setMessages([]);
     setStreamingMessage(null);
+    clearArtifacts(); // Also clear artifacts
   };
 
   // Cancel streaming
@@ -475,6 +545,7 @@ export const AgentChat: React.FC = () => {
   const AgentIcon = AGENT_CONFIGS[selectedAgent].icon;
 
   return (
+    <div className={`agent-chat-wrapper ${artifactPanel.isOpen ? 'with-artifact-panel' : ''}`}>
     <div className="agent-chat">
       {/* Header with agent selector */}
       <div className="agent-chat-header">
@@ -514,12 +585,26 @@ export const AgentChat: React.FC = () => {
           )}
         </div>
 
-        {messages.length > 0 && (
-          <button className="agent-chat-clear" onClick={handleClearChat}>
-            <RefreshCw size={16} />
-            <span>{t('knowledge.chat.clearHistory') || 'Clear'}</span>
-          </button>
-        )}
+        <div className="agent-chat-header-actions">
+          {/* Artifact panel toggle button */}
+          {artifacts.length > 0 && (
+            <button
+              className={`agent-chat-artifact-toggle ${artifactPanel.isOpen ? 'active' : ''}`}
+              onClick={toggleArtifactPanel}
+              title={artifactPanel.isOpen ? 'Close artifacts' : 'Open artifacts'}
+            >
+              {artifactPanel.isOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+              <span className="artifact-count">{artifacts.length}</span>
+            </button>
+          )}
+
+          {messages.length > 0 && (
+            <button className="agent-chat-clear" onClick={handleClearChat}>
+              <RefreshCw size={16} />
+              <span>{t('knowledge.chat.clearHistory') || 'Clear'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages area */}
@@ -687,6 +772,10 @@ export const AgentChat: React.FC = () => {
         </div>
       )}
     </div>
+
+    {/* Artifact Panel */}
+    <ArtifactPanel />
+    </div>
   );
 };
 
@@ -719,17 +808,35 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     const statusKey = message.content as 'crawling' | 'ready' | 'searching' | 'processing';
     const translatedMessage = t(`common.agent.status.${statusKey}`) || message.content;
 
+    // Get appropriate icon based on status
+    const getStatusIcon = () => {
+      switch (statusKey) {
+        case 'crawling':
+        case 'processing':
+          return <Loader2 size={18} className="spin" />;
+        case 'searching':
+          return <Search size={18} className="pulse" />;
+        case 'ready':
+          return <CheckCircle2 size={18} />;
+        default:
+          return <Database size={18} />;
+      }
+    };
+
     return (
-      <div className={`agent-status-message ${message.statusType || ''}`}>
+      <div className={`agent-status-message ${message.statusType || ''} ${statusKey}`}>
         <div className="agent-status-icon">
-          {message.statusType === 'crawling' ? (
-            <Loader2 size={18} className="spin" />
-          ) : (
-            <Database size={18} />
-          )}
+          {getStatusIcon()}
         </div>
         <div className="agent-status-content">
           <span>{translatedMessage}</span>
+          {(statusKey === 'crawling' || statusKey === 'processing' || statusKey === 'searching') && (
+            <span className="agent-status-dots">
+              <span className="dot">.</span>
+              <span className="dot">.</span>
+              <span className="dot">.</span>
+            </span>
+          )}
         </div>
       </div>
     );
