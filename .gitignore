@@ -131,3 +131,19 @@ debug_*.txt
 debug_*.json
 analysis_*.json
 ims_api_*.json
+
+# Legacy frontend test files
+frontend/playwright.config.ts
+frontend/src/__tests__/
+
+# Video recordings
+*.mp4
+
+# Debug/analysis scripts
+scripts/debug_*.py
+scripts/analyze_*.py
+scripts/capture_*.py
+
+# Misc
+frontend.lnk
+not_use_frontend/
