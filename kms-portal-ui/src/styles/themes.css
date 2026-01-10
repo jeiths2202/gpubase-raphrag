@@ -69,6 +69,7 @@
   /* Border colors */
   --color-border: #334155;
   --color-border-light: #1e293b;
+  --color-border-subtle: #475569;
   --color-border-focus: #60a5fa;
   --color-border-error: #ef4444;
 
@@ -96,6 +97,7 @@
 
   /* Focus ring */
   --focus-ring-color: rgba(59, 130, 246, 0.5);
+  --focus-ring: 0 0 0 3px var(--focus-ring-color);
 
   /* Status colors (adjusted for dark) */
   --status-online: #34d399;
@@ -139,6 +141,7 @@
   /* Border colors (WCAG compliant contrast) */
   --color-border: #cbd5e1;
   --color-border-light: #e2e8f0;
+  --color-border-subtle: #e2e8f0;
   --color-border-focus: #6366f1;
   --color-border-error: #ef4444;
 
@@ -166,6 +169,7 @@
 
   /* Focus ring */
   --focus-ring-color: rgba(59, 130, 246, 0.4);
+  --focus-ring: 0 0 0 3px var(--focus-ring-color);
 
   /* Status colors */
   --status-online: #10b981;

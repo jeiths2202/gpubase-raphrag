@@ -107,6 +107,7 @@
     "legend": "リンクタイプ",
     "similarity": "類似スコア",
     "sameProject": "同一プロジェクト",
+    "relatedIssue": "関連イシュー",
     "sharedLabels": "共有ラベル"
   },
   "empty": {

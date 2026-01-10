@@ -3,6 +3,9 @@ Background task queue for async job processing
 Simple asyncio-based task queue without external dependencies
 """
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 from typing import Dict, Callable, Any, Optional
 from datetime import datetime
 from uuid import UUID, uuid4
@@ -88,7 +91,7 @@ class BackgroundTaskQueue:
 
         self._running = True
         self._worker_task = asyncio.create_task(self._worker())
-        print(f"✓ Background task queue started (max concurrent: {self.max_concurrent_tasks})")
+        logger.info(f"[OK] Background task queue started (max concurrent: {self.max_concurrent_tasks})")
 
     async def stop(self):
         """Stop the task queue worker"""
@@ -106,7 +109,7 @@ class BackgroundTaskQueue:
             except asyncio.CancelledError:
                 pass
 
-        print("✓ Background task queue stopped")
+        logger.info("[OK] Background task queue stopped")
 
     async def submit_task(
         self,
@@ -167,7 +170,7 @@ class BackgroundTaskQueue:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"Worker error: {e}")
+                logger.error(f"Worker error: {e}")
 
     async def _execute_task(self, task: BackgroundTask):
         """Execute a single task"""
@@ -194,7 +197,7 @@ class BackgroundTaskQueue:
             task.status = TaskStatus.FAILED
             task.completed_at = datetime.utcnow()
             task.error = str(e)
-            print(f"Task {task.task_name} ({task_id}) failed: {e}")
+            logger.error(f"Task {task.task_name} ({task_id}) failed: {e}")
 
         finally:
             self.running_tasks.discard(task_id)

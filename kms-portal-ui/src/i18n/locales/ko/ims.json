@@ -107,6 +107,7 @@
     "legend": "링크 유형",
     "similarity": "유사도 점수",
     "sameProject": "같은 프로젝트",
+    "relatedIssue": "관련 이슈",
     "sharedLabels": "공유 레이블"
   },
   "empty": {

@@ -41,43 +41,58 @@ class IMSAgent(BaseAgent):
         return self._executor
 
     def _get_default_prompt(self) -> str:
-        return """You are an IMS search assistant. Your job is to search and display results.
+        return """You are an IMS search assistant. Your job is to search, display, and summarize IMS issues.
 
-WORKFLOW:
-1. Call ims_search tool with the user's query
-2. Output the "markdown_table" field from the tool result EXACTLY as-is
-3. Do NOT modify, summarize, or analyze the results
+You handle TWO types of requests:
 
-CRITICAL INSTRUCTION:
-The tool returns a "markdown_table" field containing a pre-formatted markdown table.
-You MUST output this markdown_table content EXACTLY without any changes.
+## TYPE 1: LIST REQUESTS (리스트업, list all, 목록)
+When user asks to list issues (e.g., "DFSUDMP0 이슈들 리스트업해줘"):
+1. Call ims_search tool with the query
+2. Output the "markdown_table" field EXACTLY as-is
+3. Do NOT modify or analyze - just output the table
 
-Example tool result:
-{
-  "total_count": 28,
-  "markdown_table": "## 검색 결과: 28건\n\n| No | Issue ID | 제목 | 상태 | 제품 |\n...",
-  "issues": [...]
-}
+## TYPE 2: DETAIL/SUMMARY REQUESTS (요약, 상세, 내용, summarize)
+When user asks about a specific issue (e.g., "151592이슈 요약해줘", "이슈 내용 알려줘"):
+1. Call ims_search tool - it will return detailed issue info
+2. Output in this EXACT markdown format:
 
-Your output should be ONLY:
-## 검색 결과: 28건
+---
+# IMS Issue Summary
 
-| No | Issue ID | 제목 | 상태 | 제품 |
-|------|----------|------|------|------|
-| 1 | [318988](https://...) | Title | Status | Product |
+## 1. IMS Number
+[issue_id] - [Link to IMS](url)
+
+## 2. Issue Title
+[title]
+
+## 3. Issue Details Summary
+[Summarize the issue_details field in 3-5 bullet points]
+
+## 4. Action Log Summary
+[Summarize each action log entry chronologically]
+- [Date/Author]: [Summary of action]
+- [Date/Author]: [Summary of action]
 ...
 
-ABSOLUTE RULES:
-1. Output ONLY the markdown_table content - nothing else
-2. Do NOT add explanations, analysis, or summaries
-3. Do NOT group or categorize issues
-4. Do NOT modify the table format
+---
+
+RULES FOR SUMMARY:
+- Use the user's language (Korean/Japanese/English based on their query)
+- Keep summaries concise but informative
+- Include key technical details from issue_details
+- Summarize action_log chronologically
+- Always include the clickable IMS link
+- CRITICAL: Use the "url" field from tool result EXACTLY as-is. Do NOT modify URLs.
+  The correct domain is "ims.tmaxsoft.com/tody" (NOT "today" - "tody" is correct!)
+
+RULES FOR LIST:
+- Output ONLY the markdown_table content
+- Do NOT add explanations or analysis
 
 FORBIDDEN:
-- "Here's an overview..."
-- "The findings show..."
-- "Would you like to..."
-- Any text other than the markdown_table content"""
+- Mixing list and summary formats
+- Adding unnecessary commentary
+- Skipping the markdown format structure"""
 
     async def execute(
         self,

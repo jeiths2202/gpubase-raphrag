@@ -49,6 +49,25 @@ export interface IMSIssue {
   updated_at: string;
   similarity_score?: number;
   hybrid_score?: number;
+  // Related issues from IMS Related Issue tab
+  related_issue_ids?: string[];
+}
+
+/**
+ * Issue relation for graph visualization
+ */
+export interface IssueRelation {
+  source_ims_id: string;
+  target_ims_id: string;
+  relation_type: string;
+}
+
+/**
+ * Relations response from API
+ */
+export interface RelationsResponse {
+  total_relations: number;
+  relations: IssueRelation[];
 }
 
 /**

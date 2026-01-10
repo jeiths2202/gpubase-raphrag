@@ -165,6 +165,11 @@ const STORAGE_KEYS = {
 
 // Markdown-like renderer for code blocks
 const renderMessageContent = (content: string): React.ReactNode => {
+  // Handle undefined/null content
+  if (!content) {
+    return null;
+  }
+
   const parts: React.ReactNode[] = [];
   let key = 0;
 
@@ -587,7 +592,7 @@ export const AISidebar: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: userMessage.content,
+          question: userMessage.content,
           conversationId: currentConversationId,
         }),
       });
@@ -661,7 +666,7 @@ export const AISidebar: React.FC = () => {
         const fallbackResponse = await fetch('/api/v1/query', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: userMessage.content }),
+          body: JSON.stringify({ question: userMessage.content }),
         });
 
         const data = await fallbackResponse.json();

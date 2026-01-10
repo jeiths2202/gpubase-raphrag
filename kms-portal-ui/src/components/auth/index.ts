@@ -11,6 +11,7 @@ export { RegisterForm } from './RegisterForm';
 export { VerifyForm } from './VerifyForm';
 export { SSOForm } from './SSOForm';
 export { SocialLoginButtons } from './SocialLoginButtons';
+export { GoogleLoginButton } from './GoogleLoginButton';
 
 export type {
   AuthMode,

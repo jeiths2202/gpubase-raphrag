@@ -16,7 +16,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   isLoading,
   onSubmit,
   onSSOClick,
-  onGoogleClick,
+  onGoogleSuccess,
+  onGoogleError,
   isGoogleConfigured,
 }) => {
   const [userId, setUserId] = useState('');
@@ -85,7 +86,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         t={t}
         isLoading={isLoading}
         isGoogleConfigured={isGoogleConfigured}
-        onGoogleClick={onGoogleClick}
+        onGoogleSuccess={onGoogleSuccess}
+        onGoogleError={onGoogleError}
         onSSOClick={onSSOClick}
       />
     </motion.form>

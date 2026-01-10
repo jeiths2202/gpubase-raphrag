@@ -20,6 +20,7 @@ import {
   type UserProfile,
   type UserRole,
 } from '../api';
+import { useUIStore } from './uiStore';
 
 // =============================================================================
 // Types
@@ -37,6 +38,7 @@ export interface User {
   department?: string;
   avatar?: string | null;
   language?: 'en' | 'ko' | 'ja';
+  provider?: AuthProvider;
 }
 
 /**
@@ -82,7 +84,7 @@ interface AuthState {
 /**
  * Map API UserProfile to frontend User
  */
-const mapUserProfile = (profile: UserProfile): User => ({
+const mapUserProfile = (profile: UserProfile, provider?: AuthProvider): User => ({
   id: profile.id,
   email: profile.email,
   name: profile.display_name || profile.username || profile.email,
@@ -90,6 +92,7 @@ const mapUserProfile = (profile: UserProfile): User => ({
   department: profile.department,
   avatar: profile.avatar,
   language: profile.language,
+  provider: provider || 'email',
 });
 
 // =============================================================================
@@ -139,6 +142,9 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
               error: null,
             });
+
+            // Ensure sidebar is open after successful login
+            useUIStore.getState().setLeftSidebarOpen(true);
 
             return true;
           } catch (error) {
@@ -204,6 +210,9 @@ export const useAuthStore = create<AuthState>()(
               error: null,
             });
 
+            // Ensure sidebar is open after successful verification
+            useUIStore.getState().setLeftSidebarOpen(true);
+
             return true;
           } catch (error) {
             const message = getErrorMessage(error);
@@ -248,10 +257,10 @@ export const useAuthStore = create<AuthState>()(
             // Map user from response or fetch profile
             let user: User;
             if (response.user) {
-              user = mapUserProfile(response.user);
+              user = mapUserProfile(response.user, 'google');
             } else {
               const profile = await authApi.getCurrentUser();
-              user = mapUserProfile(profile);
+              user = mapUserProfile(profile, 'google');
             }
 
             set({
@@ -260,6 +269,9 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
               error: null,
             });
+
+            // Ensure sidebar is open after successful Google login
+            useUIStore.getState().setLeftSidebarOpen(true);
 
             return true;
           } catch (error) {

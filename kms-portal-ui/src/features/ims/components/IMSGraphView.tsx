@@ -70,44 +70,75 @@ export const IMSGraphView: React.FC<IMSGraphViewProps> = ({ issues, onIssueClick
     // Create links based on relationships
     const newLinks: GraphLink[] = [];
 
+    // Build a map of ims_id -> issue for quick lookup
+    const imsIdToIssue = new Map<string, IMSIssue>();
+    uniqueIssues.forEach((issue) => {
+      imsIdToIssue.set(issue.ims_id, issue);
+    });
+
+    // Create links from related_issue_ids (actual IMS relationships)
+    for (const issue of uniqueIssues) {
+      if (issue.related_issue_ids && issue.related_issue_ids.length > 0) {
+        for (const relatedImsId of issue.related_issue_ids) {
+          const relatedIssue = imsIdToIssue.get(relatedImsId);
+          if (relatedIssue && relatedIssue.id !== issue.id) {
+            // Check if link already exists (avoid duplicates)
+            const linkExists = newLinks.some(
+              (link) =>
+                (link.source === issue.id && link.target === relatedIssue.id) ||
+                (link.source === relatedIssue.id && link.target === issue.id)
+            );
+            if (!linkExists) {
+              newLinks.push({
+                source: issue.id,
+                target: relatedIssue.id,
+                type: 'project', // Use 'project' type for related issues (green color)
+                strength: 0.5, // Strong connection for actual relations
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Additional links for similarity scores (if no direct relationship exists)
     for (let i = 0; i < uniqueIssues.length; i++) {
       for (let j = i + 1; j < uniqueIssues.length; j++) {
         const issueA = uniqueIssues[i];
         const issueB = uniqueIssues[j];
 
-        // Similarity link (if both have similarity scores > 0.7)
-        if (
-          issueA.similarity_score &&
-          issueB.similarity_score &&
-          Math.abs(issueA.similarity_score - issueB.similarity_score) < 0.2
-        ) {
-          newLinks.push({
-            source: issueA.id,
-            target: issueB.id,
-            type: 'similarity',
-            strength: 0.5,
-          });
-        }
+        // Skip if already linked via related_issue_ids
+        const alreadyLinked = newLinks.some(
+          (link) =>
+            (link.source === issueA.id && link.target === issueB.id) ||
+            (link.source === issueB.id && link.target === issueA.id)
+        );
 
-        // Same project link
-        if (issueA.project_key === issueB.project_key) {
-          newLinks.push({
-            source: issueA.id,
-            target: issueB.id,
-            type: 'project',
-            strength: 0.3,
-          });
-        }
+        if (!alreadyLinked) {
+          // Similarity link (if both have similar scores)
+          if (
+            issueA.similarity_score &&
+            issueB.similarity_score &&
+            Math.abs(issueA.similarity_score - issueB.similarity_score) < 0.15
+          ) {
+            newLinks.push({
+              source: issueA.id,
+              target: issueB.id,
+              type: 'similarity',
+              strength: 0.3,
+            });
+          }
 
-        // Shared labels link
-        const sharedLabels = issueA.labels?.filter((l) => issueB.labels?.includes(l));
-        if (sharedLabels && sharedLabels.length > 0) {
-          newLinks.push({
-            source: issueA.id,
-            target: issueB.id,
-            type: 'label',
-            strength: 0.2 * sharedLabels.length,
-          });
+          // Shared labels link
+          const sharedLabels = issueA.labels?.filter((l) => issueB.labels?.includes(l));
+          if (sharedLabels && sharedLabels.length > 0) {
+            newLinks.push({
+              source: issueA.id,
+              target: issueB.id,
+              type: 'label',
+              strength: 0.2 * sharedLabels.length,
+            });
+          }
         }
       }
     }
@@ -330,7 +361,7 @@ export const IMSGraphView: React.FC<IMSGraphViewProps> = ({ issues, onIssueClick
         </div>
         <div className="ims-graph__legend-item">
           <span className="ims-graph__legend-line" style={{ background: LINK_COLORS.project }} />
-          {t('ims.graph.sameProject')}
+          {t('ims.graph.relatedIssue')}
         </div>
         <div className="ims-graph__legend-item">
           <span className="ims-graph__legend-line" style={{ background: LINK_COLORS.label }} />

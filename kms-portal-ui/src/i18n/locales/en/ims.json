@@ -107,6 +107,7 @@
     "legend": "Link Types",
     "similarity": "Similar Score",
     "sameProject": "Same Project",
+    "relatedIssue": "Related Issue",
     "sharedLabels": "Shared Labels"
   },
   "empty": {

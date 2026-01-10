@@ -13,6 +13,7 @@ from .types import (
 from .base import BaseAgent
 from .registry import AgentRegistry, get_agent_registry
 from .executor import AgentExecutor, get_executor
+from .intent import IntentClassifier, get_intent_classifier, IntentResult
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +64,12 @@ class AgentOrchestrator:
     def __init__(
         self,
         agent_registry: Optional[AgentRegistry] = None,
-        executor: Optional[AgentExecutor] = None
+        executor: Optional[AgentExecutor] = None,
+        intent_classifier: Optional[IntentClassifier] = None
     ):
         self.agent_registry = agent_registry or get_agent_registry()
         self.executor = executor or get_executor()
+        self.intent_classifier = intent_classifier or get_intent_classifier()
 
     @classmethod
     def get_instance(cls) -> 'AgentOrchestrator':
@@ -104,6 +107,15 @@ class AgentOrchestrator:
         else:
             agent_type = await self.classify_task(request.task)
 
+        # Classify intent and attach to context
+        intent_result = await self.intent_classifier.classify(
+            request.task,
+            agent_type=agent_type.value
+        )
+        context.intent = intent_result
+        logger.info(f"[Orchestrator] Intent: {intent_result.intent.value} "
+                   f"(confidence={intent_result.confidence:.2f}, method={intent_result.method})")
+
         # Get agent
         agent = self.agent_registry.get(agent_type)
 
@@ -137,6 +149,8 @@ class AgentOrchestrator:
         Yields:
             AgentStreamChunk with incremental results
         """
+        logger.info(f"[Orchestrator] stream called: task={request.task[:50]}...")
+
         context = AgentContext(
             session_id=request.session_id or "",
             user_id=user_id,
@@ -149,10 +163,28 @@ class AgentOrchestrator:
         else:
             agent_type = await self.classify_task(request.task)
 
-        agent = self.agent_registry.get(agent_type)
+        # Classify intent and attach to context
+        intent_result = await self.intent_classifier.classify(
+            request.task,
+            agent_type=agent_type.value
+        )
+        context.intent = intent_result
+        print(f"[Orchestrator] Intent: {intent_result.intent.value} "
+              f"(confidence={intent_result.confidence:.2f}, method={intent_result.method}, "
+              f"params={intent_result.extracted_params})", flush=True)
 
-        async for chunk in agent.stream(request.task, context):
-            yield chunk
+        print(f"[Orchestrator] agent_type={agent_type.value}", flush=True)
+
+        agent = self.agent_registry.get(agent_type)
+        print(f"[Orchestrator] agent={agent.name}", flush=True)
+
+        try:
+            async for chunk in agent.stream(request.task, context):
+                logger.debug(f"[Orchestrator] chunk={chunk.chunk_type}")
+                yield chunk
+        except Exception as e:
+            logger.error(f"[Orchestrator] ERROR: {e}")
+            raise
 
     async def classify_task(self, task: str) -> AgentType:
         """
@@ -169,6 +201,9 @@ class AgentOrchestrator:
             for keyword in keywords:
                 if keyword.lower() in task_lower:
                     scores[agent_type] += 1
+                    logger.debug(f"[Classify] matched '{keyword}' -> {agent_type.value}")
+
+        logger.debug(f"[Classify] scores={scores}")
 
         # Find best match
         best_type = max(scores, key=scores.get)
@@ -176,13 +211,16 @@ class AgentOrchestrator:
 
         # If no strong match, default to RAG
         if best_score == 0:
+            logger.info("[Classify] no match, defaulting to RAG")
             return AgentType.RAG
 
         # If multiple high scores, prefer RAG as it's most general
         high_scores = [at for at, score in scores.items() if score == best_score]
         if len(high_scores) > 1 and AgentType.RAG in high_scores:
+            logger.info(f"[Classify] multiple high scores {high_scores}, preferring RAG")
             return AgentType.RAG
 
+        logger.info(f"[Classify] result={best_type.value}")
         return best_type
 
     async def classify_with_llm(self, task: str) -> AgentType:

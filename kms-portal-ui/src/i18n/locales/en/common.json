@@ -61,6 +61,8 @@
       "ready": "Data is ready. How can I help you?",
       "searching": "Searching database...",
       "processing": "Processing your request...",
+      "analyzing": "Analyzing your request...",
+      "thinking": "Thinking...",
       "credentials_required": "IMS login required. Please enter your IMS credentials to search."
     },
     "credentials": {

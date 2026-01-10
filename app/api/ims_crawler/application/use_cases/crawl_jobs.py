@@ -229,17 +229,17 @@ class CrawlJobsUseCase:
                 phase = progress_data.get("phase", "")
                 if phase == "search_count":
                     search_progress["total_pages"] = progress_data.get("total_pages", 0)
-                    print(f"[IMS Job] Found {progress_data['total_count']} issues to fetch ({progress_data['total_pages']} pages)")
+                    logger.info(f"[IMS Job] Found {progress_data['total_count']} issues to fetch ({progress_data['total_pages']} pages)")
                 elif phase == "search_page":
-                    print(f"[IMS Job] Fetching page {progress_data['current_page']}/{progress_data['total_pages']} ({progress_data['progress_percent']}%)")
+                    logger.info(f"[IMS Job] Fetching page {progress_data['current_page']}/{progress_data['total_pages']} ({progress_data['progress_percent']}%)")
 
             def on_crawl_progress(progress_data):
                 crawl_progress["last_event"] = progress_data
                 phase = progress_data.get("phase", "")
                 if phase == "crawl_batch_start":
-                    print(f"[IMS Job] Crawling batch {progress_data['batch_num']}/{progress_data['total_batches']} ({progress_data['progress_percent']}%)")
+                    logger.info(f"[IMS Job] Crawling batch {progress_data['batch_num']}/{progress_data['total_batches']} ({progress_data['progress_percent']}%)")
                 elif phase == "crawl_batch_complete":
-                    print(f"[IMS Job] Batch {progress_data['batch_num']} completed: {progress_data['crawled_count']}/{progress_data['total_issues']} crawled")
+                    logger.info(f"[IMS Job] Batch {progress_data['batch_num']} completed: {progress_data['crawled_count']}/{progress_data['total_issues']} crawled")
 
             # Get product_codes from job (if set during creation)
             product_codes = getattr(job, 'product_codes', None)
@@ -296,7 +296,7 @@ class CrawlJobsUseCase:
             # ============================================================
             import time
             phase1_start = time.time()
-            print(f"[IMS Crawler] Phase 1: Saving {total_issues} issues to database...")
+            logger.info(f"[IMS Crawler] Phase 1: Saving {total_issues} issues to database...")
             yield {
                 "event": "phase_started",
                 "phase": "saving",
@@ -379,14 +379,50 @@ class CrawlJobsUseCase:
 
             self._jobs[job_id] = job
             phase1_elapsed = time.time() - phase1_start
-            print(f"[IMS Crawler] Phase 1 completed in {phase1_elapsed:.2f}s")
+            logger.info(f"[IMS Crawler] Phase 1 completed in {phase1_elapsed:.2f}s")
+
+            # ============================================================
+            # PHASE 1.5: Save issue relations (from related_issue_ids)
+            # ============================================================
+            phase1_5_start = time.time()
+            total_relations_saved = 0
+
+            # Save relations: for each issue with related_issue_ids, save to ims_issue_relations
+            # job.result_issue_ids maintains the same order as crawled_issues
+            for idx, full_issue in enumerate(crawled_issues):
+                if full_issue.related_issue_ids:
+                    try:
+                        # Get the saved DB ID for this issue (same index as crawled_issues)
+                        saved_id = job.result_issue_ids[idx] if idx < len(job.result_issue_ids) else None
+                        if saved_id:
+                            relations_created = await self.issue_repo.save_relations_bulk(
+                                source_issue_id=saved_id,
+                                source_ims_id=full_issue.ims_id,
+                                related_ims_ids=full_issue.related_issue_ids,
+                                user_id=job.user_id,
+                                relation_type='relates_to'
+                            )
+                            total_relations_saved += relations_created
+                            if relations_created > 0:
+                                logger.debug(f"Issue {full_issue.ims_id}: saved {relations_created} relations")
+                    except Exception as rel_error:
+                        logger.warning(f"Failed to save relations for {full_issue.ims_id}: {rel_error}")
+
+            if total_relations_saved > 0:
+                phase1_5_elapsed = time.time() - phase1_5_start
+                logger.info(f"[IMS Crawler] Phase 1.5: Saved {total_relations_saved} issue relations in {phase1_5_elapsed:.2f}s")
+                yield {
+                    "event": "relations_saved",
+                    "relations_count": total_relations_saved,
+                    "message": f"Saved {total_relations_saved} issue relationships"
+                }
 
             # ============================================================
             # PHASE 2: Batch generate embeddings (PARALLELIZED)
             # ============================================================
             if embedding_data:
                 phase2_start = time.time()
-                print(f"[IMS Crawler] Phase 2: Generating embeddings for {len(embedding_data)} issues (batch processing)...")
+                logger.info(f"[IMS Crawler] Phase 2: Generating embeddings for {len(embedding_data)} issues (batch processing)...")
                 yield {
                     "event": "phase_started",
                     "phase": "embedding",
@@ -417,13 +453,13 @@ class CrawlJobsUseCase:
                         }
 
                     phase2_elapsed = time.time() - phase2_start
-                    print(f"[IMS Crawler] Phase 2 completed in {phase2_elapsed:.2f}s - Generated {len(all_embeddings)} embeddings")
+                    logger.info(f"[IMS Crawler] Phase 2 completed in {phase2_elapsed:.2f}s - Generated {len(all_embeddings)} embeddings")
 
                     # ============================================================
                     # PHASE 3: Save embeddings to DB (can be parallelized)
                     # ============================================================
                     phase3_start = time.time()
-                    print(f"[IMS Crawler] Phase 3: Saving {len(all_embeddings)} embeddings to database...")
+                    logger.info(f"[IMS Crawler] Phase 3: Saving {len(all_embeddings)} embeddings to database...")
                     yield {
                         "event": "phase_started",
                         "phase": "saving_embeddings",
@@ -456,8 +492,8 @@ class CrawlJobsUseCase:
 
                     phase3_elapsed = time.time() - phase3_start
                     total_elapsed = time.time() - phase1_start
-                    print(f"[IMS Crawler] Phase 3 completed in {phase3_elapsed:.2f}s")
-                    print(f"[IMS Crawler] All phases completed in {total_elapsed:.2f}s (Phase1: DB save, Phase2: Embedding, Phase3: Embedding save)")
+                    logger.info(f"[IMS Crawler] Phase 3 completed in {phase3_elapsed:.2f}s")
+                    logger.info(f"[IMS Crawler] All phases completed in {total_elapsed:.2f}s (Phase1: DB save, Phase2: Embedding, Phase3: Embedding save)")
 
                 except Exception as emb_error:
                     logger.error(f"Batch embedding failed: {emb_error}")

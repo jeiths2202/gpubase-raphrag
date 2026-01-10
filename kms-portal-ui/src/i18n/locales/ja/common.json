@@ -61,6 +61,8 @@
       "ready": "データに基づいて回答する準備ができました。何をお手伝いしましょうか？",
       "searching": "データベース検索中...",
       "processing": "リクエストを処理中...",
+      "analyzing": "リクエストを分析中...",
+      "thinking": "考え中...",
       "credentials_required": "IMSログインが必要です。IMS認証情報を入力してください。"
     },
     "credentials": {

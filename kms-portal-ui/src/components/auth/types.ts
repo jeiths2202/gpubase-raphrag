@@ -13,7 +13,8 @@ export interface AuthFormProps {
 export interface LoginFormProps extends AuthFormProps {
   onSubmit: (userId: string, password: string) => Promise<boolean>;
   onSSOClick: () => void;
-  onGoogleClick: () => void;
+  onGoogleSuccess: (token: string) => Promise<void>;
+  onGoogleError: () => void;
   isGoogleConfigured: boolean;
 }
 
@@ -38,6 +39,7 @@ export interface SocialLoginButtonsProps {
   t: (key: string) => string;
   isLoading: boolean;
   isGoogleConfigured: boolean;
-  onGoogleClick: () => void;
+  onGoogleSuccess: (token: string) => Promise<void>;
+  onGoogleError: () => void;
   onSSOClick: () => void;
 }

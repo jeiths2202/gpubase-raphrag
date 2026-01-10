@@ -4,7 +4,10 @@ Dependency Injection - FastAPI Dependencies for IMS Crawler
 Provides singleton instances of repositories, services, and use cases.
 """
 
+import logging
 import asyncpg
+
+logger = logging.getLogger(__name__)
 import redis.asyncio as redis
 from functools import lru_cache
 from typing import AsyncGenerator, Optional
@@ -206,10 +209,10 @@ def get_crawler() -> CrawlerPort:
     crawler_type = getattr(settings, 'IMS_CRAWLER_TYPE', 'requests').lower()
 
     if crawler_type == 'playwright':
-        print("[Crawler] Using Playwright (browser-based)")
+        logger.info("[Crawler] Using Playwright (browser-based)")
         return get_playwright_crawler()
     else:
-        print("[Crawler] Using Requests (lightweight HTTP)")
+        logger.info("[Crawler] Using Requests (lightweight HTTP)")
         return get_requests_crawler()
 
 
@@ -244,7 +247,7 @@ async def get_crawl_jobs_use_case() -> CrawlJobsUseCase:
             embedding_service=embedding,
             attachment_processor=attachment_processor
         )
-        print("[OK] CrawlJobsUseCase singleton initialized")
+        logger.info("[OK] CrawlJobsUseCase singleton initialized")
 
     return _crawl_jobs_use_case
 
@@ -338,11 +341,11 @@ async def get_cache_service() -> CachePort:
                 key_prefix="ims:",
                 default_ttl=timedelta(minutes=15)
             )
-            print("[OK] Redis cache service initialized")
+            logger.info("[OK] Redis cache service initialized")
 
         except Exception as e:
             # Fallback to in-memory cache
-            print(f"[WARN] Redis unavailable ({e}), using in-memory cache")
+            logger.warning(f"[WARN] Redis unavailable ({e}), using in-memory cache")
             _cache_service = InMemoryCacheService(
                 default_ttl=timedelta(minutes=15)
             )

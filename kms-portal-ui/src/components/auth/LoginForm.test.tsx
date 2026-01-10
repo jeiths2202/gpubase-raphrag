@@ -8,6 +8,15 @@ import userEvent from '@testing-library/user-event';
 import { render } from '../../test/utils';
 import { LoginForm } from './LoginForm';
 
+// Mock GoogleLoginButton to avoid requiring GoogleOAuthProvider
+vi.mock('./GoogleLoginButton', () => ({
+  GoogleLoginButton: ({ label, onSuccess }: { label: string; onSuccess: (token: string) => void }) => (
+    <button type="button" onClick={() => onSuccess('mock-token')}>
+      {label}
+    </button>
+  ),
+}));
+
 // Mock translation function
 const mockT = (key: string) => {
   const translations: Record<string, string> = {
@@ -27,14 +36,16 @@ const mockT = (key: string) => {
 describe('LoginForm', () => {
   const mockOnSubmit = vi.fn();
   const mockOnSSOClick = vi.fn();
-  const mockOnGoogleClick = vi.fn();
+  const mockOnGoogleSuccess = vi.fn();
+  const mockOnGoogleError = vi.fn();
 
   const defaultProps = {
     t: mockT,
     isLoading: false,
     onSubmit: mockOnSubmit,
     onSSOClick: mockOnSSOClick,
-    onGoogleClick: mockOnGoogleClick,
+    onGoogleSuccess: mockOnGoogleSuccess,
+    onGoogleError: mockOnGoogleError,
     isGoogleConfigured: true,
   };
 
@@ -105,13 +116,13 @@ describe('LoginForm', () => {
     expect(submitButton.querySelector('.spinner')).toBeInTheDocument();
   });
 
-  it('should call onGoogleClick when Google button is clicked', async () => {
+  it('should call onGoogleSuccess when Google button is clicked', async () => {
     render(<LoginForm {...defaultProps} />);
 
     const googleButton = screen.getByRole('button', { name: /Google/i });
     await userEvent.click(googleButton);
 
-    expect(mockOnGoogleClick).toHaveBeenCalled();
+    expect(mockOnGoogleSuccess).toHaveBeenCalledWith('mock-token');
   });
 
   it('should call onSSOClick when SSO button is clicked', async () => {
