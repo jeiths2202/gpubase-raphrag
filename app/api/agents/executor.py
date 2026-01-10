@@ -57,12 +57,19 @@ class AgentExecutor:
     def llm_adapter(self):
         """Lazy load LLM adapter"""
         if self._llm_adapter is None:
-            # Try to get from existing infrastructure
+            # Try Ollama first (local LLM with tool calling support)
             try:
-                from ..adapters.langchain.llm_adapter import get_langchain_llm
-                self._llm_adapter = get_langchain_llm()
+                from .adapters.ollama_adapter import get_ollama_adapter
+                self._llm_adapter = get_ollama_adapter()
+                logger.info("Using Ollama LLM adapter")
             except ImportError:
-                logger.warning("LLM adapter not available")
+                # Fallback to LangChain adapter
+                try:
+                    from ..adapters.langchain.llm_adapter import get_langchain_llm
+                    self._llm_adapter = get_langchain_llm()
+                    logger.info("Using LangChain LLM adapter")
+                except ImportError:
+                    logger.warning("No LLM adapter available")
         return self._llm_adapter
 
     async def run(
