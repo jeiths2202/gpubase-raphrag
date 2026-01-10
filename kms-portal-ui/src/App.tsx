@@ -7,8 +7,21 @@
 
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { I18nProvider } from './i18n/I18nContext';
 import { AuthProvider } from './providers';
+import { GOOGLE_CLIENT_ID } from './config/constants';
+
+// Check if Google OAuth is configured
+const isGoogleConfigured = !!GOOGLE_CLIENT_ID;
+
+// Conditional wrapper for Google OAuth
+const GoogleOAuthWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  if (isGoogleConfigured) {
+    return <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>{children}</GoogleOAuthProvider>;
+  }
+  return <>{children}</>;
+};
 
 // Route Guards
 import { AuthGuard, PublicGuard } from './components/guards';
@@ -27,6 +40,7 @@ import { AIStudioPage } from './pages/AIStudioPage';
 import { ExternalPortalPage } from './pages/ExternalPortalPage';
 import { FAQPage } from './pages/FAQPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AgentPage } from './pages/AgentPage';
 
 // Import global styles
 import './styles/index.css';
@@ -49,9 +63,10 @@ const PlaceholderPage: React.FC<{ title: string }> = ({ title }) => (
  */
 export const App: React.FC = () => {
   return (
-    <I18nProvider>
-      <AuthProvider>
-        <BrowserRouter>
+    <GoogleOAuthWrapper>
+      <I18nProvider>
+        <AuthProvider>
+          <BrowserRouter>
           <Routes>
           {/* Public routes (login, etc.) - redirects to home if authenticated */}
           <Route element={<PublicGuard />}>
@@ -75,6 +90,9 @@ export const App: React.FC = () => {
 
               {/* AI Studio / Mindmap (Phase 5) */}
               <Route path="/mindmap" element={<AIStudioPage />} />
+
+              {/* AI Agent Chat */}
+              <Route path="/agent" element={<AgentPage />} />
 
               {/* FAQ */}
               <Route path="/faq" element={<FAQPage />} />
@@ -104,9 +122,10 @@ export const App: React.FC = () => {
           {/* 404 - Redirect to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </I18nProvider>
+          </BrowserRouter>
+        </AuthProvider>
+      </I18nProvider>
+    </GoogleOAuthWrapper>
   );
 };
 

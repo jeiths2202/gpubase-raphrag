@@ -47,6 +47,28 @@ export {
   logout,
 } from './auth.api';
 
+// Agent API
+export { default as agentApi } from './agent.api';
+export {
+  executeAgent,
+  streamAgent,
+  getAgentTypes,
+  getAgentTools,
+  classifyTask,
+  checkAgentHealth,
+} from './agent.api';
+export type {
+  AgentType,
+  AgentExecuteRequest,
+  AgentExecuteResponse,
+  AgentSource,
+  AgentStreamChunk,
+  AgentStreamChunkType,
+  ToolDefinition,
+  AgentHealthResponse,
+  ClassifyTaskResponse,
+} from './agent.api';
+
 // Types
 export type {
   // Common

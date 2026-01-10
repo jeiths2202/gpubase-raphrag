@@ -20,6 +20,7 @@ import {
   Book,
   Download,
   HelpCircle,
+  Bot,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useAuthStore } from '../store/authStore';
@@ -99,6 +100,12 @@ const NAV_ITEMS: NavItem[] = [
     path: '/mindmap',
     icon: <Brain size={20} />,
     labelKey: 'common.nav.mindmap',
+  },
+  {
+    id: 'agent',
+    path: '/agent',
+    icon: <Bot size={20} />,
+    labelKey: 'common.nav.agent',
   },
   {
     id: 'documents',
