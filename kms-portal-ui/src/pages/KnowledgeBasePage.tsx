@@ -96,10 +96,20 @@ export const KnowledgeBasePage: React.FC = () => {
     const fetchCategories = async () => {
       try {
         const response = await fetch('/api/v1/knowledge/categories');
-        const data = await response.json();
-        setCategories(data);
+        const result = await response.json();
+        // Backend returns { status, data: { categories } }
+        const categoriesData = result?.data?.categories || result?.categories || [];
+        // Add 'all' category at the beginning
+        const allCategory: Category = {
+          id: 'all',
+          name: 'All',
+          count: categoriesData.reduce((sum: number, c: Category) => sum + (c.count || 0), 0)
+        };
+        setCategories([allCategory, ...categoriesData]);
       } catch (error) {
         console.error('Failed to fetch categories:', error);
+        // Set default categories on error
+        setCategories([{ id: 'all', name: 'All', count: 0 }]);
       }
     };
     fetchCategories();
@@ -111,18 +121,42 @@ export const KnowledgeBasePage: React.FC = () => {
     try {
       const params = new URLSearchParams();
       if (activeCategory !== 'all') params.append('category', activeCategory);
-      if (searchQuery) params.append('search', searchQuery);
+      if (searchQuery) params.append('query', searchQuery);
       params.append('page', currentPage.toString());
       params.append('limit', '9');
 
-      const response = await fetch(`/api/v1/knowledge/articles?${params}`);
-      const data: ArticlesResponse = await response.json();
+      // Backend endpoint is /api/v1/knowledge (not /articles)
+      const response = await fetch(`/api/v1/knowledge?${params}`);
+      const result = await response.json();
 
-      setArticles(data.items);
-      setTotalPages(data.totalPages);
-      setTotal(data.total);
+      // Backend returns { status, data: { articles, total, page, limit } }
+      const articlesData = result?.data?.articles || result?.items || [];
+      const totalCount = result?.data?.total || result?.total || 0;
+      const limit = result?.data?.limit || 9;
+
+      // Map backend article format to frontend format
+      const mappedArticles: Article[] = articlesData.map((a: any) => ({
+        id: a.id,
+        title: a.title,
+        summary: a.summary || '',
+        category: a.category?.toLowerCase() || 'documents',
+        tags: a.tags || [],
+        author: a.author_name || 'Unknown',
+        createdAt: a.created_at || new Date().toISOString(),
+        updatedAt: a.updated_at || new Date().toISOString(),
+        views: a.view_count || 0,
+        helpful: a.recommendation_count || 0,
+        notHelpful: 0,
+      }));
+
+      setArticles(mappedArticles);
+      setTotalPages(Math.ceil(totalCount / limit) || 1);
+      setTotal(totalCount);
     } catch (error) {
       console.error('Failed to fetch articles:', error);
+      setArticles([]);
+      setTotalPages(1);
+      setTotal(0);
     } finally {
       setIsLoading(false);
     }
@@ -141,18 +175,27 @@ export const KnowledgeBasePage: React.FC = () => {
     setSearchParams(params, { replace: true });
   }, [activeCategory, searchQuery, currentPage, setSearchParams]);
 
-  // Fetch search suggestions
+  // Fetch search suggestions (uses list endpoint with query)
   const fetchSuggestions = useCallback(async (query: string) => {
     if (query.length < 2) {
       setSuggestions([]);
       return;
     }
     try {
-      const response = await fetch(`/api/v1/knowledge/suggestions?q=${encodeURIComponent(query)}`);
-      const data = await response.json();
-      setSuggestions(data);
+      // Use list endpoint with query filter for suggestions
+      const response = await fetch(`/api/v1/knowledge?query=${encodeURIComponent(query)}&limit=5`);
+      const result = await response.json();
+      const articles = result?.data?.articles || [];
+      // Map to suggestion format
+      const suggestionData: Suggestion[] = articles.map((a: any) => ({
+        id: a.id,
+        title: a.title,
+        category: a.category?.toLowerCase() || 'documents',
+      }));
+      setSuggestions(suggestionData);
     } catch (error) {
       console.error('Failed to fetch suggestions:', error);
+      setSuggestions([]);
     }
   }, []);
 
