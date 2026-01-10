@@ -247,16 +247,13 @@ const LoginPage: React.FC = () => {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
       >
-        {/* Logo & Title */}
+        {/* Title */}
         <motion.div
           className="login-header"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <div className="logo">
-            <span className="logo-icon">K</span>
-          </div>
           <h1>{APP_CONFIG.name}</h1>
           <p className="subtitle">{APP_CONFIG.fullName}</p>
         </motion.div>
