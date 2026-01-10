@@ -48,7 +48,6 @@ import {
 import { conversationApi } from '../api/conversation.api';
 import { useArtifactStore, createArtifactFromChunk } from '../store/artifactStore';
 import { useConversationStore } from '../store/conversationStore';
-import { usePreferencesStore } from '../store/preferencesStore';
 import { ArtifactPanel } from './ArtifactPanel';
 import { ConversationSidebar } from './ConversationSidebar';
 
@@ -149,10 +148,7 @@ const SUGGESTED_QUESTIONS: Record<AgentType, string[]> = {
 // =============================================================================
 
 export const AgentChat: React.FC = () => {
-  const { t } = useTranslation();
-
-  // User language preference for AI responses
-  const userLanguage = usePreferencesStore((state) => state.language);
+  const { t, language: userLanguage } = useTranslation();
 
   // Artifact store
   const {

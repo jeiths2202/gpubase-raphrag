@@ -98,7 +98,7 @@ class AgentExecutor:
         # Build system prompt with language preference
         system_prompt = agent.system_prompt
         if context.language and context.language != "auto":
-            language_names = {"en": "English", "ko": "Korean (한국어)", "ja": "Japanese (日本語)"}
+            language_names = {"en": "English", "ko": "Korean", "ja": "Japanese"}
             lang_name = language_names.get(context.language, context.language)
             system_prompt += f"\n\nIMPORTANT: Always respond in {lang_name} unless the user explicitly requests a different language in their message."
 
@@ -241,10 +241,12 @@ class AgentExecutor:
 
         # Build system prompt with language preference
         system_prompt = agent.system_prompt
+        print(f"[Executor.stream] context.language = '{context.language}'", flush=True)
         if context.language and context.language != "auto":
-            language_names = {"en": "English", "ko": "Korean (한국어)", "ja": "Japanese (日本語)"}
+            language_names = {"en": "English", "ko": "Korean", "ja": "Japanese"}
             lang_name = language_names.get(context.language, context.language)
             system_prompt += f"\n\nIMPORTANT: Always respond in {lang_name} unless the user explicitly requests a different language in their message."
+            print(f"[Executor.stream] Added language instruction for {lang_name}", flush=True)
 
         # Initialize messages
         messages: List[AgentMessage] = [
