@@ -77,7 +77,7 @@ async def execute_agent(
         AgentResponse with answer and metadata
     """
     try:
-        user_id = current_user.get("user_id") or current_user.get("sub")
+        user_id = current_user.get("id") or current_user.get("sub")
 
         response = await orchestrator.execute(request, user_id=user_id)
 
@@ -110,7 +110,7 @@ async def stream_agent(
     Returns:
         StreamingResponse with SSE events
     """
-    user_id = current_user.get("user_id") or current_user.get("sub")
+    user_id = current_user.get("id") or current_user.get("sub")
 
     async def generate():
         try:
