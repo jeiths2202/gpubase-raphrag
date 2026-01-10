@@ -1051,3 +1051,182 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* =============================================================================
+   Markdown Table Styles
+   ============================================================================= */
+
+/* Table wrapper for horizontal scrolling */
+.agent-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin: var(--space-3) 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
+}
+
+/* Scrollbar for table wrapper */
+.agent-table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.agent-table-wrapper::-webkit-scrollbar-track {
+  background: var(--surface-secondary);
+  border-radius: 4px;
+}
+
+.agent-table-wrapper::-webkit-scrollbar-thumb {
+  background: var(--border-secondary);
+  border-radius: 4px;
+}
+
+.agent-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* Fixed layout table with consistent column widths */
+.agent-markdown-table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: var(--text-sm);
+}
+
+/* Table header */
+.agent-table-header {
+  background: var(--surface-tertiary);
+  border-bottom: 2px solid var(--border-primary);
+}
+
+.agent-table-th {
+  padding: var(--space-3) var(--space-3);
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Column widths - No, Issue ID, Title, Status, Product */
+.agent-markdown-table th:nth-child(1),
+.agent-markdown-table td:nth-child(1) {
+  width: 50px;
+  text-align: center;
+}
+
+.agent-markdown-table th:nth-child(2),
+.agent-markdown-table td:nth-child(2) {
+  width: 100px;
+}
+
+.agent-markdown-table th:nth-child(3),
+.agent-markdown-table td:nth-child(3) {
+  width: auto;
+  min-width: 200px;
+}
+
+.agent-markdown-table th:nth-child(4),
+.agent-markdown-table td:nth-child(4) {
+  width: 80px;
+  text-align: center;
+}
+
+.agent-markdown-table th:nth-child(5),
+.agent-markdown-table td:nth-child(5) {
+  width: 140px;
+}
+
+/* Table body */
+.agent-table-body {
+  background: var(--surface-primary);
+}
+
+/* Table row */
+.agent-table-row {
+  border-bottom: 1px solid var(--border-primary);
+  transition: background 0.15s ease;
+}
+
+.agent-table-row:hover {
+  background: var(--surface-hover);
+}
+
+.agent-table-row:last-child {
+  border-bottom: none;
+}
+
+/* Table cell */
+.agent-table-td {
+  padding: var(--space-3) var(--space-3);
+  color: var(--text-primary);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Allow title column to wrap */
+.agent-markdown-table td:nth-child(3) {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* =============================================================================
+   Markdown Link Styles
+   ============================================================================= */
+
+.agent-markdown-link {
+  color: var(--brand-primary);
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.agent-markdown-link:hover {
+  color: var(--brand-primary-hover);
+  text-decoration: underline;
+}
+
+/* =============================================================================
+   Markdown Typography
+   ============================================================================= */
+
+.agent-markdown-p {
+  margin: 0 0 var(--space-2);
+  line-height: 1.6;
+}
+
+.agent-markdown-p:last-child {
+  margin-bottom: 0;
+}
+
+.agent-markdown-h2 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: var(--space-4) 0 var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.agent-markdown-h2:first-child {
+  margin-top: 0;
+}
+
+.agent-markdown-h3 {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: var(--space-3) 0 var(--space-2);
+}
+
+/* Inline code */
+.agent-inline-code {
+  padding: 2px 6px;
+  background: var(--surface-code);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: var(--brand-primary);
+}

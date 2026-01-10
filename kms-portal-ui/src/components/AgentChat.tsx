@@ -38,6 +38,8 @@ import {
   History,
   Plus,
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useTranslation } from '../hooks/useTranslation';
 import './AgentChat.css';
 import {
@@ -1201,7 +1203,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 };
 
 // =============================================================================
-// Message Content Renderer
+// Message Content Renderer with react-markdown
 // =============================================================================
 
 interface MessageContentProps {
@@ -1211,69 +1213,75 @@ interface MessageContentProps {
 const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
   if (!content) return null;
 
-  // Simple markdown-like rendering
-  const parts: React.ReactNode[] = [];
-  let key = 0;
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        // Custom table wrapper with horizontal scroll
+        table: ({ children }) => (
+          <div className="agent-table-wrapper">
+            <table className="agent-markdown-table">
+              {children}
+            </table>
+          </div>
+        ),
+        thead: ({ children }) => (
+          <thead className="agent-table-header">{children}</thead>
+        ),
+        tbody: ({ children }) => (
+          <tbody className="agent-table-body">{children}</tbody>
+        ),
+        tr: ({ children }) => (
+          <tr className="agent-table-row">{children}</tr>
+        ),
+        th: ({ children }) => (
+          <th className="agent-table-th">{children}</th>
+        ),
+        td: ({ children }) => (
+          <td className="agent-table-td">{children}</td>
+        ),
+        // Code blocks
+        code: ({ className, children }) => {
+          const match = /language-(\w+)/.exec(className || '');
+          const isInline = !match && !String(children).includes('\n');
 
-  // Code block regex
-  const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-  let lastIndex = 0;
-  let match;
+          if (isInline) {
+            return <code className="agent-inline-code">{children}</code>;
+          }
 
-  while ((match = codeBlockRegex.exec(content)) !== null) {
-    // Add text before code block
-    if (match.index > lastIndex) {
-      const textBefore = content.substring(lastIndex, match.index);
-      parts.push(
-        <span key={key++}>
-          {textBefore.split('\n').map((line, i) => (
-            <React.Fragment key={i}>
-              {i > 0 && <br />}
-              {line}
-            </React.Fragment>
-          ))}
-        </span>
-      );
-    }
+          const language = match ? match[1] : 'text';
+          const codeString = String(children).replace(/\n$/, '');
 
-    // Add code block
-    const language = match[1] || 'text';
-    const code = match[2].trim();
-    parts.push(
-      <pre key={key++} className="agent-code-block">
-        <div className="agent-code-header">
-          <span className="agent-code-lang">{language}</span>
-          <button
-            className="agent-code-copy"
-            onClick={() => navigator.clipboard.writeText(code)}
-            title="Copy code"
-          >
-            <Copy size={12} />
-          </button>
-        </div>
-        <code>{code}</code>
-      </pre>
-    );
-
-    lastIndex = match.index + match[0].length;
-  }
-
-  // Add remaining text
-  if (lastIndex < content.length) {
-    const textAfter = content.substring(lastIndex);
-    parts.push(
-      <span key={key++}>
-        {textAfter.split('\n').map((line, i) => (
-          <React.Fragment key={i}>
-            {i > 0 && <br />}
-            {line}
-          </React.Fragment>
-        ))}
-      </span>
-    );
-  }
-
-  return <>{parts.length > 0 ? parts : content}</>;
+          return (
+            <pre className="agent-code-block">
+              <div className="agent-code-header">
+                <span className="agent-code-lang">{language}</span>
+                <button
+                  className="agent-code-copy"
+                  onClick={() => navigator.clipboard.writeText(codeString)}
+                  title="Copy code"
+                >
+                  <Copy size={12} />
+                </button>
+              </div>
+              <code>{codeString}</code>
+            </pre>
+          );
+        },
+        // Links - open in new tab
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="agent-markdown-link">
+            {children}
+          </a>
+        ),
+        p: ({ children }) => <p className="agent-markdown-p">{children}</p>,
+        h2: ({ children }) => <h2 className="agent-markdown-h2">{children}</h2>,
+        h3: ({ children }) => <h3 className="agent-markdown-h3">{children}</h3>,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
 };
 
 export default AgentChat;
