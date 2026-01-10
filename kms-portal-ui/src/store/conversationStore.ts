@@ -16,7 +16,6 @@ import {
   conversationApi,
   type ConversationListItem,
   type ConversationDetail,
-  type ConversationMessage,
 } from '../api/conversation.api';
 
 // =============================================================================
@@ -61,6 +60,9 @@ interface ConversationState {
   isCreating: boolean;
   isDeleting: boolean;
 
+  // Last selected agent type (for persistence)
+  lastSelectedAgent: AgentType;
+
   // Actions - Conversations
   loadConversations: (agentType: AgentType) => Promise<void>;
   createConversation: (agentType: AgentType, title?: string) => Promise<ConversationDetail>;
@@ -75,6 +77,9 @@ interface ConversationState {
 
   // Actions - New Conversation
   startNewConversation: (agentType: AgentType) => void;
+
+  // Actions - Agent Selection
+  setLastSelectedAgent: (agentType: AgentType) => void;
 
   // Getters
   getConversations: (agentType: AgentType) => ConversationListItem[];
@@ -115,6 +120,7 @@ export const useConversationStore = create<ConversationState>()(
       localMessages: [],
       isCreating: false,
       isDeleting: false,
+      lastSelectedAgent: 'auto' as AgentType,
 
       // Load conversations for an agent type
       loadConversations: async (agentType: AgentType) => {
@@ -372,6 +378,11 @@ export const useConversationStore = create<ConversationState>()(
         }));
       },
 
+      // Set last selected agent type (for persistence)
+      setLastSelectedAgent: (agentType: AgentType) => {
+        set({ lastSelectedAgent: agentType });
+      },
+
       // Getters
       getConversations: (agentType: AgentType) => {
         return get().agentStates[agentType].conversations;
@@ -388,8 +399,9 @@ export const useConversationStore = create<ConversationState>()(
     {
       name: 'conversation-storage',
       storage: createJSONStorage(() => localStorage),
-      // Only persist active conversation IDs (not full conversations)
+      // Only persist active conversation IDs and last selected agent (not full conversations)
       partialize: (state) => ({
+        lastSelectedAgent: state.lastSelectedAgent,
         agentStates: Object.fromEntries(
           Object.entries(state.agentStates).map(([key, value]) => [
             key,
@@ -397,6 +409,30 @@ export const useConversationStore = create<ConversationState>()(
           ])
         ),
       }),
+      // Custom merge to properly restore agent states with initial values
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<ConversationState>;
+        const current = currentState as ConversationState;
+
+        // Deep merge agent states - use initial values for non-persisted properties
+        const mergedAgentStates = { ...current.agentStates };
+        if (persisted.agentStates) {
+          for (const [agentType, persistedAgentState] of Object.entries(persisted.agentStates)) {
+            const agentKey = agentType as AgentType;
+            const persistedValue = persistedAgentState as Partial<AgentConversationState> | undefined;
+            mergedAgentStates[agentKey] = {
+              ...current.agentStates[agentKey],
+              activeConversationId: persistedValue?.activeConversationId ?? null,
+            };
+          }
+        }
+
+        return {
+          ...current,
+          lastSelectedAgent: persisted.lastSelectedAgent ?? current.lastSelectedAgent,
+          agentStates: mergedAgentStates,
+        };
+      },
     }
   )
 );

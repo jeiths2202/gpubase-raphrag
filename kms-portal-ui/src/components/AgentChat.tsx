@@ -166,14 +166,16 @@ export const AgentChat: React.FC = () => {
   const {
     currentConversation,
     agentStates,
+    lastSelectedAgent,
     loadConversations,
     createConversation,
     selectConversation,
     startNewConversation,
+    setLastSelectedAgent,
   } = useConversationStore();
 
-  // State
-  const [selectedAgent, setSelectedAgent] = useState<AgentType>('auto');
+  // State - Initialize selectedAgent from store's lastSelectedAgent
+  const [selectedAgent, setSelectedAgentState] = useState<AgentType>(lastSelectedAgent);
   const [inputValue, setInputValue] = useState('');
   const [showAgentSelector, setShowAgentSelector] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -182,6 +184,12 @@ export const AgentChat: React.FC = () => {
   // Ref to track current selectedAgent (for async callbacks to check current value)
   const selectedAgentRef = useRef<AgentType>(selectedAgent);
   selectedAgentRef.current = selectedAgent;
+
+  // Wrapper to update selectedAgent and persist to store
+  const setSelectedAgent = useCallback((agentType: AgentType) => {
+    setSelectedAgentState(agentType);
+    setLastSelectedAgent(agentType);
+  }, [setLastSelectedAgent]);
 
   // Per-agent local state structure
   interface AgentLocalState {
@@ -254,10 +262,6 @@ export const AgentChat: React.FC = () => {
     updateAgentIsLoading(selectedAgent, loading);
   }, [selectedAgent, updateAgentIsLoading]);
 
-  const setAbortController = useCallback((controller: AbortController | null) => {
-    updateAgentAbortController(selectedAgent, controller);
-  }, [selectedAgent, updateAgentAbortController]);
-
   // Get active conversation ID for current agent
   const agentState = agentStates[selectedAgent] || { activeConversationId: null };
   const activeConversationId = agentState.activeConversationId;
@@ -277,6 +281,20 @@ export const AgentChat: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const agentSelectorRef = useRef<HTMLDivElement>(null);
+  const hasHydratedRef = useRef(false);
+
+  // Sync selectedAgent with lastSelectedAgent after Zustand hydration
+  useEffect(() => {
+    // Only sync once on initial hydration (when lastSelectedAgent changes from default)
+    if (!hasHydratedRef.current && lastSelectedAgent !== 'auto') {
+      hasHydratedRef.current = true;
+      setSelectedAgentState(lastSelectedAgent);
+    }
+    // Also sync if lastSelectedAgent becomes non-auto on first check
+    if (!hasHydratedRef.current && lastSelectedAgent === 'auto') {
+      hasHydratedRef.current = true;
+    }
+  }, [lastSelectedAgent]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
