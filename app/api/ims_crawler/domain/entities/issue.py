@@ -62,6 +62,7 @@ class Issue:
     issued_date: Optional[datetime] = None  # Issue registration date
     issue_details: str = ""  # Issue Details (상세 내용)
     action_no: str = ""      # Action No (액션 번호)
+    action_log_text: str = ""  # Action Log 텍스트 내용 (모든 액션 로그 합침)
 
     # Metadata
     reporter: str = ""
@@ -78,6 +79,7 @@ class Issue:
     labels: List[str] = field(default_factory=list)
     comments_count: int = 0
     attachments_count: int = 0
+    attachments: List[Dict[str, Any]] = field(default_factory=list)  # List of attachment metadata
 
     # Crawling Metadata
     crawled_at: datetime = field(default_factory=datetime.utcnow)
@@ -86,6 +88,9 @@ class Issue:
 
     # Additional Fields (from IMS system)
     custom_fields: Dict[str, Any] = field(default_factory=dict)
+
+    # Related Issues (from IMS Related Issue tab and Patch List)
+    related_issue_ids: List[str] = field(default_factory=list)  # IMS IDs of related issues
 
     def __post_init__(self):
         """Validate entity invariants after initialization"""
@@ -152,6 +157,7 @@ class Issue:
             "issued_date": self.issued_date.isoformat() if self.issued_date else None,
             "issue_details": self.issue_details,
             "action_no": self.action_no,
+            "action_log_text": self.action_log_text,
             # Metadata
             "reporter": self.reporter,
             "assignee": self.assignee,
@@ -167,6 +173,7 @@ class Issue:
             "source_url": self.source_url,
             "user_id": str(self.user_id),
             "custom_fields": self.custom_fields,
+            "related_issue_ids": self.related_issue_ids,
         }
 
     @classmethod
@@ -190,6 +197,7 @@ class Issue:
             issued_date=datetime.fromisoformat(data["issued_date"]) if data.get("issued_date") else None,
             issue_details=data.get("issue_details", ""),
             action_no=data.get("action_no", ""),
+            action_log_text=data.get("action_log_text", ""),
             # Metadata
             reporter=data.get("reporter", ""),
             assignee=data.get("assignee"),
@@ -205,4 +213,5 @@ class Issue:
             source_url=data.get("source_url", ""),
             user_id=UUID(data["user_id"]) if isinstance(data.get("user_id"), str) else data.get("user_id", uuid4()),
             custom_fields=data.get("custom_fields", {}),
+            related_issue_ids=data.get("related_issue_ids", []),
         )

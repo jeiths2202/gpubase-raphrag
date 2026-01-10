@@ -11,6 +11,7 @@ import asyncio
 
 from .base import BaseTool
 from ..types import ToolResult, AgentContext
+from ..intent import IntentType
 
 logger = logging.getLogger(__name__)
 
@@ -175,11 +176,108 @@ Requires IMS credentials for crawling."""
 
         return formatted_issues
 
+    async def _list_all_issues(
+        self,
+        user_id: str,
+        status: str,
+        priority: str,
+        limit: int,
+        keyword: Optional[str] = None,
+        user_specific: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        List all issues matching the keyword.
+        Used for 'list_all' intent - returns matching issues from DB only.
+        Filters by keyword in title/description (NOT by product field).
+
+        Args:
+            user_id: User ID (only used if user_specific=True)
+            status: Status filter
+            priority: Priority filter
+            limit: Maximum results
+            keyword: Search keyword for title/description
+            user_specific: If True, filter by user_id (e.g., "내가 검색한")
+        """
+        from ...ims_crawler.infrastructure.dependencies import get_db_pool
+
+        # Build SQL filters
+        where_clauses = []
+        params = []
+        param_idx = 1
+
+        # Only filter by user_id if user explicitly requested it
+        if user_specific and user_id:
+            where_clauses.append(f"user_id = ${param_idx}")
+            params.append(UUID(user_id) if user_id else uuid4())
+            param_idx += 1
+
+        if status != "all":
+            where_clauses.append(f"status = ${param_idx}")
+            params.append(status)
+            param_idx += 1
+
+        if priority != "all":
+            where_clauses.append(f"priority = ${param_idx}")
+            params.append(priority)
+            param_idx += 1
+
+        # Keyword filter in title, description, issue_details, and action_log_text fields
+        if keyword:
+            search_pattern = f"%{keyword}%"
+            where_clauses.append(
+                f"(title ILIKE ${param_idx} OR description ILIKE ${param_idx + 1} "
+                f"OR issue_details ILIKE ${param_idx + 2} OR action_log_text ILIKE ${param_idx + 3})"
+            )
+            params.extend([search_pattern, search_pattern, search_pattern, search_pattern])
+            param_idx += 4
+
+        where_clause = " AND ".join(where_clauses) if where_clauses else "TRUE"
+
+        sql = f"""
+            SELECT
+                ims_id, title, description, status, priority,
+                product, created_at
+            FROM ims_issues
+            WHERE {where_clause}
+            ORDER BY created_at DESC
+            LIMIT {limit}
+        """
+
+        print(f"[IMS_SEARCH] list_all SQL: {sql}", flush=True)
+        print(f"[IMS_SEARCH] list_all params: {params}", flush=True)
+
+        try:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(sql, *params)
+
+            print(f"[IMS_SEARCH] list_all DB returned {len(rows)} rows", flush=True)
+
+            # Format results
+            formatted_issues = []
+            for row in rows:
+                formatted_issues.append({
+                    "id": row["ims_id"],
+                    "title": row["title"] or "",
+                    "status": row["status"] or "",
+                    "priority": row["priority"] or "",
+                    "product": row["product"] or "",
+                    "description": (row["description"] or "")[:300],
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else ""
+                })
+
+            print(f"[IMS_SEARCH] list_all found {len(formatted_issues)} issues for user {user_id}", flush=True)
+            return formatted_issues
+        except Exception as e:
+            logger.error(f"[IMS_SEARCH] list_all error: {e}")
+            return []
+
     async def _crawl_and_search(
         self,
         query: str,
         user_id: str,
-        limit: int
+        limit: int,
+        force_refresh: bool = False
     ) -> List[Dict[str, Any]]:
         """Trigger IMS crawl for the query and return results"""
         from ...ims_crawler.infrastructure.dependencies import get_crawl_jobs_use_case
@@ -195,30 +293,38 @@ Requires IMS credentials for crawling."""
             crawl_use_case = await get_crawl_jobs_use_case()
 
             # Create crawl job
+            # For list_all intent, use force_refresh=True to get all fresh data
             job, is_cached = await crawl_use_case.create_crawl_job(
                 user_id=uid,
                 search_query=query,
                 max_results=limit * 2,  # Get more to filter later
                 download_attachments=False,  # Skip attachments for faster crawl
                 crawl_related=False,
-                force_refresh=False  # Use cache if available
+                force_refresh=force_refresh
             )
+            print(f"[IMS_SEARCH] crawl job created: is_cached={is_cached}, force_refresh={force_refresh}", flush=True)
 
             if is_cached:
-                logger.info(f"Using cached crawl results for query: {query}")
+                print(f"[IMS_SEARCH] Using cached crawl results for query: {query}", flush=True)
             else:
                 # Execute the crawl job
-                logger.info(f"Starting new crawl for query: {query}")
+                print(f"[IMS_SEARCH] Starting new crawl for query: {query}", flush=True)
+                issues_found = 0
+                issues_crawled = 0
                 async for progress in crawl_use_case.execute_crawl_job(job.id):
                     event_type = progress.get("event", "")
-                    if event_type == "issue_saved":
-                        # Progress update - issue saved
-                        pass
+                    if event_type == "search_completed":
+                        issues_found = progress.get("total_issues", 0)
+                        print(f"[IMS_SEARCH] Search found {issues_found} issues from IMS", flush=True)
+                    elif event_type == "crawl_fetch_completed":
+                        issues_crawled = progress.get("fetched_count", 0)
+                        print(f"[IMS_SEARCH] Crawl fetched {issues_crawled} issue details", flush=True)
                     elif event_type == "job_completed":
-                        logger.info(f"Crawl completed: {progress}")
+                        saved = progress.get("issues_crawled", 0)
+                        print(f"[IMS_SEARCH] Crawl completed: found={issues_found}, crawled={issues_crawled}, saved={saved}", flush=True)
                         break
                     elif event_type == "job_failed":
-                        logger.error(f"Crawl failed: {progress}")
+                        print(f"[IMS_SEARCH] Crawl failed: {progress.get('error', 'unknown')}", flush=True)
                         break
 
             # After crawl, search DB again for results
@@ -228,20 +334,202 @@ Requires IMS credentials for crawling."""
             logger.error(f"Crawl error: {e}")
             return []
 
+    def _get_message(self, key: str, language: str, **kwargs) -> str:
+        """Get localized message based on language"""
+        messages = {
+            "no_crawled_issues": {
+                "ko": "크롤링된 이슈가 없습니다.",
+                "ja": "クロールされたイシューがありません。",
+                "en": "No crawled issues found."
+            },
+            "no_crawled_issues_product": {
+                "ko": "'{product}' 관련 크롤링된 이슈가 없습니다.",
+                "ja": "'{product}' に関連するクロールされたイシューがありません。",
+                "en": "No crawled issues found for '{product}'."
+            },
+            "found_issues": {
+                "ko": "총 {count}개의 크롤링된 이슈를 찾았습니다.",
+                "ja": "合計 {count} 件のクロールされたイシューが見つかりました。",
+                "en": "Found {count} crawled issue(s)."
+            },
+            "login_required": {
+                "ko": "크롤링된 이슈를 조회하려면 로그인이 필요합니다.",
+                "ja": "クロールされたイシューを表示するにはログインが必要です。",
+                "en": "Login required to list crawled issues."
+            }
+        }
+
+        # Normalize language code
+        lang = language.lower() if language else "en"
+        if lang.startswith("ko"):
+            lang = "ko"
+        elif lang.startswith("ja"):
+            lang = "ja"
+        else:
+            lang = "en"
+
+        template = messages.get(key, {}).get(lang, messages.get(key, {}).get("en", key))
+        return template.format(**kwargs)
+
+    async def _execute_list_all(
+        self,
+        context: AgentContext,
+        status: str,
+        priority: str,
+        limit: int,
+        keyword: Optional[str] = None,
+        user_specific: bool = False
+    ) -> ToolResult:
+        """
+        Execute list_all intent - ALWAYS crawl first, then list all matching issues.
+        Filters by keyword in title/description (NOT by product field).
+        Only filters by user_id if user explicitly requested it.
+        """
+        user_id = context.user_id or ""
+        language = context.language or "en"
+
+        try:
+            # ALWAYS crawl first to get fresh data from IMS
+            if keyword:
+                # Check credentials before crawling
+                has_credentials = await self._check_credentials(user_id)
+                print(f"[IMS_SEARCH] list_all: checking credentials for crawl, has_credentials={has_credentials}", flush=True)
+
+                if not has_credentials:
+                    # No credentials - emit status to prompt user
+                    await self._emit_status("credentials_required")
+                    return self.create_success_result(
+                        {
+                            "intent": "list_all",
+                            "query": keyword,
+                            "total_count": 0,
+                            "issues": [],
+                            "source": "database",
+                            "credentials_required": True,
+                            "message": "IMS login required. Please provide your IMS credentials."
+                        },
+                        metadata={"credentials_required": True}
+                    )
+
+                # Emit crawling status to show in chat
+                await self._emit_status("crawling")
+                print(f"[IMS_SEARCH] list_all: starting crawl for keyword={keyword}", flush=True)
+
+                # Perform crawl to get fresh data (force_refresh=True for list_all)
+                await self._crawl_and_search(keyword, user_id, limit, force_refresh=True)
+                print(f"[IMS_SEARCH] list_all: crawl completed for keyword={keyword}", flush=True)
+
+            # After crawl, list issues from DB
+            formatted_issues = await self._list_all_issues(
+                user_id=user_id,
+                status=status,
+                priority=priority,
+                limit=limit,
+                keyword=keyword,
+                user_specific=user_specific
+            )
+
+            # Emit ready status
+            await self._emit_status("ready")
+
+            # Build filters for output
+            filters = {}
+            if keyword:
+                filters["keyword"] = keyword
+            if status != "all":
+                filters["status"] = status
+            if priority != "all":
+                filters["priority"] = priority
+            if user_specific:
+                filters["user_specific"] = True
+
+            # Determine source - crawl if keyword was provided (crawl was triggered)
+            source = "crawl" if keyword else "database"
+
+            if len(formatted_issues) == 0:
+                # No crawled issues found for keyword
+                if keyword:
+                    message = self._get_message("no_crawled_issues_product", language, product=keyword)
+                else:
+                    message = self._get_message("no_crawled_issues", language)
+
+                output = {
+                    "intent": "list_all",
+                    "query": keyword or "",
+                    "filters": filters,
+                    "total_count": 0,
+                    "issues": [],
+                    "source": source,
+                    "crawl_triggered": bool(keyword),
+                    "message": message
+                }
+            else:
+                message = self._get_message("found_issues", language, count=len(formatted_issues))
+                output = {
+                    "intent": "list_all",
+                    "query": keyword or "",
+                    "filters": filters,
+                    "total_count": len(formatted_issues),
+                    "issues": formatted_issues,
+                    "source": source,
+                    "crawl_triggered": bool(keyword),
+                    "message": message
+                }
+
+            return self.create_success_result(
+                output,
+                metadata={
+                    "intent": "list_all",
+                    "source": source,
+                    "keyword": keyword,
+                    "crawl_triggered": bool(keyword),
+                    "filters_applied": filters
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"[IMS_SEARCH] list_all error: {e}")
+            return self.create_error_result(f"Failed to list issues: {str(e)}")
+
     async def execute(
         self,
         context: AgentContext,
         **kwargs
     ) -> ToolResult:
-        query = kwargs.get("query", "")
-        status = kwargs.get("status", "all")
-        priority = kwargs.get("priority", "all")
-        product = kwargs.get("product")
-        limit = kwargs.get("limit", 10)
-        force_crawl = kwargs.get("force_crawl", False)
+        query = kwargs.get("query") or ""
+        status = kwargs.get("status") or "all"
+        priority = kwargs.get("priority") or "all"
+        product = kwargs.get("product")  # Can be None
+        limit = kwargs.get("limit") or 10  # Default to 10 if None
+        force_crawl = kwargs.get("force_crawl") or False
 
+        # Get intent from context (set by orchestrator)
+        intent = context.intent
+        intent_type = intent.intent if intent else IntentType.SEARCH
+
+        # Extract product from intent if not provided in kwargs
+        if not product and intent and intent.extracted_params.get("product"):
+            product = intent.extracted_params["product"]
+            print(f"[IMS_SEARCH] Extracted product from intent: {product}", flush=True)
+
+        print(f"[IMS_SEARCH] Intent: {intent_type.value}, query: {query}", flush=True)
+
+        # Handle list_all intent - list all matching issues (with keyword filter, high limit)
+        if intent_type == IntentType.LIST_ALL:
+            # For list_all, return all matching results (no arbitrary limit unless user specifies)
+            # Use very high limit to effectively return all matches
+            list_all_limit = 10000  # Effectively unlimited
+
+            # Check if user wants user-specific filtering (e.g., "내가 검색한", "my issues")
+            user_specific = intent.extracted_params.get("user_specific", False) if intent else False
+
+            # For list_all, ignore status/priority filters - return ALL matching issues
+            print(f"[IMS_SEARCH] Executing list_all with keyword={query}, limit={list_all_limit}, user_specific={user_specific}", flush=True)
+            return await self._execute_list_all(context, "all", "all", list_all_limit, keyword=query, user_specific=user_specific)
+
+        # For search intent, require query
         if not query:
-            return self.create_error_result("Query parameter is required")
+            return self.create_error_result("Query parameter is required for search")
 
         try:
             # Build filters for metadata
@@ -265,9 +553,11 @@ Requires IMS credentials for crawling."""
 
                 # Get user_id from context
                 user_id = context.user_id or ""
+                logger.info(f"[IMS_SEARCH] context.user_id={context.user_id}, using user_id={user_id}")
 
                 # Check if user has IMS credentials before crawling
                 has_credentials = await self._check_credentials(user_id)
+                logger.info(f"[IMS_SEARCH] has_credentials={has_credentials} for user_id={user_id}")
 
                 if not has_credentials:
                     # No credentials - emit status to prompt user

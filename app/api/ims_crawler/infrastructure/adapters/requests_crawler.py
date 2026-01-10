@@ -129,7 +129,7 @@ class RequestsBasedCrawler(CrawlerPort):
             self._user_grade = 'TMAX'
 
         jsessionid = session.cookies.get('JSESSIONID', '')[:20]
-        print(f"[IMS Crawler] Authentication successful - Session: {jsessionid}...")
+        logger.info(f"[IMS Crawler] Authentication successful - Session: {jsessionid}...")
         logger.info(f"Authentication successful - Session: {jsessionid}...")
         return True
 
@@ -167,7 +167,7 @@ class RequestsBasedCrawler(CrawlerPort):
         page = 1
         max_pages = 100  # Safety limit increased
 
-        print(f"[IMS Crawler] Searching for '{query}' in {len(products)} products")
+        logger.info(f"[IMS Crawler] Searching for '{query}' in {len(products)} products")
         logger.info(f"Searching for '{query}' in {len(products)} products")
 
         if progress_callback:
@@ -202,21 +202,21 @@ class RequestsBasedCrawler(CrawlerPort):
             }
 
             search_url = f"{base_url}/tody/ims/issue/issueSearchList.do"
-            print(f"[IMS Crawler] Requesting page {page}...")
+            logger.info(f"[IMS Crawler] Requesting page {page}...")
             try:
                 response = session.get(search_url, params=params, headers={
                     'Referer': f"{base_url}/tody/ims/issue/issueSearchList.do?searchType=1&menuCode=issue_search"
                 }, timeout=60)
-                print(f"[IMS Crawler] Response status: {response.status_code}, length: {len(response.text)}")
+                logger.info(f"[IMS Crawler] Response status: {response.status_code}, length: {len(response.text)}")
             except Exception as e:
-                print(f"[IMS Crawler] Request error: {e}")
+                logger.info(f"[IMS Crawler] Request error: {e}")
                 raise
 
             # Get total count on first page
             if total_count is None:
                 total_count = self._get_total_count(response.text)
                 total_pages = (total_count + 9) // 10  # 10 items per page
-                print(f"[IMS Crawler] Total count: {total_count} ({total_pages} pages)")
+                logger.info(f"[IMS Crawler] Total count: {total_count} ({total_pages} pages)")
                 logger.info(f"Total count: {total_count}")
                 if progress_callback:
                     progress_callback({
@@ -229,7 +229,7 @@ class RequestsBasedCrawler(CrawlerPort):
             page_issues = self._parse_search_results(response.text, user_id, base_url)
             total_pages = (total_count + 9) // 10 if total_count else 1
             progress_pct = min(100, int((page / total_pages) * 100))
-            print(f"[IMS Crawler] Page {page}/{total_pages}: {len(page_issues)} issues ({progress_pct}%)")
+            logger.info(f"[IMS Crawler] Page {page}/{total_pages}: {len(page_issues)} issues ({progress_pct}%)")
             logger.info(f"Page {page}: {len(page_issues)} issues")
 
             if progress_callback:
@@ -254,7 +254,7 @@ class RequestsBasedCrawler(CrawlerPort):
 
             page += 1
 
-        print(f"[IMS Crawler] Search completed: {len(all_issues)} issues (Total: {total_count})")
+        logger.info(f"[IMS Crawler] Search completed: {len(all_issues)} issues (Total: {total_count})")
         logger.info(f"Search completed: {len(all_issues)} issues (Total: {total_count})")
 
         if progress_callback:
@@ -561,9 +561,42 @@ class RequestsBasedCrawler(CrawlerPort):
 
         # Parse Actions/Comments
         actions_count = 0
+        action_log_text = ""
         action_pattern = r'<input[^>]*name=["\']actionId["\'][^>]*value=["\'](\d+)["\'][^>]*>'
         action_matches = re.findall(action_pattern, html)
         actions_count = len(action_matches)
+
+        # Extract Action Log text content from CommentsDiv
+        # IMS Action Log structure: <div id="CommentsDiv"> -> <div class="commDescTR data"> -> content
+        action_texts = []
+
+        # Pattern 1: Extract from commDescTR divs (main action content)
+        comm_desc_pattern = r'<div[^>]*class=["\'][^"\']*commDescTR[^"\']*["\'][^>]*>(.*?)</div>'
+        comm_desc_matches = re.findall(comm_desc_pattern, html, re.DOTALL | re.I)
+        for match in comm_desc_matches:
+            text = re.sub(r'<[^>]+>', ' ', match)
+            text = text.replace('&nbsp;', ' ').replace('&#39;', "'")
+            text = text.replace('&lt;', '<').replace('&gt;', '>')
+            text = text.replace('&#64;', '@')
+            text = re.sub(r'\s+', ' ', text).strip()
+            if text and len(text) > 5:
+                action_texts.append(text)
+
+        # Pattern 2: Extract from CommentsDiv if pattern 1 didn't find anything
+        if not action_texts:
+            comments_div = re.search(r'<div[^>]*id=["\']CommentsDiv["\'][^>]*>(.*?)</div>\s*(?:</div>|<table)', html, re.DOTALL | re.I)
+            if comments_div:
+                section_html = comments_div.group(1)
+                text = re.sub(r'<[^>]+>', ' ', section_html)
+                text = text.replace('&nbsp;', ' ').replace('&#39;', "'")
+                text = text.replace('&lt;', '<').replace('&gt;', '>')
+                text = text.replace('&#64;', '@')
+                text = re.sub(r'\s+', ' ', text).strip()
+                if text and len(text) > 10:
+                    action_texts.append(text)
+
+        # Combine all action texts
+        action_log_text = " | ".join(action_texts)[:10000]  # Limit to 10KB
 
         # Parse status (keep raw value for display)
         status = IssueStatus.OPEN
@@ -571,7 +604,7 @@ class RequestsBasedCrawler(CrawlerPort):
         status_text = get_table_field('Status')
         if status_text:
             status_raw = status_text  # Store raw value
-            print(f"[IMS Parser] Issue {issue_id} Status: '{status_text}'")
+            logger.info(f"[IMS Parser] Issue {issue_id} Status: '{status_text}'")
             status_upper = status_text.upper()
             if 'CLOSED' in status_upper or 'CLOSED_P' in status_upper:
                 status = IssueStatus.CLOSED
@@ -590,7 +623,7 @@ class RequestsBasedCrawler(CrawlerPort):
         priority_text = get_table_field('Priority') or get_table_field('Urgency')
         if priority_text:
             priority_raw = priority_text  # Store raw value
-            print(f"[IMS Parser] Issue {issue_id} Priority: '{priority_text}'")
+            logger.info(f"[IMS Parser] Issue {issue_id} Priority: '{priority_text}'")
             priority_upper = priority_text.upper()
             if 'CRITICAL' in priority_upper or 'URGENT' in priority_upper or 'VERY HIGH' in priority_upper or '긴급' in priority_text:
                 priority = IssuePriority.CRITICAL
@@ -602,7 +635,7 @@ class RequestsBasedCrawler(CrawlerPort):
                 priority = IssuePriority.TRIVIAL
             # MEDIUM is default (Normal)
         else:
-            print(f"[IMS Parser] Issue {issue_id} Priority not found, using default MEDIUM")
+            logger.info(f"[IMS Parser] Issue {issue_id} Priority not found, using default MEDIUM")
 
         # Build issue entity
         return Issue(
@@ -623,6 +656,8 @@ class RequestsBasedCrawler(CrawlerPort):
             reporter=get_table_field('Reporter') or get_table_field('Register') or (fallback_issue.reporter if fallback_issue else ''),
             project_key=get_table_field('Project') or (fallback_issue.project_key if fallback_issue else ''),
             issue_details=issue_details[:5000],
+            action_no=str(actions_count) if actions_count else "",
+            action_log_text=action_log_text,
             comments_count=actions_count,
             issued_date=fallback_issue.issued_date if fallback_issue else None,
             source_url=f"{base_url}/tody/ims/issue/issueView.do?issueId={issue_id}",
@@ -877,7 +912,7 @@ class RequestsBasedCrawler(CrawlerPort):
             batch_num = batch_start // batch_size + 1
             progress_pct = min(100, int((batch_num / total_batches) * 100))
 
-            print(f"[IMS Crawler] Crawling batch {batch_num}/{total_batches}: issues {batch_start + 1}-{batch_end} of {total} ({progress_pct}%)")
+            logger.info(f"[IMS Crawler] Crawling batch {batch_num}/{total_batches}: issues {batch_start + 1}-{batch_end} of {total} ({progress_pct}%)")
             logger.info(f"Crawling batch {batch_num}/{total_batches}: issues {batch_start + 1}-{batch_end} of {total}")
 
             if progress_callback:

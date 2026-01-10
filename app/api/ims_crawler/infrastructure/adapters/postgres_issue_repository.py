@@ -46,8 +46,8 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
                 created_at, updated_at, resolved_at,
                 crawled_at, source_url, custom_fields,
                 category, product, version, module, customer, issued_date,
-                issue_details, action_no
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+                issue_details, action_no, action_log_text
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)
             ON CONFLICT (user_id, ims_id)
             DO UPDATE SET
                 title = EXCLUDED.title,
@@ -69,7 +69,8 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
                 customer = EXCLUDED.customer,
                 issued_date = EXCLUDED.issued_date,
                 issue_details = EXCLUDED.issue_details,
-                action_no = EXCLUDED.action_no
+                action_no = EXCLUDED.action_no,
+                action_log_text = EXCLUDED.action_log_text
             RETURNING id
         """
 
@@ -88,7 +89,7 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
                 json.dumps(issue.custom_fields) if issue.custom_fields else "{}",
                 issue.category, issue.product, issue.version,
                 issue.module, issue.customer, issue.issued_date,
-                issue.issue_details, issue.action_no
+                issue.issue_details, issue.action_no, issue.action_log_text
             )
             return row['id']
 
