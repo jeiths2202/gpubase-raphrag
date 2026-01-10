@@ -1,0 +1,220 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // ============================================
+  // HybridRAG KMS - OpenCode Local LLM Configuration
+  // ============================================
+
+  // 로컬 프로바이더만 사용 (외부 API 차단)
+  "enabled_providers": ["ollama"],
+
+  // 기본 모델 설정 (tool calling 지원 모델)
+  "model": "ollama/qwen2.5:3b",
+  "small_model": "ollama/qwen2.5:3b",
+
+  // 프로젝트 지침 파일
+  "instructions": ["CLAUDE.md"],
+
+  // ============================================
+  // Provider 설정
+  // ============================================
+  "provider": {
+    // --------------------------------------------
+    // Ollama (로컬 테스트용)
+    // 실행: ollama run gemma3:1b
+    // --------------------------------------------
+    "ollama": {
+      "name": "Local Ollama",
+      "api": "http://localhost:11434/v1",
+      "npm": "@ai-sdk/openai-compatible",
+      "env": [],
+      "options": {
+        "baseURL": "http://localhost:11434/v1",
+        "apiKey": "ollama",
+        "timeout": 300000
+      },
+      "models": {
+        "gemma3:1b": {
+          "id": "gemma3:1b",
+          "name": "Gemma 3 1B (Local Test)",
+          "tool_call": true,
+          "temperature": true,
+          "reasoning": false,
+          "attachment": false,
+          "limit": {
+            "context": 8192,
+            "output": 2048
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        "gemma3:4b": {
+          "id": "gemma3:4b",
+          "name": "Gemma 3 4B",
+          "tool_call": true,
+          "temperature": true,
+          "reasoning": false,
+          "attachment": false,
+          "limit": {
+            "context": 8192,
+            "output": 2048
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        "llama3.1:8b": {
+          "id": "llama3.1:8b",
+          "name": "Llama 3.1 8B",
+          "tool_call": true,
+          "temperature": true,
+          "reasoning": false,
+          "attachment": false,
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        "qwen2.5-coder:7b": {
+          "id": "qwen2.5-coder:7b",
+          "name": "Qwen 2.5 Coder 7B",
+          "tool_call": true,
+          "temperature": true,
+          "reasoning": false,
+          "attachment": false,
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        },
+        "qwen2.5:3b": {
+          "id": "qwen2.5:3b",
+          "name": "Qwen 2.5 3B (Tool Calling)",
+          "tool_call": true,
+          "temperature": true,
+          "reasoning": false,
+          "attachment": false,
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          },
+          "cost": {
+            "input": 0,
+            "output": 0
+          }
+        }
+      }
+    }
+
+    // --------------------------------------------
+    // NVIDIA NIM (GPU 서버 연결 시 활성화)
+    // enabled_providers를 ["nvidia-nim"] 또는 ["nvidia-nim", "ollama"]로 변경
+    // --------------------------------------------
+    // "nvidia-nim": {
+    //   "name": "NVIDIA NIM (Nemotron)",
+    //   "api": "http://localhost:12800/v1",
+    //   "npm": "@ai-sdk/openai-compatible",
+    //   "env": [],
+    //   "options": {
+    //     "baseURL": "http://localhost:12800/v1",
+    //     "apiKey": "not-needed"
+    //   },
+    //   "models": {
+    //     "nemotron-nano": {
+    //       "id": "nemotron-nano-9b",
+    //       "name": "Nemotron Nano 9B",
+    //       "tool_call": true,
+    //       "temperature": true,
+    //       "reasoning": false,
+    //       "attachment": false,
+    //       "limit": {
+    //         "context": 32768,
+    //         "output": 4096
+    //       },
+    //       "cost": {
+    //         "input": 0,
+    //         "output": 0
+    //       }
+    //     }
+    //   }
+    // },
+
+    // --------------------------------------------
+    // Mistral Code LLM (GPU 서버 연결 시 활성화)
+    // --------------------------------------------
+    // "nvidia-mistral": {
+    //   "name": "NVIDIA NIM (Mistral Code)",
+    //   "api": "http://localhost:12802/v1",
+    //   "npm": "@ai-sdk/openai-compatible",
+    //   "env": [],
+    //   "options": {
+    //     "baseURL": "http://localhost:12802/v1",
+    //     "apiKey": "not-needed"
+    //   },
+    //   "models": {
+    //     "mistral-nemo": {
+    //       "id": "mistral-nemo-12b",
+    //       "name": "Mistral NeMo 12B (Code)",
+    //       "tool_call": true,
+    //       "temperature": true,
+    //       "reasoning": false,
+    //       "attachment": false,
+    //       "limit": {
+    //         "context": 32768,
+    //         "output": 4096
+    //       },
+    //       "cost": {
+    //         "input": 0,
+    //         "output": 0
+    //       }
+    //     }
+    //   }
+    // }
+  },
+
+  // ============================================
+  // Agent 설정
+  // ============================================
+  "agent": {
+    "build": {
+      "model": "ollama/qwen2.5:3b",
+      "temperature": 0.7
+    },
+    "plan": {
+      "model": "ollama/qwen2.5:3b",
+      "temperature": 0.5
+    }
+  },
+
+  // ============================================
+  // Permission 설정
+  // ============================================
+  "permission": {
+    // 기본 허용
+    "*": "allow",
+    // .env 파일 읽기 거부
+    "read": {
+      "*.env": "deny",
+      "*.env.*": "deny",
+      ".env.example": "allow"
+    }
+  },
+
+  // ============================================
+  // 실험적 기능
+  // ============================================
+  "experimental": {
+    "chatMaxRetries": 3
+  }
+}

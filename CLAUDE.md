@@ -159,3 +159,72 @@ Mock services in `tests/mocks/` and `app/api/adapters/mock/` simulate LLM, embed
 | 12800 | Nemotron LLM (GPU 7)      |
 | 12801 | NeMo Embeddings (GPU 4,5) |
 | 12802 | Mistral Code LLM (GPU 0)  |
+
+## OpenCode Integration
+
+OpenCode는 오픈소스 AI 코딩 에이전트로, 로컬 LLM과 통합하여 사용할 수 있습니다.
+
+### 설치
+
+```bash
+npm i -g opencode-ai@latest
+```
+
+### 설정 파일
+
+설정 파일 위치: `.opencode/opencode.jsonc`
+
+#### 로컬 테스트 환경 (Ollama)
+
+```bash
+# Ollama 설치 후 모델 다운로드
+ollama pull qwen2.5:3b  # Tool calling 지원 모델 필수
+
+# OpenCode 실행
+opencode
+```
+
+기본 설정: `ollama/qwen2.5:3b` (CPU 환경에서 적절한 속도, tool calling 지원)
+
+#### GPU 서버 연결 시
+
+`.opencode/opencode.jsonc` 파일에서 다음을 수정:
+
+1. `enabled_providers` 변경:
+```jsonc
+"enabled_providers": ["nvidia-nim", "nvidia-mistral"]
+```
+
+2. `model` 및 `agent` 설정 변경:
+```jsonc
+"model": "nvidia-nim/nemotron-nano",
+"small_model": "nvidia-nim/nemotron-nano",
+"agent": {
+  "build": { "model": "nvidia-nim/nemotron-nano" },
+  "plan": { "model": "nvidia-nim/nemotron-nano" }
+}
+```
+
+3. NVIDIA NIM 프로바이더 주석 해제 (파일 내 주석 참고)
+
+### 주요 명령어
+
+```bash
+# TUI 실행
+opencode
+
+# 단일 명령 실행
+opencode run "질문 내용"
+
+# 모델 목록 확인
+opencode models
+
+# 설정 확인
+opencode debug config
+```
+
+### 주의사항
+
+- **Tool Calling 지원 필수**: gemma3:1b 등 일부 모델은 tool calling 미지원
+- **CPU 환경**: llama3.1:8b는 CPU에서 너무 느림, qwen2.5:3b 권장
+- **GPU 환경**: NVIDIA NIM 서버 연결 시 nemotron-nano, mistral-nemo 사용
