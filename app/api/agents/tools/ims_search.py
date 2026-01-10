@@ -2,6 +2,7 @@
 IMS Search Tool
 Searches the IMS (Issue Management System) for issues.
 Supports DB search with crawl fallback when no results found.
+Checks for IMS credentials before crawling.
 """
 from typing import Dict, Any, Optional, List, Callable, Awaitable
 from uuid import UUID, uuid4
@@ -21,6 +22,7 @@ class IMSSearchTool(BaseTool):
     """
     Tool for searching IMS issues.
     First searches local DB, then triggers crawl if no results found.
+    Checks for IMS credentials before crawling - prompts user if not found.
     """
 
     def __init__(self):
@@ -29,7 +31,8 @@ class IMSSearchTool(BaseTool):
             description="""Search the Issue Management System (IMS) for issues.
 Use this tool to find bug reports, feature requests, or technical issues.
 Can filter by status, priority, product, and other criteria.
-If no results found in local DB, will automatically crawl IMS for data."""
+If no results found in local DB, will automatically crawl IMS for data.
+Requires IMS credentials for crawling."""
         )
         self._status_callback: Optional[StatusCallback] = None
 
@@ -41,6 +44,31 @@ If no results found in local DB, will automatically crawl IMS for data."""
         """Emit status message if callback is set"""
         if self._status_callback:
             await self._status_callback(message)
+
+    async def _check_credentials(self, user_id: str) -> bool:
+        """
+        Check if user has IMS credentials stored.
+
+        Args:
+            user_id: User's UUID string
+
+        Returns:
+            True if credentials exist, False otherwise
+        """
+        from ...ims_crawler.infrastructure.dependencies import get_manage_credentials_use_case
+
+        try:
+            uid = UUID(user_id) if user_id else None
+            if not uid:
+                return False
+
+            credentials_use_case = await get_manage_credentials_use_case()
+            credentials = await credentials_use_case.get_credentials(uid)
+
+            return credentials is not None
+        except Exception as e:
+            logger.warning(f"Error checking credentials: {e}")
+            return False
 
     def _get_default_parameters(self) -> Dict[str, Any]:
         return {
@@ -233,13 +261,44 @@ If no results found in local DB, will automatically crawl IMS for data."""
 
             # Step 2: If no results and not forcing crawl skip, trigger crawl
             if len(formatted_issues) == 0 or force_crawl:
+                logger.info(f"No DB results for '{query}', checking credentials for crawl...")
+
+                # Get user_id from context
+                user_id = context.user_id or ""
+
+                # Check if user has IMS credentials before crawling
+                has_credentials = await self._check_credentials(user_id)
+
+                if not has_credentials:
+                    # No credentials - emit status to prompt user
+                    logger.info(f"No IMS credentials found for user {user_id}, requesting login")
+                    await self._emit_status("credentials_required")
+
+                    # Return result indicating credentials are needed
+                    output = {
+                        "query": query,
+                        "filters": filters,
+                        "total_count": 0,
+                        "issues": [],
+                        "source": "database",
+                        "crawl_triggered": False,
+                        "credentials_required": True,
+                        "message": "IMS login required. Please provide your IMS credentials to search."
+                    }
+
+                    return self.create_success_result(
+                        output,
+                        metadata={
+                            "source": "database",
+                            "credentials_required": True
+                        }
+                    )
+
+                # Has credentials - proceed with crawl
                 # Emit status key for crawling (frontend will translate using i18n)
                 await self._emit_status("crawling")
 
-                logger.info(f"No DB results for '{query}', triggering crawl...")
-
-                # Get user_id from context
-                user_id = context.user_id or str(uuid4())
+                logger.info(f"Starting IMS crawl for '{query}'...")
 
                 # Perform crawl
                 crawled_issues = await self._crawl_and_search(query, user_id, limit)
@@ -250,6 +309,9 @@ If no results found in local DB, will automatically crawl IMS for data."""
                     crawl_triggered = True
 
                     # Emit ready status key
+                    await self._emit_status("ready")
+                else:
+                    # Crawl returned no results
                     await self._emit_status("ready")
             else:
                 # DB has results, emit ready status key

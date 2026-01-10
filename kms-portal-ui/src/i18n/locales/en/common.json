@@ -60,7 +60,20 @@
       "crawling": "Searching knowledge base (crawl). Please wait while data is being extracted.",
       "ready": "Data is ready. How can I help you?",
       "searching": "Searching database...",
-      "processing": "Processing your request..."
+      "processing": "Processing your request...",
+      "credentials_required": "IMS login required. Please enter your IMS credentials to search."
+    },
+    "credentials": {
+      "title": "IMS Login Required",
+      "description": "Please enter your IMS credentials to search the Issue Management System.",
+      "username": "Username",
+      "usernamePlaceholder": "Enter IMS username",
+      "password": "Password",
+      "passwordPlaceholder": "Enter IMS password",
+      "login": "Login",
+      "saving": "Saving...",
+      "emptyFields": "Please fill in all fields",
+      "saveError": "Failed to save credentials"
     }
   }
 }

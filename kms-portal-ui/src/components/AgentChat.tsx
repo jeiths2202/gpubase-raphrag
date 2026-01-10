@@ -31,6 +31,8 @@ import {
   ChevronDown,
   AlertCircle,
   Database,
+  Lock,
+  X,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import './AgentChat.css';
@@ -54,7 +56,7 @@ interface ChatMessage {
   sources?: AgentSource[];
   isStreaming?: boolean;
   error?: string;
-  statusType?: 'crawling' | 'ready';
+  statusType?: 'crawling' | 'ready' | 'credentials_required';
 }
 
 interface ToolCallInfo {
@@ -138,6 +140,14 @@ export const AgentChat: React.FC = () => {
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+
+  // IMS Credentials modal state
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [imsUsername, setImsUsername] = useState('');
+  const [imsPassword, setImsPassword] = useState('');
+  const [isSubmittingCredentials, setIsSubmittingCredentials] = useState(false);
+  const [credentialsError, setCredentialsError] = useState<string | null>(null);
+  const [pendingQuery, setPendingQuery] = useState<string | null>(null);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -273,10 +283,20 @@ export const AgentChat: React.FC = () => {
             break;
 
           case 'status':
-            // Handle status messages (crawl status, ready status)
-            // Backend sends status keys: "crawling", "ready", etc.
+            // Handle status messages (crawl status, ready status, credentials_required)
+            // Backend sends status keys: "crawling", "ready", "credentials_required", etc.
             if (chunk.content) {
-              const statusKey = chunk.content as 'crawling' | 'ready' | 'searching' | 'processing';
+              const statusKey = chunk.content as 'crawling' | 'ready' | 'searching' | 'processing' | 'credentials_required';
+
+              // If credentials required, show the credentials modal
+              if (statusKey === 'credentials_required') {
+                setPendingQuery(userMessage.content);
+                setShowCredentialsModal(true);
+                setIsLoading(false);
+                setStreamingMessage(null);
+                return; // Stop processing, user needs to enter credentials
+              }
+
               const statusMsg: ChatMessage = {
                 id: `status-${Date.now()}`,
                 role: 'status',
@@ -387,6 +407,68 @@ export const AgentChat: React.FC = () => {
       setIsLoading(false);
       setStreamingMessage(null);
     }
+  };
+
+  // Submit IMS credentials
+  const handleSubmitCredentials = async () => {
+    if (!imsUsername.trim() || !imsPassword.trim()) {
+      setCredentialsError(t('common.agent.credentials.emptyFields') || 'Please fill in all fields');
+      return;
+    }
+
+    setIsSubmittingCredentials(true);
+    setCredentialsError(null);
+
+    try {
+      const response = await fetch('/api/v1/ims-credentials/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          ims_url: 'https://ims.tmaxsoft.com',
+          username: imsUsername,
+          password: imsPassword,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to save credentials');
+      }
+
+      // Success - close modal and retry the query
+      setShowCredentialsModal(false);
+      setImsUsername('');
+      setImsPassword('');
+
+      // Retry the pending query with credentials now stored
+      if (pendingQuery) {
+        setInputValue(pendingQuery);
+        setPendingQuery(null);
+        // Trigger send after a short delay to let state update
+        setTimeout(() => {
+          handleSend();
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Failed to save IMS credentials:', error);
+      setCredentialsError(
+        error instanceof Error ? error.message : t('common.agent.credentials.saveError') || 'Failed to save credentials'
+      );
+    } finally {
+      setIsSubmittingCredentials(false);
+    }
+  };
+
+  // Close credentials modal
+  const handleCloseCredentialsModal = () => {
+    setShowCredentialsModal(false);
+    setImsUsername('');
+    setImsPassword('');
+    setCredentialsError(null);
+    setPendingQuery(null);
   };
 
   // Get agent icon
@@ -514,6 +596,96 @@ export const AgentChat: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* IMS Credentials Modal */}
+      {showCredentialsModal && (
+        <div className="agent-credentials-modal-overlay" onClick={handleCloseCredentialsModal}>
+          <div className="agent-credentials-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="agent-credentials-modal-header">
+              <div className="agent-credentials-modal-title">
+                <Lock size={20} />
+                <h3>{t('common.agent.credentials.title') || 'IMS Login Required'}</h3>
+              </div>
+              <button className="agent-credentials-modal-close" onClick={handleCloseCredentialsModal}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="agent-credentials-modal-body">
+              <p className="agent-credentials-modal-description">
+                {t('common.agent.credentials.description') ||
+                  'Please enter your IMS credentials to search the Issue Management System.'}
+              </p>
+
+              {credentialsError && (
+                <div className="agent-credentials-error">
+                  <AlertCircle size={16} />
+                  <span>{credentialsError}</span>
+                </div>
+              )}
+
+              <div className="agent-credentials-form">
+                <div className="agent-credentials-field">
+                  <label htmlFor="ims-username">
+                    {t('common.agent.credentials.username') || 'Username'}
+                  </label>
+                  <input
+                    id="ims-username"
+                    type="text"
+                    value={imsUsername}
+                    onChange={(e) => setImsUsername(e.target.value)}
+                    placeholder={t('common.agent.credentials.usernamePlaceholder') || 'Enter IMS username'}
+                    disabled={isSubmittingCredentials}
+                    autoFocus
+                  />
+                </div>
+
+                <div className="agent-credentials-field">
+                  <label htmlFor="ims-password">
+                    {t('common.agent.credentials.password') || 'Password'}
+                  </label>
+                  <input
+                    id="ims-password"
+                    type="password"
+                    value={imsPassword}
+                    onChange={(e) => setImsPassword(e.target.value)}
+                    placeholder={t('common.agent.credentials.passwordPlaceholder') || 'Enter IMS password'}
+                    disabled={isSubmittingCredentials}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSubmitCredentials()}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="agent-credentials-modal-footer">
+              <button
+                className="agent-credentials-cancel-btn"
+                onClick={handleCloseCredentialsModal}
+                disabled={isSubmittingCredentials}
+              >
+                {t('common.cancel') || 'Cancel'}
+              </button>
+              <button
+                className="agent-credentials-submit-btn"
+                onClick={handleSubmitCredentials}
+                disabled={isSubmittingCredentials || !imsUsername.trim() || !imsPassword.trim()}
+              >
+                {isSubmittingCredentials ? (
+                  <>
+                    <Loader2 size={16} className="spin" />
+                    <span>{t('common.agent.credentials.saving') || 'Saving...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock size={16} />
+                    <span>{t('common.agent.credentials.login') || 'Login'}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

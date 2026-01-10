@@ -658,3 +658,186 @@
 .agent-status-message.ready .agent-status-content {
   color: var(--success-text);
 }
+
+/* IMS Credentials Modal */
+.agent-credentials-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.agent-credentials-modal {
+  width: 90%;
+  max-width: 420px;
+  background: var(--surface-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+}
+
+.agent-credentials-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--surface-secondary);
+}
+
+.agent-credentials-modal-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--brand-primary);
+}
+
+.agent-credentials-modal-title h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.agent-credentials-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.agent-credentials-modal-close:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.agent-credentials-modal-body {
+  padding: var(--space-4);
+}
+
+.agent-credentials-modal-description {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.agent-credentials-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+  background: var(--error-background);
+  border: 1px solid var(--error-border);
+  border-radius: var(--radius-md);
+  color: var(--error-text);
+  font-size: var(--text-sm);
+}
+
+.agent-credentials-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.agent-credentials-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.agent-credentials-field label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.agent-credentials-field input {
+  padding: var(--space-3);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  transition: all 0.2s ease;
+}
+
+.agent-credentials-field input:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 2px var(--brand-primary-muted);
+}
+
+.agent-credentials-field input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.agent-credentials-field input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.agent-credentials-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-top: 1px solid var(--border-primary);
+  background: var(--surface-secondary);
+}
+
+.agent-credentials-cancel-btn,
+.agent-credentials-submit-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.agent-credentials-cancel-btn {
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+}
+
+.agent-credentials-cancel-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-secondary);
+  color: var(--text-primary);
+}
+
+.agent-credentials-submit-btn {
+  background: var(--brand-primary);
+  border: none;
+  color: white;
+}
+
+.agent-credentials-submit-btn:hover:not(:disabled) {
+  background: var(--brand-primary-hover);
+}
+
+.agent-credentials-cancel-btn:disabled,
+.agent-credentials-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

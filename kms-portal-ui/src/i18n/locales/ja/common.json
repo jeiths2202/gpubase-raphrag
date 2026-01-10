@@ -60,7 +60,20 @@
       "crawling": "ナレッジ検索（クロール）で回答します。データ抽出に時間がかかりますので、しばらくお待ちください。",
       "ready": "データに基づいて回答する準備ができました。何をお手伝いしましょうか？",
       "searching": "データベース検索中...",
-      "processing": "リクエストを処理中..."
+      "processing": "リクエストを処理中...",
+      "credentials_required": "IMSログインが必要です。IMS認証情報を入力してください。"
+    },
+    "credentials": {
+      "title": "IMSログインが必要",
+      "description": "課題管理システム（IMS）を検索するには、IMS認証情報を入力してください。",
+      "username": "ユーザー名",
+      "usernamePlaceholder": "IMSユーザー名を入力",
+      "password": "パスワード",
+      "passwordPlaceholder": "IMSパスワードを入力",
+      "login": "ログイン",
+      "saving": "保存中...",
+      "emptyFields": "すべてのフィールドに入力してください",
+      "saveError": "認証情報の保存に失敗しました"
     }
   }
 }

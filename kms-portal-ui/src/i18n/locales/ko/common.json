@@ -60,7 +60,20 @@
       "crawling": "지식검색(crawl)하여 답변하겠습니다. 추출하는데 시간이 소요되니 잠시 기다려주세요.",
       "ready": "데이터를 기반으로 답변할 준비가 되었습니다. 무엇을 도와 드릴까요?",
       "searching": "데이터베이스 검색 중...",
-      "processing": "요청을 처리 중입니다..."
+      "processing": "요청을 처리 중입니다...",
+      "credentials_required": "IMS 로그인이 필요합니다. IMS 계정 정보를 입력해주세요."
+    },
+    "credentials": {
+      "title": "IMS 로그인 필요",
+      "description": "이슈 관리 시스템(IMS)을 검색하려면 IMS 계정 정보를 입력해주세요.",
+      "username": "사용자 이름",
+      "usernamePlaceholder": "IMS 사용자 이름 입력",
+      "password": "비밀번호",
+      "passwordPlaceholder": "IMS 비밀번호 입력",
+      "login": "로그인",
+      "saving": "저장 중...",
+      "emptyFields": "모든 필드를 입력해주세요",
+      "saveError": "계정 정보 저장에 실패했습니다"
     }
   }
 }
