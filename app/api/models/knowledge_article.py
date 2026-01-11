@@ -3,7 +3,7 @@ Knowledge Article models for the Knowledge Management System
 """
 from enum import Enum
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime, timezone
 
 
@@ -160,8 +160,7 @@ class KnowledgeArticle(BaseModel):
     # Related articles
     related_article_ids: List[str] = []
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "ka_abc123",
                 "title": "GPU 기반 RAG 시스템 구축 가이드",
@@ -173,7 +172,7 @@ class KnowledgeArticle(BaseModel):
                 "author_name": "홍길동",
                 "status": "published"
             }
-        }
+        })
 
 
 class Recommendation(BaseModel):
@@ -196,8 +195,7 @@ class CreateKnowledgeRequest(BaseModel):
     primary_language: SupportedLanguage = SupportedLanguage.KOREAN
     attachments: List[str] = []
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "title": "새로운 지식 문서",
                 "content": "<h1>내용</h1><p>본문...</p>",
@@ -205,7 +203,7 @@ class CreateKnowledgeRequest(BaseModel):
                 "category": "technical",
                 "tags": ["태그1", "태그2"]
             }
-        }
+        })
 
 
 class UpdateKnowledgeRequest(BaseModel):

@@ -5,7 +5,7 @@ Models for managing user's external resource connections (OneNote, GitHub, Googl
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ExternalResourceType(str, Enum):

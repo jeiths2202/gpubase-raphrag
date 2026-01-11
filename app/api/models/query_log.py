@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class FAQSourceType(str, Enum):
@@ -146,17 +146,16 @@ class PopularQueriesResponse(BaseModel):
     status: str = "success"
     data: Dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "status": "success",
-                "data": {
-                    "queries": [],
-                    "total": 0,
-                    "period_days": 30
-                }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "status": "success",
+            "data": {
+                "queries": [],
+                "total": 0,
+                "period_days": 30
             }
         }
+    })
 
 
 class FAQListResponse(BaseModel):
@@ -164,17 +163,16 @@ class FAQListResponse(BaseModel):
     status: str = "success"
     data: Dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "status": "success",
-                "data": {
-                    "items": [],
-                    "total": 0,
-                    "has_more": False
-                }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "status": "success",
+            "data": {
+                "items": [],
+                "total": 0,
+                "has_more": False
             }
         }
+    })
 
 
 class FAQCategoryResponse(BaseModel):

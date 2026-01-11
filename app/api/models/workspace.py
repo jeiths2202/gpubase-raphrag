@@ -8,7 +8,7 @@ Supports multi-menu state management with JSONB flexibility.
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Literal
 from uuid import UUID
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict, ValidationInfo
 
 
 # ============================================================================
@@ -122,10 +122,11 @@ class MenuStateBase(BaseModel):
     menu_type: MenuType
     state: Dict[str, Any] = Field(default_factory=dict)
 
-    @validator('state')
-    def validate_state(cls, v, values):
+    @field_validator('state')
+    @classmethod
+    def validate_state(cls, v, info: ValidationInfo):
         """Validate state structure based on menu type"""
-        menu_type = values.get('menu_type')
+        menu_type = info.data.get('menu_type') if info.data else None
 
         # Define required/recommended fields per menu type
         menu_schemas = {

@@ -5,7 +5,7 @@ This module defines models for chatting with AI about crawled IMS issues.
 The chat context is LIMITED to searched/crawled issues only.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime
@@ -44,8 +44,7 @@ class IMSChatRequest(BaseModel):
     stream: bool = Field(True, description="Whether to stream the response")
     max_context_issues: int = Field(10, description="Maximum issues to include in context")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "question": "mscasmc 토큰 오류 해결 방법은?",
                 "issue_ids": ["uuid-1", "uuid-2", "uuid-3"],
@@ -54,7 +53,7 @@ class IMSChatRequest(BaseModel):
                 "stream": True,
                 "max_context_issues": 10
             }
-        }
+        })
 
 
 class IMSChatMessage(BaseModel):

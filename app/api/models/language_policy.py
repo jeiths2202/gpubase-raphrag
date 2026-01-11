@@ -5,7 +5,7 @@ Pydantic models for language restriction policies and role-based language manage
 """
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class LanguageRestrictionLevel(str, Enum):
@@ -34,15 +34,14 @@ class LanguagePolicy(BaseModel):
         description="Allow automatic language detection"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "allowed_languages": ["en", "ko", "ja"],
                 "default_language": "en",
                 "restriction_level": "preferred",
                 "allow_auto_detect": True
             }
-        }
+        })
 
 
 class LanguagePolicyResponse(BaseModel):

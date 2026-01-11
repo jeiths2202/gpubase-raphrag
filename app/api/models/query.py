@@ -3,7 +3,7 @@ Query-related Pydantic models
 """
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class StrategyType(str, Enum):
@@ -44,18 +44,17 @@ class QueryRequest(BaseModel):
     language: LanguageType = Field(default=LanguageType.AUTO, description="Response language")
     options: Optional[QueryOptions] = Field(default_factory=QueryOptions)
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "question": "OpenFrame 설치 방법을 알려주세요",
-                "strategy": "auto",
-                "language": "auto",
-                "options": {
-                    "top_k": 5,
-                    "include_sources": True
-                }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "question": "OpenFrame 설치 방법을 알려주세요",
+            "strategy": "auto",
+            "language": "auto",
+            "options": {
+                "top_k": 5,
+                "include_sources": True
             }
         }
+    })
 
 
 class SourceInfo(BaseModel):

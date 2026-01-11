@@ -15,7 +15,7 @@ DESIGN PRINCIPLES:
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from uuid import UUID
-from pydantic import BaseModel, Field, EmailStr, validator
+from pydantic import BaseModel, Field, EmailStr, field_validator, ConfigDict, ValidationInfo
 from enum import Enum
 
 
@@ -95,8 +95,9 @@ class UserCreate(UserBase):
     """
     password: Optional[str] = Field(None, min_length=8)
 
-    @validator('password')
-    def validate_password_strength(cls, v, values):
+    @field_validator('password')
+    @classmethod
+    def validate_password_strength(cls, v):
         """
         Validate password strength for local authentication
 
@@ -234,13 +235,12 @@ class LocalLoginRequest(BaseModel):
     id: str = Field(..., description="User ID or email for login")
     password: str = Field(..., min_length=1)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "admin",
                 "password": "SecureAdm1nP@ss2024!"
             }
-        }
+        })
 
 
 class ExternalAuthRequest(BaseModel):

@@ -3,7 +3,7 @@ Authentication Pydantic models
 """
 from enum import Enum
 from typing import Optional, List
-from pydantic import BaseModel, Field, EmailStr, validator
+from pydantic import BaseModel, Field, EmailStr, field_validator, ConfigDict
 from datetime import datetime
 
 
@@ -46,13 +46,12 @@ class LoginRequest(BaseModel):
     username: str = Field(..., min_length=1, max_length=100)
     password: str = Field(..., min_length=1)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "username": "admin",
                 "password": "password123"
             }
-        }
+        })
 
 
 class RegisterRequest(BaseModel):
@@ -61,16 +60,16 @@ class RegisterRequest(BaseModel):
     email: EmailStr = Field(..., description="Email for verification")
     password: str = Field(..., min_length=8, max_length=100)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "user_id": "newuser",
                 "email": "user@example.com",
                 "password": "SecurePassword123!"
             }
-        }
+        })
 
-    @validator('password')
+    @field_validator('password')
+    @classmethod
     def validate_password_strength(cls, v):
         """
         Validate password strength for registration
@@ -101,13 +100,12 @@ class VerifyEmailRequest(BaseModel):
     email: EmailStr
     code: str = Field(..., min_length=6, max_length=6)
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "email": "user@example.com",
                 "code": "123456"
             }
-        }
+        })
 
 
 class ResendVerificationRequest(BaseModel):
@@ -119,24 +117,22 @@ class GoogleAuthRequest(BaseModel):
     """Google OAuth request"""
     credential: str = Field(..., description="Google OAuth credential token")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "credential": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
             }
-        }
+        })
 
 
 class SSORequest(BaseModel):
     """Corporate SSO request"""
     email: EmailStr = Field(..., description="Corporate email address")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "email": "user@company.com"
             }
-        }
+        })
 
 
 class RegisterResponse(BaseModel):

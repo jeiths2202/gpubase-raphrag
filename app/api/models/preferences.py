@@ -2,7 +2,7 @@
 User Preferences Models
 Theme and Language preference management for KMS Platform
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from enum import Enum
 
@@ -29,8 +29,7 @@ class UserPreferencesResponse(BaseModel):
     notifications_enabled: bool = Field(default=True, description="Enable notifications")
     email_notifications: bool = Field(default=True, description="Enable email notifications")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "theme": "dark",
                 "language": "ko",
@@ -38,7 +37,7 @@ class UserPreferencesResponse(BaseModel):
                 "notifications_enabled": True,
                 "email_notifications": True
             }
-        }
+        })
 
 
 class UserPreferencesUpdate(BaseModel):
@@ -49,13 +48,12 @@ class UserPreferencesUpdate(BaseModel):
     notifications_enabled: Optional[bool] = Field(default=None, description="Enable notifications")
     email_notifications: Optional[bool] = Field(default=None, description="Enable email notifications")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "theme": "light",
                 "language": "ko"
             }
-        }
+        })
 
 
 class SupportedLanguage(BaseModel):

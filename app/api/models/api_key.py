@@ -2,7 +2,7 @@
 API Key Pydantic models for public/anonymous RAG access
 """
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 from uuid import UUID
 
@@ -24,8 +24,7 @@ class ApiKeyCreate(BaseModel):
     rate_limit_per_day: int = Field(default=1000, ge=1, le=100000, description="Requests per day")
     expires_in_days: Optional[int] = Field(None, ge=1, le=365, description="Days until expiration (None = never)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "name": "Public Website Widget",
                 "description": "API key for embedded RAG widget on public website",
@@ -36,7 +35,7 @@ class ApiKeyCreate(BaseModel):
                 "rate_limit_per_day": 1000,
                 "expires_in_days": 90
             }
-        }
+        })
 
 
 class ApiKeyUpdate(BaseModel):
@@ -83,8 +82,7 @@ class ApiKeyCreatedResponse(BaseModel):
     key_prefix: str
     message: str = "Save this API key securely. It will not be shown again."
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(json_schema_extra={
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440000",
                 "name": "Public Website Widget",
@@ -92,7 +90,7 @@ class ApiKeyCreatedResponse(BaseModel):
                 "key_prefix": "kms_abc1",
                 "message": "Save this API key securely. It will not be shown again."
             }
-        }
+        })
 
 
 class ApiKeyListResponse(BaseModel):
