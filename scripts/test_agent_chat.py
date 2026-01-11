@@ -267,8 +267,8 @@ def test_url_fetch(token: str) -> TestResult:
     """Test URL content fetching API."""
     result = TestResult("URL Content Fetch", "API")
 
-    # Use Tibero documentation URL (redirects to different page)
-    test_url = "https://technet.tmaxsoft.com/upload/download/online/tibero/pver-20220224-000001/tibero_admin/chapter_server_process.html"
+    # Use OpenFrame documentation URL (valid documentation page)
+    test_url = "https://docs.tmaxsoft.com/ja/openframe_common/7.3_XSP/getting-started-guide/chapter-openframe-migration-xsp-msp.html"
 
     data = {"url": test_url}
 
@@ -336,7 +336,7 @@ def test_url_context_rag(token: str) -> TestResult:
     result = TestResult("URL Context RAG", "API")
 
     # First, fetch URL content
-    test_url = "https://technet.tmaxsoft.com/upload/download/online/tibero/pver-20220224-000001/tibero_admin/chapter_server_process.html"
+    test_url = "https://docs.tmaxsoft.com/ja/openframe_common/7.3_XSP/getting-started-guide/chapter-openframe-migration-xsp-msp.html"
     fetch_data = {"url": test_url}
 
     fetch_response, _ = make_request("POST", "/agents/fetch-url", token=token, data=fetch_data, timeout=30)
@@ -351,11 +351,11 @@ def test_url_context_rag(token: str) -> TestResult:
     # Build file_context with URL content
     file_context = f"=== URL: {url_title} ({test_url}) ===\n{url_content}"
 
-    # Now query with URL context
+    # Now query with URL context - ask about EBCDIC to ASCII conversion
     data = {
-        "task": "Tibero worker process",
+        "task": "EBCDICからASCIIに変換에 대해서 요약하세요",
         "agent_type": "rag",
-        "language": "ko",
+        "language": "ja",
         "file_context": file_context
     }
 
@@ -364,13 +364,13 @@ def test_url_context_rag(token: str) -> TestResult:
 
     if response and response.get("success") and response.get("answer"):
         answer = response.get("answer", "")
-        # Check if response uses URL context (mentions worker, process, etc.)
-        relevant_keywords = ["worker", "process", "WTHR", "WMGR"]
+        # Check if response uses URL context (mentions EBCDIC, ASCII, conversion, etc.)
+        relevant_keywords = ["EBCDIC", "ASCII", "変換", "conversion", "OpenFrame", "マイグレーション"]
         has_relevant_content = any(kw.lower() in answer.lower() for kw in relevant_keywords)
 
         result.success = True
         if has_relevant_content:
-            result.message = "RAG used URL context (worker process info found)"
+            result.message = "RAG used URL context (EBCDIC/ASCII info found)"
         else:
             result.message = "RAG response received (context may not have been used)"
         result.data = {"answer_preview": answer[:200] + "..." if len(answer) > 200 else answer}
@@ -666,7 +666,7 @@ def run_webui_tests() -> List[TestResult]:
             # Find chat input and enter a URL that redirects
             chat_input = page.query_selector('textarea.agent-chat-input')
             if chat_input:
-                # This URL redirects to a different domain
+                # This URL redirects to a different domain (for testing redirect warning)
                 test_url = "https://technet.tmaxsoft.com/upload/download/online/tibero/pver-20220224-000001/tibero_admin/chapter_server_process.html"
                 chat_input.fill(test_url)
                 time.sleep(0.5)
@@ -722,10 +722,10 @@ def run_webui_tests() -> List[TestResult]:
             url_chip = page.query_selector('.agent-attached-url')
 
             if not url_chip:
-                # Attach a URL first
+                # Attach a URL first (use valid OpenFrame documentation URL)
                 chat_input = page.query_selector('textarea.agent-chat-input')
                 if chat_input:
-                    test_url = "https://technet.tmaxsoft.com/upload/download/online/tibero/pver-20220224-000001/tibero_admin/chapter_server_process.html"
+                    test_url = "https://docs.tmaxsoft.com/ja/openframe_common/7.3_XSP/getting-started-guide/chapter-openframe-migration-xsp-msp.html"
                     chat_input.fill(test_url)
                     time.sleep(0.5)
 
@@ -736,10 +736,10 @@ def run_webui_tests() -> List[TestResult]:
                         url_chip = page.query_selector('.agent-attached-url')
 
             if url_chip:
-                # Send a message
+                # Send a message about EBCDIC/ASCII conversion
                 chat_input = page.query_selector('textarea.agent-chat-input')
                 if chat_input:
-                    chat_input.fill("Test message for URL persistence")
+                    chat_input.fill("EBCDICからASCIIに変換에 대해서 요약하세요")
 
                     send_button = page.query_selector('button.agent-chat-send')
                     if send_button:
