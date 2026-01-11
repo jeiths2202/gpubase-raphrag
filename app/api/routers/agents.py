@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from ..core.deps import get_current_user
+from ..core.deps import get_current_user, get_current_user_or_api_key
 from ..agents import (
     AgentOrchestrator,
     get_orchestrator,
@@ -60,7 +60,7 @@ class ToolListResponse(BaseModel):
 @router.post("/execute", response_model=AgentResponse)
 async def execute_agent(
     request: AgentRequest,
-    current_user: dict = Depends(get_current_user),
+    auth_context: dict = Depends(get_current_user_or_api_key),
     orchestrator: AgentOrchestrator = Depends(get_agent_orchestrator)
 ) -> AgentResponse:
     """
@@ -69,21 +69,40 @@ async def execute_agent(
     The agent will be automatically selected based on the task,
     or you can specify a specific agent_type.
 
+    Supports both JWT authentication and API key authentication.
+    API keys may have restrictions on allowed agent types.
+
     Args:
         request: Agent execution request
-        current_user: Authenticated user
+        auth_context: Authenticated user or API key
         orchestrator: Agent orchestrator
 
     Returns:
         AgentResponse with answer and metadata
     """
     try:
-        user_id = current_user.get("id") or current_user.get("sub")
+        # Check API key permissions for agent type
+        if auth_context.get("auth_type") == "api_key":
+            allowed_types = auth_context.get("allowed_agent_types", [])
+            requested_type = request.agent_type or "auto"
+
+            if allowed_types and requested_type not in allowed_types and "*" not in allowed_types:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "code": "AGENT_TYPE_NOT_ALLOWED",
+                        "message": f"Agent type '{requested_type}' is not allowed for this API key. Allowed types: {allowed_types}"
+                    }
+                )
+
+        user_id = auth_context.get("id") or auth_context.get("sub")
 
         response = await orchestrator.execute(request, user_id=user_id)
 
         return response
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Agent execution failed: {e}")
         raise HTTPException(
@@ -95,7 +114,7 @@ async def execute_agent(
 @router.post("/stream")
 async def stream_agent(
     request: AgentRequest,
-    current_user: dict = Depends(get_current_user),
+    auth_context: dict = Depends(get_current_user_or_api_key),
     orchestrator: AgentOrchestrator = Depends(get_agent_orchestrator)
 ):
     """
@@ -103,15 +122,32 @@ async def stream_agent(
 
     Provides real-time updates as the agent thinks and acts.
 
+    Supports both JWT authentication and API key authentication.
+    API keys may have restrictions on allowed agent types.
+
     Args:
         request: Agent execution request
-        current_user: Authenticated user
+        auth_context: Authenticated user or API key
         orchestrator: Agent orchestrator
 
     Returns:
         StreamingResponse with SSE events
     """
-    user_id = current_user.get("id") or current_user.get("sub")
+    # Check API key permissions for agent type
+    if auth_context.get("auth_type") == "api_key":
+        allowed_types = auth_context.get("allowed_agent_types", [])
+        requested_type = request.agent_type or "auto"
+
+        if allowed_types and requested_type not in allowed_types and "*" not in allowed_types:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "AGENT_TYPE_NOT_ALLOWED",
+                    "message": f"Agent type '{requested_type}' is not allowed for this API key. Allowed types: {allowed_types}"
+                }
+            )
+
+    user_id = auth_context.get("id") or auth_context.get("sub")
 
     async def generate():
         try:

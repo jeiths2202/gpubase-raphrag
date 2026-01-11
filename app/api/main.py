@@ -36,7 +36,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 
 
@@ -185,6 +185,18 @@ async def lifespan(app: FastAPI):
                 "batch_size": query_log_writer.batch_size,
                 "batch_timeout_seconds": query_log_writer.batch_timeout
             }
+        )
+
+        # ==================== API Key Service Initialization ====================
+        # Initialize API key service for public RAG access without login
+        from .services.api_key_service import init_api_key_service
+
+        api_key_service = await init_api_key_service(db_pool)
+        container.register_singleton("api_key_service", api_key_service)
+
+        logger.info(
+            "[OK] API Key service initialized (public RAG access enabled)",
+            category=LogCategory.BUSINESS
         )
 
     except Exception as e:
@@ -416,6 +428,7 @@ app.include_router(tasks_router, prefix=API_PREFIX)  # IMS background task queue
 app.include_router(ims_chat.router, prefix=API_PREFIX)  # IMS AI chat (limited to searched issues)
 app.include_router(agents.router, prefix=API_PREFIX)  # AI agent system
 app.include_router(faq.router, prefix=API_PREFIX)  # FAQ and popular queries (dynamic from query logs)
+app.include_router(api_keys.router, prefix=API_PREFIX)  # API key management for public RAG access
 
 
 # Root endpoint

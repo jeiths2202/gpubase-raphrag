@@ -97,6 +97,185 @@ async def get_admin_user(
     return current_user
 
 
+# API Key Header scheme
+from fastapi.security import APIKeyHeader
+
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def get_current_user_or_api_key(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    api_key: Optional[str] = Depends(api_key_header)
+) -> dict:
+    """
+    Validate JWT token OR API key and return auth context.
+
+    SECURITY FEATURES:
+    - Accepts JWT token from HttpOnly cookie or Authorization header
+    - Accepts API key from X-API-Key header
+    - Returns unified auth context with auth_type indicator
+
+    Returns:
+        dict with keys:
+        - id: user_id or api_key_id
+        - auth_type: "jwt" or "api_key"
+        - For JWT: username, email, role, is_active
+        - For API Key: api_key_id, allowed_endpoints, allowed_agent_types
+    """
+    from ..services.api_key_service import get_api_key_service
+
+    # Try JWT authentication first
+    authorization_header = None
+    if credentials:
+        authorization_header = f"Bearer {credentials.credentials}"
+
+    token = get_token_from_request(request, authorization_header)
+
+    if token:
+        try:
+            payload = jwt.decode(
+                token,
+                api_settings.JWT_SECRET_KEY,
+                algorithms=[api_settings.JWT_ALGORITHM]
+            )
+
+            user_id: str = payload.get("sub")
+            if user_id:
+                exp = payload.get("exp")
+                if not exp or datetime.utcnow() <= datetime.fromtimestamp(exp):
+                    return {
+                        "id": user_id,
+                        "auth_type": "jwt",
+                        "username": payload.get("username", ""),
+                        "email": payload.get("email"),
+                        "role": payload.get("role", "user"),
+                        "is_active": True
+                    }
+        except JWTError:
+            pass  # Try API key next
+
+    # Try API key authentication
+    if api_key:
+        api_key_service = get_api_key_service()
+        if api_key_service:
+            result = await api_key_service.validate_api_key(api_key)
+
+            if result.is_valid:
+                # Check rate limit
+                is_allowed, rate_status = await api_key_service.check_and_increment_rate_limit(
+                    result.api_key_id
+                )
+
+                if not is_allowed:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail={
+                            "code": "RATE_LIMIT_EXCEEDED",
+                            "message": "API 요청 한도를 초과했습니다.",
+                            "rate_limit": {
+                                "minute_remaining": rate_status.minute_remaining if rate_status else 0,
+                                "hour_remaining": rate_status.hour_remaining if rate_status else 0,
+                                "day_remaining": rate_status.day_remaining if rate_status else 0
+                            }
+                        }
+                    )
+
+                return {
+                    "id": str(result.api_key_id),
+                    "auth_type": "api_key",
+                    "api_key_id": result.api_key_id,
+                    "owner_id": result.owner_id,
+                    "allowed_endpoints": result.allowed_endpoints,
+                    "allowed_agent_types": result.allowed_agent_types,
+                    "role": "api_key",  # For compatibility
+                    "is_active": True
+                }
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail={"code": "INVALID_API_KEY", "message": result.error or "유효하지 않은 API 키입니다."}
+                )
+
+    # No valid authentication provided
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail={"code": "AUTH_REQUIRED", "message": "인증이 필요합니다. JWT 토큰 또는 API 키를 제공하세요."},
+        headers={"WWW-Authenticate": "Bearer"}
+    )
+
+
+async def get_api_key_only(
+    request: Request,
+    api_key: Optional[str] = Depends(api_key_header)
+) -> dict:
+    """
+    Validate API key only (no JWT).
+
+    Use this for public endpoints that ONLY accept API keys.
+
+    Returns:
+        dict with API key auth context
+    """
+    from ..services.api_key_service import get_api_key_service
+
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "API_KEY_REQUIRED", "message": "X-API-Key 헤더가 필요합니다."}
+        )
+
+    api_key_service = get_api_key_service()
+    if not api_key_service:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "SERVICE_UNAVAILABLE", "message": "API Key 서비스를 사용할 수 없습니다."}
+        )
+
+    result = await api_key_service.validate_api_key(api_key)
+
+    if not result.is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "INVALID_API_KEY", "message": result.error or "유효하지 않은 API 키입니다."}
+        )
+
+    # Check rate limit
+    is_allowed, rate_status = await api_key_service.check_and_increment_rate_limit(
+        result.api_key_id
+    )
+
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "RATE_LIMIT_EXCEEDED",
+                "message": "API 요청 한도를 초과했습니다.",
+                "rate_limit": {
+                    "minute_remaining": rate_status.minute_remaining if rate_status else 0,
+                    "hour_remaining": rate_status.hour_remaining if rate_status else 0,
+                    "day_remaining": rate_status.day_remaining if rate_status else 0
+                }
+            }
+        )
+
+    # Store request info for usage tracking
+    request.state.api_key_id = result.api_key_id
+    request.state.client_ip = request.client.host if request.client else None
+    request.state.user_agent = request.headers.get("user-agent")
+
+    return {
+        "id": str(result.api_key_id),
+        "auth_type": "api_key",
+        "api_key_id": result.api_key_id,
+        "owner_id": result.owner_id,
+        "allowed_endpoints": result.allowed_endpoints,
+        "allowed_agent_types": result.allowed_agent_types,
+        "role": "api_key",
+        "is_active": True
+    }
+
+
 # Service Dependencies
 # Import actual service implementations
 from ..services.rag_service import RAGService, get_rag_service as _get_rag_service
