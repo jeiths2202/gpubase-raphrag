@@ -8,7 +8,7 @@ import os
 import sys
 import pytest
 from typing import Generator, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -190,7 +190,7 @@ def sample_document() -> Dict[str, Any]:
         "status": "completed",
         "chunks_count": 10,
         "language": "en",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
 

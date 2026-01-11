@@ -153,10 +153,7 @@ class User(UserBase):
     updated_at: datetime
     last_login_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class UserPublic(BaseModel):
     """
     Public user model (safe for API responses)
@@ -216,10 +213,7 @@ class AuthIdentity(AuthIdentityCreate):
     created_at: datetime
     last_used_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ============================================================================
 # AUTHENTICATION REQUEST/RESPONSE MODELS
 # ============================================================================

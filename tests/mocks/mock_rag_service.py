@@ -5,7 +5,7 @@ Provides predefined RAG responses without requiring
 GPU, vector stores, or external LLM APIs.
 """
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 
@@ -82,7 +82,7 @@ class MockRAGService:
             "top_k": top_k,
             "document_ids": document_ids,
             "use_graph": use_graph,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "kwargs": kwargs
         })
 
@@ -173,7 +173,7 @@ class MockRAGService:
             "method": "get_document_context",
             "document_ids": document_ids,
             "query": query,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         return self._generate_mock_sources(document_ids, len(document_ids))
@@ -192,7 +192,7 @@ class MockRAGService:
             "vector_weight": vector_weight,
             "graph_weight": graph_weight,
             "top_k": top_k,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         return self._generate_mock_sources(None, top_k)
@@ -206,7 +206,7 @@ class MockRAGService:
                 "graph_store": "mock",
                 "llm": "mock"
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
     # ==================== Test Helpers ====================

@@ -70,10 +70,7 @@ class ApiKeyResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class ApiKeyCreatedResponse(BaseModel):
     """Response when creating a new API key (includes the full key - shown only once)"""
     id: UUID

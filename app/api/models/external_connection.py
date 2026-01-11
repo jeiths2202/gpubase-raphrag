@@ -78,8 +78,7 @@ class ExternalConnection(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class ExternalConnectionCreate(BaseModel):
@@ -175,8 +174,7 @@ class ExternalDocument(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class ExternalChunk(BaseModel):
@@ -208,8 +206,7 @@ class ExternalChunk(BaseModel):
     is_table: bool = False
     is_code: bool = False
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class ExternalSearchResult(BaseModel):

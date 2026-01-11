@@ -5,7 +5,7 @@ Tests Pydantic validation for conversation-related models.
 """
 import pytest
 from uuid import uuid4, UUID
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import ValidationError
 
 
@@ -148,7 +148,7 @@ class TestMessageResponse:
 
         msg_id = uuid4()
         conv_id = uuid4()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         response = MessageResponse(
             id=msg_id,
@@ -177,7 +177,7 @@ class TestMessageResponse:
             {"document_id": "doc_1", "chunk_id": "chunk_1", "score": 0.95},
             {"document_id": "doc_2", "chunk_id": "chunk_2", "score": 0.87}
         ]
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         response = MessageResponse(
             id=uuid4(),
@@ -197,7 +197,7 @@ class TestMessageResponse:
         """Test regenerated message response"""
         from app.api.models.conversation import MessageResponse, MessageRole
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         response = MessageResponse(
             id=uuid4(),
@@ -223,7 +223,7 @@ class TestConversationListItem:
         from app.api.models.conversation import ConversationListItem
 
         conv_id = uuid4()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         item = ConversationListItem(
             id=conv_id,
@@ -243,7 +243,7 @@ class TestConversationListItem:
         """Test archived conversation list item"""
         from app.api.models.conversation import ConversationListItem
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         item = ConversationListItem(
             id=uuid4(),
             title="Archived Conversation",
@@ -265,7 +265,7 @@ class TestConversationDetail:
         from app.api.models.conversation import ConversationDetail, MessageResponse, MessageRole
 
         conv_id = uuid4()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         messages = [
             MessageResponse(
@@ -308,7 +308,7 @@ class TestConversationDetail:
         """Test conversation detail with active summary"""
         from app.api.models.conversation import ConversationDetail
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         detail = ConversationDetail(
             id=uuid4(),
             user_id="user_001",
@@ -537,7 +537,7 @@ class TestSummaryResponse:
         """Test basic summary response"""
         from app.api.models.conversation import SummaryResponse, SummaryType
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         summary = SummaryResponse(
             id=uuid4(),
             conversation_id=uuid4(),
@@ -566,7 +566,7 @@ class TestSummaryResponse:
             tokens_before_summary=2000,
             tokens_after_summary=200,
             key_topics=["Python", "Machine Learning", "AI"],
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
 
         assert len(summary.key_topics) == 3

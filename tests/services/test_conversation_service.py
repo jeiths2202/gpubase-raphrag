@@ -9,7 +9,7 @@ Tests the conversation service business logic including:
 """
 import pytest
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -144,8 +144,8 @@ class TestEntityToModel:
             total_tokens=100,
             is_archived=False,
             is_deleted=False,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
         )
 
         # Verify entity has correct structure
@@ -207,7 +207,7 @@ class TestMessageEntity:
         from app.api.repositories.conversation_repository import MessageEntity
         from datetime import datetime
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         entity = MessageEntity(
             id=str(uuid4()),
             conversation_id=str(uuid4()),
@@ -269,7 +269,7 @@ class TestSummaryEntity:
         from app.api.repositories.conversation_repository import SummaryEntity
         from datetime import datetime
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         entity = SummaryEntity(
             id=str(uuid4()),
             conversation_id=str(uuid4()),
@@ -295,7 +295,7 @@ class TestConversationEntity:
         from app.api.repositories.conversation_repository import ConversationEntity
         from datetime import datetime
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         entity = ConversationEntity(
             id=str(uuid4()),
             user_id="user_001",
@@ -318,7 +318,7 @@ class TestConversationEntity:
         from app.api.repositories.conversation_repository import ConversationEntity
         from datetime import datetime
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         entity = ConversationEntity(
             id=str(uuid4()),
             user_id="user_001",
@@ -428,7 +428,7 @@ class TestRegenerateResponse:
         from app.api.models.conversation import RegenerateResponse, MessageResponse, MessageRole
         from datetime import datetime
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         new_message = MessageResponse(
             id=uuid4(),
             conversation_id=uuid4(),
@@ -459,7 +459,7 @@ class TestForkResponse:
         from app.api.models.conversation import ConversationForkResponse, ConversationDetail
         from datetime import datetime
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         new_conv = ConversationDetail(
             id=uuid4(),
             user_id="user_001",

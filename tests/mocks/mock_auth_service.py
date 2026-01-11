@@ -5,7 +5,7 @@ Provides JWT authentication without external validation.
 For local testing only.
 """
 from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from jose import jwt
 import hashlib
 
@@ -38,7 +38,7 @@ class MockAuthService:
                 "role": "user",
                 "is_active": True,
                 "is_verified": True,
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
             },
             "admin": {
                 "id": "user_admin",
@@ -48,7 +48,7 @@ class MockAuthService:
                 "role": "admin",
                 "is_active": True,
                 "is_verified": True,
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
             },
         }
         self._tokens: Dict[str, str] = {}  # refresh_token -> user_id
@@ -75,7 +75,7 @@ class MockAuthService:
         self._call_history.append({
             "method": "authenticate",
             "username": username,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         user = self._users.get(username)
@@ -98,14 +98,14 @@ class MockAuthService:
 
     async def create_access_token(self, user: Dict[str, Any]) -> str:
         """Create JWT access token"""
-        expire = datetime.utcnow() + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES)
 
         payload = {
             "sub": user["id"],
             "username": user["username"],
             "role": user.get("role", "user"),
             "exp": expire,
-            "iat": datetime.utcnow(),
+            "iat": datetime.now(timezone.utc),
             "type": "access"
         }
 
@@ -113,12 +113,12 @@ class MockAuthService:
 
     async def create_refresh_token(self, user: Dict[str, Any]) -> str:
         """Create JWT refresh token"""
-        expire = datetime.utcnow() + timedelta(days=self.REFRESH_TOKEN_EXPIRE_DAYS)
+        expire = datetime.now(timezone.utc) + timedelta(days=self.REFRESH_TOKEN_EXPIRE_DAYS)
 
         payload = {
             "sub": user["id"],
             "exp": expire,
-            "iat": datetime.utcnow(),
+            "iat": datetime.now(timezone.utc),
             "type": "refresh"
         }
 
@@ -182,7 +182,7 @@ class MockAuthService:
             "method": "register",
             "username": username,
             "email": email,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         if username in self._users:
@@ -203,7 +203,7 @@ class MockAuthService:
             "role": "user",
             "is_active": True,
             "is_verified": False,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
 
         self._users[username] = user
@@ -255,7 +255,7 @@ class MockAuthService:
             "role": role,
             "is_active": True,
             "is_verified": True,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
 
         self._users[username] = user
@@ -279,7 +279,7 @@ class MockAuthService:
                 "role": "user",
                 "is_active": True,
                 "is_verified": True,
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
             }),
             "admin": self._users.get("admin", {
                 "id": "user_admin",
@@ -289,6 +289,6 @@ class MockAuthService:
                 "role": "admin",
                 "is_active": True,
                 "is_verified": True,
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
             }),
         }

@@ -5,7 +5,7 @@ Provides in-memory document storage and management
 without requiring file system or database access.
 """
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 
@@ -46,8 +46,8 @@ class MockDocumentService:
                 "language": "en",
                 "processing_mode": "text_only",
                 "vlm_processed": False,
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
                 "content": "This is test document content for testing purposes."
             },
             "doc_test_002": {
@@ -66,8 +66,8 @@ class MockDocumentService:
                 "vlm_processed": True,
                 "has_images": True,
                 "image_count": 3,
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
                 "content": "이것은 테스트 문서 내용입니다."
             }
         }
@@ -88,7 +88,7 @@ class MockDocumentService:
             "search": search,
             "status": status,
             "document_type": document_type,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         documents = []
@@ -124,7 +124,7 @@ class MockDocumentService:
         self._call_history.append({
             "method": "get_document",
             "document_id": document_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         doc = self._documents.get(document_id)
@@ -150,7 +150,7 @@ class MockDocumentService:
             "filename": filename,
             "file_size": len(file_content),
             "processing_mode": processing_mode,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         # Determine MIME type from filename
@@ -182,8 +182,8 @@ class MockDocumentService:
             "processing_mode": processing_mode,
             "vlm_processed": False,
             "tags": tags or [],
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
             "content": file_content.decode("utf-8", errors="ignore") if isinstance(file_content, bytes) else str(file_content)
         }
 
@@ -195,7 +195,7 @@ class MockDocumentService:
             "document_id": doc_id,
             "status": "processing",
             "progress": 0,
-            "started_at": datetime.utcnow().isoformat()
+            "started_at": datetime.now(timezone.utc).isoformat()
         }
 
         # Simulate instant completion for testing
@@ -218,7 +218,7 @@ class MockDocumentService:
         self._call_history.append({
             "method": "delete_document",
             "document_id": document_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         if document_id in self._documents:
@@ -241,7 +241,7 @@ class MockDocumentService:
             "document_id": document_id,
             "page": page,
             "limit": limit,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         doc = self._documents.get(document_id)
@@ -338,8 +338,8 @@ class MockDocumentService:
             "language": kwargs.get("language", "en"),
             "processing_mode": kwargs.get("processing_mode", "text_only"),
             "vlm_processed": kwargs.get("vlm_processed", False),
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
             "content": content
         }
 

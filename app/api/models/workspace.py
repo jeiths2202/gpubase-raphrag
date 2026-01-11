@@ -74,10 +74,7 @@ class Conversation(ConversationBase):
     parent_conversation_id: Optional[UUID] = None
     fork_point_message_id: Optional[UUID] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ============================================================================
 # MESSAGE MODELS
 # ============================================================================
@@ -109,10 +106,7 @@ class Message(MessageBase):
     regeneration_count: int = 0
     metadata: Optional[Dict[str, Any]] = None
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ============================================================================
 # MENU STATE MODELS
 # ============================================================================
@@ -153,10 +147,7 @@ class MenuState(MenuStateBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ============================================================================
 # GRAPH STATE MODELS
 # ============================================================================
@@ -216,10 +207,7 @@ class GraphState(GraphStateBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ============================================================================
 # WORKSPACE SESSION MODELS
 # ============================================================================
@@ -257,10 +245,7 @@ class WorkspaceSession(WorkspaceSessionBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ============================================================================
 # COMPOSITE RESPONSE MODELS
 # ============================================================================
@@ -340,10 +325,7 @@ class UserDocument(UserDocumentBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # ============================================================================
 # FORCE PYDANTIC V2 MODEL SCHEMA REBUILD
 # ============================================================================
