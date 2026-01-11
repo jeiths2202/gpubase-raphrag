@@ -104,7 +104,8 @@ class AgentOrchestrator:
             session_id=request.session_id or "",
             user_id=user_id,
             language=request.language,
-            max_steps=request.max_steps
+            max_steps=request.max_steps,
+            file_context=request.file_context
         )
 
         # Select agent
@@ -179,7 +180,8 @@ class AgentOrchestrator:
             session_id=request.session_id or "",
             user_id=user_id,
             language=request.language,
-            max_steps=request.max_steps
+            max_steps=request.max_steps,
+            file_context=request.file_context
         )
 
         if request.agent_type:

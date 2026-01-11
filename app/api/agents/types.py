@@ -121,6 +121,9 @@ class AgentContext:
     uploaded_documents: List[str] = field(default_factory=list)
     external_resources: Dict[str, Any] = field(default_factory=dict)
 
+    # File context for RAG priority (attached files content)
+    file_context: Optional[str] = None
+
     # Intent classification result (set by orchestrator)
     intent: Optional["IntentResult"] = None
 
@@ -159,6 +162,7 @@ class AgentRequest(BaseModel):
     max_steps: int = Field(10, ge=1, le=50, description="Maximum reasoning steps")
     include_sources: bool = Field(True, description="Include sources in response")
     stream: bool = Field(False, description="Enable streaming response")
+    file_context: Optional[str] = Field(None, description="Attached file content for RAG priority context")
 
 
 class AgentResponse(BaseModel):

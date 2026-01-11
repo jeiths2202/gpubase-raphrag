@@ -102,10 +102,32 @@ class AgentExecutor:
             lang_name = language_names.get(context.language, context.language)
             system_prompt += f"\n\nIMPORTANT: Always respond in {lang_name} unless the user explicitly requests a different language in their message."
 
+        # Build user message with optional file context
+        user_message = task
+        if context.file_context:
+            # Add strong instruction to system prompt for file context priority
+            system_prompt += """
+
+CRITICAL INSTRUCTION - ATTACHED FILE CONTEXT:
+The user has attached file(s) for reference. You MUST:
+1. FIRST search the attached file context for the answer
+2. If the answer is found in the attached context, respond directly WITHOUT using any tools
+3. ONLY use tools (vector_search, document_read, etc.) if the information is NOT in the attached context
+4. When answering from attached context, mention "첨부된 문서에 따르면" or "According to the attached document"
+"""
+            user_message = f"""[ATTACHED FILE CONTEXT - PRIMARY REFERENCE]
+{context.file_context}
+[END ATTACHED FILE CONTEXT]
+
+IMPORTANT: Answer from the attached file context above if possible. Only use tools if the answer is not in the attached context.
+
+User Query: {task}"""
+            logger.info(f"[Executor] File context attached ({len(context.file_context)} chars)")
+
         # Initialize messages with system prompt and user task
         messages: List[AgentMessage] = [
             AgentMessage(role=MessageRole.SYSTEM, content=system_prompt),
-            AgentMessage(role=MessageRole.USER, content=task)
+            AgentMessage(role=MessageRole.USER, content=user_message)
         ]
 
         # Add conversation history
@@ -248,10 +270,32 @@ class AgentExecutor:
             system_prompt += f"\n\nIMPORTANT: Always respond in {lang_name} unless the user explicitly requests a different language in their message."
             print(f"[Executor.stream] Added language instruction for {lang_name}", flush=True)
 
+        # Build user message with optional file context
+        user_message = task
+        if context.file_context:
+            # Add strong instruction to system prompt for file context priority
+            system_prompt += """
+
+CRITICAL INSTRUCTION - ATTACHED FILE CONTEXT:
+The user has attached file(s) for reference. You MUST:
+1. FIRST search the attached file context for the answer
+2. If the answer is found in the attached context, respond directly WITHOUT using any tools
+3. ONLY use tools (vector_search, document_read, etc.) if the information is NOT in the attached context
+4. When answering from attached context, mention "첨부된 문서에 따르면" or "According to the attached document"
+"""
+            user_message = f"""[ATTACHED FILE CONTEXT - PRIMARY REFERENCE]
+{context.file_context}
+[END ATTACHED FILE CONTEXT]
+
+IMPORTANT: Answer from the attached file context above if possible. Only use tools if the answer is not in the attached context.
+
+User Query: {task}"""
+            print(f"[Executor.stream] File context attached ({len(context.file_context)} chars)", flush=True)
+
         # Initialize messages
         messages: List[AgentMessage] = [
             AgentMessage(role=MessageRole.SYSTEM, content=system_prompt),
-            AgentMessage(role=MessageRole.USER, content=task)
+            AgentMessage(role=MessageRole.USER, content=user_message)
         ]
 
         available_tools = self.tool_registry.get_tools_for_agent(agent.agent_type)
