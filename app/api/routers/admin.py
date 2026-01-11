@@ -1,15 +1,19 @@
 """
 Admin API Router
-관리자 전용 API - 사용자 관리, 대시보드 통계, 토큰 통계
+관리자 전용 API - 사용자 관리, 대시보드 통계, 토큰 통계, 유저별 리소스 사용량
 """
 import uuid
-from datetime import datetime
+import secrets
+import string
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field, EmailStr
+import asyncpg
 
 from ..models.base import SuccessResponse, MetaInfo
 from ..core.deps import get_current_user, get_admin_user, get_auth_service, get_token_stats_service
+from ..core.config import api_settings
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -47,6 +51,50 @@ class DashboardStats(BaseModel):
     """Dashboard statistics"""
     users: UserStatsResponse
     system: dict
+
+
+# ============= User Usage Models =============
+
+class UserUsageResponse(BaseModel):
+    """User usage summary response"""
+    user_id: str
+    total_queries: int
+    total_tokens: int
+    input_tokens: int
+    output_tokens: int
+    estimated_cost: float
+    last_activity: Optional[datetime] = None
+
+
+class UserUsageTrendItem(BaseModel):
+    """Daily usage trend item"""
+    date: str
+    queries: int
+    tokens: int
+    cost: float
+
+
+class UserAgentUsage(BaseModel):
+    """Agent usage breakdown"""
+    agent_type: str
+    query_count: int
+    token_count: int
+    percentage: float
+
+
+class PasswordResetResponse(BaseModel):
+    """Password reset response"""
+    message: str
+    temporary_password: Optional[str] = None
+
+
+class UserFullUpdateRequest(BaseModel):
+    """Full user update request for admin"""
+    role: Optional[str] = Field(None, pattern=r'^(admin|leader|senior|user|guest)$')
+    status: Optional[str] = Field(None, pattern=r'^(active|inactive|pending|suspended)$')
+    display_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    department: Optional[str] = None
 
 
 @router.get(
@@ -349,3 +397,349 @@ async def get_endpoint_token_stats(
         data=endpoint_stats,
         meta=MetaInfo(request_id=request_id)
     )
+
+
+# ============= User Resource Usage Endpoints =============
+
+async def _get_db_pool():
+    """Get database connection pool"""
+    dsn = f"postgresql://{api_settings.POSTGRES_USER}:{api_settings.POSTGRES_PASSWORD}@{api_settings.POSTGRES_HOST}:{api_settings.POSTGRES_PORT}/{api_settings.POSTGRES_DB}"
+    pool = await asyncpg.create_pool(dsn, min_size=1, max_size=5)
+    return pool
+
+
+# Cost estimation: $0.002 per 1K tokens (Nemotron pricing estimate)
+TOKEN_COST_PER_1K = 0.002
+
+
+@router.get(
+    "/users/{user_id}/usage",
+    response_model=SuccessResponse[UserUsageResponse],
+    summary="유저별 리소스 사용량",
+    description="특정 사용자의 리소스 사용량 요약을 조회합니다. (관리자 전용)"
+)
+async def get_user_usage(
+    user_id: str,
+    admin_user: dict = Depends(get_admin_user),
+    auth_service = Depends(get_auth_service)
+):
+    """Get user resource usage summary"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    # Verify user exists
+    user = await auth_service.get_user(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."}
+        )
+
+    pool = await _get_db_pool()
+    try:
+        async with pool.acquire() as conn:
+            # Get usage summary from query_log
+            row = await conn.fetchrow("""
+                SELECT
+                    COUNT(*) as total_queries,
+                    COALESCE(SUM(input_tokens), 0) as input_tokens,
+                    COALESCE(SUM(output_tokens), 0) as output_tokens,
+                    MAX(created_at) as last_activity
+                FROM query_log
+                WHERE user_id = $1
+            """, user_id)
+
+            total_queries = row['total_queries'] or 0
+            input_tokens = row['input_tokens'] or 0
+            output_tokens = row['output_tokens'] or 0
+            total_tokens = input_tokens + output_tokens
+            estimated_cost = (total_tokens / 1000) * TOKEN_COST_PER_1K
+
+            return SuccessResponse(
+                data=UserUsageResponse(
+                    user_id=user_id,
+                    total_queries=total_queries,
+                    total_tokens=total_tokens,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    estimated_cost=round(estimated_cost, 4),
+                    last_activity=row['last_activity']
+                ),
+                meta=MetaInfo(request_id=request_id)
+            )
+    finally:
+        await pool.close()
+
+
+@router.get(
+    "/users/{user_id}/usage/trend",
+    response_model=SuccessResponse[List[UserUsageTrendItem]],
+    summary="유저별 일별 사용 추이",
+    description="특정 사용자의 일별 리소스 사용 추이를 조회합니다. (관리자 전용)"
+)
+async def get_user_usage_trend(
+    user_id: str,
+    days: int = Query(7, ge=1, le=30, description="조회할 일수"),
+    admin_user: dict = Depends(get_admin_user),
+    auth_service = Depends(get_auth_service)
+):
+    """Get user daily usage trend"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    # Verify user exists
+    user = await auth_service.get_user(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."}
+        )
+
+    pool = await _get_db_pool()
+    try:
+        async with pool.acquire() as conn:
+            start_date = datetime.now(timezone.utc) - timedelta(days=days)
+
+            rows = await conn.fetch("""
+                SELECT
+                    DATE(created_at) as date,
+                    COUNT(*) as queries,
+                    COALESCE(SUM(input_tokens + output_tokens), 0) as tokens
+                FROM query_log
+                WHERE user_id = $1 AND created_at >= $2
+                GROUP BY DATE(created_at)
+                ORDER BY date
+            """, user_id, start_date)
+
+            # Fill in missing dates with zeros
+            trend_data = []
+            date_map = {row['date']: row for row in rows}
+
+            for i in range(days):
+                date = (datetime.now(timezone.utc) - timedelta(days=days-1-i)).date()
+                if date in date_map:
+                    row = date_map[date]
+                    tokens = row['tokens'] or 0
+                    trend_data.append(UserUsageTrendItem(
+                        date=str(date),
+                        queries=row['queries'],
+                        tokens=tokens,
+                        cost=round((tokens / 1000) * TOKEN_COST_PER_1K, 4)
+                    ))
+                else:
+                    trend_data.append(UserUsageTrendItem(
+                        date=str(date),
+                        queries=0,
+                        tokens=0,
+                        cost=0.0
+                    ))
+
+            return SuccessResponse(
+                data=trend_data,
+                meta=MetaInfo(request_id=request_id)
+            )
+    finally:
+        await pool.close()
+
+
+@router.get(
+    "/users/{user_id}/usage/by-agent",
+    response_model=SuccessResponse[List[UserAgentUsage]],
+    summary="유저별 에이전트 사용량",
+    description="특정 사용자의 에이전트별 리소스 사용량을 조회합니다. (관리자 전용)"
+)
+async def get_user_usage_by_agent(
+    user_id: str,
+    admin_user: dict = Depends(get_admin_user),
+    auth_service = Depends(get_auth_service)
+):
+    """Get user usage breakdown by agent type"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    # Verify user exists
+    user = await auth_service.get_user(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."}
+        )
+
+    pool = await _get_db_pool()
+    try:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT
+                    COALESCE(agent_type, 'unknown') as agent_type,
+                    COUNT(*) as query_count,
+                    COALESCE(SUM(input_tokens + output_tokens), 0) as token_count
+                FROM query_log
+                WHERE user_id = $1
+                GROUP BY agent_type
+                ORDER BY query_count DESC
+            """, user_id)
+
+            # Calculate total for percentage
+            total_queries = sum(row['query_count'] for row in rows) or 1
+
+            agent_usage = [
+                UserAgentUsage(
+                    agent_type=row['agent_type'],
+                    query_count=row['query_count'],
+                    token_count=row['token_count'] or 0,
+                    percentage=round((row['query_count'] / total_queries) * 100, 1)
+                )
+                for row in rows
+            ]
+
+            return SuccessResponse(
+                data=agent_usage,
+                meta=MetaInfo(request_id=request_id)
+            )
+    finally:
+        await pool.close()
+
+
+@router.post(
+    "/users/{user_id}/password-reset",
+    response_model=SuccessResponse[PasswordResetResponse],
+    summary="비밀번호 초기화",
+    description="사용자의 비밀번호를 임시 비밀번호로 초기화합니다. (관리자 전용)"
+)
+async def reset_user_password(
+    user_id: str,
+    admin_user: dict = Depends(get_admin_user),
+    auth_service = Depends(get_auth_service)
+):
+    """Reset user password to temporary password"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    # Verify user exists
+    user = await auth_service.get_user(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."}
+        )
+
+    # Generate temporary password (12 characters: letters + digits + special chars)
+    alphabet = string.ascii_letters + string.digits + "!@#$%"
+    temp_password = ''.join(secrets.choice(alphabet) for _ in range(12))
+
+    # Update password in database
+    pool = await _get_db_pool()
+    try:
+        import bcrypt
+        password_hash = bcrypt.hashpw(temp_password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
+
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE users SET password_hash = $1 WHERE id = $2
+            """, password_hash, uuid.UUID(user_id))
+
+        return SuccessResponse(
+            data=PasswordResetResponse(
+                message="비밀번호가 초기화되었습니다.",
+                temporary_password=temp_password
+            ),
+            meta=MetaInfo(request_id=request_id)
+        )
+    finally:
+        await pool.close()
+
+
+@router.put(
+    "/users/{user_id}",
+    response_model=SuccessResponse[UserListResponse],
+    summary="사용자 정보 전체 수정",
+    description="사용자의 모든 정보를 수정합니다. (관리자 전용)"
+)
+async def update_user_full(
+    user_id: str,
+    request: UserFullUpdateRequest,
+    admin_user: dict = Depends(get_admin_user),
+    auth_service = Depends(get_auth_service)
+):
+    """Full update user details"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    # Build update dict
+    updates = {}
+    if request.role is not None:
+        updates["role"] = request.role
+    if request.status is not None:
+        # Map status string to is_active
+        updates["is_active"] = request.status == "active"
+    if request.email is not None:
+        updates["email"] = request.email
+    if request.display_name is not None:
+        updates["display_name"] = request.display_name
+    if request.department is not None:
+        updates["department"] = request.department
+
+    if not updates:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "NO_UPDATES", "message": "수정할 내용이 없습니다."}
+        )
+
+    # Use direct DB update for full control
+    pool = await _get_db_pool()
+    try:
+        async with pool.acquire() as conn:
+            # Build dynamic update query
+            set_clauses = []
+            values = []
+            param_idx = 1
+
+            if request.role is not None:
+                set_clauses.append(f"role = ${param_idx}")
+                values.append(request.role)
+                param_idx += 1
+
+            if request.status is not None:
+                set_clauses.append(f"status = ${param_idx}")
+                values.append(request.status)
+                param_idx += 1
+
+            if request.email is not None:
+                set_clauses.append(f"email = ${param_idx}")
+                values.append(request.email)
+                param_idx += 1
+
+            if request.display_name is not None:
+                set_clauses.append(f"display_name = ${param_idx}")
+                values.append(request.display_name)
+                param_idx += 1
+
+            if request.department is not None:
+                set_clauses.append(f"department = ${param_idx}")
+                values.append(request.department)
+                param_idx += 1
+
+            values.append(uuid.UUID(user_id))
+
+            row = await conn.fetchrow(f"""
+                UPDATE users
+                SET {', '.join(set_clauses)}
+                WHERE id = ${param_idx}
+                RETURNING id, email, display_name, role, status, created_at
+            """, *values)
+
+            if not row:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다."}
+                )
+
+            return SuccessResponse(
+                data=UserListResponse(
+                    id=str(row['id']),
+                    username=row['display_name'],
+                    email=row['email'],
+                    role=row['role'],
+                    is_active=row['status'] == 'active',
+                    is_verified=row['status'] != 'pending',
+                    created_at=row['created_at'].isoformat() if row['created_at'] else None
+                ),
+                meta=MetaInfo(request_id=request_id)
+            )
+    finally:
+        await pool.close()

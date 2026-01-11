@@ -194,6 +194,10 @@ class AgentOrchestrator:
         # Calculate execution time
         execution_time_ms = int((time.time() - start_time) * 1000)
 
+        # Estimate tokens
+        input_tokens = len(request.task) // 4
+        output_tokens = len(result.answer) // 4 if result.answer else 0
+
         # Log query for FAQ system (non-blocking)
         await self._log_query(
             query_text=request.task,
@@ -205,7 +209,9 @@ class AgentOrchestrator:
             language=request.language,
             execution_time_ms=execution_time_ms,
             success=result.success,
-            response_summary=result.answer[:500] if result.answer else None
+            response_summary=result.answer[:500] if result.answer else None,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens
         )
 
         # Build response
@@ -296,7 +302,13 @@ class AgentOrchestrator:
         finally:
             # Log query after stream completes (in finally to ensure logging even on error)
             execution_time_ms = int((time.time() - start_time) * 1000)
-            response_summary = ''.join(response_text_parts)[:500] if response_text_parts else None
+            full_response = ''.join(response_text_parts)
+            response_summary = full_response[:500] if full_response else None
+
+            # Estimate tokens (approximately 4 chars per token)
+            input_tokens = len(request.task) // 4
+            output_tokens = len(full_response) // 4
+
             await self._log_query(
                 query_text=request.task,
                 user_id=user_id,
@@ -307,7 +319,9 @@ class AgentOrchestrator:
                 language=request.language,
                 execution_time_ms=execution_time_ms,
                 success=success,
-                response_summary=response_summary
+                response_summary=response_summary,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens
             )
 
     async def classify_task(self, task: str) -> AgentType:
@@ -605,6 +619,10 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
             for task_id, result in results.items()
         }
 
+        # Estimate tokens
+        input_tokens = len(request.task) // 4
+        output_tokens = len(synthesized_answer) // 4 if synthesized_answer else 0
+
         # Log query
         await self._log_query(
             query_text=request.task,
@@ -616,7 +634,9 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
             language=request.language,
             execution_time_ms=int(execution_time * 1000),
             success=len(successful_results) > 0,
-            response_summary=synthesized_answer[:500] if synthesized_answer else None
+            response_summary=synthesized_answer[:500] if synthesized_answer else None,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens
         )
 
         return EnterpriseAgentResponse(
@@ -810,6 +830,10 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
                     metadata={"actions": next_actions}
                 )
 
+        # Estimate tokens from streamed results
+        input_tokens = len(request.task) // 4
+        output_tokens = sum(len(r.answer) // 4 for r in successful_results.values() if r.answer) if successful_results else 0
+
         # Log query
         execution_time = time.time() - start_time
         await self._log_query(
@@ -822,7 +846,9 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
             language=request.language,
             execution_time_ms=int(execution_time * 1000),
             success=len(successful_results) > 0,
-            response_summary=None
+            response_summary=None,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens
         )
 
         yield ParallelStreamChunk(
@@ -993,7 +1019,9 @@ List each suggestion on a new line, starting with "- ":"""
         language: str,
         execution_time_ms: int,
         success: bool,
-        response_summary: Optional[str]
+        response_summary: Optional[str],
+        input_tokens: int = 0,
+        output_tokens: int = 0
     ) -> None:
         """
         Log query to the background query log writer.
@@ -1017,8 +1045,10 @@ List each suggestion on a new line, starting with "- ":"""
                 'execution_time_ms': execution_time_ms,
                 'success': success,
                 'response_summary': response_summary,
+                'input_tokens': input_tokens,
+                'output_tokens': output_tokens,
             })
-            logger.debug(f"[Orchestrator] Query logged: agent={agent_type}, intent={intent_type}")
+            logger.debug(f"[Orchestrator] Query logged: agent={agent_type}, intent={intent_type}, tokens={input_tokens}+{output_tokens}")
         except Exception as e:
             # Non-blocking - log error but don't fail the request
             logger.warning(f"[Orchestrator] Failed to log query: {e}")

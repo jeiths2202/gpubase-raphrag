@@ -6,6 +6,7 @@ SECURITY FEATURES:
 - Authorization header fallback for API clients
 - No DEBUG bypass - authentication always required
 """
+import logging
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 from fastapi import Depends, HTTPException, status, Request
@@ -14,6 +15,8 @@ from jose import JWTError, jwt
 
 from .config import api_settings
 from .cookie_auth import get_token_from_request
+
+logger = logging.getLogger(__name__)
 
 # Security scheme (still accepts Authorization header for API clients)
 security = HTTPBearer(auto_error=False)
@@ -1383,226 +1386,208 @@ class AuthService:
 
 
 class TokenStatsService:
-    """Service for tracking and analyzing token usage statistics"""
+    """Service for tracking and analyzing token usage statistics from query_log"""
 
-    # In-memory storage for token statistics (replace with database in production)
-    _token_events: list = []  # List of {user_id, token_id, issued_at, processing_time_ms, endpoint}
-    _daily_stats: dict = {}  # {date_str: {count, total_time_ms}}
+    # Cost per 1K tokens (USD)
+    COST_PER_1K = 0.002
 
-    @classmethod
-    def record_token_event(
-        cls,
-        user_id: str,
-        token_id: str,
-        processing_time_ms: int,
-        endpoint: str = "unknown"
-    ):
-        """Record a token usage event"""
-        import uuid
-        event = {
-            "id": f"evt_{uuid.uuid4().hex[:12]}",
-            "user_id": user_id,
-            "token_id": token_id,
-            "issued_at": datetime.now(timezone.utc).isoformat(),
-            "processing_time_ms": processing_time_ms,
-            "endpoint": endpoint,
-            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        }
-        cls._token_events.append(event)
+    def __init__(self):
+        self._pool = None
 
-        # Update daily stats
-        date_str = event["date"]
-        if date_str not in cls._daily_stats:
-            cls._daily_stats[date_str] = {"count": 0, "total_time_ms": 0}
-        cls._daily_stats[date_str]["count"] += 1
-        cls._daily_stats[date_str]["total_time_ms"] += processing_time_ms
-
-    @classmethod
-    def _generate_sample_data(cls):
-        """Generate sample data for demonstration"""
-        import random
-        import uuid
-
-        if len(cls._token_events) > 0:
-            return  # Already has data
-
-        sample_users = ["user_admin", "user_test1", "user_test2", "user_demo"]
-        endpoints = ["/api/v1/query", "/api/v1/documents", "/api/v1/mindmap", "/api/v1/auth"]
-
-        # Generate events for the last 7 days
-        for days_ago in range(7):
-            date = datetime.now(timezone.utc) - timedelta(days=days_ago)
-            date_str = date.strftime("%Y-%m-%d")
-
-            # Random number of events per day (10-50)
-            num_events = random.randint(10, 50)
-            for _ in range(num_events):
-                user_id = random.choice(sample_users)
-                endpoint = random.choice(endpoints)
-                processing_time = random.randint(50, 2000)  # 50ms to 2000ms
-
-                event = {
-                    "id": f"evt_{uuid.uuid4().hex[:12]}",
-                    "user_id": user_id,
-                    "token_id": f"tok_{uuid.uuid4().hex[:16]}",
-                    "issued_at": (date + timedelta(
-                        hours=random.randint(0, 23),
-                        minutes=random.randint(0, 59)
-                    )).isoformat(),
-                    "processing_time_ms": processing_time,
-                    "endpoint": endpoint,
-                    "date": date_str
-                }
-                cls._token_events.append(event)
-
-                if date_str not in cls._daily_stats:
-                    cls._daily_stats[date_str] = {"count": 0, "total_time_ms": 0}
-                cls._daily_stats[date_str]["count"] += 1
-                cls._daily_stats[date_str]["total_time_ms"] += processing_time
+    async def _get_pool(self):
+        """Get database connection pool"""
+        if self._pool is None:
+            import asyncpg
+            dsn = f"postgresql://{api_settings.POSTGRES_USER}:{api_settings.POSTGRES_PASSWORD}@{api_settings.POSTGRES_HOST}:{api_settings.POSTGRES_PORT}/{api_settings.POSTGRES_DB}"
+            self._pool = await asyncpg.create_pool(dsn, min_size=1, max_size=5)
+        return self._pool
 
     async def get_token_overview(self) -> dict:
-        """Get overall token statistics"""
-        self._generate_sample_data()
+        """Get overall token statistics from query_log"""
+        try:
+            pool = await self._get_pool()
+            async with pool.acquire() as conn:
+                today_start = datetime.now(timezone.utc).replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                )
+                week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+                month_ago = datetime.now(timezone.utc) - timedelta(days=30)
 
-        total_tokens = len(self._token_events)
-        if total_tokens == 0:
+                row = await conn.fetchrow("""
+                    SELECT
+                        COALESCE(SUM(input_tokens + output_tokens), 0) as total_tokens,
+                        COALESCE(SUM(input_tokens + output_tokens) FILTER (WHERE created_at >= $1), 0) as today_tokens,
+                        COALESCE(AVG(execution_time_ms), 0) as avg_latency,
+                        COUNT(*) as total_queries,
+                        COUNT(*) FILTER (WHERE created_at >= $1) as today_queries
+                    FROM query_log
+                    WHERE created_at >= $2
+                """, today_start, month_ago)
+
+                # Get slowest query
+                slowest = await conn.fetchrow("""
+                    SELECT user_id, execution_time_ms, strategy, created_at
+                    FROM query_log
+                    WHERE created_at >= $1
+                    ORDER BY execution_time_ms DESC NULLS LAST
+                    LIMIT 1
+                """, week_ago)
+
+                total_tokens = int(row["total_tokens"] or 0)
+                today_tokens = int(row["today_tokens"] or 0)
+                total_queries = int(row["total_queries"] or 0)
+                today_queries = int(row["today_queries"] or 0)
+
+                return {
+                    "total_tokens_issued": total_tokens,
+                    "daily_average": round(total_tokens / 30, 1) if total_tokens else 0,
+                    "avg_processing_time_ms": round(float(row["avg_latency"] or 0), 1),
+                    "slowest_token": {
+                        "token_id": "N/A",
+                        "user_id": slowest["user_id"] if slowest else "N/A",
+                        "processing_time_ms": int(slowest["execution_time_ms"]) if slowest else 0,
+                        "endpoint": slowest["strategy"] if slowest else "N/A",
+                        "issued_at": slowest["created_at"].isoformat() if slowest else None
+                    } if slowest else None,
+                    "today_count": today_queries,
+                    "today_tokens": today_tokens,
+                    "today_avg_time_ms": round(today_tokens / today_queries, 1) if today_queries else 0
+                }
+        except Exception as e:
+            logger.error(f"Error getting token overview: {e}")
             return {
                 "total_tokens_issued": 0,
                 "daily_average": 0,
                 "avg_processing_time_ms": 0,
                 "slowest_token": None,
                 "today_count": 0,
+                "today_tokens": 0,
                 "today_avg_time_ms": 0
             }
 
-        # Calculate statistics
-        total_processing_time = sum(e["processing_time_ms"] for e in self._token_events)
-        avg_processing_time = total_processing_time / total_tokens
-
-        # Find slowest token
-        slowest = max(self._token_events, key=lambda x: x["processing_time_ms"])
-
-        # Daily average (based on number of days with data)
-        num_days = len(self._daily_stats) or 1
-        daily_average = total_tokens / num_days
-
-        # Today's stats
-        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        today_stats = self._daily_stats.get(today_str, {"count": 0, "total_time_ms": 0})
-        today_avg = (today_stats["total_time_ms"] / today_stats["count"]) if today_stats["count"] > 0 else 0
-
-        return {
-            "total_tokens_issued": total_tokens,
-            "daily_average": round(daily_average, 1),
-            "avg_processing_time_ms": round(avg_processing_time, 1),
-            "slowest_token": {
-                "token_id": slowest["token_id"],
-                "user_id": slowest["user_id"],
-                "processing_time_ms": slowest["processing_time_ms"],
-                "endpoint": slowest["endpoint"],
-                "issued_at": slowest["issued_at"]
-            },
-            "today_count": today_stats["count"],
-            "today_avg_time_ms": round(today_avg, 1)
-        }
-
     async def get_daily_stats(self, days: int = 7) -> list:
-        """Get daily token statistics for the last N days"""
-        self._generate_sample_data()
+        """Get daily token statistics from query_log"""
+        try:
+            pool = await self._get_pool()
+            async with pool.acquire() as conn:
+                start_date = datetime.now(timezone.utc) - timedelta(days=days)
 
-        result = []
-        for i in range(days):
-            date = datetime.now(timezone.utc) - timedelta(days=i)
-            date_str = date.strftime("%Y-%m-%d")
-            stats = self._daily_stats.get(date_str, {"count": 0, "total_time_ms": 0})
-            avg_time = (stats["total_time_ms"] / stats["count"]) if stats["count"] > 0 else 0
+                rows = await conn.fetch("""
+                    SELECT
+                        DATE(created_at) as date,
+                        COUNT(*) as count,
+                        COALESCE(SUM(input_tokens + output_tokens), 0) as tokens,
+                        COALESCE(AVG(execution_time_ms), 0) as avg_latency
+                    FROM query_log
+                    WHERE created_at >= $1
+                    GROUP BY DATE(created_at)
+                    ORDER BY date DESC
+                """, start_date)
 
-            result.append({
-                "date": date_str,
-                "count": stats["count"],
-                "avg_processing_time_ms": round(avg_time, 1)
-            })
+                # Create date map
+                date_map = {row["date"]: row for row in rows}
 
-        return result
+                # Fill in missing dates
+                result = []
+                for i in range(days):
+                    date = (datetime.now(timezone.utc) - timedelta(days=i)).date()
+                    if date in date_map:
+                        row = date_map[date]
+                        tokens = int(row["tokens"] or 0)
+                        result.append({
+                            "date": str(date),
+                            "count": row["count"],
+                            "tokens": tokens,
+                            "avg_processing_time_ms": round(float(row["avg_latency"] or 0), 1),
+                            "estimated_cost": round((tokens / 1000) * self.COST_PER_1K, 4)
+                        })
+                    else:
+                        result.append({
+                            "date": str(date),
+                            "count": 0,
+                            "tokens": 0,
+                            "avg_processing_time_ms": 0,
+                            "estimated_cost": 0
+                        })
+
+                return result
+        except Exception as e:
+            logger.error(f"Error getting daily stats: {e}")
+            return []
 
     async def get_user_token_stats(self) -> list:
-        """Get token usage statistics per user"""
-        self._generate_sample_data()
+        """Get token usage statistics per user from query_log"""
+        try:
+            pool = await self._get_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch("""
+                    SELECT
+                        user_id,
+                        COUNT(*) as query_count,
+                        COALESCE(SUM(input_tokens + output_tokens), 0) as total_tokens,
+                        COALESCE(AVG(execution_time_ms), 0) as avg_latency,
+                        MAX(execution_time_ms) as max_latency,
+                        MIN(execution_time_ms) as min_latency,
+                        MAX(created_at) as last_activity
+                    FROM query_log
+                    WHERE user_id IS NOT NULL
+                    GROUP BY user_id
+                    ORDER BY total_tokens DESC
+                    LIMIT 50
+                """)
 
-        user_stats = {}
-        for event in self._token_events:
-            user_id = event["user_id"]
-            if user_id not in user_stats:
-                user_stats[user_id] = {
-                    "user_id": user_id,
-                    "total_tokens": 0,
-                    "total_time_ms": 0,
-                    "max_time_ms": 0,
-                    "min_time_ms": float('inf'),
-                    "endpoints": {}
-                }
+                result = []
+                for row in rows:
+                    total_tokens = int(row["total_tokens"] or 0)
+                    result.append({
+                        "user_id": row["user_id"],
+                        "total_tokens": total_tokens,
+                        "query_count": row["query_count"],
+                        "avg_processing_time_ms": round(float(row["avg_latency"] or 0), 1),
+                        "max_processing_time_ms": int(row["max_latency"] or 0),
+                        "min_processing_time_ms": int(row["min_latency"] or 0),
+                        "estimated_cost": round((total_tokens / 1000) * self.COST_PER_1K, 4),
+                        "last_activity": row["last_activity"].isoformat() if row["last_activity"] else None
+                    })
 
-            stats = user_stats[user_id]
-            stats["total_tokens"] += 1
-            stats["total_time_ms"] += event["processing_time_ms"]
-            stats["max_time_ms"] = max(stats["max_time_ms"], event["processing_time_ms"])
-            stats["min_time_ms"] = min(stats["min_time_ms"], event["processing_time_ms"])
-
-            endpoint = event["endpoint"]
-            stats["endpoints"][endpoint] = stats["endpoints"].get(endpoint, 0) + 1
-
-        # Calculate averages and format
-        result = []
-        for user_id, stats in user_stats.items():
-            avg_time = stats["total_time_ms"] / stats["total_tokens"] if stats["total_tokens"] > 0 else 0
-            most_used_endpoint = max(stats["endpoints"].items(), key=lambda x: x[1])[0] if stats["endpoints"] else "N/A"
-
-            result.append({
-                "user_id": user_id,
-                "total_tokens": stats["total_tokens"],
-                "avg_processing_time_ms": round(avg_time, 1),
-                "max_processing_time_ms": stats["max_time_ms"],
-                "min_processing_time_ms": stats["min_time_ms"] if stats["min_time_ms"] != float('inf') else 0,
-                "most_used_endpoint": most_used_endpoint,
-                "endpoint_breakdown": stats["endpoints"]
-            })
-
-        # Sort by total tokens descending
-        result.sort(key=lambda x: x["total_tokens"], reverse=True)
-        return result
+                return result
+        except Exception as e:
+            logger.error(f"Error getting user token stats: {e}")
+            return []
 
     async def get_endpoint_stats(self) -> list:
-        """Get token statistics per endpoint"""
-        self._generate_sample_data()
+        """Get token statistics per strategy/endpoint from query_log"""
+        try:
+            pool = await self._get_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch("""
+                    SELECT
+                        COALESCE(strategy, 'unknown') as endpoint,
+                        COUNT(*) as count,
+                        COALESCE(SUM(input_tokens + output_tokens), 0) as total_tokens,
+                        COALESCE(AVG(execution_time_ms), 0) as avg_latency,
+                        MAX(execution_time_ms) as max_latency
+                    FROM query_log
+                    GROUP BY strategy
+                    ORDER BY count DESC
+                """)
 
-        endpoint_stats = {}
-        for event in self._token_events:
-            endpoint = event["endpoint"]
-            if endpoint not in endpoint_stats:
-                endpoint_stats[endpoint] = {
-                    "endpoint": endpoint,
-                    "count": 0,
-                    "total_time_ms": 0,
-                    "max_time_ms": 0
-                }
+                result = []
+                for row in rows:
+                    total_tokens = int(row["total_tokens"] or 0)
+                    result.append({
+                        "endpoint": row["endpoint"],
+                        "count": row["count"],
+                        "total_tokens": total_tokens,
+                        "avg_processing_time_ms": round(float(row["avg_latency"] or 0), 1),
+                        "max_processing_time_ms": int(row["max_latency"] or 0),
+                        "estimated_cost": round((total_tokens / 1000) * self.COST_PER_1K, 4)
+                    })
 
-            stats = endpoint_stats[endpoint]
-            stats["count"] += 1
-            stats["total_time_ms"] += event["processing_time_ms"]
-            stats["max_time_ms"] = max(stats["max_time_ms"], event["processing_time_ms"])
-
-        result = []
-        for endpoint, stats in endpoint_stats.items():
-            avg_time = stats["total_time_ms"] / stats["count"] if stats["count"] > 0 else 0
-            result.append({
-                "endpoint": endpoint,
-                "count": stats["count"],
-                "avg_processing_time_ms": round(avg_time, 1),
-                "max_processing_time_ms": stats["max_time_ms"]
-            })
-
-        result.sort(key=lambda x: x["count"], reverse=True)
-        return result
+                return result
+        except Exception as e:
+            logger.error(f"Error getting endpoint stats: {e}")
+            return []
 
 
 # Dependency injection functions

@@ -41,6 +41,7 @@ import { ExternalPortalPage } from './pages/ExternalPortalPage';
 import { FAQPage } from './pages/FAQPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AgentPage } from './pages/AgentPage';
+import { AdminDashboardPage } from './pages/AdminDashboardPage';
 
 // Import global styles
 import './styles/index.css';
@@ -111,7 +112,7 @@ export const App: React.FC = () => {
           {/* Admin routes - requires admin role */}
           <Route element={<AuthGuard requiredRole="admin" />}>
             <Route element={<MainLayout />}>
-              <Route path="/admin" element={<PlaceholderPage title="Admin Dashboard" />} />
+              <Route path="/admin" element={<AdminDashboardPage />} />
             </Route>
           </Route>
 

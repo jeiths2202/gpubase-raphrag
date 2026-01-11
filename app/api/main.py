@@ -38,6 +38,7 @@ from .core.exceptions import (
 # Import routers
 from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
+from .admin_dashboard.router import router as admin_dashboard_router
 
 
 # Initialize mode manager and logger
@@ -196,6 +197,21 @@ async def lifespan(app: FastAPI):
 
         logger.info(
             "[OK] API Key service initialized (public RAG access enabled)",
+            category=LogCategory.BUSINESS
+        )
+
+        # ==================== Admin Dashboard Service Initialization ====================
+        from .admin_dashboard.service import init_admin_dashboard_service
+        from .services.health_service import HealthService
+
+        health_service = HealthService()
+        init_admin_dashboard_service(
+            db_pool=db_pool,
+            auth_service=auth_service,
+            health_service=health_service
+        )
+        logger.info(
+            "[OK] Admin Dashboard service initialized",
             category=LogCategory.BUSINESS
         )
 
@@ -429,6 +445,7 @@ app.include_router(ims_chat.router, prefix=API_PREFIX)  # IMS AI chat (limited t
 app.include_router(agents.router, prefix=API_PREFIX)  # AI agent system
 app.include_router(faq.router, prefix=API_PREFIX)  # FAQ and popular queries (dynamic from query logs)
 app.include_router(api_keys.router, prefix=API_PREFIX)  # API key management for public RAG access
+app.include_router(admin_dashboard_router, prefix=API_PREFIX)  # Admin dashboard with KPIs and analytics
 
 
 # Root endpoint

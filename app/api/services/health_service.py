@@ -27,8 +27,13 @@ class HealthService:
     - Mistral Code LLM
     """
 
+    # Cache TTL in seconds
+    CACHE_TTL = 30
+
     def __init__(self):
         self._start_time = time.time()
+        self._cache: Optional[Dict[str, Any]] = None
+        self._cache_time: float = 0
 
     @property
     def uptime_seconds(self) -> int:
@@ -38,18 +43,35 @@ class HealthService:
         """Check Neo4j database health"""
         start = time.time()
         try:
-            from langchain_neo4j import Neo4jGraph
-            graph = Neo4jGraph(
-                url=config.neo4j.uri,
-                username=config.neo4j.user,
-                password=config.neo4j.password
-            )
-            graph.query("RETURN 1")
-            response_time = int((time.time() - start) * 1000)
+            # Run synchronous Neo4j query in thread pool to avoid blocking event loop
+            import concurrent.futures
+            loop = asyncio.get_event_loop()
 
+            def _check():
+                from langchain_neo4j import Neo4jGraph
+                graph = Neo4jGraph(
+                    url=config.neo4j.uri,
+                    username=config.neo4j.user,
+                    password=config.neo4j.password
+                )
+                graph.query("RETURN 1")
+                return True
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                await asyncio.wait_for(
+                    loop.run_in_executor(executor, _check),
+                    timeout=2.0  # 2 second timeout
+                )
+
+            response_time = int((time.time() - start) * 1000)
             return {
                 "status": "healthy",
                 "response_time_ms": response_time
+            }
+        except asyncio.TimeoutError:
+            return {
+                "status": "unhealthy",
+                "error": "Timeout (2s)"
             }
         except Exception as e:
             return {
@@ -65,7 +87,7 @@ class HealthService:
             base_url = config.llm.api_url.replace("/chat/completions", "")
             health_url = f"{base_url}/health/ready"
 
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=2.0) as client:
                 response = await client.get(health_url)
                 response_time = int((time.time() - start) * 1000)
 
@@ -92,7 +114,7 @@ class HealthService:
         try:
             health_url = f"{config.embedding.api_url}/health/ready"
 
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=2.0) as client:
                 response = await client.get(health_url)
                 response_time = int((time.time() - start) * 1000)
 
@@ -121,7 +143,7 @@ class HealthService:
             base_url = config.code_llm.api_url.replace("/chat/completions", "")
             health_url = f"{base_url}/health"
 
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=2.0) as client:
                 response = await client.get(health_url)
                 response_time = int((time.time() - start) * 1000)
 
@@ -142,13 +164,24 @@ class HealthService:
                 "error": str(e)
             }
 
-    async def check_all(self) -> Dict[str, Any]:
+    async def check_all(self, use_cache: bool = True) -> Dict[str, Any]:
         """
         Check all services health
+
+        Args:
+            use_cache: If True, return cached result if available and not expired
 
         Returns:
             Complete health status for all services
         """
+        # Return cached result if valid
+        if use_cache and self._cache is not None:
+            cache_age = time.time() - self._cache_time
+            if cache_age < self.CACHE_TTL:
+                # Update uptime in cached result
+                self._cache["services"]["api"]["uptime_seconds"] = self.uptime_seconds
+                return self._cache
+
         # Run all health checks in parallel
         neo4j, llm, embedding, mistral = await asyncio.gather(
             self.check_neo4j(),
@@ -182,10 +215,16 @@ class HealthService:
         else:
             overall_status = "unhealthy"
 
-        return {
+        result = {
             "status": overall_status,
             "services": services
         }
+
+        # Cache the result
+        self._cache = result
+        self._cache_time = time.time()
+
+        return result
 
 
 @lru_cache()
