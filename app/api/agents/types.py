@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Dict, List, Any, Optional, TypedDict, Literal, Union, TYPE_CHECKING
 from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 if TYPE_CHECKING:
@@ -296,21 +296,21 @@ class TaskDAG:
         """Mark a task as running"""
         if task_id in self.tasks:
             self.tasks[task_id].status = TaskStatus.RUNNING
-            self.tasks[task_id].start_time = datetime.utcnow()
+            self.tasks[task_id].start_time = datetime.now(timezone.utc)
 
     def mark_completed(self, task_id: str, result: "AgentResult") -> None:
         """Mark a task as completed with result"""
         if task_id in self.tasks:
             self.tasks[task_id].status = TaskStatus.COMPLETED
             self.tasks[task_id].result = result
-            self.tasks[task_id].end_time = datetime.utcnow()
+            self.tasks[task_id].end_time = datetime.now(timezone.utc)
 
     def mark_failed(self, task_id: str, error: str) -> None:
         """Mark a task as failed"""
         if task_id in self.tasks:
             self.tasks[task_id].status = TaskStatus.FAILED
             self.tasks[task_id].error = error
-            self.tasks[task_id].end_time = datetime.utcnow()
+            self.tasks[task_id].end_time = datetime.now(timezone.utc)
 
     def is_complete(self) -> bool:
         """Check if all tasks are completed or failed"""
@@ -392,7 +392,7 @@ class ExecutionTrace:
                agent_type: Optional[AgentType] = None, **data) -> None:
         """Record an event to the trace"""
         self.events.append(TraceEvent(
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             event_type=event_type,
             task_id=task_id,
             agent_type=agent_type,
