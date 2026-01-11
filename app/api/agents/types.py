@@ -457,3 +457,20 @@ class ParallelStreamChunk(BaseModel):
     agent_type: Optional[AgentType] = None
     agent_chunk: Optional[AgentStreamChunk] = None
     metadata: Optional[Dict[str, Any]] = None
+
+    # Trace data for UI visualization
+    trace_data: Optional[Dict[str, Any]] = None
+    """
+    Structure for trace visualization:
+    {
+        "trace_id": "uuid",
+        "dag": {
+            "tasks": [{"task_id": "t1", "description": "...", "agent_type": "rag", "status": "completed", "dependencies": []}],
+            "execution_batches": [["t1", "t2"], ["t3"]],
+            "parallelism_type": "partial"
+        },
+        "current_task": {"task_id": "t2", "status": "running", "start_time": "..."},
+        "evaluations": {"t1": {"passed": true, "score": 0.9, "issues": []}},
+        "timeline": [{"event": "task_start", "task_id": "t1", "timestamp": "...", "data": {...}}]
+    }
+    """

@@ -358,6 +358,10 @@ async def stream_enterprise_agent(
         try:
             async for chunk in orchestrator.stream_enterprise(request, user_id=user_id):
                 data = chunk.model_dump()
+                # Debug log for key chunk types
+                if chunk.chunk_type in ("synthesis", "agent_chunk", "text"):
+                    content_preview = (chunk.content or "")[:100] if chunk.content else "no content"
+                    logger.info(f"[Enterprise] chunk_type={chunk.chunk_type}, content_preview={content_preview}")
                 yield f"data: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
         except Exception as e:
             logger.error(f"Enterprise agent streaming failed: {e}")

@@ -725,6 +725,18 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
         )
         trace.dag = dag
 
+        # Build trace data for UI visualization
+        dag_tasks_for_ui = [
+            {
+                "task_id": t.task_id,
+                "description": t.description[:200],
+                "agent_type": t.agent_type.value,
+                "status": t.status.value,
+                "dependencies": t.dependencies
+            }
+            for t in dag.tasks.values()
+        ]
+
         yield ParallelStreamChunk(
             chunk_type="dag_created",
             content=f"Task decomposed into {len(dag.tasks)} subtasks",
@@ -735,6 +747,15 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
                     {"id": t.task_id, "description": t.description[:100]}
                     for t in dag.tasks.values()
                 ]
+            },
+            trace_data={
+                "trace_id": str(trace.trace_id),
+                "dag": {
+                    "tasks": dag_tasks_for_ui,
+                    "execution_batches": dag.execution_batches,
+                    "parallelism_type": dag.parallelism_type.value
+                },
+                "timeline": []
             }
         )
 

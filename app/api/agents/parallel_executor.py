@@ -20,14 +20,29 @@ from .types import (
 from .base import BaseAgent
 from .registry import AgentRegistry, get_agent_registry
 from .executor import AgentExecutor, get_executor
+from ..core.config import api_settings
 
 logger = logging.getLogger(__name__)
 
 
-# Default timeout per agent type (seconds)
+def _get_default_agent_timeouts() -> Dict[AgentType, float]:
+    """Get default agent timeouts, using config for IMS timeout."""
+    settings = api_settings
+    # IMS_CRAWLER_TIMEOUT is in milliseconds, convert to seconds
+    ims_timeout = settings.IMS_CRAWLER_TIMEOUT / 1000.0
+    return {
+        AgentType.RAG: 120.0,
+        AgentType.IMS: ims_timeout,  # From config (default: 3600 seconds = 1 hour)
+        AgentType.VISION: 90.0,
+        AgentType.CODE: 180.0,
+        AgentType.PLANNER: 60.0,
+    }
+
+
+# Default timeout per agent type (seconds) - will be overridden by config
 DEFAULT_AGENT_TIMEOUTS = {
     AgentType.RAG: 120.0,
-    AgentType.IMS: 180.0,    # IMS crawler can be slow
+    AgentType.IMS: 3600.0,   # Fallback: 1 hour (overridden by IMS_CRAWLER_TIMEOUT)
     AgentType.VISION: 90.0,
     AgentType.CODE: 180.0,
     AgentType.PLANNER: 60.0,
@@ -56,7 +71,8 @@ class ParallelExecutor:
         """
         self.agent_registry = agent_registry or get_agent_registry()
         self.executor = executor or get_executor()
-        self.timeout_config = {**DEFAULT_AGENT_TIMEOUTS, **(timeout_config or {})}
+        # Use config-based timeouts (especially for IMS_CRAWLER_TIMEOUT)
+        self.timeout_config = {**_get_default_agent_timeouts(), **(timeout_config or {})}
 
     def _get_timeout(
         self,
@@ -330,23 +346,39 @@ class ParallelExecutor:
         )
 
         # Add dependency results to context if any
+        # This is critical for pipeline execution where Task B depends on Task A's results
         if subtask.dependencies and previous_results:
             dep_context_parts = []
             for dep_id in subtask.dependencies:
                 if dep_id in previous_results:
                     dep_result = previous_results[dep_id]
                     if dep_result.success and dep_result.answer:
+                        # Include more context for pipeline tasks (up to 8000 chars)
+                        # This ensures code generation tasks have enough context
+                        max_result_len = 8000
+                        result_text = dep_result.answer[:max_result_len]
+                        if len(dep_result.answer) > max_result_len:
+                            result_text += "\n... (truncated)"
+
                         dep_context_parts.append(
-                            f"[Result from previous task {dep_id}]\n{dep_result.answer[:2000]}"
+                            f"=== RESULT FROM PREVIOUS TASK [{dep_id}] ===\n"
+                            f"Agent: {dep_result.agent_type.value if hasattr(dep_result, 'agent_type') else 'unknown'}\n"
+                            f"Result:\n{result_text}\n"
+                            f"=== END OF PREVIOUS TASK RESULT ==="
                         )
+                        logger.info(f"[ParallelExecutor] Passing {len(result_text)} chars from {dep_id} to {subtask.task_id}")
 
             if dep_context_parts:
                 # Prepend dependency context to file_context
                 dep_context = "\n\n".join(dep_context_parts)
+                instruction = (
+                    "** IMPORTANT: Use the following results from previous task(s) to complete your task. **\n"
+                    "** 중요: 아래는 이전 작업의 결과입니다. 이 결과를 바탕으로 현재 작업을 수행하세요. **\n\n"
+                )
                 if context.file_context:
-                    context.file_context = f"{dep_context}\n\n{context.file_context}"
+                    context.file_context = f"{instruction}{dep_context}\n\n{context.file_context}"
                 else:
-                    context.file_context = dep_context
+                    context.file_context = f"{instruction}{dep_context}"
 
         return context
 
@@ -539,12 +571,28 @@ class ParallelExecutor:
         start_time = time.time()
         timeout = self._get_timeout(subtask, config)
 
+        from datetime import datetime, timezone
+        start_timestamp = datetime.now(timezone.utc).isoformat()
+
         yield ParallelStreamChunk(
             chunk_type="agent_start",
             task_id=subtask.task_id,
             agent_type=subtask.agent_type,
             content=subtask.description[:100],
-            metadata={"timeout": timeout}
+            metadata={"timeout": timeout},
+            trace_data={
+                "current_task": {
+                    "task_id": subtask.task_id,
+                    "status": "running",
+                    "start_time": start_timestamp
+                },
+                "timeline_event": {
+                    "event": "task_start",
+                    "task_id": subtask.task_id,
+                    "agent_type": subtask.agent_type.value,
+                    "timestamp": start_timestamp
+                }
+            }
         )
 
         if trace:
@@ -594,6 +642,8 @@ class ParallelExecutor:
             )
             results[subtask.task_id] = result
 
+            end_timestamp = datetime.now(timezone.utc).isoformat()
+
             yield ParallelStreamChunk(
                 chunk_type="agent_done",
                 task_id=subtask.task_id,
@@ -602,6 +652,22 @@ class ParallelExecutor:
                     "success": True,
                     "execution_time": execution_time,
                     "answer_length": len(result.answer)
+                },
+                trace_data={
+                    "current_task": {
+                        "task_id": subtask.task_id,
+                        "status": "completed",
+                        "end_time": end_timestamp,
+                        "latency_ms": int(execution_time * 1000)
+                    },
+                    "timeline_event": {
+                        "event": "task_complete",
+                        "task_id": subtask.task_id,
+                        "agent_type": subtask.agent_type.value,
+                        "timestamp": end_timestamp,
+                        "success": True,
+                        "latency_ms": int(execution_time * 1000)
+                    }
                 }
             )
 
@@ -623,12 +689,30 @@ class ParallelExecutor:
             )
             results[subtask.task_id] = result
 
+            fail_timestamp = datetime.now(timezone.utc).isoformat()
+
             yield ParallelStreamChunk(
                 chunk_type="agent_done",
                 task_id=subtask.task_id,
                 agent_type=subtask.agent_type,
                 content=error_msg,
-                metadata={"success": False, "timeout": True}
+                metadata={"success": False, "timeout": True},
+                trace_data={
+                    "current_task": {
+                        "task_id": subtask.task_id,
+                        "status": "failed",
+                        "end_time": fail_timestamp,
+                        "error": error_msg
+                    },
+                    "timeline_event": {
+                        "event": "task_timeout",
+                        "task_id": subtask.task_id,
+                        "agent_type": subtask.agent_type.value,
+                        "timestamp": fail_timestamp,
+                        "success": False,
+                        "error": error_msg
+                    }
+                }
             )
 
             if trace:
@@ -637,6 +721,7 @@ class ParallelExecutor:
         except Exception as e:
             execution_time = time.time() - start_time
             error_msg = f"Execution failed: {str(e)}"
+            fail_timestamp = datetime.now(timezone.utc).isoformat()
 
             result = AgentResult(
                 answer="",
@@ -653,6 +738,22 @@ class ParallelExecutor:
                 task_id=subtask.task_id,
                 agent_type=subtask.agent_type,
                 content=error_msg,
+                trace_data={
+                    "current_task": {
+                        "task_id": subtask.task_id,
+                        "status": "failed",
+                        "end_time": fail_timestamp,
+                        "error": error_msg
+                    },
+                    "timeline_event": {
+                        "event": "task_failed",
+                        "task_id": subtask.task_id,
+                        "agent_type": subtask.agent_type.value,
+                        "timestamp": fail_timestamp,
+                        "success": False,
+                        "error": error_msg
+                    }
+                },
                 metadata={"success": False, "error": str(e)}
             )
 

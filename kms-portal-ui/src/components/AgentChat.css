@@ -37,6 +37,12 @@
   box-shadow: 4px 0 20px rgba(0, 0, 0, 0.2);
 }
 
+/* Adjust main chat when trace panel is open */
+.agent-chat-wrapper.with-trace-panel .agent-chat {
+  margin-right: 450px;
+  transition: margin-right 0.3s ease;
+}
+
 /* Header */
 .agent-chat-header {
   display: flex;
@@ -149,6 +155,33 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+/* Trace toggle button */
+.agent-chat-trace-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.agent-chat-trace-toggle:hover {
+  background: var(--surface-hover);
+  border-color: var(--color-primary, #6366f1);
+  color: var(--text-primary);
+}
+
+.agent-chat-trace-toggle.active {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: var(--color-primary, #6366f1);
+  color: var(--color-primary, #6366f1);
 }
 
 /* Artifact toggle button */

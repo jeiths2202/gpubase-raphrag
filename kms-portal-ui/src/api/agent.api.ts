@@ -96,7 +96,66 @@ export type AgentStreamChunkType =
   | 'error'
   | 'done'
   | 'status'
-  | 'artifact';
+  | 'artifact'
+  // Enterprise multi-agent orchestration chunk types
+  | 'orchestration_start'
+  | 'dag_created'
+  | 'batch_start'
+  | 'agent_start'
+  | 'agent_chunk'
+  | 'agent_done'
+  | 'batch_done'
+  | 'evaluation'
+  | 'retry'
+  | 'synthesis'
+  | 'next_actions';
+
+/**
+ * Trace data for DAG visualization (enterprise multi-agent)
+ */
+export interface StreamTraceData {
+  trace_id?: string;
+  dag?: {
+    tasks: Array<{
+      task_id: string;
+      description: string;
+      agent_type: string;
+      status: string;
+      dependencies: string[];
+      start_time?: string;
+      end_time?: string;
+      latency_ms?: number;
+      error?: string;
+    }>;
+    execution_batches: string[][];
+    parallelism_type: string;
+  };
+  current_task?: {
+    task_id: string;
+    status: string;
+    start_time?: string;
+    end_time?: string;
+    latency_ms?: number;
+    error?: string;
+  };
+  timeline_event?: {
+    event: string;
+    task_id?: string;
+    agent_type?: string;
+    timestamp: string;
+    success?: boolean;
+    latency_ms?: number;
+    error?: string;
+    data?: Record<string, unknown>;
+  };
+  evaluations?: Record<string, {
+    passed: boolean;
+    score?: number;
+    issues: string[];
+    retry_recommended?: boolean;
+    retry_reason?: string;
+  }>;
+}
 
 /**
  * Agent stream chunk
@@ -115,6 +174,12 @@ export interface AgentStreamChunk {
   artifact_type?: ArtifactType;
   artifact_title?: string;
   artifact_language?: ArtifactLanguage;
+
+  // Enterprise multi-agent trace data
+  trace_data?: StreamTraceData;
+  task_id?: string;  // Task ID for enterprise multi-agent
+  agent_type?: AgentType;  // Agent type for enterprise multi-agent
+  agent_chunk?: AgentStreamChunk;  // Nested chunk from sub-agent
 }
 
 /**
@@ -158,18 +223,30 @@ export async function executeAgent(request: AgentExecuteRequest): Promise<AgentE
 /**
  * Stream agent execution using Server-Sent Events
  * Returns an async generator that yields stream chunks
+ *
+ * Note: For 'planner' agent type, uses the enterprise/stream endpoint
+ * which enables multi-agent orchestration with DAG visualization.
  */
 export async function* streamAgent(
   request: AgentExecuteRequest,
   signal?: AbortSignal
 ): AsyncGenerator<AgentStreamChunk, void, unknown> {
-  const response = await fetch(`${apiClient.defaults.baseURL}/agents/stream`, {
+  // Use enterprise endpoint for planner agent (enables DAG + multi-agent orchestration)
+  const isEnterprise = request.agent_type === 'planner';
+  const endpoint = isEnterprise ? '/agents/enterprise/stream' : '/agents/stream';
+
+  // For enterprise endpoint, enable multi-agent orchestration to generate DAG
+  const requestBody = isEnterprise
+    ? { ...request, enable_multi_agent: true }
+    : request;
+
+  const response = await fetch(`${apiClient.defaults.baseURL}${endpoint}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     credentials: 'include', // Include cookies for authentication
-    body: JSON.stringify(request),
+    body: JSON.stringify(requestBody),
     signal,
   });
 

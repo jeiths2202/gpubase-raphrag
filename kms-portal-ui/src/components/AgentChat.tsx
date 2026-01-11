@@ -28,14 +28,17 @@ import {
   Globe,
   Link,
   ExternalLink,
+  GitBranch,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import './AgentChat.css';
 import { type AgentType } from '../api/agent.api';
 import { useArtifactStore, createArtifactFromChunk } from '../store/artifactStore';
 import { useConversationStore } from '../store/conversationStore';
+import { useTraceStore } from '../store/traceStore';
 import { ArtifactPanel } from './ArtifactPanel';
 import { ConversationSidebar } from './ConversationSidebar';
+import { TracePanel } from './TracePanel';
 
 // Import from refactored modules
 import {
@@ -78,6 +81,14 @@ export const AgentChat: React.FC = () => {
     startNewConversation,
     setLastSelectedAgent,
   } = useConversationStore();
+
+  // Trace store
+  const {
+    panel: tracePanel,
+    currentTrace,
+    togglePanel: toggleTracePanel,
+    updateFromTraceData,
+  } = useTraceStore();
 
   // State - Initialize selectedAgent from store's lastSelectedAgent
   const [selectedAgent, setSelectedAgentState] = useState<AgentType>(lastSelectedAgent);
@@ -162,6 +173,7 @@ export const AgentChat: React.FC = () => {
         inputRef.current.style.height = 'auto';
       }
     },
+    onTraceData: updateFromTraceData,
   });
 
   // Refs
@@ -347,7 +359,7 @@ export const AgentChat: React.FC = () => {
   }, []);
 
   return (
-    <div className={`agent-chat-wrapper ${artifactPanel.isOpen ? 'with-artifact-panel' : ''} ${showHistorySidebar ? 'with-history-sidebar' : ''}`}>
+    <div className={`agent-chat-wrapper ${artifactPanel.isOpen ? 'with-artifact-panel' : ''} ${tracePanel.isOpen ? 'with-trace-panel' : ''} ${showHistorySidebar ? 'with-history-sidebar' : ''}`}>
     {/* Conversation History Sidebar */}
     <ConversationSidebar
       agentType={selectedAgent}
@@ -414,6 +426,17 @@ export const AgentChat: React.FC = () => {
           >
             <Plus size={16} />
           </button>
+
+          {/* Trace panel toggle button */}
+          {currentTrace.dag && (
+            <button
+              className={`agent-chat-trace-toggle ${tracePanel.isOpen ? 'active' : ''}`}
+              onClick={toggleTracePanel}
+              title={tracePanel.isOpen ? 'Close trace' : 'Open trace'}
+            >
+              <GitBranch size={16} />
+            </button>
+          )}
 
           {/* Artifact panel toggle button */}
           {artifacts.length > 0 && (
@@ -663,6 +686,9 @@ export const AgentChat: React.FC = () => {
 
     {/* Artifact Panel */}
     <ArtifactPanel />
+
+    {/* Trace Panel */}
+    <TracePanel t={t} />
     </div>
   );
 };

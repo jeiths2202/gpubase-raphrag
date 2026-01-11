@@ -47,7 +47,7 @@ class ConversationStatus(str, Enum):
 class MessageCreate(BaseModel):
     """Request model for creating a new message"""
     role: MessageRole
-    content: str = Field(..., min_length=1, max_length=100000)
+    content: str = Field(..., min_length=1, max_length=500000)  # Increased for multi-agent responses
     parent_message_id: Optional[UUID] = None
     model: Optional[str] = None
 

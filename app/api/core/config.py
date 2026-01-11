@@ -154,6 +154,10 @@ class APISettings(BaseSettings):
         default="requests",
         description="Crawler type: 'playwright' (browser-based) or 'requests' (lightweight HTTP)"
     )
+    IMS_CRAWLER_TIMEOUT: int = Field(
+        default=3600000,
+        description="Overall timeout for IMS agent operations in milliseconds (default: 1 hour)"
+    )
 
     # IMS Query Cache Settings
     IMS_QUERY_CACHE_HOURS: int = Field(

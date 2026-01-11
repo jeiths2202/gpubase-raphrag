@@ -5,6 +5,7 @@ Provides tool-calling support using Ollama's OpenAI-compatible API.
 from typing import Dict, List, Any, Optional
 import logging
 import json
+import asyncio
 import aiohttp
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ class OllamaAgentAdapter:
         base_url: str = OLLAMA_BASE_URL,
         model: str = OLLAMA_MODEL,
         temperature: float = 0.7,
-        timeout: int = 120
+        timeout: int = 300  # Increased to 5 minutes for complex tasks
     ):
         self.base_url = base_url.rstrip('/')
         self.model = model
@@ -87,11 +88,14 @@ class OllamaAgentAdapter:
                     return self._parse_response(data)
 
         except aiohttp.ClientError as e:
-            logger.error(f"Ollama connection error: {e}")
+            logger.error(f"Ollama connection error: {type(e).__name__}: {e}")
             return {"content": f"Connection error: {str(e)}"}
+        except asyncio.TimeoutError as e:
+            logger.error(f"Ollama timeout error: Request exceeded {self.timeout}s timeout")
+            return {"content": f"Timeout error: Request exceeded {self.timeout}s"}
         except Exception as e:
-            logger.error(f"Ollama adapter error: {e}")
-            return {"content": f"Error: {str(e)}"}
+            logger.error(f"Ollama adapter error: {type(e).__name__}: {e}", exc_info=True)
+            return {"content": f"Error: {type(e).__name__}: {str(e)}"}
 
     def _parse_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Parse Ollama response to extract content and tool calls"""

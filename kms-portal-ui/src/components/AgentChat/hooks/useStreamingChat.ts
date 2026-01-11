@@ -48,6 +48,10 @@ export interface StreamingChatDependencies {
 
   // URL cleanup callback
   onMessageSent: () => void;
+
+  // Trace data callback for visualization (accepts any shape, store will validate)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onTraceData?: (traceData: any) => void;
 }
 
 export interface UseStreamingChatReturn {
@@ -109,6 +113,7 @@ export function useStreamingChat(
     getUrlContext,
     onCredentialsRequired,
     onMessageSent,
+    onTraceData,
   } = deps;
 
   // Per-agent state storage (persists across agent switches)
@@ -415,12 +420,77 @@ export function useStreamingChat(
                 (msg.content === 'processing' || msg.content === 'crawling' || msg.content === 'searching'))
             ));
             break;
+
+          // Enterprise multi-agent chunk types
+          case 'agent_chunk':
+            // Extract text content from nested agent chunk
+            console.log('[useStreamingChat] agent_chunk handler:', {
+              hasAgentChunk: !!chunk.agent_chunk,
+              nestedType: chunk.agent_chunk?.chunk_type,
+              nestedContent: chunk.agent_chunk?.content?.substring(0, 50),
+              currentAccumulated: accumulatedContent.length,
+            });
+            if (chunk.agent_chunk?.chunk_type === 'text' && chunk.agent_chunk?.content) {
+              accumulatedContent += chunk.agent_chunk.content;
+              console.log('[useStreamingChat] Accumulated content updated, length:', accumulatedContent.length);
+              updateAgentStreamingMessage(requestingAgent,
+                agentLocalStatesRef.current[requestingAgent].streamingMessage
+                  ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, content: accumulatedContent }
+                  : null
+              );
+            }
+            break;
+
+          case 'synthesis':
+            // Synthesis contains the final combined answer
+            console.log('[useStreamingChat] synthesis chunk:', {
+              hasContent: !!chunk.content,
+              contentPreview: chunk.content?.substring(0, 100),
+            });
+            if (chunk.content) {
+              accumulatedContent += chunk.content;
+              console.log('[useStreamingChat] Synthesis added, total length:', accumulatedContent.length);
+              updateAgentStreamingMessage(requestingAgent,
+                agentLocalStatesRef.current[requestingAgent].streamingMessage
+                  ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, content: accumulatedContent }
+                  : null
+              );
+            }
+            break;
+
+          // Other enterprise chunk types (for trace visualization only)
+          case 'orchestration_start':
+          case 'dag_created':
+          case 'batch_start':
+          case 'agent_start':
+          case 'agent_done':
+          case 'batch_done':
+          case 'evaluation':
+          case 'retry':
+          case 'next_actions':
+            // These are handled by trace_data processing below
+            break;
+
+          default:
+            console.log('[useStreamingChat] Unhandled chunk type:', chunk.chunk_type);
+            break;
+        }
+
+        // Process trace_data if present (for agent execution visualization)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const chunkWithTrace = chunk as any;
+        if (chunkWithTrace.trace_data && onTraceData) {
+          onTraceData(chunkWithTrace.trace_data);
         }
       }
 
       if (!receivedAnyChunk) {
         console.warn('[useStreamingChat] No chunks received from stream');
       }
+
+      // Debug: show final accumulated content before finalization
+      console.log('[useStreamingChat] Stream complete. Final accumulated content length:', accumulatedContent.length);
+      console.log('[useStreamingChat] Final content preview:', accumulatedContent.substring(0, 200));
 
       // Finalize message
       const finalMessage: ChatMessage = {
@@ -485,6 +555,7 @@ export function useStreamingChat(
     getUrlContext,
     onCredentialsRequired,
     onMessageSent,
+    onTraceData,
     updateAgentMessages,
     updateAgentStreamingMessage,
     updateAgentIsLoading,

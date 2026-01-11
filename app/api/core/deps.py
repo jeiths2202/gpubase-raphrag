@@ -64,7 +64,7 @@ async def get_current_user(
 
         # Check expiration
         exp = payload.get("exp")
-        if exp and datetime.now(timezone.utc) > datetime.fromtimestamp(exp):
+        if exp and datetime.now(timezone.utc) > datetime.fromtimestamp(exp, tz=timezone.utc):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail={"code": "AUTH_TOKEN_EXPIRED", "message": "토큰이 만료되었습니다."}
@@ -143,7 +143,7 @@ async def get_current_user_or_api_key(
             user_id: str = payload.get("sub")
             if user_id:
                 exp = payload.get("exp")
-                if not exp or datetime.now(timezone.utc) <= datetime.fromtimestamp(exp):
+                if not exp or datetime.now(timezone.utc) <= datetime.fromtimestamp(exp, tz=timezone.utc):
                     return {
                         "id": user_id,
                         "auth_type": "jwt",
