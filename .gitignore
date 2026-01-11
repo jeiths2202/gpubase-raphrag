@@ -147,3 +147,4 @@ scripts/capture_*.py
 # Misc
 frontend.lnk
 not_use_frontend/
+logs/

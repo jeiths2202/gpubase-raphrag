@@ -1,5 +1,5 @@
 # Server Management Script for KMS Portal
-# Usage: .\server.ps1 [frontend|backend|all] [start|stop|restart|status]
+# Usage: .\server.ps1 [frontend|backend|all] [start|stop|restart|status|logs]
 
 param(
     [Parameter(Position=0)]
@@ -7,15 +7,45 @@ param(
     [string]$Target = "",
 
     [Parameter(Position=1)]
-    [ValidateSet("start", "stop", "restart", "status", "")]
-    [string]$Action = ""
+    [ValidateSet("start", "stop", "restart", "status", "logs", "")]
+    [string]$Action = "",
+
+    [Parameter(Position=2)]
+    [int]$Lines = 50
 )
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent $ScriptDir
 $FrontendDir = Join-Path $ProjectRoot "kms-portal-ui"
+$LogDir = Join-Path $ProjectRoot "logs"
 $FrontendPort = 3000
 $BackendPort = 9000
+
+# Ensure log directory exists
+if (-not (Test-Path $LogDir)) {
+    New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+}
+
+function Get-DateStamp {
+    return Get-Date -Format "yyyyMMdd"
+}
+
+function Get-FrontendLog {
+    return Join-Path $LogDir "frontend_$(Get-DateStamp).log"
+}
+
+function Get-BackendLog {
+    return Join-Path $LogDir "backend_$(Get-DateStamp).log"
+}
+
+function Write-LogMessage {
+    param(
+        [string]$LogFile,
+        [string]$Message
+    )
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    Add-Content -Path $LogFile -Value "[$timestamp] $Message"
+}
 
 function Write-Status {
     param([string]$Message)
@@ -69,9 +99,15 @@ function Start-Frontend {
         return
     }
 
+    $logFile = Get-FrontendLog
     Write-Status "Starting frontend on port $FrontendPort..."
+    Write-Status "Log file: $logFile"
+
+    Write-LogMessage -LogFile $logFile -Message "========== Frontend Server Starting =========="
+
     Push-Location $FrontendDir
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npm run dev -- --port $FrontendPort" -WindowStyle Normal
+    $command = "npm run dev -- --port $FrontendPort *>> `"$logFile`" 2>&1"
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $command -WindowStyle Hidden
     Pop-Location
 
     Start-Sleep -Seconds 3
@@ -79,14 +115,19 @@ function Start-Frontend {
     if ($pid) {
         Write-Status "Frontend started successfully (PID: $pid)"
         Write-Status "URL: http://localhost:$FrontendPort"
+        Write-LogMessage -LogFile $logFile -Message "Frontend started successfully (PID: $pid)"
     } else {
         Write-Err "Failed to start frontend"
+        Write-LogMessage -LogFile $logFile -Message "ERROR: Failed to start frontend"
     }
 }
 
 function Stop-Frontend {
+    $logFile = Get-FrontendLog
     Write-Status "Stopping frontend on port $FrontendPort..."
+    Write-LogMessage -LogFile $logFile -Message "========== Frontend Server Stopping =========="
     Stop-ProcessByPort -Port $FrontendPort
+    Write-LogMessage -LogFile $logFile -Message "Frontend stopped"
 }
 
 function Start-Backend {
@@ -96,9 +137,15 @@ function Start-Backend {
         return
     }
 
+    $logFile = Get-BackendLog
     Write-Status "Starting backend on port $BackendPort..."
+    Write-Status "Log file: $logFile"
+
+    Write-LogMessage -LogFile $logFile -Message "========== Backend Server Starting =========="
+
     Push-Location $ProjectRoot
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "python -m app.api.main --mode develop --port $BackendPort" -WindowStyle Normal
+    $command = "python -m app.api.main --mode develop --port $BackendPort *>> `"$logFile`" 2>&1"
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $command -WindowStyle Hidden
     Pop-Location
 
     Start-Sleep -Seconds 5
@@ -107,14 +154,47 @@ function Start-Backend {
         Write-Status "Backend started successfully (PID: $pid)"
         Write-Status "URL: http://localhost:$BackendPort"
         Write-Status "Docs: http://localhost:$BackendPort/docs"
+        Write-LogMessage -LogFile $logFile -Message "Backend started successfully (PID: $pid)"
     } else {
         Write-Err "Failed to start backend"
+        Write-LogMessage -LogFile $logFile -Message "ERROR: Failed to start backend"
     }
 }
 
 function Stop-Backend {
+    $logFile = Get-BackendLog
     Write-Status "Stopping backend on port $BackendPort..."
+    Write-LogMessage -LogFile $logFile -Message "========== Backend Server Stopping =========="
     Stop-ProcessByPort -Port $BackendPort
+    Write-LogMessage -LogFile $logFile -Message "Backend stopped"
+}
+
+function Show-Logs {
+    param(
+        [string]$LogTarget,
+        [int]$TailLines = 50
+    )
+
+    switch ($LogTarget) {
+        "frontend" {
+            $logFile = Get-FrontendLog
+            if (Test-Path $logFile) {
+                Write-Status "Showing last $TailLines lines of $logFile"
+                Get-Content $logFile -Tail $TailLines
+            } else {
+                Write-Warn "Log file not found: $logFile"
+            }
+        }
+        "backend" {
+            $logFile = Get-BackendLog
+            if (Test-Path $logFile) {
+                Write-Status "Showing last $TailLines lines of $logFile"
+                Get-Content $logFile -Tail $TailLines
+            } else {
+                Write-Warn "Log file not found: $logFile"
+            }
+        }
+    }
 }
 
 function Show-Status {
@@ -140,11 +220,16 @@ function Show-Status {
         Write-Host "Backend  (port $BackendPort): " -NoNewline
         Write-Host "Stopped" -ForegroundColor Red
     }
+
+    Write-Host ""
+    Write-Host "=== Log Files ===" -ForegroundColor Cyan
+    Write-Host "Frontend: $(Get-FrontendLog)"
+    Write-Host "Backend:  $(Get-BackendLog)"
     Write-Host ""
 }
 
 function Show-Usage {
-    Write-Host "Usage: .\server.ps1 [target] [action]"
+    Write-Host "Usage: .\server.ps1 [target] [action] [lines]"
     Write-Host ""
     Write-Host "Targets:"
     Write-Host "  frontend    - Frontend server (port $FrontendPort)"
@@ -156,12 +241,18 @@ function Show-Usage {
     Write-Host "  stop        - Stop server(s)"
     Write-Host "  restart     - Restart server(s)"
     Write-Host "  status      - Show server status"
+    Write-Host "  logs [N]    - Show last N lines of log (default: 50)"
+    Write-Host ""
+    Write-Host "Log files are saved to: $LogDir"
+    Write-Host "  - frontend_YYYYMMDD.log"
+    Write-Host "  - backend_YYYYMMDD.log"
     Write-Host ""
     Write-Host "Examples:"
     Write-Host "  .\server.ps1 frontend start     # Start frontend only"
     Write-Host "  .\server.ps1 backend restart    # Restart backend only"
     Write-Host "  .\server.ps1 all stop           # Stop all servers"
     Write-Host "  .\server.ps1 status             # Show status of all servers"
+    Write-Host "  .\server.ps1 frontend logs 100  # Show last 100 lines of frontend log"
 }
 
 # Handle status command without action
@@ -175,6 +266,8 @@ if (-not $Target -or -not $Action) {
     exit 1
 }
 
+$showFinalStatus = $true
+
 switch ($Target) {
     "frontend" {
         switch ($Action) {
@@ -186,6 +279,10 @@ switch ($Target) {
                 Start-Frontend
             }
             "status" { Show-Status }
+            "logs" {
+                Show-Logs -LogTarget "frontend" -TailLines $Lines
+                $showFinalStatus = $false
+            }
         }
     }
     "backend" {
@@ -198,6 +295,10 @@ switch ($Target) {
                 Start-Backend
             }
             "status" { Show-Status }
+            "logs" {
+                Show-Logs -LogTarget "backend" -TailLines $Lines
+                $showFinalStatus = $false
+            }
         }
     }
     "all" {
@@ -222,4 +323,6 @@ switch ($Target) {
     }
 }
 
-Show-Status
+if ($showFinalStatus) {
+    Show-Status
+}
