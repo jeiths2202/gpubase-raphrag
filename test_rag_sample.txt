@@ -1,0 +1,69 @@
+# TmaxSoft 제품 기술 문서
+
+## 1. Tibero Database
+
+### 개요
+Tibero는 TmaxSoft에서 개발한 엔터프라이즈급 관계형 데이터베이스 관리 시스템(RDBMS)입니다.
+Oracle과 높은 호환성을 제공하며, 대용량 트랜잭션 처리에 최적화되어 있습니다.
+
+### 주요 기능
+- TAC (Tibero Active Cluster): 고가용성 클러스터링
+- TSC (Tibero Standby Cluster): 재해복구 솔루션
+- TPM (Tibero Parallel Manager): 병렬 처리 관리
+- 최대 지원 용량: 8 Exabytes
+
+### 기술 사양
+- 지원 OS: Linux, AIX, HP-UX, Solaris, Windows
+- 최대 인스턴스: 128개
+- 최대 세션: 65,535개
+- 기본 포트: 8629
+
+## 2. JEUS (Java Enterprise User Solution)
+
+### 개요
+JEUS는 Java EE 표준을 준수하는 웹 애플리케이션 서버입니다.
+Jakarta EE 9/10을 지원하며, 클라우드 네이티브 환경에 최적화되어 있습니다.
+
+### 주요 기능
+- 세션 클러스터링
+- 동적 배포 (Hot Deploy)
+- 컨테이너 관리형 트랜잭션
+- 마이크로서비스 아키텍처 지원
+
+### 기술 사양
+- Java 버전: JDK 11, 17, 21 지원
+- 관리 포트: 9736
+- HTTP 기본 포트: 8080
+- 최대 쓰레드 풀: 500개
+
+## 3. Tmax WebtoB
+
+### 개요
+WebtoB는 고성능 웹 서버로, JEUS와 연동하여 엔터프라이즈 웹 환경을 구성합니다.
+
+### 주요 기능
+- 리버스 프록시
+- 로드 밸런싱
+- SSL/TLS 오프로딩
+- 정적 콘텐츠 캐싱
+
+### 기술 사양
+- 기본 HTTP 포트: 80
+- 기본 HTTPS 포트: 443
+- 최대 동시 연결: 100,000개
+- 초당 요청 처리: 50,000 TPS
+
+## 4. 라이선스 정보
+
+| 제품 | 라이선스 모델 | 갱신 주기 |
+|------|-------------|----------|
+| Tibero | CPU 기반 | 연간 |
+| JEUS | 인스턴스 기반 | 연간 |
+| WebtoB | 코어 기반 | 연간 |
+
+## 5. 기술 지원
+
+- 기술 지원 전화: 1588-5525
+- 이메일: support@tmaxsoft.com
+- 기술 지원 포털: https://technet.tmaxsoft.com
+- 운영 시간: 평일 09:00 ~ 18:00 (KST)
