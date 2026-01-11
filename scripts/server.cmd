@@ -132,7 +132,7 @@ echo [INFO] Log file: %FRONTEND_LOG%
 call :log_message "%FRONTEND_LOG%" "========== Frontend Server Starting =========="
 
 cd /d "%FRONTEND_DIR%"
-start "KMS Frontend" cmd /c "npm run dev -- --port %FRONTEND_PORT% >> "%FRONTEND_LOG%" 2>&1"
+start "KMS Frontend" cmd /c "npm run dev -- --port %FRONTEND_PORT% >> ^"%FRONTEND_LOG%^" 2>&1"
 timeout /t 3 /nobreak >nul
 
 call :get_pid_by_port %FRONTEND_PORT%
@@ -165,7 +165,7 @@ echo [INFO] Log file: %BACKEND_LOG%
 call :log_message "%BACKEND_LOG%" "========== Backend Server Starting =========="
 
 cd /d "%PROJECT_ROOT%"
-start "KMS Backend" cmd /c "python -m app.api.main --mode develop --port %BACKEND_PORT% >> "%BACKEND_LOG%" 2>&1"
+start "KMS Backend" cmd /c "python -m app.api.main --mode develop --port %BACKEND_PORT% >> ^"%BACKEND_LOG%^" 2>&1"
 timeout /t 5 /nobreak >nul
 
 call :get_pid_by_port %BACKEND_PORT%
