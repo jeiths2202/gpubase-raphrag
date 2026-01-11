@@ -105,15 +105,21 @@ class AuthManager:
             with httpx.Client(timeout=30.0) as client:
                 response = client.post(
                     url,
-                    data={
+                    json={
                         "username": username,
                         "password": password,
                     },
-                    headers={"Content-Type": "application/x-www-form-urlencoded"}
+                    headers={"Content-Type": "application/json"}
                 )
 
                 if response.status_code == 200:
-                    data = response.json()
+                    response_data = response.json()
+                    # Handle wrapped response: {"success": true, "data": {...}}
+                    if response_data.get("success") and "data" in response_data:
+                        data = response_data["data"]
+                    else:
+                        data = response_data
+
                     self.access_token = data.get("access_token")
                     self.refresh_token_value = data.get("refresh_token")
 

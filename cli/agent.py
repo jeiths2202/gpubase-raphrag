@@ -41,12 +41,14 @@ from cli.config import Config
 class AgentClient:
     """CLI client for KMS AI Agent API"""
 
+    # Valid agent types from backend (no "auto" - omit agent_type for auto-selection)
     AGENT_TYPES = ["auto", "ims", "rag", "vision", "code", "planner"]
+    VALID_API_TYPES = ["ims", "rag", "vision", "code", "planner"]
 
     def __init__(self, config: Config, auth: AuthManager):
         self.config = config
         self.auth = auth
-        self.conversation_id: Optional[str] = None
+        self.session_id: Optional[str] = None
         self.current_agent: str = "auto"
 
     def stream_query(self, query: str, agent_type: Optional[str] = None) -> Generator[dict, None, None]:
@@ -61,12 +63,15 @@ class AgentClient:
 
         payload = {
             "task": query,
-            "agent_type": agent,
             "language": self.config.language
         }
 
-        if self.conversation_id:
-            payload["conversation_id"] = self.conversation_id
+        # Only include agent_type if it's a valid API type (not "auto")
+        if agent in self.VALID_API_TYPES:
+            payload["agent_type"] = agent
+
+        if self.session_id:
+            payload["session_id"] = self.session_id
 
         try:
             with httpx.Client(timeout=120.0) as client:
@@ -105,8 +110,9 @@ class AgentClient:
         current_type = None
 
         for chunk in self.stream_query(query, agent_type):
-            chunk_type = chunk.get("type", "")
-            content = chunk.get("content", "")
+            # API uses "chunk_type" field
+            chunk_type = chunk.get("chunk_type", "")
+            content = chunk.get("content", "") or ""
 
             if chunk_type == "thinking":
                 if current_type != "thinking":
@@ -122,16 +128,18 @@ class AgentClient:
                 print_info(f"Tool result received ({len(content)} chars)")
                 current_type = "tool_result"
 
-            elif chunk_type == "content":
+            elif chunk_type in ("content", "text"):
                 if current_type != "content":
-                    print()  # New line before content
+                    clear_line()  # Clear thinking indicator
                     current_type = "content"
                 print_agent_response(content, end="")
                 full_response += content
 
             elif chunk_type == "done":
-                if chunk.get("conversation_id"):
-                    self.conversation_id = chunk["conversation_id"]
+                # Extract session_id from metadata if available
+                metadata = chunk.get("metadata", {})
+                if metadata and metadata.get("session_id"):
+                    self.session_id = metadata["session_id"]
                 print()  # Final newline
 
             elif chunk_type == "error":
@@ -151,7 +159,7 @@ class AgentClient:
 
     def new_conversation(self):
         """Start a new conversation"""
-        self.conversation_id = None
+        self.session_id = None
         print_success("New conversation started")
 
 
@@ -192,7 +200,7 @@ class CLI:
         print(f"  Agent:        {self.client.current_agent}")
         print(f"  Language:     {self.config.language}")
         print(f"  Logged in:    {'Yes' if self.auth.is_authenticated() else 'No'}")
-        print(f"  Conversation: {self.client.conversation_id or 'None'}")
+        print(f"  Conversation: {self.client.session_id or 'None'}")
         print()
 
     def handle_command(self, cmd: str) -> bool:
@@ -230,11 +238,20 @@ class CLI:
 
         return True
 
-    def login(self) -> bool:
+    def login(self, interactive: bool = True) -> bool:
         """Handle login flow"""
         if self.auth.is_authenticated():
             if self.auth.refresh_token():
                 print_success("Session restored")
+                return True
+
+        # Check environment variables first
+        env_user = os.environ.get("KMS_USERNAME")
+        env_pass = os.environ.get("KMS_PASSWORD")
+        if env_user and env_pass:
+            print_info("Using credentials from environment...")
+            if self.auth.login(env_user, env_pass):
+                print_success(f"Logged in as {env_user}")
                 return True
 
         print(f"\n{Colors.CYAN}=== Login ==={Colors.RESET}")
@@ -242,9 +259,14 @@ class CLI:
         # Try default admin credentials first for development
         if self.config.is_dev_mode():
             print_info("Development mode: trying default credentials...")
-            if self.auth.login("admin", "admin123"):
+            if self.auth.login("admin", "SecureAdm1nP@ss2024!"):
                 print_success("Logged in as admin")
                 return True
+
+        # Non-interactive mode - cannot prompt for credentials
+        if not interactive:
+            print_error("Authentication required. Set KMS_USERNAME and KMS_PASSWORD environment variables.")
+            return False
 
         # Manual login
         for attempt in range(3):
@@ -300,8 +322,8 @@ class CLI:
                 break
 
     def run_single_query(self, query: str, agent_type: Optional[str] = None):
-        """Run single query mode"""
-        if not self.login():
+        """Run single query mode (non-interactive)"""
+        if not self.login(interactive=False):
             return
 
         if agent_type:

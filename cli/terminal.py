@@ -6,6 +6,16 @@ Provides colored output and formatting for terminal display.
 
 import sys
 import os
+import io
+
+# Configure stdout/stderr for UTF-8 on Windows
+if sys.platform == "win32":
+    # Try to set UTF-8 mode
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass  # Fallback to default encoding
 
 
 class Colors:
@@ -103,12 +113,12 @@ AGENT_COLORS = {
 def print_banner():
     """Print CLI banner"""
     banner = f"""
-{Colors.CYAN}╔══════════════════════════════════════════════════════════╗
-║                                                          ║
-║   {Colors.BRIGHT_CYAN}KMS AI Agent CLI{Colors.CYAN}                                      ║
-║   {Colors.DIM}HybridRAG Knowledge Management System{Colors.RESET}{Colors.CYAN}                ║
-║                                                          ║
-╚══════════════════════════════════════════════════════════╝{Colors.RESET}
+{Colors.CYAN}+----------------------------------------------------------+
+|                                                          |
+|   {Colors.BRIGHT_CYAN}KMS AI Agent CLI{Colors.CYAN}                                      |
+|   {Colors.DIM}HybridRAG Knowledge Management System{Colors.RESET}{Colors.CYAN}                |
+|                                                          |
++----------------------------------------------------------+{Colors.RESET}
 """
     print(banner)
 
@@ -126,33 +136,33 @@ def print_prompt(agent_type: str = "auto") -> str:
 
 def print_info(message: str):
     """Print info message"""
-    print(f"{Colors.BLUE}ℹ{Colors.RESET} {message}")
+    print(f"{Colors.BLUE}[i]{Colors.RESET} {message}")
 
 
 def print_success(message: str):
     """Print success message"""
-    print(f"{Colors.GREEN}✓{Colors.RESET} {message}")
+    print(f"{Colors.GREEN}[+]{Colors.RESET} {message}")
 
 
 def print_warning(message: str):
     """Print warning message"""
-    print(f"{Colors.YELLOW}⚠{Colors.RESET} {message}")
+    print(f"{Colors.YELLOW}[!]{Colors.RESET} {message}")
 
 
 def print_error(message: str):
     """Print error message"""
-    print(f"{Colors.RED}✗{Colors.RESET} {message}")
+    print(f"{Colors.RED}[x]{Colors.RESET} {message}")
 
 
 def print_thinking(message: str = "Thinking..."):
     """Print thinking indicator"""
-    print(f"{Colors.DIM}💭 {message}{Colors.RESET}", end="\r")
+    print(f"{Colors.DIM}[...] {message}{Colors.RESET}", end="\r")
 
 
 def print_tool_call(tool_name: str, description: str = ""):
     """Print tool call indicator"""
     desc = f" - {description}" if description else ""
-    print(f"{Colors.MAGENTA}🔧 [{tool_name}]{Colors.RESET}{Colors.DIM}{desc}{Colors.RESET}")
+    print(f"{Colors.MAGENTA}[tool] [{tool_name}]{Colors.RESET}{Colors.DIM}{desc}{Colors.RESET}")
 
 
 def print_agent_response(text: str, end: str = "\n"):
@@ -163,7 +173,12 @@ def print_agent_response(text: str, end: str = "\n"):
     # Bold: **text** or __text__
     # We'll keep it simple for terminal
 
-    print(f"{Colors.WHITE}{formatted}{Colors.RESET}", end=end, flush=True)
+    try:
+        print(f"{Colors.WHITE}{formatted}{Colors.RESET}", end=end, flush=True)
+    except UnicodeEncodeError:
+        # Fallback for terminals that can't display Unicode
+        safe_text = formatted.encode('ascii', 'replace').decode('ascii')
+        print(f"{Colors.WHITE}{safe_text}{Colors.RESET}", end=end, flush=True)
 
 
 def clear_line():
@@ -212,9 +227,9 @@ def print_markdown_simple(text: str):
             print(f"{Colors.DIM}{line}{Colors.RESET}")
         # Lists
         elif line.startswith("- ") or line.startswith("* "):
-            print(f"  {Colors.YELLOW}•{Colors.RESET} {line[2:]}")
+            print(f"  {Colors.YELLOW}*{Colors.RESET} {line[2:]}")
         elif line.startswith("  - ") or line.startswith("  * "):
-            print(f"    {Colors.DIM}◦{Colors.RESET} {line[4:]}")
+            print(f"    {Colors.DIM}-{Colors.RESET} {line[4:]}")
         # Normal text
         else:
             print(line)
