@@ -106,7 +106,7 @@ function Start-Frontend {
     Write-LogMessage -LogFile $logFile -Message "========== Frontend Server Starting =========="
 
     Push-Location $FrontendDir
-    $command = "npm run dev -- --port $FrontendPort *>> `"$logFile`" 2>&1"
+    $command = "npm run dev -- --port $FrontendPort >> `"$logFile`" 2>&1"
     Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $command -WindowStyle Hidden
     Pop-Location
 
@@ -144,7 +144,7 @@ function Start-Backend {
     Write-LogMessage -LogFile $logFile -Message "========== Backend Server Starting =========="
 
     Push-Location $ProjectRoot
-    $command = "python -m app.api.main --mode develop --port $BackendPort *>> `"$logFile`" 2>&1"
+    $command = "python -m app.api.main --mode develop --port $BackendPort >> `"$logFile`" 2>&1"
     Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $command -WindowStyle Hidden
     Pop-Location
 
