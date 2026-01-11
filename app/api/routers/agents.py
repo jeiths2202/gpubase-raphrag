@@ -5,7 +5,8 @@ Provides endpoints for agent execution.
 from typing import Optional, List
 import logging
 import json
-from fastapi import APIRouter, Depends, HTTPException, status
+import io
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -213,3 +214,140 @@ async def agent_health():
             "status": "unhealthy",
             "error": str(e)
         }
+
+
+class ExtractTextResponse(BaseModel):
+    """Response for file text extraction"""
+    filename: str
+    content: str
+    size: int
+    file_type: str
+
+
+@router.post("/extract-text", response_model=ExtractTextResponse)
+async def extract_text_from_file(
+    file: UploadFile = File(..., description="PDF or DOCX file to extract text from"),
+    current_user: dict = Depends(get_current_user)
+) -> ExtractTextResponse:
+    """
+    Extract text from PDF or DOCX files for RAG context.
+
+    This endpoint is used by the WebUI to support PDF/DOCX file attachments.
+    The extracted text can be used as file_context in agent requests.
+
+    Args:
+        file: Uploaded PDF or DOCX file (max 2MB)
+        current_user: Authenticated user
+
+    Returns:
+        ExtractTextResponse with extracted text content
+    """
+    # Check file extension
+    filename = file.filename or "unknown"
+    ext = filename.lower().split(".")[-1] if "." in filename else ""
+
+    if ext not in ("pdf", "docx"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "INVALID_FILE_TYPE", "message": f"Only PDF and DOCX files are supported. Got: .{ext}"}
+        )
+
+    # Read file content
+    try:
+        content_bytes = await file.read()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "FILE_READ_ERROR", "message": str(e)}
+        )
+
+    # Check file size (2MB limit)
+    max_size = 2 * 1024 * 1024
+    if len(content_bytes) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "FILE_TOO_LARGE", "message": f"File too large: {len(content_bytes):,} bytes (max 2MB)"}
+        )
+
+    # Extract text based on file type
+    try:
+        if ext == "pdf":
+            text_content = _extract_pdf_text(content_bytes)
+        else:  # docx
+            text_content = _extract_docx_text(content_bytes)
+    except ImportError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "MISSING_DEPENDENCY", "message": str(e)}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "EXTRACTION_ERROR", "message": f"Failed to extract text: {e}"}
+        )
+
+    # Check extracted text size (500KB limit)
+    max_text_size = 500 * 1024
+    if len(text_content) > max_text_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "CONTENT_TOO_LARGE", "message": f"Extracted content too large: {len(text_content):,} chars (max 500KB)"}
+        )
+
+    return ExtractTextResponse(
+        filename=filename,
+        content=text_content,
+        size=len(text_content),
+        file_type=ext
+    )
+
+
+def _extract_pdf_text(content_bytes: bytes) -> str:
+    """Extract text from PDF bytes using pypdf"""
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        try:
+            from PyPDF2 import PdfReader
+        except ImportError:
+            raise ImportError("PDF support requires 'pypdf' or 'PyPDF2'. Install with: pip install pypdf")
+
+    text_parts = []
+    reader = PdfReader(io.BytesIO(content_bytes))
+
+    for i, page in enumerate(reader.pages):
+        page_text = page.extract_text()
+        if page_text:
+            text_parts.append(f"[Page {i + 1}]\n{page_text}")
+
+    if not text_parts:
+        raise ValueError("Could not extract text from PDF (may be image-based)")
+
+    return "\n\n".join(text_parts)
+
+
+def _extract_docx_text(content_bytes: bytes) -> str:
+    """Extract text from DOCX bytes using python-docx"""
+    try:
+        from docx import Document
+    except ImportError:
+        raise ImportError("DOCX support requires 'python-docx'. Install with: pip install python-docx")
+
+    doc = Document(io.BytesIO(content_bytes))
+    text_parts = []
+
+    for para in doc.paragraphs:
+        if para.text.strip():
+            text_parts.append(para.text)
+
+    # Also extract text from tables
+    for table in doc.tables:
+        for row in table.rows:
+            row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+            if row_text:
+                text_parts.append(row_text)
+
+    if not text_parts:
+        raise ValueError("Could not extract text from DOCX")
+
+    return "\n".join(text_parts)

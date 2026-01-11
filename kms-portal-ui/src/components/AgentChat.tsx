@@ -85,9 +85,11 @@ interface AttachedFile {
 }
 
 // Supported file extensions for attachment
-// Note: PDF/DOCX are CLI-only (require server-side text extraction)
-const SUPPORTED_EXTENSIONS = ['.txt', '.md', '.py', '.js', '.ts', '.json', '.yaml', '.yml', '.xml', '.csv', '.log', '.sql', '.sh', '.bat', '.html', '.css'];
-const MAX_FILE_SIZE = 500 * 1024; // 500KB
+const TEXT_EXTENSIONS = ['.txt', '.md', '.py', '.js', '.ts', '.json', '.yaml', '.yml', '.xml', '.csv', '.log', '.sql', '.sh', '.bat', '.html', '.css'];
+const BINARY_EXTENSIONS = ['.pdf', '.docx'];  // Require server-side extraction
+const SUPPORTED_EXTENSIONS = [...TEXT_EXTENSIONS, ...BINARY_EXTENSIONS];
+const MAX_TEXT_FILE_SIZE = 500 * 1024; // 500KB for text files
+const MAX_BINARY_FILE_SIZE = 2 * 1024 * 1024; // 2MB for PDF/DOCX
 
 // Agent type configuration
 const AGENT_CONFIGS: Record<AgentType, { icon: React.ElementType; label: string; description: string }> = {
@@ -381,9 +383,13 @@ export const AgentChat: React.FC = () => {
         continue;
       }
 
-      // Check size
-      if (file.size > MAX_FILE_SIZE) {
-        setFileError(`File too large: ${file.name} (max 500KB)`);
+      // Check size based on file type
+      const isBinaryFile = BINARY_EXTENSIONS.includes(ext);
+      const maxSize = isBinaryFile ? MAX_BINARY_FILE_SIZE : MAX_TEXT_FILE_SIZE;
+      const maxSizeLabel = isBinaryFile ? '2MB' : '500KB';
+
+      if (file.size > maxSize) {
+        setFileError(`File too large: ${file.name} (max ${maxSizeLabel})`);
         continue;
       }
 
@@ -393,22 +399,46 @@ export const AgentChat: React.FC = () => {
         continue;
       }
 
-      // Read file content
+      // Handle file based on type
       try {
-        const content = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsText(file);
-        });
+        let content: string;
+
+        if (isBinaryFile) {
+          // PDF/DOCX: Send to server for text extraction
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const response = await fetch('/api/v1/agents/extract-text', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include',
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail?.message || 'Failed to extract text');
+          }
+
+          const result = await response.json();
+          content = result.content;
+        } else {
+          // Text files: Read directly
+          content = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsText(file);
+          });
+        }
 
         setAttachedFiles(prev => [...prev, {
           name: file.name,
           content,
-          size: file.size
+          size: content.length  // Use extracted content size
         }]);
       } catch (error) {
-        setFileError(`Failed to read file: ${file.name}`);
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        setFileError(`Failed to process file ${file.name}: ${errorMsg}`);
       }
     }
 
