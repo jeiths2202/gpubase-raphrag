@@ -207,7 +207,7 @@ class AuthManager:
         if not httpx or not self.access_token:
             return False, None
 
-        url = f"{self.config.api_url}/ims-crawler/ims-credentials/"
+        url = f"{self.config.api_url}/api/v1/ims-credentials/"
 
         try:
             with httpx.Client(timeout=30.0) as client:
@@ -247,7 +247,7 @@ class AuthManager:
         if not httpx or not self.access_token:
             return False, "Not authenticated"
 
-        url = f"{self.config.api_url}/ims-crawler/ims-credentials/"
+        url = f"{self.config.api_url}/api/v1/ims-credentials/"
 
         try:
             with httpx.Client(timeout=60.0) as client:
@@ -291,7 +291,7 @@ class AuthManager:
         if not httpx or not self.access_token:
             return False, "Not authenticated"
 
-        url = f"{self.config.api_url}/ims-crawler/ims-credentials/validate"
+        url = f"{self.config.api_url}/api/v1/ims-credentials/validate"
 
         try:
             with httpx.Client(timeout=120.0) as client:
@@ -330,7 +330,7 @@ class AuthManager:
         if not httpx or not self.access_token:
             return False, "Not authenticated"
 
-        url = f"{self.config.api_url}/ims-crawler/ims-credentials/"
+        url = f"{self.config.api_url}/api/v1/ims-credentials/"
 
         try:
             with httpx.Client(timeout=30.0) as client:
