@@ -652,6 +652,39 @@ class EnterpriseUI:
             for i, (filename, content) in enumerate(files.items(), 1):
                 self.console.print(f"  {i}. {filename} ({len(content):,} bytes)")
 
+    def print_attached_urls(self, urls: Dict[str, dict]):
+        """Print list of attached URLs"""
+        if not urls:
+            self.print_info("No URLs attached. Use /url <url> to attach URLs.")
+            return
+
+        if self.rich_mode:
+            table = Table(show_header=True, box=self.box_style, header_style="bold")
+            table.add_column("#", style="dim", width=3)
+            table.add_column("Title", style="cyan", max_width=40)
+            table.add_column("Size", style="green", justify="right")
+            table.add_column("URL", style="dim", max_width=50)
+
+            for i, (url, info) in enumerate(urls.items(), 1):
+                title = info.get("title", "Untitled")[:40]
+                size = f"{info.get('char_count', 0):,} chars"
+                url_display = url[:50] + "..." if len(url) > 50 else url
+                table.add_row(str(i), title, size, url_display)
+
+            self.console.print(Panel(
+                table,
+                title=f"[bold]Attached URLs ({len(urls)})[/bold]",
+                border_style="blue",
+                box=self.box_style
+            ))
+        else:
+            self.console.print(f"\n=== Attached URLs ({len(urls)}) ===")
+            for i, (url, info) in enumerate(urls.items(), 1):
+                title = info.get("title", "Untitled")
+                size = info.get("char_count", 0)
+                self.console.print(f"  {i}. {title} ({size:,} chars)")
+                self.console.print(f"     {url}")
+
     def print_llm_status(self, llm_data: Dict[str, Any], current_agent: str):
         """Print LLM status panel"""
         if not llm_data:

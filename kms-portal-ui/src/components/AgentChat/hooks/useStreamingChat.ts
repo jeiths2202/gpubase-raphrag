@@ -279,11 +279,15 @@ export function useStreamingChat(
       // Build request payload
       const fileContext = getFileContext();
       const urlContext = getUrlContext();
+      // Combine file and URL contexts into file_context
+      // (url_context field is for URLs that backend will fetch, but we already have content)
+      const combinedContext = [fileContext, urlContext].filter(Boolean).join('\n\n') || undefined;
+
       // Cast language to supported type (validated by UI)
       const language = userLanguage as SupportedLanguage;
       const requestPayload = requestingAgent === 'auto'
-        ? { task: userMessage.content, language, file_context: fileContext, url_context: urlContext }
-        : { task: userMessage.content, agent_type: requestingAgent, language, file_context: fileContext, url_context: urlContext };
+        ? { task: userMessage.content, language, file_context: combinedContext }
+        : { task: userMessage.content, agent_type: requestingAgent, language, file_context: combinedContext };
 
       // Process stream
       for await (const chunk of streamAgent(requestPayload, controller.signal)) {

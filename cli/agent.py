@@ -55,6 +55,7 @@ class AgentClient:
         self.session_id: Optional[str] = None
         self.current_agent: str = "auto"
         self.attached_files: Dict[str, str] = {}  # filename -> content
+        self.attached_urls: Dict[str, dict] = {}  # url -> {title, content, char_count}
 
     def attach_file(self, file_path: str) -> tuple[bool, str]:
         """Attach a file for RAG context (text, PDF, DOCX)"""
@@ -171,6 +172,84 @@ class AgentClient:
             return True, f"Detached: {filename}"
         return False, f"File not attached: {filename}"
 
+    def attach_url(self, url: str) -> tuple[bool, str]:
+        """Fetch and attach URL content for RAG context"""
+        import re
+
+        # Validate URL format
+        url_pattern = re.compile(r'^https?://[^\s<>"{}|\\^`[\]]+$')
+        if not url_pattern.match(url):
+            return False, f"Invalid URL format: {url}"
+
+        # Check if already attached
+        if url in self.attached_urls:
+            return False, f"URL already attached: {url}"
+
+        try:
+            # Fetch URL content via API
+            headers = self.auth.get_headers()
+            if not headers:
+                return False, "Not authenticated"
+
+            with httpx.Client(timeout=30.0) as client:
+                response = client.post(
+                    f"{self.config.api_url}/agents/fetch-url",
+                    json={"url": url},
+                    headers=headers
+                )
+
+                if response.status_code == 200:
+                    data = response.json()
+                    content = data.get("content", "")
+                    title = data.get("title", url)
+                    char_count = len(content)
+
+                    if char_count == 0:
+                        return False, f"No content extracted from URL"
+
+                    self.attached_urls[url] = {
+                        "title": title,
+                        "content": content,
+                        "char_count": char_count
+                    }
+                    return True, f"Attached: {title} ({char_count:,} chars)"
+                else:
+                    error = response.json().get("detail", "Unknown error")
+                    return False, f"Failed to fetch URL: {error}"
+
+        except httpx.TimeoutException:
+            return False, "URL fetch timed out"
+        except Exception as e:
+            return False, f"Error fetching URL: {e}"
+
+    def detach_url(self, url: str) -> tuple[bool, str]:
+        """Detach a URL"""
+        if url in ("*", "clear", "all"):
+            count = len(self.attached_urls)
+            self.attached_urls.clear()
+            return True, f"Detached all {count} URLs"
+
+        if url in self.attached_urls:
+            title = self.attached_urls[url].get("title", url)
+            del self.attached_urls[url]
+            return True, f"Detached: {title}"
+        return False, f"URL not attached: {url}"
+
+    def get_attached_urls_context(self) -> Optional[str]:
+        """Get combined content from attached URLs for context"""
+        if not self.attached_urls:
+            return None
+
+        # Combine all URL contents with headers
+        context_parts = []
+        for url, info in self.attached_urls.items():
+            title = info.get("title", url)
+            content = info.get("content", "")
+            if content:
+                context_parts.append(f"=== URL: {title} ({url}) ===\n{content}\n")
+
+        return "\n".join(context_parts) if context_parts else None
+
     def get_attached_files_context(self) -> Optional[str]:
         """Get combined context from attached files"""
         if not self.attached_files:
@@ -205,8 +284,18 @@ class AgentClient:
 
         # Include attached file context for RAG priority
         file_context = self.get_attached_files_context()
+        url_context = self.get_attached_urls_context()
+
+        # Combine file and URL contexts into file_context
+        # (url_context field is for URL that backend will fetch, but we already have content)
+        combined_context = []
         if file_context:
-            payload["file_context"] = file_context
+            combined_context.append(file_context)
+        if url_context:
+            combined_context.append(url_context)
+
+        if combined_context:
+            payload["file_context"] = "\n\n".join(combined_context)
 
         try:
             with httpx.Client(timeout=float(self.config.timeout)) as client:
@@ -255,10 +344,19 @@ class AgentClient:
         if self.attached_files:
             file_count = len(self.attached_files)
             file_names = ", ".join(self.attached_files.keys())
-            attached_msg = f"📎 Using {file_count} attached file(s): {file_names}"
+            attached_msg = f"Using {file_count} attached file(s): {file_names}"
             if i18n:
                 attached_msg = i18n("using_attached_files", count=file_count, files=file_names)
             self.ui.print_info(attached_msg)
+
+        # Show attached URLs indicator if any
+        if self.attached_urls:
+            url_count = len(self.attached_urls)
+            url_titles = ", ".join(info.get("title", url)[:30] for url, info in self.attached_urls.items())
+            url_msg = f"Using {url_count} attached URL(s): {url_titles}"
+            if i18n:
+                url_msg = i18n("using_attached_urls", count=url_count, urls=url_titles)
+            self.ui.print_info(url_msg)
 
         self.ui.start_thinking("Analyzing your request...")
 
@@ -327,9 +425,11 @@ class AgentClient:
             return False
 
     def new_session(self):
-        """Start a new session"""
+        """Start a new session (clears session, files, and URLs)"""
         self.session_id = None
-        self.ui.print_success("New session started")
+        self.attached_files.clear()
+        self.attached_urls.clear()
+        self.ui.print_success("New session started (attachments cleared)")
 
 
 class CLI:
@@ -342,9 +442,12 @@ class CLI:
         "/attach <file>": "Attach a text file for RAG context",
         "/files": "List attached files",
         "/detach <file|*>": "Detach a file (* for all)",
+        "/url <url>": "Fetch and attach URL for RAG context",
+        "/urls": "List attached URLs",
+        "/detach-url <url|*>": "Detach a URL (* for all)",
         "/ims-login": "Login to IMS system",
         "/ims-logout": "Logout from IMS system",
-        "/new": "Start new session",
+        "/new": "Start new session (clears attachments)",
         "/status": "Show current status",
         "/clear": "Clear screen",
         "/exit": "Exit CLI",
@@ -386,6 +489,10 @@ class CLI:
     def show_attached_files(self):
         """Display list of attached files"""
         self.ui.print_attached_files(self.client.attached_files)
+
+    def show_attached_urls(self):
+        """Display list of attached URLs"""
+        self.ui.print_attached_urls(self.client.attached_urls)
 
     def check_ims_session(self) -> bool:
         """Check IMS session and auto-login if valid"""
@@ -476,6 +583,34 @@ class CLI:
                     self.ui.print_error(message)
             else:
                 self.ui.print_error("Usage: /detach <filename|*>")
+
+        elif command == "/url":
+            if args:
+                arg = args.strip()
+                if arg in ("clear", "*"):
+                    success, message = self.client.detach_url("*")
+                else:
+                    self.ui.print_info(f"Fetching URL: {arg}")
+                    success, message = self.client.attach_url(arg)
+                if success:
+                    self.ui.print_success(message)
+                else:
+                    self.ui.print_error(message)
+            else:
+                self.ui.print_error("Usage: /url <url> or /url clear")
+
+        elif command == "/urls":
+            self.show_attached_urls()
+
+        elif command == "/detach-url":
+            if args:
+                success, message = self.client.detach_url(args.strip())
+                if success:
+                    self.ui.print_success(message)
+                else:
+                    self.ui.print_error(message)
+            else:
+                self.ui.print_error("Usage: /detach-url <url|*>")
 
         elif command == "/ims-login":
             self.handle_ims_login()

@@ -69,7 +69,8 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "formatting_output": "출력데이터 포맷중입니다...",
 
         # File Attachment
-        "using_attached_files": "📎 첨부 파일 {count}개 사용 중: {files}",
+        "using_attached_files": "첨부 파일 {count}개 사용 중: {files}",
+        "using_attached_urls": "첨부 URL {count}개 사용 중: {urls}",
     },
     "en": {
         # Login/Session
@@ -132,7 +133,8 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "formatting_output": "Formatting output data...",
 
         # File Attachment
-        "using_attached_files": "📎 Using {count} attached file(s): {files}",
+        "using_attached_files": "Using {count} attached file(s): {files}",
+        "using_attached_urls": "Using {count} attached URL(s): {urls}",
     },
     "ja": {
         # Login/Session
@@ -195,7 +197,8 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "formatting_output": "出力データをフォーマット中...",
 
         # File Attachment
-        "using_attached_files": "📎 添付ファイル{count}個を使用中: {files}",
+        "using_attached_files": "添付ファイル{count}個を使用中: {files}",
+        "using_attached_urls": "添付URL{count}個を使用中: {urls}",
     }
 }
 

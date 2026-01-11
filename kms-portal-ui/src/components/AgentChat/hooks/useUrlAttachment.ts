@@ -89,13 +89,18 @@ export function useUrlAttachment(): UseUrlAttachmentReturn {
     setAttachedUrls(prev => prev.filter(au => au.url !== url));
   }, []);
 
-  // Get URL context for API request (returns first successful URL)
+  // Get URL context for API request (returns combined content from all successful URLs)
   const getUrlContext = useCallback((): string | undefined => {
     const successfulUrls = attachedUrls.filter(au => au.content && !au.error);
     if (successfulUrls.length === 0) return undefined;
-    // Return the first URL's content (usually we only have one URL at a time)
-    // If multiple URLs, just use the first one as url_context (server-side handles truncation)
-    return successfulUrls[0].url;
+
+    // Combine all URL contents with headers (similar to file attachments)
+    const contextParts = successfulUrls.map(au => {
+      const title = au.title || au.url;
+      return `=== URL: ${title} (${au.url}) ===\n${au.content}`;
+    });
+
+    return contextParts.join('\n\n');
   }, [attachedUrls]);
 
   // Dismiss detected URL (without clearing attached URLs)
