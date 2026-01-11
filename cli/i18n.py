@@ -64,6 +64,12 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "thinking": "분석 중...",
         "processing_results": "결과 처리 중...",
         "tool_result": "도구 결과: {size} 자",
+
+        # Output Formatting
+        "formatting_output": "출력데이터 포맷중입니다...",
+
+        # File Attachment
+        "using_attached_files": "📎 첨부 파일 {count}개 사용 중: {files}",
     },
     "en": {
         # Login/Session
@@ -121,6 +127,12 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "thinking": "Analyzing...",
         "processing_results": "Processing results...",
         "tool_result": "Tool result: {size} chars",
+
+        # Output Formatting
+        "formatting_output": "Formatting output data...",
+
+        # File Attachment
+        "using_attached_files": "📎 Using {count} attached file(s): {files}",
     },
     "ja": {
         # Login/Session
@@ -178,6 +190,12 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "thinking": "分析中...",
         "processing_results": "結果を処理中...",
         "tool_result": "ツール結果：{size}文字",
+
+        # Output Formatting
+        "formatting_output": "出力データをフォーマット中...",
+
+        # File Attachment
+        "using_attached_files": "📎 添付ファイル{count}個を使用中: {files}",
     }
 }
 

@@ -15,7 +15,7 @@ import argparse
 import json
 import os
 import sys
-from typing import Optional, Generator
+from typing import Optional, Generator, Dict
 from pathlib import Path
 
 try:
@@ -41,12 +41,74 @@ class AgentClient:
     AGENT_TYPES = ["auto", "ims", "rag", "vision", "code", "planner"]
     VALID_API_TYPES = ["ims", "rag", "vision", "code", "planner"]
 
+    # Supported file extensions for attachment
+    SUPPORTED_EXTENSIONS = {".txt", ".md", ".py", ".js", ".ts", ".json", ".yaml", ".yml", ".xml", ".csv", ".log", ".sql", ".sh", ".bat", ".html", ".css"}
+
     def __init__(self, config: Config, auth: AuthManager, ui: EnterpriseUI):
         self.config = config
         self.auth = auth
         self.ui = ui
         self.session_id: Optional[str] = None
         self.current_agent: str = "auto"
+        self.attached_files: Dict[str, str] = {}  # filename -> content
+
+    def attach_file(self, file_path: str) -> tuple[bool, str]:
+        """Attach a text file for RAG context"""
+        path = Path(file_path)
+
+        if not path.exists():
+            return False, f"File not found: {file_path}"
+
+        if not path.is_file():
+            return False, f"Not a file: {file_path}"
+
+        ext = path.suffix.lower()
+        if ext not in self.SUPPORTED_EXTENSIONS:
+            return False, f"Unsupported file type: {ext}. Supported: {', '.join(sorted(self.SUPPORTED_EXTENSIONS))}"
+
+        try:
+            # Read file content with encoding detection
+            content = self._read_file_with_encoding(path)
+            if len(content) > 100000:  # 100KB limit
+                return False, f"File too large: {len(content)} bytes (max 100KB)"
+
+            self.attached_files[path.name] = content
+            return True, f"Attached: {path.name} ({len(content)} bytes)"
+        except Exception as e:
+            return False, f"Failed to read file: {e}"
+
+    def _read_file_with_encoding(self, path: Path) -> str:
+        """Read file with encoding detection"""
+        encodings = ['utf-8', 'utf-8-sig', 'cp949', 'euc-kr', 'shift_jis', 'latin-1']
+        for encoding in encodings:
+            try:
+                with open(path, 'r', encoding=encoding) as f:
+                    return f.read()
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+        raise ValueError("Could not decode file with any supported encoding")
+
+    def detach_file(self, filename: str) -> tuple[bool, str]:
+        """Detach a file"""
+        if filename == "*":
+            count = len(self.attached_files)
+            self.attached_files.clear()
+            return True, f"Detached all {count} files"
+
+        if filename in self.attached_files:
+            del self.attached_files[filename]
+            return True, f"Detached: {filename}"
+        return False, f"File not attached: {filename}"
+
+    def get_attached_files_context(self) -> Optional[str]:
+        """Get combined context from attached files"""
+        if not self.attached_files:
+            return None
+
+        context_parts = []
+        for filename, content in self.attached_files.items():
+            context_parts.append(f"=== File: {filename} ===\n{content}\n")
+        return "\n".join(context_parts)
 
     def stream_query(self, query: str, agent_type: Optional[str] = None) -> Generator[dict, None, None]:
         """Send query to agent and stream response"""
@@ -69,6 +131,11 @@ class AgentClient:
 
         if self.session_id:
             payload["session_id"] = self.session_id
+
+        # Include attached file context for RAG priority
+        file_context = self.get_attached_files_context()
+        if file_context:
+            payload["file_context"] = file_context
 
         try:
             with httpx.Client(timeout=float(self.config.timeout)) as client:
@@ -101,11 +168,26 @@ class AgentClient:
         except Exception as e:
             self.ui.print_error(f"Error: {e}")
 
-    def query(self, query: str, agent_type: Optional[str] = None) -> str:
-        """Send query and collect full response"""
+    def query(self, query: str, agent_type: Optional[str] = None, i18n=None) -> str:
+        """Send query and collect full response
+
+        Args:
+            query: User query
+            agent_type: Optional agent type override
+            i18n: Optional i18n instance for localized messages
+        """
         full_response = ""
         current_type = None
         metadata = {}
+
+        # Show attached files indicator if any
+        if self.attached_files:
+            file_count = len(self.attached_files)
+            file_names = ", ".join(self.attached_files.keys())
+            attached_msg = f"📎 Using {file_count} attached file(s): {file_names}"
+            if i18n:
+                attached_msg = i18n("using_attached_files", count=file_count, files=file_names)
+            self.ui.print_info(attached_msg)
 
         self.ui.start_thinking("Analyzing your request...")
 
@@ -134,11 +216,16 @@ class AgentClient:
                 if current_type != "content":
                     self.ui.start_response()
                     current_type = "content"
+                # Accumulate response (no immediate output)
                 self.ui.stream_response(content)
                 full_response += content
 
             elif chunk_type == "done":
-                self.ui.end_response()
+                # Get localized formatting message
+                formatting_msg = "Formatting output data..."
+                if i18n:
+                    formatting_msg = i18n("formatting_output")
+                self.ui.end_response(formatting_message=formatting_msg)
                 # Extract metadata
                 metadata = chunk.get("metadata", {}) or {}
                 if metadata.get("session_id"):
@@ -181,6 +268,9 @@ class CLI:
         "/help": "Show this help message",
         "/agent <type>": "Switch agent (auto, ims, rag, vision, code, planner)",
         "/llm": "Show available LLMs and current model",
+        "/attach <file>": "Attach a text file for RAG context",
+        "/files": "List attached files",
+        "/detach <file|*>": "Detach a file (* for all)",
         "/ims-login": "Login to IMS system",
         "/ims-logout": "Logout from IMS system",
         "/new": "Start new session",
@@ -221,6 +311,10 @@ class CLI:
         """Display available LLMs and current model"""
         llm_data = self.auth.get_llm_status()
         self.ui.print_llm_status(llm_data, self.client.current_agent)
+
+    def show_attached_files(self):
+        """Display list of attached files"""
+        self.ui.print_attached_files(self.client.attached_files)
 
     def check_ims_session(self) -> bool:
         """Check IMS session and auto-login if valid"""
@@ -288,6 +382,29 @@ class CLI:
 
         elif command == "/llm":
             self.show_llm_status()
+
+        elif command == "/attach":
+            if args:
+                success, message = self.client.attach_file(args.strip())
+                if success:
+                    self.ui.print_success(message)
+                else:
+                    self.ui.print_error(message)
+            else:
+                self.ui.print_error("Usage: /attach <file_path>")
+
+        elif command == "/files":
+            self.show_attached_files()
+
+        elif command == "/detach":
+            if args:
+                success, message = self.client.detach_file(args.strip())
+                if success:
+                    self.ui.print_success(message)
+                else:
+                    self.ui.print_error(message)
+            else:
+                self.ui.print_error("Usage: /detach <filename|*>")
 
         elif command == "/ims-login":
             self.handle_ims_login()
@@ -390,7 +507,7 @@ class CLI:
                 if user_input.startswith("/"):
                     self.running = self.handle_command(user_input)
                 else:
-                    self.client.query(user_input)
+                    self.client.query(user_input, i18n=self.i18n)
 
             except KeyboardInterrupt:
                 self.ui.print_info("\nUse /exit to quit or press Ctrl+C again")
@@ -419,7 +536,7 @@ class CLI:
                     self.ui.print_warning(self.i18n("ims_login_required"))
                     return
 
-        self.client.query(query)
+        self.client.query(query, i18n=self.i18n)
 
 
 def main():

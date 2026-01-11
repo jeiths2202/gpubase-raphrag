@@ -409,29 +409,44 @@ class EnterpriseUI:
             self.console.print(f"  {branch} Tool result: {result_size} chars")
 
     def start_response(self):
-        """Start streaming response"""
+        """Start streaming response - accumulate mode (no immediate output)"""
         self.stop_thinking()
         self._current_response = ""
-        if self.rich_mode:
-            self.console.print()
+        self._needs_formatting = False
 
     def stream_response(self, chunk: str):
-        """Stream response chunk"""
+        """Accumulate response chunk (no immediate output)"""
         self._current_response += chunk
-        if self.rich_mode:
-            self.console.print(chunk, end="", markup=False)
-        else:
-            print(chunk, end="", flush=True)
 
-    def end_response(self):
-        """End streaming response and render markdown if needed"""
-        if self.rich_mode:
-            self.console.print()
-            # If response contains markdown table, re-render with proper formatting
-            if self._current_response and self._has_markdown_table(self._current_response):
-                self._render_markdown_response()
+    def end_response(self, formatting_message: str = "Formatting output data..."):
+        """End response accumulation and output with formatting if needed"""
+        if not self._current_response:
+            return
+
+        # Check if formatting is needed (markdown table, code blocks, etc.)
+        needs_formatting = self._needs_output_formatting(self._current_response)
+
+        if needs_formatting:
+            # Show formatting message
+            if self.rich_mode:
+                self.console.print()
+                self.console.print(f"[dim italic]{formatting_message}[/]")
+                self.console.print()
+            else:
+                print()
+                print(formatting_message)
+                print()
+
+            # Output only formatted content
+            self._render_formatted_response()
         else:
-            print()
+            # Output raw response
+            if self.rich_mode:
+                self.console.print()
+                self.console.print(self._current_response)
+            else:
+                print()
+                print(self._current_response)
 
     def _has_markdown_table(self, text: str) -> bool:
         """Check if text contains markdown table"""
@@ -440,23 +455,39 @@ class EnterpriseUI:
         # Need at least 3 lines for a valid table (header, separator, data)
         return len(table_lines) >= 3
 
-    def _render_markdown_response(self):
-        """Re-render the response with proper markdown formatting"""
+    def _has_code_block(self, text: str) -> bool:
+        """Check if text contains code blocks"""
+        return '```' in text
+
+    def _needs_output_formatting(self, text: str) -> bool:
+        """Check if text needs special formatting (markdown table, code blocks, etc.)"""
+        if not text:
+            return False
+        return self._has_markdown_table(text) or self._has_code_block(text)
+
+    def _render_formatted_response(self):
+        """Render the response with proper markdown formatting"""
         if not self._current_response:
             return
 
         try:
-            # Clear the raw output and show formatted version
-            self.console.print()
-            self.console.print(Rule("Formatted Output", style="dim"))
-            self.console.print()
+            if self.rich_mode:
+                # Render markdown with Rich
+                md = Markdown(self._current_response)
+                self.console.print(md)
+            else:
+                # Fallback: just show the raw response
+                print(self._current_response)
+        except Exception:
+            # Fallback: just show the raw response
+            if self.rich_mode:
+                self.console.print(self._current_response)
+            else:
+                print(self._current_response)
 
-            # Render markdown with Rich
-            md = Markdown(self._current_response)
-            self.console.print(md)
-        except Exception as e:
-            # Fallback: just show the raw response (already displayed)
-            pass
+    def _render_markdown_response(self):
+        """Re-render the response with proper markdown formatting (legacy)"""
+        self._render_formatted_response()
 
     def print_response(self, text: str):
         """Print complete response with markdown formatting"""
@@ -589,6 +620,37 @@ class EnterpriseUI:
             self.console.print(info)
         else:
             self.console.print(f"\n  [Session: {session_id[:12]} | Steps: {steps} | Time: {time_ms:.1f}ms]")
+
+    def print_attached_files(self, files: Dict[str, str]):
+        """Print list of attached files"""
+        if not files:
+            self.print_info("No files attached. Use /attach <file_path> to attach files.")
+            return
+
+        if self.rich_mode:
+            table = Table(show_header=True, box=self.box_style, header_style="bold")
+            table.add_column("#", style="dim", width=3)
+            table.add_column("Filename", style="cyan")
+            table.add_column("Size", style="green", justify="right")
+            table.add_column("Preview", style="dim", max_width=40)
+
+            for i, (filename, content) in enumerate(files.items(), 1):
+                size = f"{len(content):,} bytes"
+                preview = content[:50].replace('\n', ' ').strip()
+                if len(content) > 50:
+                    preview += "..."
+                table.add_row(str(i), filename, size, preview)
+
+            self.console.print(Panel(
+                table,
+                title=f"[bold]Attached Files ({len(files)})[/bold]",
+                border_style="cyan",
+                box=self.box_style
+            ))
+        else:
+            self.console.print(f"\n=== Attached Files ({len(files)}) ===")
+            for i, (filename, content) in enumerate(files.items(), 1):
+                self.console.print(f"  {i}. {filename} ({len(content):,} bytes)")
 
     def print_llm_status(self, llm_data: Dict[str, Any], current_agent: str):
         """Print LLM status panel"""
