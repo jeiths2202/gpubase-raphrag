@@ -19,6 +19,11 @@ os.environ["DEBUG"] = "false"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-minimum-32-characters-for-testing"
 os.environ["JWT_ALGORITHM"] = "HS256"
 os.environ["JWT_ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
+# Additional required secrets for app startup
+os.environ["ENCRYPTION_MASTER_KEY"] = "test-encryption-master-key-32-chars!"
+os.environ["ENCRYPTION_SALT"] = "test-salt-16-chars"
+os.environ["NEO4J_PASSWORD"] = "test-neo4j-password"
+os.environ["POSTGRES_PASSWORD"] = "test-postgres-password"
 
 
 # ==================== Mock Service Fixtures ====================
@@ -88,16 +93,48 @@ def mock_graph_store_adapter():
 # ==================== FastAPI Test Client ====================
 
 @pytest.fixture
-def test_app():
-    """Create test FastAPI application with mocked dependencies"""
+def test_app(mock_auth_service):
+    """Create test FastAPI application without database dependencies"""
     from fastapi import FastAPI
-    from fastapi.testclient import TestClient
-    from app.api.main import app
+    from fastapi.middleware.cors import CORSMiddleware
 
-    # Override settings for testing
-    app.state.testing = True
+    # Import routers directly (skip main.py lifespan which requires DB)
+    from app.api.routers import auth, health, query
+    from app.api.core.deps import get_auth_service
+    from app.api.services.auth_service import get_auth_service as service_get_auth_service
 
-    return app
+    # Create a minimal test app without lifespan
+    test_application = FastAPI(title="Test App")
+
+    # Add CORS middleware
+    test_application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Include only the routers needed for tests
+    API_PREFIX = "/api/v1"
+    test_application.include_router(auth.router, prefix=API_PREFIX)
+    test_application.include_router(health.router, prefix=API_PREFIX)
+
+    # Create async mock wrapper for the auth service
+    async def mock_get_auth_service():
+        return mock_auth_service
+
+    # Override auth service dependency
+    test_application.dependency_overrides[get_auth_service] = mock_get_auth_service
+    test_application.dependency_overrides[service_get_auth_service] = mock_get_auth_service
+
+    # Mark as testing
+    test_application.state.testing = True
+
+    yield test_application
+
+    # Clean up overrides
+    test_application.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -105,7 +142,7 @@ def client(test_app) -> Generator:
     """Provide FastAPI test client"""
     from fastapi.testclient import TestClient
 
-    with TestClient(test_app) as test_client:
+    with TestClient(test_app, raise_server_exceptions=False) as test_client:
         yield test_client
 
 

@@ -150,11 +150,11 @@ class TestRegisterRequest:
         request = RegisterRequest(
             user_id="newuser123",
             email="user@example.com",
-            password="securepass123"
+            password="SecurePass123!"
         )
         assert request.user_id == "newuser123"
         assert request.email == "user@example.com"
-        assert request.password == "securepass123"
+        assert request.password == "SecurePass123!"
 
     def test_user_id_min_length(self):
         """Test user_id minimum length"""
@@ -164,7 +164,7 @@ class TestRegisterRequest:
             RegisterRequest(
                 user_id="ab",  # Less than 3 chars
                 email="user@example.com",
-                password="securepass123"
+                password="SecurePass123!"
             )
 
     def test_user_id_pattern(self):
@@ -176,7 +176,7 @@ class TestRegisterRequest:
             RegisterRequest(
                 user_id="user@name",
                 email="user@example.com",
-                password="securepass123"
+                password="SecurePass123!"
             )
 
     def test_valid_user_id_patterns(self):
@@ -189,7 +189,7 @@ class TestRegisterRequest:
             request = RegisterRequest(
                 user_id=user_id,
                 email="user@example.com",
-                password="securepass123"
+                password="SecurePass123!"
             )
             assert request.user_id == user_id
 
@@ -201,7 +201,7 @@ class TestRegisterRequest:
             RegisterRequest(
                 user_id="newuser",
                 email="invalid-email",
-                password="securepass123"
+                password="SecurePass123!"
             )
 
     def test_password_min_length(self):
