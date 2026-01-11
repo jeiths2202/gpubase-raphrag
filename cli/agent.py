@@ -42,7 +42,11 @@ class AgentClient:
     VALID_API_TYPES = ["ims", "rag", "vision", "code", "planner"]
 
     # Supported file extensions for attachment
-    SUPPORTED_EXTENSIONS = {".txt", ".md", ".py", ".js", ".ts", ".json", ".yaml", ".yml", ".xml", ".csv", ".log", ".sql", ".sh", ".bat", ".html", ".css"}
+    SUPPORTED_EXTENSIONS = {".txt", ".md", ".py", ".js", ".ts", ".json", ".yaml", ".yml", ".xml", ".csv", ".log", ".sql", ".sh", ".bat", ".html", ".css", ".pdf", ".docx"}
+
+    # File size limit (500KB for text, 2MB for PDF/DOCX)
+    MAX_TEXT_SIZE = 500 * 1024  # 500KB
+    MAX_BINARY_SIZE = 2 * 1024 * 1024  # 2MB
 
     def __init__(self, config: Config, auth: AuthManager, ui: EnterpriseUI):
         self.config = config
@@ -53,7 +57,7 @@ class AgentClient:
         self.attached_files: Dict[str, str] = {}  # filename -> content
 
     def attach_file(self, file_path: str) -> tuple[bool, str]:
-        """Attach a text file for RAG context"""
+        """Attach a file for RAG context (text, PDF, DOCX)"""
         path = Path(file_path)
 
         if not path.exists():
@@ -67,13 +71,23 @@ class AgentClient:
             return False, f"Unsupported file type: {ext}. Supported: {', '.join(sorted(self.SUPPORTED_EXTENSIONS))}"
 
         try:
-            # Read file content with encoding detection
-            content = self._read_file_with_encoding(path)
-            if len(content) > 100000:  # 100KB limit
-                return False, f"File too large: {len(content)} bytes (max 100KB)"
+            # Check file size first
+            file_size = path.stat().st_size
+            if ext in {".pdf", ".docx"}:
+                if file_size > self.MAX_BINARY_SIZE:
+                    return False, f"File too large: {file_size:,} bytes (max 2MB for PDF/DOCX)"
+                content = self._extract_document_text(path, ext)
+            else:
+                if file_size > self.MAX_TEXT_SIZE:
+                    return False, f"File too large: {file_size:,} bytes (max 500KB)"
+                content = self._read_file_with_encoding(path)
+
+            # Check extracted content size
+            if len(content) > self.MAX_TEXT_SIZE:
+                return False, f"Extracted content too large: {len(content):,} chars (max 500KB)"
 
             self.attached_files[path.name] = content
-            return True, f"Attached: {path.name} ({len(content)} bytes)"
+            return True, f"Attached: {path.name} ({len(content):,} chars)"
         except Exception as e:
             return False, f"Failed to read file: {e}"
 
@@ -87,6 +101,63 @@ class AgentClient:
             except (UnicodeDecodeError, UnicodeError):
                 continue
         raise ValueError("Could not decode file with any supported encoding")
+
+    def _extract_document_text(self, path: Path, ext: str) -> str:
+        """Extract text from PDF or DOCX files"""
+        if ext == ".pdf":
+            return self._extract_pdf_text(path)
+        elif ext == ".docx":
+            return self._extract_docx_text(path)
+        else:
+            raise ValueError(f"Unsupported document type: {ext}")
+
+    def _extract_pdf_text(self, path: Path) -> str:
+        """Extract text from PDF using pypdf"""
+        try:
+            from pypdf import PdfReader
+        except ImportError:
+            try:
+                from PyPDF2 import PdfReader
+            except ImportError:
+                raise ImportError("PDF support requires 'pypdf' or 'PyPDF2'. Install with: pip install pypdf")
+
+        text_parts = []
+        reader = PdfReader(str(path))
+        for i, page in enumerate(reader.pages):
+            page_text = page.extract_text()
+            if page_text:
+                text_parts.append(f"[Page {i + 1}]\n{page_text}")
+
+        if not text_parts:
+            raise ValueError("Could not extract text from PDF (may be image-based)")
+
+        return "\n\n".join(text_parts)
+
+    def _extract_docx_text(self, path: Path) -> str:
+        """Extract text from DOCX using python-docx"""
+        try:
+            from docx import Document
+        except ImportError:
+            raise ImportError("DOCX support requires 'python-docx'. Install with: pip install python-docx")
+
+        doc = Document(str(path))
+        text_parts = []
+
+        for para in doc.paragraphs:
+            if para.text.strip():
+                text_parts.append(para.text)
+
+        # Also extract text from tables
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                if row_text:
+                    text_parts.append(row_text)
+
+        if not text_parts:
+            raise ValueError("Could not extract text from DOCX")
+
+        return "\n".join(text_parts)
 
     def detach_file(self, filename: str) -> tuple[bool, str]:
         """Detach a file"""

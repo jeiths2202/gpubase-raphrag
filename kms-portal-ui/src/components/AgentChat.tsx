@@ -85,8 +85,9 @@ interface AttachedFile {
 }
 
 // Supported file extensions for attachment
+// Note: PDF/DOCX are CLI-only (require server-side text extraction)
 const SUPPORTED_EXTENSIONS = ['.txt', '.md', '.py', '.js', '.ts', '.json', '.yaml', '.yml', '.xml', '.csv', '.log', '.sql', '.sh', '.bat', '.html', '.css'];
-const MAX_FILE_SIZE = 100 * 1024; // 100KB
+const MAX_FILE_SIZE = 500 * 1024; // 500KB
 
 // Agent type configuration
 const AGENT_CONFIGS: Record<AgentType, { icon: React.ElementType; label: string; description: string }> = {
@@ -382,7 +383,7 @@ export const AgentChat: React.FC = () => {
 
       // Check size
       if (file.size > MAX_FILE_SIZE) {
-        setFileError(`File too large: ${file.name} (max 100KB)`);
+        setFileError(`File too large: ${file.name} (max 500KB)`);
         continue;
       }
 
