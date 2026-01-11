@@ -75,11 +75,11 @@ function Get-PidByPort {
 
 function Stop-ProcessByPort {
     param([int]$Port)
-    $pid = Get-PidByPort -Port $Port
-    if ($pid) {
-        Write-Status "Killing process on port $Port (PID: $pid)"
+    $procId = Get-PidByPort -Port $Port
+    if ($procId) {
+        Write-Status "Killing process on port $Port (PID: $procId)"
         try {
-            Stop-Process -Id $pid -Force -ErrorAction Stop
+            Stop-Process -Id $procId -Force -ErrorAction Stop
             Start-Sleep -Seconds 1
             return $true
         } catch {
@@ -93,9 +93,9 @@ function Stop-ProcessByPort {
 }
 
 function Start-Frontend {
-    $pid = Get-PidByPort -Port $FrontendPort
-    if ($pid) {
-        Write-Warn "Frontend already running on port $FrontendPort (PID: $pid)"
+    $procId = Get-PidByPort -Port $FrontendPort
+    if ($procId) {
+        Write-Warn "Frontend already running on port $FrontendPort (PID: $procId)"
         return
     }
 
@@ -111,11 +111,11 @@ function Start-Frontend {
     Pop-Location
 
     Start-Sleep -Seconds 3
-    $pid = Get-PidByPort -Port $FrontendPort
-    if ($pid) {
-        Write-Status "Frontend started successfully (PID: $pid)"
+    $procId = Get-PidByPort -Port $FrontendPort
+    if ($procId) {
+        Write-Status "Frontend started successfully (PID: $procId)"
         Write-Status "URL: http://localhost:$FrontendPort"
-        Write-LogMessage -LogFile $logFile -Message "Frontend started successfully (PID: $pid)"
+        Write-LogMessage -LogFile $logFile -Message "Frontend started successfully (PID: $procId)"
     } else {
         Write-Err "Failed to start frontend"
         Write-LogMessage -LogFile $logFile -Message "ERROR: Failed to start frontend"
@@ -131,9 +131,9 @@ function Stop-Frontend {
 }
 
 function Start-Backend {
-    $pid = Get-PidByPort -Port $BackendPort
-    if ($pid) {
-        Write-Warn "Backend already running on port $BackendPort (PID: $pid)"
+    $procId = Get-PidByPort -Port $BackendPort
+    if ($procId) {
+        Write-Warn "Backend already running on port $BackendPort (PID: $procId)"
         return
     }
 
@@ -149,12 +149,12 @@ function Start-Backend {
     Pop-Location
 
     Start-Sleep -Seconds 5
-    $pid = Get-PidByPort -Port $BackendPort
-    if ($pid) {
-        Write-Status "Backend started successfully (PID: $pid)"
+    $procId = Get-PidByPort -Port $BackendPort
+    if ($procId) {
+        Write-Status "Backend started successfully (PID: $procId)"
         Write-Status "URL: http://localhost:$BackendPort"
         Write-Status "Docs: http://localhost:$BackendPort/docs"
-        Write-LogMessage -LogFile $logFile -Message "Backend started successfully (PID: $pid)"
+        Write-LogMessage -LogFile $logFile -Message "Backend started successfully (PID: $procId)"
     } else {
         Write-Err "Failed to start backend"
         Write-LogMessage -LogFile $logFile -Message "ERROR: Failed to start backend"

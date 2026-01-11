@@ -1,0 +1,382 @@
+#!/usr/bin/env python3
+"""
+Server Management Script for KMS Portal
+Cross-platform server start/stop/restart utility.
+
+Usage:
+    python server [frontend|backend|all] [start|stop|restart|status|logs]
+    python server status
+"""
+
+import argparse
+import os
+import subprocess
+import sys
+import socket
+import time
+import signal
+from pathlib import Path
+from datetime import datetime
+
+# Project paths
+SCRIPT_DIR = Path(__file__).parent.resolve()
+PROJECT_ROOT = SCRIPT_DIR
+FRONTEND_DIR = PROJECT_ROOT / "kms-portal-ui"
+LOG_DIR = PROJECT_ROOT / "logs"
+
+# Ports
+FRONTEND_PORT = 3000
+BACKEND_PORT = 9000
+
+
+def get_date_stamp():
+    return datetime.now().strftime("%Y%m%d")
+
+
+def get_frontend_log():
+    return LOG_DIR / f"frontend_{get_date_stamp()}.log"
+
+
+def get_backend_log():
+    return LOG_DIR / f"backend_{get_date_stamp()}.log"
+
+
+def log_message(log_file: Path, message: str):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] {message}\n")
+    except PermissionError:
+        # File might be locked by the server process
+        pass
+
+
+def print_info(message: str):
+    print(f"\033[92m[INFO]\033[0m {message}")
+
+
+def print_warn(message: str):
+    print(f"\033[93m[WARN]\033[0m {message}")
+
+
+def print_error(message: str):
+    print(f"\033[91m[ERROR]\033[0m {message}")
+
+
+def is_port_in_use(port: int) -> bool:
+    """Check if a port is in use"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('localhost', port)) == 0
+
+
+def get_pid_by_port(port: int):
+    """Get process ID by port number"""
+    try:
+        if sys.platform == "win32":
+            result = subprocess.run(
+                ["netstat", "-ano"],
+                capture_output=True,
+                text=True
+            )
+            for line in result.stdout.split("\n"):
+                if f":{port}" in line and "LISTENING" in line:
+                    parts = line.strip().split()
+                    if parts:
+                        return int(parts[-1])
+        else:
+            result = subprocess.run(
+                ["lsof", "-ti", f":{port}"],
+                capture_output=True,
+                text=True
+            )
+            if result.stdout.strip():
+                return int(result.stdout.strip().split()[0])
+    except Exception:
+        pass
+    return None
+
+
+def kill_process(pid: int) -> bool:
+    """Kill a process by PID"""
+    try:
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                         capture_output=True, check=True)
+        else:
+            os.kill(pid, signal.SIGTERM)
+            time.sleep(1)
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        return True
+    except Exception as e:
+        print_error(f"Failed to kill process {pid}: {e}")
+        return False
+
+
+def stop_by_port(port: int) -> bool:
+    """Stop process listening on a port"""
+    pid = get_pid_by_port(port)
+    if pid:
+        print_info(f"Killing process on port {port} (PID: {pid})")
+        return kill_process(pid)
+    else:
+        print_warn(f"No process found on port {port}")
+        return False
+
+
+def start_frontend():
+    """Start frontend server"""
+    LOG_DIR.mkdir(exist_ok=True)
+
+    if is_port_in_use(FRONTEND_PORT):
+        pid = get_pid_by_port(FRONTEND_PORT)
+        print_warn(f"Frontend already running on port {FRONTEND_PORT} (PID: {pid})")
+        return
+
+    log_file = get_frontend_log()
+    print_info(f"Starting frontend on port {FRONTEND_PORT}...")
+    print_info(f"Log file: {log_file}")
+
+    log_message(log_file, "========== Frontend Server Starting ==========")
+
+    if sys.platform == "win32":
+        # Windows: use CREATE_NO_WINDOW with output redirection
+        CREATE_NO_WINDOW = 0x08000000
+        subprocess.Popen(
+            f'cmd /c "cd /d {FRONTEND_DIR} && npm run dev -- --port {FRONTEND_PORT}" >> "{log_file}" 2>&1',
+            creationflags=CREATE_NO_WINDOW,
+            shell=True
+        )
+    else:
+        # Unix: use nohup
+        with open(log_file, "a") as log:
+            subprocess.Popen(
+                ["npm", "run", "dev", "--", "--port", str(FRONTEND_PORT)],
+                cwd=FRONTEND_DIR,
+                stdout=log,
+                stderr=log,
+                start_new_session=True
+            )
+
+    # Wait and check (frontend takes longer to start)
+    time.sleep(8)
+    if is_port_in_use(FRONTEND_PORT):
+        pid = get_pid_by_port(FRONTEND_PORT)
+        print_info(f"Frontend started successfully (PID: {pid})")
+        print_info(f"URL: http://localhost:{FRONTEND_PORT}")
+        log_message(log_file, f"Frontend started successfully (PID: {pid})")
+    else:
+        print_error("Failed to start frontend")
+        log_message(log_file, "ERROR: Failed to start frontend")
+
+
+def stop_frontend():
+    """Stop frontend server"""
+    log_file = get_frontend_log()
+    print_info(f"Stopping frontend on port {FRONTEND_PORT}...")
+    log_message(log_file, "========== Frontend Server Stopping ==========")
+    stop_by_port(FRONTEND_PORT)
+    log_message(log_file, "Frontend stopped")
+
+
+def start_backend():
+    """Start backend server"""
+    LOG_DIR.mkdir(exist_ok=True)
+
+    if is_port_in_use(BACKEND_PORT):
+        pid = get_pid_by_port(BACKEND_PORT)
+        print_warn(f"Backend already running on port {BACKEND_PORT} (PID: {pid})")
+        return
+
+    log_file = get_backend_log()
+    print_info(f"Starting backend on port {BACKEND_PORT}...")
+    print_info(f"Log file: {log_file}")
+
+    log_message(log_file, "========== Backend Server Starting ==========")
+
+    if sys.platform == "win32":
+        # Windows: use CREATE_NO_WINDOW with output redirection
+        CREATE_NO_WINDOW = 0x08000000
+        subprocess.Popen(
+            f'cmd /c "cd /d {PROJECT_ROOT} && python -m app.api.main --mode develop --port {BACKEND_PORT}" >> "{log_file}" 2>&1',
+            creationflags=CREATE_NO_WINDOW,
+            shell=True
+        )
+    else:
+        # Unix: use nohup
+        with open(log_file, "a") as log:
+            subprocess.Popen(
+                ["python", "-m", "app.api.main", "--mode", "develop", "--port", str(BACKEND_PORT)],
+                cwd=PROJECT_ROOT,
+                stdout=log,
+                stderr=log,
+                start_new_session=True
+            )
+
+    # Wait and check
+    time.sleep(6)
+    if is_port_in_use(BACKEND_PORT):
+        pid = get_pid_by_port(BACKEND_PORT)
+        print_info(f"Backend started successfully (PID: {pid})")
+        print_info(f"URL: http://localhost:{BACKEND_PORT}")
+        print_info(f"Docs: http://localhost:{BACKEND_PORT}/docs")
+        log_message(log_file, f"Backend started successfully (PID: {pid})")
+    else:
+        print_error("Failed to start backend")
+        log_message(log_file, "ERROR: Failed to start backend")
+
+
+def stop_backend():
+    """Stop backend server"""
+    log_file = get_backend_log()
+    print_info(f"Stopping backend on port {BACKEND_PORT}...")
+    log_message(log_file, "========== Backend Server Stopping ==========")
+    stop_by_port(BACKEND_PORT)
+    log_message(log_file, "Backend stopped")
+
+
+def show_logs(target: str, lines: int = 50):
+    """Show log file contents"""
+    if target == "frontend":
+        log_file = get_frontend_log()
+    else:
+        log_file = get_backend_log()
+
+    if log_file.exists():
+        print_info(f"Showing last {lines} lines of {log_file}")
+        with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+            all_lines = f.readlines()
+            for line in all_lines[-lines:]:
+                print(line, end="")
+    else:
+        print_warn(f"Log file not found: {log_file}")
+
+
+def show_status():
+    """Show server status"""
+    print()
+    print("\033[96m=== Server Status ===\033[0m")
+
+    # Frontend status
+    frontend_pid = get_pid_by_port(FRONTEND_PORT)
+    if frontend_pid:
+        print(f"Frontend (port {FRONTEND_PORT}): \033[92mRunning\033[0m (PID: {frontend_pid})")
+    else:
+        print(f"Frontend (port {FRONTEND_PORT}): \033[91mStopped\033[0m")
+
+    # Backend status
+    backend_pid = get_pid_by_port(BACKEND_PORT)
+    if backend_pid:
+        print(f"Backend  (port {BACKEND_PORT}): \033[92mRunning\033[0m (PID: {backend_pid})")
+    else:
+        print(f"Backend  (port {BACKEND_PORT}): \033[91mStopped\033[0m")
+
+    print()
+    print("\033[96m=== Log Files ===\033[0m")
+    print(f"Frontend: {get_frontend_log()}")
+    print(f"Backend:  {get_backend_log()}")
+    print()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="KMS Portal Server Management",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python server frontend start     # Start frontend only
+  python server backend restart    # Restart backend only
+  python server all stop           # Stop all servers
+  python server status             # Show status of all servers
+  python server frontend logs 100  # Show last 100 lines of frontend log
+        """
+    )
+
+    parser.add_argument(
+        "target",
+        nargs="?",
+        choices=["frontend", "backend", "all", "status"],
+        default="status",
+        help="Target server (frontend, backend, all, status)"
+    )
+    parser.add_argument(
+        "action",
+        nargs="?",
+        choices=["start", "stop", "restart", "status", "logs"],
+        default="status",
+        help="Action to perform"
+    )
+    parser.add_argument(
+        "lines",
+        nargs="?",
+        type=int,
+        default=50,
+        help="Number of log lines to show (for logs action)"
+    )
+
+    args = parser.parse_args()
+
+    # Handle 'server status' shortcut
+    if args.target == "status":
+        show_status()
+        return
+
+    # Execute action
+    if args.target == "frontend":
+        if args.action == "start":
+            start_frontend()
+        elif args.action == "stop":
+            stop_frontend()
+        elif args.action == "restart":
+            stop_frontend()
+            time.sleep(2)
+            start_frontend()
+        elif args.action == "logs":
+            show_logs("frontend", args.lines)
+            return
+        elif args.action == "status":
+            show_status()
+            return
+
+    elif args.target == "backend":
+        if args.action == "start":
+            start_backend()
+        elif args.action == "stop":
+            stop_backend()
+        elif args.action == "restart":
+            stop_backend()
+            time.sleep(2)
+            start_backend()
+        elif args.action == "logs":
+            show_logs("backend", args.lines)
+            return
+        elif args.action == "status":
+            show_status()
+            return
+
+    elif args.target == "all":
+        if args.action == "start":
+            start_backend()
+            start_frontend()
+        elif args.action == "stop":
+            stop_frontend()
+            stop_backend()
+        elif args.action == "restart":
+            stop_frontend()
+            stop_backend()
+            time.sleep(2)
+            start_backend()
+            start_frontend()
+        elif args.action == "status":
+            show_status()
+            return
+
+    # Show final status
+    if args.action != "logs":
+        show_status()
+
+
+if __name__ == "__main__":
+    main()
