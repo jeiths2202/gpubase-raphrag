@@ -375,6 +375,9 @@ class AuthManager:
                     data = response.json()
                     services = data.get("services", {})
 
+                    # Check Ollama status separately
+                    ollama_status = self._check_ollama_status()
+
                     return {
                         "nemotron_llm": {
                             "name": "Nemotron Nano 9B",
@@ -383,6 +386,14 @@ class AuthManager:
                             "status": services.get("nemotron_llm", {}).get("status", "unknown"),
                             "response_time_ms": services.get("nemotron_llm", {}).get("response_time_ms"),
                             "gpu": services.get("nemotron_llm", {}).get("gpu"),
+                        },
+                        "ollama_qwen": {
+                            "name": "Qwen 2.5 3B (Local)",
+                            "purpose": "Code/Tool calling",
+                            "port": 11434,
+                            "status": ollama_status.get("status", "unknown"),
+                            "response_time_ms": ollama_status.get("response_time_ms"),
+                            "gpu": "CPU/Local",
                         },
                         "mistral_code": {
                             "name": "Mistral NeMo 12B",
@@ -406,3 +417,22 @@ class AuthManager:
 
         except Exception:
             return None
+
+    def _check_ollama_status(self) -> Dict:
+        """Check Ollama local LLM status"""
+        import time
+
+        try:
+            start_time = time.time()
+            with httpx.Client(timeout=5.0) as client:
+                response = client.get("http://localhost:11434/api/tags")
+                elapsed_ms = (time.time() - start_time) * 1000
+
+                if response.status_code == 200:
+                    return {
+                        "status": "healthy",
+                        "response_time_ms": elapsed_ms,
+                    }
+                return {"status": "unhealthy"}
+        except Exception:
+            return {"status": "unhealthy"}

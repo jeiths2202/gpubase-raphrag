@@ -575,7 +575,7 @@ class EnterpriseUI:
             "ims": "nemotron_llm",
             "vision": "nemotron_llm",
             "planner": "nemotron_llm",
-            "code": "mistral_code",
+            "code": "ollama_qwen",  # Local Qwen 2.5 3B via Ollama
         }
         current_llm = agent_llm_map.get(current_agent, "nemotron_llm")
 
