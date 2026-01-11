@@ -256,6 +256,76 @@ graph TB
 | **Next Actions** | Contextual recommendations for follow-up questions or actions |
 | **Execution Trace** | Full trace of all events for debugging and explainability |
 
+#### Sequential Pipeline Execution
+
+For tasks with natural dependencies like "Search A and then generate B based on the results", the system automatically detects sequential patterns and creates pipeline DAGs.
+
+**Supported Patterns:**
+- Korean: "A를 리스트업하고 B 생성해줘" (List A and generate B)
+- Korean: "A에서 B를 찾고 C 해줘" (Find B in A, then do C)
+- English: "List X and then generate Y"
+
+```mermaid
+graph LR
+    subgraph "Sequential Pipeline"
+        A["User Prompt"] --> B["Pattern Detector"]
+        B --> C["Pipeline DAG"]
+
+        subgraph "Execution Flow"
+            C --> D["ST1: IMS Agent"]
+            D -->|"Result (8KB)"| E["ST2: Code Agent"]
+        end
+
+        E --> F["Final Response"]
+    end
+```
+
+**Example:**
+```
+Prompt: "IMS이슈중에서 tcfh_write() API를 사용한 사례를 리스트업하고
+         이 API를 사용한 샘플소스 생성해줘"
+
+Execution:
+  ST1 (IMS Agent): Search for tcfh_write() API usage cases → Complete
+       ↓ Pass 8253 chars of results
+  ST2 (Code Agent): Generate sample code based on ST1 results → Complete
+```
+
+**Key Features:**
+- Automatic detection of Korean/English sequential patterns
+- Results from previous tasks passed as context (up to 8KB)
+- Agent type auto-detection based on task content keywords
+
+#### TracePanel Visualization
+
+Real-time visualization of multi-agent execution with three views:
+
+| View | Description |
+|------|-------------|
+| **DAG View** | Interactive task graph showing dependencies, status (pending/running/completed/failed), and execution flow |
+| **Timeline View** | Chronological event timeline with latency tracking and status indicators |
+| **Evaluations View** | Quality metrics including confidence scores, issues, and retry recommendations |
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ TracePanel                              [DAG] [Timeline]│
+├─────────────────────────────────────────────────────────┤
+│  ┌──────────┐      ┌──────────┐                        │
+│  │   ST1    │ ───▶ │   ST2    │                        │
+│  │   IMS    │      │   Code   │                        │
+│  │    ✓     │      │    ✓     │                        │
+│  └──────────┘      └──────────┘                        │
+│                                                         │
+│  Timeline:                                              │
+│  ├─ 00:00 orchestration_start                          │
+│  ├─ 00:01 dag_created (2 tasks)                        │
+│  ├─ 00:02 agent_start ST1 (IMS)                        │
+│  ├─ 00:45 agent_done ST1 ✓ (43.2s)                     │
+│  ├─ 00:46 agent_start ST2 (Code)                       │
+│  └─ 02:15 agent_done ST2 ✓ (89.1s)                     │
+└─────────────────────────────────────────────────────────┘
+```
+
 #### Enterprise API Endpoints
 
 | Method | Endpoint | Description |
