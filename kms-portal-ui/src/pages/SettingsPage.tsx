@@ -9,16 +9,18 @@
  * - Account (mock)
  * - Subscription (with pricing tiers)
  */
-import React, { useState, memo } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { X, Copy, Trash2, Plus, Key, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useTheme } from '../hooks/useTheme';
 import { LanguageCode } from '../i18n/types';
 import { Theme } from '../store/preferencesStore';
+import { useApiKeyStore } from '../store/apiKeyStore';
+import type { ApiKeyCreateRequest, ApiKeyResponse } from '../api/apiKey.api';
 
 // Settings sections
-type SettingsSection = 'general' | 'notifications' | 'security' | 'account' | 'subscription';
+type SettingsSection = 'general' | 'notifications' | 'security' | 'apikeys' | 'account' | 'subscription';
 
 // Subscription plan types
 interface SubscriptionPlan {
@@ -105,6 +107,7 @@ const sectionIcons: Record<SettingsSection, string> = {
   general: '⚙️',
   notifications: '🔔',
   security: '🔒',
+  apikeys: '🔑',
   account: '👤',
   subscription: '💳',
 };
@@ -114,6 +117,7 @@ const sectionLabels: Record<SettingsSection, string> = {
   general: 'General',
   notifications: 'Notifications',
   security: 'Security',
+  apikeys: 'API Keys',
   account: 'Account',
   subscription: 'Subscription',
 };
@@ -163,6 +167,8 @@ export const SettingsPage: React.FC = memo(() => {
         return <NotificationsSection t={t} />;
       case 'security':
         return <SecuritySection t={t} />;
+      case 'apikeys':
+        return <ApiKeysSection t={t} />;
       case 'account':
         return <AccountSection t={t} />;
       case 'subscription':
@@ -665,7 +671,7 @@ export const SettingsPage: React.FC = memo(() => {
               </button>
             </div>
             <ul className="settings-nav">
-              {(['general', 'notifications', 'security', 'account', 'subscription'] as SettingsSection[]).map((section) => (
+              {(['general', 'notifications', 'security', 'apikeys', 'account', 'subscription'] as SettingsSection[]).map((section) => (
                 <li
                   key={section}
                   className={`settings-nav-item ${activeSection === section ? 'active' : ''}`}
@@ -903,6 +909,456 @@ const AccountSection: React.FC<{ t: TFunc }> = memo(({ t }) => (
     </div>
   </div>
 ));
+
+// API Keys Section
+const ApiKeysSection: React.FC<{ t: TFunc }> = memo(({ t }) => {
+  const {
+    apiKeys,
+    newlyCreatedKey,
+    isLoading,
+    error,
+    fetchApiKeys,
+    createApiKey,
+    deleteApiKey,
+    clearNewlyCreatedKey,
+    clearError,
+  } = useApiKeyStore();
+
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [formData, setFormData] = useState<ApiKeyCreateRequest>({
+    name: '',
+    description: '',
+    allowed_endpoints: ['query', 'agents'],
+    allowed_agent_types: ['auto', 'rag'],
+    rate_limit_per_minute: 10,
+    rate_limit_per_hour: 100,
+    rate_limit_per_day: 1000,
+  });
+
+  useEffect(() => {
+    fetchApiKeys();
+  }, [fetchApiKeys]);
+
+  const handleCreate = async () => {
+    if (!formData.name.trim()) return;
+    const result = await createApiKey(formData);
+    if (result) {
+      setShowCreateForm(false);
+      setFormData({
+        name: '',
+        description: '',
+        allowed_endpoints: ['query', 'agents'],
+        allowed_agent_types: ['auto', 'rag'],
+        rate_limit_per_minute: 10,
+        rate_limit_per_hour: 100,
+        rate_limit_per_day: 1000,
+      });
+    }
+  };
+
+  const handleCopyKey = async (key: string) => {
+    await navigator.clipboard.writeText(key);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (window.confirm(`Delete API key "${name}"?`)) {
+      await deleteApiKey(id);
+    }
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString();
+  };
+
+  return (
+    <div>
+      <style>{`
+        .apikeys-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 24px;
+        }
+        .apikeys-create-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 16px;
+          background: var(--color-primary);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+        .apikeys-create-btn:hover {
+          filter: brightness(1.1);
+        }
+        .apikeys-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .apikey-card {
+          background: var(--color-bg-secondary);
+          border: 1px solid var(--color-border);
+          border-radius: 12px;
+          padding: 16px;
+        }
+        .apikey-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 12px;
+        }
+        .apikey-name {
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--color-text-primary);
+        }
+        .apikey-prefix {
+          font-family: monospace;
+          font-size: 13px;
+          color: var(--color-text-secondary);
+          background: var(--color-bg-tertiary);
+          padding: 2px 8px;
+          border-radius: 4px;
+        }
+        .apikey-meta {
+          display: flex;
+          gap: 16px;
+          font-size: 13px;
+          color: var(--color-text-secondary);
+        }
+        .apikey-actions {
+          display: flex;
+          gap: 8px;
+        }
+        .apikey-action-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          border: 1px solid var(--color-border);
+          background: var(--color-bg-primary);
+          border-radius: 6px;
+          cursor: pointer;
+          color: var(--color-text-secondary);
+          transition: all 0.15s ease;
+        }
+        .apikey-action-btn:hover {
+          border-color: var(--color-primary);
+          color: var(--color-primary);
+        }
+        .apikey-action-btn.delete:hover {
+          border-color: var(--color-error);
+          color: var(--color-error);
+        }
+        .apikey-new-modal {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 2000;
+        }
+        .apikey-new-content {
+          background: var(--color-bg-primary);
+          border-radius: 16px;
+          padding: 24px;
+          width: 100%;
+          max-width: 500px;
+          max-height: 80vh;
+          overflow-y: auto;
+        }
+        .apikey-new-title {
+          font-size: 20px;
+          font-weight: 600;
+          margin-bottom: 20px;
+          color: var(--color-text-primary);
+        }
+        .apikey-form-group {
+          margin-bottom: 16px;
+        }
+        .apikey-form-label {
+          display: block;
+          font-size: 14px;
+          font-weight: 500;
+          color: var(--color-text-primary);
+          margin-bottom: 6px;
+        }
+        .apikey-form-input {
+          width: 100%;
+          padding: 10px 12px;
+          background: var(--color-bg-secondary);
+          border: 1px solid var(--color-border);
+          border-radius: 8px;
+          color: var(--color-text-primary);
+          font-size: 14px;
+        }
+        .apikey-form-input:focus {
+          outline: none;
+          border-color: var(--color-primary);
+        }
+        .apikey-form-row {
+          display: flex;
+          gap: 12px;
+        }
+        .apikey-form-row > div {
+          flex: 1;
+        }
+        .apikey-form-actions {
+          display: flex;
+          gap: 12px;
+          justify-content: flex-end;
+          margin-top: 24px;
+        }
+        .apikey-form-btn {
+          padding: 10px 20px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+        .apikey-form-btn.cancel {
+          background: var(--color-bg-secondary);
+          border: 1px solid var(--color-border);
+          color: var(--color-text-primary);
+        }
+        .apikey-form-btn.submit {
+          background: var(--color-primary);
+          border: none;
+          color: white;
+        }
+        .apikey-created-box {
+          background: var(--color-success-bg, #dcfce7);
+          border: 1px solid var(--color-success, #22c55e);
+          border-radius: 12px;
+          padding: 16px;
+          margin-bottom: 20px;
+        }
+        .apikey-created-title {
+          font-weight: 600;
+          color: var(--color-success, #22c55e);
+          margin-bottom: 8px;
+        }
+        .apikey-created-warning {
+          font-size: 13px;
+          color: var(--color-text-secondary);
+          margin-bottom: 12px;
+        }
+        .apikey-created-key {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: var(--color-bg-primary);
+          padding: 12px;
+          border-radius: 8px;
+          font-family: monospace;
+          font-size: 13px;
+          word-break: break-all;
+        }
+        .apikey-copy-btn {
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 6px 12px;
+          background: var(--color-primary);
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-size: 13px;
+          cursor: pointer;
+        }
+        .apikey-empty {
+          text-align: center;
+          padding: 40px 20px;
+          color: var(--color-text-secondary);
+        }
+        .apikey-error {
+          background: var(--color-error-bg, #fef2f2);
+          border: 1px solid var(--color-error, #ef4444);
+          color: var(--color-error, #ef4444);
+          padding: 12px;
+          border-radius: 8px;
+          margin-bottom: 16px;
+        }
+      `}</style>
+
+      <div className="apikeys-header">
+        <h2 className="settings-section-title" style={{ marginBottom: 0 }}>
+          {t('settings.apikeys.title') || 'API Keys'}
+        </h2>
+        <button className="apikeys-create-btn" onClick={() => setShowCreateForm(true)}>
+          <Plus size={18} />
+          {t('settings.apikeys.create') || 'Create API Key'}
+        </button>
+      </div>
+
+      <p style={{ color: 'var(--color-text-secondary)', marginBottom: '24px' }}>
+        {t('settings.apikeys.description') || 'API keys allow external applications to access RAG features without login.'}
+      </p>
+
+      {error && (
+        <div className="apikey-error">
+          {error}
+          <button onClick={clearError} style={{ marginLeft: 12, cursor: 'pointer', background: 'none', border: 'none', color: 'inherit' }}>×</button>
+        </div>
+      )}
+
+      {newlyCreatedKey && (
+        <div className="apikey-created-box">
+          <div className="apikey-created-title">API Key Created!</div>
+          <div className="apikey-created-warning">
+            Copy this key now. It will not be shown again.
+          </div>
+          <div className="apikey-created-key">
+            <code style={{ flex: 1 }}>{newlyCreatedKey.key}</code>
+            <button className="apikey-copy-btn" onClick={() => handleCopyKey(newlyCreatedKey.key)}>
+              <Copy size={14} />
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
+          <button
+            onClick={clearNewlyCreatedKey}
+            style={{ marginTop: 12, padding: '8px 16px', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6, cursor: 'pointer' }}
+          >
+            Done
+          </button>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="apikey-empty">Loading...</div>
+      ) : apiKeys.length === 0 ? (
+        <div className="apikey-empty">
+          <Key size={48} style={{ opacity: 0.3, marginBottom: 16 }} />
+          <div>{t('settings.apikeys.empty') || 'No API keys yet. Create one to get started.'}</div>
+        </div>
+      ) : (
+        <div className="apikeys-list">
+          {apiKeys.map((key) => (
+            <div key={key.id} className="apikey-card">
+              <div className="apikey-header">
+                <div>
+                  <div className="apikey-name">{key.name}</div>
+                  <code className="apikey-prefix">{key.key_prefix}...</code>
+                </div>
+                <div className="apikey-actions">
+                  <button
+                    className="apikey-action-btn delete"
+                    onClick={() => handleDelete(key.id, key.name)}
+                    title="Delete"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+              <div className="apikey-meta">
+                <span>Requests: {key.total_requests.toLocaleString()}</span>
+                <span>Created: {formatDate(key.created_at)}</span>
+                <span>Last used: {formatDate(key.last_used_at)}</span>
+                {key.expires_at && <span>Expires: {formatDate(key.expires_at)}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showCreateForm && (
+        <div className="apikey-new-modal" onClick={() => setShowCreateForm(false)}>
+          <div className="apikey-new-content" onClick={(e) => e.stopPropagation()}>
+            <h3 className="apikey-new-title">Create API Key</h3>
+
+            <div className="apikey-form-group">
+              <label className="apikey-form-label">Name *</label>
+              <input
+                type="text"
+                className="apikey-form-input"
+                placeholder="e.g., Public Website Widget"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+            </div>
+
+            <div className="apikey-form-group">
+              <label className="apikey-form-label">Description</label>
+              <input
+                type="text"
+                className="apikey-form-input"
+                placeholder="Optional description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              />
+            </div>
+
+            <div className="apikey-form-row">
+              <div className="apikey-form-group">
+                <label className="apikey-form-label">Rate Limit (per minute)</label>
+                <input
+                  type="number"
+                  className="apikey-form-input"
+                  value={formData.rate_limit_per_minute}
+                  onChange={(e) => setFormData({ ...formData, rate_limit_per_minute: parseInt(e.target.value) || 10 })}
+                  min={1}
+                  max={1000}
+                />
+              </div>
+              <div className="apikey-form-group">
+                <label className="apikey-form-label">Rate Limit (per hour)</label>
+                <input
+                  type="number"
+                  className="apikey-form-input"
+                  value={formData.rate_limit_per_hour}
+                  onChange={(e) => setFormData({ ...formData, rate_limit_per_hour: parseInt(e.target.value) || 100 })}
+                  min={1}
+                  max={10000}
+                />
+              </div>
+              <div className="apikey-form-group">
+                <label className="apikey-form-label">Rate Limit (per day)</label>
+                <input
+                  type="number"
+                  className="apikey-form-input"
+                  value={formData.rate_limit_per_day}
+                  onChange={(e) => setFormData({ ...formData, rate_limit_per_day: parseInt(e.target.value) || 1000 })}
+                  min={1}
+                  max={100000}
+                />
+              </div>
+            </div>
+
+            <div className="apikey-form-actions">
+              <button className="apikey-form-btn cancel" onClick={() => setShowCreateForm(false)}>
+                Cancel
+              </button>
+              <button
+                className="apikey-form-btn submit"
+                onClick={handleCreate}
+                disabled={!formData.name.trim() || isLoading}
+              >
+                {isLoading ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
 
 // Subscription Section
 const SubscriptionSection: React.FC<{ currentPlan: string; t: TFunc }> = memo(({ currentPlan, t }) => (

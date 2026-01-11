@@ -38,7 +38,8 @@
     "admin": "Admin",
     "settings": "Settings",
     "logout": "Logout",
-    "externalPortal": "External Portal"
+    "externalPortal": "External Portal",
+    "apikeys": "API Keys"
   },
   "products": {
     "tmax": "Tmax",

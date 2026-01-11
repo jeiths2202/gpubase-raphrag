@@ -89,6 +89,23 @@ export type {
   GetFAQItemsOptions,
 } from './faq.api';
 
+// API Key API
+export { default as apiKeyApi } from './apiKey.api';
+export {
+  createApiKey,
+  listApiKeys,
+  getApiKey,
+  updateApiKey,
+  deleteApiKey,
+} from './apiKey.api';
+export type {
+  ApiKeyCreateRequest,
+  ApiKeyUpdateRequest,
+  ApiKeyResponse,
+  ApiKeyCreatedResponse,
+  ApiKeyListResponse,
+} from './apiKey.api';
+
 // Types
 export type {
   // Common
