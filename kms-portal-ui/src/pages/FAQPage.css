@@ -587,3 +587,130 @@
     align-items: flex-start;
   }
 }
+
+/* =============================================================================
+   FAQ Markdown Content Styles
+   ============================================================================= */
+
+.faq-markdown-content {
+  line-height: 1.6;
+}
+
+.faq-markdown-p {
+  margin: 0 0 var(--space-3) 0;
+}
+
+.faq-markdown-p:last-child {
+  margin-bottom: 0;
+}
+
+.faq-markdown-h2 {
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin: var(--space-4) 0 var(--space-2) 0;
+}
+
+.faq-markdown-h3 {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin: var(--space-3) 0 var(--space-2) 0;
+}
+
+/* FAQ Markdown Table */
+.faq-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin: var(--space-3) 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.faq-markdown-table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  table-layout: fixed;
+}
+
+.faq-table-header {
+  background: var(--color-bg-tertiary);
+}
+
+.faq-table-th {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  border-bottom: 2px solid var(--color-border);
+  white-space: nowrap;
+}
+
+/* Fixed column widths for IMS table */
+.faq-table-th:nth-child(1) { width: 50px; }   /* No */
+.faq-table-th:nth-child(2) { width: 100px; }  /* Issue ID */
+.faq-table-th:nth-child(3) { width: auto; }   /* 제목 */
+.faq-table-th:nth-child(4) { width: 80px; }   /* 상태 */
+.faq-table-th:nth-child(5) { width: 150px; }  /* 제품 */
+
+.faq-table-row {
+  border-bottom: 1px solid var(--color-border);
+  transition: background-color var(--transition-colors);
+}
+
+.faq-table-row:hover {
+  background: var(--color-bg-hover);
+}
+
+.faq-table-td {
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-secondary);
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.faq-table-td:nth-child(3) {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* FAQ Markdown Links */
+.faq-markdown-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: var(--font-weight-medium);
+  transition: color var(--transition-colors);
+}
+
+.faq-markdown-link:hover {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
+}
+
+/* FAQ Inline Code */
+.faq-inline-code {
+  background: var(--color-bg-tertiary);
+  color: var(--color-accent);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+/* FAQ Code Block */
+.faq-code-block {
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  overflow-x: auto;
+  margin: var(--space-3) 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.faq-code-block code {
+  color: var(--color-text);
+}

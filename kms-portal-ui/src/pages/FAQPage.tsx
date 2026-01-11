@@ -25,7 +25,10 @@ import {
   X,
   Sparkles,
   Loader2,
+  Copy,
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useTranslation } from '../hooks/useTranslation';
 import { faqApi, type FAQItemAPI, type FAQCategory } from '../api';
 import { usePreferencesStore } from '../store/preferencesStore';
@@ -602,8 +605,39 @@ export const FAQPage: React.FC = () => {
 
                     {expandedId === faq.id && (
                       <div className="faq-item__content">
-                        <div className="faq-item__answer">
-                          <pre>{answer}</pre>
+                        <div className="faq-item__answer faq-markdown-content">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              table: ({ children }) => (
+                                <div className="faq-table-wrapper">
+                                  <table className="faq-markdown-table">{children}</table>
+                                </div>
+                              ),
+                              thead: ({ children }) => <thead className="faq-table-header">{children}</thead>,
+                              tbody: ({ children }) => <tbody className="faq-table-body">{children}</tbody>,
+                              tr: ({ children }) => <tr className="faq-table-row">{children}</tr>,
+                              th: ({ children }) => <th className="faq-table-th">{children}</th>,
+                              td: ({ children }) => <td className="faq-table-td">{children}</td>,
+                              code: ({ className, children }) => {
+                                const isInline = !className && !String(children).includes('\n');
+                                if (isInline) {
+                                  return <code className="faq-inline-code">{children}</code>;
+                                }
+                                return <pre className="faq-code-block"><code>{children}</code></pre>;
+                              },
+                              a: ({ href, children }) => (
+                                <a href={href} target="_blank" rel="noopener noreferrer" className="faq-markdown-link">
+                                  {children}
+                                </a>
+                              ),
+                              p: ({ children }) => <p className="faq-markdown-p">{children}</p>,
+                              h2: ({ children }) => <h2 className="faq-markdown-h2">{children}</h2>,
+                              h3: ({ children }) => <h3 className="faq-markdown-h3">{children}</h3>,
+                            }}
+                          >
+                            {answer}
+                          </ReactMarkdown>
                         </div>
 
                         <div className="faq-item__footer">
