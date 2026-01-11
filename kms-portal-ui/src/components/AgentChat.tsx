@@ -129,7 +129,6 @@ export const AgentChat: React.FC = () => {
     handleRemoveUrl,
     getUrlContext,
     dismissDetectedUrl,
-    clearAllUrls,
   } = useUrlAttachment();
 
   // Streaming chat (using custom hook)
@@ -157,7 +156,7 @@ export const AgentChat: React.FC = () => {
       setShowCredentialsModal(true);
     },
     onMessageSent: () => {
-      clearAllUrls();
+      // URL context is preserved until user explicitly removes it
       // Reset textarea height
       if (inputRef.current) {
         inputRef.current.style.height = 'auto';
