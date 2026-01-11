@@ -424,11 +424,39 @@ class EnterpriseUI:
             print(chunk, end="", flush=True)
 
     def end_response(self):
-        """End streaming response"""
+        """End streaming response and render markdown if needed"""
         if self.rich_mode:
             self.console.print()
+            # If response contains markdown table, re-render with proper formatting
+            if self._current_response and self._has_markdown_table(self._current_response):
+                self._render_markdown_response()
         else:
             print()
+
+    def _has_markdown_table(self, text: str) -> bool:
+        """Check if text contains markdown table"""
+        lines = text.strip().split('\n')
+        table_lines = [l for l in lines if l.strip().startswith('|') and l.strip().endswith('|')]
+        # Need at least 3 lines for a valid table (header, separator, data)
+        return len(table_lines) >= 3
+
+    def _render_markdown_response(self):
+        """Re-render the response with proper markdown formatting"""
+        if not self._current_response:
+            return
+
+        try:
+            # Clear the raw output and show formatted version
+            self.console.print()
+            self.console.print(Rule("Formatted Output", style="dim"))
+            self.console.print()
+
+            # Render markdown with Rich
+            md = Markdown(self._current_response)
+            self.console.print(md)
+        except Exception as e:
+            # Fallback: just show the raw response (already displayed)
+            pass
 
     def print_response(self, text: str):
         """Print complete response with markdown formatting"""
