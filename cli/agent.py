@@ -180,6 +180,7 @@ class CLI:
     COMMANDS = {
         "/help": "Show this help message",
         "/agent <type>": "Switch agent (auto, ims, rag, vision, code, planner)",
+        "/llm": "Show available LLMs and current model",
         "/ims-login": "Login to IMS system",
         "/ims-logout": "Logout from IMS system",
         "/new": "Start new session",
@@ -215,6 +216,11 @@ class CLI:
             session_id=self.client.session_id,
             ims_connected=self.auth.is_ims_authenticated()
         )
+
+    def show_llm_status(self):
+        """Display available LLMs and current model"""
+        llm_data = self.auth.get_llm_status()
+        self.ui.print_llm_status(llm_data, self.client.current_agent)
 
     def check_ims_session(self) -> bool:
         """Check IMS session and auto-login if valid"""
@@ -279,6 +285,9 @@ class CLI:
             else:
                 self.ui.print_info(f"Current agent: {self.client.current_agent}")
                 self.ui.print_info(f"Available: {', '.join(AgentClient.AGENT_TYPES)}")
+
+        elif command == "/llm":
+            self.show_llm_status()
 
         elif command == "/ims-login":
             self.handle_ims_login()

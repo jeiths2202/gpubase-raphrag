@@ -349,3 +349,60 @@ class AuthManager:
     def is_ims_authenticated(self) -> bool:
         """Check if IMS is authenticated"""
         return self.ims_validated and self.ims_credentials is not None
+
+    # =========================================================================
+    # LLM Status
+    # =========================================================================
+
+    def get_llm_status(self) -> Optional[Dict]:
+        """
+        Get LLM status from health endpoint.
+
+        Returns:
+            Dictionary with LLM status info or None if failed
+        """
+        if not httpx:
+            return None
+
+        url = f"{self.config.api_url}/health"
+
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                response = client.get(url)
+
+                # Accept both 200 (healthy) and 503 (unhealthy/degraded)
+                if response.status_code in (200, 503):
+                    data = response.json()
+                    services = data.get("services", {})
+
+                    return {
+                        "nemotron_llm": {
+                            "name": "Nemotron Nano 9B",
+                            "purpose": "RAG queries",
+                            "port": 12800,
+                            "status": services.get("nemotron_llm", {}).get("status", "unknown"),
+                            "response_time_ms": services.get("nemotron_llm", {}).get("response_time_ms"),
+                            "gpu": services.get("nemotron_llm", {}).get("gpu"),
+                        },
+                        "mistral_code": {
+                            "name": "Mistral NeMo 12B",
+                            "purpose": "Code generation",
+                            "port": 12802,
+                            "status": services.get("mistral_code", {}).get("status", "unknown"),
+                            "response_time_ms": services.get("mistral_code", {}).get("response_time_ms"),
+                            "gpu": services.get("mistral_code", {}).get("gpu"),
+                        },
+                        "embedding": {
+                            "name": "NV-EmbedQA-Mistral 7B",
+                            "purpose": "Embeddings",
+                            "port": 12801,
+                            "status": services.get("embedding", {}).get("status", "unknown"),
+                            "response_time_ms": services.get("embedding", {}).get("response_time_ms"),
+                            "gpu": services.get("embedding", {}).get("gpu"),
+                        },
+                    }
+
+                return None
+
+        except Exception:
+            return None

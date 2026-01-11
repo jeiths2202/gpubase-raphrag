@@ -562,6 +562,86 @@ class EnterpriseUI:
         else:
             self.console.print(f"\n  [Session: {session_id[:12]} | Steps: {steps} | Time: {time_ms:.1f}ms]")
 
+    def print_llm_status(self, llm_data: Dict[str, Any], current_agent: str):
+        """Print LLM status panel"""
+        if not llm_data:
+            self.print_error("Failed to get LLM status")
+            return
+
+        # Map agents to their primary LLM
+        agent_llm_map = {
+            "auto": "nemotron_llm",
+            "rag": "nemotron_llm",
+            "ims": "nemotron_llm",
+            "vision": "nemotron_llm",
+            "planner": "nemotron_llm",
+            "code": "mistral_code",
+        }
+        current_llm = agent_llm_map.get(current_agent, "nemotron_llm")
+
+        if self.rich_mode:
+            table = Table(show_header=True, box=self.box_style, header_style="bold cyan")
+            table.add_column("", width=3)
+            table.add_column("Model", style="white")
+            table.add_column("Purpose", style="dim")
+            table.add_column("Status", justify="center")
+            table.add_column("Response", justify="right")
+            table.add_column("GPU", justify="center")
+
+            arrow = self.ICONS["arrow"]
+            for key, info in llm_data.items():
+                is_current = key == current_llm
+                marker = arrow if is_current else ""
+
+                # Status indicator
+                status = info.get("status", "unknown")
+                if status == "healthy":
+                    status_text = Text("Online", style="green")
+                elif status == "unhealthy":
+                    status_text = Text("Offline", style="red")
+                else:
+                    status_text = Text("Unknown", style="yellow")
+
+                # Response time
+                resp_time = info.get("response_time_ms")
+                resp_text = f"{resp_time:.0f}ms" if resp_time else "-"
+
+                # GPU
+                gpu = info.get("gpu", "-") or "-"
+
+                # Name with current indicator
+                name_style = "bold cyan" if is_current else "white"
+                name = info.get("name", key)
+
+                table.add_row(
+                    Text(marker, style="green bold"),
+                    Text(name, style=name_style),
+                    info.get("purpose", ""),
+                    status_text,
+                    resp_text,
+                    str(gpu)
+                )
+
+            panel = Panel(table, title="[bold]Available LLMs[/bold]", border_style="cyan", box=self.box_style)
+            self.console.print()
+            self.console.print(panel)
+
+            # Show current agent's LLM
+            current_info = llm_data.get(current_llm, {})
+            self.console.print(f"  Current agent [{current_agent}] uses: [cyan]{current_info.get('name', 'Unknown')}[/cyan]")
+            self.console.print()
+        else:
+            self.console.print("\n=== Available LLMs ===")
+            for key, info in llm_data.items():
+                is_current = key == current_llm
+                marker = self.ICONS["arrow"] if is_current else " "
+                status = info.get("status", "unknown")
+                name = info.get("name", key)
+                purpose = info.get("purpose", "")
+                self.console.print(f"  {marker} {name:<25} {purpose:<20} [{status}]")
+            self.console.print(f"\n  Current agent [{current_agent}] uses: {llm_data.get(current_llm, {}).get('name', 'Unknown')}")
+            self.console.print()
+
 
 def get_ui(use_color: bool = True) -> EnterpriseUI:
     """Factory function to get UI instance"""
