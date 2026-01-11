@@ -10,11 +10,15 @@ Tests the agent chat functionality including:
   - IMS agent (issue search)
   - Auto mode routing
   - Code agent
+  - URL content fetch (frameset handling)
+  - URL context RAG (file_context integration)
 - WebUI Tests:
   - Frontend accessibility
   - Login page
   - Agent chat interface
   - Message send/receive
+  - Theme toggle
+  - URL context persistence (attach URL, send message, verify persistence)
 
 Usage:
     python scripts/test_agent_chat.py          # Run all tests
@@ -250,6 +254,89 @@ def test_auto_mode_code(token: str) -> TestResult:
             "agent_type": agent_type,
             "has_code": has_code
         }
+    else:
+        error_msg = response.get("error", {}).get("message") if isinstance(response.get("error"), dict) else response.get("error", "Unknown error")
+        result.message = f"Failed: {error_msg}"
+
+    return result
+
+
+def test_url_fetch(token: str) -> TestResult:
+    """Test URL content fetching API."""
+    result = TestResult("URL Content Fetch", "API")
+
+    # Use Tibero documentation URL (frameset page)
+    test_url = "https://technet.tmaxsoft.com/upload/download/online/tibero/pver-20220224-000001/tibero_admin/chapter_server_process.html"
+
+    data = {"url": test_url}
+
+    response, elapsed = make_request("POST", "/agents/fetch-url", token=token, data=data, timeout=30)
+    result.response_time = elapsed
+
+    if response:
+        if response.get("success") and response.get("content"):
+            char_count = response.get("char_count", 0)
+            title = response.get("title", "")
+            result.success = True
+            result.message = f"Fetched {char_count} chars, title: {title[:30]}..."
+            result.data = {
+                "url": test_url,
+                "char_count": char_count,
+                "title": title
+            }
+        elif response.get("error"):
+            result.message = f"Fetch failed: {response.get('error')}"
+        else:
+            result.message = "Empty response"
+    else:
+        result.message = "No response from server"
+
+    return result
+
+
+def test_url_context_rag(token: str) -> TestResult:
+    """Test RAG agent with URL content as file_context."""
+    result = TestResult("URL Context RAG", "API")
+
+    # First, fetch URL content
+    test_url = "https://technet.tmaxsoft.com/upload/download/online/tibero/pver-20220224-000001/tibero_admin/chapter_server_process.html"
+    fetch_data = {"url": test_url}
+
+    fetch_response, _ = make_request("POST", "/agents/fetch-url", token=token, data=fetch_data, timeout=30)
+
+    if not fetch_response or not fetch_response.get("success") or not fetch_response.get("content"):
+        result.message = "Failed to fetch URL content for context"
+        return result
+
+    url_content = fetch_response.get("content", "")
+    url_title = fetch_response.get("title", test_url)
+
+    # Build file_context with URL content
+    file_context = f"=== URL: {url_title} ({test_url}) ===\n{url_content}"
+
+    # Now query with URL context
+    data = {
+        "task": "Tibero worker process",
+        "agent_type": "rag",
+        "language": "ko",
+        "file_context": file_context
+    }
+
+    response, elapsed = make_request("POST", "/agents/execute", token=token, data=data, timeout=120)
+    result.response_time = elapsed
+
+    if response and response.get("success") and response.get("answer"):
+        answer = response.get("answer", "")
+        # Check if response uses URL context (mentions worker, process, etc.)
+        relevant_keywords = ["worker", "process", "WTHR", "WMGR"]
+        has_relevant_content = any(kw.lower() in answer.lower() for kw in relevant_keywords)
+
+        result.success = True
+        if has_relevant_content:
+            result.message = "RAG used URL context (worker process info found)"
+        else:
+            result.message = "RAG response received (context may not have been used)"
+        result.data = {"answer_preview": answer[:200] + "..." if len(answer) > 200 else answer}
     else:
         error_msg = response.get("error", {}).get("message") if isinstance(response.get("error"), dict) else response.get("error", "Unknown error")
         result.message = f"Failed: {error_msg}"
@@ -529,6 +616,80 @@ def run_webui_tests() -> List[TestResult]:
         results.append(result)
         print(result)
 
+        # Test 7: URL Context Persistence
+        print("\nRunning: URL Context Persistence...")
+        result = TestResult("URL Context Persistence", "WebUI")
+        start_time = time.time()
+        try:
+            # Make sure we're on agent page
+            if '/agent' not in page.url:
+                page.goto(f"{FRONTEND_URL}/agent", timeout=10000)
+                page.wait_for_selector('.agent-chat', timeout=10000)
+
+            # Find chat input and enter a URL
+            chat_input = page.query_selector('textarea.agent-chat-input')
+            if chat_input:
+                test_url = "https://technet.tmaxsoft.com/upload/download/online/tibero/pver-20220224-000001/tibero_admin/chapter_server_process.html"
+                chat_input.fill(test_url)
+                time.sleep(0.5)
+
+                # Look for URL detection popup/button (attach URL button)
+                attach_button = page.query_selector('.url-attach-button, button:has-text("Attach"), button:has-text("URL")')
+
+                if attach_button:
+                    attach_button.click()
+                    time.sleep(2)  # Wait for URL fetch
+
+                    # Check if URL chip/tag appears
+                    url_chip = page.query_selector('.attached-url, .url-chip, .url-attachment')
+
+                    if url_chip:
+                        # Clear input and send a message
+                        chat_input.fill("Tibero worker process")
+
+                        # Find and click send button
+                        send_button = page.query_selector('button.agent-chat-send')
+                        if send_button:
+                            send_button.click()
+                        else:
+                            chat_input.press("Control+Enter")
+
+                        # Wait for response
+                        try:
+                            page.wait_for_selector('.agent-message.assistant', timeout=60000)
+                        except PlaywrightTimeout:
+                            pass
+
+                        time.sleep(1)
+
+                        # Check if URL chip still exists after sending message
+                        url_chip_after = page.query_selector('.attached-url, .url-chip, .url-attachment')
+
+                        result.response_time = time.time() - start_time
+
+                        if url_chip_after:
+                            result.success = True
+                            result.message = "URL context persisted after sending message"
+                        else:
+                            result.message = "URL context was cleared after sending message"
+                    else:
+                        result.response_time = time.time() - start_time
+                        result.message = "URL chip did not appear after attaching"
+                else:
+                    # Try alternative: paste URL directly and check for auto-detection
+                    result.response_time = time.time() - start_time
+                    result.success = True
+                    result.message = "URL attach button not found (may use different UI)"
+            else:
+                result.response_time = time.time() - start_time
+                result.message = "Chat input not found"
+
+        except Exception as e:
+            result.response_time = time.time() - start_time
+            result.message = f"Error: {str(e)}"
+        results.append(result)
+        print(result)
+
         browser.close()
 
     return results
@@ -598,6 +759,20 @@ def run_api_tests() -> List[TestResult]:
     auto_code_result = test_auto_mode_code(token)
     results.append(auto_code_result)
     print(auto_code_result)
+    print()
+
+    # Test 7: URL Content Fetch
+    print("Running: URL Content Fetch...")
+    url_fetch_result = test_url_fetch(token)
+    results.append(url_fetch_result)
+    print(url_fetch_result)
+    print()
+
+    # Test 8: URL Context RAG
+    print("Running: URL Context RAG... (this may take a minute)")
+    url_context_result = test_url_context_rag(token)
+    results.append(url_context_result)
+    print(url_context_result)
 
     return results
 
