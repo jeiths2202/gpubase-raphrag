@@ -14,150 +14,41 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Send,
   Loader2,
-  Bot,
-  User,
-  Wrench,
-  CheckCircle2,
-  XCircle,
-  Copy,
-  Check,
   RefreshCw,
   Sparkles,
-  Code,
-  Search,
-  FileText,
-  Globe,
-  Brain,
   ChevronDown,
   AlertCircle,
-  Database,
-  Lock,
   X,
   PanelRightOpen,
   PanelRightClose,
   History,
   Plus,
   Paperclip,
+  FileText,
+  Globe,
+  Link,
+  ExternalLink,
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { useTranslation } from '../hooks/useTranslation';
 import './AgentChat.css';
-import {
-  streamAgent,
-  type AgentType,
-  type AgentSource,
-} from '../api/agent.api';
-import { conversationApi } from '../api/conversation.api';
+import { type AgentType } from '../api/agent.api';
 import { useArtifactStore, createArtifactFromChunk } from '../store/artifactStore';
 import { useConversationStore } from '../store/conversationStore';
 import { ArtifactPanel } from './ArtifactPanel';
 import { ConversationSidebar } from './ConversationSidebar';
 
-// =============================================================================
-// Types
-// =============================================================================
-
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant' | 'status';
-  content: string;
-  timestamp: Date;
-  agentType?: AgentType;
-  toolCalls?: ToolCallInfo[];
-  sources?: AgentSource[];
-  isStreaming?: boolean;
-  error?: string;
-  statusType?: 'crawling' | 'ready' | 'credentials_required';
-}
-
-interface ToolCallInfo {
-  name: string;
-  input: Record<string, unknown>;
-  output?: string;
-  status: 'pending' | 'success' | 'error';
-}
-
-interface AttachedFile {
-  name: string;
-  content: string;
-  size: number;
-}
-
-// Supported file extensions for attachment
-const TEXT_EXTENSIONS = ['.txt', '.md', '.py', '.js', '.ts', '.json', '.yaml', '.yml', '.xml', '.csv', '.log', '.sql', '.sh', '.bat', '.html', '.css'];
-const BINARY_EXTENSIONS = ['.pdf', '.docx'];  // Require server-side extraction
-const SUPPORTED_EXTENSIONS = [...TEXT_EXTENSIONS, ...BINARY_EXTENSIONS];
-const MAX_TEXT_FILE_SIZE = 500 * 1024; // 500KB for text files
-const MAX_BINARY_FILE_SIZE = 2 * 1024 * 1024; // 2MB for PDF/DOCX
-
-// Agent type configuration
-const AGENT_CONFIGS: Record<AgentType, { icon: React.ElementType; label: string; description: string }> = {
-  auto: {
-    icon: Sparkles,
-    label: 'Auto',
-    description: 'Automatically detect the best agent',
-  },
-  rag: {
-    icon: Search,
-    label: 'RAG',
-    description: 'Knowledge search and Q&A',
-  },
-  ims: {
-    icon: FileText,
-    label: 'IMS',
-    description: 'Issue management search',
-  },
-  vision: {
-    icon: Globe,
-    label: 'Vision',
-    description: 'Image and document analysis',
-  },
-  code: {
-    icon: Code,
-    label: 'Code',
-    description: 'Code generation and analysis',
-  },
-  planner: {
-    icon: Brain,
-    label: 'Planner',
-    description: 'Task planning and decomposition',
-  },
-};
-
-// Suggested questions per agent type
-const SUGGESTED_QUESTIONS: Record<AgentType, string[]> = {
-  auto: [
-    'osctdlupdate 이슈 찾아줘',
-    'What is HybridRAG?',
-    'Find authentication issues',
-  ],
-  rag: [
-    'What is HybridRAG?',
-    'How does vector search work?',
-    'Explain knowledge graphs',
-  ],
-  ims: [
-    'Find authentication issues',
-    'Search for recent bug reports',
-    'Show high priority issues',
-  ],
-  vision: [
-    'Analyze this document',
-    'Describe the image content',
-    'Extract text from the file',
-  ],
-  code: [
-    'Write a factorial function',
-    'Explain this code snippet',
-    'Generate a REST API endpoint',
-  ],
-  planner: [
-    'Plan a new feature implementation',
-    'Break down this complex task',
-    'Create a project roadmap',
-  ],
-};
+// Import from refactored modules
+import {
+  MessageBubble,
+  IMSCredentialsModal,
+  useFileAttachment,
+  useUrlAttachment,
+  useStreamingChat,
+  AGENT_CONFIGS,
+  SUGGESTED_QUESTIONS,
+  SUPPORTED_EXTENSIONS,
+  type ChatMessage,
+} from './AgentChat/index';
 
 // =============================================================================
 // Component
@@ -205,77 +96,6 @@ export const AgentChat: React.FC = () => {
     setLastSelectedAgent(agentType);
   }, [setLastSelectedAgent]);
 
-  // Per-agent local state structure
-  interface AgentLocalState {
-    messages: ChatMessage[];
-    streamingMessage: ChatMessage | null;
-    isLoading: boolean;
-    abortController: AbortController | null;
-  }
-
-  // Ref to store state for each agent (persists across renders)
-  const agentLocalStatesRef = useRef<Record<AgentType, AgentLocalState>>({
-    auto: { messages: [], streamingMessage: null, isLoading: false, abortController: null },
-    rag: { messages: [], streamingMessage: null, isLoading: false, abortController: null },
-    ims: { messages: [], streamingMessage: null, isLoading: false, abortController: null },
-    vision: { messages: [], streamingMessage: null, isLoading: false, abortController: null },
-    code: { messages: [], streamingMessage: null, isLoading: false, abortController: null },
-    planner: { messages: [], streamingMessage: null, isLoading: false, abortController: null },
-  });
-
-  // Current agent's state (derived from ref)
-  const [messages, setMessagesState] = useState<ChatMessage[]>([]);
-  const [streamingMessage, setStreamingMessageState] = useState<ChatMessage | null>(null);
-  const [isLoading, setIsLoadingState] = useState(false);
-  const [abortController, setAbortControllerState] = useState<AbortController | null>(null);
-
-  // Functions to update a SPECIFIC agent's state (for background streaming)
-  // These use selectedAgentRef.current to always get the CURRENT selected agent,
-  // not the one captured in the closure at function creation time
-  const updateAgentMessages = useCallback((targetAgent: AgentType, updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
-    const prev = agentLocalStatesRef.current[targetAgent].messages;
-    const newValue = typeof updater === 'function' ? updater(prev) : updater;
-    agentLocalStatesRef.current[targetAgent].messages = newValue;
-    // Only update React state if this is the currently selected agent
-    if (targetAgent === selectedAgentRef.current) {
-      setMessagesState(newValue);
-    }
-  }, []);
-
-  const updateAgentStreamingMessage = useCallback((targetAgent: AgentType, msg: ChatMessage | null) => {
-    agentLocalStatesRef.current[targetAgent].streamingMessage = msg;
-    if (targetAgent === selectedAgentRef.current) {
-      setStreamingMessageState(msg);
-    }
-  }, []);
-
-  const updateAgentIsLoading = useCallback((targetAgent: AgentType, loading: boolean) => {
-    agentLocalStatesRef.current[targetAgent].isLoading = loading;
-    if (targetAgent === selectedAgentRef.current) {
-      setIsLoadingState(loading);
-    }
-  }, []);
-
-  const updateAgentAbortController = useCallback((targetAgent: AgentType, controller: AbortController | null) => {
-    agentLocalStatesRef.current[targetAgent].abortController = controller;
-    if (targetAgent === selectedAgentRef.current) {
-      setAbortControllerState(controller);
-    }
-  }, []);
-
-  // Wrapper functions to update CURRENT agent's state (for direct UI interactions)
-  const setMessages = useCallback((updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
-    updateAgentMessages(selectedAgent, updater);
-  }, [selectedAgent, updateAgentMessages]);
-
-  const setStreamingMessage = useCallback((msg: ChatMessage | null) => {
-    updateAgentStreamingMessage(selectedAgent, msg);
-  }, [selectedAgent, updateAgentStreamingMessage]);
-
-  const setIsLoading = useCallback((loading: boolean) => {
-    updateAgentIsLoading(selectedAgent, loading);
-  }, [selectedAgent, updateAgentIsLoading]);
-
   // Get active conversation ID for current agent
   const agentState = agentStates[selectedAgent] || { activeConversationId: null };
   const activeConversationId = agentState.activeConversationId;
@@ -285,16 +105,65 @@ export const AgentChat: React.FC = () => {
 
   // IMS Credentials modal state
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
-  const [imsUsername, setImsUsername] = useState('');
-  const [imsPassword, setImsPassword] = useState('');
-  const [isSubmittingCredentials, setIsSubmittingCredentials] = useState(false);
-  const [credentialsError, setCredentialsError] = useState<string | null>(null);
   const [pendingQuery, setPendingQuery] = useState<string | null>(null);
 
-  // File attachment state
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-  const [fileError, setFileError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // File attachment (using custom hook)
+  const {
+    attachedFiles,
+    fileError,
+    fileInputRef,
+    handleFileAttach,
+    handleFileChange,
+    handleRemoveFile,
+    handleClearAllFiles,
+    getFileContext,
+    clearFileError,
+  } = useFileAttachment();
+
+  // URL attachment (using custom hook)
+  const {
+    attachedUrls,
+    detectedUrl,
+    handleUrlDetect,
+    handleFetchUrl,
+    handleRemoveUrl,
+    getUrlContext,
+    dismissDetectedUrl,
+    clearAllUrls,
+  } = useUrlAttachment();
+
+  // Streaming chat (using custom hook)
+  const {
+    messages,
+    streamingMessage,
+    isLoading,
+    setMessages,
+    handleSend: streamingHandleSend,
+    handleCancelStreaming,
+    handleClearChat: streamingClearChat,
+    syncAgentState,
+  } = useStreamingChat(selectedAgentRef, {
+    t,
+    userLanguage,
+    agentStates,
+    createConversation,
+    loadConversations,
+    addArtifact,
+    createArtifactFromChunk,
+    getFileContext,
+    getUrlContext,
+    onCredentialsRequired: (query: string) => {
+      setPendingQuery(query);
+      setShowCredentialsModal(true);
+    },
+    onMessageSent: () => {
+      clearAllUrls();
+      // Reset textarea height
+      if (inputRef.current) {
+        inputRef.current.style.height = 'auto';
+      }
+    },
+  });
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -322,19 +191,15 @@ export const AgentChat: React.FC = () => {
 
   // Restore agent state and load conversations when agent type changes
   useEffect(() => {
-    // Restore state from ref for the selected agent
-    const savedState = agentLocalStatesRef.current[selectedAgent];
-    setMessagesState(savedState.messages);
-    setStreamingMessageState(savedState.streamingMessage);
-    setIsLoadingState(savedState.isLoading);
-    setAbortControllerState(savedState.abortController);
+    // Sync streaming chat state for the selected agent
+    syncAgentState(selectedAgent);
 
     // Update artifact store to show this agent's artifacts
     setArtifactAgentType(selectedAgent);
 
     // Load conversations for the new agent type
     loadConversations(selectedAgent);
-  }, [selectedAgent, loadConversations, setArtifactAgentType]);
+  }, [selectedAgent, loadConversations, setArtifactAgentType, syncAgentState]);
 
   // Auto-load active conversation when agent type changes and there's an active conversation
   useEffect(() => {
@@ -357,403 +222,23 @@ export const AgentChat: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Auto-resize textarea
+  // Auto-resize textarea with URL detection
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputValue(e.target.value);
+    const value = e.target.value;
+    setInputValue(value);
     e.target.style.height = 'auto';
     e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+    // Detect URLs in input
+    handleUrlDetect(value);
   };
 
-  // File attachment handling
-  const handleFileAttach = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
-  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setFileError(null);
-
-    for (const file of Array.from(files)) {
-      // Check extension
-      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-      if (!SUPPORTED_EXTENSIONS.includes(ext)) {
-        setFileError(`Unsupported file type: ${ext}. Supported: ${SUPPORTED_EXTENSIONS.join(', ')}`);
-        continue;
-      }
-
-      // Check size based on file type
-      const isBinaryFile = BINARY_EXTENSIONS.includes(ext);
-      const maxSize = isBinaryFile ? MAX_BINARY_FILE_SIZE : MAX_TEXT_FILE_SIZE;
-      const maxSizeLabel = isBinaryFile ? '2MB' : '500KB';
-
-      if (file.size > maxSize) {
-        setFileError(`File too large: ${file.name} (max ${maxSizeLabel})`);
-        continue;
-      }
-
-      // Check if already attached
-      if (attachedFiles.some(f => f.name === file.name)) {
-        setFileError(`File already attached: ${file.name}`);
-        continue;
-      }
-
-      // Handle file based on type
-      try {
-        let content: string;
-
-        if (isBinaryFile) {
-          // PDF/DOCX: Send to server for text extraction
-          const formData = new FormData();
-          formData.append('file', file);
-
-          const response = await fetch('/api/v1/agents/extract-text', {
-            method: 'POST',
-            body: formData,
-            credentials: 'include',
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail?.message || 'Failed to extract text');
-          }
-
-          const result = await response.json();
-          content = result.content;
-        } else {
-          // Text files: Read directly
-          content = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsText(file);
-          });
-        }
-
-        setAttachedFiles(prev => [...prev, {
-          name: file.name,
-          content,
-          size: content.length  // Use extracted content size
-        }]);
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        setFileError(`Failed to process file ${file.name}: ${errorMsg}`);
-      }
-    }
-
-    // Reset input to allow re-selecting the same file
-    if (e.target) e.target.value = '';
-  }, [attachedFiles]);
-
-  const handleRemoveFile = useCallback((fileName: string) => {
-    setAttachedFiles(prev => prev.filter(f => f.name !== fileName));
-    setFileError(null);
-  }, []);
-
-  const handleClearAllFiles = useCallback(() => {
-    setAttachedFiles([]);
-    setFileError(null);
-  }, []);
-
-  // Get combined file context for API request
-  const getFileContext = useCallback((): string | undefined => {
-    if (attachedFiles.length === 0) return undefined;
-    return attachedFiles.map(f => `=== File: ${f.name} ===\n${f.content}\n`).join('\n');
-  }, [attachedFiles]);
-
-  // Helper to save message to database
-  const saveMessageToDb = useCallback(async (
-    conversationId: string,
-    role: 'user' | 'assistant',
-    content: string
-  ) => {
-    try {
-      await conversationApi.addMessage(conversationId, { role, content });
-      console.log('[AgentChat] Message saved to conversation:', conversationId);
-    } catch (error) {
-      console.error('[AgentChat] Failed to save message:', error);
-    }
-  }, []);
-
-  // Handle send message
+  // Handle send message (wrapper for streaming hook)
   const handleSend = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
-
-    // IMPORTANT: Capture the agent type at the start - this won't change during streaming
-    const requestingAgent = selectedAgent;
-    // Also capture the active conversation ID for THIS agent (not current render state)
-    const requestingAgentConversationId = agentStates[requestingAgent]?.activeConversationId || null;
-
-    const userMessage: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      role: 'user',
-      content: inputValue.trim(),
-      timestamp: new Date(),
-    };
-
-    updateAgentMessages(requestingAgent, (prev) => [...prev, userMessage]);
+    const currentInput = inputValue;
     setInputValue('');
-    updateAgentIsLoading(requestingAgent, true);
-
-    // Get or create conversation for auto-save
-    let conversationId = requestingAgentConversationId;
-    if (!conversationId) {
-      try {
-        // Create new conversation with first message as title
-        const title = userMessage.content.slice(0, 50) + (userMessage.content.length > 50 ? '...' : '');
-        const conversation = await createConversation(requestingAgent, title);
-        conversationId = conversation.id;
-        console.log('[AgentChat] Created new conversation:', conversationId);
-      } catch (error) {
-        console.error('[AgentChat] Failed to create conversation:', error);
-        // Continue without persistence
-      }
-    }
-
-    // Save user message to database
-    if (conversationId) {
-      saveMessageToDb(conversationId, 'user', userMessage.content);
-    }
-
-    // Reset textarea height
-    if (inputRef.current) {
-      inputRef.current.style.height = 'auto';
-    }
-
-    // Create streaming message placeholder with initial thinking state
-    const assistantMessageId = `msg-${Date.now()}-assistant`;
-    const streamingMsg: ChatMessage = {
-      id: assistantMessageId,
-      role: 'assistant',
-      content: t('common.agent.status.analyzing') || 'Analyzing your request...',
-      timestamp: new Date(),
-      agentType: requestingAgent,
-      toolCalls: [],
-      sources: [],
-      isStreaming: true,
-    };
-    updateAgentStreamingMessage(requestingAgent, streamingMsg);
-
-    // Create abort controller for cancellation
-    const controller = new AbortController();
-    updateAgentAbortController(requestingAgent, controller);
-
-    try {
-      let accumulatedContent = '';
-      const toolCalls: ToolCallInfo[] = [];
-      let sources: AgentSource[] = [];
-      let receivedAnyChunk = false;
-
-      console.log('[AgentChat] Starting stream for task:', userMessage.content, 'agent:', requestingAgent);
-
-      // When 'auto' is selected, don't send agent_type to let backend classify
-      // Always include user's preferred language for AI responses
-      // Include attached file context for RAG priority
-      const fileContext = getFileContext();
-      const requestPayload = requestingAgent === 'auto'
-        ? { task: userMessage.content, language: userLanguage, file_context: fileContext }
-        : { task: userMessage.content, agent_type: requestingAgent, language: userLanguage, file_context: fileContext };
-
-      for await (const chunk of streamAgent(
-        requestPayload,
-        controller.signal
-      )) {
-        receivedAnyChunk = true;
-        console.log('[AgentChat] Received chunk:', chunk.chunk_type, chunk);
-        switch (chunk.chunk_type) {
-          case 'thinking':
-            // Update with thinking status - use captured requestingAgent
-            updateAgentStreamingMessage(requestingAgent,
-              agentLocalStatesRef.current[requestingAgent].streamingMessage
-                ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, content: chunk.content || 'Analyzing...' }
-                : null
-            );
-            break;
-
-          case 'tool_call':
-            // Add new tool call
-            if (chunk.tool_name) {
-              toolCalls.push({
-                name: chunk.tool_name,
-                input: chunk.tool_input || {},
-                status: 'pending',
-              });
-              updateAgentStreamingMessage(requestingAgent,
-                agentLocalStatesRef.current[requestingAgent].streamingMessage
-                  ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, toolCalls: [...toolCalls] }
-                  : null
-              );
-            }
-            break;
-
-          case 'tool_result':
-            // Update tool call status
-            if (chunk.tool_name) {
-              const toolIndex = toolCalls.findIndex((tc) => tc.name === chunk.tool_name && tc.status === 'pending');
-              if (toolIndex !== -1) {
-                toolCalls[toolIndex] = {
-                  ...toolCalls[toolIndex],
-                  output: chunk.tool_output || '',
-                  status: chunk.tool_output?.includes('error') || chunk.tool_output?.includes('Error')
-                    ? 'error'
-                    : 'success',
-                };
-                updateAgentStreamingMessage(requestingAgent,
-                  agentLocalStatesRef.current[requestingAgent].streamingMessage
-                    ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, toolCalls: [...toolCalls] }
-                    : null
-                );
-              }
-            }
-            break;
-
-          case 'text':
-            // Accumulate text content
-            accumulatedContent += chunk.content || '';
-            updateAgentStreamingMessage(requestingAgent,
-              agentLocalStatesRef.current[requestingAgent].streamingMessage
-                ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, content: accumulatedContent }
-                : null
-            );
-            break;
-
-          case 'sources':
-            // Update sources
-            sources = chunk.sources || [];
-            updateAgentStreamingMessage(requestingAgent,
-              agentLocalStatesRef.current[requestingAgent].streamingMessage
-                ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, sources }
-                : null
-            );
-            break;
-
-          case 'artifact':
-            // Handle artifact chunk - add to artifact store for the requesting agent
-            if (chunk.artifact_id && chunk.artifact_type && chunk.content) {
-              const artifact = createArtifactFromChunk({
-                artifact_id: chunk.artifact_id,
-                artifact_type: chunk.artifact_type,
-                artifact_title: chunk.artifact_title,
-                artifact_language: chunk.artifact_language,
-                content: chunk.content,
-                metadata: chunk.metadata,
-                messageId: assistantMessageId,
-              });
-
-              if (artifact) {
-                addArtifact(requestingAgent, artifact);
-              }
-            }
-            break;
-
-          case 'status':
-            // Handle status messages (crawl status, ready status, credentials_required)
-            // Backend sends status keys: "crawling", "ready", "credentials_required", etc.
-            if (chunk.content) {
-              const statusKey = chunk.content as 'crawling' | 'ready' | 'searching' | 'processing' | 'credentials_required';
-
-              // If credentials required, show the credentials modal
-              if (statusKey === 'credentials_required') {
-                setPendingQuery(userMessage.content);
-                setShowCredentialsModal(true);
-                updateAgentIsLoading(requestingAgent, false);
-                updateAgentStreamingMessage(requestingAgent, null);
-                return; // Stop processing, user needs to enter credentials
-              }
-
-              const statusMsg: ChatMessage = {
-                id: `status-${Date.now()}`,
-                role: 'status',
-                content: statusKey, // Store the key, translate in render
-                timestamp: new Date(),
-                statusType: statusKey === 'crawling' ? 'crawling' : 'ready',
-              };
-              updateAgentMessages(requestingAgent, (prev) => [...prev, statusMsg]);
-            }
-            break;
-
-          case 'error':
-            // Handle error
-            updateAgentStreamingMessage(requestingAgent,
-              agentLocalStatesRef.current[requestingAgent].streamingMessage
-                ? {
-                    ...agentLocalStatesRef.current[requestingAgent].streamingMessage!,
-                    content: chunk.content || 'An error occurred',
-                    error: chunk.content || 'Unknown error',
-                    isStreaming: false,
-                  }
-                : null
-            );
-            break;
-
-          case 'done':
-            // Streaming complete - remove processing status messages
-            updateAgentMessages(requestingAgent, (prev) => prev.filter(msg =>
-              !(msg.role === 'status' &&
-                (msg.content === 'processing' || msg.content === 'crawling' || msg.content === 'searching'))
-            ));
-            break;
-        }
-      }
-
-      // Log if no chunks received
-      if (!receivedAnyChunk) {
-        console.warn('[AgentChat] No chunks received from stream');
-      }
-
-      // Finalize message - also filter out any remaining processing status messages
-      const finalMessage: ChatMessage = {
-        id: assistantMessageId,
-        role: 'assistant',
-        content: accumulatedContent || (receivedAnyChunk ? 'No content in response.' : 'Failed to get response from server.'),
-        timestamp: new Date(),
-        agentType: requestingAgent,
-        toolCalls,
-        sources,
-        isStreaming: false,
-      };
-
-      console.log('[AgentChat] Final message:', finalMessage);
-      updateAgentMessages(requestingAgent, (prev) => [
-        ...prev.filter(msg =>
-          !(msg.role === 'status' &&
-            (msg.content === 'processing' || msg.content === 'crawling' || msg.content === 'searching'))
-        ),
-        finalMessage
-      ]);
-      updateAgentStreamingMessage(requestingAgent, null);
-
-      // Save assistant response to database
-      if (conversationId && accumulatedContent) {
-        saveMessageToDb(conversationId, 'assistant', accumulatedContent);
-        // Reload conversation list to update counts
-        loadConversations(requestingAgent);
-      }
-    } catch (error) {
-      console.error('[AgentChat] Stream error:', error);
-      if (error instanceof Error && error.name === 'AbortError') {
-        // Request was cancelled
-        updateAgentStreamingMessage(requestingAgent, null);
-      } else {
-        console.error('Agent chat error:', error);
-        const errorMessage: ChatMessage = {
-          id: assistantMessageId,
-          role: 'assistant',
-          content: 'Sorry, I encountered an error. Please try again.',
-          timestamp: new Date(),
-          agentType: requestingAgent,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          isStreaming: false,
-        };
-        updateAgentMessages(requestingAgent, (prev) => [...prev, errorMessage]);
-        updateAgentStreamingMessage(requestingAgent, null);
-      }
-    } finally {
-      updateAgentIsLoading(requestingAgent, false);
-      updateAgentAbortController(requestingAgent, null);
-    }
-  }, [inputValue, isLoading, selectedAgent, agentStates, createConversation, saveMessageToDb, loadConversations, t, addArtifact, updateAgentMessages, updateAgentStreamingMessage, updateAgentIsLoading, updateAgentAbortController, getFileContext]);
+    await streamingHandleSend(currentInput);
+  }, [inputValue, isLoading, streamingHandleSend]);
 
   // Handle key press
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -780,86 +265,29 @@ export const AgentChat: React.FC = () => {
     }
   };
 
-  // Clear chat
-  const handleClearChat = () => {
-    if (abortController) {
-      abortController.abort();
-    }
-    setMessages([]);
-    setStreamingMessage(null);
-    clearArtifacts(selectedAgent); // Also clear artifacts for this agent
-  };
+  // Clear chat (wrapper for streaming hook)
+  const handleClearChat = useCallback(() => {
+    streamingClearChat(clearArtifacts);
+  }, [streamingClearChat, clearArtifacts]);
 
-  // Cancel streaming
-  const handleCancelStreaming = () => {
-    if (abortController) {
-      abortController.abort();
-      setIsLoading(false);
-      setStreamingMessage(null);
-    }
-  };
-
-  // Submit IMS credentials
-  const handleSubmitCredentials = async () => {
-    if (!imsUsername.trim() || !imsPassword.trim()) {
-      setCredentialsError(t('common.agent.credentials.emptyFields') || 'Please fill in all fields');
-      return;
-    }
-
-    setIsSubmittingCredentials(true);
-    setCredentialsError(null);
-
-    try {
-      const response = await fetch('/api/v1/ims-credentials/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          ims_url: 'https://ims.tmaxsoft.com',
-          username: imsUsername,
-          password: imsPassword,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to save credentials');
-      }
-
-      // Success - close modal and retry the query
-      setShowCredentialsModal(false);
-      setImsUsername('');
-      setImsPassword('');
-
-      // Retry the pending query with credentials now stored
-      if (pendingQuery) {
-        setInputValue(pendingQuery);
-        setPendingQuery(null);
-        // Trigger send after a short delay to let state update
-        setTimeout(() => {
-          handleSend();
-        }, 100);
-      }
-    } catch (error) {
-      console.error('Failed to save IMS credentials:', error);
-      setCredentialsError(
-        error instanceof Error ? error.message : t('common.agent.credentials.saveError') || 'Failed to save credentials'
-      );
-    } finally {
-      setIsSubmittingCredentials(false);
-    }
-  };
-
-  // Close credentials modal
-  const handleCloseCredentialsModal = () => {
+  // IMS credentials modal handlers
+  const handleCredentialsClose = useCallback(() => {
     setShowCredentialsModal(false);
-    setImsUsername('');
-    setImsPassword('');
-    setCredentialsError(null);
     setPendingQuery(null);
-  };
+  }, []);
+
+  const handleCredentialsSuccess = useCallback(() => {
+    setShowCredentialsModal(false);
+    // Retry the pending query with credentials now stored
+    if (pendingQuery) {
+      setInputValue(pendingQuery);
+      setPendingQuery(null);
+      // Trigger send after a short delay to let state update
+      setTimeout(() => {
+        handleSend();
+      }, 100);
+    }
+  }, [pendingQuery, handleSend]);
 
   // Get agent icon
   const AgentIcon = AGENT_CONFIGS[selectedAgent].icon;
@@ -1100,12 +528,82 @@ export const AgentChat: React.FC = () => {
           </div>
         )}
 
+        {/* Attached URLs display */}
+        {attachedUrls.length > 0 && (
+          <div className="agent-attached-urls">
+            <div className="agent-attached-urls-header">
+              <span className="agent-attached-urls-label">
+                <Link size={14} />
+                {attachedUrls.length} URL{attachedUrls.length > 1 ? 's' : ''} attached
+              </span>
+            </div>
+            <div className="agent-attached-urls-list">
+              {attachedUrls.map(urlItem => (
+                <div key={urlItem.url} className={`agent-attached-url ${urlItem.isLoading ? 'loading' : ''} ${urlItem.error ? 'error' : ''}`}>
+                  {urlItem.isLoading ? (
+                    <Loader2 size={14} className="spin" />
+                  ) : urlItem.error ? (
+                    <AlertCircle size={14} />
+                  ) : (
+                    <Globe size={14} />
+                  )}
+                  <div className="agent-attached-url-info">
+                    <span className="agent-attached-url-title">
+                      {urlItem.isLoading ? 'Fetching...' : urlItem.error ? 'Failed to fetch' : (urlItem.title || urlItem.url)}
+                    </span>
+                    {!urlItem.isLoading && !urlItem.error && (
+                      <span className="agent-attached-url-meta">
+                        {urlItem.charCount < 1024 ? `${urlItem.charCount} chars` : `${Math.round(urlItem.charCount / 1024)}KB`}
+                      </span>
+                    )}
+                    {urlItem.error && (
+                      <span className="agent-attached-url-error">{urlItem.error}</span>
+                    )}
+                  </div>
+                  <button
+                    className="agent-attached-url-remove"
+                    onClick={() => handleRemoveUrl(urlItem.url)}
+                    title="Remove"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* URL detection prompt */}
+        {detectedUrl && (
+          <div className="agent-url-detected">
+            <Link size={14} />
+            <span className="agent-url-detected-text">
+              URL detected: <strong>{detectedUrl.length > 50 ? detectedUrl.slice(0, 50) + '...' : detectedUrl}</strong>
+            </span>
+            <button
+              className="agent-url-fetch-btn"
+              onClick={() => handleFetchUrl(detectedUrl)}
+              title="Fetch content for RAG context"
+            >
+              <ExternalLink size={12} />
+              Fetch content
+            </button>
+            <button
+              className="agent-url-dismiss-btn"
+              onClick={dismissDetectedUrl}
+              title="Dismiss"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )}
+
         {/* File error display */}
         {fileError && (
           <div className="agent-file-error">
             <AlertCircle size={14} />
             <span>{fileError}</span>
-            <button onClick={() => setFileError(null)}><X size={12} /></button>
+            <button onClick={() => clearFileError()}><X size={12} /></button>
           </div>
         )}
 
@@ -1151,339 +649,17 @@ export const AgentChat: React.FC = () => {
       </div>
 
       {/* IMS Credentials Modal */}
-      {showCredentialsModal && (
-        <div className="agent-credentials-modal-overlay" onClick={handleCloseCredentialsModal}>
-          <div className="agent-credentials-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="agent-credentials-modal-header">
-              <div className="agent-credentials-modal-title">
-                <Lock size={20} />
-                <h3>{t('common.agent.credentials.title') || 'IMS Login Required'}</h3>
-              </div>
-              <button className="agent-credentials-modal-close" onClick={handleCloseCredentialsModal}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="agent-credentials-modal-body">
-              <p className="agent-credentials-modal-description">
-                {t('common.agent.credentials.description') ||
-                  'Please enter your IMS credentials to search the Issue Management System.'}
-              </p>
-
-              {credentialsError && (
-                <div className="agent-credentials-error">
-                  <AlertCircle size={16} />
-                  <span>{credentialsError}</span>
-                </div>
-              )}
-
-              <div className="agent-credentials-form">
-                <div className="agent-credentials-field">
-                  <label htmlFor="ims-username">
-                    {t('common.agent.credentials.username') || 'Username'}
-                  </label>
-                  <input
-                    id="ims-username"
-                    type="text"
-                    value={imsUsername}
-                    onChange={(e) => setImsUsername(e.target.value)}
-                    placeholder={t('common.agent.credentials.usernamePlaceholder') || 'Enter IMS username'}
-                    disabled={isSubmittingCredentials}
-                    autoFocus
-                  />
-                </div>
-
-                <div className="agent-credentials-field">
-                  <label htmlFor="ims-password">
-                    {t('common.agent.credentials.password') || 'Password'}
-                  </label>
-                  <input
-                    id="ims-password"
-                    type="password"
-                    value={imsPassword}
-                    onChange={(e) => setImsPassword(e.target.value)}
-                    placeholder={t('common.agent.credentials.passwordPlaceholder') || 'Enter IMS password'}
-                    disabled={isSubmittingCredentials}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSubmitCredentials()}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="agent-credentials-modal-footer">
-              <button
-                className="agent-credentials-cancel-btn"
-                onClick={handleCloseCredentialsModal}
-                disabled={isSubmittingCredentials}
-              >
-                {t('common.cancel') || 'Cancel'}
-              </button>
-              <button
-                className="agent-credentials-submit-btn"
-                onClick={handleSubmitCredentials}
-                disabled={isSubmittingCredentials || !imsUsername.trim() || !imsPassword.trim()}
-              >
-                {isSubmittingCredentials ? (
-                  <>
-                    <Loader2 size={16} className="spin" />
-                    <span>{t('common.agent.credentials.saving') || 'Saving...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <Lock size={16} />
-                    <span>{t('common.agent.credentials.login') || 'Login'}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <IMSCredentialsModal
+        isOpen={showCredentialsModal}
+        onClose={handleCredentialsClose}
+        onSuccess={handleCredentialsSuccess}
+        t={t}
+      />
     </div>
 
     {/* Artifact Panel */}
     <ArtifactPanel />
     </div>
-  );
-};
-
-// =============================================================================
-// Message Bubble Component
-// =============================================================================
-
-interface MessageBubbleProps {
-  message: ChatMessage;
-  onCopy: (content: string, messageId: string) => void;
-  copiedMessageId: string | null;
-  onCancel?: () => void;
-}
-
-const MessageBubble: React.FC<MessageBubbleProps> = ({
-  message,
-  onCopy,
-  copiedMessageId,
-  onCancel,
-}) => {
-  const { t } = useTranslation();
-  const isUser = message.role === 'user';
-  const isStatus = message.role === 'status';
-  const agentConfig = message.agentType ? AGENT_CONFIGS[message.agentType] : null;
-  const AgentIcon = agentConfig?.icon || Bot;
-
-  // Render status message differently
-  if (isStatus) {
-    // Translate status key using i18n
-    const statusKey = message.content as 'crawling' | 'ready' | 'searching' | 'processing';
-    const translatedMessage = t(`common.agent.status.${statusKey}`) || message.content;
-
-    // Get appropriate icon based on status
-    const getStatusIcon = () => {
-      switch (statusKey) {
-        case 'crawling':
-        case 'processing':
-          return <Loader2 size={18} className="spin" />;
-        case 'searching':
-          return <Search size={18} className="pulse" />;
-        case 'ready':
-          return <CheckCircle2 size={18} />;
-        default:
-          return <Database size={18} />;
-      }
-    };
-
-    return (
-      <div className={`agent-status-message ${message.statusType || ''} ${statusKey}`}>
-        <div className="agent-status-icon">
-          {getStatusIcon()}
-        </div>
-        <div className="agent-status-content">
-          <span>{translatedMessage}</span>
-          {(statusKey === 'crawling' || statusKey === 'processing' || statusKey === 'searching') && (
-            <span className="agent-status-dots">
-              <span className="dot">.</span>
-              <span className="dot">.</span>
-              <span className="dot">.</span>
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={`agent-message ${message.role} ${message.isStreaming ? 'streaming' : ''}`}>
-      {/* Avatar */}
-      <div className="agent-message-avatar">
-        {isUser ? <User size={18} /> : <AgentIcon size={18} />}
-      </div>
-
-      {/* Content */}
-      <div className="agent-message-content">
-        {/* Agent type badge */}
-        {!isUser && agentConfig && (
-          <div className="agent-message-badge">
-            <AgentIcon size={12} />
-            <span>{agentConfig.label}</span>
-          </div>
-        )}
-
-        {/* Tool calls */}
-        {message.toolCalls && message.toolCalls.length > 0 && (
-          <div className="agent-tool-calls">
-            {message.toolCalls.map((tool, idx) => (
-              <div key={idx} className={`agent-tool-call ${tool.status}`}>
-                <div className="agent-tool-call-header">
-                  <Wrench size={14} />
-                  <span className="agent-tool-call-name">{tool.name}</span>
-                  {tool.status === 'pending' && <Loader2 size={14} className="spin" />}
-                  {tool.status === 'success' && <CheckCircle2 size={14} />}
-                  {tool.status === 'error' && <XCircle size={14} />}
-                </div>
-                {tool.input && Object.keys(tool.input).length > 0 && (
-                  <div className="agent-tool-call-input">
-                    <code>{JSON.stringify(tool.input, null, 2)}</code>
-                  </div>
-                )}
-                {tool.output && (
-                  <div className="agent-tool-call-output">
-                    <span>{tool.output.substring(0, 200)}{tool.output.length > 200 ? '...' : ''}</span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Message text */}
-        <div className="agent-message-text">
-          {message.error ? (
-            <div className="agent-message-error">
-              <AlertCircle size={16} />
-              <span>{message.content}</span>
-            </div>
-          ) : (
-            <MessageContent content={message.content} />
-          )}
-          {message.isStreaming && <span className="agent-typing-cursor" />}
-        </div>
-
-        {/* Sources */}
-        {message.sources && message.sources.length > 0 && (
-          <div className="agent-message-sources">
-            <span className="agent-sources-label">Sources:</span>
-            {message.sources.map((source, idx) => (
-              <div key={idx} className="agent-source-item">
-                <FileText size={12} />
-                <span>{source.source}</span>
-                <span className="agent-source-score">{Math.round(source.score * 100)}%</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Actions */}
-        {!isUser && !message.isStreaming && (
-          <div className="agent-message-actions">
-            <button
-              className={`agent-message-action ${copiedMessageId === message.id ? 'copied' : ''}`}
-              onClick={() => onCopy(message.content, message.id)}
-              title="Copy"
-            >
-              {copiedMessageId === message.id ? <Check size={14} /> : <Copy size={14} />}
-            </button>
-          </div>
-        )}
-
-        {/* Cancel button for streaming */}
-        {message.isStreaming && onCancel && (
-          <button className="agent-message-cancel" onClick={onCancel}>
-            Cancel
-          </button>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// =============================================================================
-// Message Content Renderer with react-markdown
-// =============================================================================
-
-interface MessageContentProps {
-  content: string;
-}
-
-const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
-  if (!content) return null;
-
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        // Custom table wrapper with horizontal scroll
-        table: ({ children }) => (
-          <div className="agent-table-wrapper">
-            <table className="agent-markdown-table">
-              {children}
-            </table>
-          </div>
-        ),
-        thead: ({ children }) => (
-          <thead className="agent-table-header">{children}</thead>
-        ),
-        tbody: ({ children }) => (
-          <tbody className="agent-table-body">{children}</tbody>
-        ),
-        tr: ({ children }) => (
-          <tr className="agent-table-row">{children}</tr>
-        ),
-        th: ({ children }) => (
-          <th className="agent-table-th">{children}</th>
-        ),
-        td: ({ children }) => (
-          <td className="agent-table-td">{children}</td>
-        ),
-        // Code blocks
-        code: ({ className, children }) => {
-          const match = /language-(\w+)/.exec(className || '');
-          const isInline = !match && !String(children).includes('\n');
-
-          if (isInline) {
-            return <code className="agent-inline-code">{children}</code>;
-          }
-
-          const language = match ? match[1] : 'text';
-          const codeString = String(children).replace(/\n$/, '');
-
-          return (
-            <pre className="agent-code-block">
-              <div className="agent-code-header">
-                <span className="agent-code-lang">{language}</span>
-                <button
-                  className="agent-code-copy"
-                  onClick={() => navigator.clipboard.writeText(codeString)}
-                  title="Copy code"
-                >
-                  <Copy size={12} />
-                </button>
-              </div>
-              <code>{codeString}</code>
-            </pre>
-          );
-        },
-        // Links - open in new tab
-        a: ({ href, children }) => (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="agent-markdown-link">
-            {children}
-          </a>
-        ),
-        p: ({ children }) => <p className="agent-markdown-p">{children}</p>,
-        h2: ({ children }) => <h2 className="agent-markdown-h2">{children}</h2>,
-        h3: ({ children }) => <h3 className="agent-markdown-h3">{children}</h3>,
-      }}
-    >
-      {content}
-    </ReactMarkdown>
   );
 };
 
