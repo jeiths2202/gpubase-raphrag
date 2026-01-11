@@ -1,10 +1,20 @@
 # HybridRAG
 
-A multilingual Hybrid RAG system combining Graph-based and Vector-based retrieval.
+A production-ready **Multi-Agent Orchestration Platform** for enterprise knowledge management, featuring specialized AI agents with automatic intent-based routing and hybrid RAG retrieval.
 
 ## Overview
 
-HybridRAG combines knowledge graph technology with vector embeddings and LLM capabilities for enhanced document retrieval and question answering.
+HybridRAG is an enterprise-grade AI platform that combines **multi-agent orchestration**, knowledge graph technology, vector embeddings, and LLM capabilities. The system automatically routes queries to specialized agents based on intent classification, enabling sophisticated workflows from document Q&A to issue tracking and code generation.
+
+### Key Differentiators
+
+| Capability | Description |
+|------------|-------------|
+| **Multi-Agent Orchestration** | 6 specialized agents (Auto, RAG, IMS, Vision, Code, Planner) with automatic intent-based routing |
+| **Hybrid RAG** | Combined vector similarity + graph traversal for superior retrieval accuracy |
+| **File Context Priority** | Attached files are prioritized over vector search for contextual relevance |
+| **Multilingual Native** | First-class support for Japanese, Korean, and English with language-aware prompts |
+| **CLI Agent Interface** | Full-featured command-line agent with streaming responses and session management |
 
 **Tech Stack:**
 - **RAG LLM**: NVIDIA Nemotron Nano 9B v2 (via NIM Container, GPU 7)
@@ -97,6 +107,112 @@ The core principle is the isolation of business logic from external factors.
 
 ---
 
+## Multi-Agent Orchestration
+
+The core innovation of HybridRAG is its **multi-agent orchestration layer** that routes queries to specialized agents based on intent classification. Each agent is optimized for specific task domains and has access to different toolsets and LLMs.
+
+### Agent Architecture
+
+```mermaid
+graph TB
+    subgraph "User Interfaces"
+        A["CLI Agent"]
+        B["Web UI"]
+    end
+
+    subgraph "Orchestration Layer"
+        C["Agent Router"]
+        D["Intent Classifier"]
+        E["Context Manager"]
+    end
+
+    subgraph "Specialized Agents"
+        F["Auto Agent<br/>(Default)"]
+        G["RAG Agent<br/>(Knowledge)"]
+        H["IMS Agent<br/>(Issue Tracking)"]
+        I["Vision Agent<br/>(Image Analysis)"]
+        J["Code Agent<br/>(Code Generation)"]
+        K["Planner Agent<br/>(Task Planning)"]
+    end
+
+    subgraph "Infrastructure"
+        L["Nemotron LLM"]
+        M["Mistral Code LLM"]
+        N["Neo4j Graph/Vector"]
+        O["PostgreSQL"]
+    end
+
+    A --> C
+    B --> C
+    C --> D
+    D --> F & G & H & I & J & K
+    E --> F & G & H & I & J & K
+    F --> L & N
+    G --> L & N
+    H --> L & O
+    I --> L
+    J --> M
+    K --> L
+```
+
+### Specialized Agents
+
+| Agent | Domain | LLM | Key Capabilities |
+|-------|--------|-----|------------------|
+| **Auto** | General | Nemotron | Default agent with automatic sub-routing to specialized agents |
+| **RAG** | Knowledge Q&A | Nemotron | Hybrid vector/graph retrieval, file context priority, topic density search |
+| **IMS** | Issue Management | Nemotron | IMS SSO integration, issue search, crawling, report generation |
+| **Vision** | Image Analysis | Claude/GPT-4V | Chart analysis, document OCR, visual Q&A |
+| **Code** | Code Generation | Mistral NeMo | Code synthesis, analysis, refactoring, multi-language support |
+| **Planner** | Task Planning | Nemotron | Multi-step task decomposition, dependency analysis |
+
+### Intent Classification
+
+The orchestrator uses a **hybrid classification pipeline** combining:
+
+1. **Rule-based Keywords** - Fast pattern matching for explicit agent triggers
+2. **Embedding Similarity** - Semantic matching with prototype vectors
+3. **LLM Classification** - Fallback for ambiguous queries
+
+```
+User Query → Rule Matcher → Embedding Classifier → LLM Classifier → Agent Selection
+                  ↓                    ↓                   ↓
+              Fast Path           Semantic Path       Fallback Path
+              (100%)               (82.9%)            (95%+)
+```
+
+### Agent-Specific Tools
+
+Each agent has access to a curated toolset:
+
+| Agent | Available Tools |
+|-------|----------------|
+| **RAG** | `vector_search`, `graph_traverse`, `document_read`, `topic_density_search` |
+| **IMS** | `ims_search`, `ims_crawl`, `ims_report`, `issue_detail` |
+| **Vision** | `image_analyze`, `chart_extract`, `document_ocr` |
+| **Code** | `code_generate`, `code_analyze`, `code_refactor`, `code_explain` |
+| **Planner** | `task_decompose`, `dependency_analyze`, `timeline_generate` |
+
+### File Context Priority
+
+When files are attached via CLI or Web UI, the system prioritizes attached context over vector search:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Priority Order for RAG Agent                                    │
+├─────────────────────────────────────────────────────────────────┤
+│ 1. Attached File Context (highest priority)                    │
+│ 2. Error Code Direct Match                                      │
+│ 3. Topic Density Search Results                                 │
+│ 4. Vector Similarity Results                                    │
+│ 5. Graph Traversal Results                                      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+This ensures that when users attach specific documents for reference, the LLM responds directly from that context without unnecessary tool calls.
+
+---
+
 ### Query Routing Logic
 
 The system uses a **hybrid classification approach** combining rule-based keyword matching with embedding-based semantic similarity for intelligent query routing.
@@ -178,6 +294,13 @@ def fibonacci(n):
 
 ```
 gpubase-raphrag/
+│
+├── cli/                                    # CLI Agent Interface
+│   ├── main.py                             # CLI entry point
+│   ├── agent.py                            # Agent client with file attachment
+│   ├── ui.py                               # Terminal UI with Rich formatting
+│   ├── i18n.py                             # Multilingual messages (ko/en/ja)
+│   └── commands.py                         # Command handlers
 │
 ├── app/                                    # Backend Application
 │   ├── requirements.txt
@@ -447,7 +570,107 @@ GPU Usage:
   GPU 7:  36681/40960 MB - Nemotron LLM
 ```
 
-### 2. Run Interactive Chat
+### 2. CLI Agent Interface
+
+The CLI provides a full-featured agent interface with streaming responses, file attachment, and multi-agent routing.
+
+```bash
+# Start CLI Agent
+cd cli
+python main.py
+
+# With language setting
+python main.py --language ja
+```
+
+**Core Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show all available commands |
+| `/agent [type]` | Switch agent (auto, rag, ims, vision, code, planner) |
+| `/status` | Show current session status |
+| `/new` | Start new conversation |
+| `/quit` | Exit CLI |
+
+**File Attachment Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `/attach <path>` | Attach file for RAG context priority |
+| `/files` | List currently attached files |
+| `/detach [filename]` | Remove attached file (all if no filename) |
+
+**IMS Agent Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `/ims-login` | Login to IMS with SSO credentials |
+| `/ims-logout` | Logout from IMS |
+| `/ims-status` | Check IMS connection status |
+
+**Example Session:**
+
+```
+$ python main.py
+
+KMS RAG Agent v2.0 - Multi-Agent System
+Available agents: auto, rag, ims, vision, code, planner
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You: /attach ./docs/tibero_manual.pdf
+📎 File attached: tibero_manual.pdf (2.3 MB)
+
+You: Tiberoの最大セッション数は?
+📎 Using 1 attached file(s): tibero_manual.pdf
+
+[RAG/Attached Context]
+添付されたドキュメントによると、Tiberoの最大セッション数は65,535です。
+
+You: /agent code
+
+Agent switched: code (Mistral NeMo 12B)
+
+You: Write a Python connection pool for Tibero
+
+[CODE/Mistral-NeMo]
+```python
+import cx_Oracle
+from contextlib import contextmanager
+
+class TiberoPool:
+    def __init__(self, user, password, dsn, min=5, max=20):
+        self.pool = cx_Oracle.SessionPool(
+            user=user, password=password, dsn=dsn,
+            min=min, max=max, increment=1
+        )
+
+    @contextmanager
+    def connection(self):
+        conn = self.pool.acquire()
+        try:
+            yield conn
+        finally:
+            self.pool.release(conn)
+```
+
+You: /detach
+All files detached.
+```
+
+**Multilingual Support:**
+
+The CLI supports Korean (ko), English (en), and Japanese (ja) with localized messages:
+
+| Message Key | Korean | English | Japanese |
+|-------------|--------|---------|----------|
+| `session_restored` | 세션이 복원되었습니다 | Session restored | セッションが復元されました |
+| `agent_switched` | 에이전트 전환됨 | Agent switched | エージェント切替 |
+| `formatting_output` | 출력데이터 포맷중입니다... | Formatting output data... | 出力データをフォーマット中... |
+
+---
+
+### 3. Legacy Interactive Chat
 
 ```bash
 cd app/src
@@ -668,6 +891,17 @@ app/api/
 │   ├── vector_store_port.py     # Vector store interface
 │   ├── graph_store_port.py      # Graph store interface
 │   └── vision_llm_port.py       # Vision LLM interface
+│
+├── agents/                      # Multi-Agent System
+│   ├── orchestrator.py          # Agent routing and orchestration
+│   ├── executor.py              # Agent execution with tool calling
+│   └── agents/                  # Specialized agents
+│       ├── auto_agent.py        # Default auto-routing agent
+│       ├── rag_agent.py         # Knowledge RAG agent
+│       ├── ims_agent.py         # IMS integration agent
+│       ├── vision_agent.py      # Vision analysis agent
+│       ├── code_agent.py        # Code generation agent
+│       └── planner_agent.py     # Task planning agent
 │
 ├── chains/                      # Composable RAG chains
 │   ├── base.py                  # Base chain infrastructure
@@ -1376,13 +1610,47 @@ npx playwright test
 ## Features
 
 ### Core Features
-- **Hybrid RAG**: Automatic routing between Vector and Graph search
+- **Multi-Agent Orchestration**: 6 specialized agents with automatic intent-based routing
+- **Hybrid RAG**: Automatic routing between Vector and Graph search with topic density prioritization
+- **File Context Priority**: Attached files take precedence over vector search for relevant responses
 - **Code Agent**: Dedicated Code LLM (Mistral NeMo 12B) for code generation/analysis
+- **IMS Integration**: Issue Management System SSO, search, crawling, and report generation
+- **Vision Agent**: Image and chart analysis via Claude/GPT-4V
+- **CLI Agent Interface**: Full-featured command-line agent with streaming and session management
 - **Interactive Chat**: Command-line chatbot interface with UTF-8 support
 - **Vector Search**: Neo4j vector index with 4096-dimensional embeddings
 - **Graph Search**: Entity-based relationship traversal
 - **Batch Processing**: Efficient document ingestion with parallel processing
 - **Mindmap Generation**: LLM-based concept extraction and interactive visualization
+
+### Multi-Agent Capabilities
+
+| Agent | Use Cases |
+|-------|-----------|
+| **Auto** | Default routing, general queries, automatic agent delegation |
+| **RAG** | Knowledge base Q&A, document search, error code lookup |
+| **IMS** | Issue tracking, bug report search, crawling, weekly reports |
+| **Vision** | Chart data extraction, document OCR, visual Q&A |
+| **Code** | Code generation, refactoring, analysis, multi-language support |
+| **Planner** | Task decomposition, project planning, dependency analysis |
+
+### File Attachment Feature
+
+Attach files to prioritize them as context for RAG responses:
+
+```bash
+# CLI usage
+/attach ./manual.pdf          # Attach file
+/files                         # List attached files
+/detach                        # Remove all attachments
+
+# Behavior
+# 1. Query first searches attached file context
+# 2. Only uses vector_search if answer not in attached files
+# 3. Responses cite "첨부된 문서에 따르면" / "According to the attached document"
+```
+
+**Supported Formats**: PDF, DOCX, TXT, MD, CSV, JSON, XML
 
 ### Mindmap Visualization
 
