@@ -28,6 +28,10 @@ class AuthManager:
         self.token_expiry: Optional[datetime] = None
         self.user_info: Optional[Dict] = None
 
+        # IMS session info
+        self.ims_credentials: Optional[Dict] = None
+        self.ims_validated: bool = False
+
         # Load saved token
         self._load_token()
 
@@ -188,3 +192,161 @@ class AuthManager:
             return "Unknown"
 
         return self.user_info.get("username") or self.user_info.get("email") or "User"
+
+    # =========================================================================
+    # IMS Credentials Management
+    # =========================================================================
+
+    def check_ims_credentials(self) -> tuple[bool, Optional[Dict]]:
+        """
+        Check if IMS credentials exist and are validated.
+
+        Returns:
+            (is_valid, credentials_info) tuple
+        """
+        if not httpx or not self.access_token:
+            return False, None
+
+        url = f"{self.config.api_url}/ims-crawler/ims-credentials/"
+
+        try:
+            with httpx.Client(timeout=30.0) as client:
+                response = client.get(url, headers=self.get_headers())
+
+                if response.status_code == 200:
+                    response_data = response.json()
+                    # Handle wrapped response
+                    if response_data.get("success") and "data" in response_data:
+                        data = response_data["data"]
+                    else:
+                        data = response_data
+
+                    self.ims_credentials = data
+                    self.ims_validated = data.get("is_validated", False)
+
+                    return self.ims_validated, data
+
+                elif response.status_code == 404:
+                    # Credentials not found
+                    self.ims_credentials = None
+                    self.ims_validated = False
+                    return False, None
+
+                return False, None
+
+        except Exception:
+            return False, None
+
+    def ims_login(self, username: str, password: str, ims_url: str = "https://ims.tmaxsoft.com") -> tuple[bool, str]:
+        """
+        Create/update IMS credentials and validate.
+
+        Returns:
+            (success, message) tuple
+        """
+        if not httpx or not self.access_token:
+            return False, "Not authenticated"
+
+        url = f"{self.config.api_url}/ims-crawler/ims-credentials/"
+
+        try:
+            with httpx.Client(timeout=60.0) as client:
+                # Create/update credentials
+                response = client.post(
+                    url,
+                    json={
+                        "ims_url": ims_url,
+                        "username": username,
+                        "password": password,
+                    },
+                    headers=self.get_headers()
+                )
+
+                if response.status_code in (200, 201):
+                    response_data = response.json()
+                    if response_data.get("success") and "data" in response_data:
+                        data = response_data["data"]
+                    else:
+                        data = response_data
+
+                    self.ims_credentials = data
+
+                    # Now validate the credentials
+                    return self.validate_ims_credentials()
+
+                else:
+                    error_data = response.json()
+                    error_msg = error_data.get("error", {}).get("message", "Unknown error")
+                    return False, error_msg
+
+        except Exception as e:
+            return False, str(e)
+
+    def validate_ims_credentials(self) -> tuple[bool, str]:
+        """
+        Validate stored IMS credentials.
+
+        Returns:
+            (success, message) tuple
+        """
+        if not httpx or not self.access_token:
+            return False, "Not authenticated"
+
+        url = f"{self.config.api_url}/ims-crawler/ims-credentials/validate"
+
+        try:
+            with httpx.Client(timeout=120.0) as client:
+                response = client.post(url, headers=self.get_headers())
+
+                if response.status_code == 200:
+                    response_data = response.json()
+                    if response_data.get("success") and "data" in response_data:
+                        data = response_data["data"]
+                    else:
+                        data = response_data
+
+                    is_valid = data.get("is_valid", False)
+                    message = data.get("message", "")
+
+                    self.ims_validated = is_valid
+                    return is_valid, message
+
+                else:
+                    error_data = response.json()
+                    error_msg = error_data.get("error", {}).get("message", "Validation failed")
+                    self.ims_validated = False
+                    return False, error_msg
+
+        except Exception as e:
+            self.ims_validated = False
+            return False, str(e)
+
+    def ims_logout(self) -> tuple[bool, str]:
+        """
+        Delete IMS credentials (logout).
+
+        Returns:
+            (success, message) tuple
+        """
+        if not httpx or not self.access_token:
+            return False, "Not authenticated"
+
+        url = f"{self.config.api_url}/ims-crawler/ims-credentials/"
+
+        try:
+            with httpx.Client(timeout=30.0) as client:
+                response = client.delete(url, headers=self.get_headers())
+
+                if response.status_code == 204:
+                    self.ims_credentials = None
+                    self.ims_validated = False
+                    return True, "IMS credentials deleted"
+
+                return False, "Failed to delete credentials"
+
+        except Exception as e:
+            return False, str(e)
+
+    def is_ims_authenticated(self) -> bool:
+        """Check if IMS is authenticated"""
+        return self.ims_validated and self.ims_credentials is not None

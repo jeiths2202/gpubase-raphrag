@@ -11,6 +11,36 @@ import locale
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
+
+def _setup_windows_utf8():
+    """Setup UTF-8 encoding for Windows console"""
+    if sys.platform == "win32":
+        try:
+            # Set console code page to UTF-8
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            kernel32.SetConsoleOutputCP(65001)
+            kernel32.SetConsoleCP(65001)
+
+            # Set environment variable for Python
+            os.environ["PYTHONIOENCODING"] = "utf-8"
+
+            # Reconfigure stdout/stderr with UTF-8 encoding
+            if hasattr(sys.stdout, 'reconfigure'):
+                sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+            if hasattr(sys.stderr, 'reconfigure'):
+                sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
+            return True
+        except Exception:
+            return False
+    return True
+
+
+# Setup UTF-8 on Windows before anything else
+_setup_windows_utf8()
+
+
 # Check if terminal supports Unicode
 def _supports_unicode() -> bool:
     """Check if the terminal supports Unicode output"""
@@ -178,7 +208,8 @@ class EnterpriseUI:
             self.console.print("=" * 60 + "\n")
 
     def print_status(self, server: str, agent: str, language: str,
-                     logged_in: bool, user: str, session_id: Optional[str]):
+                     logged_in: bool, user: str, session_id: Optional[str],
+                     ims_connected: bool = False):
         """Print status panel"""
         if self.rich_mode:
             table = Table(show_header=False, box=None, padding=(0, 2))
@@ -202,6 +233,13 @@ class EnterpriseUI:
             if logged_in:
                 table.add_row("User", user)
 
+            # IMS Status
+            ims_icon = self.ICONS["connected"] if ims_connected else self.ICONS["disconnected"]
+            ims_style = "green" if ims_connected else "dim"
+            ims_label = "Connected" if ims_connected else "Not connected"
+            ims_text = Text(f"{ims_icon} {ims_label}", style=ims_style)
+            table.add_row("IMS", ims_text)
+
             if session_id:
                 table.add_row("Session", session_id[:8] + "...")
 
@@ -213,6 +251,7 @@ class EnterpriseUI:
             self.console.print(f"  Agent:    {agent}")
             self.console.print(f"  Language: {language}")
             self.console.print(f"  Status:   {'Connected' if logged_in else 'Disconnected'}")
+            self.console.print(f"  IMS:      {'Connected' if ims_connected else 'Not connected'}")
             if session_id:
                 self.console.print(f"  Session:  {session_id[:8]}...")
             self.console.print()
@@ -441,13 +480,27 @@ class EnterpriseUI:
         else:
             return input("Username: ").strip()
 
-    def get_password(self) -> str:
+    def get_password(self, prompt: str = "Password") -> str:
         """Get password input (hidden)"""
         import getpass
         if self.rich_mode:
-            return Prompt.ask("[cyan]Password[/cyan]", password=True, console=self.console)
+            return Prompt.ask(f"[cyan]{prompt}[/cyan]", password=True, console=self.console)
         else:
-            return getpass.getpass("Password: ")
+            return getpass.getpass(f"{prompt}: ")
+
+    def get_input(self, prompt: str, default: str = "") -> str:
+        """Get user input with optional default value"""
+        if self.rich_mode:
+            if default:
+                return Prompt.ask(f"[cyan]{prompt}[/cyan]", default=default, console=self.console).strip()
+            else:
+                return Prompt.ask(f"[cyan]{prompt}[/cyan]", console=self.console).strip()
+        else:
+            if default:
+                value = input(f"{prompt} [{default}]: ").strip()
+                return value if value else default
+            else:
+                return input(f"{prompt}: ").strip()
 
     def clear(self):
         """Clear screen"""

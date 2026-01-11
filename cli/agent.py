@@ -31,6 +31,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from cli.ui import get_ui, EnterpriseUI
 from cli.auth import AuthManager
 from cli.config import Config
+from cli.i18n import get_i18n, I18n
 
 
 class AgentClient:
@@ -179,6 +180,8 @@ class CLI:
     COMMANDS = {
         "/help": "Show this help message",
         "/agent <type>": "Switch agent (auto, ims, rag, vision, code, planner)",
+        "/ims-login": "Login to IMS system",
+        "/ims-logout": "Logout from IMS system",
         "/new": "Start new session",
         "/status": "Show current status",
         "/clear": "Clear screen",
@@ -188,6 +191,7 @@ class CLI:
     def __init__(self, config: Config, ui: EnterpriseUI):
         self.config = config
         self.ui = ui
+        self.i18n = get_i18n(config.language)
         self.auth = AuthManager(config)
         self.client = AgentClient(config, self.auth, ui)
         self.running = False
@@ -208,8 +212,47 @@ class CLI:
             language=self.config.language,
             logged_in=self.auth.is_authenticated(),
             user=self.auth.get_user_display(),
-            session_id=self.client.session_id
+            session_id=self.client.session_id,
+            ims_connected=self.auth.is_ims_authenticated()
         )
+
+    def check_ims_session(self) -> bool:
+        """Check IMS session and auto-login if valid"""
+        self.ui.print_info(self.i18n("ims_session_checking"))
+        is_valid, _ = self.auth.check_ims_credentials()
+        if is_valid:
+            self.ui.print_success(self.i18n("ims_session_valid"))
+            return True
+        return False
+
+    def handle_ims_login(self):
+        """Handle IMS login command"""
+        self.ui.print_info(self.i18n("ims_login_prompt"))
+
+        try:
+            # Get IMS credentials from user
+            username = self.ui.get_input(self.i18n("ims_username"))
+            password = self.ui.get_password(self.i18n("ims_password"))
+            ims_url = self.ui.get_input(self.i18n("ims_url"), default="https://ims.tmaxsoft.com")
+
+            self.ui.print_info(self.i18n("ims_validating"))
+            success, message = self.auth.ims_login(username, password, ims_url)
+
+            if success:
+                self.ui.print_success(self.i18n("ims_login_success"))
+            else:
+                self.ui.print_error(self.i18n("ims_login_failed", error=message))
+
+        except (EOFError, KeyboardInterrupt):
+            self.ui.print_warning("Cancelled")
+
+    def handle_ims_logout(self):
+        """Handle IMS logout command"""
+        success, message = self.auth.ims_logout()
+        if success:
+            self.ui.print_success(self.i18n("ims_logout_success"))
+        else:
+            self.ui.print_error(self.i18n("ims_logout_failed"))
 
     def handle_command(self, cmd: str) -> bool:
         """Handle CLI command. Returns True if should continue."""
@@ -226,10 +269,23 @@ class CLI:
 
         elif command == "/agent":
             if args:
-                self.client.set_agent(args)
+                old_agent = self.client.current_agent
+                if self.client.set_agent(args):
+                    # When switching to IMS agent, check session
+                    if args.lower() == "ims" and old_agent != "ims":
+                        if not self.auth.is_ims_authenticated():
+                            # Check if there's a valid session
+                            if not self.check_ims_session():
+                                self.ui.print_warning(self.i18n("ims_not_configured"))
             else:
                 self.ui.print_info(f"Current agent: {self.client.current_agent}")
                 self.ui.print_info(f"Available: {', '.join(AgentClient.AGENT_TYPES)}")
+
+        elif command == "/ims-login":
+            self.handle_ims_login()
+
+        elif command == "/ims-logout":
+            self.handle_ims_logout()
 
         elif command == "/new":
             self.client.new_session()
@@ -242,7 +298,7 @@ class CLI:
             self.ui.print_banner()
 
         else:
-            self.ui.print_warning(f"Unknown command: {command}. Type /help for available commands.")
+            self.ui.print_warning(self.i18n("unknown_command", cmd=command))
 
         return True
 
@@ -295,15 +351,25 @@ class CLI:
         self.ui.print_error("Login failed. Please check your credentials.")
         return False
 
-    def run_interactive(self):
+    def run_interactive(self, initial_agent: str = "auto"):
         """Run interactive REPL mode"""
         self.ui.print_banner()
 
         if not self.login():
             return
 
+        # Set initial agent if specified
+        if initial_agent != "auto":
+            self.client.set_agent(initial_agent)
+
+        # Check IMS session if using IMS agent
+        if self.client.current_agent == "ims":
+            if not self.auth.is_ims_authenticated():
+                if not self.check_ims_session():
+                    self.ui.print_warning(self.i18n("ims_not_configured"))
+
         self.show_status()
-        self.ui.print_info("Type /help for available commands, or enter your query.\n")
+        self.ui.print_info(self.i18n("help_message") + "\n")
 
         self.running = True
         while self.running:
@@ -337,6 +403,13 @@ class CLI:
 
         if agent_type and agent_type != "auto":
             self.client.set_agent(agent_type)
+
+        # Check IMS session if using IMS agent
+        if self.client.current_agent == "ims":
+            if not self.auth.is_ims_authenticated():
+                if not self.check_ims_session():
+                    self.ui.print_warning(self.i18n("ims_login_required"))
+                    return
 
         self.client.query(query)
 
@@ -399,7 +472,7 @@ Examples:
     if args.query:
         cli.run_single_query(args.query, args.agent)
     else:
-        cli.run_interactive()
+        cli.run_interactive(initial_agent=args.agent)
 
 
 if __name__ == "__main__":
