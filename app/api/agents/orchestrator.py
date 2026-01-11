@@ -5,6 +5,7 @@ Manages agent selection and execution flow.
 from typing import Dict, List, Optional, AsyncGenerator
 import logging
 import re
+import time
 
 from .types import (
     AgentType, AgentContext, AgentResult, AgentRequest, AgentResponse,
@@ -14,6 +15,9 @@ from .base import BaseAgent
 from .registry import AgentRegistry, get_agent_registry
 from .executor import AgentExecutor, get_executor
 from .intent import IntentClassifier, get_intent_classifier, IntentResult
+
+# Import query log writer for logging all agent queries
+from ..infrastructure.services.query_log_writer import get_query_log_writer
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +97,8 @@ class AgentOrchestrator:
         Returns:
             AgentResponse with answer and metadata
         """
+        start_time = time.time()
+
         # Create context
         context = AgentContext(
             session_id=request.session_id or "",
@@ -122,6 +128,23 @@ class AgentOrchestrator:
         # Execute
         result = await agent.execute(request.task, context)
 
+        # Calculate execution time
+        execution_time_ms = int((time.time() - start_time) * 1000)
+
+        # Log query for FAQ system (non-blocking)
+        await self._log_query(
+            query_text=request.task,
+            user_id=user_id,
+            session_id=request.session_id,
+            agent_type=result.agent_type.value,
+            intent_type=intent_result.intent.value if intent_result else None,
+            category=intent_result.extracted_params.get('product') if intent_result else None,
+            language=request.language,
+            execution_time_ms=execution_time_ms,
+            success=result.success,
+            response_summary=result.answer[:500] if result.answer else None
+        )
+
         # Build response
         return AgentResponse(
             answer=result.answer,
@@ -149,6 +172,7 @@ class AgentOrchestrator:
         Yields:
             AgentStreamChunk with incremental results
         """
+        start_time = time.time()
         logger.info(f"[Orchestrator] stream called: task={request.task[:50]}...")
 
         context = AgentContext(
@@ -178,13 +202,39 @@ class AgentOrchestrator:
         agent = self.agent_registry.get(agent_type)
         print(f"[Orchestrator] agent={agent.name}", flush=True)
 
+        # Collect response text for logging
+        response_text_parts = []
+        success = True
+
         try:
             async for chunk in agent.stream(request.task, context):
                 logger.debug(f"[Orchestrator] chunk={chunk.chunk_type}")
+                # Collect text chunks for summary
+                if chunk.chunk_type == "text" and chunk.content:
+                    response_text_parts.append(chunk.content)
+                elif chunk.chunk_type == "error":
+                    success = False
                 yield chunk
         except Exception as e:
             logger.error(f"[Orchestrator] ERROR: {e}")
+            success = False
             raise
+        finally:
+            # Log query after stream completes (in finally to ensure logging even on error)
+            execution_time_ms = int((time.time() - start_time) * 1000)
+            response_summary = ''.join(response_text_parts)[:500] if response_text_parts else None
+            await self._log_query(
+                query_text=request.task,
+                user_id=user_id,
+                session_id=request.session_id,
+                agent_type=agent_type.value,
+                intent_type=intent_result.intent.value if intent_result else None,
+                category=intent_result.extracted_params.get('product') if intent_result else None,
+                language=request.language,
+                execution_time_ms=execution_time_ms,
+                success=success,
+                response_summary=response_summary
+            )
 
     async def classify_task(self, task: str) -> AgentType:
         """
@@ -274,6 +324,47 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
                 "tools": agent.tools
             })
         return agents
+
+    async def _log_query(
+        self,
+        query_text: str,
+        user_id: Optional[str],
+        session_id: Optional[str],
+        agent_type: str,
+        intent_type: Optional[str],
+        category: Optional[str],
+        language: str,
+        execution_time_ms: int,
+        success: bool,
+        response_summary: Optional[str]
+    ) -> None:
+        """
+        Log query to the background query log writer.
+
+        Non-blocking operation - failures are logged but don't affect request.
+        """
+        try:
+            query_log_writer = get_query_log_writer()
+            if query_log_writer is None:
+                logger.debug("[Orchestrator] QueryLogWriter not initialized, skipping log")
+                return
+
+            await query_log_writer.submit_query({
+                'user_id': user_id,
+                'session_id': session_id,
+                'query_text': query_text,
+                'agent_type': agent_type,
+                'intent_type': intent_type,
+                'category': category,
+                'language': language,
+                'execution_time_ms': execution_time_ms,
+                'success': success,
+                'response_summary': response_summary,
+            })
+            logger.debug(f"[Orchestrator] Query logged: agent={agent_type}, intent={intent_type}")
+        except Exception as e:
+            # Non-blocking - log error but don't fail the request
+            logger.warning(f"[Orchestrator] Failed to log query: {e}")
 
 
 # Convenience function

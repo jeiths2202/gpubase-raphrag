@@ -69,6 +69,26 @@ export type {
   ClassifyTaskResponse,
 } from './agent.api';
 
+// FAQ API
+export { default as faqApi } from './faq.api';
+export {
+  getFAQItems,
+  getFAQCategories,
+  recordFAQView,
+  recordFAQFeedback,
+  getPopularQueries,
+  syncDynamicFAQItems,
+} from './faq.api';
+export type {
+  FAQItemAPI,
+  FAQCategory,
+  PopularQuery,
+  FAQListResponse,
+  FAQCategoriesResponse,
+  PopularQueriesResponse,
+  GetFAQItemsOptions,
+} from './faq.api';
+
 // Types
 export type {
   // Common

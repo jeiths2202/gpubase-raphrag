@@ -36,7 +36,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 
 
@@ -161,6 +161,32 @@ async def lifespan(app: FastAPI):
             }
         )
 
+        # ==================== Query Log System Initialization ====================
+        # Initialize query log repository and writer for FAQ system
+        from .infrastructure.postgres.query_log_repository import QueryLogRepository
+        from .infrastructure.services.query_log_writer import initialize_query_log_writer, start_query_log_writer
+        from .routers.faq import set_faq_repository
+
+        query_log_repo = QueryLogRepository(db_pool)
+        query_log_writer = initialize_query_log_writer(query_log_repo)
+        await start_query_log_writer()
+
+        # Set FAQ repository for the router
+        set_faq_repository(query_log_repo)
+
+        # Register in container
+        container.register_singleton("query_log_repository", query_log_repo)
+        container.register_singleton("query_log_writer", query_log_writer)
+
+        logger.info(
+            "[OK] Query log system initialized (FAQ integration enabled)",
+            category=LogCategory.BUSINESS,
+            extra_data={
+                "batch_size": query_log_writer.batch_size,
+                "batch_timeout_seconds": query_log_writer.batch_timeout
+            }
+        )
+
     except Exception as e:
         logger.error(
             f"FATAL: PostgreSQL pool initialization failed: {e}",
@@ -212,6 +238,14 @@ async def lifespan(app: FastAPI):
 
     # ==================== Application Shutdown ====================
     logger.info("Shutting down application", category=LogCategory.BUSINESS)
+
+    # Stop query log writer (flush remaining queries)
+    from .infrastructure.services.query_log_writer import stop_query_log_writer
+    try:
+        await stop_query_log_writer()
+        logger.info("Query log writer stopped and flushed", category=LogCategory.BUSINESS)
+    except Exception as e:
+        logger.warning(f"Error stopping query log writer: {e}", category=LogCategory.BUSINESS)
 
     # Stop trace writer (flush remaining traces)
     if trace_writer is not None:
@@ -381,6 +415,7 @@ app.include_router(cache_router, prefix=API_PREFIX)  # IMS cache management
 app.include_router(tasks_router, prefix=API_PREFIX)  # IMS background task queue management
 app.include_router(ims_chat.router, prefix=API_PREFIX)  # IMS AI chat (limited to searched issues)
 app.include_router(agents.router, prefix=API_PREFIX)  # AI agent system
+app.include_router(faq.router, prefix=API_PREFIX)  # FAQ and popular queries (dynamic from query logs)
 
 
 # Root endpoint
