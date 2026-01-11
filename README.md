@@ -213,6 +213,130 @@ This ensures that when users attach specific documents for reference, the LLM re
 
 ---
 
+### Enterprise Multi-Agent Orchestration
+
+For complex tasks requiring multiple agents, the system provides **enterprise-grade orchestration** with DAG-based task decomposition, parallel execution, and result synthesis.
+
+```mermaid
+graph TB
+    subgraph "Enterprise Orchestration"
+        A["Complex Task"] --> B["DAG Builder"]
+        B --> C["Task DAG"]
+        C --> D["Parallel Executor"]
+
+        subgraph "Parallel Execution"
+            D --> E1["Agent 1"]
+            D --> E2["Agent 2"]
+            D --> E3["Agent 3"]
+        end
+
+        E1 --> F["Result Evaluator"]
+        E2 --> F
+        E3 --> F
+
+        F --> G{"Quality Check"}
+        G -->|Pass| H["Synthesizer"]
+        G -->|Fail| I["Retry with Backoff"]
+        I --> D
+
+        H --> J["Final Answer"]
+        J --> K["Next Actions"]
+    end
+```
+
+#### Orchestration Features
+
+| Feature | Description |
+|---------|-------------|
+| **DAG-based Decomposition** | Complex tasks are automatically decomposed into a Directed Acyclic Graph of subtasks with dependencies |
+| **Parallel Execution** | Independent subtasks execute concurrently using asyncio for optimal performance |
+| **Result Evaluation** | Each result is evaluated for quality (confidence, completeness, sources) |
+| **Automatic Retry** | Failed or low-quality results trigger retry with exponential backoff |
+| **Result Synthesis** | Multiple agent outputs are synthesized into a coherent, unified answer |
+| **Next Actions** | Contextual recommendations for follow-up questions or actions |
+| **Execution Trace** | Full trace of all events for debugging and explainability |
+
+#### Enterprise API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/agents/enterprise/execute` | Execute with full orchestration |
+| POST | `/agents/enterprise/stream` | SSE streaming with parallel agent updates |
+| GET | `/agents/enterprise/config` | Get default orchestration configuration |
+
+#### Orchestration Configuration
+
+```python
+OrchestrationConfig(
+    enable_parallel=True,       # Enable parallel agent execution
+    enable_retry=True,          # Enable automatic retry on failure
+    enable_evaluation=True,     # Enable result quality evaluation
+    continue_on_failure=True,   # Continue with other tasks if one fails
+    enable_synthesis=True,      # Synthesize multiple results
+    enable_next_actions=True,   # Generate next action recommendations
+    evaluation_criteria=EvaluationCriteria(
+        min_confidence=0.6,     # Minimum confidence score
+        require_sources=False,  # Require source citations
+        min_answer_length=50,   # Minimum answer length
+        max_execution_time=120  # Max seconds per task
+    ),
+    retry_config=RetryConfig(
+        max_retries=2,          # Maximum retry attempts
+        backoff_factor=2.0,     # Exponential backoff multiplier
+        initial_delay=1.0       # Initial retry delay (seconds)
+    )
+)
+```
+
+#### Streaming Events
+
+The streaming endpoint provides real-time updates with these event types:
+
+| Event Type | Description |
+|------------|-------------|
+| `orchestration_start` | Orchestration has started |
+| `dag_created` | Task DAG created with subtask breakdown |
+| `batch_start` | Starting a batch of parallel tasks |
+| `agent_start` | Individual agent has started |
+| `agent_chunk` | Streaming output from an agent |
+| `agent_done` | Individual agent has completed |
+| `batch_done` | Batch of parallel tasks completed |
+| `evaluation` | Result evaluation complete |
+| `retry` | Retrying a failed task |
+| `synthesis` | Synthesizing results from multiple agents |
+| `next_actions` | Recommended next actions |
+| `done` | Orchestration complete |
+
+#### Usage Example
+
+```python
+import requests
+
+# Enterprise execution with orchestration
+response = requests.post(
+    "http://localhost:9000/api/v1/agents/enterprise/execute",
+    json={
+        "task": "Compare OpenFrame and Tibero migration strategies, then recommend the best approach for EBCDIC to SJIS conversion",
+        "enable_multi_agent": True,
+        "language": "ko",
+        "orchestration_config": {
+            "enable_parallel": True,
+            "enable_synthesis": True,
+            "enable_next_actions": True
+        }
+    },
+    cookies=auth_cookies
+)
+
+result = response.json()
+print(f"Answer: {result['answer']}")
+print(f"Subtasks: {len(result['subtask_results'])}")
+print(f"Next Actions: {result['next_actions']}")
+print(f"Trace ID: {result['trace']['trace_id']}")
+```
+
+---
+
 ### Query Routing Logic
 
 The system uses a **hybrid classification approach** combining rule-based keyword matching with embedding-based semantic similarity for intelligent query routing.
