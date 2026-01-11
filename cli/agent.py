@@ -71,7 +71,7 @@ class AgentClient:
             payload["session_id"] = self.session_id
 
         try:
-            with httpx.Client(timeout=180.0) as client:
+            with httpx.Client(timeout=float(self.config.timeout)) as client:
                 with client.stream("POST", url, json=payload, headers=headers) as response:
                     if response.status_code == 401:
                         self.ui.print_error("Session expired. Please login again.")

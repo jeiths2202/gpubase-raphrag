@@ -13,7 +13,7 @@ class Config:
 
     # API settings
     api_url: str = "http://localhost:9000/api/v1"
-    timeout: int = 120
+    timeout: int = 36000  # 36000 seconds (10 hours)
 
     # Display settings
     language: str = "ko"
