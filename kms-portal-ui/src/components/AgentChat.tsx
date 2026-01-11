@@ -538,10 +538,12 @@ export const AgentChat: React.FC = () => {
             </div>
             <div className="agent-attached-urls-list">
               {attachedUrls.map(urlItem => (
-                <div key={urlItem.url} className={`agent-attached-url ${urlItem.isLoading ? 'loading' : ''} ${urlItem.error ? 'error' : ''}`}>
+                <div key={urlItem.url} className={`agent-attached-url ${urlItem.isLoading ? 'loading' : ''} ${urlItem.error ? 'error' : ''} ${urlItem.warning ? 'warning' : ''}`}>
                   {urlItem.isLoading ? (
                     <Loader2 size={14} className="spin" />
                   ) : urlItem.error ? (
+                    <AlertCircle size={14} />
+                  ) : urlItem.warning ? (
                     <AlertCircle size={14} />
                   ) : (
                     <Globe size={14} />
@@ -557,6 +559,9 @@ export const AgentChat: React.FC = () => {
                     )}
                     {urlItem.error && (
                       <span className="agent-attached-url-error">{urlItem.error}</span>
+                    )}
+                    {urlItem.warning && !urlItem.error && (
+                      <span className="agent-attached-url-warning">{urlItem.warning}</span>
                     )}
                   </div>
                   <button

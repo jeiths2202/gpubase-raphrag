@@ -1386,3 +1386,197 @@
   font-size: 0.9em;
   color: var(--brand-primary);
 }
+
+/* =============================================================================
+   URL Attachment Styles
+   ============================================================================= */
+
+/* URL detection prompt */
+.agent-url-detected {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--brand-primary-muted);
+  border: 1px solid var(--brand-primary);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+  color: var(--brand-primary);
+}
+
+.agent-url-detected-text {
+  flex: 1;
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-url-detected-text strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.agent-url-fetch-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--brand-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: white;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.agent-url-fetch-btn:hover {
+  background: var(--brand-primary-hover);
+}
+
+.agent-url-dismiss-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.agent-url-dismiss-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+/* Attached URLs display */
+.agent-attached-urls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+}
+
+.agent-attached-urls-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.agent-attached-urls-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.agent-attached-urls-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.agent-attached-url {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--surface-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.agent-attached-url.loading {
+  opacity: 0.7;
+  border-color: var(--brand-primary);
+}
+
+.agent-attached-url.error {
+  background: var(--error-background);
+  border-color: var(--error-border);
+}
+
+.agent-attached-url-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.agent-attached-url-title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-attached-url.loading .agent-attached-url-title {
+  color: var(--brand-primary);
+}
+
+.agent-attached-url.error .agent-attached-url-title {
+  color: var(--error-text);
+}
+
+.agent-attached-url-meta {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.agent-attached-url-error {
+  font-size: var(--text-xs);
+  color: var(--error-text);
+}
+
+/* Warning state for redirected URLs */
+.agent-attached-url.warning {
+  border-color: var(--warning-border, #f59e0b);
+  background: var(--warning-bg, rgba(245, 158, 11, 0.1));
+}
+
+.agent-attached-url.warning svg {
+  color: var(--warning-text, #d97706);
+}
+
+.agent-attached-url-warning {
+  font-size: var(--text-xs);
+  color: var(--warning-text, #d97706);
+  margin-top: 2px;
+}
+
+.agent-attached-url-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.agent-attached-url-remove:hover {
+  background: var(--surface-hover);
+  color: var(--error-text);
+}

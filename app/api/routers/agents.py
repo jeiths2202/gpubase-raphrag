@@ -403,6 +403,7 @@ class FetchUrlResponse(BaseModel):
     word_count: int
     success: bool = True
     error: str | None = None
+    warning: str | None = None  # Set when URL was redirected to a different page
 
 
 @router.post("/fetch-url", response_model=FetchUrlResponse)
@@ -430,8 +431,8 @@ async def fetch_url_content(
     try:
         web_service = get_web_content_service()
 
-        # Fetch HTML with frameset handling
-        html_content, status_code, error, is_frameset = await web_service.fetch_url_with_frameset_handling(request.url)
+        # Fetch HTML with frameset handling and redirect check
+        html_content, status_code, error, is_frameset, redirect_warning = await web_service.fetch_url_with_frameset_handling(request.url)
         if html_content is None:
             return FetchUrlResponse(
                 url=request.url,
@@ -439,11 +440,15 @@ async def fetch_url_content(
                 char_count=0,
                 word_count=0,
                 success=False,
-                error=error or f"Failed to fetch URL (HTTP {status_code})"
+                error=error or f"Failed to fetch URL (HTTP {status_code})",
+                warning=redirect_warning
             )
 
         if is_frameset:
             logger.info(f"Processed frameset URL: {request.url}")
+
+        if redirect_warning:
+            logger.warning(f"URL redirect detected: {redirect_warning}")
 
         # Extract metadata for title
         metadata = web_service.extractor.extract_metadata(html_content, request.url)
@@ -462,7 +467,8 @@ async def fetch_url_content(
                 char_count=0,
                 word_count=0,
                 success=False,
-                error="Failed to extract text content from URL"
+                error="Failed to extract text content from URL",
+                warning=redirect_warning
             )
 
         # Truncate if too large (max 50KB)
@@ -477,7 +483,8 @@ async def fetch_url_content(
             content=content,
             char_count=len(content),
             word_count=len(content.split()),
-            success=True
+            success=True,
+            warning=redirect_warning
         )
 
     except Exception as e:

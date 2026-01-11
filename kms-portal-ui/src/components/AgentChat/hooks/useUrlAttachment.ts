@@ -54,6 +54,7 @@ export function useUrlAttachment(): UseUrlAttachmentReturn {
       charCount: 0,
       isLoading: true,
       error: null,
+      warning: null,
     };
     setAttachedUrls(prev => [...prev, placeholder]);
     setDetectedUrl(null);
@@ -64,13 +65,20 @@ export function useUrlAttachment(): UseUrlAttachmentReturn {
       if (result.success) {
         setAttachedUrls(prev => prev.map(au =>
           au.url === url
-            ? { ...au, title: result.title, content: result.content, charCount: result.char_count, isLoading: false }
+            ? {
+                ...au,
+                title: result.title,
+                content: result.content,
+                charCount: result.char_count,
+                isLoading: false,
+                warning: result.warning
+              }
             : au
         ));
       } else {
         setAttachedUrls(prev => prev.map(au =>
           au.url === url
-            ? { ...au, isLoading: false, error: result.error || 'Failed to fetch URL' }
+            ? { ...au, isLoading: false, error: result.error || 'Failed to fetch URL', warning: result.warning }
             : au
         ));
       }

@@ -26,6 +26,21 @@ export interface AgentExecuteRequest {
   max_steps?: number;
   language?: 'auto' | 'en' | 'ko' | 'ja';
   file_context?: string;  // Attached file content for RAG priority context
+  url_context?: string;   // URL to fetch and use as RAG context
+}
+
+/**
+ * URL fetch response
+ */
+export interface FetchUrlResponse {
+  url: string;
+  title: string | null;
+  content: string;
+  char_count: number;
+  word_count: number;
+  success: boolean;
+  error: string | null;
+  warning: string | null;  // Set when URL was redirected to a different page
 }
 
 /**
@@ -245,6 +260,15 @@ export async function checkAgentHealth(): Promise<AgentHealthResponse> {
   return response.data;
 }
 
+/**
+ * Fetch URL content for RAG context
+ * Extracts readable text from a webpage
+ */
+export async function fetchUrlContent(url: string): Promise<FetchUrlResponse> {
+  const response = await apiClient.post<FetchUrlResponse>('/agents/fetch-url', { url });
+  return response.data;
+}
+
 // =============================================================================
 // Exports
 // =============================================================================
@@ -256,6 +280,7 @@ export const agentApi = {
   getTools: getAgentTools,
   classify: classifyTask,
   health: checkAgentHealth,
+  fetchUrl: fetchUrlContent,
 };
 
 export default agentApi;

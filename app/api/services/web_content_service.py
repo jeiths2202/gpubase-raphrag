@@ -400,11 +400,77 @@ class WebContentService:
         except Exception as e:
             return None, 0, f"Unexpected error: {str(e)}"
 
+    def _is_significant_redirect(self, original_url: str, final_url: str) -> bool:
+        """
+        Check if a redirect is significant (different domain or completely different path).
+        Returns True if the redirect likely means the original content is not available.
+        """
+        original_parsed = urlparse(original_url)
+        final_parsed = urlparse(str(final_url))
+
+        # Different domain is significant
+        if original_parsed.netloc.lower() != final_parsed.netloc.lower():
+            # Allow www. prefix difference
+            orig_domain = original_parsed.netloc.lower().replace('www.', '')
+            final_domain = final_parsed.netloc.lower().replace('www.', '')
+            if orig_domain != final_domain:
+                return True
+
+        # Check if path changed significantly (e.g., redirected to homepage or list page)
+        original_path = original_parsed.path.rstrip('/')
+        final_path = final_parsed.path.rstrip('/')
+
+        # If original had specific content path but redirected to generic list/home
+        if len(original_path) > 20 and (
+            final_path in ('', '/', '/home', '/list') or
+            final_path.endswith('/list') or
+            final_path.endswith('/home')
+        ):
+            return True
+
+        return False
+
+    async def fetch_url_with_redirect_check(
+        self,
+        url: str
+    ) -> Tuple[Optional[str], int, Optional[str], Optional[str]]:
+        """
+        Fetch content from URL with redirect detection.
+
+        Returns:
+            Tuple of (html_content, status_code, error_message, redirect_warning)
+            redirect_warning is set if URL was redirected to a significantly different page
+        """
+        try:
+            response = await self.http_client.get(url)
+            final_url = str(response.url)
+            redirect_warning = None
+
+            # Check for significant redirect
+            if final_url != url and self._is_significant_redirect(url, final_url):
+                redirect_warning = f"URL redirected to different page: {final_url}"
+                print(f"[WebContentService] Significant redirect detected: {url} -> {final_url}")
+
+            if response.status_code == 200:
+                content_type = response.headers.get('content-type', '')
+                if 'text/html' in content_type or 'application/xhtml' in content_type:
+                    return response.text, response.status_code, None, redirect_warning
+                else:
+                    return None, response.status_code, f"Unsupported content type: {content_type}", None
+            else:
+                return None, response.status_code, f"HTTP {response.status_code}", None
+        except httpx.TimeoutException:
+            return None, 0, "Request timeout", None
+        except httpx.RequestError as e:
+            return None, 0, f"Request error: {str(e)}", None
+        except Exception as e:
+            return None, 0, f"Unexpected error: {str(e)}", None
+
     async def fetch_url_with_frameset_handling(
         self,
         url: str,
         max_frames: int = 3
-    ) -> Tuple[Optional[str], int, Optional[str], bool]:
+    ) -> Tuple[Optional[str], int, Optional[str], bool, Optional[str]]:
         """
         Fetch content from URL with automatic frameset handling.
 
@@ -412,22 +478,26 @@ class WebContentService:
         and combines them.
 
         Returns:
-            Tuple of (html_content, status_code, error_message, is_frameset)
+            Tuple of (html_content, status_code, error_message, is_frameset, redirect_warning)
         """
-        # First fetch
-        html_content, status_code, error = await self.fetch_url(url)
+        # First fetch with redirect check
+        html_content, status_code, error, redirect_warning = await self.fetch_url_with_redirect_check(url)
         if html_content is None:
-            return None, status_code, error, False
+            return None, status_code, error, False, redirect_warning
+
+        # If there was a significant redirect, return immediately with warning
+        if redirect_warning:
+            return html_content, status_code, None, False, redirect_warning
 
         # Check if frameset
         if not self.extractor.is_frameset_page(html_content):
-            return html_content, status_code, None, False
+            return html_content, status_code, None, False, None
 
         # Extract frame URLs
         frames = self.extractor.extract_frame_urls(html_content, url)
         if not frames:
             # Frameset with no extractable frames
-            return html_content, status_code, None, True
+            return html_content, status_code, None, True, None
 
         print(f"[WebContentService] Detected frameset with {len(frames)} frames")
 
@@ -462,13 +532,13 @@ class WebContentService:
                 print(f"[WebContentService] Failed to fetch frame '{frame_name}': {e}")
 
         if not combined_contents:
-            return html_content, status_code, "Failed to fetch any frame content", True
+            return html_content, status_code, "Failed to fetch any frame content", True, None
 
         # Combine frame contents into a single HTML document
         combined_html = self._combine_frame_contents(combined_contents, url)
         print(f"[WebContentService] Combined {frames_fetched} frames into {len(combined_html)} bytes")
 
-        return combined_html, status_code, None, True
+        return combined_html, status_code, None, True, None
 
     def _combine_frame_contents(
         self,

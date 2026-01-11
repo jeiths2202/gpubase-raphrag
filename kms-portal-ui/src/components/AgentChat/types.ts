@@ -52,6 +52,7 @@ export interface AttachedUrl {
   charCount: number;
   isLoading: boolean;
   error: string | null;
+  warning: string | null;  // Set when URL was redirected to a different page
 }
 
 /**
