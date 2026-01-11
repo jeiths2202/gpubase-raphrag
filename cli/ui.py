@@ -577,7 +577,23 @@ class EnterpriseUI:
             "planner": "nemotron_llm",
             "code": "ollama_qwen",  # Local Qwen 2.5 3B via Ollama
         }
-        current_llm = agent_llm_map.get(current_agent, "nemotron_llm")
+
+        # Get preferred LLM for current agent
+        preferred_llm = agent_llm_map.get(current_agent, "nemotron_llm")
+
+        # If preferred LLM is offline, find first online LLM
+        preferred_status = llm_data.get(preferred_llm, {}).get("status", "unknown")
+        if preferred_status != "healthy":
+            # Find first online LLM from the list
+            for key, info in llm_data.items():
+                if info.get("status") == "healthy":
+                    current_llm = key
+                    break
+            else:
+                # No online LLM found, use preferred anyway
+                current_llm = preferred_llm
+        else:
+            current_llm = preferred_llm
 
         if self.rich_mode:
             table = Table(show_header=True, box=self.box_style, header_style="bold cyan")
@@ -626,9 +642,14 @@ class EnterpriseUI:
             self.console.print()
             self.console.print(panel)
 
-            # Show current agent's LLM
+            # Show current agent's LLM (with fallback info if applicable)
             current_info = llm_data.get(current_llm, {})
-            self.console.print(f"  Current agent [{current_agent}] uses: [cyan]{current_info.get('name', 'Unknown')}[/cyan]")
+            preferred_info = llm_data.get(preferred_llm, {})
+            if current_llm != preferred_llm:
+                # Using fallback LLM because preferred is offline
+                self.console.print(f"  Current agent [{current_agent}] uses: [cyan]{current_info.get('name', 'Unknown')}[/cyan] [dim](fallback, {preferred_info.get('name', preferred_llm)} is offline)[/dim]")
+            else:
+                self.console.print(f"  Current agent [{current_agent}] uses: [cyan]{current_info.get('name', 'Unknown')}[/cyan]")
             self.console.print()
         else:
             self.console.print("\n=== Available LLMs ===")
@@ -639,7 +660,12 @@ class EnterpriseUI:
                 name = info.get("name", key)
                 purpose = info.get("purpose", "")
                 self.console.print(f"  {marker} {name:<25} {purpose:<20} [{status}]")
-            self.console.print(f"\n  Current agent [{current_agent}] uses: {llm_data.get(current_llm, {}).get('name', 'Unknown')}")
+            current_info = llm_data.get(current_llm, {})
+            preferred_info = llm_data.get(preferred_llm, {})
+            if current_llm != preferred_llm:
+                self.console.print(f"\n  Current agent [{current_agent}] uses: {current_info.get('name', 'Unknown')} (fallback, {preferred_info.get('name', preferred_llm)} is offline)")
+            else:
+                self.console.print(f"\n  Current agent [{current_agent}] uses: {current_info.get('name', 'Unknown')}")
             self.console.print()
 
 
