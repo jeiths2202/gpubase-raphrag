@@ -6,7 +6,7 @@ import sys
 import traceback
 from typing import Optional, Dict, Any, Type, List
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -173,7 +173,7 @@ class AppException(Exception):
                 }
             },
             "request_id": request_id,
-            "timestamp": datetime.utcnow().isoformat() + "Z"
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
         }
 
     def _to_product_response(self, request_id: Optional[str]) -> Dict[str, Any]:
@@ -186,7 +186,7 @@ class AppException(Exception):
                 "reference_id": request_id or "unknown"
             },
             "request_id": request_id,
-            "timestamp": datetime.utcnow().isoformat() + "Z"
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
         }
 
 
@@ -396,7 +396,7 @@ class ErrorHandler:
                         "status_code": exc.status_code
                     },
                     "request_id": context.request_id,
-                    "timestamp": datetime.utcnow().isoformat() + "Z"
+                    "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
                 }
             )
 
@@ -410,7 +410,7 @@ class ErrorHandler:
                     "reference_id": context.request_id or "unknown"
                 },
                 "request_id": context.request_id,
-                "timestamp": datetime.utcnow().isoformat() + "Z"
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
             }
         )
 
@@ -449,7 +449,7 @@ class ErrorHandler:
                         "stack_trace": traceback.format_exc().split("\n")
                     },
                     "request_id": context.request_id,
-                    "timestamp": datetime.utcnow().isoformat() + "Z"
+                    "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
                 }
             )
 
@@ -463,7 +463,7 @@ class ErrorHandler:
                     "reference_id": context.request_id or "unknown"
                 },
                 "request_id": context.request_id,
-                "timestamp": datetime.utcnow().isoformat() + "Z"
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
             }
         )
 

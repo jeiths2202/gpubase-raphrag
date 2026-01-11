@@ -8,7 +8,7 @@ usage analytics, and cost optimization recommendations.
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 from collections import defaultdict
@@ -223,7 +223,7 @@ class VisionCostMonitor:
         )
 
         # Create record
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         record = CostRecord(
             timestamp=now,
             provider=provider,
@@ -294,19 +294,19 @@ class VisionCostMonitor:
             return False, f"Request cost ${estimated_cost:.4f} exceeds per-request limit ${self.config.per_request_max:.2f}"
 
         # Check hourly budget
-        hour_key = datetime.utcnow().strftime("%Y-%m-%d-%H")
+        hour_key = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H")
         current_hourly = self._hourly_costs.get(hour_key, 0.0)
         if current_hourly + estimated_cost > self.config.hourly_budget:
             return False, f"Hourly budget exceeded (${current_hourly:.2f}/${self.config.hourly_budget:.2f})"
 
         # Check daily budget
-        day_key = datetime.utcnow().strftime("%Y-%m-%d")
+        day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         current_daily = self._daily_costs.get(day_key, 0.0)
         if current_daily + estimated_cost > self.config.daily_budget:
             return False, f"Daily budget exceeded (${current_daily:.2f}/${self.config.daily_budget:.2f})"
 
         # Check monthly budget
-        month_key = datetime.utcnow().strftime("%Y-%m")
+        month_key = datetime.now(timezone.utc).strftime("%Y-%m")
         current_monthly = self._monthly_costs.get(month_key, 0.0)
         if current_monthly + estimated_cost > self.config.monthly_budget:
             return False, f"Monthly budget exceeded (${current_monthly:.2f}/${self.config.monthly_budget:.2f})"
@@ -321,7 +321,7 @@ class VisionCostMonitor:
 
     def get_budget_status(self) -> Dict[str, Any]:
         """Get current budget status."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         hour_key = now.strftime("%Y-%m-%d-%H")
         day_key = now.strftime("%Y-%m-%d")
         month_key = now.strftime("%Y-%m")
@@ -374,7 +374,7 @@ class VisionCostMonitor:
         user_id: Optional[str] = None,
     ) -> UsageStats:
         """Get usage statistics for a time period."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         if period == "hour":
             start_time = now - timedelta(hours=1)
@@ -422,7 +422,7 @@ class VisionCostMonitor:
 
     def get_cost_breakdown(self, days: int = 7) -> Dict[str, Any]:
         """Get daily cost breakdown for the past N days."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         breakdown = {}
 
         for i in range(days):
@@ -544,13 +544,13 @@ class VisionCostMonitor:
 
     def _send_alert(self, level: CostAlertLevel, status: Dict[str, Any]) -> None:
         """Send budget alert."""
-        alert_key = f"{level.value}-{datetime.utcnow().strftime('%Y-%m-%d')}"
+        alert_key = f"{level.value}-{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
 
         # Rate limit alerts (once per day per level)
         if alert_key in self._alerts_sent:
             return
 
-        self._alerts_sent[alert_key] = datetime.utcnow()
+        self._alerts_sent[alert_key] = datetime.now(timezone.utc)
 
         message = (
             f"Vision LLM Budget Alert: {level.value.upper()}\n"
@@ -568,7 +568,7 @@ class VisionCostMonitor:
 
     def cleanup_old_records(self, days: int = 90) -> int:
         """Remove records older than N days."""
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
         with self._lock:
             original_count = len(self._records)

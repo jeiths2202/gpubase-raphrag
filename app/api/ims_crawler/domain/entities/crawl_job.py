@@ -3,7 +3,7 @@ Crawl Job Entity - Represents a crawling operation with progress tracking
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, Dict, Any, List
 from uuid import UUID, uuid4
@@ -51,7 +51,7 @@ class CrawlJob:
     related_issues_crawled: int = 0
 
     # Timestamps
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
@@ -76,7 +76,7 @@ class CrawlJob:
     def start(self) -> None:
         """Mark job as started"""
         self.status = CrawlJobStatus.AUTHENTICATING
-        self.started_at = datetime.utcnow()
+        self.started_at = datetime.now(timezone.utc)
         self.current_step = "Authenticating with IMS system..."
         self.progress_percentage = 5
 
@@ -94,14 +94,14 @@ class CrawlJob:
     def mark_as_completed(self) -> None:
         """Mark job as successfully completed"""
         self.status = CrawlJobStatus.COMPLETED
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
         self.progress_percentage = 100
         self.current_step = f"Completed: {self.issues_crawled} issues crawled"
 
     def mark_as_failed(self, error: str) -> None:
         """Mark job as failed with error message"""
         self.status = CrawlJobStatus.FAILED
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
         self.error_message = error
         self.current_step = f"Failed: {error}"
 
@@ -163,7 +163,7 @@ class CrawlJob:
             issues_crawled=data.get("issues_crawled", 0),
             attachments_processed=data.get("attachments_processed", 0),
             related_issues_crawled=data.get("related_issues_crawled", 0),
-            created_at=datetime.fromisoformat(data["created_at"]) if isinstance(data.get("created_at"), str) else data.get("created_at", datetime.utcnow()),
+            created_at=datetime.fromisoformat(data["created_at"]) if isinstance(data.get("created_at"), str) else data.get("created_at", datetime.now(timezone.utc)),
             started_at=datetime.fromisoformat(data["started_at"]) if data.get("started_at") else None,
             completed_at=datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None,
             error_message=data.get("error_message"),

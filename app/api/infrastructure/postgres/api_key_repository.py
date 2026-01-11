@@ -12,7 +12,7 @@ Features:
 import logging
 import hashlib
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 from uuid import UUID
 
@@ -95,7 +95,7 @@ class PostgresApiKeyRepository:
         # Calculate expiration if specified
         expires_at = None
         if data.expires_in_days:
-            expires_at = datetime.utcnow() + timedelta(days=data.expires_in_days)
+            expires_at = datetime.now(timezone.utc) + timedelta(days=data.expires_in_days)
 
         query = """
             INSERT INTO api_keys (
@@ -173,7 +173,7 @@ class PostgresApiKeyRepository:
                 error="API key is disabled"
             )
 
-        if row["expires_at"] and row["expires_at"] < datetime.utcnow():
+        if row["expires_at"] and row["expires_at"] < datetime.now(timezone.utc):
             return ApiKeyValidationResult(
                 is_valid=False,
                 error="API key has expired"
@@ -203,7 +203,7 @@ class PostgresApiKeyRepository:
         Returns:
             Tuple of (is_allowed, rate_limit_status)
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         minute_start = now.replace(second=0, microsecond=0)
         hour_start = now.replace(minute=0, second=0, microsecond=0)
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -255,7 +255,7 @@ class PostgresApiKeyRepository:
         Args:
             api_key_id: API key ID
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         minute_start = now.replace(second=0, microsecond=0)
         hour_start = now.replace(minute=0, second=0, microsecond=0)
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -515,7 +515,7 @@ class PostgresApiKeyRepository:
         Returns:
             Number of deleted entries
         """
-        cutoff = datetime.utcnow() - timedelta(hours=older_than_hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=older_than_hours)
 
         query = """
             DELETE FROM api_key_rate_limits

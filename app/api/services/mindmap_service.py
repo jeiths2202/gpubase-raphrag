@@ -8,7 +8,7 @@ import re
 import json
 from typing import Dict, List, Any, Optional, Tuple
 from functools import lru_cache
-from datetime import datetime
+from datetime import datetime, timezone
 import sys
 import os
 
@@ -104,7 +104,7 @@ class MindmapService:
 
     def _generate_id(self, prefix: str, content: str) -> str:
         """Generate unique ID"""
-        hash_val = hashlib.md5(f"{content}{datetime.utcnow().isoformat()}".encode()).hexdigest()[:12]
+        hash_val = hashlib.md5(f"{content}{datetime.now(timezone.utc).isoformat()}".encode()).hexdigest()[:12]
         return f"{prefix}_{hash_val}"
 
     async def generate_mindmap(

@@ -1,7 +1,7 @@
 """
 In-Memory Document Repository Implementation
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
 from .base import MemoryBaseRepository
@@ -89,7 +89,7 @@ class MemoryDocumentRepository(MemoryBaseRepository[DocumentEntity], DocumentRep
             return False
 
         doc.status = status
-        doc.updated_at = datetime.utcnow()
+        doc.updated_at = datetime.now(timezone.utc)
         if error_message:
             doc.metadata["error_message"] = error_message
         return True
@@ -183,7 +183,7 @@ class MemoryDocumentRepository(MemoryBaseRepository[DocumentEntity], DocumentRep
         days: int = 7,
         limit: int = 10
     ) -> List[DocumentEntity]:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         docs = []
 
         for doc in self._storage.values():

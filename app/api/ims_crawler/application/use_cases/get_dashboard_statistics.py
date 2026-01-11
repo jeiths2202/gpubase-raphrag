@@ -2,7 +2,7 @@
 Use case for getting dashboard statistics
 """
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ...domain.ports.dashboard_repository import DashboardRepositoryPort
 from ...domain.models.dashboard import DashboardStatistics
@@ -43,7 +43,7 @@ class GetDashboardStatisticsUseCase:
 
         return DashboardStatistics(
             user_id=user_id,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             activity_metrics=activity_metrics,
             issue_metrics=issue_metrics,
             by_status=by_status,

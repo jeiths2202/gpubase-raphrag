@@ -5,7 +5,7 @@ Handles CRUD, workflow, translation, and recommendations
 import uuid
 import random
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..models.knowledge_article import (
     KnowledgeArticle, KnowledgeStatus, KnowledgeCategory,
@@ -154,7 +154,7 @@ class KnowledgeArticleService:
     ) -> KnowledgeArticle:
         """Create a new knowledge article"""
         article_id = f"ka_{uuid.uuid4().hex[:12]}"
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         article = KnowledgeArticle(
             id=article_id,
@@ -213,7 +213,7 @@ class KnowledgeArticleService:
         if request.attachments is not None:
             article.attachments = request.attachments
 
-        article.updated_at = datetime.utcnow()
+        article.updated_at = datetime.now(timezone.utc)
         self._articles[article_id] = article
         return article
 
@@ -250,8 +250,8 @@ class KnowledgeArticleService:
         reviewer = await self._auto_assign_reviewer(article.author_id)
 
         article.status = KnowledgeStatus.PENDING
-        article.submitted_at = datetime.utcnow()
-        article.updated_at = datetime.utcnow()
+        article.submitted_at = datetime.now(timezone.utc)
+        article.updated_at = datetime.now(timezone.utc)
 
         if reviewer:
             article.reviewer_id = reviewer["id"]
@@ -321,8 +321,8 @@ class KnowledgeArticleService:
             action=action
         )
         article.review_comments.append(review_comment)
-        article.reviewed_at = datetime.utcnow()
-        article.updated_at = datetime.utcnow()
+        article.reviewed_at = datetime.now(timezone.utc)
+        article.updated_at = datetime.now(timezone.utc)
 
         # Update status based on action
         if action == "approve":
@@ -348,7 +348,7 @@ class KnowledgeArticleService:
         )
 
         article.status = KnowledgeStatus.PUBLISHED
-        article.published_at = datetime.utcnow()
+        article.published_at = datetime.now(timezone.utc)
         self._articles[article.id] = article
 
     async def list_articles(

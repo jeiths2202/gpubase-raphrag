@@ -2,7 +2,7 @@
 Health API Router
 시스템 상태 확인 API (인증 불필요)
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Response, Depends
 
 from ..models.health import (
@@ -79,7 +79,7 @@ async def health_check(
     return HealthResponse(
         status=overall_status,
         version=api_settings.APP_VERSION,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         services=services
     )
 

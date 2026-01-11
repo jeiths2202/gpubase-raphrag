@@ -7,7 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 from typing import Dict, Callable, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 from enum import Enum
 
@@ -38,7 +38,7 @@ class BackgroundTask:
         self.args = args
         self.kwargs = kwargs or {}
         self.status = TaskStatus.PENDING
-        self.created_at = datetime.utcnow()
+        self.created_at = datetime.now(timezone.utc)
         self.started_at: Optional[datetime] = None
         self.completed_at: Optional[datetime] = None
         self.error: Optional[str] = None
@@ -179,23 +179,23 @@ class BackgroundTaskQueue:
 
         try:
             task.status = TaskStatus.RUNNING
-            task.started_at = datetime.utcnow()
+            task.started_at = datetime.now(timezone.utc)
 
             # Execute the task function
             result = await task.task_func(*task.args, **task.kwargs)
 
             task.status = TaskStatus.COMPLETED
-            task.completed_at = datetime.utcnow()
+            task.completed_at = datetime.now(timezone.utc)
             task.result = result
 
         except asyncio.CancelledError:
             task.status = TaskStatus.CANCELLED
-            task.completed_at = datetime.utcnow()
+            task.completed_at = datetime.now(timezone.utc)
             task.error = "Task was cancelled"
 
         except Exception as e:
             task.status = TaskStatus.FAILED
-            task.completed_at = datetime.utcnow()
+            task.completed_at = datetime.now(timezone.utc)
             task.error = str(e)
             logger.error(f"Task {task.task_name} ({task_id}) failed: {e}")
 

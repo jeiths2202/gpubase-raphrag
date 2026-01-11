@@ -1,7 +1,7 @@
 """
 Base In-Memory Repository Implementation
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TypeVar, Generic, Optional, List, Dict, Any
 import asyncio
 
@@ -46,8 +46,8 @@ class MemoryBaseRepository(BaseRepository[T], Generic[T]):
                 entity.id = self._generate_id()
 
             entity_id = self._normalize_id(entity.id)
-            entity.created_at = datetime.utcnow()
-            entity.updated_at = datetime.utcnow()
+            entity.created_at = datetime.now(timezone.utc)
+            entity.updated_at = datetime.now(timezone.utc)
             self._storage[entity_id] = entity
             return entity
 
@@ -85,7 +85,7 @@ class MemoryBaseRepository(BaseRepository[T], Generic[T]):
                 if hasattr(entity, key):
                     setattr(entity, key, value)
 
-            entity.updated_at = datetime.utcnow()
+            entity.updated_at = datetime.now(timezone.utc)
             return entity
 
     async def delete(self, entity_id: EntityId) -> bool:

@@ -9,7 +9,7 @@ import re
 import asyncio
 import logging
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import requests
@@ -391,9 +391,9 @@ class RequestsBasedCrawler(CrawlerPort):
                 reporter=get_cell_text(9),
                 issued_date=issued_date,
                 source_url=f"{base_url}/tody/ims/issue/issueView.do?issueId={issue_id}",
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
-                crawled_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+                crawled_at=datetime.now(timezone.utc),
             )
             issues.append(issue)
 
@@ -661,9 +661,9 @@ class RequestsBasedCrawler(CrawlerPort):
             comments_count=actions_count,
             issued_date=fallback_issue.issued_date if fallback_issue else None,
             source_url=f"{base_url}/tody/ims/issue/issueView.do?issueId={issue_id}",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-            crawled_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            crawled_at=datetime.now(timezone.utc),
         )
 
     async def download_attachments(

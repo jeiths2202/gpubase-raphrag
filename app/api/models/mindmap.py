@@ -2,7 +2,7 @@
 Mindmap Models - Pydantic schemas for mindmap functionality
 마인드맵 데이터 구조 정의
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from enum import Enum
 from pydantic import BaseModel, Field
@@ -73,8 +73,8 @@ class MindmapInfo(BaseModel):
     document_ids: List[str] = Field(default=[], description="관련 문서 ID 목록")
     node_count: int = Field(default=0, description="노드 수")
     edge_count: int = Field(default=0, description="엣지 수")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class MindmapFull(MindmapInfo):

@@ -4,7 +4,7 @@ Notification models for the Knowledge Management System
 from enum import Enum
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class NotificationType(str, Enum):
@@ -161,7 +161,7 @@ class Notification(BaseModel):
     email_sent_at: Optional[datetime] = None
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: Optional[datetime] = None
 
 

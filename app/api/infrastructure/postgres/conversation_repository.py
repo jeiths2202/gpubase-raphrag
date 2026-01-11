@@ -10,7 +10,7 @@ Production-ready PostgreSQL implementation with:
 """
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from uuid import UUID, uuid4
 
@@ -214,7 +214,7 @@ class PostgresConversationRepository(ConversationRepository):
             await self._set_user_context(conn, entity.user_id)
 
             entity_id = entity.id or str(uuid4())
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             row = await conn.fetchrow(
                 """
@@ -579,7 +579,7 @@ class PostgresConversationRepository(ConversationRepository):
                     branch_depth = parent["branch_depth"] + 1
 
             message_id = uuid4()
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             row = await conn.fetchrow(
                 """
@@ -740,7 +740,7 @@ class PostgresConversationRepository(ConversationRepository):
 
                 # Create new message with same parent
                 new_id = uuid4()
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
 
                 new_row = await conn.fetchrow(
                     """
@@ -834,7 +834,7 @@ class PostgresConversationRepository(ConversationRepository):
 
                 # Create new conversation
                 new_conv_id = uuid4()
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 title = new_title or f"Fork of {original_conv['title'] or 'Untitled'}"
 
                 new_conv_row = await conn.fetchrow(
@@ -966,7 +966,7 @@ class PostgresConversationRepository(ConversationRepository):
         """Add a conversation summary."""
         async with self._pool.acquire() as conn:
             summary_id = uuid4()
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             compression_ratio = None
             if tokens_before > 0:

@@ -1,7 +1,7 @@
 """
 In-Memory Project Repository Implementation
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from .base import MemoryBaseRepository
@@ -91,7 +91,7 @@ class MemoryProjectRepository(MemoryBaseRepository[ProjectEntity], ProjectReposi
         if not project:
             return False
         project.status = ProjectStatus.ARCHIVED
-        project.updated_at = datetime.utcnow()
+        project.updated_at = datetime.now(timezone.utc)
         return True
 
     async def restore(self, project_id: EntityId) -> bool:
@@ -99,7 +99,7 @@ class MemoryProjectRepository(MemoryBaseRepository[ProjectEntity], ProjectReposi
         if not project:
             return False
         project.status = ProjectStatus.ACTIVE
-        project.updated_at = datetime.utcnow()
+        project.updated_at = datetime.now(timezone.utc)
         return True
 
     async def update_stats(
@@ -114,7 +114,7 @@ class MemoryProjectRepository(MemoryBaseRepository[ProjectEntity], ProjectReposi
 
         project.document_count += document_delta
         project.member_count += member_delta
-        project.updated_at = datetime.utcnow()
+        project.updated_at = datetime.now(timezone.utc)
         return True
 
     # ==================== Member Operations ====================
@@ -136,7 +136,7 @@ class MemoryProjectRepository(MemoryBaseRepository[ProjectEntity], ProjectReposi
             project_id=pid,
             role=role,
             invited_by=invited_by,
-            joined_at=datetime.utcnow()
+            joined_at=datetime.now(timezone.utc)
         )
 
         self._members[pid].append(member)

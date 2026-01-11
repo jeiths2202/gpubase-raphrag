@@ -3,7 +3,7 @@ Attachment Entity - Represents file attachments linked to IMS issues
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, Dict, Any
 from uuid import UUID, uuid4
@@ -45,7 +45,7 @@ class Attachment:
 
     # Metadata
     uploaded_by: str = ""
-    uploaded_at: datetime = field(default_factory=datetime.utcnow)
+    uploaded_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Processing Status
     is_processed: bool = False
@@ -89,14 +89,14 @@ class Attachment:
         self.extracted_text = extracted_text
         self.text_length = len(extracted_text)
         self.is_processed = True
-        self.processed_at = datetime.utcnow()
+        self.processed_at = datetime.now(timezone.utc)
         self.processing_error = None
 
     def mark_as_failed(self, error: str) -> None:
         """Mark attachment processing as failed"""
         self.is_processed = False
         self.processing_error = error
-        self.processed_at = datetime.utcnow()
+        self.processed_at = datetime.now(timezone.utc)
 
     def is_searchable(self) -> bool:
         """Check if attachment has searchable text content"""
@@ -136,7 +136,7 @@ class Attachment:
             extracted_text=data.get("extracted_text", ""),
             text_length=data.get("text_length", 0),
             uploaded_by=data.get("uploaded_by", ""),
-            uploaded_at=datetime.fromisoformat(data["uploaded_at"]) if isinstance(data.get("uploaded_at"), str) else data.get("uploaded_at", datetime.utcnow()),
+            uploaded_at=datetime.fromisoformat(data["uploaded_at"]) if isinstance(data.get("uploaded_at"), str) else data.get("uploaded_at", datetime.now(timezone.utc)),
             is_processed=data.get("is_processed", False),
             processed_at=datetime.fromisoformat(data["processed_at"]) if data.get("processed_at") else None,
             processing_error=data.get("processing_error"),

@@ -13,7 +13,7 @@ DESIGN:
 """
 import logging
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 from uuid import UUID
 from pydantic import ValidationError
@@ -262,11 +262,11 @@ class AuthService:
         # Store token with email (valid for 5 minutes)
         self._sso_tokens[token] = {
             "email": email,
-            "created_at": datetime.utcnow()
+            "created_at": datetime.now(timezone.utc)
         }
 
         # Clean up old tokens
-        cutoff_time = datetime.utcnow() - timedelta(minutes=5)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=5)
         self._sso_tokens = {
             k: v for k, v in self._sso_tokens.items()
             if v["created_at"] > cutoff_time
@@ -304,7 +304,7 @@ class AuthService:
         token_data = self._sso_tokens[token]
 
         # Check expiration
-        if datetime.utcnow() - token_data["created_at"] > timedelta(minutes=5):
+        if datetime.now(timezone.utc) - token_data["created_at"] > timedelta(minutes=5):
             del self._sso_tokens[token]
             logger.warning(f"Expired SSO token: {token}")
             return {
@@ -344,7 +344,7 @@ class AuthService:
         CRITICAL: 'sub' claim MUST be internal user.id (UUID)
         NEVER use provider_user_id for JWT sub
         """
-        expire = datetime.utcnow() + timedelta(
+        expire = datetime.now(timezone.utc) + timedelta(
             minutes=api_settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
         )
 
@@ -366,7 +366,7 @@ class AuthService:
 
     async def create_refresh_token(self, user: User) -> str:
         """Create JWT refresh token."""
-        expire = datetime.utcnow() + timedelta(
+        expire = datetime.now(timezone.utc) + timedelta(
             days=api_settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS
         )
 
@@ -499,7 +499,7 @@ If you didn't request this code, please ignore this email.
         # Also write to a file for easier access if logs are hard to read
         try:
             with open("verification.txt", "w", encoding="utf-8") as f:
-                f.write(f"Email: {email}\nCode: {code}\nTime: {datetime.utcnow().isoformat()}Z")
+                f.write(f"Email: {email}\nCode: {code}\nTime: {datetime.now(timezone.utc).isoformat()}Z")
             # Direct print for terminal visibility
             print(f"\n>>> VERIFICATION_CODE_FOR_{email}: {code} <<<\n")
         except Exception as e:
@@ -608,7 +608,7 @@ Content-Type: text/html; charset=utf-8
             verification_code = self._generate_verification_code()
             self._verification_codes[email] = {
                 "code": verification_code,
-                "created_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
                 "user_id": str(user.id)
             }
 
@@ -616,7 +616,7 @@ Content-Type: text/html; charset=utf-8
             await self._send_verification_email(email, verification_code)
 
             # Clean up old verification codes
-            cutoff_time = datetime.utcnow() - timedelta(minutes=5)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=5)
             self._verification_codes = {
                 k: v for k, v in self._verification_codes.items()
                 if v["created_at"] > cutoff_time
@@ -686,7 +686,7 @@ Content-Type: text/html; charset=utf-8
             }
 
         # Check if code is expired (5 minutes)
-        if datetime.utcnow() - stored_code_data["created_at"] > timedelta(minutes=5):
+        if datetime.now(timezone.utc) - stored_code_data["created_at"] > timedelta(minutes=5):
             del self._verification_codes[email]
             return {
                 "error": "CODE_EXPIRED",

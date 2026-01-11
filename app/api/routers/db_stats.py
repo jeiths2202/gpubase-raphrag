@@ -3,7 +3,7 @@ Database Statistics API Router
 PostgreSQL 데이터베이스 모니터링 API (관리자 전용)
 """
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -138,7 +138,7 @@ async def _get_db_stats(pool) -> Dict[str, Any]:
                     for t in tables
                 ],
                 "slow_queries": [],  # Requires pg_stat_statements extension
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(timezone.utc)
             }
     except Exception as e:
         return _get_mock_db_stats(str(e))
@@ -170,7 +170,7 @@ def _get_mock_db_stats(error_msg: str = "") -> Dict[str, Any]:
         "slow_queries": [
             {"query": "SELECT * FROM users WHERE...", "calls": random.randint(10, 100), "total_time_ms": random.uniform(100, 1000), "mean_time_ms": random.uniform(10, 100), "max_time_ms": random.uniform(50, 500)},
         ],
-        "timestamp": datetime.utcnow(),
+        "timestamp": datetime.now(timezone.utc),
         "_mock": True,
         "_error": error_msg
     }

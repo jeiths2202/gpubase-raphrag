@@ -2,7 +2,7 @@
 External Connection Models
 Models for managing user's external resource connections (OneNote, GitHub, Google Drive, Notion, Confluence)
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
@@ -75,8 +75,8 @@ class ExternalConnection(BaseModel):
     chunk_count: int = Field(default=0)
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     class Config:
         use_enum_values = True
@@ -172,8 +172,8 @@ class ExternalDocument(BaseModel):
     chunk_count: int = 0
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     class Config:
         use_enum_values = True

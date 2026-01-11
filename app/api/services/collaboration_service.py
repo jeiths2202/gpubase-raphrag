@@ -4,7 +4,7 @@ Enterprise collaboration features: comments, mentions, reactions, and threads
 """
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, List, Set, Any
 from dataclasses import dataclass, field, asdict
 from enum import Enum
@@ -198,7 +198,7 @@ class CollaborationService:
         Returns:
             Created Comment
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Parse mentions
         mentions = self._parse_mentions(content)
@@ -363,7 +363,7 @@ class CollaborationService:
         comment.content = content
         comment.html_content = html_content
         comment.mentions = mentions
-        comment.updated_at = datetime.utcnow()
+        comment.updated_at = datetime.now(timezone.utc)
 
         return comment
 
@@ -384,7 +384,7 @@ class CollaborationService:
         comment.status = CommentStatus.DELETED
         comment.content = "[deleted]"
         comment.html_content = "<em>[deleted]</em>"
-        comment.updated_at = datetime.utcnow()
+        comment.updated_at = datetime.now(timezone.utc)
 
         return True
 
@@ -399,7 +399,7 @@ class CollaborationService:
             return False
 
         comment.status = CommentStatus.RESOLVED
-        comment.updated_at = datetime.utcnow()
+        comment.updated_at = datetime.now(timezone.utc)
 
         # Also resolve thread if it's a root comment
         if comment.thread_id:
@@ -407,7 +407,7 @@ class CollaborationService:
             if thread and thread.root_comment_id == comment_id:
                 thread.is_resolved = True
                 thread.resolved_by = resolver_id
-                thread.resolved_at = datetime.utcnow()
+                thread.resolved_at = datetime.now(timezone.utc)
 
         return True
 
@@ -418,7 +418,7 @@ class CollaborationService:
             return False
 
         comment.status = CommentStatus.ACTIVE
-        comment.updated_at = datetime.utcnow()
+        comment.updated_at = datetime.now(timezone.utc)
 
         # Also unresolve thread
         if comment.thread_id:
@@ -481,7 +481,7 @@ class CollaborationService:
             user_id=user_id,
             user_name=user_name,
             reaction_type=reaction_type,
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
 
         if reaction_type.value not in comment.reactions:
@@ -657,7 +657,7 @@ class CollaborationService:
                 parent_id=comment.parent_id,
                 context_preview=comment.content[:100] + ("..." if len(comment.content) > 100 else ""),
                 is_read=False,
-                created_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc)
             )
 
             self._notifications[mention.target_id].append(notification)

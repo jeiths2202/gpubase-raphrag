@@ -1,7 +1,7 @@
 """
 In-Memory Note Repository Implementation
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from .base import MemoryBaseRepository
@@ -116,7 +116,7 @@ class MemoryNoteRepository(MemoryBaseRepository[NoteEntity], NoteRepository):
         if not note:
             return False
         note.is_pinned = not note.is_pinned
-        note.updated_at = datetime.utcnow()
+        note.updated_at = datetime.now(timezone.utc)
         return True
 
     async def toggle_archive(self, note_id: EntityId) -> bool:
@@ -124,7 +124,7 @@ class MemoryNoteRepository(MemoryBaseRepository[NoteEntity], NoteRepository):
         if not note:
             return False
         note.is_archived = not note.is_archived
-        note.updated_at = datetime.utcnow()
+        note.updated_at = datetime.now(timezone.utc)
         return True
 
     async def move_to_folder(
@@ -138,7 +138,7 @@ class MemoryNoteRepository(MemoryBaseRepository[NoteEntity], NoteRepository):
 
         old_folder_id = note.folder_id
         note.folder_id = folder_id
-        note.updated_at = datetime.utcnow()
+        note.updated_at = datetime.now(timezone.utc)
 
         # Update folder counts
         if old_folder_id and old_folder_id in self._folders:
@@ -165,7 +165,7 @@ class MemoryNoteRepository(MemoryBaseRepository[NoteEntity], NoteRepository):
             if linked_id not in note.linked_notes:
                 note.linked_notes.append(linked_id)
 
-        note.updated_at = datetime.utcnow()
+        note.updated_at = datetime.now(timezone.utc)
         return True
 
     async def remove_link(
@@ -185,7 +185,7 @@ class MemoryNoteRepository(MemoryBaseRepository[NoteEntity], NoteRepository):
             if linked_id in note.linked_notes:
                 note.linked_notes.remove(linked_id)
 
-        note.updated_at = datetime.utcnow()
+        note.updated_at = datetime.now(timezone.utc)
         return True
 
     # ==================== Folder Operations ====================
@@ -195,8 +195,8 @@ class MemoryNoteRepository(MemoryBaseRepository[NoteEntity], NoteRepository):
             self._id_counter += 1
             folder.id = f"folder_{self._id_counter:08d}"
 
-        folder.created_at = datetime.utcnow()
-        folder.updated_at = datetime.utcnow()
+        folder.created_at = datetime.now(timezone.utc)
+        folder.updated_at = datetime.now(timezone.utc)
         self._folders[str(folder.id)] = folder
         return folder
 
@@ -226,7 +226,7 @@ class MemoryNoteRepository(MemoryBaseRepository[NoteEntity], NoteRepository):
             if hasattr(folder, key):
                 setattr(folder, key, value)
 
-        folder.updated_at = datetime.utcnow()
+        folder.updated_at = datetime.now(timezone.utc)
         return folder
 
     async def delete_folder(

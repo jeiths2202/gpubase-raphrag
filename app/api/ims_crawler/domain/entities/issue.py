@@ -6,7 +6,7 @@ No external dependencies - pure Python with dataclass.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
@@ -71,8 +71,8 @@ class Issue:
     issue_type: str = "Task"
 
     # Timestamps
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     resolved_at: Optional[datetime] = None
 
     # Content
@@ -82,7 +82,7 @@ class Issue:
     attachments: List[Dict[str, Any]] = field(default_factory=list)  # List of attachment metadata
 
     # Crawling Metadata
-    crawled_at: datetime = field(default_factory=datetime.utcnow)
+    crawled_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     source_url: str = ""
     user_id: UUID = field(default_factory=uuid4)  # User who crawled this
 
@@ -106,28 +106,28 @@ class Issue:
         Business Rule: When status changes to RESOLVED/CLOSED, set resolved_at timestamp.
         """
         self.status = new_status
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
 
         if new_status in (IssueStatus.RESOLVED, IssueStatus.CLOSED):
             if not self.resolved_at:
-                self.resolved_at = datetime.utcnow()
+                self.resolved_at = datetime.now(timezone.utc)
 
     def assign_to(self, assignee: str) -> None:
         """Assign issue to a user"""
         self.assignee = assignee
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
 
     def add_label(self, label: str) -> None:
         """Add a label to the issue (idempotent)"""
         if label not in self.labels:
             self.labels.append(label)
-            self.updated_at = datetime.utcnow()
+            self.updated_at = datetime.now(timezone.utc)
 
     def remove_label(self, label: str) -> None:
         """Remove a label from the issue"""
         if label in self.labels:
             self.labels.remove(label)
-            self.updated_at = datetime.utcnow()
+            self.updated_at = datetime.now(timezone.utc)
 
     def is_resolved(self) -> bool:
         """Check if issue is in a resolved state"""
@@ -203,13 +203,13 @@ class Issue:
             assignee=data.get("assignee"),
             project_key=data.get("project_key", ""),
             issue_type=data.get("issue_type", "Task"),
-            created_at=datetime.fromisoformat(data["created_at"]) if isinstance(data.get("created_at"), str) else data.get("created_at", datetime.utcnow()),
-            updated_at=datetime.fromisoformat(data["updated_at"]) if isinstance(data.get("updated_at"), str) else data.get("updated_at", datetime.utcnow()),
+            created_at=datetime.fromisoformat(data["created_at"]) if isinstance(data.get("created_at"), str) else data.get("created_at", datetime.now(timezone.utc)),
+            updated_at=datetime.fromisoformat(data["updated_at"]) if isinstance(data.get("updated_at"), str) else data.get("updated_at", datetime.now(timezone.utc)),
             resolved_at=datetime.fromisoformat(data["resolved_at"]) if data.get("resolved_at") else None,
             labels=data.get("labels", []),
             comments_count=data.get("comments_count", 0),
             attachments_count=data.get("attachments_count", 0),
-            crawled_at=datetime.fromisoformat(data["crawled_at"]) if isinstance(data.get("crawled_at"), str) else data.get("crawled_at", datetime.utcnow()),
+            crawled_at=datetime.fromisoformat(data["crawled_at"]) if isinstance(data.get("crawled_at"), str) else data.get("crawled_at", datetime.now(timezone.utc)),
             source_url=data.get("source_url", ""),
             user_id=UUID(data["user_id"]) if isinstance(data.get("user_id"), str) else data.get("user_id", uuid4()),
             custom_fields=data.get("custom_fields", {}),

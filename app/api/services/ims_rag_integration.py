@@ -7,7 +7,7 @@ Context is LIMITED to searched/crawled issues only - not general knowledge.
 import logging
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from uuid import UUID, uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..ports.llm_port import LLMPort, LLMMessage, LLMRole, LLMConfig, LLMStreamChunk
 from ..ims_crawler.infrastructure.ports.issue_repository_port import IssueRepositoryPort
@@ -124,7 +124,7 @@ Total issues in context: {issue_count}
 
         # Create message IDs
         message_id = uuid4()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Store messages in conversation
         user_message = IMSChatMessage(
@@ -217,7 +217,7 @@ Total issues in context: {issue_count}
             )
 
             message_id = uuid4()
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             # Emit start event
             yield IMSChatStreamEvent(
@@ -381,7 +381,7 @@ Action Notes:
             return self._conversations[conversation_id]
 
         # Create new conversation
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         new_conversation = IMSChatConversation(
             id=uuid4(),
             title=None,

@@ -7,7 +7,7 @@ SECURITY FEATURES:
 - No DEBUG bypass - authentication always required
 """
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
@@ -64,7 +64,7 @@ async def get_current_user(
 
         # Check expiration
         exp = payload.get("exp")
-        if exp and datetime.utcnow() > datetime.fromtimestamp(exp):
+        if exp and datetime.now(timezone.utc) > datetime.fromtimestamp(exp):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail={"code": "AUTH_TOKEN_EXPIRED", "message": "토큰이 만료되었습니다."}
@@ -143,7 +143,7 @@ async def get_current_user_or_api_key(
             user_id: str = payload.get("sub")
             if user_id:
                 exp = payload.get("exp")
-                if not exp or datetime.utcnow() <= datetime.fromtimestamp(exp):
+                if not exp or datetime.now(timezone.utc) <= datetime.fromtimestamp(exp):
                     return {
                         "id": user_id,
                         "auth_type": "jwt",
@@ -382,7 +382,7 @@ class DocumentService:
 
         doc_id = f"doc_{uuid.uuid4().hex[:12]}"
         task_id = f"task_{uuid.uuid4().hex[:12]}"
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Determine document type
         doc_type, mime_type = self._get_document_type(filename)
@@ -490,7 +490,7 @@ class DocumentService:
                 doc["entities_count"] = 5  # Mock
                 doc["embedding_status"] = "completed"
                 doc["vlm_processed"] = enable_vlm
-                doc["updated_at"] = datetime.utcnow()
+                doc["updated_at"] = datetime.now(timezone.utc)
                 doc["stats"] = {
                     "pages": 10,
                     "chunks_count": len(chunks),
@@ -504,7 +504,7 @@ class DocumentService:
                 }
                 doc["processing_info"] = {
                     "started_at": self._tasks[task_id]["started_at"],
-                    "completed_at": datetime.utcnow(),
+                    "completed_at": datetime.now(timezone.utc),
                     "processing_time_seconds": 3
                 }
 
@@ -657,7 +657,7 @@ class DocumentService:
             doc["enable_vlm"] = enable_vlm
 
         doc["status"] = "processing"
-        doc["updated_at"] = datetime.utcnow()
+        doc["updated_at"] = datetime.now(timezone.utc)
 
         # In production, trigger reprocessing here
         return {"document_id": document_id, "status": "reprocessing"}
@@ -701,7 +701,7 @@ class HistoryService:
     async def create_conversation(self, user_id: str, title: str) -> dict:
         import uuid
         conv_id = f"conv_{uuid.uuid4().hex[:12]}"
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         self._conversations[conv_id] = {
             "id": conv_id,
@@ -743,7 +743,7 @@ class HistoryService:
 
         if format == "markdown":
             content = f"# {conv.get('title', 'Conversation')}\n\n"
-            content += f"*Exported: {datetime.utcnow().isoformat()}*\n\n---\n\n"
+            content += f"*Exported: {datetime.now(timezone.utc).isoformat()}*\n\n---\n\n"
             for q in queries:
                 content += f"## Q: {q.get('question', '')}\n\n"
                 content += f"{q.get('answer', '')}\n\n"
@@ -752,7 +752,7 @@ class HistoryService:
                     for src in q.get("sources", []):
                         content += f"- {src.get('doc_name')}: {src.get('content', '')[:100]}...\n"
                 content += "\n---\n\n"
-            filename = f"conversation_{conversation_id}_{datetime.utcnow().strftime('%Y%m%d')}.md"
+            filename = f"conversation_{conversation_id}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.md"
         elif format == "json":
             import json
             content = json.dumps({
@@ -760,7 +760,7 @@ class HistoryService:
                 "created_at": conv.get("created_at"),
                 "queries": queries
             }, indent=2, ensure_ascii=False)
-            filename = f"conversation_{conversation_id}_{datetime.utcnow().strftime('%Y%m%d')}.json"
+            filename = f"conversation_{conversation_id}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.json"
         elif format == "html":
             content = f"<html><head><title>{conv.get('title', 'Conversation')}</title></head><body>\n"
             content += f"<h1>{conv.get('title', 'Conversation')}</h1>\n"
@@ -775,19 +775,19 @@ class HistoryService:
                     content += "</ul>\n"
                 content += "</div>\n"
             content += "</body></html>"
-            filename = f"conversation_{conversation_id}_{datetime.utcnow().strftime('%Y%m%d')}.html"
+            filename = f"conversation_{conversation_id}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.html"
         else:
             content = f"{conv.get('title', 'Conversation')}\n\n"
             for q in queries:
                 content += f"Q: {q.get('question', '')}\nA: {q.get('answer', '')}\n\n"
-            filename = f"conversation_{conversation_id}_{datetime.utcnow().strftime('%Y%m%d')}.txt"
+            filename = f"conversation_{conversation_id}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.txt"
 
         return {
             "format": format,
             "filename": filename,
             "content": content,
             "query_count": len(queries),
-            "export_date": datetime.utcnow().isoformat()
+            "export_date": datetime.now(timezone.utc).isoformat()
         }
 
     async def branch_conversation(
@@ -818,7 +818,7 @@ class HistoryService:
 
         # Create new conversation with queries up to and including the branch point
         new_conv_id = f"conv_{uuid.uuid4().hex[:12]}"
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         self._conversations[new_conv_id] = {
             "id": new_conv_id,
@@ -981,7 +981,7 @@ class AuthService:
             "password_hash": hashlib.sha256(admin_password.encode()).hexdigest(),
             "role": "admin",
             "is_verified": True,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "is_active": True
         }
         cls._verified_emails.add(admin_email)
@@ -1044,7 +1044,7 @@ class AuthService:
                 "role": "user",
                 "is_verified": False
             },
-            "expires_at": datetime.utcnow() + timedelta(minutes=10)
+            "expires_at": datetime.now(timezone.utc) + timedelta(minutes=10)
         }
 
         # Send verification email (mock for now)
@@ -1065,7 +1065,7 @@ class AuthService:
         pending = self._pending_verifications[email]
 
         # Check expiration
-        if datetime.utcnow() > pending["expires_at"]:
+        if datetime.now(timezone.utc) > pending["expires_at"]:
             del self._pending_verifications[email]
             return {"error": "CODE_EXPIRED", "message": "인증 코드가 만료되었습니다."}
 
@@ -1102,7 +1102,7 @@ class AuthService:
         # Generate new code
         new_code = str(random.randint(100000, 999999))
         self._pending_verifications[email]["code"] = new_code
-        self._pending_verifications[email]["expires_at"] = datetime.utcnow() + timedelta(minutes=10)
+        self._pending_verifications[email]["expires_at"] = datetime.now(timezone.utc) + timedelta(minutes=10)
 
         # Send email
         await self._send_verification_email(email, new_code)
@@ -1179,11 +1179,11 @@ class AuthService:
         # Store token with email and timestamp (valid for 5 minutes)
         self._sso_tokens[token] = {
             "email": email,
-            "created_at": datetime.utcnow()
+            "created_at": datetime.now(timezone.utc)
         }
 
         # Clean up old tokens (older than 5 minutes)
-        cutoff_time = datetime.utcnow() - timedelta(minutes=5)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=5)
         self._sso_tokens = {
             k: v for k, v in self._sso_tokens.items()
             if v["created_at"] > cutoff_time
@@ -1209,7 +1209,7 @@ class AuthService:
         token_data = self._sso_tokens[token]
 
         # Check token expiration (5 minutes)
-        if datetime.utcnow() - token_data["created_at"] > timedelta(minutes=5):
+        if datetime.now(timezone.utc) - token_data["created_at"] > timedelta(minutes=5):
             del self._sso_tokens[token]
             return {
                 "error": "TOKEN_EXPIRED",
@@ -1240,13 +1240,13 @@ class AuthService:
                 "email": email,
                 "role": "user",  # Default role for SSO users
                 "is_active": True,
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "auth_method": "sso"
             }
             self._users[username] = user
 
         # Update last login
-        user["last_login_at"] = datetime.utcnow().isoformat()
+        user["last_login_at"] = datetime.now(timezone.utc).isoformat()
 
         return {
             "success": True,
@@ -1254,7 +1254,7 @@ class AuthService:
         }
 
     async def create_access_token(self, user: dict) -> str:
-        expire = datetime.utcnow() + timedelta(minutes=api_settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=api_settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
         payload = {
             "sub": user["id"],
             "username": user["username"],
@@ -1265,7 +1265,7 @@ class AuthService:
         return jwt.encode(payload, api_settings.JWT_SECRET_KEY, algorithm=api_settings.JWT_ALGORITHM)
 
     async def create_refresh_token(self, user: dict) -> str:
-        expire = datetime.utcnow() + timedelta(days=api_settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
+        expire = datetime.now(timezone.utc) + timedelta(days=api_settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
         payload = {
             "sub": user["id"],
             "type": "refresh",
@@ -1403,10 +1403,10 @@ class TokenStatsService:
             "id": f"evt_{uuid.uuid4().hex[:12]}",
             "user_id": user_id,
             "token_id": token_id,
-            "issued_at": datetime.utcnow().isoformat(),
+            "issued_at": datetime.now(timezone.utc).isoformat(),
             "processing_time_ms": processing_time_ms,
             "endpoint": endpoint,
-            "date": datetime.utcnow().strftime("%Y-%m-%d")
+            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d")
         }
         cls._token_events.append(event)
 
@@ -1431,7 +1431,7 @@ class TokenStatsService:
 
         # Generate events for the last 7 days
         for days_ago in range(7):
-            date = datetime.utcnow() - timedelta(days=days_ago)
+            date = datetime.now(timezone.utc) - timedelta(days=days_ago)
             date_str = date.strftime("%Y-%m-%d")
 
             # Random number of events per day (10-50)
@@ -1487,7 +1487,7 @@ class TokenStatsService:
         daily_average = total_tokens / num_days
 
         # Today's stats
-        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         today_stats = self._daily_stats.get(today_str, {"count": 0, "total_time_ms": 0})
         today_avg = (today_stats["total_time_ms"] / today_stats["count"]) if today_stats["count"] > 0 else 0
 
@@ -1512,7 +1512,7 @@ class TokenStatsService:
 
         result = []
         for i in range(days):
-            date = datetime.utcnow() - timedelta(days=i)
+            date = datetime.now(timezone.utc) - timedelta(days=i)
             date_str = date.strftime("%Y-%m-%d")
             stats = self._daily_stats.get(date_str, {"count": 0, "total_time_ms": 0})
             avg_time = (stats["total_time_ms"] / stats["count"]) if stats["count"] > 0 else 0
@@ -1676,7 +1676,7 @@ class ContentService:
             "options": options,
             "user_id": user_id,
             "content": None,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "completed_at": None
         }
 
@@ -1809,7 +1809,7 @@ class ContentService:
             content_data["content"] = {"message": "Content generated"}
 
         content_data["status"] = "completed"
-        content_data["completed_at"] = datetime.utcnow().isoformat()
+        content_data["completed_at"] = datetime.now(timezone.utc).isoformat()
 
     async def list_contents(
         self,
@@ -1895,7 +1895,7 @@ class NoteService:
         """Create a new note"""
         import uuid
         note_id = f"note_{uuid.uuid4().hex[:12]}"
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         note = {
             "id": note_id,
@@ -2006,7 +2006,7 @@ class NoteService:
         if is_pinned is not None:
             note["is_pinned"] = is_pinned
 
-        note["updated_at"] = datetime.utcnow().isoformat()
+        note["updated_at"] = datetime.now(timezone.utc).isoformat()
         return note
 
     async def delete_note(self, note_id: str) -> bool:
@@ -2022,7 +2022,7 @@ class NoteService:
             return None
         note = self._notes[note_id]
         note["is_pinned"] = not note.get("is_pinned", False)
-        note["updated_at"] = datetime.utcnow().isoformat()
+        note["updated_at"] = datetime.now(timezone.utc).isoformat()
         return {"is_pinned": note["is_pinned"]}
 
     async def save_ai_response(
@@ -2061,7 +2061,7 @@ class NoteService:
         """Create a folder"""
         import uuid
         folder_id = f"folder_{uuid.uuid4().hex[:12]}"
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         folder = {
             "id": folder_id,
@@ -2129,7 +2129,7 @@ class NoteService:
         if icon is not None:
             folder["icon"] = icon
 
-        folder["updated_at"] = datetime.utcnow().isoformat()
+        folder["updated_at"] = datetime.now(timezone.utc).isoformat()
         return folder
 
     async def delete_folder(self, folder_id: str, move_to_root: bool = True) -> dict:
@@ -2227,11 +2227,11 @@ class NoteService:
                     content += f"*Created: {note['created_at']}*\n"
                     content += f"*Tags: {', '.join(note.get('tags', []))}*\n\n"
                 content += f"{note['content']}\n\n---\n\n"
-            filename = f"notes_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.md"
+            filename = f"notes_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.md"
         elif format == "json":
             import json
             content = json.dumps(notes, indent=2, ensure_ascii=False)
-            filename = f"notes_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+            filename = f"notes_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
         elif format == "html":
             content = "<html><body>\n"
             for note in notes:
@@ -2240,17 +2240,17 @@ class NoteService:
                     content += f"<p><em>Created: {note['created_at']}</em></p>\n"
                 content += f"<div>{note['content']}</div>\n<hr>\n"
             content += "</body></html>"
-            filename = f"notes_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.html"
+            filename = f"notes_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.html"
         else:
             content = "\n".join(f"{n['title']}: {n['content']}" for n in notes)
-            filename = f"notes_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.txt"
+            filename = f"notes_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.txt"
 
         return {
             "format": format,
             "filename": filename,
             "content": content,
             "note_count": len(notes),
-            "export_date": datetime.utcnow().isoformat()
+            "export_date": datetime.now(timezone.utc).isoformat()
         }
 
     async def get_stats(self, user_id: str) -> dict:
@@ -2322,7 +2322,7 @@ class ProjectService:
         """Create a new project"""
         import uuid
         project_id = f"proj_{uuid.uuid4().hex[:12]}"
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         project = {
             "id": project_id,
@@ -2483,7 +2483,7 @@ class ProjectService:
         if tags is not None:
             project["tags"] = tags
 
-        project["updated_at"] = datetime.utcnow().isoformat()
+        project["updated_at"] = datetime.now(timezone.utc).isoformat()
         return self._get_project_detail(project_id, user_id)
 
     async def delete_project(
@@ -2524,7 +2524,7 @@ class ProjectService:
 
         docs = self._project_documents.get(project_id, [])
         # Mock document data
-        documents = [{"id": doc_id, "filename": f"doc_{doc_id}.pdf", "original_name": f"Document {doc_id}", "file_size": 1024000, "status": "ready", "chunks_count": 10, "added_at": datetime.utcnow().isoformat()} for doc_id in docs]
+        documents = [{"id": doc_id, "filename": f"doc_{doc_id}.pdf", "original_name": f"Document {doc_id}", "file_size": 1024000, "status": "ready", "chunks_count": 10, "added_at": datetime.now(timezone.utc).isoformat()} for doc_id in docs]
 
         total = len(documents)
         start = (page - 1) * limit
@@ -2582,7 +2582,7 @@ class ProjectService:
             return None
 
         role_value = role.value if hasattr(role, 'value') else role
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         for uid in user_ids:
             # Check if already a member
@@ -2786,7 +2786,7 @@ class ProjectService:
             "is_public": is_public,
             "usage_count": 0,
             "created_by": user_id,
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         }
 
         self._templates[template_id] = template

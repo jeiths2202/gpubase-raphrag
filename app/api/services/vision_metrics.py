@@ -9,7 +9,7 @@ import logging
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Callable
 from collections import defaultdict
@@ -135,7 +135,7 @@ class VisionMetricsCollector:
         """
         op_metrics = OperationMetrics(
             operation=operation,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(timezone.utc),
             provider=provider,
             model=model,
             metadata=metadata,
@@ -151,7 +151,7 @@ class VisionMetricsCollector:
             op_metrics.error_code = type(e).__name__
             raise
         finally:
-            op_metrics.end_time = datetime.utcnow()
+            op_metrics.end_time = datetime.now(timezone.utc)
             op_metrics.duration_ms = (time.time() - start_time) * 1000
             self._record_operation(op_metrics)
 
@@ -172,8 +172,8 @@ class VisionMetricsCollector:
         """Record an operation manually."""
         op_metrics = OperationMetrics(
             operation=operation,
-            start_time=datetime.utcnow() - timedelta(milliseconds=duration_ms),
-            end_time=datetime.utcnow(),
+            start_time=datetime.now(timezone.utc) - timedelta(milliseconds=duration_ms),
+            end_time=datetime.now(timezone.utc),
             duration_ms=duration_ms,
             success=success,
             error_code=error_code,
@@ -283,7 +283,7 @@ class VisionMetricsCollector:
 
     def get_summary(self, period_minutes: int = 60) -> Dict[str, Any]:
         """Get metrics summary for a time period."""
-        cutoff = datetime.utcnow() - timedelta(minutes=period_minutes)
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=period_minutes)
 
         with self._lock:
             recent_ops = [op for op in self._operations if op.start_time >= cutoff]
@@ -332,7 +332,7 @@ class VisionMetricsCollector:
 
         return {
             "period_minutes": period_minutes,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "operations": {
                 "total": total_ops,
                 "successful": successful_ops,

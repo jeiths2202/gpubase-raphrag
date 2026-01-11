@@ -10,7 +10,7 @@ Architecture Pattern: Service Layer (Clean Architecture)
 - Services handle transactions and complex workflows
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from uuid import UUID, uuid4
 
@@ -120,7 +120,7 @@ class WorkspaceService:
         if existing_state:
             # Update existing state
             existing_state.state = menu_state.state
-            existing_state.updated_at = datetime.utcnow()
+            existing_state.updated_at = datetime.now(timezone.utc)
             state = existing_state
         else:
             # Create new state
@@ -129,8 +129,8 @@ class WorkspaceService:
                 user_id=user_id,
                 menu_type=menu_state.menu_type,
                 state=menu_state.state,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
             self._menu_states[key] = state
 
@@ -222,7 +222,7 @@ class WorkspaceService:
             existing_state.state = graph_state.state
             existing_state.node_count = node_count
             existing_state.edge_count = edge_count
-            existing_state.updated_at = datetime.utcnow()
+            existing_state.updated_at = datetime.now(timezone.utc)
             state = existing_state
         else:
             # Create new state
@@ -234,8 +234,8 @@ class WorkspaceService:
                 state=graph_state.state,
                 node_count=node_count,
                 edge_count=edge_count,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
             self._graph_states[key] = state
 
@@ -310,11 +310,11 @@ class WorkspaceService:
                 last_active_menu=session_update.last_active_menu or "chat",
                 last_conversation_id=session_update.last_conversation_id,
                 preferences=session_update.preferences or WorkspacePreferences(),
-                last_login_at=datetime.utcnow(),
-                last_activity_at=datetime.utcnow(),
+                last_login_at=datetime.now(timezone.utc),
+                last_activity_at=datetime.now(timezone.utc),
                 session_count=1,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
             self._workspace_sessions[user_id] = session
         else:
@@ -326,8 +326,8 @@ class WorkspaceService:
             if session_update.preferences is not None:
                 session.preferences = session_update.preferences
 
-            session.last_activity_at = datetime.utcnow()
-            session.updated_at = datetime.utcnow()
+            session.last_activity_at = datetime.now(timezone.utc)
+            session.updated_at = datetime.now(timezone.utc)
 
         logger.debug(
             f"Updated workspace session for user {user_id}",
@@ -579,8 +579,8 @@ class WorkspaceService:
             max_tokens=conversation_data.max_tokens,
             is_archived=conversation_data.is_archived,
             is_pinned=conversation_data.is_pinned,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
             message_count=0
         )
 
@@ -728,9 +728,9 @@ class WorkspaceService:
             existing_doc.is_favorite = document_data.is_favorite
             existing_doc.tags = document_data.tags
             existing_doc.notes = document_data.notes
-            existing_doc.last_accessed_at = datetime.utcnow()
+            existing_doc.last_accessed_at = datetime.now(timezone.utc)
             existing_doc.access_count += 1
-            existing_doc.updated_at = datetime.utcnow()
+            existing_doc.updated_at = datetime.now(timezone.utc)
             return existing_doc
 
         # Create new document
@@ -744,10 +744,10 @@ class WorkspaceService:
             is_archived=document_data.is_archived,
             tags=document_data.tags,
             notes=document_data.notes,
-            last_accessed_at=datetime.utcnow(),
+            last_accessed_at=datetime.now(timezone.utc),
             access_count=1,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
         )
 
         self._user_documents[key] = document

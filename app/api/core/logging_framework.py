@@ -9,7 +9,7 @@ import random
 import logging
 import traceback
 from typing import Optional, Dict, Any, List, Callable, TYPE_CHECKING
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass, field, asdict
 from contextlib import contextmanager
 from functools import wraps
@@ -98,7 +98,7 @@ class StructuredFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         log_data = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

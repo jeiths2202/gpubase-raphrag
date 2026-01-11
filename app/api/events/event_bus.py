@@ -7,7 +7,7 @@ from typing import (
     Awaitable, Union, Set
 )
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 import asyncio
 import logging
@@ -164,11 +164,11 @@ class EventBus:
         if self._paused:
             self._pending_events.append(event)
             logger.debug(f"Event {event.event_type} queued (bus paused)")
-            return EventRecord(event=event, published_at=datetime.utcnow())
+            return EventRecord(event=event, published_at=datetime.now(timezone.utc))
 
         record = EventRecord(
             event=event,
-            published_at=datetime.utcnow()
+            published_at=datetime.now(timezone.utc)
         )
 
         # Get all matching handlers

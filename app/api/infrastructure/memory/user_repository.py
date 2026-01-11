@@ -1,7 +1,7 @@
 """
 In-Memory User Repository Implementation
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 import hashlib
 
@@ -106,7 +106,7 @@ class MemoryUserRepository(MemoryBaseRepository[UserEntity], UserRepository):
             return False
 
         user.password_hash = new_password_hash
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         return True
 
     async def record_login(
@@ -120,7 +120,7 @@ class MemoryUserRepository(MemoryBaseRepository[UserEntity], UserRepository):
             return
 
         if success:
-            user.last_login_at = datetime.utcnow()
+            user.last_login_at = datetime.now(timezone.utc)
             user.failed_login_attempts = 0
         else:
             user.failed_login_attempts += 1
@@ -129,7 +129,7 @@ class MemoryUserRepository(MemoryBaseRepository[UserEntity], UserRepository):
             "user_id": str(user_id),
             "success": success,
             "ip_address": ip_address,
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         })
 
     async def lock_account(
@@ -142,7 +142,7 @@ class MemoryUserRepository(MemoryBaseRepository[UserEntity], UserRepository):
             return False
 
         user.locked_until = until
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         return True
 
     async def unlock_account(self, user_id: EntityId) -> bool:
@@ -152,7 +152,7 @@ class MemoryUserRepository(MemoryBaseRepository[UserEntity], UserRepository):
 
         user.locked_until = None
         user.failed_login_attempts = 0
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         return True
 
     # ==================== Email Verification ====================
@@ -163,15 +163,15 @@ class MemoryUserRepository(MemoryBaseRepository[UserEntity], UserRepository):
             return False
 
         user.email_verified = True
-        user.email_verified_at = datetime.utcnow()
-        user.updated_at = datetime.utcnow()
+        user.email_verified_at = datetime.now(timezone.utc)
+        user.updated_at = datetime.now(timezone.utc)
         return True
 
     async def get_unverified_users(
         self,
         older_than_days: int = 7
     ) -> List[UserEntity]:
-        cutoff = datetime.utcnow() - timedelta(days=older_than_days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
         return [
             u for u in self._storage.values()
             if not u.email_verified and u.created_at < cutoff
@@ -190,7 +190,7 @@ class MemoryUserRepository(MemoryBaseRepository[UserEntity], UserRepository):
 
         user.mfa_enabled = True
         user.mfa_secret = secret
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         return True
 
     async def disable_mfa(self, user_id: EntityId) -> bool:
@@ -200,7 +200,7 @@ class MemoryUserRepository(MemoryBaseRepository[UserEntity], UserRepository):
 
         user.mfa_enabled = False
         user.mfa_secret = None
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         return True
 
     async def get_mfa_secret(self, user_id: EntityId) -> Optional[str]:
@@ -219,7 +219,7 @@ class MemoryUserRepository(MemoryBaseRepository[UserEntity], UserRepository):
             return False
 
         user.status = status
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         return True
 
     async def update_role(
@@ -232,7 +232,7 @@ class MemoryUserRepository(MemoryBaseRepository[UserEntity], UserRepository):
             return False
 
         user.role = role
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         return True
 
     async def get_by_status(
@@ -270,7 +270,7 @@ class MemoryUserRepository(MemoryBaseRepository[UserEntity], UserRepository):
             if hasattr(user.preferences, key):
                 setattr(user.preferences, key, value)
 
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         return True
 
     async def get_preferences(

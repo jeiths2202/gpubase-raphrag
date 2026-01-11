@@ -11,7 +11,7 @@ Based on Neo4j Knowledge Graph patterns:
 import asyncio
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple, Set
 from collections import defaultdict
 
@@ -446,7 +446,7 @@ class KnowledgeGraphService:
             Constructed Knowledge Graph
         """
         kg_id = f"kg_{uuid.uuid4().hex[:12]}"
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Combine text from query and documents
         text_sources = []

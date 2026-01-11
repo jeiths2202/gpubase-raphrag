@@ -4,7 +4,7 @@ PostgreSQL Trace Repository
 Async CRUD operations for traces and trace_spans tables.
 """
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from uuid import UUID
 
 import asyncpg
@@ -234,7 +234,7 @@ class TraceRepository:
         Returns:
             Dictionary with p50, p95, p99 latency values in milliseconds
         """
-        cutoff_date = datetime.utcnow() - timedelta(days=lookback_days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=lookback_days)
 
         if operation_type == "total":
             column = "total_latency_ms"

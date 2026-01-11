@@ -4,7 +4,7 @@ Custom Exception Handlers
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 
@@ -68,7 +68,7 @@ async def api_exception_handler(request: Request, exc: APIException) -> JSONResp
             },
             "meta": {
                 "request_id": f"req_{uuid.uuid4().hex[:12]}",
-                "timestamp": datetime.utcnow().isoformat() + "Z"
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
             }
         }
     )
@@ -96,7 +96,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             },
             "meta": {
                 "request_id": f"req_{uuid.uuid4().hex[:12]}",
-                "timestamp": datetime.utcnow().isoformat() + "Z"
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
             }
         }
     )
@@ -115,7 +115,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
             },
             "meta": {
                 "request_id": f"req_{uuid.uuid4().hex[:12]}",
-                "timestamp": datetime.utcnow().isoformat() + "Z"
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
             }
         }
     )

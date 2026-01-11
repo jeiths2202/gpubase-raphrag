@@ -4,7 +4,7 @@ Repository for conversation and query history operations.
 """
 from abc import abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from enum import Enum
 
@@ -27,7 +27,7 @@ class MessageEntity:
     content: str
 
     # Metadata
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     tokens: int = 0
     model: Optional[str] = None
 

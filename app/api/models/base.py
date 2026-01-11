@@ -1,7 +1,7 @@
 """
 Base models and common schemas
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Generic, Optional, TypeVar
 from pydantic import BaseModel, Field
 
@@ -11,7 +11,7 @@ DataT = TypeVar("DataT")
 class MetaInfo(BaseModel):
     """Response metadata"""
     request_id: str = Field(..., description="Unique request identifier")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     processing_time_ms: Optional[int] = None
 
 

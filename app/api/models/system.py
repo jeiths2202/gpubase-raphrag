@@ -2,7 +2,7 @@
 System Status Models
 시스템 상태 정보 모델
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Literal
 from pydantic import BaseModel, Field
 
@@ -46,7 +46,7 @@ class SystemStatusResponse(BaseModel):
     model: ModelStatus
     index: IndexStatus
     neo4j: Neo4jStatus
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="조회 시간")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="조회 시간")
 
 
 class KnowledgeSource(BaseModel):

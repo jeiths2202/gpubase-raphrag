@@ -8,7 +8,7 @@ import uuid
 import hashlib
 import numpy as np
 from typing import Optional, List, Dict, Any, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 import sys
 import os
@@ -162,7 +162,7 @@ class SessionDocumentService:
         if session_id not in self._sessions:
             self._sessions[session_id] = SessionContext(
                 session_id=session_id,
-                expires_at=datetime.utcnow() + timedelta(hours=self.SESSION_TTL_HOURS)
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=self.SESSION_TTL_HOURS)
             )
         return self._sessions[session_id]
 
@@ -332,7 +332,7 @@ class SessionDocumentService:
         doc.chunks = chunks
         doc.chunk_count = len(chunks)
         doc.status = SessionDocumentStatus.READY
-        doc.processed_at = datetime.utcnow()
+        doc.processed_at = datetime.now(timezone.utc)
         self._documents[doc_id] = doc
 
         # Update session stats
@@ -634,7 +634,7 @@ class SessionDocumentService:
 
     def cleanup_expired_sessions(self):
         """Clean up expired sessions (call periodically)"""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         expired = []
 
         for session_id, session in self._sessions.items():

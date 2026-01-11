@@ -9,7 +9,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Callable
 import threading
@@ -43,7 +43,7 @@ class HealthCheckResult:
     status: HealthStatus
     latency_ms: float
     message: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     details: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -126,7 +126,7 @@ class VisionHealthMonitor:
             self._component_health[component] = ComponentHealth(
                 component=component,
                 status=HealthStatus.UNKNOWN,
-                last_check=datetime.utcnow(),
+                last_check=datetime.now(timezone.utc),
             )
 
         # Monitoring state
@@ -497,7 +497,7 @@ class VisionHealthMonitor:
 
             return {
                 "status": overall_status.value,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "components": components,
             }
 

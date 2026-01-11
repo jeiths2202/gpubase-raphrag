@@ -5,7 +5,7 @@ System Status API Router
 import asyncio
 import subprocess
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -181,7 +181,7 @@ async def get_index_stats() -> IndexStatus:
         return IndexStatus(
             total_documents=docs,
             total_chunks=chunks,
-            last_updated=datetime.utcnow(),
+            last_updated=datetime.now(timezone.utc),
             status="ready"
         )
     except Exception:
@@ -189,7 +189,7 @@ async def get_index_stats() -> IndexStatus:
         return IndexStatus(
             total_documents=0,
             total_chunks=0,
-            last_updated=datetime.utcnow(),
+            last_updated=datetime.now(timezone.utc),
             status="ready"
         )
 

@@ -3,7 +3,7 @@ User Credentials Entity - Encrypted IMS credentials per user
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from uuid import UUID, uuid4
 
@@ -34,8 +34,8 @@ class UserCredentials:
     validation_error: Optional[str] = None
 
     # Timestamps
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __post_init__(self):
         """Validate entity invariants"""
@@ -45,22 +45,22 @@ class UserCredentials:
     def mark_as_validated(self) -> None:
         """Mark credentials as successfully validated"""
         self.is_validated = True
-        self.last_validated_at = datetime.utcnow()
+        self.last_validated_at = datetime.now(timezone.utc)
         self.validation_error = None
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
 
     def mark_as_invalid(self, error: str) -> None:
         """Mark credentials as invalid"""
         self.is_validated = False
         self.validation_error = error
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
 
     def update_credentials(self, encrypted_username: bytes, encrypted_password: bytes) -> None:
         """Update encrypted credentials"""
         self.encrypted_username = encrypted_username
         self.encrypted_password = encrypted_password
         self.is_validated = False  # Require re-validation
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
 
     def requires_validation(self) -> bool:
         """Check if credentials need validation"""
@@ -93,6 +93,6 @@ class UserCredentials:
             is_validated=data.get("is_validated", False),
             last_validated_at=datetime.fromisoformat(data["last_validated_at"]) if data.get("last_validated_at") else None,
             validation_error=data.get("validation_error"),
-            created_at=datetime.fromisoformat(data["created_at"]) if isinstance(data.get("created_at"), str) else data.get("created_at", datetime.utcnow()),
-            updated_at=datetime.fromisoformat(data["updated_at"]) if isinstance(data.get("updated_at"), str) else data.get("updated_at", datetime.utcnow()),
+            created_at=datetime.fromisoformat(data["created_at"]) if isinstance(data.get("created_at"), str) else data.get("created_at", datetime.now(timezone.utc)),
+            updated_at=datetime.fromisoformat(data["updated_at"]) if isinstance(data.get("updated_at"), str) else data.get("updated_at", datetime.now(timezone.utc)),
         )

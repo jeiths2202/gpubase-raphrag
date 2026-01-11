@@ -6,7 +6,7 @@ Extends existing exceptions with comprehensive error handling.
 from typing import Optional, Dict, Any, List
 from enum import Enum
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import status
 import traceback
 import uuid
@@ -70,7 +70,7 @@ class ErrorCode(str, Enum):
 class ErrorContext:
     """Additional context for errors"""
     request_id: str = field(default_factory=lambda: f"req_{uuid.uuid4().hex[:12]}")
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     path: Optional[str] = None
     method: Optional[str] = None
     user_id: Optional[str] = None

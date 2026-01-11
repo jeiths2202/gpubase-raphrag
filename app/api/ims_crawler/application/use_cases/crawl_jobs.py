@@ -8,7 +8,7 @@ Includes DB caching to avoid re-crawling the same queries within a configurable 
 import asyncio
 from typing import List, AsyncGenerator, Dict, Any, Optional, Tuple
 from uuid import UUID, uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from ...domain.entities import Issue, Attachment, CrawlJob, UserCredentials, CrawlJobStatus
@@ -137,7 +137,7 @@ class CrawlJobsUseCase:
             max_issues=max_results,
             include_attachments=download_attachments,
             include_related_issues=crawl_related,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             started_at=None,
             completed_at=None
         )
@@ -181,7 +181,7 @@ class CrawlJobsUseCase:
             yield {
                 "event": "job_started",
                 "job_id": str(job.id),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
             # Get user credentials
@@ -530,7 +530,7 @@ class CrawlJobsUseCase:
                 "event": "job_failed",
                 "job_id": str(job.id),
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
         finally:

@@ -4,7 +4,7 @@ Handles in-app notifications and email notifications (mock)
 """
 import uuid
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..models.notification import (
     Notification, NotificationType, NotificationPriority,
@@ -72,7 +72,7 @@ class NotificationService:
         print(f"[EMAIL MOCK] Body: {notification.message}")
 
         notification.email_sent = True
-        notification.email_sent_at = datetime.utcnow()
+        notification.email_sent_at = datetime.now(timezone.utc)
         self._notifications[notification.id] = notification
 
         return True
@@ -301,7 +301,7 @@ class NotificationService:
             notification = self._notifications.get(nid)
             if notification and notification.user_id == user_id:
                 notification.is_read = True
-                notification.read_at = datetime.utcnow()
+                notification.read_at = datetime.now(timezone.utc)
                 self._notifications[nid] = notification
                 count += 1
         return count
@@ -312,7 +312,7 @@ class NotificationService:
         for notification in self._notifications.values():
             if notification.user_id == user_id and not notification.is_read:
                 notification.is_read = True
-                notification.read_at = datetime.utcnow()
+                notification.read_at = datetime.now(timezone.utc)
                 count += 1
         return count
 

@@ -11,7 +11,7 @@ import logging
 from typing import List, Optional, Set
 from pathlib import Path
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 # Windows asyncio fix: Enable subprocess support for Playwright
@@ -1036,8 +1036,8 @@ class PlaywrightCrawler(CrawlerPort):
                             action_no=action_no,
                             reporter=reporter,
                             source_url=issue_url or f"{credentials.ims_base_url}/tody/ims/issue/issueView.do?issueId={issue_id}",
-                            created_at=datetime.utcnow(),
-                            updated_at=datetime.utcnow()
+                            created_at=datetime.now(timezone.utc),
+                            updated_at=datetime.now(timezone.utc)
                         )
                         issues.append(issue)
                         new_issues_on_page += 1
@@ -1275,8 +1275,8 @@ class PlaywrightCrawler(CrawlerPort):
                 project_key=project_key,
                 labels=labels,
                 source_url=issue_url,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
 
             logger.info(f"Crawled issue details: {issue_id} - '{title[:50]}'")
@@ -1361,7 +1361,7 @@ class PlaywrightCrawler(CrawlerPort):
                         download_url=download_url,
                         local_path=str(filepath),
                         extracted_text=None,  # Will be populated by attachment processor
-                        created_at=datetime.utcnow()
+                        created_at=datetime.now(timezone.utc)
                     )
 
                     attachments.append(attachment)
@@ -1644,8 +1644,8 @@ class PlaywrightCrawler(CrawlerPort):
                             project_key=project_key,
                             labels=labels,
                             source_url=issue_url,
-                            created_at=datetime.utcnow(),
-                            updated_at=datetime.utcnow()
+                            created_at=datetime.now(timezone.utc),
+                            updated_at=datetime.now(timezone.utc)
                         )
 
                         return crawled_issue

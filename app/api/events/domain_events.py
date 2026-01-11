@@ -4,7 +4,7 @@ Events that represent significant occurrences in the domain.
 """
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 import uuid
 
@@ -30,7 +30,7 @@ class DomainEvent:
     # Event metadata
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     event_type: str = ""
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     version: int = 1
 
     # Context

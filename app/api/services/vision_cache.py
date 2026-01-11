@@ -9,7 +9,7 @@ import hashlib
 import json
 import logging
 from dataclasses import asdict
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, Optional
 
 from app.api.models.vision import (
@@ -311,7 +311,7 @@ class VisionCacheService:
             # Redis handles expiration automatically
             return 0
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         keys_to_delete = [
             k for k, v in self._cache.items()
             if v.get("expires_at") and v["expires_at"] < now
@@ -354,7 +354,7 @@ class VisionCacheService:
             entry = self._cache.get(key)
             if entry:
                 # Check expiration
-                if entry.get("expires_at") and entry["expires_at"] < datetime.utcnow():
+                if entry.get("expires_at") and entry["expires_at"] < datetime.now(timezone.utc):
                     del self._cache[key]
                     self._misses += 1
                     return None
@@ -380,7 +380,7 @@ class VisionCacheService:
         else:
             self._cache[key] = {
                 "data": data,
-                "expires_at": datetime.utcnow() + timedelta(seconds=ttl),
+                "expires_at": datetime.now(timezone.utc) + timedelta(seconds=ttl),
             }
 
     def _deserialize_vision_result(self, data: Dict) -> DocumentVisionResult:

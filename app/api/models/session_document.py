@@ -2,7 +2,7 @@
 Session Document Models for Context-Aware RAG
 Handles documents uploaded during a chat session for priority-based retrieval
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
@@ -69,7 +69,7 @@ class SessionDocument(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     processed_at: Optional[datetime] = None
 
 
@@ -109,7 +109,7 @@ class SessionContext(BaseModel):
     document_ids: List[str] = Field(default_factory=list)
     total_chunks: int = 0
     active: bool = True
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: Optional[datetime] = None
 
 

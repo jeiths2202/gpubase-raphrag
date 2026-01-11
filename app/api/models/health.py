@@ -1,7 +1,7 @@
 """
 Health check Pydantic models
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, Field
@@ -36,5 +36,5 @@ class HealthResponse(BaseModel):
     """Health check response"""
     status: HealthStatus
     version: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     services: ServicesHealth

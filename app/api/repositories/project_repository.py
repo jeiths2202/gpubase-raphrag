@@ -4,7 +4,7 @@ Repository for project management operations.
 """
 from abc import abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from enum import Enum
 
@@ -32,7 +32,7 @@ class ProjectMemberEntity:
     user_id: str
     project_id: str
     role: MemberRole
-    joined_at: datetime = field(default_factory=datetime.utcnow)
+    joined_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     invited_by: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:

@@ -7,7 +7,7 @@ import hashlib
 import re
 import json
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from uuid import UUID
 
 import asyncpg
@@ -281,7 +281,7 @@ class QueryLogRepository:
         Returns:
             Tuple of (list of query aggregates, total count)
         """
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         where_clauses = ["last_asked_at >= $1", "frequency_count >= $2"]
         params: List[Any] = [cutoff_date, min_frequency]
@@ -542,7 +542,7 @@ class QueryLogRepository:
         Returns:
             Statistics dictionary
         """
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         async with self.pool.acquire() as conn:
             # Total queries

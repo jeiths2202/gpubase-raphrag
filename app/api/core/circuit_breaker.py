@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, TypeVar, Generic, Callable, Awaitable, Union
 from enum import Enum
 from functools import wraps
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 import threading
 
 logger = logging.getLogger(__name__)
@@ -201,7 +201,7 @@ class CircuitBreaker:
         """Handle successful call"""
         async with self._lock:
             self._stats.successful_calls += 1
-            self._stats.last_success_time = datetime.utcnow()
+            self._stats.last_success_time = datetime.now(timezone.utc)
 
             if self._state == CircuitState.HALF_OPEN:
                 self._success_count += 1
@@ -216,7 +216,7 @@ class CircuitBreaker:
         """Handle failed call"""
         async with self._lock:
             self._stats.failed_calls += 1
-            self._stats.last_failure_time = datetime.utcnow()
+            self._stats.last_failure_time = datetime.now(timezone.utc)
             self._last_failure_time = time.time()
 
             # Add to rolling window
@@ -245,7 +245,7 @@ class CircuitBreaker:
         self._state = new_state
         self._last_state_change_time = time.time()
         self._stats.state_changes += 1
-        self._stats.last_state_change = datetime.utcnow()
+        self._stats.last_state_change = datetime.now(timezone.utc)
 
         # Reset counters based on new state
         if new_state == CircuitState.CLOSED:

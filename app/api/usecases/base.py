@@ -5,7 +5,7 @@ Abstract base class for all use cases.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TypeVar, Generic, Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 import uuid
 import logging
@@ -44,7 +44,7 @@ class UseCaseResult(Generic[TOutput]):
     # Execution metadata
     execution_id: str = field(default_factory=lambda: str(uuid.uuid4())[:12])
     execution_time_ms: int = 0
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=datetime.now(timezone.utc))
 
     @property
     def is_success(self) -> bool:

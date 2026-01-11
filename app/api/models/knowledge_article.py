@@ -4,7 +4,7 @@ Knowledge Article models for the Knowledge Management System
 from enum import Enum
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class KnowledgeStatus(str, Enum):
@@ -99,7 +99,7 @@ class KnowledgeTranslation(BaseModel):
     title: str
     content: str  # HTML/Markdown content
     summary: Optional[str] = None
-    translated_at: datetime = Field(default_factory=datetime.utcnow)
+    translated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_auto_translated: bool = False
 
 
@@ -110,7 +110,7 @@ class ReviewComment(BaseModel):
     reviewer_name: str
     comment: str
     action: str  # "approve", "reject", "request_changes"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class KnowledgeArticle(BaseModel):
@@ -149,8 +149,8 @@ class KnowledgeArticle(BaseModel):
     recommendation_count: int = 0
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     submitted_at: Optional[datetime] = None
     published_at: Optional[datetime] = None
 
@@ -181,7 +181,7 @@ class Recommendation(BaseModel):
     id: str
     knowledge_id: str
     user_id: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # Request/Response models

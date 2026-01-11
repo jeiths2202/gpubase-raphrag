@@ -6,7 +6,7 @@ import asyncio
 import uuid
 import hashlib
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 from collections import defaultdict
 from functools import lru_cache
@@ -327,11 +327,11 @@ class ExternalDocumentService:
             if tokens.get("refresh_token"):
                 connection.refresh_token = self._encrypt_token(tokens.get("refresh_token"))
             if tokens.get("expires_in"):
-                connection.token_expires_at = datetime.utcnow() + timedelta(
+                connection.token_expires_at = datetime.now(timezone.utc) + timedelta(
                     seconds=tokens["expires_in"]
                 )
             connection.status = ConnectionStatus.CONNECTED
-            connection.updated_at = datetime.utcnow()
+            connection.updated_at = datetime.now(timezone.utc)
 
             # Store additional metadata
             for key in ["workspace_id", "workspace_name", "bot_id"]:
@@ -469,7 +469,7 @@ class ExternalDocumentService:
             # Update connection
             connection.status = ConnectionStatus.CONNECTED
             connection.sync_status = SyncStatus.COMPLETED
-            connection.last_sync_at = datetime.utcnow()
+            connection.last_sync_at = datetime.now(timezone.utc)
             connection.sync_error = None
             connection.document_count = len([
                 d for d in self._documents.values()
@@ -553,7 +553,7 @@ class ExternalDocumentService:
         doc.external_modified_at = doc_data.modified_at
         doc.content_hash = doc_data.content_hash
         doc.status = ExternalDocumentStatus.DISCOVERED
-        doc.updated_at = datetime.utcnow()
+        doc.updated_at = datetime.now(timezone.utc)
 
         self._documents[doc_id] = doc
 
@@ -608,7 +608,7 @@ class ExternalDocumentService:
             # Update document
             doc.chunk_count = len(chunks)
             doc.status = ExternalDocumentStatus.READY
-            doc.last_synced_at = datetime.utcnow()
+            doc.last_synced_at = datetime.now(timezone.utc)
             self._documents[doc_id] = doc
 
         except Exception as e:

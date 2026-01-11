@@ -2,7 +2,7 @@
 Use case for generating IMS reports
 """
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from app.api.ims_crawler.infrastructure.ports.issue_repository_port import IssueRepositoryPort
@@ -77,7 +77,7 @@ class GenerateReportUseCase:
             filters_applied['priority'] = priority_filter
 
         metadata = ReportMetadata(
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             user_id=user_id,
             title=title,
             description=description,
@@ -113,7 +113,7 @@ class GenerateReportUseCase:
         issue_summaries = [self._issue_to_summary(issue) for issue in issues]
 
         metadata = ReportMetadata(
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             user_id=user_id,
             title=f"Search Results: {search_query}",
             description=f"Issues matching query: '{search_query}'",

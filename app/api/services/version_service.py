@@ -5,7 +5,7 @@ Enterprise document version control with history tracking
 import uuid
 import hashlib
 import difflib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, List, Any
 from dataclasses import dataclass, field, asdict
 from enum import Enum
@@ -127,7 +127,7 @@ class VersionService:
             metadata=metadata or {},
             status=VersionStatus.DRAFT,
             created_by=created_by,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             change_type=ChangeType.CREATED,
             change_summary="Initial version created",
             size_bytes=len(content.encode('utf-8'))
@@ -198,7 +198,7 @@ class VersionService:
             metadata={**current.metadata, **(metadata or {})},
             status=VersionStatus.DRAFT,
             created_by=created_by,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             change_type=change_type,
             change_summary=change_summary,
             previous_version_id=current.id,
@@ -263,8 +263,8 @@ class VersionService:
                 current_version=0,
                 total_versions=0,
                 versions=[],
-                created_at=datetime.utcnow(),
-                last_modified_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
+                last_modified_at=datetime.now(timezone.utc),
                 created_by="",
                 last_modified_by=""
             )
@@ -324,7 +324,7 @@ class VersionService:
             metadata=target.metadata,
             status=VersionStatus.DRAFT,
             created_by=restored_by,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             change_type=ChangeType.RESTORED,
             change_summary=f"Restored from version {version_number}",
             previous_version_id=current.id,

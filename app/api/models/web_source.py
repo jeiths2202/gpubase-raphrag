@@ -2,7 +2,7 @@
 Web Source Models for URL-based RAG
 Supports fetching and processing web content for RAG indexing
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, HttpUrl
@@ -164,8 +164,8 @@ class WebSource(BaseModel):
     retry_count: int = 0
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     fetched_at: Optional[datetime] = None
     processed_at: Optional[datetime] = None
 

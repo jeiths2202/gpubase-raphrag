@@ -3,7 +3,7 @@ Enterprise Features Router
 Security, Audit, Versioning, and Collaboration APIs
 """
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Query, Request, Depends
 from pydantic import BaseModel, Field
 
@@ -337,7 +337,7 @@ async def export_audit_logs(
     audit_service = get_audit_service()
 
     criteria = AuditSearchCriteria(
-        start_time=datetime.utcnow() - timedelta(days=days),
+        start_time=datetime.now(timezone.utc) - timedelta(days=days),
         limit=10000
     )
 
@@ -346,7 +346,7 @@ async def export_audit_logs(
     return {
         "format": format,
         "content": content,
-        "exported_at": datetime.utcnow().isoformat()
+        "exported_at": datetime.now(timezone.utc).isoformat()
     }
 
 

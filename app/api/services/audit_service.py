@@ -4,7 +4,7 @@ Enterprise-grade audit trail for compliance and security
 """
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, List, Any
 from dataclasses import dataclass, field, asdict
 from enum import Enum
@@ -192,7 +192,7 @@ class AuditService:
         """
         event = AuditEvent(
             id=f"audit_{uuid.uuid4().hex}",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             event_type=event_type,
             severity=severity,
             user_id=user_id,
@@ -410,7 +410,7 @@ class AuditService:
         """Get user activity for specified period"""
         criteria = AuditSearchCriteria(
             user_id=user_id,
-            start_time=datetime.utcnow() - timedelta(days=days),
+            start_time=datetime.now(timezone.utc) - timedelta(days=days),
             limit=limit
         )
         return self.search(criteria)
@@ -449,14 +449,14 @@ class AuditService:
 
         criteria = AuditSearchCriteria(
             event_types=security_types,
-            start_time=datetime.utcnow() - timedelta(hours=hours),
+            start_time=datetime.now(timezone.utc) - timedelta(hours=hours),
             limit=limit
         )
         return self.search(criteria)
 
     def get_stats(self, hours: int = 24) -> AuditStats:
         """Get audit statistics for specified period"""
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         events_by_type: Dict[str, int] = defaultdict(int)
         events_by_severity: Dict[str, int] = defaultdict(int)
@@ -520,7 +520,7 @@ class AuditService:
     def _enforce_retention(self):
         """Enforce retention policies"""
         # Remove old events
-        cutoff = datetime.utcnow() - timedelta(days=self.RETENTION_DAYS)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=self.RETENTION_DAYS)
 
         while self._events and self._events[0].timestamp < cutoff:
             old_event = self._events.pop(0)

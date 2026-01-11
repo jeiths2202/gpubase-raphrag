@@ -76,7 +76,7 @@ class AgentMessage(BaseModel):
     tool_calls: Optional[List[ToolCall]] = None
     tool_call_id: Optional[str] = None
     name: Optional[str] = None  # Tool name for tool messages
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ToolExecutionEvent(BaseModel):
@@ -88,21 +88,21 @@ class ToolExecutionEvent(BaseModel):
     output: Optional[str] = None
     error: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ThinkingEvent(BaseModel):
     """Event emitted during agent thinking (for streaming)"""
     event_type: Literal["thinking_start", "thinking_delta", "thinking_end"]
     content: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class AgentEvent(BaseModel):
     """Union event for agent streaming"""
     event_type: str
     data: Union[ToolExecutionEvent, ThinkingEvent, Dict[str, Any]]
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # Dataclasses for internal context
@@ -379,7 +379,7 @@ class TraceEvent:
 class ExecutionTrace:
     """Complete execution trace for explainability"""
     trace_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    start_time: datetime = field(default_factory=datetime.utcnow)
+    start_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     end_time: Optional[datetime] = None
     events: List[TraceEvent] = field(default_factory=list)
     dag: Optional[TaskDAG] = None

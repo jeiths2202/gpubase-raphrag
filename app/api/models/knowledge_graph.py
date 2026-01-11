@@ -7,7 +7,7 @@ Based on Neo4j Knowledge Graph concepts:
 - Ontology-driven schema with inference support
 - Entity-Relationship-Property structure
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, Dict, Any, Union
 from pydantic import BaseModel, Field
@@ -136,8 +136,8 @@ class KGEntity(BaseModel):
     embedding: Optional[List[float]] = Field(None, description="Vector embedding")
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Visualization
     x: Optional[float] = Field(None, description="X coordinate for visualization")
@@ -171,7 +171,7 @@ class KGRelationship(BaseModel):
     inferred: bool = Field(default=False, description="Was inferred by reasoning")
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class KnowledgeGraph(BaseModel):
@@ -196,8 +196,8 @@ class KnowledgeGraph(BaseModel):
     source_query: Optional[str] = Field(None, description="Query that generated this KG")
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class KGSummary(BaseModel):

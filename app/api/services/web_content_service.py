@@ -7,7 +7,7 @@ import hashlib
 import asyncio
 import re
 from typing import Optional, List, Dict, Any, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urlparse, urljoin
 import time
 
@@ -714,7 +714,7 @@ class WebContentService:
                 )
                 web_source.stats.image_count = len(web_source.extracted_images)
 
-            web_source.fetched_at = datetime.utcnow()
+            web_source.fetched_at = datetime.now(timezone.utc)
 
             # Step 3: Chunking
             web_source.status = WebSourceStatus.CHUNKING
@@ -734,9 +734,9 @@ class WebContentService:
 
             # Done
             web_source.status = WebSourceStatus.READY
-            web_source.processed_at = datetime.utcnow()
-            web_source.stats.last_fetched = datetime.utcnow()
-            web_source.updated_at = datetime.utcnow()
+            web_source.processed_at = datetime.now(timezone.utc)
+            web_source.stats.last_fetched = datetime.now(timezone.utc)
+            web_source.updated_at = datetime.now(timezone.utc)
             self._web_sources[web_source_id] = web_source
 
         except Exception as e:
@@ -897,7 +897,7 @@ class WebContentService:
         # Check if content changed
         new_hash = self._compute_content_hash(html_content)
         if not force and new_hash == web_source.content_hash:
-            web_source.stats.last_checked = datetime.utcnow()
+            web_source.stats.last_checked = datetime.now(timezone.utc)
             self._web_sources[web_source_id] = web_source
             return True, "Content unchanged"
 

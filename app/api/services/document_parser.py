@@ -8,7 +8,7 @@ import os
 import re
 import uuid
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple, BinaryIO
 
 from ..models.document import (
@@ -142,7 +142,7 @@ class TextParser(BaseDocumentParser):
         doc.pages = [{"page_number": 1, "content": text}]
         doc.processing_info = {
             "parser": "TextParser",
-            "parsed_at": datetime.utcnow().isoformat()
+            "parsed_at": datetime.now(timezone.utc).isoformat()
         }
 
         return doc
@@ -212,7 +212,7 @@ class PDFParser(BaseDocumentParser):
             "pages": 10,  # Mock page count
             "title": filename.replace(".pdf", ""),
             "author": "Unknown",
-            "created_date": datetime.utcnow().isoformat(),
+            "created_date": datetime.now(timezone.utc).isoformat(),
             "pdf_version": "1.7"
         }
 
@@ -232,7 +232,7 @@ class PDFParser(BaseDocumentParser):
 
         doc.processing_info = {
             "parser": "PDFParser",
-            "parsed_at": datetime.utcnow().isoformat(),
+            "parsed_at": datetime.now(timezone.utc).isoformat(),
             "options": options
         }
 
@@ -329,7 +329,7 @@ class WordParser(BaseDocumentParser):
         doc.metadata = {
             "title": filename.replace(".docx", "").replace(".doc", ""),
             "author": "Unknown",
-            "created_date": datetime.utcnow().isoformat(),
+            "created_date": datetime.now(timezone.utc).isoformat(),
             "word_count": len(doc.text_content.split()),
             "paragraph_count": doc.text_content.count("\n\n") + 1
         }
@@ -346,7 +346,7 @@ class WordParser(BaseDocumentParser):
 
         doc.processing_info = {
             "parser": "WordParser",
-            "parsed_at": datetime.utcnow().isoformat(),
+            "parsed_at": datetime.now(timezone.utc).isoformat(),
             "is_docx": filename.endswith(".docx")
         }
 
@@ -462,7 +462,7 @@ class ExcelParser(BaseDocumentParser):
 
         doc.processing_info = {
             "parser": "ExcelParser",
-            "parsed_at": datetime.utcnow().isoformat(),
+            "parsed_at": datetime.now(timezone.utc).isoformat(),
             "is_xlsx": filename.endswith(".xlsx")
         }
 
@@ -567,7 +567,7 @@ class PowerPointParser(BaseDocumentParser):
 
         doc.processing_info = {
             "parser": "PowerPointParser",
-            "parsed_at": datetime.utcnow().isoformat(),
+            "parsed_at": datetime.now(timezone.utc).isoformat(),
             "is_pptx": filename.endswith(".pptx")
         }
 
@@ -691,7 +691,7 @@ class ImageParser(BaseDocumentParser):
 
         doc.processing_info = {
             "parser": "ImageParser",
-            "parsed_at": datetime.utcnow().isoformat(),
+            "parsed_at": datetime.now(timezone.utc).isoformat(),
             "vlm_enabled": bool(self.vlm_service) and options.get("use_vlm", True)
         }
 

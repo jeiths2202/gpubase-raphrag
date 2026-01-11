@@ -15,7 +15,7 @@ import time
 import secrets
 import pyotp
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass, field
 from collections import defaultdict
@@ -184,7 +184,7 @@ class MFASetup:
     secret: str
     qr_code_uri: str
     backup_codes: List[str]
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -545,7 +545,7 @@ class SessionManager:
             self.invalidate_session(oldest_id)
 
         session_id = secrets.token_urlsafe(32)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         session = SessionInfo(
             session_id=session_id,
@@ -568,7 +568,7 @@ class SessionManager:
         if not session:
             return None
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         if not session.is_active or now > session.expires_at:
             self.invalidate_session(session_id)

@@ -6,7 +6,7 @@ Orchestrates credential encryption, storage, and validation.
 
 from typing import Optional
 from uuid import UUID, uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ...domain.entities import UserCredentials
 from ...infrastructure.ports.credentials_repository_port import CredentialsRepositoryPort
@@ -79,8 +79,8 @@ class ManageCredentialsUseCase:
                 encrypted_username=encrypted_username,
                 encrypted_password=encrypted_password,
                 is_validated=False,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
 
         # Save to repository

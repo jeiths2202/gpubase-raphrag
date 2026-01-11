@@ -4,7 +4,7 @@ Business logic for mindmap generation and manipulation.
 """
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import time
 import json
 import re
@@ -77,7 +77,7 @@ class MindmapOutput:
     title: str
     root_node: MindmapNode
     total_nodes: int
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=datetime.now(timezone.utc))
 
     def to_dict(self) -> Dict[str, Any]:
         return {

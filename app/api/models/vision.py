@@ -5,7 +5,7 @@ Data models for Vision LLM routing, document analysis, and response handling.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -94,7 +94,7 @@ class DocumentVisualProfile:
     visual_complexity_score: float = 0.0
 
     # Metadata
-    analyzed_at: datetime = field(default_factory=datetime.utcnow)
+    analyzed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
     def requires_vision_llm(self) -> bool:

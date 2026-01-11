@@ -5,7 +5,7 @@ Thread-safe implementation for development and testing.
 Provides all conversation, message, and summary operations
 using in-memory storage with asyncio locks.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple
 from uuid import uuid4
 import asyncio
@@ -60,8 +60,8 @@ class MemoryConversationRepository(ConversationRepository):
                 entity.id = self._generate_id()
 
             entity_id = self._normalize_id(entity.id)
-            entity.created_at = datetime.utcnow()
-            entity.updated_at = datetime.utcnow()
+            entity.created_at = datetime.now(timezone.utc)
+            entity.updated_at = datetime.now(timezone.utc)
             self._conversations[entity_id] = entity
             self._conversation_messages[entity_id] = []
             self._conversation_summaries[entity_id] = []
@@ -103,7 +103,7 @@ class MemoryConversationRepository(ConversationRepository):
                 if hasattr(conv, key):
                     setattr(conv, key, value)
 
-            conv.updated_at = datetime.utcnow()
+            conv.updated_at = datetime.now(timezone.utc)
             return conv
 
     async def delete(self, entity_id: EntityId) -> bool:
@@ -246,9 +246,9 @@ class MemoryConversationRepository(ConversationRepository):
                 return False
 
             conv.is_deleted = True
-            conv.deleted_at = datetime.utcnow()
+            conv.deleted_at = datetime.now(timezone.utc)
             conv.deleted_by = deleted_by
-            conv.updated_at = datetime.utcnow()
+            conv.updated_at = datetime.now(timezone.utc)
             return True
 
     async def restore(
@@ -264,7 +264,7 @@ class MemoryConversationRepository(ConversationRepository):
             conv.is_deleted = False
             conv.deleted_at = None
             conv.deleted_by = None
-            conv.updated_at = datetime.utcnow()
+            conv.updated_at = datetime.now(timezone.utc)
             return True
 
     async def archive(
@@ -279,7 +279,7 @@ class MemoryConversationRepository(ConversationRepository):
                 return False
 
             conv.is_archived = archived
-            conv.updated_at = datetime.utcnow()
+            conv.updated_at = datetime.now(timezone.utc)
             return True
 
     async def star(
@@ -294,7 +294,7 @@ class MemoryConversationRepository(ConversationRepository):
                 return False
 
             conv.is_starred = starred
-            conv.updated_at = datetime.utcnow()
+            conv.updated_at = datetime.now(timezone.utc)
             return True
 
     # ==================== Message Operations ====================
@@ -345,8 +345,8 @@ class MemoryConversationRepository(ConversationRepository):
                 rag_context=rag_context or {},
                 branch_root_id=branch_root_id,
                 branch_depth=branch_depth,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
 
             msg_id = self._normalize_id(message.id)
@@ -356,7 +356,7 @@ class MemoryConversationRepository(ConversationRepository):
             # Update conversation stats
             conv.message_count += 1
             conv.total_tokens += total_tokens
-            conv.updated_at = datetime.utcnow()
+            conv.updated_at = datetime.now(timezone.utc)
 
             return message
 
@@ -420,7 +420,7 @@ class MemoryConversationRepository(ConversationRepository):
 
             msg.feedback_score = score
             msg.feedback_text = text
-            msg.updated_at = datetime.utcnow()
+            msg.updated_at = datetime.now(timezone.utc)
             return True
 
     async def regenerate_message(
@@ -446,7 +446,7 @@ class MemoryConversationRepository(ConversationRepository):
 
             # Mark original as inactive
             original.is_active_branch = False
-            original.updated_at = datetime.utcnow()
+            original.updated_at = datetime.now(timezone.utc)
 
             # Get existing regeneration count
             regen_count = 1
@@ -474,8 +474,8 @@ class MemoryConversationRepository(ConversationRepository):
                 branch_root_id=original.branch_root_id or orig_id,
                 branch_depth=original.branch_depth,
                 is_active_branch=True,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
 
             new_id = self._normalize_id(new_message.id)
@@ -488,7 +488,7 @@ class MemoryConversationRepository(ConversationRepository):
             if conv:
                 conv.message_count += 1
                 conv.total_tokens += total_tokens
-                conv.updated_at = datetime.utcnow()
+                conv.updated_at = datetime.now(timezone.utc)
 
             return new_message, original
 
@@ -503,15 +503,15 @@ class MemoryConversationRepository(ConversationRepository):
                 return False
 
             msg.is_deleted = True
-            msg.deleted_at = datetime.utcnow()
-            msg.updated_at = datetime.utcnow()
+            msg.deleted_at = datetime.now(timezone.utc)
+            msg.updated_at = datetime.now(timezone.utc)
 
             # Update conversation stats
             conv = self._conversations.get(self._normalize_id(msg.conversation_id))
             if conv:
                 conv.message_count = max(0, conv.message_count - 1)
                 conv.total_tokens = max(0, conv.total_tokens - msg.total_tokens)
-                conv.updated_at = datetime.utcnow()
+                conv.updated_at = datetime.now(timezone.utc)
 
             return True
 
@@ -571,8 +571,8 @@ class MemoryConversationRepository(ConversationRepository):
                     "forked_from": orig_conv_id,
                     "forked_at_message": from_msg_id
                 },
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
 
             new_conv_id = self._normalize_id(new_conv.id)
@@ -594,8 +594,8 @@ class MemoryConversationRepository(ConversationRepository):
                     total_tokens=msg.total_tokens,
                     model=msg.model,
                     sources=msg.sources.copy() if msg.sources else [],
-                    created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow()
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc)
                 )
 
                 new_msg_id = self._normalize_id(new_msg.id)
@@ -662,8 +662,8 @@ class MemoryConversationRepository(ConversationRepository):
                 compression_ratio=compression_ratio,
                 key_topics=key_topics or [],
                 key_entities=key_entities or [],
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
 
             sum_id = self._normalize_id(summary.id)

@@ -3,7 +3,7 @@ Stats Service - System statistics and monitoring
 """
 import asyncio
 from typing import Dict, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from functools import lru_cache
 import sys
 import os
@@ -100,7 +100,7 @@ class StatsService:
 
         # Generate empty timeline (TODO: Implement actual query logging)
         timeline = []
-        end_date = datetime.utcnow()
+        end_date = datetime.now(timezone.utc)
 
         for i in range(period_days):
             date = end_date - timedelta(days=i)

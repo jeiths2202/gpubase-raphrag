@@ -1,7 +1,7 @@
 """
 In-Memory History Repository Implementation
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
 from .base import MemoryBaseRepository
@@ -95,7 +95,7 @@ class MemoryHistoryRepository(MemoryBaseRepository[HistoryEntity], HistoryReposi
         if not conv:
             return False
         conv.is_archived = True
-        conv.updated_at = datetime.utcnow()
+        conv.updated_at = datetime.now(timezone.utc)
         return True
 
     async def restore(self, conversation_id: EntityId) -> bool:
@@ -103,7 +103,7 @@ class MemoryHistoryRepository(MemoryBaseRepository[HistoryEntity], HistoryReposi
         if not conv:
             return False
         conv.is_archived = False
-        conv.updated_at = datetime.utcnow()
+        conv.updated_at = datetime.now(timezone.utc)
         return True
 
     async def toggle_star(self, conversation_id: EntityId) -> bool:
@@ -111,7 +111,7 @@ class MemoryHistoryRepository(MemoryBaseRepository[HistoryEntity], HistoryReposi
         if not conv:
             return False
         conv.is_starred = not conv.is_starred
-        conv.updated_at = datetime.utcnow()
+        conv.updated_at = datetime.now(timezone.utc)
         return True
 
     async def update_title(
@@ -123,7 +123,7 @@ class MemoryHistoryRepository(MemoryBaseRepository[HistoryEntity], HistoryReposi
         if not conv:
             return False
         conv.title = title
-        conv.updated_at = datetime.utcnow()
+        conv.updated_at = datetime.now(timezone.utc)
         return True
 
     # ==================== Message Operations ====================
@@ -147,7 +147,7 @@ class MemoryHistoryRepository(MemoryBaseRepository[HistoryEntity], HistoryReposi
         if conv:
             conv.message_count = len(self._messages[conv_id])
             conv.total_tokens += message.tokens
-            conv.updated_at = datetime.utcnow()
+            conv.updated_at = datetime.now(timezone.utc)
 
         return message
 
@@ -308,7 +308,7 @@ class MemoryHistoryRepository(MemoryBaseRepository[HistoryEntity], HistoryReposi
         older_than_days: int,
         user_id: Optional[str] = None
     ) -> int:
-        cutoff = datetime.utcnow() - timedelta(days=older_than_days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
         to_delete = []
 
         for conv_id, conv in self._storage.items():

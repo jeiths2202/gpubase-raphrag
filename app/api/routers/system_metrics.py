@@ -3,7 +3,7 @@ System Metrics API Router
 서버 리소스 모니터링 API (관리자 전용)
 """
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -152,7 +152,7 @@ def _collect_metrics() -> Dict[str, Any]:
                 "open_files": len(proc.open_files()) if hasattr(proc, 'open_files') else 0
             },
             "uptime_seconds": uptime,
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         }
     except Exception as e:
         return _get_mock_metrics()
@@ -196,7 +196,7 @@ def _get_mock_metrics() -> Dict[str, Any]:
             "open_files": random.randint(20, 100)
         },
         "uptime_seconds": random.randint(3600, 86400),
-        "timestamp": datetime.utcnow()
+        "timestamp": datetime.now(timezone.utc)
     }
 
 
