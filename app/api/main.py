@@ -36,7 +36,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 from .admin_dashboard.router import router as admin_dashboard_router
 
@@ -212,6 +212,15 @@ async def lifespan(app: FastAPI):
         )
         logger.info(
             "[OK] Admin Dashboard service initialized",
+            category=LogCategory.BUSINESS
+        )
+
+        # ==================== RAG Config Service Initialization ====================
+        from .services.rag_config_service import init_rag_config_service
+
+        init_rag_config_service(db_pool)
+        logger.info(
+            "[OK] RAG Config service initialized",
             category=LogCategory.BUSINESS
         )
 
@@ -446,6 +455,7 @@ app.include_router(agents.router, prefix=API_PREFIX)  # AI agent system
 app.include_router(faq.router, prefix=API_PREFIX)  # FAQ and popular queries (dynamic from query logs)
 app.include_router(api_keys.router, prefix=API_PREFIX)  # API key management for public RAG access
 app.include_router(admin_dashboard_router, prefix=API_PREFIX)  # Admin dashboard with KPIs and analytics
+app.include_router(rag_config.router, prefix=API_PREFIX)  # RAG Configuration & Governance
 
 
 # Root endpoint

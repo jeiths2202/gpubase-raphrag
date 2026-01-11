@@ -42,6 +42,7 @@ import { FAQPage } from './pages/FAQPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AgentPage } from './pages/AgentPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
+import { DocumentsPage } from './pages/DocumentsPage';
 
 // Import global styles
 import './styles/index.css';
@@ -98,8 +99,8 @@ export const App: React.FC = () => {
               {/* FAQ */}
               <Route path="/faq" element={<FAQPage />} />
 
-              {/* Documents */}
-              <Route path="/documents" element={<PlaceholderPage title="Documents" />} />
+              {/* Documents & RAG Configuration */}
+              <Route path="/documents" element={<DocumentsPage />} />
 
               {/* Analytics */}
               <Route path="/analytics" element={<PlaceholderPage title="Analytics" />} />
