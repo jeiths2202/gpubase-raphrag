@@ -432,24 +432,24 @@ Requires IMS credentials for crawling."""
         """Get localized message based on language"""
         messages = {
             "no_crawled_issues": {
-                "ko": "크롤링된 이슈가 없습니다.",
-                "ja": "クロールされたイシューがありません。",
-                "en": "No crawled issues found."
+                "ko": "수집된 이슈가 없습니다.",
+                "ja": "収集されたイシューがありません。",
+                "en": "No collected issues found."
             },
             "no_crawled_issues_product": {
-                "ko": "'{product}' 관련 크롤링된 이슈가 없습니다.",
-                "ja": "'{product}' に関連するクロールされたイシューがありません。",
-                "en": "No crawled issues found for '{product}'."
+                "ko": "'{product}' 관련 수집된 이슈가 없습니다.",
+                "ja": "'{product}' に関連する収集されたイシューがありません。",
+                "en": "No collected issues found for '{product}'."
             },
             "found_issues": {
-                "ko": "총 {count}개의 크롤링된 이슈를 찾았습니다.",
-                "ja": "合計 {count} 件のクロールされたイシューが見つかりました。",
-                "en": "Found {count} crawled issue(s)."
+                "ko": "총 {count}개의 수집된 이슈를 찾았습니다.",
+                "ja": "合計 {count} 件の収集されたイシューが見つかりました。",
+                "en": "Found {count} collected issue(s)."
             },
             "login_required": {
-                "ko": "크롤링된 이슈를 조회하려면 로그인이 필요합니다.",
-                "ja": "クロールされたイシューを表示するにはログインが必要です。",
-                "en": "Login required to list crawled issues."
+                "ko": "검색도구로 이슈를 조회하려면 로그인이 필요합니다.",
+                "ja": "検索ツールでイシューを表示するにはログインが必要です。",
+                "en": "Login required to use search tool."
             },
             "issue_not_found": {
                 "ko": "이슈 {issue_id}을(를) 찾을 수 없습니다. 먼저 해당 이슈가 포함된 검색을 실행해 주세요.",
