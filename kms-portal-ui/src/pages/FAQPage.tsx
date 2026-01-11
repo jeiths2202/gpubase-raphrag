@@ -42,7 +42,7 @@ interface FAQItemData {
   helpful: number;
   notHelpful: number;
   viewCount: number;
-  tags: string[];
+  tags: string[] | string; // Can be array or JSON string from API
   sourceType: 'static' | 'dynamic' | 'curated';
   isPinned: boolean;
 }
@@ -323,14 +323,33 @@ export const FAQPage: React.FC = () => {
 
   // Get tags for an FAQ item
   const getTags = (faq: FAQItemData): string[] => {
-    if (faq.tags && faq.tags.length > 0) return faq.tags;
+    // Handle tags from dynamic FAQs (may be JSON string or array)
+    if (faq.tags) {
+      // If tags is a string (JSON), parse it
+      if (typeof faq.tags === 'string') {
+        try {
+          const parsed = JSON.parse(faq.tags);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        } catch {
+          // Not valid JSON, try comma-separated
+          if (faq.tags.length > 0 && !faq.tags.startsWith('[')) {
+            return faq.tags.split(',').map(s => s.trim()).filter(Boolean);
+          }
+        }
+      } else if (Array.isArray(faq.tags) && faq.tags.length > 0) {
+        return faq.tags;
+      }
+    }
+    // Fallback to i18n for static FAQs
     if (faq.translationKey) {
       const tagsStr = t(`faq.items.${faq.translationKey}.tags`);
       try {
         if (tagsStr.startsWith('[')) {
           return JSON.parse(tagsStr);
         }
-        return tagsStr.split(',').map(s => s.trim());
+        return tagsStr.split(',').map(s => s.trim()).filter(Boolean);
       } catch {
         return [];
       }
