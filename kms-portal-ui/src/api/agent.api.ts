@@ -25,6 +25,7 @@ export interface AgentExecuteRequest {
   session_id?: string;
   max_steps?: number;
   language?: 'auto' | 'en' | 'ko' | 'ja';
+  file_context?: string;  // Attached file content for RAG priority context
 }
 
 /**

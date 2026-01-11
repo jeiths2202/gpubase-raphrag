@@ -37,6 +37,7 @@ import {
   PanelRightClose,
   History,
   Plus,
+  Paperclip,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -76,6 +77,16 @@ interface ToolCallInfo {
   output?: string;
   status: 'pending' | 'success' | 'error';
 }
+
+interface AttachedFile {
+  name: string;
+  content: string;
+  size: number;
+}
+
+// Supported file extensions for attachment
+const SUPPORTED_EXTENSIONS = ['.txt', '.md', '.py', '.js', '.ts', '.json', '.yaml', '.yml', '.xml', '.csv', '.log', '.sql', '.sh', '.bat', '.html', '.css'];
+const MAX_FILE_SIZE = 100 * 1024; // 100KB
 
 // Agent type configuration
 const AGENT_CONFIGS: Record<AgentType, { icon: React.ElementType; label: string; description: string }> = {
@@ -277,6 +288,11 @@ export const AgentChat: React.FC = () => {
   const [credentialsError, setCredentialsError] = useState<string | null>(null);
   const [pendingQuery, setPendingQuery] = useState<string | null>(null);
 
+  // File attachment state
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -344,6 +360,76 @@ export const AgentChat: React.FC = () => {
     e.target.style.height = 'auto';
     e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
   };
+
+  // File attachment handling
+  const handleFileAttach = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setFileError(null);
+
+    for (const file of Array.from(files)) {
+      // Check extension
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+      if (!SUPPORTED_EXTENSIONS.includes(ext)) {
+        setFileError(`Unsupported file type: ${ext}. Supported: ${SUPPORTED_EXTENSIONS.join(', ')}`);
+        continue;
+      }
+
+      // Check size
+      if (file.size > MAX_FILE_SIZE) {
+        setFileError(`File too large: ${file.name} (max 100KB)`);
+        continue;
+      }
+
+      // Check if already attached
+      if (attachedFiles.some(f => f.name === file.name)) {
+        setFileError(`File already attached: ${file.name}`);
+        continue;
+      }
+
+      // Read file content
+      try {
+        const content = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsText(file);
+        });
+
+        setAttachedFiles(prev => [...prev, {
+          name: file.name,
+          content,
+          size: file.size
+        }]);
+      } catch (error) {
+        setFileError(`Failed to read file: ${file.name}`);
+      }
+    }
+
+    // Reset input to allow re-selecting the same file
+    if (e.target) e.target.value = '';
+  }, [attachedFiles]);
+
+  const handleRemoveFile = useCallback((fileName: string) => {
+    setAttachedFiles(prev => prev.filter(f => f.name !== fileName));
+    setFileError(null);
+  }, []);
+
+  const handleClearAllFiles = useCallback(() => {
+    setAttachedFiles([]);
+    setFileError(null);
+  }, []);
+
+  // Get combined file context for API request
+  const getFileContext = useCallback((): string | undefined => {
+    if (attachedFiles.length === 0) return undefined;
+    return attachedFiles.map(f => `=== File: ${f.name} ===\n${f.content}\n`).join('\n');
+  }, [attachedFiles]);
 
   // Helper to save message to database
   const saveMessageToDb = useCallback(async (
@@ -432,9 +518,11 @@ export const AgentChat: React.FC = () => {
 
       // When 'auto' is selected, don't send agent_type to let backend classify
       // Always include user's preferred language for AI responses
+      // Include attached file context for RAG priority
+      const fileContext = getFileContext();
       const requestPayload = requestingAgent === 'auto'
-        ? { task: userMessage.content, language: userLanguage }
-        : { task: userMessage.content, agent_type: requestingAgent, language: userLanguage };
+        ? { task: userMessage.content, language: userLanguage, file_context: fileContext }
+        : { task: userMessage.content, agent_type: requestingAgent, language: userLanguage, file_context: fileContext };
 
       for await (const chunk of streamAgent(
         requestPayload,
@@ -634,7 +722,7 @@ export const AgentChat: React.FC = () => {
       updateAgentIsLoading(requestingAgent, false);
       updateAgentAbortController(requestingAgent, null);
     }
-  }, [inputValue, isLoading, selectedAgent, agentStates, createConversation, saveMessageToDb, loadConversations, t, addArtifact, updateAgentMessages, updateAgentStreamingMessage, updateAgentIsLoading, updateAgentAbortController]);
+  }, [inputValue, isLoading, selectedAgent, agentStates, createConversation, saveMessageToDb, loadConversations, t, addArtifact, updateAgentMessages, updateAgentStreamingMessage, updateAgentIsLoading, updateAgentAbortController, getFileContext]);
 
   // Handle key press
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -944,7 +1032,73 @@ export const AgentChat: React.FC = () => {
 
       {/* Input area */}
       <div className="agent-chat-input-container">
+        {/* Attached files display */}
+        {attachedFiles.length > 0 && (
+          <div className="agent-attached-files">
+            <div className="agent-attached-files-header">
+              <span className="agent-attached-files-label">
+                <Paperclip size={14} />
+                {attachedFiles.length} {attachedFiles.length === 1 ? 'file' : 'files'} attached
+              </span>
+              <button
+                className="agent-attached-files-clear"
+                onClick={handleClearAllFiles}
+                title="Clear all"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div className="agent-attached-files-list">
+              {attachedFiles.map(file => (
+                <div key={file.name} className="agent-attached-file">
+                  <FileText size={14} />
+                  <span className="agent-attached-file-name">{file.name}</span>
+                  <span className="agent-attached-file-size">
+                    {file.size < 1024 ? `${file.size}B` : `${Math.round(file.size / 1024)}KB`}
+                  </span>
+                  <button
+                    className="agent-attached-file-remove"
+                    onClick={() => handleRemoveFile(file.name)}
+                    title="Remove"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* File error display */}
+        {fileError && (
+          <div className="agent-file-error">
+            <AlertCircle size={14} />
+            <span>{fileError}</span>
+            <button onClick={() => setFileError(null)}><X size={12} /></button>
+          </div>
+        )}
+
         <div className="agent-chat-input-wrapper">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="agent-file-input-hidden"
+            onChange={handleFileChange}
+            accept={SUPPORTED_EXTENSIONS.join(',')}
+            multiple
+          />
+
+          {/* Attach button */}
+          <button
+            className="agent-chat-attach"
+            onClick={handleFileAttach}
+            disabled={isLoading}
+            title="Attach files"
+          >
+            <Paperclip size={18} />
+          </button>
+
           <textarea
             ref={inputRef}
             className="agent-chat-input"
