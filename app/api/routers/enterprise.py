@@ -329,7 +329,7 @@ async def get_security_events(
 
 @router.get("/audit/export")
 async def export_audit_logs(
-    format: str = Query(default="json", regex="^(json|csv)$"),
+    format: str = Query(default="json", pattern="^(json|csv)$"),
     days: int = Query(default=7, ge=1, le=90),
     current_user: dict = Depends(get_current_user)
 ):

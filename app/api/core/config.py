@@ -11,7 +11,7 @@ import os
 from functools import lru_cache
 from typing import List, Optional
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Import existing config
 import sys
@@ -210,10 +210,11 @@ class APISettings(BaseSettings):
         corp_domains = self.get_corp_domains_list()
         return domain in corp_domains
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
 
 
 @lru_cache()
