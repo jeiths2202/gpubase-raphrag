@@ -112,12 +112,14 @@ const NAV_ITEMS: NavItem[] = [
     path: '/documents',
     icon: <FileText size={20} />,
     labelKey: 'common.nav.documents',
+    requiredRole: 'admin',
   },
   {
     id: 'analytics',
     path: '/analytics',
     icon: <BarChart3 size={20} />,
     labelKey: 'common.nav.analytics',
+    requiredRole: 'admin',
   },
 ];
 
