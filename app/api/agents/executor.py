@@ -124,6 +124,39 @@ IMPORTANT: Answer from the attached file context above if possible. Only use too
 User Query: {task}"""
             logger.info(f"[Executor] File context attached ({len(context.file_context)} chars)")
 
+        # Handle URL context (fetched web content)
+        if context.url_context:
+            system_prompt += """
+
+CRITICAL INSTRUCTION - URL CONTENT CONTEXT:
+The user has provided a URL and its content has been fetched for reference. You MUST:
+1. FIRST search the URL content for the answer
+2. If the answer is found in the URL content, respond directly WITHOUT using any tools
+3. ONLY use tools (vector_search, document_read, etc.) if the information is NOT in the URL content
+4. When answering from URL content, mention the source URL
+"""
+            url_source = context.url_source or "provided URL"
+            if context.file_context:
+                # Both file and URL context
+                user_message = user_message.replace(
+                    "[END ATTACHED FILE CONTEXT]",
+                    f"""[END ATTACHED FILE CONTEXT]
+
+[URL CONTENT FROM: {url_source}]
+{context.url_context}
+[END URL CONTENT]"""
+                )
+            else:
+                # Only URL context
+                user_message = f"""[URL CONTENT FROM: {url_source}]
+{context.url_context}
+[END URL CONTENT]
+
+IMPORTANT: Answer from the URL content above if possible. Only use tools if the answer is not in the URL content.
+
+User Query: {task}"""
+            logger.info(f"[Executor] URL context attached ({len(context.url_context)} chars) from {url_source}")
+
         # Initialize messages with system prompt and user task
         messages: List[AgentMessage] = [
             AgentMessage(role=MessageRole.SYSTEM, content=system_prompt),
@@ -291,6 +324,39 @@ IMPORTANT: Answer from the attached file context above if possible. Only use too
 
 User Query: {task}"""
             print(f"[Executor.stream] File context attached ({len(context.file_context)} chars)", flush=True)
+
+        # Handle URL context (fetched web content)
+        if context.url_context:
+            system_prompt += """
+
+CRITICAL INSTRUCTION - URL CONTENT CONTEXT:
+The user has provided a URL and its content has been fetched for reference. You MUST:
+1. FIRST search the URL content for the answer
+2. If the answer is found in the URL content, respond directly WITHOUT using any tools
+3. ONLY use tools (vector_search, document_read, etc.) if the information is NOT in the URL content
+4. When answering from URL content, mention the source URL
+"""
+            url_source = context.url_source or "provided URL"
+            if context.file_context:
+                # Both file and URL context
+                user_message = user_message.replace(
+                    "[END ATTACHED FILE CONTEXT]",
+                    f"""[END ATTACHED FILE CONTEXT]
+
+[URL CONTENT FROM: {url_source}]
+{context.url_context}
+[END URL CONTENT]"""
+                )
+            else:
+                # Only URL context
+                user_message = f"""[URL CONTENT FROM: {url_source}]
+{context.url_context}
+[END URL CONTENT]
+
+IMPORTANT: Answer from the URL content above if possible. Only use tools if the answer is not in the URL content.
+
+User Query: {task}"""
+            print(f"[Executor.stream] URL context attached ({len(context.url_context)} chars) from {url_source}", flush=True)
 
         # Initialize messages
         messages: List[AgentMessage] = [

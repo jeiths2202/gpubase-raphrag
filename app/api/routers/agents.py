@@ -20,6 +20,13 @@ from ..agents import (
     get_tool_registry,
     get_agent_registry,
 )
+from ..agents.types import (
+    EnterpriseAgentRequest,
+    EnterpriseAgentResponse,
+    OrchestrationConfig,
+    EvaluationCriteria,
+    RetryConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -226,6 +233,195 @@ async def classify_task(
         "agent_type": agent_type.value,
         "method": "llm" if use_llm else "keyword"
     }
+
+
+# =========================================================================
+# Enterprise Multi-Agent Orchestration Endpoints
+# =========================================================================
+
+@router.post("/enterprise/execute", response_model=EnterpriseAgentResponse)
+async def execute_enterprise_agent(
+    request: EnterpriseAgentRequest,
+    auth_context: dict = Depends(get_current_user_or_api_key),
+    orchestrator: AgentOrchestrator = Depends(get_agent_orchestrator)
+) -> EnterpriseAgentResponse:
+    """
+    Execute an enterprise multi-agent task with orchestration.
+
+    Supports task decomposition into subtasks, parallel execution,
+    result evaluation with retry logic, and final answer synthesis.
+
+    Features:
+    - Automatic task decomposition into DAG of subtasks
+    - Parallel agent execution for independent subtasks
+    - Result quality evaluation with configurable criteria
+    - Automatic retry on failure or low quality
+    - Multi-result synthesis into coherent answer
+    - Next-action recommendations
+    - Full execution trace for explainability
+
+    Supports both JWT authentication and API key authentication.
+
+    Args:
+        request: Enterprise agent request with orchestration config
+        auth_context: Authenticated user or API key
+        orchestrator: Agent orchestrator
+
+    Returns:
+        EnterpriseAgentResponse with synthesized answer, trace, and metadata
+    """
+    try:
+        # Check API key permissions
+        if auth_context.get("auth_type") == "api_key":
+            allowed_types = auth_context.get("allowed_agent_types", [])
+            requested_type = request.agent_type or "auto"
+
+            if allowed_types and requested_type not in allowed_types and "*" not in allowed_types:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "code": "AGENT_TYPE_NOT_ALLOWED",
+                        "message": f"Agent type '{requested_type}' is not allowed for this API key."
+                    }
+                )
+
+        user_id = auth_context.get("id") or auth_context.get("sub")
+
+        response = await orchestrator.execute_enterprise(request, user_id=user_id)
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Enterprise agent execution failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ENTERPRISE_AGENT_ERROR", "message": str(e)}
+        )
+
+
+@router.post("/enterprise/stream")
+async def stream_enterprise_agent(
+    request: EnterpriseAgentRequest,
+    auth_context: dict = Depends(get_current_user_or_api_key),
+    orchestrator: AgentOrchestrator = Depends(get_agent_orchestrator)
+):
+    """
+    Stream enterprise multi-agent execution using Server-Sent Events (SSE).
+
+    Provides real-time updates from parallel agent execution with
+    interleaved streaming from multiple agents.
+
+    Event types:
+    - orchestration_start: Orchestration has started
+    - dag_created: Task DAG has been created, shows subtask breakdown
+    - batch_start: Starting a batch of parallel tasks
+    - agent_start: Individual agent has started
+    - agent_chunk: Streaming output from an agent
+    - agent_done: Individual agent has completed
+    - batch_done: Batch of parallel tasks completed
+    - evaluation: Result evaluation complete
+    - retry: Retrying a failed task
+    - synthesis: Synthesizing results from multiple agents
+    - next_actions: Recommended next actions
+    - done: Orchestration complete
+    - error: Error occurred
+
+    Supports both JWT authentication and API key authentication.
+
+    Args:
+        request: Enterprise agent request with orchestration config
+        auth_context: Authenticated user or API key
+        orchestrator: Agent orchestrator
+
+    Returns:
+        StreamingResponse with SSE events
+    """
+    # Check API key permissions
+    if auth_context.get("auth_type") == "api_key":
+        allowed_types = auth_context.get("allowed_agent_types", [])
+        requested_type = request.agent_type or "auto"
+
+        if allowed_types and requested_type not in allowed_types and "*" not in allowed_types:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "AGENT_TYPE_NOT_ALLOWED",
+                    "message": f"Agent type '{requested_type}' is not allowed for this API key."
+                }
+            )
+
+    user_id = auth_context.get("id") or auth_context.get("sub")
+
+    async def generate():
+        try:
+            async for chunk in orchestrator.stream_enterprise(request, user_id=user_id):
+                data = chunk.model_dump()
+                yield f"data: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
+        except Exception as e:
+            logger.error(f"Enterprise agent streaming failed: {e}")
+            yield f"data: {json.dumps({'chunk_type': 'error', 'content': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+class OrchestrationConfigResponse(BaseModel):
+    """Response for orchestration configuration"""
+    enable_parallel: bool
+    enable_retry: bool
+    enable_evaluation: bool
+    continue_on_failure: bool
+    enable_synthesis: bool
+    enable_next_actions: bool
+    evaluation_criteria: dict
+    retry_config: dict
+
+
+@router.get("/enterprise/config", response_model=OrchestrationConfigResponse)
+async def get_default_orchestration_config() -> OrchestrationConfigResponse:
+    """
+    Get default orchestration configuration.
+
+    Returns the default configuration values that can be used
+    as a template for enterprise agent requests.
+
+    Returns:
+        Default OrchestrationConfig values
+    """
+    default_config = OrchestrationConfig()
+    default_criteria = EvaluationCriteria()
+    default_retry = RetryConfig()
+
+    return OrchestrationConfigResponse(
+        enable_parallel=default_config.enable_parallel,
+        enable_retry=default_config.enable_retry,
+        enable_evaluation=default_config.enable_evaluation,
+        continue_on_failure=default_config.continue_on_failure,
+        enable_synthesis=default_config.enable_synthesis,
+        enable_next_actions=default_config.enable_next_actions,
+        evaluation_criteria={
+            "min_confidence": default_criteria.min_confidence,
+            "require_sources": default_criteria.require_sources,
+            "min_answer_length": default_criteria.min_answer_length,
+            "max_execution_time": default_criteria.max_execution_time,
+        },
+        retry_config={
+            "max_retries": default_retry.max_retries,
+            "backoff_factor": default_retry.backoff_factor,
+            "initial_delay": default_retry.initial_delay,
+            "retry_on_failure": default_retry.retry_on_failure,
+            "retry_on_low_quality": default_retry.retry_on_low_quality,
+        }
+    )
 
 
 # Health check endpoint
