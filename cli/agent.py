@@ -230,13 +230,12 @@ class CLI:
         self.ui.print_info(self.i18n("ims_login_prompt"))
 
         try:
-            # Get IMS credentials from user
+            # Get IMS credentials from user (URL is fixed in crawler)
             username = self.ui.get_input(self.i18n("ims_username"))
             password = self.ui.get_password(self.i18n("ims_password"))
-            ims_url = self.ui.get_input(self.i18n("ims_url"), default="https://ims.tmaxsoft.com")
 
             self.ui.print_info(self.i18n("ims_validating"))
-            success, message = self.auth.ims_login(username, password, ims_url)
+            success, message = self.auth.ims_login(username, password)
 
             if success:
                 self.ui.print_success(self.i18n("ims_login_success"))

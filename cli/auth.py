@@ -237,7 +237,7 @@ class AuthManager:
         except Exception:
             return False, None
 
-    def ims_login(self, username: str, password: str, ims_url: str = "https://ims.tmaxsoft.com") -> tuple[bool, str]:
+    def ims_login(self, username: str, password: str) -> tuple[bool, str]:
         """
         Create/update IMS credentials and validate.
 
@@ -251,11 +251,10 @@ class AuthManager:
 
         try:
             with httpx.Client(timeout=60.0) as client:
-                # Create/update credentials
+                # Create/update credentials (IMS URL is fixed in crawler)
                 response = client.post(
                     url,
                     json={
-                        "ims_url": ims_url,
                         "username": username,
                         "password": password,
                     },
