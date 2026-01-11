@@ -387,3 +387,106 @@ def _extract_docx_text(content_bytes: bytes) -> str:
         raise ValueError("Could not extract text from DOCX")
 
     return "\n".join(text_parts)
+
+
+class FetchUrlRequest(BaseModel):
+    """Request for URL content fetching"""
+    url: str = Field(..., description="URL to fetch content from")
+
+
+class FetchUrlResponse(BaseModel):
+    """Response for URL content fetching"""
+    url: str
+    title: str | None = None
+    content: str
+    char_count: int
+    word_count: int
+    success: bool = True
+    error: str | None = None
+
+
+@router.post("/fetch-url", response_model=FetchUrlResponse)
+async def fetch_url_content(
+    request: FetchUrlRequest,
+    auth_context: dict = Depends(get_current_user_or_api_key)
+) -> FetchUrlResponse:
+    """
+    Fetch and extract text content from a URL for RAG context.
+
+    This endpoint fetches the URL content and extracts readable text,
+    which can be used as url_context in agent requests.
+
+    Supports both JWT authentication and API key authentication.
+
+    Args:
+        request: URL fetch request
+        auth_context: Authenticated user or API key
+
+    Returns:
+        FetchUrlResponse with extracted text content
+    """
+    from ..services.web_content_service import get_web_content_service
+
+    try:
+        web_service = get_web_content_service()
+
+        # Fetch HTML with frameset handling
+        html_content, status_code, error, is_frameset = await web_service.fetch_url_with_frameset_handling(request.url)
+        if html_content is None:
+            return FetchUrlResponse(
+                url=request.url,
+                content="",
+                char_count=0,
+                word_count=0,
+                success=False,
+                error=error or f"Failed to fetch URL (HTTP {status_code})"
+            )
+
+        if is_frameset:
+            logger.info(f"Processed frameset URL: {request.url}")
+
+        # Extract metadata for title
+        metadata = web_service.extractor.extract_metadata(html_content, request.url)
+
+        # Extract text content
+        extraction = await web_service.extractor.extract_with_trafilatura(html_content, request.url)
+        if not extraction.success or not extraction.text_content:
+            # Fallback to BeautifulSoup
+            extraction = await web_service.extractor.extract_with_beautifulsoup(html_content, request.url)
+
+        if not extraction.success or not extraction.text_content:
+            return FetchUrlResponse(
+                url=request.url,
+                title=metadata.title,
+                content="",
+                char_count=0,
+                word_count=0,
+                success=False,
+                error="Failed to extract text content from URL"
+            )
+
+        # Truncate if too large (max 50KB)
+        content = extraction.text_content
+        max_size = 50 * 1024
+        if len(content) > max_size:
+            content = content[:max_size] + "\n\n[... content truncated ...]"
+
+        return FetchUrlResponse(
+            url=request.url,
+            title=metadata.title,
+            content=content,
+            char_count=len(content),
+            word_count=len(content.split()),
+            success=True
+        )
+
+    except Exception as e:
+        logger.error(f"URL fetch failed: {e}")
+        return FetchUrlResponse(
+            url=request.url,
+            content="",
+            char_count=0,
+            word_count=0,
+            success=False,
+            error=str(e)
+        )

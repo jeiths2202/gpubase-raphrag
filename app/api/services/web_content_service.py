@@ -43,6 +43,68 @@ class WebContentExtractor:
             self.trafilatura_config = use_config()
             self.trafilatura_config.set("DEFAULT", "EXTRACTION_TIMEOUT", "30")
 
+    def is_frameset_page(self, html_content: str) -> bool:
+        """Check if HTML is a frameset page"""
+        if not BS4_AVAILABLE:
+            # Fallback to regex check
+            return bool(re.search(r'<frameset[^>]*>', html_content, re.IGNORECASE))
+
+        try:
+            soup = BeautifulSoup(html_content, 'lxml')
+            return soup.find('frameset') is not None
+        except Exception:
+            return False
+
+    def extract_frame_urls(self, html_content: str, base_url: str) -> List[Dict[str, str]]:
+        """
+        Extract frame URLs from a frameset page.
+        Returns list of dicts with 'url', 'name', and 'priority' keys.
+        Priority is higher for main content frames.
+        """
+        if not BS4_AVAILABLE:
+            return []
+
+        try:
+            soup = BeautifulSoup(html_content, 'lxml')
+            frames = []
+
+            for frame in soup.find_all(['frame', 'iframe']):
+                src = frame.get('src', '')
+                if not src:
+                    continue
+
+                # Make absolute URL
+                full_url = urljoin(base_url, src)
+                name = frame.get('name', '').lower()
+
+                # Determine priority based on frame name/attributes
+                # Main content frames typically have names like 'main', 'content', 'mainFrame'
+                priority = 0
+                if 'main' in name or 'content' in name or 'body' in name:
+                    priority = 10
+                elif 'toc' in name or 'nav' in name or 'menu' in name:
+                    priority = 3
+                elif 'top' in name or 'header' in name or 'banner' in name:
+                    priority = 1
+                elif 'overview' in name:
+                    priority = 5
+                else:
+                    priority = 5  # Default priority for unnamed frames
+
+                frames.append({
+                    'url': full_url,
+                    'name': name or 'unnamed',
+                    'priority': priority
+                })
+
+            # Sort by priority descending
+            frames.sort(key=lambda x: x['priority'], reverse=True)
+            return frames
+
+        except Exception as e:
+            print(f"[WebContentExtractor] Error extracting frames: {e}")
+            return []
+
     async def extract_with_trafilatura(
         self,
         html_content: str,
@@ -337,6 +399,113 @@ class WebContentService:
             return None, 0, f"Request error: {str(e)}"
         except Exception as e:
             return None, 0, f"Unexpected error: {str(e)}"
+
+    async def fetch_url_with_frameset_handling(
+        self,
+        url: str,
+        max_frames: int = 3
+    ) -> Tuple[Optional[str], int, Optional[str], bool]:
+        """
+        Fetch content from URL with automatic frameset handling.
+
+        If the URL is a frameset page, fetches content from main frames
+        and combines them.
+
+        Returns:
+            Tuple of (html_content, status_code, error_message, is_frameset)
+        """
+        # First fetch
+        html_content, status_code, error = await self.fetch_url(url)
+        if html_content is None:
+            return None, status_code, error, False
+
+        # Check if frameset
+        if not self.extractor.is_frameset_page(html_content):
+            return html_content, status_code, None, False
+
+        # Extract frame URLs
+        frames = self.extractor.extract_frame_urls(html_content, url)
+        if not frames:
+            # Frameset with no extractable frames
+            return html_content, status_code, None, True
+
+        print(f"[WebContentService] Detected frameset with {len(frames)} frames")
+
+        # Fetch content from top frames (by priority)
+        combined_contents = []
+        frames_fetched = 0
+
+        for frame in frames[:max_frames]:
+            frame_url = frame['url']
+            frame_name = frame['name']
+
+            try:
+                frame_html, frame_status, frame_error = await self.fetch_url(frame_url)
+                if frame_html:
+                    # Check if this frame is also a frameset (nested)
+                    if self.extractor.is_frameset_page(frame_html):
+                        nested_frames = self.extractor.extract_frame_urls(frame_html, frame_url)
+                        if nested_frames:
+                            # Fetch first nested frame
+                            nested_html, _, _ = await self.fetch_url(nested_frames[0]['url'])
+                            if nested_html:
+                                frame_html = nested_html
+
+                    combined_contents.append({
+                        'name': frame_name,
+                        'url': frame_url,
+                        'html': frame_html
+                    })
+                    frames_fetched += 1
+                    print(f"[WebContentService] Fetched frame '{frame_name}' ({len(frame_html)} bytes)")
+            except Exception as e:
+                print(f"[WebContentService] Failed to fetch frame '{frame_name}': {e}")
+
+        if not combined_contents:
+            return html_content, status_code, "Failed to fetch any frame content", True
+
+        # Combine frame contents into a single HTML document
+        combined_html = self._combine_frame_contents(combined_contents, url)
+        print(f"[WebContentService] Combined {frames_fetched} frames into {len(combined_html)} bytes")
+
+        return combined_html, status_code, None, True
+
+    def _combine_frame_contents(
+        self,
+        frame_contents: List[Dict[str, str]],
+        original_url: str
+    ) -> str:
+        """Combine multiple frame HTML contents into a single document"""
+        if not frame_contents:
+            return ""
+
+        # If only one frame, return it directly
+        if len(frame_contents) == 1:
+            return frame_contents[0]['html']
+
+        # Combine multiple frames
+        combined_parts = []
+        combined_parts.append(f"<!-- Combined from frameset: {original_url} -->")
+        combined_parts.append("<html><head><meta charset='utf-8'/></head><body>")
+
+        for frame in frame_contents:
+            # Extract body content from each frame
+            if BS4_AVAILABLE:
+                try:
+                    soup = BeautifulSoup(frame['html'], 'lxml')
+                    body = soup.find('body')
+                    if body:
+                        combined_parts.append(f"<!-- Frame: {frame['name']} from {frame['url']} -->")
+                        combined_parts.append(str(body))
+                    else:
+                        combined_parts.append(frame['html'])
+                except Exception:
+                    combined_parts.append(frame['html'])
+            else:
+                combined_parts.append(frame['html'])
+
+        combined_parts.append("</body></html>")
+        return '\n'.join(combined_parts)
 
     def _compute_content_hash(self, content: str) -> str:
         """Compute hash of content for change detection"""
