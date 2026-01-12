@@ -242,7 +242,7 @@ Respond with ONLY the JSON verification report, no additional text."""
             result = await self.execute(task, context)
 
             # Parse the response
-            response_text = result.output if result else ""
+            response_text = result.answer if result else ""
 
             # Extract JSON from response
             report_data = self._extract_json(response_text)

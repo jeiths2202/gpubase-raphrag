@@ -186,7 +186,7 @@ Respond with ONLY the JSON architecture proposal, no additional text."""
             result = await self.execute(task, context)
 
             # Parse the response
-            response_text = result.output if result else ""
+            response_text = result.answer if result else ""
 
             # Extract JSON from response
             proposal_data = self._extract_json(response_text)
