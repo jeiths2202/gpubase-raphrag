@@ -126,7 +126,7 @@ GOOGLE_CLIENT_ID=       # for Google OAuth
 
 ## API Endpoints
 
-Base URL: `http://localhost:8000/api/v1`
+Base URL: `http://localhost:9000/api/v1`
 
 Key endpoint groups:
 - `/auth/*` - Authentication (login, refresh, logout)
@@ -137,7 +137,7 @@ Key endpoint groups:
 - `/knowledge-article/*` - Knowledge registration workflow
 - `/enterprise/*` - MFA, audit logs, collaboration
 
-Interactive docs: `http://localhost:8000/docs`
+Interactive docs: `http://localhost:9000/docs`
 
 ## Testing Architecture
 
@@ -153,7 +153,7 @@ Mock services in `tests/mocks/` and `app/api/adapters/mock/` simulate LLM, embed
 | Port  | Service                    |
 |-------|---------------------------|
 | 3000  | React frontend            |
-| 8000  | FastAPI backend           |
+| 9000  | FastAPI backend           |
 | 7474  | Neo4j HTTP                |
 | 7687  | Neo4j Bolt                |
 | 12800 | Nemotron LLM (GPU 7)      |

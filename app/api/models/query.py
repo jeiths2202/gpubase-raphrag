@@ -2,7 +2,7 @@
 Query-related Pydantic models
 """
 from enum import Enum
-from typing import Optional
+from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -43,6 +43,7 @@ class QueryRequest(BaseModel):
     strategy: StrategyType = Field(default=StrategyType.AUTO, description="Search strategy")
     language: LanguageType = Field(default=LanguageType.AUTO, description="Response language")
     options: Optional[QueryOptions] = Field(default_factory=QueryOptions)
+    ui_context: Optional[Dict[str, Any]] = Field(default=None, description="UI context for context-aware AI")
 
     model_config = ConfigDict(json_schema_extra={
         "example": {
