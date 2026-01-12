@@ -42,6 +42,9 @@ export interface StreamingChatDependencies {
   // Context getters
   getFileContext: () => string | undefined;
   getUrlContext: () => string | undefined;
+  // UI context for context-aware AI (optional, from contextStore)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getUIContext?: () => any;
 
   // IMS credentials callback
   onCredentialsRequired: (query: string) => void;
@@ -111,6 +114,7 @@ export function useStreamingChat(
     createArtifactFromChunk,
     getFileContext,
     getUrlContext,
+    getUIContext,
     onCredentialsRequired,
     onMessageSent,
     onTraceData,
@@ -288,11 +292,14 @@ export function useStreamingChat(
       // (url_context field is for URLs that backend will fetch, but we already have content)
       const combinedContext = [fileContext, urlContext].filter(Boolean).join('\n\n') || undefined;
 
+      // Get UI context for context-aware AI (if available)
+      const uiContext = getUIContext ? getUIContext() : undefined;
+
       // Cast language to supported type (validated by UI)
       const language = userLanguage as SupportedLanguage;
       const requestPayload = requestingAgent === 'auto'
-        ? { task: userMessage.content, language, file_context: combinedContext }
-        : { task: userMessage.content, agent_type: requestingAgent, language, file_context: combinedContext };
+        ? { task: userMessage.content, language, file_context: combinedContext, ui_context: uiContext }
+        : { task: userMessage.content, agent_type: requestingAgent, language, file_context: combinedContext, ui_context: uiContext };
 
       // Process stream
       for await (const chunk of streamAgent(requestPayload, controller.signal)) {
@@ -553,6 +560,7 @@ export function useStreamingChat(
     createArtifactFromChunk,
     getFileContext,
     getUrlContext,
+    getUIContext,
     onCredentialsRequired,
     onMessageSent,
     onTraceData,

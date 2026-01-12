@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, X, CheckCircle, Clock, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../hooks/useTranslation';
+import { useSimplePageContext } from '../hooks/usePageContext';
 import { useAuthStore } from '../store/authStore';
 import {
   IMSCredentialsSetup,
@@ -45,6 +46,9 @@ export const IMSPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { logout } = useAuthStore();
+
+  // Register page context for AI awareness
+  useSimplePageContext(['search', 'credentials', 'results', 'progress']);
 
   // Store state
   const {

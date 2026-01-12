@@ -36,6 +36,7 @@ import { type AgentType } from '../api/agent.api';
 import { useArtifactStore, createArtifactFromChunk } from '../store/artifactStore';
 import { useConversationStore } from '../store/conversationStore';
 import { useTraceStore } from '../store/traceStore';
+import { useContextStore } from '../store/contextStore';
 import { ArtifactPanel } from './ArtifactPanel';
 import { ConversationSidebar } from './ConversationSidebar';
 import { TracePanel } from './TracePanel';
@@ -89,6 +90,9 @@ export const AgentChat: React.FC = () => {
     togglePanel: toggleTracePanel,
     updateFromTraceData,
   } = useTraceStore();
+
+  // Context store for UI context-aware AI
+  const { getUIContext } = useContextStore();
 
   // State - Initialize selectedAgent from store's lastSelectedAgent
   const [selectedAgent, setSelectedAgentState] = useState<AgentType>(lastSelectedAgent);
@@ -162,6 +166,7 @@ export const AgentChat: React.FC = () => {
     createArtifactFromChunk,
     getFileContext,
     getUrlContext,
+    getUIContext,
     onCredentialsRequired: (query: string) => {
       setPendingQuery(query);
       setShowCredentialsModal(true);

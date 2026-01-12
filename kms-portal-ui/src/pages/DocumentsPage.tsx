@@ -47,6 +47,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import './DocumentsPage.css';
+import { useSimplePageContext } from '../hooks/usePageContext';
 
 // =============================================================================
 // Types
@@ -152,6 +153,9 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 // =============================================================================
 
 export const DocumentsPage: React.FC = () => {
+  // Register page context for AI awareness
+  useSimplePageContext(['documents', 'rag-profiles', 'experiments', 'metrics']);
+
   const [activeTab, setActiveTab] = useState<TabId>('profiles');
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState<RAGConfigOverview | null>(null);

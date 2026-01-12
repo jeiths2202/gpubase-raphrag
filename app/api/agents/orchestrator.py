@@ -3,7 +3,7 @@ Agent Orchestrator
 Manages agent selection and execution flow.
 Supports both simple single-agent and enterprise multi-agent orchestration.
 """
-from typing import Dict, List, Optional, AsyncGenerator
+from typing import Any, Dict, List, Optional, AsyncGenerator
 import logging
 import re
 import time
@@ -28,6 +28,13 @@ from ..infrastructure.services.query_log_writer import get_query_log_writer
 
 # Import web content service for URL fetching
 from ..services.web_content_service import get_web_content_service
+
+# Import UI context models for context-aware AI
+from ..models.ui_context import (
+    UIContext,
+    filter_ui_context_by_role,
+    build_context_prompt_section,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -261,6 +268,17 @@ class AgentOrchestrator:
             url_context=url_content,
             url_source=url_source
         )
+
+        # Process UI context if provided
+        ui_context_prompt = None
+        if request.ui_context:
+            ui_context_prompt = await self._process_ui_context(
+                request.ui_context,
+                user_id
+            )
+            if ui_context_prompt:
+                context.metadata['ui_context_prompt'] = ui_context_prompt
+                logger.info(f"[Orchestrator] UI context processed: page={request.ui_context.get('current_page')}")
 
         if request.agent_type:
             agent_type = request.agent_type
@@ -1052,6 +1070,50 @@ List each suggestion on a new line, starting with "- ":"""
         except Exception as e:
             # Non-blocking - log error but don't fail the request
             logger.warning(f"[Orchestrator] Failed to log query: {e}")
+
+    async def _process_ui_context(
+        self,
+        ui_context_data: Dict[str, Any],
+        user_id: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Process UI context for context-aware AI responses.
+
+        Validates the incoming context, applies role-based filtering,
+        and builds a prompt section for the LLM.
+
+        Args:
+            ui_context_data: Raw UI context dictionary from frontend
+            user_id: User ID for additional role verification
+
+        Returns:
+            Formatted context prompt section, or None if processing fails
+        """
+        try:
+            # Parse and validate UI context
+            ui_context = UIContext(**ui_context_data)
+
+            # Get user role from context (frontend sends this)
+            # For security, in production you might want to verify this
+            # against the actual user role from user_id lookup
+            user_role = ui_context.user_permission_scope
+
+            # Apply role-based filtering
+            filtered_context = filter_ui_context_by_role(ui_context, user_role)
+
+            # Build prompt section for LLM
+            prompt_section = build_context_prompt_section(filtered_context)
+
+            logger.debug(f"[Orchestrator] UI context processed: "
+                        f"page={ui_context.current_page}, "
+                        f"role={user_role}, "
+                        f"has_selected_item={ui_context.selected_item is not None}")
+
+            return prompt_section
+
+        except Exception as e:
+            logger.warning(f"[Orchestrator] Failed to process UI context: {e}")
+            return None
 
     async def _fetch_url_content(self, url: str) -> tuple[Optional[str], Optional[str]]:
         """

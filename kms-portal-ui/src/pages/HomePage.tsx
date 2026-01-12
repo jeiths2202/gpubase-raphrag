@@ -18,6 +18,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
+import { useSimplePageContext } from '../hooks/usePageContext';
 import { useAuthStore } from '../store/authStore';
 
 // Quick action card interface
@@ -138,6 +139,9 @@ const RECENT_ACTIVITY = [
 export const HomePage: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuthStore();
+
+  // Register page context for AI awareness
+  useSimplePageContext(['dashboard', 'quick-actions', 'stats']);
 
   return (
     <div className="home-page">

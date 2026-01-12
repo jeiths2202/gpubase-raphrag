@@ -30,6 +30,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useTranslation } from '../hooks/useTranslation';
+import { usePageContext } from '../hooks/usePageContext';
 import { faqApi, type FAQItemAPI, type FAQCategory } from '../api';
 import { usePreferencesStore } from '../store/preferencesStore';
 import './FAQPage.css';
@@ -156,6 +157,11 @@ const VIEW_COUNT_KEY = 'faq_view_counts';
 export const FAQPage: React.FC = () => {
   const { t } = useTranslation();
   const { language } = usePreferencesStore();
+
+  // Page context for AI awareness
+  const { setSelectedItem, clearSelectedItem } = usePageContext({
+    visibleComponents: ['search', 'category-filter', 'faq-list', 'trending'],
+  });
 
   // State
   const [searchQuery, setSearchQuery] = useState('');
@@ -305,8 +311,26 @@ export const FAQPage: React.FC = () => {
     if (expandedId !== faq.id) {
       incrementViewCount(faq);
       setExpandedId(faq.id);
+      // Set selected item for AI context
+      const question = getQuestion(faq);
+      const answer = getAnswer(faq);
+      setSelectedItem({
+        type: 'faq_item',
+        id: faq.id,
+        title: question,
+        content: answer,
+        summary: question,
+        metadata: {
+          category: faq.category,
+          viewCount: faq.viewCount,
+          helpful: faq.helpful,
+          notHelpful: faq.notHelpful,
+          tags: getTags(faq),
+        },
+      });
     } else {
       setExpandedId(null);
+      clearSelectedItem();
     }
   };
 

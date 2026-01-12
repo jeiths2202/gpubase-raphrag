@@ -27,6 +27,29 @@ export interface AgentExecuteRequest {
   language?: 'auto' | 'en' | 'ko' | 'ja';
   file_context?: string;  // Attached file content for RAG priority context
   url_context?: string;   // URL to fetch and use as RAG context
+  ui_context?: UIContext; // UI context for context-aware AI responses
+}
+
+/**
+ * UI Context for context-aware AI (matches backend UIContext model)
+ */
+export interface UIContext {
+  current_page: string;
+  page_title: string;
+  page_metadata?: Record<string, unknown>;
+  selected_item?: {
+    type: string;
+    id: string;
+    title: string;
+    content?: string;
+    summary?: string;
+    metadata?: Record<string, unknown>;
+  };
+  visible_components: string[];
+  language: 'en' | 'ko' | 'ja';
+  theme: 'light' | 'dark';
+  user_permission_scope: 'admin' | 'user';
+  captured_at?: string;
 }
 
 /**

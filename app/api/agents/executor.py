@@ -102,6 +102,16 @@ class AgentExecutor:
             lang_name = language_names.get(context.language, context.language)
             system_prompt += f"\n\nIMPORTANT: Always respond in {lang_name} unless the user explicitly requests a different language in their message."
 
+        # Add UI context if available (context-aware AI)
+        if context.metadata.get('ui_context_prompt'):
+            ui_context_prompt = context.metadata['ui_context_prompt']
+            system_prompt += f"""
+
+CURRENT UI CONTEXT:
+{ui_context_prompt}
+
+Use this context to provide more relevant and context-aware responses. If the user is viewing specific content, consider that context when answering."""
+
         # Build user message with optional file context
         user_message = task
         if context.file_context:
@@ -302,6 +312,17 @@ User Query: {task}"""
             lang_name = language_names.get(context.language, context.language)
             system_prompt += f"\n\nIMPORTANT: Always respond in {lang_name} unless the user explicitly requests a different language in their message."
             print(f"[Executor.stream] Added language instruction for {lang_name}", flush=True)
+
+        # Add UI context if available (context-aware AI)
+        if context.metadata.get('ui_context_prompt'):
+            ui_context_prompt = context.metadata['ui_context_prompt']
+            system_prompt += f"""
+
+CURRENT UI CONTEXT:
+{ui_context_prompt}
+
+Use this context to provide more relevant and context-aware responses. If the user is viewing specific content, consider that context when answering."""
+            print(f"[Executor.stream] Added UI context to system prompt", flush=True)
 
         # Build user message with optional file context
         user_message = task

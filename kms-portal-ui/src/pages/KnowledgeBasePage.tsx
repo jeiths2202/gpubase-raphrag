@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
+import { useSimplePageContext } from '../hooks/usePageContext';
 import './KnowledgeBasePage.css';
 
 // Types
@@ -71,6 +72,9 @@ const categoryIcons: Record<string, React.ReactNode> = {
 export const KnowledgeBasePage: React.FC = () => {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Register page context for AI awareness
+  useSimplePageContext(['search', 'categories', 'articles', 'pagination']);
 
   // State
   const [articles, setArticles] = useState<Article[]>([]);
