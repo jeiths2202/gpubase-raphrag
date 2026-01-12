@@ -380,6 +380,395 @@ PAGE_USAGE_GUIDES = {
     PageType.UNKNOWN: "이 페이지에 대한 사용법 정보가 없습니다. 도움이 필요하시면 관리자에게 문의하세요.",
 }
 
+# English usage guides
+PAGE_USAGE_GUIDES_EN = {
+    PageType.HOME: """Home Dashboard Usage Guide:
+
+1. **Check System Status**
+   - View total documents, queries, and user activity at a glance from the stat cards at the top
+   - Click each card to navigate to detailed information pages
+
+2. **Monitor Recent Activity**
+   - Check the latest queries and document uploads in the recent activity feed
+   - Click an item to view its detailed information
+
+3. **Quick Actions**
+   - Use quick action buttons to access frequently used features
+   - Quickly access document upload, new query, settings, etc.
+
+4. **System Health**
+   - Check the status of each service in the system health indicators at the bottom
+   - Red indicators may signal issues with that service""",
+
+    PageType.KNOWLEDGE: """Knowledge Base Usage Guide:
+
+1. **Search Documents**
+   - Enter keywords in the search bar at the top to find documents
+   - You can also use natural language questions to find relevant documents
+
+2. **Filter by Category**
+   - Select your desired category from the left menu
+   - Combine multiple categories for more refined filtering
+
+3. **View Document Details**
+   - Click a document title to view its full content
+   - Related documents and tags are also displayed
+
+4. **Document Management (Admin)**
+   - Add, edit, and delete documents
+   - Assign tags and categories to documents""",
+
+    PageType.FAQ: """FAQ Page Usage Guide:
+
+1. **Search Questions**
+   - Enter keywords in the search bar to find relevant FAQs
+   - Frequently asked questions are pinned at the top
+
+2. **Browse by Category**
+   - Click category tabs to view FAQs by classification
+   - Each category contains related questions
+
+3. **View Answers**
+   - Click a question to expand and view the answer
+   - Leave feedback on whether it was helpful
+
+4. **Related Questions**
+   - Check related questions at the bottom of each answer
+   - Ask the AI assistant if you need additional help""",
+
+    PageType.IMS: """IMS Search Usage Guide:
+
+1. **Search Issues**
+   - Search for issues using natural language
+   - Examples: "login error", "performance degradation" etc.
+
+2. **Use Filters**
+   - Filter by status (open/closed), priority, and assignee
+   - Specify date ranges to find issues from specific periods
+
+3. **View Issue Details**
+   - Click an issue to view its detailed information
+   - Check reproduction steps, attachments, and comments
+
+4. **IMS Integration Setup**
+   - First-time users need to set up IMS account integration
+   - Enter IMS server URL and credentials in settings""",
+
+    PageType.AGENT: """AI Agent Usage Guide:
+
+1. **Select Agent**
+   - Choose the appropriate agent from the dropdown at the top
+   - RAG: Document-based Q&A
+   - IMS: Issue search and analysis
+   - Vision: Image/chart analysis
+   - Code: Code generation and analysis
+   - Planner: Complex task planning
+
+2. **Ask Questions**
+   - Enter your question in the input field at the bottom and send
+   - Use Shift+Enter for multi-line input
+
+3. **Attach Files**
+   - Click the clip icon to attach files
+   - Responses will be based on attached file content
+
+4. **Manage Conversation History**
+   - View previous conversations in the history panel on the left
+   - Start a new session with the new conversation button""",
+
+    PageType.DOCUMENTS: """Document Management Usage Guide:
+
+1. **Upload Documents**
+   - Click the 'Upload' button to add documents
+   - Supports various formats: PDF, DOCX, TXT, MD, etc.
+   - Drag and drop upload is also available
+
+2. **Check Document Status**
+   - Monitor the processing status of uploaded documents
+   - Status shows: Processing, Complete, or Error
+   - View chunk count and indexing status
+
+3. **Manage Documents**
+   - Organize documents by folder
+   - Deleting a document also removes related vector indexes
+
+4. **Test Search**
+   - Test search with your uploaded documents
+   - Ask questions about document content in the AI assistant""",
+
+    PageType.SETTINGS: """Settings Page Usage Guide:
+
+1. **Profile Settings**
+   - Change your username, email, and profile picture
+   - Password changes are also available here
+
+2. **Language & Theme**
+   - Select interface language: Korean/English/Japanese
+   - Choose light/dark theme or follow system settings
+
+3. **Notification Settings**
+   - Configure email and push notifications
+   - Select which event types to receive notifications for
+
+4. **External Integrations**
+   - Set up integrations with Notion, GitHub, etc.
+   - API key management is also available here""",
+
+    PageType.ADMIN: """Admin Dashboard Usage Guide:
+
+1. **User Management**
+   - Create, edit, and delete accounts from the user list
+   - Set roles (admin/regular user) and permissions
+
+2. **System Analytics**
+   - View usage statistics, query analysis, and document status
+   - Analyze system usage patterns with trend graphs
+
+3. **RAG Configuration**
+   - Adjust search parameters, chunking settings, and model settings
+   - Set governance rules to manage response quality
+
+4. **Audit Logs**
+   - Review system access records and change history
+   - Monitor security events""",
+
+    PageType.AI_STUDIO: """AI Studio Usage Guide:
+
+1. **Vision LLM**
+   - Upload images or charts to request analysis
+   - Extract graph data, describe images, etc.
+
+2. **Sequential Pipeline**
+   - Configure multi-step document processing pipelines
+   - Automate sequential tasks: extraction → analysis → summarization
+
+3. **Code Generation**
+   - Request code generation using natural language
+   - View and copy generated code in the artifact panel
+
+4. **Prompt Templates**
+   - Save frequently used prompts as templates
+   - Quickly start tasks using saved templates""",
+
+    PageType.EXTERNAL_PORTAL: """External Portal Integration Usage Guide:
+
+1. **Connect Services**
+   - Click 'Add Connection' to integrate external services
+   - Supports Notion, GitHub, Google Drive, Confluence
+
+2. **OAuth Authentication**
+   - Complete OAuth authentication for each service
+   - Content synchronization starts automatically after authentication
+
+3. **Sync Management**
+   - Check sync status and last sync time
+   - Use manual sync button for immediate updates
+
+4. **Unified Search**
+   - Search across all connected sources
+   - AI assistant also utilizes information from external sources""",
+
+    PageType.UNKNOWN: "No usage guide available for this page. Please contact an administrator if you need help.",
+}
+
+# Japanese usage guides
+PAGE_USAGE_GUIDES_JA = {
+    PageType.HOME: """ホームダッシュボードの使い方：
+
+1. **システム状況の確認**
+   - 上部の統計カードで、ドキュメント数、クエリ数、ユーザーアクティビティを一目で確認できます
+   - 各カードをクリックすると詳細情報ページに移動します
+
+2. **最近のアクティビティの監視**
+   - 最近のアクティビティフィードで、最新のクエリとドキュメントアップロード履歴を確認できます
+   - 項目をクリックすると詳細情報を表示できます
+
+3. **クイックアクション**
+   - クイックアクションボタンで、よく使う機能に素早くアクセスできます
+   - ドキュメントアップロード、新規クエリ、設定などに直接アクセスできます
+
+4. **システム状態の確認**
+   - 下部のシステム状態インジケーターで各サービスの状態を確認できます
+   - 赤い表示がある場合、そのサービスに問題がある可能性があります""",
+
+    PageType.KNOWLEDGE: """ナレッジベースの使い方：
+
+1. **ドキュメント検索**
+   - 上部の検索バーにキーワードを入力してドキュメントを検索できます
+   - 自然言語で質問を入力しても関連ドキュメントを見つけることができます
+
+2. **カテゴリフィルタリング**
+   - 左側のカテゴリメニューから希望のカテゴリを選択できます
+   - 複数のカテゴリを組み合わせてフィルタリングできます
+
+3. **ドキュメント詳細表示**
+   - ドキュメントのタイトルをクリックすると全文を表示できます
+   - 関連ドキュメントとタグも一緒に表示されます
+
+4. **ドキュメント管理（管理者）**
+   - 新規ドキュメントの追加、編集、削除が可能です
+   - ドキュメントにタグとカテゴリを設定できます""",
+
+    PageType.FAQ: """FAQページの使い方：
+
+1. **質問検索**
+   - 検索バーにキーワードを入力して関連FAQを検索できます
+   - よくある質問は上部に固定されています
+
+2. **カテゴリ別閲覧**
+   - カテゴリタブをクリックして分類別にFAQを確認できます
+   - 各カテゴリには関連する質問がまとめられています
+
+3. **回答の確認**
+   - 質問をクリックすると回答が展開されます
+   - 役に立ったかどうかフィードバックを残すことができます
+
+4. **関連質問の確認**
+   - 回答の下部で関連する他の質問を確認できます
+   - 追加のヘルプが必要な場合はAIアシスタントに質問してください""",
+
+    PageType.IMS: """IMS検索の使い方：
+
+1. **課題検索**
+   - 検索バーに自然言語で課題を検索できます
+   - 例：「ログインエラー」、「パフォーマンス低下」など
+
+2. **フィルターの使用**
+   - ステータス（オープン/クローズ）、優先度、担当者でフィルタリングできます
+   - 日付範囲を指定して特定期間の課題を検索できます
+
+3. **課題詳細の表示**
+   - 課題をクリックすると詳細情報を表示できます
+   - 再現手順、添付ファイル、コメントを確認できます
+
+4. **IMS連携設定**
+   - 初回使用時はIMSアカウント連携が必要です
+   - 設定でIMSサーバーURLと認証情報を入力してください""",
+
+    PageType.AGENT: """AIエージェントの使い方：
+
+1. **エージェント選択**
+   - 上部のドロップダウンから適切なエージェントを選択してください
+   - RAG：ドキュメントベースのQ&A
+   - IMS：課題検索と分析
+   - Vision：画像/チャート分析
+   - Code：コード生成と分析
+   - Planner：複雑なタスク計画
+
+2. **質問する**
+   - 下部の入力欄に質問を入力して送信してください
+   - Shift+Enterで複数行入力が可能です
+
+3. **ファイル添付**
+   - クリップアイコンをクリックしてファイルを添付できます
+   - 添付ファイルの内容に基づいて回答します
+
+4. **会話履歴の管理**
+   - 左側の履歴パネルで以前の会話を確認できます
+   - 新規会話ボタンで新しいセッションを開始できます""",
+
+    PageType.DOCUMENTS: """ドキュメント管理の使い方：
+
+1. **ドキュメントアップロード**
+   - 「アップロード」ボタンをクリックしてドキュメントを追加できます
+   - PDF、DOCX、TXT、MDなど様々な形式をサポートしています
+   - ドラッグ＆ドロップでもアップロードできます
+
+2. **ドキュメント状態の確認**
+   - アップロードされたドキュメントの処理状態を確認できます
+   - 処理中、完了、エラーの状態が表示されます
+   - チャンク数とインデックス状態も確認できます
+
+3. **ドキュメント管理**
+   - ドキュメントをフォルダ別に整理できます
+   - ドキュメント削除時は関連ベクトルインデックスも一緒に削除されます
+
+4. **検索テスト**
+   - アップロードしたドキュメントで検索テストを行えます
+   - AIアシスタントでドキュメントの内容について質問できます""",
+
+    PageType.SETTINGS: """設定ページの使い方：
+
+1. **プロフィール設定**
+   - ユーザー名、メール、プロフィール写真を変更できます
+   - パスワード変更もこのメニューから可能です
+
+2. **言語とテーマ**
+   - インターフェース言語を韓国語/英語/日本語から選択できます
+   - ライト/ダークテーマを選択するか、システム設定に従うことができます
+
+3. **通知設定**
+   - メール通知、プッシュ通知などを設定できます
+   - 通知を受け取るイベントタイプを選択できます
+
+4. **外部連携**
+   - Notion、GitHubなどの外部サービス連携を設定できます
+   - APIキー管理もこのメニューから可能です""",
+
+    PageType.ADMIN: """管理者ダッシュボードの使い方：
+
+1. **ユーザー管理**
+   - ユーザーリストでアカウントの作成、編集、削除ができます
+   - ロール（管理者/一般ユーザー）と権限を設定できます
+
+2. **システム分析**
+   - 使用量統計、クエリ分析、ドキュメント状況を確認できます
+   - 期間別の推移グラフでシステム使用パターンを把握できます
+
+3. **RAG設定**
+   - 検索パラメータ、チャンキング設定、モデル設定を調整できます
+   - ガバナンスルールを設定して応答品質を管理できます
+
+4. **監査ログ**
+   - システムアクセス記録と変更履歴を確認できます
+   - セキュリティイベントのモニタリングが可能です""",
+
+    PageType.AI_STUDIO: """AIスタジオの使い方：
+
+1. **Vision LLM**
+   - 画像やチャートをアップロードして分析をリクエストできます
+   - グラフデータの抽出、画像の説明などが可能です
+
+2. **Sequential Pipeline**
+   - 複数ステップのドキュメント処理パイプラインを構成できます
+   - 抽出→分析→要約など連続タスクを自動化できます
+
+3. **コード生成**
+   - 自然言語でコード生成をリクエストできます
+   - 生成されたコードはアーティファクトパネルで確認・コピーできます
+
+4. **プロンプトテンプレート**
+   - よく使うプロンプトをテンプレートとして保存できます
+   - 保存したテンプレートで素早くタスクを開始できます""",
+
+    PageType.EXTERNAL_PORTAL: """外部ポータル連携の使い方：
+
+1. **サービス接続**
+   - 「接続追加」ボタンで外部サービスを連携できます
+   - Notion、GitHub、Google Drive、Confluenceをサポートしています
+
+2. **OAuth認証**
+   - 各サービスのOAuth認証を完了してください
+   - 認証後、自動的にコンテンツ同期が開始されます
+
+3. **同期管理**
+   - 同期状態と最終同期時間を確認できます
+   - 手動同期ボタンで即座に更新できます
+
+4. **統合検索**
+   - 連携されたすべてのソースで統合検索が可能です
+   - AIアシスタントも外部ソースの情報を活用します""",
+
+    PageType.UNKNOWN: "このページの使い方情報はありません。ヘルプが必要な場合は管理者にお問い合わせください。",
+}
+
+# Language-specific usage guide mapping
+PAGE_USAGE_GUIDES_BY_LANG = {
+    "ko": PAGE_USAGE_GUIDES,
+    "en": PAGE_USAGE_GUIDES_EN,
+    "ja": PAGE_USAGE_GUIDES_JA,
+}
+
 
 # Maximum content length to include in context
 MAX_CONTENT_LENGTH = 2000
@@ -464,9 +853,11 @@ def build_context_prompt_section(filtered_context: FilteredUIContext) -> str:
     if page_type in PAGE_DESCRIPTIONS:
         parts.append(f"\nPage Description:\n{PAGE_DESCRIPTIONS[page_type]}")
 
-    # Add usage guide for the page
-    if page_type in PAGE_USAGE_GUIDES:
-        parts.append(f"\n=== PAGE USAGE GUIDE ===\n{PAGE_USAGE_GUIDES[page_type]}")
+    # Add usage guide for the page (language-specific)
+    user_lang = filtered_context.language
+    usage_guides = PAGE_USAGE_GUIDES_BY_LANG.get(user_lang, PAGE_USAGE_GUIDES_EN)
+    if page_type in usage_guides:
+        parts.append(f"\n=== PAGE USAGE GUIDE ===\n{usage_guides[page_type]}")
 
     # Selected item context
     if filtered_context.selected_item_summary:
