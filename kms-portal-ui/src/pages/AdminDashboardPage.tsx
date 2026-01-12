@@ -26,6 +26,10 @@ import {
   Eye,
   Search,
   Bot,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import {
   UserManagementTable,
@@ -1127,127 +1131,189 @@ const EnhanceRequestsTab: React.FC = () => {
 
       {/* Table */}
       <section className="admin-table-section">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Type</th>
-              <th>Priority</th>
-              <th>Status</th>
-              <th>Author</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {requests.length === 0 ? (
+        <div className="admin-table-scroll-wrapper">
+          <table className="admin-table">
+            <thead>
               <tr>
-                <td colSpan={7} className="admin-table-empty">
-                  <Lightbulb size={32} />
-                  <p>No enhancement requests found</p>
-                </td>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Author</th>
+                <th>Created</th>
+                <th>Actions</th>
               </tr>
-            ) : (
-              requests.map((req) => (
-                <tr key={req.id}>
-                  <td className="admin-table-title">
-                    <span className="enhance-type-icon">{getTypeIcon(req.type)}</span>
-                    <span className="enhance-title-text">{req.title}</span>
-                    {req.ai_analyzed && (
-                      <span className="enhance-ai-badge">
-                        <Bot size={12} />
-                        AI
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    {req.type ? (
-                      <span className="enhance-type-badge">
-                        {req.type.replace('_', ' ')}
-                      </span>
-                    ) : (
-                      <span className="enhance-type-badge enhance-type-badge--none">-</span>
-                    )}
-                  </td>
-                  <td>
-                    {req.priority ? (
-                      <span
-                        className="enhance-priority-badge"
-                        style={{ backgroundColor: `${getPriorityColor(req.priority)}20`, color: getPriorityColor(req.priority) }}
-                      >
-                        {req.priority}
-                      </span>
-                    ) : (
-                      <span className="enhance-priority-badge enhance-priority-badge--none">-</span>
-                    )}
-                  </td>
-                  <td>
-                    <span
-                      className="enhance-status-badge"
-                      style={{ backgroundColor: `${getStatusColor(req.status)}20`, color: getStatusColor(req.status) }}
-                    >
-                      {req.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td>{req.author_name}</td>
-                  <td className="admin-table-date">{formatDate(req.created_at)}</td>
-                  <td className="admin-table-actions">
-                    <button
-                      className="admin-action-btn admin-action-btn--view"
-                      onClick={() => window.open(`/improvements/${req.id}`, '_blank')}
-                      title="View Details"
-                    >
-                      <Eye size={16} />
-                    </button>
-                    {canExecute(req.status) && (
-                      <button
-                        className="admin-action-btn admin-action-btn--execute"
-                        onClick={() => handleExecute(req.id)}
-                        disabled={executingId === req.id}
-                        title="Execute AI Analysis"
-                      >
-                        {executingId === req.id ? (
-                          <Loader2 size={16} className="spinning" />
-                        ) : (
-                          <Play size={16} />
-                        )}
-                      </button>
-                    )}
-                    <button
-                      className="admin-action-btn admin-action-btn--delete"
-                      onClick={() => setShowDeleteConfirm(req.id)}
-                      title="Delete Request"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+            </thead>
+            <tbody>
+              {requests.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="admin-table-empty">
+                    <Lightbulb size={32} />
+                    <p>No enhancement requests found</p>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                requests.map((req) => (
+                  <tr key={req.id}>
+                    <td className="admin-table-title">
+                      <span className="enhance-type-icon">{getTypeIcon(req.type)}</span>
+                      <span className="enhance-title-text">{req.title}</span>
+                      {req.ai_analyzed && (
+                        <span className="enhance-ai-badge">
+                          <Bot size={12} />
+                          AI
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {req.type ? (
+                        <span className="enhance-type-badge">
+                          {req.type.replace('_', ' ')}
+                        </span>
+                      ) : (
+                        <span className="enhance-type-badge enhance-type-badge--none">-</span>
+                      )}
+                    </td>
+                    <td>
+                      {req.priority ? (
+                        <span
+                          className="enhance-priority-badge"
+                          style={{ backgroundColor: `${getPriorityColor(req.priority)}20`, color: getPriorityColor(req.priority) }}
+                        >
+                          {req.priority}
+                        </span>
+                      ) : (
+                        <span className="enhance-priority-badge enhance-priority-badge--none">-</span>
+                      )}
+                    </td>
+                    <td>
+                      <span
+                        className="enhance-status-badge"
+                        style={{ backgroundColor: `${getStatusColor(req.status)}20`, color: getStatusColor(req.status) }}
+                      >
+                        {req.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td>{req.author_name}</td>
+                    <td className="admin-table-date">{formatDate(req.created_at)}</td>
+                    <td className="admin-table-actions">
+                      <button
+                        className="admin-action-btn admin-action-btn--view"
+                        onClick={() => window.open(`/improvements/${req.id}`, '_blank')}
+                        title="View Details"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      {canExecute(req.status) && (
+                        <button
+                          className="admin-action-btn admin-action-btn--execute"
+                          onClick={() => handleExecute(req.id)}
+                          disabled={executingId === req.id}
+                          title="Execute AI Analysis"
+                        >
+                          {executingId === req.id ? (
+                            <Loader2 size={16} className="spinning" />
+                          ) : (
+                            <Play size={16} />
+                          )}
+                        </button>
+                      )}
+                      <button
+                        className="admin-action-btn admin-action-btn--delete"
+                        onClick={() => setShowDeleteConfirm(req.id)}
+                        title="Delete Request"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="admin-pagination">
-          <button
-            className="admin-pagination-btn"
-            disabled={page === 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            Previous
-          </button>
-          <span className="admin-pagination-info">
-            Page {page} of {totalPages} ({totalItems} total)
-          </span>
-          <button
-            className="admin-pagination-btn"
-            disabled={page === totalPages}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next
-          </button>
+      {/* Enhanced Pagination */}
+      {totalPages >= 1 && (
+        <div className="admin-pagination-enhanced">
+          <div className="admin-pagination-summary">
+            Showing {requests.length > 0 ? (page - 1) * 10 + 1 : 0} - {Math.min(page * 10, totalItems)} of {totalItems} items
+          </div>
+          <div className="admin-pagination-controls">
+            <button
+              className="admin-pagination-nav-btn"
+              disabled={page === 1}
+              onClick={() => setPage(1)}
+              title="First page"
+            >
+              <ChevronsLeft size={16} />
+            </button>
+            <button
+              className="admin-pagination-nav-btn"
+              disabled={page === 1}
+              onClick={() => setPage((p) => p - 1)}
+              title="Previous page"
+            >
+              <ChevronLeft size={16} />
+            </button>
+
+            {/* Page numbers */}
+            {(() => {
+              const pages: (number | 'ellipsis')[] = [];
+              const maxVisiblePages = 5;
+
+              if (totalPages <= maxVisiblePages) {
+                for (let i = 1; i <= totalPages; i++) pages.push(i);
+              } else {
+                pages.push(1);
+
+                if (page > 3) pages.push('ellipsis');
+
+                const start = Math.max(2, page - 1);
+                const end = Math.min(totalPages - 1, page + 1);
+
+                for (let i = start; i <= end; i++) {
+                  if (!pages.includes(i)) pages.push(i);
+                }
+
+                if (page < totalPages - 2) pages.push('ellipsis');
+
+                if (!pages.includes(totalPages)) pages.push(totalPages);
+              }
+
+              return pages.map((p, idx) =>
+                p === 'ellipsis' ? (
+                  <span key={`ellipsis-${idx}`} className="admin-pagination-ellipsis">...</span>
+                ) : (
+                  <button
+                    key={p}
+                    className={`admin-pagination-page-btn ${page === p ? 'active' : ''}`}
+                    onClick={() => setPage(p)}
+                  >
+                    {p}
+                  </button>
+                )
+              );
+            })()}
+
+            <button
+              className="admin-pagination-nav-btn"
+              disabled={page === totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              title="Next page"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <button
+              className="admin-pagination-nav-btn"
+              disabled={page === totalPages}
+              onClick={() => setPage(totalPages)}
+              title="Last page"
+            >
+              <ChevronsRight size={16} />
+            </button>
+          </div>
         </div>
       )}
 

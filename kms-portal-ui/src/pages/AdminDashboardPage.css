@@ -1787,6 +1787,158 @@
   font-size: 0.875rem;
 }
 
+/* ============================================================================
+   SCROLLABLE TABLE WRAPPER
+   ============================================================================ */
+
+.admin-table-scroll-wrapper {
+  overflow: auto;
+  max-height: 500px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.admin-table-scroll-wrapper::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.admin-table-scroll-wrapper::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+  border-radius: 4px;
+}
+
+.admin-table-scroll-wrapper::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+.admin-table-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+.admin-table-scroll-wrapper::-webkit-scrollbar-corner {
+  background: var(--color-bg-secondary);
+}
+
+/* Sticky header for scrollable table */
+.admin-table-scroll-wrapper .admin-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-bg-secondary);
+}
+
+/* ============================================================================
+   ENHANCED PAGINATION
+   ============================================================================ */
+
+.admin-pagination-enhanced {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+
+.admin-pagination-summary {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.admin-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-pagination-page-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-pagination-page-btn:hover:not(:disabled):not(.active) {
+  background: var(--color-bg-hover);
+  border-color: var(--color-primary);
+}
+
+.admin-pagination-page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-pagination-page-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+  font-weight: 600;
+}
+
+.admin-pagination-ellipsis {
+  padding: 0 0.25rem;
+  color: var(--color-text-muted);
+}
+
+.admin-pagination-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-pagination-nav-btn:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+  border-color: var(--color-primary);
+}
+
+.admin-pagination-nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-pagination-page-size {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-pagination-page-size label {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.admin-pagination-page-size select {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
 /* Admin Modal */
 .admin-modal-overlay {
   position: fixed;
@@ -1900,4 +2052,64 @@
 [data-theme="dark"] .admin-modal {
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border);
+}
+
+/* Dark mode - Scrollable Table */
+[data-theme="dark"] .admin-table-scroll-wrapper {
+  scrollbar-color: #475569 #1e293b;
+}
+
+[data-theme="dark"] .admin-table-scroll-wrapper::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+[data-theme="dark"] .admin-table-scroll-wrapper::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+[data-theme="dark"] .admin-table-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+[data-theme="dark"] .admin-table-scroll-wrapper::-webkit-scrollbar-corner {
+  background: #1e293b;
+}
+
+/* Dark mode - Enhanced Pagination */
+[data-theme="dark"] .admin-pagination-enhanced {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border-color: #334155;
+}
+
+[data-theme="dark"] .admin-pagination-page-btn {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .admin-pagination-page-btn:hover:not(:disabled):not(.active) {
+  background: #334155;
+  border-color: #8b5cf6;
+}
+
+[data-theme="dark"] .admin-pagination-page-btn.active {
+  background: linear-gradient(135deg, #8b5cf6, #a855f7);
+  border-color: #8b5cf6;
+}
+
+[data-theme="dark"] .admin-pagination-nav-btn {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .admin-pagination-nav-btn:hover:not(:disabled) {
+  background: #334155;
+  border-color: #8b5cf6;
+}
+
+[data-theme="dark"] .admin-pagination-page-size select {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
 }
