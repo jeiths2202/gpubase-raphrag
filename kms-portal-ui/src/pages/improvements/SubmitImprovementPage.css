@@ -320,3 +320,154 @@
     justify-content: center;
   }
 }
+
+/* ============================================================================
+   DARK MODE SUPPORT
+   ============================================================================ */
+
+[data-theme="dark"] .submit-improvement-page {
+  color: var(--color-text);
+}
+
+[data-theme="dark"] .page-header h1 {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .btn-back {
+  background: #1e293b;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .btn-back:hover {
+  background: #334155;
+  color: #f1f5f9;
+}
+
+/* Form Container - Dark Mode */
+[data-theme="dark"] .improvement-form {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border-color: #334155;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Form Fields - Dark Mode */
+[data-theme="dark"] .form-group label {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .form-group input,
+[data-theme="dark"] .form-group select,
+[data-theme="dark"] .form-group textarea {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .form-group input:focus,
+[data-theme="dark"] .form-group select:focus,
+[data-theme="dark"] .form-group textarea:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+}
+
+[data-theme="dark"] .form-group input::placeholder,
+[data-theme="dark"] .form-group textarea::placeholder {
+  color: #64748b;
+}
+
+[data-theme="dark"] .form-group select option {
+  background: #1e293b;
+  color: #f1f5f9;
+}
+
+/* File Drop Zone - Dark Mode */
+[data-theme="dark"] .file-drop-zone {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .file-drop-zone:hover {
+  border-color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.1);
+}
+
+[data-theme="dark"] .file-drop-zone svg {
+  color: #64748b;
+}
+
+[data-theme="dark"] .file-drop-zone p {
+  color: #94a3b8;
+}
+
+/* File List - Dark Mode */
+[data-theme="dark"] .file-item {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .file-icon {
+  background: #334155;
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .file-name {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .file-size {
+  color: #64748b;
+}
+
+[data-theme="dark"] .btn-remove {
+  color: #64748b;
+}
+
+[data-theme="dark"] .btn-remove:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+/* AI Note - Dark Mode */
+[data-theme="dark"] .ai-note {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(168, 85, 247, 0.15));
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+[data-theme="dark"] .ai-note svg {
+  color: #a78bfa;
+}
+
+[data-theme="dark"] .ai-note p {
+  color: #c4b5fd;
+}
+
+/* Error Message - Dark Mode */
+[data-theme="dark"] .error-message {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+/* Form Actions - Dark Mode */
+[data-theme="dark"] .form-actions {
+  border-top-color: #334155;
+}
+
+[data-theme="dark"] .btn-primary {
+  background: linear-gradient(135deg, #8b5cf6, #a855f7);
+}
+
+[data-theme="dark"] .btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7c3aed, #9333ea);
+}
+
+[data-theme="dark"] .btn-secondary {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .btn-secondary:hover {
+  background: #334155;
+}
