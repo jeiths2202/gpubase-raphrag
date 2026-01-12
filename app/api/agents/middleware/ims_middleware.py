@@ -7,9 +7,9 @@ Deep Agents에서:
 2. Middleware: langchain.agents.middleware.types.AgentMiddleware 상속하여 동작 커스터마이즈
 
 이 모듈은 IMS 검색 도구를 LangChain 호환 형태로 제공합니다.
+동기식 psycopg2를 사용하여 LangChain 도구와의 호환성을 보장합니다.
 """
 import os
-import asyncio
 import logging
 from typing import List, Optional, Any, Callable
 
@@ -22,22 +22,26 @@ try:
 except ImportError:
     LANGCHAIN_TOOLS_AVAILABLE = False
 
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    PSYCOPG2_AVAILABLE = True
+except ImportError:
+    PSYCOPG2_AVAILABLE = False
 
-def _run_async(coro):
-    """Run async coroutine in sync context"""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
 
-    if loop and loop.is_running():
-        # If we're already in an async context, create a new thread
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(asyncio.run, coro)
-            return future.result()
-    else:
-        return asyncio.run(coro)
+def _get_sync_db_connection():
+    """동기식 PostgreSQL 연결 생성"""
+    if not PSYCOPG2_AVAILABLE:
+        raise RuntimeError("psycopg2 is not installed")
+
+    return psycopg2.connect(
+        host=os.getenv("POSTGRES_HOST", "localhost"),
+        port=int(os.getenv("POSTGRES_PORT", "5432")),
+        database=os.getenv("POSTGRES_DB", "kms"),
+        user=os.getenv("POSTGRES_USER", "postgres"),
+        password=os.getenv("POSTGRES_PASSWORD", ""),
+    )
 
 
 class IMSToolsProvider:
@@ -45,6 +49,7 @@ class IMSToolsProvider:
     IMS 도구 제공자
 
     IMS 검색 도구를 생성하여 Deep Agent에 전달합니다.
+    동기식 psycopg2를 사용하여 LangChain 도구 호환성을 보장합니다.
 
     사용 예시:
     ```python
@@ -61,21 +66,7 @@ class IMSToolsProvider:
     ```
     """
 
-    def __init__(self):
-        self._db_pool = None
-
-    async def _get_db_pool(self):
-        """DB Pool 초기화"""
-        if self._db_pool is None:
-            try:
-                from ...ims_crawler.infrastructure.dependencies import get_db_pool
-                self._db_pool = await get_db_pool()
-                logger.info("[IMSTools] DB pool connected")
-            except Exception as e:
-                logger.warning(f"[IMSTools] Failed to connect DB pool: {e}")
-        return self._db_pool
-
-    async def _search_issues(
+    def _search_issues(
         self,
         query: str,
         status: str = "all",
@@ -83,33 +74,35 @@ class IMSToolsProvider:
         product: Optional[str] = None,
         limit: int = 10
     ) -> List[dict]:
-        """Search issues in local database"""
-        try:
-            from ...ims_crawler.infrastructure.dependencies import get_db_pool
+        """Search issues in local database (synchronous)"""
+        if not PSYCOPG2_AVAILABLE:
+            logger.error("[IMSTools] psycopg2 not available")
+            return []
 
-            # Build SQL filters
+        conn = None
+        try:
+            conn = _get_sync_db_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Build SQL filters using %s placeholders (psycopg2 style)
             where_clauses = []
             params = []
-            param_idx = 1
 
             if status != "all":
-                where_clauses.append(f"status = ${param_idx}")
+                where_clauses.append("status = %s")
                 params.append(status)
-                param_idx += 1
 
             if priority != "all":
-                where_clauses.append(f"priority = ${param_idx}")
+                where_clauses.append("priority = %s")
                 params.append(priority)
-                param_idx += 1
 
             if product:
-                where_clauses.append(f"product ILIKE ${param_idx}")
+                where_clauses.append("product ILIKE %s")
                 params.append(f"%{product}%")
-                param_idx += 1
 
             # Search in title and description
             search_pattern = f"%{query}%"
-            where_clauses.append(f"(title ILIKE ${param_idx} OR description ILIKE ${param_idx + 1})")
+            where_clauses.append("(title ILIKE %s OR description ILIKE %s)")
             params.extend([search_pattern, search_pattern])
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "TRUE"
@@ -121,12 +114,12 @@ class IMSToolsProvider:
                 FROM ims_issues
                 WHERE {where_clause}
                 ORDER BY created_at DESC
-                LIMIT {limit}
+                LIMIT %s
             """
+            params.append(limit)
 
-            pool = await get_db_pool()
-            async with pool.acquire() as conn:
-                rows = await conn.fetch(sql, *params)
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
 
             # Format results
             formatted_issues = []
@@ -143,29 +136,38 @@ class IMSToolsProvider:
                     "created_at": row["created_at"].isoformat() if row["created_at"] else ""
                 })
 
+            logger.info(f"[IMSTools] Found {len(formatted_issues)} issues for query: {query}")
             return formatted_issues
 
         except Exception as e:
             logger.error(f"[IMSTools] Search error: {e}")
             return []
+        finally:
+            if conn:
+                conn.close()
 
-    async def _get_issue_detail(self, issue_id: str) -> Optional[dict]:
-        """Get detailed information for a specific issue by ID"""
+    def _get_issue_detail(self, issue_id: str) -> Optional[dict]:
+        """Get detailed information for a specific issue by ID (synchronous)"""
+        if not PSYCOPG2_AVAILABLE:
+            logger.error("[IMSTools] psycopg2 not available")
+            return None
+
+        conn = None
         try:
-            from ...ims_crawler.infrastructure.dependencies import get_db_pool
+            conn = _get_sync_db_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
 
             sql = """
                 SELECT
                     ims_id, title, description, status, priority,
                     product, created_at, issue_details, action_log_text
                 FROM ims_issues
-                WHERE ims_id = $1
+                WHERE ims_id = %s
                 LIMIT 1
             """
 
-            pool = await get_db_pool()
-            async with pool.acquire() as conn:
-                row = await conn.fetchrow(sql, issue_id)
+            cursor.execute(sql, (issue_id,))
+            row = cursor.fetchone()
 
             if not row:
                 return None
@@ -186,11 +188,18 @@ class IMSToolsProvider:
         except Exception as e:
             logger.error(f"[IMSTools] Get detail error: {e}")
             return None
+        finally:
+            if conn:
+                conn.close()
 
     def get_tools(self) -> List[Callable]:
         """IMS 도구 목록 반환"""
         if not LANGCHAIN_TOOLS_AVAILABLE:
             logger.warning("[IMSTools] langchain_core.tools not available")
+            return []
+
+        if not PSYCOPG2_AVAILABLE:
+            logger.warning("[IMSTools] psycopg2 not available - IMS tools disabled")
             return []
 
         provider = self
@@ -216,13 +225,14 @@ class IMSToolsProvider:
                 limit = min(max(1, limit), 50)
                 product_filter = product if product else None
 
-                results = _run_async(provider._search_issues(
+                # 동기 함수 직접 호출
+                results = provider._search_issues(
                     query=query,
                     status=status,
                     priority=priority,
                     product=product_filter,
                     limit=limit
-                ))
+                )
 
                 if not results:
                     return f"IMS에서 '{query}'에 대한 검색 결과가 없습니다."
@@ -261,7 +271,8 @@ class IMSToolsProvider:
                 Detailed issue information including description, status, action logs
             """
             try:
-                result = _run_async(provider._get_issue_detail(issue_id))
+                # 동기 함수 직접 호출
+                result = provider._get_issue_detail(issue_id)
 
                 if not result:
                     return f"IMS ID '{issue_id}'에 해당하는 이슈를 찾을 수 없습니다."
