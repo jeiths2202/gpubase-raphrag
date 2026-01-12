@@ -20,8 +20,10 @@
   },
   "search": {
     "placeholder": "자연어로 검색어를 입력하세요...",
-    "button": "검색",
+    "button": "AI 검색",
     "searching": "검색 중...",
+    "analyzing": "분석 중...",
+    "crawling": "크롤링 중...",
     "includeAttachments": "첨부파일 포함",
     "includeRelated": "관련 이슈 포함",
     "deepSearch": "딥서치",
