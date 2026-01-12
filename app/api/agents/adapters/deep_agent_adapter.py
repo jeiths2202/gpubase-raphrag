@@ -32,6 +32,12 @@ try:
 except ImportError:
     LANGCHAIN_AVAILABLE = False
 
+try:
+    from langchain_ollama import ChatOllama
+    LANGCHAIN_OLLAMA_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_OLLAMA_AVAILABLE = False
+
 from ..types import (
     AgentType, AgentContext, AgentResult, AgentStreamChunk,
     MessageRole
@@ -133,27 +139,40 @@ class DeepAgentAdapter(BaseAgent):
         """LLM 인스턴스 반환 (Lazy initialization)
 
         Ollama qwen2.5:3b 모델 사용 (로컬 실행)
+        langchain-ollama 사용 시 native tool calling 지원
         """
         if self._llm is not None:
             return self._llm
 
-        if not LANGCHAIN_AVAILABLE:
-            raise RuntimeError("langchain-openai is not installed. Run: pip install langchain-openai")
-
-        # Ollama 사용 (qwen2.5:3b - tool calling 지원)
-        # 환경변수 OLLAMA_BASE_URL은 /v1 없이 설정 (예: http://localhost:11434)
         ollama_base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        ollama_base_url = f"{ollama_base.rstrip('/')}/v1"
         ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 
+        # langchain-ollama 사용 (tool calling 지원이 더 좋음)
+        if LANGCHAIN_OLLAMA_AVAILABLE:
+            self._llm = ChatOllama(
+                model=ollama_model,
+                base_url=ollama_base,
+                temperature=self.temperature,
+                num_predict=self.max_tokens,
+            )
+            logger.info(f"[{self.name}] LLM initialized (ChatOllama): {ollama_model} @ {ollama_base}")
+            print(f"[{self.name}] Using ChatOllama for native tool calling support", flush=True)
+            return self._llm
+
+        # Fallback: langchain-openai 사용
+        if not LANGCHAIN_AVAILABLE:
+            raise RuntimeError("langchain-openai or langchain-ollama is required. Run: pip install langchain-ollama")
+
+        ollama_base_url = f"{ollama_base.rstrip('/')}/v1"
         self._llm = ChatOpenAI(
             model=ollama_model,
             base_url=ollama_base_url,
-            api_key="ollama",  # Ollama doesn't need API key but field is required
+            api_key="ollama",
             temperature=self.temperature,
             max_tokens=self.max_tokens,
         )
-        logger.info(f"[{self.name}] LLM initialized: {ollama_model} @ {ollama_base_url}")
+        logger.info(f"[{self.name}] LLM initialized (ChatOpenAI): {ollama_model} @ {ollama_base_url}")
+        print(f"[{self.name}] Using ChatOpenAI (tool calling may not work properly)", flush=True)
         return self._llm
 
     def _build_subagents(self) -> Optional[List]:
@@ -308,11 +327,33 @@ class DeepAgentAdapter(BaseAgent):
             message_content = self._build_context_message(task, context)
 
             logger.info(f"[{self.name}] Executing task: {task[:100]}...")
+            print(f"[{self.name}] Tools available: {len(self._custom_tools)}", flush=True)
+            for t in self._custom_tools:
+                print(f"[{self.name}]   - {t.name}: {t.description[:50]}...", flush=True)
 
             # Deep Agent 실행
             result = await agent.ainvoke({
                 "messages": [HumanMessage(content=message_content)]
             })
+
+            # 결과 디버깅 (인코딩 오류 방지)
+            try:
+                print(f"[{self.name}] Result type: {type(result)}", flush=True)
+                if isinstance(result, dict):
+                    print(f"[{self.name}] Result keys: {result.keys()}", flush=True)
+                    if "messages" in result:
+                        print(f"[{self.name}] Messages count: {len(result['messages'])}", flush=True)
+                        for i, msg in enumerate(result["messages"]):
+                            msg_type = type(msg).__name__
+                            # ASCII 안전 출력
+                            content_preview = str(msg.content)[:100] if hasattr(msg, 'content') else str(msg)[:100]
+                            safe_preview = content_preview.encode('ascii', 'replace').decode('ascii')
+                            print(f"[{self.name}] Message[{i}] ({msg_type}): {safe_preview}...", flush=True)
+                            # Tool call 확인
+                            if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                                print(f"[{self.name}]   Tool calls: {msg.tool_calls}", flush=True)
+            except Exception as e:
+                print(f"[{self.name}] Debug output error: {e}", flush=True)
 
             # 결과 추출
             if isinstance(result, dict) and "messages" in result:
@@ -529,7 +570,15 @@ def create_project_deep_agent(**kwargs) -> DeepAgentAdapter:
     from ..middleware import get_rag_tools, get_code_tools, get_ims_tools
 
     # RAG + Code + IMS 도구 통합
-    all_tools = get_rag_tools() + get_code_tools() + get_ims_tools()
+    rag_tools = get_rag_tools()
+    code_tools = get_code_tools()
+    ims_tools = get_ims_tools()
+
+    print(f"[create_project_deep_agent] RAG tools: {len(rag_tools)}, Code tools: {len(code_tools)}, IMS tools: {len(ims_tools)}", flush=True)
+    for tool in ims_tools:
+        print(f"[create_project_deep_agent] IMS tool: {tool.name}", flush=True)
+
+    all_tools = rag_tools + code_tools + ims_tools
 
     return DeepAgentAdapter(
         name="ProjectDeepAgent",

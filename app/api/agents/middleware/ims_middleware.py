@@ -137,6 +137,13 @@ class IMSToolsProvider:
                 })
 
             logger.info(f"[IMSTools] Found {len(formatted_issues)} issues for query: {query}")
+
+            # Windows 콘솔 인코딩 문제 방지를 위해 ASCII로 출력
+            try:
+                print(f"[IMSTools] Found {len(formatted_issues)} issues", flush=True)
+            except UnicodeEncodeError:
+                pass
+
             return formatted_issues
 
         except Exception as e:
@@ -327,8 +334,13 @@ def get_ims_tools() -> List[Callable]:
     Returns:
         List of IMS tools for use with create_deep_agent
     """
+    print(f"[get_ims_tools] LANGCHAIN_TOOLS_AVAILABLE={LANGCHAIN_TOOLS_AVAILABLE}, PSYCOPG2_AVAILABLE={PSYCOPG2_AVAILABLE}", flush=True)
+    print(f"[get_ims_tools] POSTGRES_HOST={os.getenv('POSTGRES_HOST', 'localhost')}, POSTGRES_DB={os.getenv('POSTGRES_DB', 'kms')}", flush=True)
+
     provider = IMSToolsProvider()
-    return provider.get_tools()
+    tools = provider.get_tools()
+    print(f"[get_ims_tools] Returning {len(tools)} tools", flush=True)
+    return tools
 
 
 # IMS 시스템 프롬프트 (create_deep_agent의 system_prompt에 추가)
