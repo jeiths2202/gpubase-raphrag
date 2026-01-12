@@ -251,6 +251,11 @@ class GetByIdsRequest(BaseModel):
     issue_ids: List[UUID] = Field(..., min_length=1, max_length=2000, description="List of issue UUIDs to fetch")
 
 
+class GetByImsIdsRequest(BaseModel):
+    """Request model for getting issues by IMS IDs"""
+    ims_ids: List[str] = Field(..., min_length=1, max_length=2000, description="List of IMS IDs (strings like '304640') to fetch")
+
+
 @router.post("/by-ids", response_model=List[IssueSearchResult])
 async def get_issues_by_ids(
     request: GetByIdsRequest,
@@ -305,6 +310,64 @@ async def get_issues_by_ids(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve issues by IDs: {str(e)}"
+        )
+
+
+@router.post("/by-ims-ids", response_model=List[IssueSearchResult])
+async def get_issues_by_ims_ids(
+    request: GetByImsIdsRequest,
+    current_user: dict = Depends(get_current_user),
+    repository: PostgreSQLIssueRepository = Depends(get_issue_repository)
+):
+    """
+    Get multiple issues by their IMS IDs.
+
+    Use this endpoint to fetch specific issues by their IMS IDs (e.g., "304640", "278109").
+    Returns issues that belong to the current user.
+    """
+    user_id = UUID(current_user["id"])
+
+    try:
+        # Find issues by IMS IDs
+        issues = await repository.find_by_ims_ids(request.ims_ids, user_id)
+
+        # Fetch related issue IDs for each issue (for graph visualization)
+        results = []
+        for issue in issues:
+            related_ids = await repository.get_related_issue_ids(issue.id)
+            results.append(
+                IssueSearchResult(
+                    id=issue.id,
+                    ims_id=issue.ims_id,
+                    title=issue.title,
+                    description=issue.description,
+                    status=issue.status.value,
+                    priority=issue.priority.value,
+                    # IMS-specific fields
+                    category=issue.category or None,
+                    product=issue.product or None,
+                    version=issue.version or None,
+                    module=issue.module or None,
+                    customer=issue.customer or None,
+                    issued_date=issue.issued_date.isoformat() if issue.issued_date else None,
+                    # Metadata
+                    reporter=issue.reporter,
+                    assignee=issue.assignee,
+                    project_key=issue.project_key,
+                    labels=issue.labels,
+                    created_at=issue.created_at.isoformat(),
+                    updated_at=issue.updated_at.isoformat(),
+                    # Related issues for graph visualization
+                    related_issue_ids=related_ids
+                )
+            )
+
+        return results
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve issues by IMS IDs: {str(e)}"
         )
 
 

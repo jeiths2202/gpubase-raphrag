@@ -125,8 +125,8 @@ export async function getIssueDetails(issueId: string): Promise<IMSIssue> {
 }
 
 /**
- * Get multiple issues by their IDs
- * Use this to fetch specific crawled issues instead of searching the database
+ * Get multiple issues by their database UUIDs
+ * Use this to fetch specific crawled issues by UUID
  */
 export async function getIssuesByIds(issueIds: string[]): Promise<IMSIssue[]> {
   const response = await fetch(`${API_BASE}/ims-search/by-ids`, {
@@ -134,6 +134,20 @@ export async function getIssuesByIds(issueIds: string[]): Promise<IMSIssue[]> {
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify({ issue_ids: issueIds }),
+  });
+  return handleResponse<IMSIssue[]>(response);
+}
+
+/**
+ * Get multiple issues by their IMS IDs (e.g., "304640", "278109")
+ * Use this to fetch specific issues by IMS ID strings
+ */
+export async function getIssuesByImsIds(imsIds: string[]): Promise<IMSIssue[]> {
+  const response = await fetch(`${API_BASE}/ims-search/by-ims-ids`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ ims_ids: imsIds }),
   });
   return handleResponse<IMSIssue[]>(response);
 }
@@ -410,7 +424,7 @@ function parseMarkdownTableToIssues(markdown: string): IMSIssue[] {
 
 /**
  * Search IMS using Deep Agent (same as Agent Chat)
- * Streams the response and parses results
+ * Streams the response, extracts IMS IDs, then fetches full details from DB
  */
 export async function searchWithAgent(
   query: string,
@@ -476,13 +490,28 @@ export async function searchWithAgent(
       }
     }
 
-    // Parse the accumulated markdown content to extract issues
-    const issues = parseMarkdownTableToIssues(accumulatedContent);
+    // Parse the markdown table to extract IMS IDs
+    const parsedIssues = parseMarkdownTableToIssues(accumulatedContent);
+    const imsIds = parsedIssues.map(issue => issue.ims_id).filter(id => id);
 
-    console.log('[IMS Agent] Parsed issues:', issues.length);
+    console.log('[IMS Agent] Parsed IMS IDs:', imsIds);
+
+    // Fetch full issue details from database using IMS IDs
+    let fullIssues: IMSIssue[] = [];
+    if (imsIds.length > 0) {
+      try {
+        if (onProgress) onProgress('loading');
+        fullIssues = await getIssuesByImsIds(imsIds);
+        console.log('[IMS Agent] Fetched full details:', fullIssues.length, 'issues');
+      } catch (fetchError) {
+        console.warn('[IMS Agent] Failed to fetch full details, using parsed data:', fetchError);
+        // Fallback to parsed data if fetch fails
+        fullIssues = parsedIssues;
+      }
+    }
 
     return {
-      issues,
+      issues: fullIssues.length > 0 ? fullIssues : parsedIssues,
       rawResponse: accumulatedContent,
       success: true,
     };
