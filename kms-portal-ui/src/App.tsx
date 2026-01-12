@@ -43,6 +43,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { AgentPage } from './pages/AgentPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { DocumentsPage } from './pages/DocumentsPage';
+import { ImprovementsPage, SubmitImprovementPage, ImprovementDetailPage } from './pages/improvements';
 
 // Import global styles
 import './styles/index.css';
@@ -104,6 +105,11 @@ export const App: React.FC = () => {
 
               {/* Analytics */}
               <Route path="/analytics" element={<PlaceholderPage title="Analytics" />} />
+
+              {/* Improvements - AI-Driven Enhancement Management */}
+              <Route path="/improvements" element={<ImprovementsPage />} />
+              <Route path="/improvements/submit" element={<SubmitImprovementPage />} />
+              <Route path="/improvements/:id" element={<ImprovementDetailPage />} />
 
               {/* Settings */}
               <Route path="/settings" element={<SettingsPage />} />

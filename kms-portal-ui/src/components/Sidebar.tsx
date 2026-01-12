@@ -21,6 +21,7 @@ import {
   Download,
   HelpCircle,
   Bot,
+  Lightbulb,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useAuthStore } from '../store/authStore';
@@ -120,6 +121,12 @@ const NAV_ITEMS: NavItem[] = [
     icon: <BarChart3 size={20} />,
     labelKey: 'common.nav.analytics',
     requiredRole: 'admin',
+  },
+  {
+    id: 'improvements',
+    path: '/improvements',
+    icon: <Lightbulb size={20} />,
+    labelKey: 'common.nav.improvements',
   },
 ];
 

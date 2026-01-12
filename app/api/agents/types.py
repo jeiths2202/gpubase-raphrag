@@ -20,6 +20,11 @@ class AgentType(str, Enum):
     VISION = "vision"
     CODE = "code"
     PLANNER = "planner"
+    # Enhancement agents
+    ENHANCEMENT_ANALYST = "enhancement_analyst"
+    ENHANCEMENT_ARCHITECT = "enhancement_architect"
+    ENHANCEMENT_CODER = "enhancement_coder"
+    ENHANCEMENT_QA = "enhancement_qa"
 
 
 class MessageRole(str, Enum):

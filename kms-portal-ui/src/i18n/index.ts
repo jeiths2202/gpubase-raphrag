@@ -16,6 +16,7 @@ import enStudio from './locales/en/studio.json';
 import enPortal from './locales/en/portal.json';
 import enFaq from './locales/en/faq.json';
 import enSettings from './locales/en/settings.json';
+import enImprovements from './locales/en/improvements.json';
 
 // Import Korean translations
 import koCommon from './locales/ko/common.json';
@@ -27,6 +28,7 @@ import koStudio from './locales/ko/studio.json';
 import koPortal from './locales/ko/portal.json';
 import koFaq from './locales/ko/faq.json';
 import koSettings from './locales/ko/settings.json';
+import koImprovements from './locales/ko/improvements.json';
 
 // Import Japanese translations
 import jaCommon from './locales/ja/common.json';
@@ -38,6 +40,7 @@ import jaStudio from './locales/ja/studio.json';
 import jaPortal from './locales/ja/portal.json';
 import jaFaq from './locales/ja/faq.json';
 import jaSettings from './locales/ja/settings.json';
+import jaImprovements from './locales/ja/improvements.json';
 
 // Merge translations by namespace
 const translations: Record<LanguageCode, Record<string, unknown>> = {
@@ -51,6 +54,7 @@ const translations: Record<LanguageCode, Record<string, unknown>> = {
     portal: enPortal,
     faq: enFaq,
     settings: enSettings,
+    improvements: enImprovements,
   },
   ko: {
     common: koCommon,
@@ -62,6 +66,7 @@ const translations: Record<LanguageCode, Record<string, unknown>> = {
     portal: koPortal,
     faq: koFaq,
     settings: koSettings,
+    improvements: koImprovements,
   },
   ja: {
     common: jaCommon,
@@ -73,6 +78,7 @@ const translations: Record<LanguageCode, Record<string, unknown>> = {
     portal: jaPortal,
     faq: jaFaq,
     settings: jaSettings,
+    improvements: jaImprovements,
   },
 };
 
