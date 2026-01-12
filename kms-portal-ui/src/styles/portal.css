@@ -315,21 +315,14 @@
 
 .portal-container {
   display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr var(--ai-sidebar-width);
+  /* AI sidebar is floating (FAB style), so only 2 columns needed */
+  grid-template-columns: var(--sidebar-width) 1fr;
   flex: 1;
   overflow: hidden;
 }
 
 .portal-layout.left-collapsed .portal-container {
-  grid-template-columns: var(--sidebar-collapsed-width) 1fr var(--ai-sidebar-width);
-}
-
-.portal-layout.right-closed .portal-container {
-  grid-template-columns: var(--sidebar-width) 1fr 0;
-}
-
-.portal-layout.left-collapsed.right-closed .portal-container {
-  grid-template-columns: var(--sidebar-collapsed-width) 1fr 0;
+  grid-template-columns: var(--sidebar-collapsed-width) 1fr;
 }
 
 /* ============================================

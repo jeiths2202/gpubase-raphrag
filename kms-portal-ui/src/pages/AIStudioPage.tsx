@@ -21,7 +21,6 @@ import {
   Wand2,
   Minimize2,
   GripHorizontal,
-  MessageSquare
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import './AIStudioPage.css';
@@ -746,16 +745,6 @@ export const AIStudioPage: React.FC = () => {
           </div>
         )}
 
-        {/* Floating AI Button (when panel is closed) */}
-        {!showAIPanel && (
-          <button
-            className="studio-ai-fab"
-            onClick={() => setShowAIPanel(true)}
-            title={t('studio.aiAssistant')}
-          >
-            <MessageSquare size={24} />
-          </button>
-        )}
       </div>
 
       {/* Status Bar */}

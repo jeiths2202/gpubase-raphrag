@@ -44,12 +44,12 @@ const AI_SIDEBAR_POSITION_KEY = 'kms-portal-ai-sidebar-position';
 const AI_SIDEBAR_SIZE_KEY = 'kms-portal-ai-sidebar-size';
 
 // Default panel position (right side)
-const DEFAULT_SIDEBAR_POSITION = { x: -420, y: 80 }; // Relative to right edge
+const DEFAULT_SIDEBAR_POSITION = { x: -360, y: 80 }; // Relative to right edge
 
 // Default and constraints for panel size
-const DEFAULT_SIDEBAR_SIZE = { width: 380, height: 500 };
-const MIN_SIDEBAR_SIZE = { width: 280, height: 300 };
-const MAX_SIDEBAR_SIZE = { width: 600, height: 800 };
+const DEFAULT_SIDEBAR_SIZE = { width: 320, height: 420 };
+const MIN_SIDEBAR_SIZE = { width: 260, height: 280 };
+const MAX_SIDEBAR_SIZE = { width: 500, height: 700 };
 
 interface SidebarPosition {
   x: number;
