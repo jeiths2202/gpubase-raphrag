@@ -171,9 +171,15 @@ export const useContextStore = create<ContextState>((set, get) => ({
     const user = authState.user;
     const userRole = user?.role === 'admin' ? 'admin' : 'user';
 
-    // Get preferences from preferences store
+    // Get language from I18nContext's localStorage (source of truth for language selector)
+    // I18nContext uses 'kms-portal-language' key, not preferencesStore
+    const storedLang = localStorage.getItem('kms-portal-language');
+    const language = (storedLang && ['en', 'ko', 'ja'].includes(storedLang))
+      ? storedLang as 'en' | 'ko' | 'ja'
+      : 'ko';
+
+    // Get theme from preferences store
     const prefsState = usePreferencesStore.getState();
-    const language = prefsState.language || 'ko';
     const theme = prefsState.resolvedTheme || 'dark';
 
     return {
