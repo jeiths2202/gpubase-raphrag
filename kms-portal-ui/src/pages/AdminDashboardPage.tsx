@@ -20,6 +20,12 @@ import {
   Clock,
   BarChart3,
   Loader2,
+  Lightbulb,
+  Play,
+  Trash2,
+  Eye,
+  Search,
+  Bot,
 } from 'lucide-react';
 import {
   UserManagementTable,
@@ -85,7 +91,7 @@ interface ExecutiveDashboard {
 }
 
 // Tab configuration
-type TabId = 'executive' | 'users' | 'tokens' | 'agents' | 'health' | 'rag' | 'audit';
+type TabId = 'executive' | 'users' | 'tokens' | 'agents' | 'health' | 'enhance' | 'rag' | 'audit';
 
 interface TabConfig {
   id: TabId;
@@ -99,6 +105,7 @@ const TABS: TabConfig[] = [
   { id: 'tokens', labelKey: 'Tokens', icon: <Coins size={18} /> },
   { id: 'agents', labelKey: 'Agents', icon: <Cpu size={18} /> },
   { id: 'health', labelKey: 'Health', icon: <HeartPulse size={18} /> },
+  { id: 'enhance', labelKey: 'Enhance Requests', icon: <Lightbulb size={18} /> },
   { id: 'rag', labelKey: 'RAG', icon: <Database size={18} /> },
   { id: 'audit', labelKey: 'Audit', icon: <Shield size={18} /> },
 ];
@@ -296,6 +303,9 @@ export const AdminDashboardPage: React.FC = () => {
         )}
         {activeTab === 'health' && data && (
           <HealthTab data={data} />
+        )}
+        {activeTab === 'enhance' && (
+          <EnhanceRequestsTab />
         )}
         {activeTab === 'rag' && (
           <div className="admin-placeholder">
@@ -836,6 +846,447 @@ const HealthTab: React.FC<{ data: ExecutiveDashboard }> = ({ data }) => {
             ))}
           </div>
         </section>
+      )}
+    </div>
+  );
+};
+
+// Enhancement Request Types
+interface EnhanceRequest {
+  id: string;
+  title: string;
+  type?: 'feature' | 'bug_fix' | 'improvement' | 'refactor' | 'documentation' | 'security' | 'performance';
+  priority?: 'critical' | 'high' | 'medium' | 'low';
+  status: 'submitted' | 'analyzing' | 'analyzed' | 'architecture_review' | 'approved' | 'rejected' | 'implementing' | 'code_review' | 'testing' | 'verified' | 'released' | 'closed';
+  author_id: string;
+  author_name: string;
+  created_at: string;
+  updated_at: string;
+  ai_analyzed: boolean;
+}
+
+// Enhance Requests Tab
+const EnhanceRequestsTab: React.FC = () => {
+  const [requests, setRequests] = useState<EnhanceRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [executingId, setExecutingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [stats, setStats] = useState<{
+    total: number;
+    pending: number;
+    analyzed: number;
+    implemented: number;
+  } | null>(null);
+
+  // Fetch enhancement requests
+  const fetchRequests = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('limit', '10');
+      if (statusFilter) params.append('status', statusFilter);
+      if (searchQuery) params.append('search', searchQuery);
+
+      const response = await fetch(`/api/v1/enhancements?${params.toString()}`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch enhancement requests');
+
+      const data = await response.json();
+      setRequests(data.data.items || []);
+      setTotalPages(data.pagination?.total_pages || 1);
+      setTotalItems(data.pagination?.total_items || 0);
+
+      // Fetch stats
+      const statsResponse = await fetch('/api/v1/enhancements/dashboard', {
+        credentials: 'include',
+      });
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        const byStatus = statsData.data?.by_status || {};
+        setStats({
+          total: statsData.data?.total_requests || 0,
+          pending: (byStatus['submitted'] || 0) + (byStatus['analyzing'] || 0),
+          analyzed: byStatus['analyzed'] || 0,
+          implemented: statsData.data?.implemented_count || 0,
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load requests');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, statusFilter, searchQuery]);
+
+  useEffect(() => {
+    fetchRequests();
+  }, [fetchRequests]);
+
+  // Execute (analyze) enhancement request
+  const handleExecute = async (id: string) => {
+    setExecutingId(id);
+    try {
+      const response = await fetch(`/api/v1/enhancements/${id}/analyze`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (!response.ok) throw new Error('Failed to analyze enhancement');
+
+      // Refresh the list
+      await fetchRequests();
+    } catch (err) {
+      console.error('Execute failed:', err);
+      alert('Failed to execute enhancement analysis');
+    } finally {
+      setExecutingId(null);
+    }
+  };
+
+  // Delete enhancement request
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      const response = await fetch(`/api/v1/enhancements/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) throw new Error('Failed to delete enhancement');
+
+      setShowDeleteConfirm(null);
+      await fetchRequests();
+    } catch (err) {
+      console.error('Delete failed:', err);
+      alert('Failed to delete enhancement request');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Format date
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  // Status badge colors
+  const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      submitted: '#6366f1',
+      analyzing: '#f59e0b',
+      analyzed: '#22c55e',
+      architecture_review: '#8b5cf6',
+      approved: '#10b981',
+      rejected: '#ef4444',
+      implementing: '#3b82f6',
+      code_review: '#8b5cf6',
+      testing: '#f97316',
+      verified: '#14b8a6',
+      released: '#22c55e',
+      closed: '#6b7280',
+    };
+    return colors[status] || '#6b7280';
+  };
+
+  // Priority badge colors
+  const getPriorityColor = (priority?: string) => {
+    const colors: Record<string, string> = {
+      critical: '#ef4444',
+      high: '#f97316',
+      medium: '#f59e0b',
+      low: '#22c55e',
+    };
+    return priority ? colors[priority] || '#6b7280' : '#6b7280';
+  };
+
+  // Type icons
+  const getTypeIcon = (type?: string) => {
+    const icons: Record<string, string> = {
+      feature: '✨',
+      bug_fix: '🐛',
+      improvement: '📈',
+      refactor: '🔧',
+      documentation: '📝',
+      security: '🔒',
+      performance: '⚡',
+    };
+    return type ? icons[type] || '📋' : '📋';
+  };
+
+  // Check if request can be executed (only submitted status)
+  const canExecute = (status: string) => status === 'submitted';
+
+  if (loading && requests.length === 0) {
+    return (
+      <div className="admin-tab-content">
+        <div className="admin-loading">
+          <Loader2 size={24} className="spinning" />
+          <span>Loading enhancement requests...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-tab-content">
+      {/* Stats Cards */}
+      {stats && (
+        <section className="admin-kpi-grid">
+          <KPICard
+            title="Total Requests"
+            value={stats.total}
+            icon={<Lightbulb size={24} />}
+            color="#6366f1"
+          />
+          <KPICard
+            title="Pending Analysis"
+            value={stats.pending}
+            subtitle="Waiting for AI"
+            icon={<Clock size={24} />}
+            color="#f59e0b"
+          />
+          <KPICard
+            title="Analyzed"
+            value={stats.analyzed}
+            subtitle="AI processed"
+            icon={<Bot size={24} />}
+            color="#22c55e"
+          />
+          <KPICard
+            title="Implemented"
+            value={stats.implemented}
+            subtitle="Completed"
+            icon={<CheckCircle size={24} />}
+            color="#10b981"
+          />
+        </section>
+      )}
+
+      {/* Filters */}
+      <section className="admin-filters-section">
+        <div className="admin-search-box">
+          <Search size={18} />
+          <input
+            type="text"
+            placeholder="Search requests..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
+          className="admin-filter-select"
+        >
+          <option value="">All Status</option>
+          <option value="submitted">Submitted</option>
+          <option value="analyzing">Analyzing</option>
+          <option value="analyzed">Analyzed</option>
+          <option value="approved">Approved</option>
+          <option value="implementing">Implementing</option>
+          <option value="verified">Verified</option>
+          <option value="released">Released</option>
+          <option value="closed">Closed</option>
+        </select>
+        <button className="admin-refresh-btn" onClick={fetchRequests}>
+          <RefreshCw size={16} />
+          Refresh
+        </button>
+      </section>
+
+      {/* Error State */}
+      {error && (
+        <div className="admin-error-message">
+          <AlertTriangle size={20} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Table */}
+      <section className="admin-table-section">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Type</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>Author</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {requests.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="admin-table-empty">
+                  <Lightbulb size={32} />
+                  <p>No enhancement requests found</p>
+                </td>
+              </tr>
+            ) : (
+              requests.map((req) => (
+                <tr key={req.id}>
+                  <td className="admin-table-title">
+                    <span className="enhance-type-icon">{getTypeIcon(req.type)}</span>
+                    <span className="enhance-title-text">{req.title}</span>
+                    {req.ai_analyzed && (
+                      <span className="enhance-ai-badge">
+                        <Bot size={12} />
+                        AI
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    {req.type ? (
+                      <span className="enhance-type-badge">
+                        {req.type.replace('_', ' ')}
+                      </span>
+                    ) : (
+                      <span className="enhance-type-badge enhance-type-badge--none">-</span>
+                    )}
+                  </td>
+                  <td>
+                    {req.priority ? (
+                      <span
+                        className="enhance-priority-badge"
+                        style={{ backgroundColor: `${getPriorityColor(req.priority)}20`, color: getPriorityColor(req.priority) }}
+                      >
+                        {req.priority}
+                      </span>
+                    ) : (
+                      <span className="enhance-priority-badge enhance-priority-badge--none">-</span>
+                    )}
+                  </td>
+                  <td>
+                    <span
+                      className="enhance-status-badge"
+                      style={{ backgroundColor: `${getStatusColor(req.status)}20`, color: getStatusColor(req.status) }}
+                    >
+                      {req.status.replace('_', ' ')}
+                    </span>
+                  </td>
+                  <td>{req.author_name}</td>
+                  <td className="admin-table-date">{formatDate(req.created_at)}</td>
+                  <td className="admin-table-actions">
+                    <button
+                      className="admin-action-btn admin-action-btn--view"
+                      onClick={() => window.open(`/improvements/${req.id}`, '_blank')}
+                      title="View Details"
+                    >
+                      <Eye size={16} />
+                    </button>
+                    {canExecute(req.status) && (
+                      <button
+                        className="admin-action-btn admin-action-btn--execute"
+                        onClick={() => handleExecute(req.id)}
+                        disabled={executingId === req.id}
+                        title="Execute AI Analysis"
+                      >
+                        {executingId === req.id ? (
+                          <Loader2 size={16} className="spinning" />
+                        ) : (
+                          <Play size={16} />
+                        )}
+                      </button>
+                    )}
+                    <button
+                      className="admin-action-btn admin-action-btn--delete"
+                      onClick={() => setShowDeleteConfirm(req.id)}
+                      title="Delete Request"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </section>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="admin-pagination">
+          <button
+            className="admin-pagination-btn"
+            disabled={page === 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            Previous
+          </button>
+          <span className="admin-pagination-info">
+            Page {page} of {totalPages} ({totalItems} total)
+          </span>
+          <button
+            className="admin-pagination-btn"
+            disabled={page === totalPages}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next
+          </button>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="admin-modal-overlay" onClick={() => setShowDeleteConfirm(null)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-header">
+              <AlertTriangle size={24} color="#ef4444" />
+              <h3>Delete Enhancement Request</h3>
+            </div>
+            <div className="admin-modal-body">
+              <p>Are you sure you want to delete this enhancement request?</p>
+              <p className="admin-modal-warning">This action cannot be undone.</p>
+            </div>
+            <div className="admin-modal-footer">
+              <button
+                className="admin-btn admin-btn--secondary"
+                onClick={() => setShowDeleteConfirm(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="admin-btn admin-btn--danger"
+                onClick={() => handleDelete(showDeleteConfirm)}
+                disabled={deletingId === showDeleteConfirm}
+              >
+                {deletingId === showDeleteConfirm ? (
+                  <>
+                    <Loader2 size={16} className="spinning" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
