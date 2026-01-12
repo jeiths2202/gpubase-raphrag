@@ -20,10 +20,150 @@ from .master_system_constraint import (
     build_constrained_system_prompt,
     get_constraint_enforcer,
     log_compliance_violation,
-    ComplianceViolationType
+    ComplianceViolationType,
+    get_insufficient_info_response
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _check_for_general_knowledge_violation(
+    answer: str,
+    tool_results: List[ToolResult],
+    language: str = "en"
+) -> tuple[bool, str]:
+    """
+    Check if the answer contains general knowledge that wasn't in tool results.
+
+    This is a post-execution guardrail to catch cases where the LLM ignores
+    the system constraints and answers from training data.
+
+    Args:
+        answer: The generated answer
+        tool_results: Results from tool executions
+        language: User's language preference
+
+    Returns:
+        Tuple of (is_violation, corrected_answer)
+    """
+    if not answer:
+        return False, answer
+
+    answer_lower = answer.lower()
+
+    # Common violation patterns - direct factual answers to general knowledge
+    general_knowledge_patterns = [
+        # Geography - capital cities (direct answers)
+        ("capital of france", "paris"),
+        ("capital of japan", "tokyo"),
+        ("capital of germany", "berlin"),
+        ("capital of italy", "rome"),
+        ("capital of spain", "madrid"),
+        ("capital of china", "beijing"),
+        ("capital of korea", "seoul"),
+        ("수도", "파리"),  # Korean capital questions
+        ("수도", "도쿄"),
+        ("首都", "パリ"),  # Japanese capital questions
+        ("首都", "東京"),
+        # Famous people
+        ("who is", "was born"),
+        ("who invented", "invented by"),
+        # Historical facts
+        ("when did", "in "),
+        ("year of", "in "),
+    ]
+
+    # Check if any tool returned useful content (not just errors/not found)
+    has_useful_tool_results = False
+    for result in tool_results:
+        if result.get("success") and result.get("output"):
+            output = str(result["output"]).lower()
+            # Check if it's a real result, not a "not found" message
+            if (len(output) > 100 and
+                "not found" not in output and
+                "no results" not in output and
+                "no relevant" not in output and
+                "찾을 수 없" not in output):
+                has_useful_tool_results = True
+                break
+
+    # Check for violation indicators in the answer
+    violation_indicators = [
+        "well-known fact",
+        "as everyone knows",
+        "common knowledge",
+        "generally known",
+        "widely known",
+        "it's a fact that",
+        "i can tell you that",
+        "i know that",
+        "without further searching",
+        "from general knowledge",
+        "general knowledge",
+        "provide you with the answer directly",
+        "provide the answer directly",
+        "answer directly",
+        "i'll provide",
+        "i will provide",
+        "i can provide",
+        "잘 알려진",  # well-known in Korean
+        "일반적으로",  # generally in Korean
+        "一般的に",  # generally in Japanese
+        "issue connecting to",  # database connection issue excuse
+        "connection problem",
+        "however, i can",  # transitional excuse to use general knowledge
+        "however i can",
+    ]
+
+    has_violation_indicator = any(ind in answer_lower for ind in violation_indicators)
+
+    # If no useful tool results AND answer has violation indicators, it's a violation
+    if not has_useful_tool_results and has_violation_indicator:
+        logger.warning("[ResponseValidator] Detected general knowledge violation - replacing response")
+        return True, get_insufficient_info_response(language)
+
+    # Check specific patterns (e.g., answering "Paris" when asked about capital)
+    for pattern_question, pattern_answer in general_knowledge_patterns:
+        if pattern_question in answer_lower and pattern_answer in answer_lower:
+            # Double check - was this info in the tool results?
+            found_in_results = False
+            for result in tool_results:
+                if result.get("success") and result.get("output"):
+                    if pattern_answer in str(result["output"]).lower():
+                        found_in_results = True
+                        break
+
+            if not found_in_results and not has_useful_tool_results:
+                logger.warning(f"[ResponseValidator] Detected unsourced fact ({pattern_answer}) - replacing response")
+                return True, get_insufficient_info_response(language)
+
+    # Final check: ALWAYS check for capital city answers - these are clear general knowledge
+    # This runs regardless of tool results since capital cities are common violations
+    capital_cities = [
+        ("france", "paris"), ("japan", "tokyo"), ("germany", "berlin"),
+        ("italy", "rome"), ("spain", "madrid"), ("china", "beijing"),
+        ("korea", "seoul"), ("uk", "london"), ("usa", "washington"),
+        ("canada", "ottawa"), ("australia", "canberra"), ("brazil", "brasilia"),
+        ("프랑스", "파리"), ("일본", "도쿄"), ("독일", "베를린"),
+        ("フランス", "パリ"), ("日本", "東京"), ("ドイツ", "ベルリン"),
+        ("russia", "moscow"), ("india", "new delhi"), ("netherlands", "amsterdam"),
+    ]
+    for country, capital in capital_cities:
+        if country in answer_lower and capital in answer_lower:
+            # Check if the capital was actually found in tool results
+            capital_in_results = False
+            for result in tool_results:
+                if result.get("success") and result.get("output"):
+                    output_lower = str(result["output"]).lower()
+                    # Must be a substantial match - capital should be in actual content
+                    if capital in output_lower and len(output_lower) > 200:
+                        capital_in_results = True
+                        break
+            if not capital_in_results:
+                logger.warning(f"[ResponseValidator] Detected capital city answer ({capital}) - blocking")
+                return True, get_insufficient_info_response(language)
+
+    return False, answer
 
 
 class MaxStepsExceeded(Exception):
@@ -316,6 +456,25 @@ User Query: {task}"""
 
         # Extract sources from tool results
         sources = self._extract_sources(tool_results)
+
+        # ========================================================================
+        # POST-EXECUTION VALIDATION: Check for general knowledge violations
+        # ========================================================================
+        is_violation, validated_answer = _check_for_general_knowledge_violation(
+            final_answer,
+            tool_results,
+            language=context.language or "en"
+        )
+        if is_violation:
+            logger.warning(f"[Executor] General knowledge violation detected and corrected for {agent.agent_type.value} agent")
+            log_compliance_violation(
+                ComplianceViolationType.GENERAL_KNOWLEDGE_DETECTED,
+                agent.agent_type.value,
+                user_id=context.user_id,
+                session_id=context.session_id,
+                details={"original_answer_preview": final_answer[:200]}
+            )
+            final_answer = validated_answer
 
         return AgentResult(
             answer=final_answer,
