@@ -2,11 +2,12 @@
 Enhancement Service
 
 Business logic for the AI-Driven Enhancement & Improvement Management System.
+Supports PostgreSQL, Neo4j, and in-memory storage backends.
 """
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Protocol, runtime_checkable
 
 from ..models.enhancement import (
     EnhancementStatus, EnhancementType, EnhancementPriority,
@@ -19,22 +20,187 @@ from ..models.enhancement import (
 logger = logging.getLogger(__name__)
 
 
+@runtime_checkable
+class EnhancementRepository(Protocol):
+    """Protocol defining the enhancement repository interface."""
+
+    async def create(self, enhancement: EnhancementDetail) -> EnhancementDetail:
+        """Create a new enhancement."""
+        ...
+
+    async def get(self, enhancement_id: str) -> Optional[EnhancementDetail]:
+        """Get an enhancement by ID."""
+        ...
+
+    async def update(self, enhancement: EnhancementDetail) -> EnhancementDetail:
+        """Update an existing enhancement."""
+        ...
+
+    async def delete(self, enhancement_id: str) -> bool:
+        """Delete an enhancement."""
+        ...
+
+    async def list(
+        self,
+        page: int = 1,
+        limit: int = 20,
+        status: Optional[EnhancementStatus] = None,
+        type_filter: Optional[EnhancementType] = None,
+        priority: Optional[EnhancementPriority] = None,
+        author_id: Optional[str] = None,
+        search: Optional[str] = None
+    ) -> Tuple[List[EnhancementListItem], int]:
+        """List enhancements with filtering and pagination."""
+        ...
+
+    async def list_all(self) -> List[Dict[str, Any]]:
+        """Get all enhancements as dictionaries."""
+        ...
+
+    async def get_dashboard_stats(self) -> EnhancementDashboardStats:
+        """Get dashboard statistics."""
+        ...
+
+
+class InMemoryEnhancementRepository:
+    """In-memory implementation for development/testing."""
+
+    def __init__(self):
+        self._store: Dict[str, Dict[str, Any]] = {}
+
+    async def create(self, enhancement: EnhancementDetail) -> EnhancementDetail:
+        self._store[enhancement.id] = enhancement.model_dump(mode="json")
+        return enhancement
+
+    async def get(self, enhancement_id: str) -> Optional[EnhancementDetail]:
+        data = self._store.get(enhancement_id)
+        if data:
+            return EnhancementDetail(**data)
+        return None
+
+    async def update(self, enhancement: EnhancementDetail) -> EnhancementDetail:
+        self._store[enhancement.id] = enhancement.model_dump(mode="json")
+        return enhancement
+
+    async def delete(self, enhancement_id: str) -> bool:
+        if enhancement_id in self._store:
+            del self._store[enhancement_id]
+            return True
+        return False
+
+    async def list(
+        self,
+        page: int = 1,
+        limit: int = 20,
+        status: Optional[EnhancementStatus] = None,
+        type_filter: Optional[EnhancementType] = None,
+        priority: Optional[EnhancementPriority] = None,
+        author_id: Optional[str] = None,
+        search: Optional[str] = None
+    ) -> Tuple[List[EnhancementListItem], int]:
+        """List with filtering and pagination."""
+        filtered = []
+
+        for enh in self._store.values():
+            if status and enh.get("status") != status.value:
+                continue
+            if type_filter and enh.get("type") != type_filter.value:
+                continue
+            if priority and enh.get("priority") != priority.value:
+                continue
+            if author_id and enh.get("author_id") != author_id:
+                continue
+            if search:
+                search_lower = search.lower()
+                if (search_lower not in enh.get("title", "").lower() and
+                    search_lower not in enh.get("description", "").lower()):
+                    continue
+            filtered.append(enh)
+
+        # Sort by created_at descending
+        filtered.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+
+        # Paginate
+        total = len(filtered)
+        start = (page - 1) * limit
+        end = start + limit
+        page_items = filtered[start:end]
+
+        # Convert to list items
+        items = []
+        for enh in page_items:
+            items.append(EnhancementListItem(
+                id=enh["id"],
+                title=enh["title"],
+                type=EnhancementType(enh["type"]) if enh.get("type") else None,
+                priority=EnhancementPriority(enh["priority"]) if enh.get("priority") else None,
+                status=EnhancementStatus(enh["status"]),
+                author_id=enh["author_id"],
+                author_name=enh["author_name"],
+                created_at=datetime.fromisoformat(enh["created_at"]) if isinstance(enh["created_at"], str) else enh["created_at"],
+                updated_at=datetime.fromisoformat(enh["updated_at"]) if isinstance(enh["updated_at"], str) else enh["updated_at"],
+                ai_analyzed=enh.get("ai_analyzed", False),
+                attachments_count=enh.get("attachments_count", 0)
+            ))
+
+        return items, total
+
+    async def list_all(self) -> List[Dict[str, Any]]:
+        return list(self._store.values())
+
+    async def get_dashboard_stats(self) -> EnhancementDashboardStats:
+        all_enhancements = list(self._store.values())
+
+        stats = EnhancementDashboardStats(
+            total_requests=len(all_enhancements),
+            by_status={},
+            by_type={},
+            by_priority={},
+            ai_analyzed_count=0,
+            implemented_count=0
+        )
+
+        for enh in all_enhancements:
+            status = enh.get("status", "unknown")
+            stats.by_status[status] = stats.by_status.get(status, 0) + 1
+
+            etype = enh.get("type")
+            if etype:
+                stats.by_type[etype] = stats.by_type.get(etype, 0) + 1
+
+            priority = enh.get("priority")
+            if priority:
+                stats.by_priority[priority] = stats.by_priority.get(priority, 0) + 1
+
+            if enh.get("ai_analyzed"):
+                stats.ai_analyzed_count += 1
+
+            if enh.get("status") in ["verified", "released", "closed"]:
+                stats.implemented_count += 1
+
+        return stats
+
+
 class EnhancementService:
     """
     Service for managing enhancement requests.
 
     Handles CRUD operations, status transitions, and coordination with AI agents.
+    Supports pluggable repository backends (PostgreSQL, Neo4j, in-memory).
     """
 
-    def __init__(self, neo4j_client=None):
+    def __init__(self, repository: Optional[EnhancementRepository] = None):
         """
         Initialize the enhancement service.
 
         Args:
-            neo4j_client: Neo4j database client for persistence
+            repository: Repository for data persistence (defaults to in-memory)
         """
-        self.neo4j = neo4j_client
-        self._in_memory_store: Dict[str, Dict[str, Any]] = {}  # Fallback storage
+        self._repository = repository or InMemoryEnhancementRepository()
+
+    def set_repository(self, repository: EnhancementRepository) -> None:
+        """Set the repository (for dependency injection after construction)."""
+        self._repository = repository
 
     async def create(
         self,
@@ -86,8 +252,7 @@ class EnhancementService:
             assigned_agents=[]
         )
 
-        # Store in Neo4j or in-memory
-        await self._store_enhancement(enhancement)
+        await self._repository.create(enhancement)
 
         logger.info(f"Created enhancement {enhancement_id}: {request.title}")
         return enhancement
@@ -102,7 +267,7 @@ class EnhancementService:
         Returns:
             The enhancement detail or None if not found
         """
-        return await self._get_enhancement(enhancement_id)
+        return await self._repository.get(enhancement_id)
 
     async def list(
         self,
@@ -129,55 +294,15 @@ class EnhancementService:
         Returns:
             Tuple of (items, total_count)
         """
-        items = []
-
-        # Get all enhancements from storage
-        all_enhancements = await self._list_all_enhancements()
-
-        # Apply filters
-        filtered = []
-        for enh in all_enhancements:
-            if status and enh.get("status") != status.value:
-                continue
-            if type_filter and enh.get("type") != type_filter.value:
-                continue
-            if priority and enh.get("priority") != priority.value:
-                continue
-            if author_id and enh.get("author_id") != author_id:
-                continue
-            if search:
-                search_lower = search.lower()
-                if (search_lower not in enh.get("title", "").lower() and
-                    search_lower not in enh.get("description", "").lower()):
-                    continue
-            filtered.append(enh)
-
-        # Sort by created_at descending
-        filtered.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-
-        # Paginate
-        total = len(filtered)
-        start = (page - 1) * limit
-        end = start + limit
-        page_items = filtered[start:end]
-
-        # Convert to list items
-        for enh in page_items:
-            items.append(EnhancementListItem(
-                id=enh["id"],
-                title=enh["title"],
-                type=EnhancementType(enh["type"]) if enh.get("type") else None,
-                priority=EnhancementPriority(enh["priority"]) if enh.get("priority") else None,
-                status=EnhancementStatus(enh["status"]),
-                author_id=enh["author_id"],
-                author_name=enh["author_name"],
-                created_at=datetime.fromisoformat(enh["created_at"]) if isinstance(enh["created_at"], str) else enh["created_at"],
-                updated_at=datetime.fromisoformat(enh["updated_at"]) if isinstance(enh["updated_at"], str) else enh["updated_at"],
-                ai_analyzed=enh.get("ai_analyzed", False),
-                attachments_count=enh.get("attachments_count", 0)
-            ))
-
-        return items, total
+        return await self._repository.list(
+            page=page,
+            limit=limit,
+            status=status,
+            type_filter=type_filter,
+            priority=priority,
+            author_id=author_id,
+            search=search
+        )
 
     async def update(
         self,
@@ -198,7 +323,7 @@ class EnhancementService:
         Returns:
             The updated enhancement or None if not found
         """
-        enhancement = await self._get_enhancement(enhancement_id)
+        enhancement = await self._repository.get(enhancement_id)
         if not enhancement:
             return None
 
@@ -214,8 +339,7 @@ class EnhancementService:
 
         enhancement.updated_at = datetime.now(timezone.utc)
 
-        # Store updated enhancement
-        await self._store_enhancement(enhancement)
+        await self._repository.update(enhancement)
 
         logger.info(f"Updated enhancement {enhancement_id}")
         return enhancement
@@ -231,11 +355,10 @@ class EnhancementService:
         Returns:
             True if deleted, False if not found
         """
-        if enhancement_id in self._in_memory_store:
-            del self._in_memory_store[enhancement_id]
+        result = await self._repository.delete(enhancement_id)
+        if result:
             logger.info(f"Deleted enhancement {enhancement_id}")
-            return True
-        return False
+        return result
 
     async def update_status(
         self,
@@ -260,7 +383,7 @@ class EnhancementService:
         Returns:
             The updated enhancement or None if not found
         """
-        enhancement = await self._get_enhancement(enhancement_id)
+        enhancement = await self._repository.get(enhancement_id)
         if not enhancement:
             return None
 
@@ -281,7 +404,7 @@ class EnhancementService:
         )
         enhancement.timeline.append(event)
 
-        await self._store_enhancement(enhancement)
+        await self._repository.update(enhancement)
 
         logger.info(f"Enhancement {enhancement_id} status: {old_status.value} -> {new_status.value}")
         return enhancement
@@ -301,7 +424,7 @@ class EnhancementService:
         Returns:
             The updated enhancement or None if not found
         """
-        enhancement = await self._get_enhancement(enhancement_id)
+        enhancement = await self._repository.get(enhancement_id)
         if not enhancement:
             return None
 
@@ -329,7 +452,7 @@ class EnhancementService:
         )
         enhancement.timeline.append(event)
 
-        await self._store_enhancement(enhancement)
+        await self._repository.update(enhancement)
 
         logger.info(f"Added AI analysis to enhancement {enhancement_id}")
         return enhancement
@@ -353,7 +476,7 @@ class EnhancementService:
         Returns:
             The updated enhancement or None if not found
         """
-        enhancement = await self._get_enhancement(enhancement_id)
+        enhancement = await self._repository.get(enhancement_id)
         if not enhancement:
             return None
 
@@ -363,7 +486,7 @@ class EnhancementService:
         # Add timeline event
         event = TimelineEvent(
             id=str(uuid.uuid4()),
-            event_type="architecture_completed",
+            event_type=TimelineEventType.ARCHITECTURE_COMPLETED,
             description=f"Architecture proposal completed by {proposal.reviewer_agent_id}",
             actor_id=proposal.reviewer_agent_id,
             actor_name="Architect Agent",
@@ -377,7 +500,7 @@ class EnhancementService:
         )
         enhancement.timeline.append(event)
 
-        await self._store_enhancement(enhancement)
+        await self._repository.update(enhancement)
 
         logger.info(f"Added architecture proposal to enhancement {enhancement_id}")
         return enhancement
@@ -397,14 +520,14 @@ class EnhancementService:
         Returns:
             The updated enhancement or None if not found
         """
-        enhancement = await self._get_enhancement(enhancement_id)
+        enhancement = await self._repository.get(enhancement_id)
         if not enhancement:
             return None
 
         enhancement.timeline.append(event)
         enhancement.updated_at = datetime.now(timezone.utc)
 
-        await self._store_enhancement(enhancement)
+        await self._repository.update(enhancement)
 
         logger.info(f"Added timeline event to enhancement {enhancement_id}")
         return enhancement
@@ -424,14 +547,14 @@ class EnhancementService:
         Returns:
             The updated enhancement or None if not found
         """
-        enhancement = await self._get_enhancement(enhancement_id)
+        enhancement = await self._repository.get(enhancement_id)
         if not enhancement:
             return None
 
         enhancement.implementation_plan = plan
         enhancement.updated_at = datetime.now(timezone.utc)
 
-        await self._store_enhancement(enhancement)
+        await self._repository.update(enhancement)
 
         logger.info(f"Added implementation plan to enhancement {enhancement_id}")
         return enhancement
@@ -457,7 +580,7 @@ class EnhancementService:
         Returns:
             The created comment or None if enhancement not found
         """
-        enhancement = await self._get_enhancement(enhancement_id)
+        enhancement = await self._repository.get(enhancement_id)
         if not enhancement:
             return None
 
@@ -485,7 +608,7 @@ class EnhancementService:
         )
         enhancement.timeline.append(event)
 
-        await self._store_enhancement(enhancement)
+        await self._repository.update(enhancement)
 
         return comment
 
@@ -508,7 +631,7 @@ class EnhancementService:
         Returns:
             The updated enhancement or None if not found
         """
-        enhancement = await self._get_enhancement(enhancement_id)
+        enhancement = await self._repository.get(enhancement_id)
         if not enhancement:
             return None
 
@@ -529,7 +652,7 @@ class EnhancementService:
         )
         enhancement.timeline.append(event)
 
-        await self._store_enhancement(enhancement)
+        await self._repository.update(enhancement)
 
         return enhancement
 
@@ -540,128 +663,12 @@ class EnhancementService:
         Returns:
             Dashboard statistics
         """
-        all_enhancements = await self._list_all_enhancements()
+        return await self._repository.get_dashboard_stats()
 
-        stats = EnhancementDashboardStats(
-            total_requests=len(all_enhancements),
-            by_status={},
-            by_type={},
-            by_priority={},
-            ai_analyzed_count=0,
-            implemented_count=0
-        )
-
-        for enh in all_enhancements:
-            # Count by status
-            status = enh.get("status", "unknown")
-            stats.by_status[status] = stats.by_status.get(status, 0) + 1
-
-            # Count by type
-            etype = enh.get("type")
-            if etype:
-                stats.by_type[etype] = stats.by_type.get(etype, 0) + 1
-
-            # Count by priority
-            priority = enh.get("priority")
-            if priority:
-                stats.by_priority[priority] = stats.by_priority.get(priority, 0) + 1
-
-            # Count analyzed
-            if enh.get("ai_analyzed"):
-                stats.ai_analyzed_count += 1
-
-            # Count implemented
-            if enh.get("status") in ["verified", "released", "closed"]:
-                stats.implemented_count += 1
-
-        return stats
-
-    # ========================================================================
-    # Private storage methods
-    # ========================================================================
-
-    async def _store_enhancement(self, enhancement: EnhancementDetail) -> None:
-        """Store enhancement in Neo4j or in-memory."""
-        if self.neo4j:
-            await self._store_in_neo4j(enhancement)
-        else:
-            self._in_memory_store[enhancement.id] = enhancement.model_dump(mode="json")
-
-    async def _get_enhancement(self, enhancement_id: str) -> Optional[EnhancementDetail]:
-        """Get enhancement from Neo4j or in-memory."""
-        if self.neo4j:
-            return await self._get_from_neo4j(enhancement_id)
-        else:
-            data = self._in_memory_store.get(enhancement_id)
-            if data:
-                return EnhancementDetail(**data)
-            return None
-
+    # Legacy method for compatibility
     async def _list_all_enhancements(self) -> List[Dict[str, Any]]:
-        """List all enhancements from storage."""
-        if self.neo4j:
-            return await self._list_from_neo4j()
-        else:
-            return list(self._in_memory_store.values())
-
-    async def _store_in_neo4j(self, enhancement: EnhancementDetail) -> None:
-        """Store enhancement in Neo4j."""
-        query = """
-        MERGE (e:EnhancementRequest {id: $id})
-        SET e.title = $title,
-            e.description = $description,
-            e.type = $type,
-            e.priority = $priority,
-            e.status = $status,
-            e.author_id = $author_id,
-            e.author_name = $author_name,
-            e.created_at = $created_at,
-            e.updated_at = $updated_at,
-            e.ai_analyzed = $ai_analyzed,
-            e.attachments_count = $attachments_count,
-            e.data = $data
-        RETURN e
-        """
-        params = {
-            "id": enhancement.id,
-            "title": enhancement.title,
-            "description": enhancement.description,
-            "type": enhancement.type.value if enhancement.type else None,
-            "priority": enhancement.priority.value if enhancement.priority else None,
-            "status": enhancement.status.value,
-            "author_id": enhancement.author_id,
-            "author_name": enhancement.author_name,
-            "created_at": enhancement.created_at.isoformat(),
-            "updated_at": enhancement.updated_at.isoformat(),
-            "ai_analyzed": enhancement.ai_analyzed,
-            "attachments_count": enhancement.attachments_count,
-            "data": enhancement.model_dump_json()
-        }
-        await self.neo4j.execute_query(query, params)
-
-    async def _get_from_neo4j(self, enhancement_id: str) -> Optional[EnhancementDetail]:
-        """Get enhancement from Neo4j."""
-        query = """
-        MATCH (e:EnhancementRequest {id: $id})
-        RETURN e.data as data
-        """
-        result = await self.neo4j.execute_query(query, {"id": enhancement_id})
-        if result and result[0]:
-            import json
-            data = json.loads(result[0]["data"])
-            return EnhancementDetail(**data)
-        return None
-
-    async def _list_from_neo4j(self) -> List[Dict[str, Any]]:
-        """List all enhancements from Neo4j."""
-        query = """
-        MATCH (e:EnhancementRequest)
-        RETURN e.data as data
-        ORDER BY e.created_at DESC
-        """
-        result = await self.neo4j.execute_query(query)
-        import json
-        return [json.loads(r["data"]) for r in result] if result else []
+        """List all enhancements from storage (for legacy compatibility)."""
+        return await self._repository.list_all()
 
 
 # Global service instance

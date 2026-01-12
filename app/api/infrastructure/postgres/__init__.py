@@ -8,7 +8,9 @@ Production-ready PostgreSQL repository implementations with:
 - Transaction management
 """
 from .conversation_repository import PostgresConversationRepository
+from .enhancement_repository import PostgresEnhancementRepository
 
 __all__ = [
     "PostgresConversationRepository",
+    "PostgresEnhancementRepository",
 ]

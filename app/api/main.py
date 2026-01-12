@@ -140,6 +140,26 @@ async def lifespan(app: FastAPI):
             category=LogCategory.BUSINESS
         )
 
+        # ==================== Enhancement Repository Initialization ====================
+        # Initialize enhancement repository for enhancement request management
+        from .infrastructure.postgres.enhancement_repository import PostgresEnhancementRepository
+        from .services.enhancement_service import EnhancementService, set_enhancement_service
+
+        enhancement_repo = PostgresEnhancementRepository.from_pool(db_pool)
+        await enhancement_repo._ensure_table_exists()
+
+        # Register repository in container
+        container.register_singleton("enhancement_repository", enhancement_repo)
+
+        # Initialize enhancement service with PostgreSQL repository
+        postgres_enhancement_service = EnhancementService(repository=enhancement_repo)
+        set_enhancement_service(postgres_enhancement_service)
+
+        logger.info(
+            "[OK] Enhancement repository and service initialized with PostgreSQL",
+            category=LogCategory.BUSINESS
+        )
+
         # ==================== Trace System Initialization ====================
         # Initialize trace repository and writer for E2E message tracing
         from .infrastructure.postgres.trace_repository import TraceRepository
