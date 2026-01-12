@@ -498,6 +498,7 @@ async def design_architecture(
         # Add timeline event for architecture design start
         from ..models.enhancement import TimelineEvent
         timeline_event = TimelineEvent(
+            id=str(uuid.uuid4()),
             event_type="architecture_started",
             description="Architecture design initiated",
             actor_id=user_id,
@@ -678,6 +679,7 @@ async def create_implementation_plan(
         # Add timeline event
         from ..models.enhancement import TimelineEvent
         timeline_event = TimelineEvent(
+            id=str(uuid.uuid4()),
             event_type="implementation_started",
             description="Implementation planning initiated",
             actor_id=user_id,
@@ -1065,6 +1067,7 @@ async def run_tests(
         # Add timeline event
         from ..models.enhancement import TimelineEvent
         timeline_event = TimelineEvent(
+            id=str(uuid.uuid4()),
             event_type="tests_started",
             description="Test execution initiated",
             actor_id=user_id,
@@ -1087,6 +1090,7 @@ async def run_tests(
         pass_rate = test_summary.get("pass_rate", 0)
 
         results_event = TimelineEvent(
+            id=str(uuid.uuid4()),
             event_type="tests_completed",
             description=f"Test execution completed: {overall_status} ({pass_rate:.1f}% pass rate)",
             actor_id="qa-agent",
@@ -1136,6 +1140,7 @@ async def verify_implementation(
         # Add timeline event
         from ..models.enhancement import TimelineEvent
         timeline_event = TimelineEvent(
+            id=str(uuid.uuid4()),
             event_type="verification_started",
             description="Implementation verification initiated",
             actor_id=user_id,
@@ -1157,6 +1162,7 @@ async def verify_implementation(
 
         # Add verification results timeline event
         results_event = TimelineEvent(
+            id=str(uuid.uuid4()),
             event_type="verification_completed",
             description=f"Verification completed: {verification_report.overall_status}",
             actor_id="qa-agent",
@@ -1345,6 +1351,7 @@ async def export_to_knowledge(
         user_name = current_user.get("name", current_user.get("username", "Unknown User"))
 
         timeline_event = TimelineEvent(
+            id=str(uuid.uuid4()),
             event_type="knowledge_exported",
             description="Enhancement exported to knowledge base",
             actor_id=user_id,
