@@ -1,16 +1,30 @@
 /**
  * useFileAttachment Hook
  * Handles file attachment logic for the AgentChat component.
+ * Supports per-agent file attachment state.
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { AttachedFile } from '../types';
+import type { AgentType } from '../../../api/agent.api';
 import {
   BINARY_EXTENSIONS,
   SUPPORTED_EXTENSIONS,
   MAX_TEXT_FILE_SIZE,
   MAX_BINARY_FILE_SIZE,
 } from '../constants';
+
+// Per-agent file state
+interface AgentFileState {
+  attachedFiles: AttachedFile[];
+  fileError: string | null;
+}
+
+// Initialize empty state for an agent
+const createInitialAgentFileState = (): AgentFileState => ({
+  attachedFiles: [],
+  fileError: null,
+});
 
 export interface UseFileAttachmentReturn {
   // State
@@ -25,12 +39,50 @@ export interface UseFileAttachmentReturn {
   handleClearAllFiles: () => void;
   getFileContext: () => string | undefined;
   clearFileError: () => void;
+
+  // Sync function (call when selectedAgent changes)
+  syncAgentFileState: (selectedAgent: AgentType) => void;
 }
 
-export function useFileAttachment(): UseFileAttachmentReturn {
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-  const [fileError, setFileError] = useState<string | null>(null);
+export function useFileAttachment(
+  selectedAgentRef: React.MutableRefObject<AgentType>
+): UseFileAttachmentReturn {
+  // Per-agent state storage (persists across agent switches)
+  const agentFileStatesRef = useRef<Record<AgentType, AgentFileState>>({
+    auto: createInitialAgentFileState(),
+    rag: createInitialAgentFileState(),
+    ims: createInitialAgentFileState(),
+    vision: createInitialAgentFileState(),
+    code: createInitialAgentFileState(),
+    planner: createInitialAgentFileState(),
+  });
+
+  // Current agent's state (React state for UI updates)
+  const [attachedFiles, setAttachedFilesState] = useState<AttachedFile[]>([]);
+  const [fileError, setFileErrorState] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to update a specific agent's state
+  const updateAgentFiles = useCallback((agent: AgentType, files: AttachedFile[]) => {
+    agentFileStatesRef.current[agent].attachedFiles = files;
+    if (agent === selectedAgentRef.current) {
+      setAttachedFilesState(files);
+    }
+  }, [selectedAgentRef]);
+
+  const updateAgentFileError = useCallback((agent: AgentType, error: string | null) => {
+    agentFileStatesRef.current[agent].fileError = error;
+    if (agent === selectedAgentRef.current) {
+      setFileErrorState(error);
+    }
+  }, [selectedAgentRef]);
+
+  // Sync function to call when agent changes
+  const syncAgentFileState = useCallback((selectedAgent: AgentType) => {
+    const savedState = agentFileStatesRef.current[selectedAgent];
+    setAttachedFilesState(savedState.attachedFiles);
+    setFileErrorState(savedState.fileError);
+  }, []);
 
   // Trigger file input click
   const handleFileAttach = useCallback(() => {
@@ -42,13 +94,15 @@ export function useFileAttachment(): UseFileAttachmentReturn {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    setFileError(null);
+    const currentAgent = selectedAgentRef.current;
+    const currentFiles = agentFileStatesRef.current[currentAgent].attachedFiles;
+    updateAgentFileError(currentAgent, null);
 
     for (const file of Array.from(files)) {
       // Check extension
       const ext = '.' + file.name.split('.').pop()?.toLowerCase();
       if (!SUPPORTED_EXTENSIONS.includes(ext)) {
-        setFileError(`Unsupported file type: ${ext}. Supported: ${SUPPORTED_EXTENSIONS.join(', ')}`);
+        updateAgentFileError(currentAgent, `Unsupported file type: ${ext}. Supported: ${SUPPORTED_EXTENSIONS.join(', ')}`);
         continue;
       }
 
@@ -58,13 +112,13 @@ export function useFileAttachment(): UseFileAttachmentReturn {
       const maxSizeLabel = isBinaryFile ? '2MB' : '500KB';
 
       if (file.size > maxSize) {
-        setFileError(`File too large: ${file.name} (max ${maxSizeLabel})`);
+        updateAgentFileError(currentAgent, `File too large: ${file.name} (max ${maxSizeLabel})`);
         continue;
       }
 
       // Check if already attached
-      if (attachedFiles.some(f => f.name === file.name)) {
-        setFileError(`File already attached: ${file.name}`);
+      if (currentFiles.some(f => f.name === file.name)) {
+        updateAgentFileError(currentAgent, `File already attached: ${file.name}`);
         continue;
       }
 
@@ -100,43 +154,51 @@ export function useFileAttachment(): UseFileAttachmentReturn {
           });
         }
 
-        setAttachedFiles(prev => [...prev, {
+        // Update state for the current agent
+        const updatedFiles = [...agentFileStatesRef.current[currentAgent].attachedFiles, {
           name: file.name,
           content,
           size: content.length  // Use extracted content size
-        }]);
+        }];
+        updateAgentFiles(currentAgent, updatedFiles);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        setFileError(`Failed to process file ${file.name}: ${errorMsg}`);
+        updateAgentFileError(currentAgent, `Failed to process file ${file.name}: ${errorMsg}`);
       }
     }
 
     // Reset input to allow re-selecting the same file
     if (e.target) e.target.value = '';
-  }, [attachedFiles]);
+  }, [selectedAgentRef, updateAgentFiles, updateAgentFileError]);
 
   // Remove a single file
   const handleRemoveFile = useCallback((fileName: string) => {
-    setAttachedFiles(prev => prev.filter(f => f.name !== fileName));
-    setFileError(null);
-  }, []);
+    const currentAgent = selectedAgentRef.current;
+    const updatedFiles = agentFileStatesRef.current[currentAgent].attachedFiles.filter(f => f.name !== fileName);
+    updateAgentFiles(currentAgent, updatedFiles);
+    updateAgentFileError(currentAgent, null);
+  }, [selectedAgentRef, updateAgentFiles, updateAgentFileError]);
 
   // Clear all files
   const handleClearAllFiles = useCallback(() => {
-    setAttachedFiles([]);
-    setFileError(null);
-  }, []);
+    const currentAgent = selectedAgentRef.current;
+    updateAgentFiles(currentAgent, []);
+    updateAgentFileError(currentAgent, null);
+  }, [selectedAgentRef, updateAgentFiles, updateAgentFileError]);
 
   // Get combined file context for API request
   const getFileContext = useCallback((): string | undefined => {
-    if (attachedFiles.length === 0) return undefined;
-    return attachedFiles.map(f => `=== File: ${f.name} ===\n${f.content}\n`).join('\n');
-  }, [attachedFiles]);
+    const currentAgent = selectedAgentRef.current;
+    const files = agentFileStatesRef.current[currentAgent].attachedFiles;
+    if (files.length === 0) return undefined;
+    return files.map(f => `=== File: ${f.name} ===\n${f.content}\n`).join('\n');
+  }, [selectedAgentRef]);
 
   // Clear file error
   const clearFileError = useCallback(() => {
-    setFileError(null);
-  }, []);
+    const currentAgent = selectedAgentRef.current;
+    updateAgentFileError(currentAgent, null);
+  }, [selectedAgentRef, updateAgentFileError]);
 
   return {
     attachedFiles,
@@ -148,6 +210,7 @@ export function useFileAttachment(): UseFileAttachmentReturn {
     handleClearAllFiles,
     getFileContext,
     clearFileError,
+    syncAgentFileState,
   };
 }
 

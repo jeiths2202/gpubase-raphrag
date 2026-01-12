@@ -10,7 +10,14 @@ from typing import Optional, Dict, Any
 
 from ..types import AgentType
 from ..registry import AgentRegistry, get_agent_registry
-from .deep_agent_adapter import DeepAgentAdapter, create_rag_deep_agent
+from .deep_agent_adapter import (
+    DeepAgentAdapter,
+    create_rag_deep_agent,
+    create_ims_deep_agent,
+    create_vision_deep_agent,
+    create_code_deep_agent,
+    create_planner_deep_agent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +44,15 @@ def register_deep_agent(
     """
     registry = registry or get_agent_registry()
 
+    # 에이전트 타입별 팩토리 함수 매핑
+    factory_map = {
+        AgentType.RAG: create_rag_deep_agent,
+        AgentType.IMS: create_ims_deep_agent,
+        AgentType.VISION: create_vision_deep_agent,
+        AgentType.CODE: create_code_deep_agent,
+        AgentType.PLANNER: create_planner_deep_agent,
+    }
+
     try:
         # DeepAgentAdapter를 반환하는 팩토리 클래스 생성
         class DeepAgentFactory:
@@ -46,10 +62,13 @@ def register_deep_agent(
 
             def __call__(self, **call_kwargs):
                 merged = {**self.kwargs, **call_kwargs}
-                # agent_type은 별도로 처리 (create_rag_deep_agent에서는 불필요)
+                # agent_type은 별도로 처리
                 merged.pop("agent_type", None)
-                if self._agent_type == AgentType.RAG:
-                    return create_rag_deep_agent(**merged)
+
+                # 타입별 팩토리 함수 사용
+                factory_func = factory_map.get(self._agent_type)
+                if factory_func:
+                    return factory_func(**merged)
                 else:
                     return DeepAgentAdapter(agent_type=self._agent_type, **merged)
 
@@ -112,14 +131,26 @@ def get_deep_agent(
 
     Returns:
         DeepAgentAdapter 인스턴스
+
+    Raises:
+        ValueError: 지원하지 않는 에이전트 타입인 경우
     """
-    if agent_type == AgentType.RAG:
-        return create_rag_deep_agent(**kwargs)
+    # Deep Agent 지원 에이전트 타입
+    # RAG만 Deep Agent 사용 (Ollama LLM이 느려서 복잡한 tool 호출이 필요한 에이전트는 일반 에이전트 사용)
+    factory_map = {
+        AgentType.RAG: create_rag_deep_agent,
+        # AgentType.IMS: create_ims_deep_agent,        # 일반 에이전트 사용 (tool 호출 반복으로 느림)
+        # AgentType.VISION: create_vision_deep_agent,  # 일반 에이전트 사용
+        # AgentType.CODE: create_code_deep_agent,      # 일반 에이전트 사용
+        # AgentType.PLANNER: create_planner_deep_agent,  # 일반 에이전트 사용
+    }
+
+    factory_func = factory_map.get(agent_type)
+    if factory_func:
+        return factory_func(**kwargs)
     else:
-        return DeepAgentAdapter(
-            agent_type=agent_type,
-            **kwargs
-        )
+        # 지원하지 않는 타입은 예외 발생 → 일반 에이전트로 폴백
+        raise ValueError(f"Deep Agent not supported for {agent_type.value}, use regular agent")
 
 
 def is_deep_agent_enabled() -> bool:

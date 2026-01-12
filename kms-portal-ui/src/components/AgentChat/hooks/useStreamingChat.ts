@@ -297,9 +297,11 @@ export function useStreamingChat(
 
       // Cast language to supported type (validated by UI)
       const language = userLanguage as SupportedLanguage;
+      // 모든 에이전트에서 Deep Agents 사용
+      const useDeepAgent = true;
       const requestPayload = requestingAgent === 'auto'
-        ? { task: userMessage.content, language, file_context: combinedContext, ui_context: uiContext }
-        : { task: userMessage.content, agent_type: requestingAgent, language, file_context: combinedContext, ui_context: uiContext };
+        ? { task: userMessage.content, language, file_context: combinedContext, ui_context: uiContext, use_deep_agent: useDeepAgent }
+        : { task: userMessage.content, agent_type: requestingAgent, language, file_context: combinedContext, ui_context: uiContext, use_deep_agent: useDeepAgent };
 
       // Process stream
       for await (const chunk of streamAgent(requestPayload, controller.signal)) {

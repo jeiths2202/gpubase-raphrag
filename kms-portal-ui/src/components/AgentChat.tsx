@@ -122,7 +122,7 @@ export const AgentChat: React.FC = () => {
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [pendingQuery, setPendingQuery] = useState<string | null>(null);
 
-  // File attachment (using custom hook)
+  // File attachment (using custom hook with per-agent state)
   const {
     attachedFiles,
     fileError,
@@ -133,9 +133,10 @@ export const AgentChat: React.FC = () => {
     handleClearAllFiles,
     getFileContext,
     clearFileError,
-  } = useFileAttachment();
+    syncAgentFileState,
+  } = useFileAttachment(selectedAgentRef);
 
-  // URL attachment (using custom hook)
+  // URL attachment (using custom hook with per-agent state)
   const {
     attachedUrls,
     detectedUrl,
@@ -144,7 +145,8 @@ export const AgentChat: React.FC = () => {
     handleRemoveUrl,
     getUrlContext,
     dismissDetectedUrl,
-  } = useUrlAttachment();
+    syncAgentUrlState,
+  } = useUrlAttachment(selectedAgentRef);
 
   // Streaming chat (using custom hook)
   const {
@@ -210,12 +212,16 @@ export const AgentChat: React.FC = () => {
     // Sync streaming chat state for the selected agent
     syncAgentState(selectedAgent);
 
+    // Sync file and URL attachment states for the selected agent
+    syncAgentFileState(selectedAgent);
+    syncAgentUrlState(selectedAgent);
+
     // Update artifact store to show this agent's artifacts
     setArtifactAgentType(selectedAgent);
 
     // Load conversations for the new agent type
     loadConversations(selectedAgent);
-  }, [selectedAgent, loadConversations, setArtifactAgentType, syncAgentState]);
+  }, [selectedAgent, loadConversations, setArtifactAgentType, syncAgentState, syncAgentFileState, syncAgentUrlState]);
 
   // Auto-load active conversation when agent type changes and there's an active conversation
   useEffect(() => {
@@ -247,6 +253,19 @@ export const AgentChat: React.FC = () => {
     // Detect URLs in input
     handleUrlDetect(value);
   };
+
+  // Handle paste event explicitly to ensure URL detection works
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    // Get pasted text
+    const pastedText = e.clipboardData.getData('text');
+    if (pastedText) {
+      // Use setTimeout to ensure the input value is updated before detection
+      setTimeout(() => {
+        const currentValue = inputRef.current?.value || '';
+        handleUrlDetect(currentValue);
+      }, 0);
+    }
+  }, [handleUrlDetect]);
 
   // Handle send message (wrapper for streaming hook)
   const handleSend = useCallback(async () => {
@@ -432,8 +451,8 @@ export const AgentChat: React.FC = () => {
             <Plus size={16} />
           </button>
 
-          {/* Trace panel toggle button */}
-          {currentTrace.dag && (
+          {/* Trace panel toggle button - Planner only */}
+          {selectedAgent === 'planner' && currentTrace.dag && (
             <button
               className={`agent-chat-trace-toggle ${tracePanel.isOpen ? 'active' : ''}`}
               onClick={toggleTracePanel}
@@ -667,6 +686,7 @@ export const AgentChat: React.FC = () => {
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleKeyPress}
+            onPaste={handlePaste}
             rows={1}
             disabled={isLoading}
           />

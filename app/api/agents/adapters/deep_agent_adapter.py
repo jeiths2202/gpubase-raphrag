@@ -6,6 +6,7 @@ PR #719 패치 버전 사용 (system_prompt KeyError 수정됨)
 """
 import os
 import time
+import asyncio
 import logging
 from typing import Optional, List, Dict, Any, AsyncGenerator
 
@@ -135,8 +136,14 @@ class DeepAgentAdapter(BaseAgent):
                     messages.append(AIMessage(content=hist["answer"]))
             messages.append(HumanMessage(content=task))
 
-            # Deep Agent 실행
-            result = await agent.ainvoke({"messages": messages})
+            # Deep Agent 실행 (recursion_limit으로 무한 루프 방지)
+            result = await asyncio.wait_for(
+                agent.ainvoke(
+                    {"messages": messages},
+                    config={"recursion_limit": 25}  # 최대 25번 반복
+                ),
+                timeout=300.0  # 5분 타임아웃
+            )
 
             # 결과 추출
             answer = ""
@@ -262,4 +269,132 @@ Answer in the user's language."""
         description="RAG Deep Agent with knowledge base access",
         tools=tools if tools else None,
         system_prompt=system_prompt or default_prompt,
+    )
+
+
+def create_ims_deep_agent(
+    name: str = "IMSDeepAgent",
+    system_prompt: Optional[str] = None,
+    additional_tools: Optional[List] = None,
+) -> DeepAgentAdapter:
+    """IMS 도구가 포함된 Deep Agent 생성
+
+    Args:
+        name: 에이전트 이름
+        system_prompt: 시스템 프롬프트
+        additional_tools: 추가 도구 목록
+
+    Returns:
+        IMS 도구가 연동된 DeepAgentAdapter
+    """
+    from ..middleware import get_ims_tools, IMS_SYSTEM_PROMPT
+
+    tools = get_ims_tools()
+
+    # 추가 도구
+    if additional_tools:
+        tools.extend(additional_tools)
+
+    return DeepAgentAdapter(
+        name=name,
+        agent_type=AgentType.IMS,
+        description="IMS Deep Agent with issue tracking access",
+        tools=tools if tools else None,
+        system_prompt=system_prompt or IMS_SYSTEM_PROMPT,
+    )
+
+
+def create_vision_deep_agent(
+    name: str = "VisionDeepAgent",
+    system_prompt: Optional[str] = None,
+    additional_tools: Optional[List] = None,
+) -> DeepAgentAdapter:
+    """Vision 도구가 포함된 Deep Agent 생성
+
+    Args:
+        name: 에이전트 이름
+        system_prompt: 시스템 프롬프트
+        additional_tools: 추가 도구 목록
+
+    Returns:
+        Vision 도구가 연동된 DeepAgentAdapter
+    """
+    from ..middleware import get_vision_tools, VISION_SYSTEM_PROMPT
+
+    tools = get_vision_tools()
+
+    # 추가 도구
+    if additional_tools:
+        tools.extend(additional_tools)
+
+    return DeepAgentAdapter(
+        name=name,
+        agent_type=AgentType.VISION,
+        description="Vision Deep Agent with image analysis capabilities",
+        tools=tools if tools else None,
+        system_prompt=system_prompt or VISION_SYSTEM_PROMPT,
+    )
+
+
+def create_code_deep_agent(
+    name: str = "CodeDeepAgent",
+    system_prompt: Optional[str] = None,
+    additional_tools: Optional[List] = None,
+) -> DeepAgentAdapter:
+    """Code 도구가 포함된 Deep Agent 생성
+
+    Args:
+        name: 에이전트 이름
+        system_prompt: 시스템 프롬프트
+        additional_tools: 추가 도구 목록
+
+    Returns:
+        Code 도구가 연동된 DeepAgentAdapter
+    """
+    from ..middleware import get_code_tools, CODE_SYSTEM_PROMPT
+
+    tools = get_code_tools()
+
+    # 추가 도구
+    if additional_tools:
+        tools.extend(additional_tools)
+
+    return DeepAgentAdapter(
+        name=name,
+        agent_type=AgentType.CODE,
+        description="Code Deep Agent with code generation and execution capabilities",
+        tools=tools if tools else None,
+        system_prompt=system_prompt or CODE_SYSTEM_PROMPT,
+    )
+
+
+def create_planner_deep_agent(
+    name: str = "PlannerDeepAgent",
+    system_prompt: Optional[str] = None,
+    additional_tools: Optional[List] = None,
+) -> DeepAgentAdapter:
+    """Planner 도구가 포함된 Deep Agent 생성
+
+    Args:
+        name: 에이전트 이름
+        system_prompt: 시스템 프롬프트
+        additional_tools: 추가 도구 목록
+
+    Returns:
+        Planner 도구가 연동된 DeepAgentAdapter
+    """
+    from ..middleware import get_planner_tools, PLANNER_SYSTEM_PROMPT
+
+    tools = get_planner_tools()
+
+    # 추가 도구
+    if additional_tools:
+        tools.extend(additional_tools)
+
+    return DeepAgentAdapter(
+        name=name,
+        agent_type=AgentType.PLANNER,
+        description="Planner Deep Agent with task decomposition capabilities",
+        tools=tools if tools else None,
+        system_prompt=system_prompt or PLANNER_SYSTEM_PROMPT,
     )

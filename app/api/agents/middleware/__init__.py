@@ -13,6 +13,21 @@ from .ims_middleware import (
     get_ims_tools,
     IMS_SYSTEM_PROMPT,
 )
+from .vision_middleware import (
+    VisionToolsProvider,
+    get_vision_tools,
+    VISION_SYSTEM_PROMPT,
+)
+from .code_middleware import (
+    CodeToolsProvider,
+    get_code_tools,
+    CODE_SYSTEM_PROMPT,
+)
+from .planner_middleware import (
+    PlannerToolsProvider,
+    get_planner_tools,
+    PLANNER_SYSTEM_PROMPT,
+)
 
 __all__ = [
     # RAG
@@ -24,4 +39,16 @@ __all__ = [
     "IMSToolsProvider",
     "get_ims_tools",
     "IMS_SYSTEM_PROMPT",
+    # Vision
+    "VisionToolsProvider",
+    "get_vision_tools",
+    "VISION_SYSTEM_PROMPT",
+    # Code
+    "CodeToolsProvider",
+    "get_code_tools",
+    "CODE_SYSTEM_PROMPT",
+    # Planner
+    "PlannerToolsProvider",
+    "get_planner_tools",
+    "PLANNER_SYSTEM_PROMPT",
 ]

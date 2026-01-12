@@ -18,6 +18,7 @@ from .types import (
 from .base import BaseAgent
 from .registry import AgentRegistry, get_agent_registry
 from .executor import AgentExecutor, get_executor
+from .adapters.integration import get_deep_agent
 from .intent import IntentClassifier, get_intent_classifier, IntentResult
 from .dag import DAGBuilder, get_dag_builder
 from .parallel_executor import ParallelExecutor, get_parallel_executor
@@ -181,7 +182,8 @@ class AgentOrchestrator:
             max_steps=request.max_steps,
             file_context=request.file_context,
             url_context=url_content,
-            url_source=url_source
+            url_source=url_source,
+            use_deep_agent=getattr(request, 'use_deep_agent', False)
         )
 
         # Select agent
@@ -199,8 +201,16 @@ class AgentOrchestrator:
         logger.info(f"[Orchestrator] Intent: {intent_result.intent.value} "
                    f"(confidence={intent_result.confidence:.2f}, method={intent_result.method})")
 
-        # Get agent
-        agent = self.agent_registry.get(agent_type)
+        # Get agent - use Deep Agent if enabled
+        if getattr(request, 'use_deep_agent', False):
+            try:
+                agent = get_deep_agent(agent_type)
+                logger.info(f"[Orchestrator] Using Deep Agent: {agent.name}")
+            except Exception as e:
+                logger.warning(f"[Orchestrator] Failed to create Deep Agent, falling back: {e}")
+                agent = self.agent_registry.get(agent_type)
+        else:
+            agent = self.agent_registry.get(agent_type)
 
         # ========================================================================
         # ORCHESTRATOR-LEVEL CONSTRAINT VALIDATION
@@ -290,7 +300,8 @@ class AgentOrchestrator:
             max_steps=request.max_steps,
             file_context=request.file_context,
             url_context=url_content,
-            url_source=url_source
+            url_source=url_source,
+            use_deep_agent=getattr(request, 'use_deep_agent', False)
         )
 
         # Process UI context if provided
@@ -321,8 +332,18 @@ class AgentOrchestrator:
 
         print(f"[Orchestrator] agent_type={agent_type.value}", flush=True)
 
-        agent = self.agent_registry.get(agent_type)
-        print(f"[Orchestrator] agent={agent.name}", flush=True)
+        # Get agent - use Deep Agent if enabled
+        if getattr(request, 'use_deep_agent', False):
+            try:
+                agent = get_deep_agent(agent_type)
+                print(f"[Orchestrator] Using Deep Agent: {agent.name}", flush=True)
+            except Exception as e:
+                logger.warning(f"[Orchestrator] Failed to create Deep Agent, falling back: {e}")
+                agent = self.agent_registry.get(agent_type)
+                print(f"[Orchestrator] Fallback to regular agent: {agent.name}", flush=True)
+        else:
+            agent = self.agent_registry.get(agent_type)
+            print(f"[Orchestrator] agent={agent.name}", flush=True)
 
         # ========================================================================
         # ORCHESTRATOR-LEVEL CONSTRAINT VALIDATION (Stream)
@@ -514,7 +535,8 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
             max_steps=request.max_steps,
             file_context=request.file_context,
             url_context=url_content,
-            url_source=url_source
+            url_source=url_source,
+            use_deep_agent=getattr(request, 'use_deep_agent', False)
         )
 
         # Classify primary agent type
@@ -755,7 +777,8 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
             max_steps=request.max_steps,
             file_context=request.file_context,
             url_context=url_content,
-            url_source=url_source
+            url_source=url_source,
+            use_deep_agent=getattr(request, 'use_deep_agent', False)
         )
 
         # Classify
