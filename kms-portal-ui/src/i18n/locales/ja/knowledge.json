@@ -38,6 +38,8 @@
     "thinking": "考え中...",
     "suggestions": "おすすめの質問",
     "clearHistory": "履歴をクリア",
+    "deleteHistory": "履歴を削除",
+    "confirmDeleteAll": "すべての会話履歴を削除してもよろしいですか？",
     "errorMessage": "申し訳ございません。エラーが発生しました。もう一度お試しください。",
     "noConversations": "会話がありません",
     "startNewConversation": "新しい会話を開始してください",

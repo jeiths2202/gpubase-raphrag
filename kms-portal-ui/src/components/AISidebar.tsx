@@ -164,6 +164,9 @@ const STORAGE_KEYS = {
   CURRENT_CONVERSATION: 'kms-portal-current-conversation',
 };
 
+// API base URL
+const API_BASE = '/api/v1';
+
 // Markdown-like renderer for code blocks
 const renderMessageContent = (content: string): React.ReactNode => {
   // Handle undefined/null content
@@ -494,15 +497,31 @@ export const AISidebar: React.FC = () => {
     setIsMinimized(prev => !prev);
   }, []);
 
-  // Fetch conversations
+  // Fetch conversations (filtered by rag agent type for AI sidebar)
   const fetchConversations = async () => {
     setIsLoadingConversations(true);
     try {
-      const response = await fetch('/api/v1/conversations');
-      const data = await response.json();
-      setConversations(data.conversations || []);
+      const response = await fetch(`${API_BASE}/conversations?agent_type=rag&limit=50`, {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch conversations');
+      }
+      const result = await response.json();
+      // API returns PaginatedResponse with data.conversations
+      const conversationList = result.data?.conversations || [];
+      // Map to frontend Conversation interface
+      setConversations(conversationList.map((c: any) => ({
+        id: c.id,
+        title: c.title || 'Untitled',
+        lastMessage: '', // Will be fetched when selected
+        messageCount: c.message_count || 0,
+        createdAt: c.created_at,
+        updatedAt: c.updated_at,
+      })));
     } catch (error) {
       console.error('Failed to fetch conversations:', error);
+      setConversations([]);
     } finally {
       setIsLoadingConversations(false);
     }
@@ -512,16 +531,32 @@ export const AISidebar: React.FC = () => {
   const fetchConversationMessages = async (conversationId: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/v1/conversations/${conversationId}/messages`);
-      const data = await response.json();
+      const response = await fetch(`${API_BASE}/conversations/${conversationId}/messages`, {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch messages');
+      }
+      const result = await response.json();
+      // API returns SuccessResponse with data array of messages
+      const messageList = result.data || [];
 
-      if (data.messages) {
+      if (messageList.length > 0) {
         setMessages(
-          data.messages.map((msg: any) => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp),
+          messageList.map((msg: any) => ({
+            id: msg.id,
+            role: msg.role,
+            content: msg.content,
+            sources: msg.sources || [],
+            timestamp: new Date(msg.created_at),
           }))
         );
+        setCurrentConversationId(conversationId);
+        setShowSuggestions(false);
+        setActiveTab('chat');
+      } else {
+        // Empty conversation
+        setMessages([]);
         setCurrentConversationId(conversationId);
         setShowSuggestions(false);
         setActiveTab('chat');
@@ -536,9 +571,14 @@ export const AISidebar: React.FC = () => {
   // Delete conversation
   const deleteConversation = async (conversationId: string) => {
     try {
-      await fetch(`/api/v1/conversations/${conversationId}`, {
+      const response = await fetch(`${API_BASE}/conversations/${conversationId}`, {
         method: 'DELETE',
+        credentials: 'include',
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete conversation');
+      }
 
       setConversations((prev) => prev.filter((c) => c.id !== conversationId));
 
@@ -547,6 +587,28 @@ export const AISidebar: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to delete conversation:', error);
+    }
+  };
+
+  // Delete all conversations (기록 삭제)
+  const deleteAllConversations = async () => {
+    if (!window.confirm(t('knowledge.chat.confirmDeleteAll') || 'Are you sure you want to delete all conversation history?')) {
+      return;
+    }
+
+    try {
+      // Delete each conversation
+      for (const conv of conversations) {
+        await fetch(`${API_BASE}/conversations/${conv.id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+      }
+
+      setConversations([]);
+      handleNewConversation();
+    } catch (error) {
+      console.error('Failed to delete all conversations:', error);
     }
   };
 
@@ -564,6 +626,50 @@ export const AISidebar: React.FC = () => {
     setInputValue(e.target.value);
     e.target.style.height = 'auto';
     e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+  };
+
+  // Create a new conversation in the backend
+  const createConversation = async (title: string): Promise<string | null> => {
+    try {
+      const response = await fetch(`${API_BASE}/conversations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          title: title.substring(0, 50) + (title.length > 50 ? '...' : ''),
+          agent_type: 'rag',
+          strategy: 'auto',
+          language: 'auto',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create conversation');
+      }
+
+      const result = await response.json();
+      return result.data?.id || null;
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+      return null;
+    }
+  };
+
+  // Save message to backend
+  const saveMessage = async (conversationId: string, role: 'user' | 'assistant', content: string) => {
+    try {
+      await fetch(`${API_BASE}/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          role: role,
+          content: content,
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to save message:', error);
+    }
   };
 
   // Handle send message with streaming
@@ -588,6 +694,20 @@ export const AISidebar: React.FC = () => {
       inputRef.current.style.height = 'auto';
     }
 
+    // Create conversation if needed
+    let conversationId = currentConversationId;
+    if (!conversationId) {
+      conversationId = await createConversation(userMessage.content);
+      if (conversationId) {
+        setCurrentConversationId(conversationId);
+      }
+    }
+
+    // Save user message to backend
+    if (conversationId) {
+      await saveMessage(conversationId, 'user', userMessage.content);
+    }
+
     try {
       // Get UI context for context-aware AI
       const uiContext = getUIContext();
@@ -595,7 +715,7 @@ export const AISidebar: React.FC = () => {
       // Use agents streaming endpoint (works without Neo4j)
       // Use user's language preference from UI context for response language
       const userLanguage = uiContext?.language || 'auto';
-      const response = await fetch('/api/v1/agents/stream', {
+      const response = await fetch(`${API_BASE}/agents/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -689,17 +809,21 @@ export const AISidebar: React.FC = () => {
       setMessages((prev) => [...prev, assistantMessage]);
       setStreamingContent('');
 
-      // Update conversation ID if new
-      if (!currentConversationId) {
-        setCurrentConversationId(`conv-${Date.now()}`);
+      // Save assistant message to backend
+      if (conversationId && accumulatedContent) {
+        await saveMessage(conversationId, 'assistant', accumulatedContent);
       }
+
+      // Refresh conversations list
+      fetchConversations();
     } catch (error) {
       console.error('Chat error:', error);
       // Fallback to non-streaming
       try {
-        const fallbackResponse = await fetch('/api/v1/query', {
+        const fallbackResponse = await fetch(`${API_BASE}/query`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ question: userMessage.content }),
         });
 
@@ -714,6 +838,11 @@ export const AISidebar: React.FC = () => {
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
+
+        // Save to backend
+        if (conversationId && data.response) {
+          await saveMessage(conversationId, 'assistant', data.response);
+        }
       } catch (fallbackError) {
         // Add error message
         setMessages((prev) => [
@@ -1089,9 +1218,13 @@ export const AISidebar: React.FC = () => {
         {activeTab === 'conversations' && (
           <div className="ai-conversations">
             <div className="ai-conversations-header">
-              <button className="btn btn-primary btn-sm" onClick={handleNewConversation}>
-                <Plus size={16} />
-                <span>{t('knowledge.newConversation')}</span>
+              <button className="ai-conversations-action delete" onClick={deleteAllConversations} disabled={conversations.length === 0}>
+                <RefreshCw size={14} />
+                <span>{t('knowledge.chat.deleteHistory') || 'Delete History'}</span>
+              </button>
+              <button className="ai-conversations-action new" onClick={handleNewConversation}>
+                <Plus size={14} />
+                <span>{t('knowledge.newConversation') || 'New Chat'}</span>
               </button>
             </div>
 

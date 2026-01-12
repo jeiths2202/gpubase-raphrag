@@ -38,6 +38,8 @@
     "thinking": "생각 중...",
     "suggestions": "추천 질문",
     "clearHistory": "기록 삭제",
+    "deleteHistory": "기록 삭제",
+    "confirmDeleteAll": "모든 대화 기록을 삭제하시겠습니까?",
     "errorMessage": "죄송합니다. 오류가 발생했습니다. 다시 시도해 주세요.",
     "noConversations": "대화 기록이 없습니다",
     "startNewConversation": "새 대화를 시작하세요",

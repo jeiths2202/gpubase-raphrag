@@ -38,6 +38,8 @@
     "thinking": "Thinking...",
     "suggestions": "Suggested questions",
     "clearHistory": "Clear history",
+    "deleteHistory": "Delete History",
+    "confirmDeleteAll": "Are you sure you want to delete all conversation history?",
     "errorMessage": "Sorry, I encountered an error. Please try again.",
     "noConversations": "No conversations yet",
     "startNewConversation": "Start a new conversation",
