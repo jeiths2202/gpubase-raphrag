@@ -89,6 +89,8 @@ def make_request(
             response = requests.get(url, headers=headers, timeout=timeout)
         elif method.upper() == "POST":
             response = requests.post(url, headers=headers, json=data, timeout=timeout)
+        elif method.upper() == "DELETE":
+            response = requests.delete(url, headers=headers, timeout=timeout)
         else:
             raise ValueError(f"Unsupported method: {method}")
 
@@ -379,6 +381,200 @@ def test_url_context_rag(token: str) -> TestResult:
         result.message = f"Failed: {error_msg}"
 
     return result
+
+
+# =============================================================================
+# Enhancement Request API Tests
+# =============================================================================
+
+def test_enhancement_create(token: str) -> TestResult:
+    """Test creating an enhancement request."""
+    result = TestResult("Enhancement Create", "API")
+
+    data = {
+        "title": "Test Enhancement Request",
+        "description": "This is a test enhancement request created by the automated test suite to verify PostgreSQL integration."
+    }
+
+    response, elapsed = make_request("POST", "/enhancements", token=token, data=data)
+    result.response_time = elapsed
+
+    if response and response.get("success") and response.get("data"):
+        enhancement_data = response["data"]
+        enhancement_id = enhancement_data.get("id")
+        if enhancement_id:
+            result.success = True
+            result.message = f"Created enhancement: {enhancement_id[:8]}..."
+            result.data = {"enhancement_id": enhancement_id}
+        else:
+            result.message = "Enhancement created but no ID returned"
+    else:
+        error_msg = response.get("error", {}).get("message") if isinstance(response.get("error"), dict) else response.get("error", "Unknown error")
+        result.message = f"Failed: {error_msg}"
+
+    return result
+
+
+def test_enhancement_list(token: str) -> TestResult:
+    """Test listing enhancement requests."""
+    result = TestResult("Enhancement List", "API")
+
+    response, elapsed = make_request("GET", "/enhancements?page=1&limit=10", token=token)
+    result.response_time = elapsed
+
+    if response and response.get("success"):
+        data = response.get("data", {})
+        items = data.get("items", [])
+        total = data.get("total", 0)
+        result.success = True
+        result.message = f"Listed {len(items)} items (total: {total})"
+        result.data = {"count": len(items), "total": total}
+    else:
+        error_msg = response.get("error", {}).get("message") if isinstance(response.get("error"), dict) else response.get("error", "Unknown error")
+        result.message = f"Failed: {error_msg}"
+
+    return result
+
+
+def test_enhancement_get(token: str, enhancement_id: str) -> TestResult:
+    """Test getting a specific enhancement."""
+    result = TestResult("Enhancement Get", "API")
+
+    response, elapsed = make_request("GET", f"/enhancements/{enhancement_id}", token=token)
+    result.response_time = elapsed
+
+    if response and response.get("success") and response.get("data"):
+        enhancement = response["data"]
+        result.success = True
+        result.message = f"Retrieved: {enhancement.get('title', 'Unknown')[:30]}..."
+        result.data = {"status": enhancement.get("status"), "ai_analyzed": enhancement.get("ai_analyzed")}
+    else:
+        error_msg = response.get("error", {}).get("message") if isinstance(response.get("error"), dict) else response.get("error", "Unknown error")
+        result.message = f"Failed: {error_msg}"
+
+    return result
+
+
+def test_enhancement_dashboard_stats(token: str) -> TestResult:
+    """Test getting dashboard statistics."""
+    result = TestResult("Enhancement Dashboard Stats", "API")
+
+    response, elapsed = make_request("GET", "/enhancements/dashboard", token=token)
+    result.response_time = elapsed
+
+    if response and response.get("success") and response.get("data"):
+        stats = response["data"]
+        total = stats.get("total_requests", 0)
+        result.success = True
+        result.message = f"Total requests: {total}, AI analyzed: {stats.get('ai_analyzed_count', 0)}"
+        result.data = stats
+    else:
+        error_msg = response.get("error", {}).get("message") if isinstance(response.get("error"), dict) else response.get("error", "Unknown error")
+        result.message = f"Failed: {error_msg}"
+
+    return result
+
+
+def test_enhancement_add_comment(token: str, enhancement_id: str) -> TestResult:
+    """Test adding a comment to an enhancement."""
+    result = TestResult("Enhancement Add Comment", "API")
+
+    # The comment endpoint uses Form data, not JSON
+    url = f"{API_BASE_URL}/enhancements/{enhancement_id}/comments"
+    headers = {"Authorization": f"Bearer {token}"}
+    form_data = {"content": "This is an automated test comment."}
+
+    start_time = time.time()
+    try:
+        response = requests.post(url, headers=headers, data=form_data, timeout=30)
+        elapsed = time.time() - start_time
+        result.response_time = elapsed
+        response_json = response.json()
+
+        if response_json and response_json.get("success"):
+            result.success = True
+            result.message = "Comment added successfully"
+        else:
+            error_msg = response_json.get("error", {}).get("message") if isinstance(response_json.get("error"), dict) else response_json.get("detail", "Unknown error")
+            result.message = f"Failed: {error_msg}"
+    except Exception as e:
+        result.response_time = time.time() - start_time
+        result.message = f"Error: {str(e)}"
+
+    return result
+
+
+def test_enhancement_delete(token: str, enhancement_id: str) -> TestResult:
+    """Test deleting an enhancement."""
+    result = TestResult("Enhancement Delete", "API")
+
+    response, elapsed = make_request("DELETE", f"/enhancements/{enhancement_id}", token=token)
+    result.response_time = elapsed
+
+    # Delete endpoint returns {"status": "deleted", "id": ...}
+    if response and response.get("status") == "deleted":
+        result.success = True
+        result.message = f"Deleted enhancement: {enhancement_id[:8]}..."
+    else:
+        error_msg = response.get("detail") if response.get("detail") else response.get("error", "Unknown error")
+        result.message = f"Failed: {error_msg}"
+
+    return result
+
+
+def run_enhancement_tests(token: str) -> List[TestResult]:
+    """Run all enhancement request tests."""
+    results = []
+    enhancement_id = None
+
+    # Test 1: Create Enhancement
+    print("Running: Enhancement Create...")
+    create_result = test_enhancement_create(token)
+    results.append(create_result)
+    print(create_result)
+
+    if create_result.success and create_result.data:
+        enhancement_id = create_result.data.get("enhancement_id")
+    print()
+
+    # Test 2: List Enhancements
+    print("Running: Enhancement List...")
+    list_result = test_enhancement_list(token)
+    results.append(list_result)
+    print(list_result)
+    print()
+
+    # Test 3: Get Enhancement (if created)
+    if enhancement_id:
+        print("Running: Enhancement Get...")
+        get_result = test_enhancement_get(token, enhancement_id)
+        results.append(get_result)
+        print(get_result)
+        print()
+
+        # Test 4: Add Comment
+        print("Running: Enhancement Add Comment...")
+        comment_result = test_enhancement_add_comment(token, enhancement_id)
+        results.append(comment_result)
+        print(comment_result)
+        print()
+
+    # Test 5: Dashboard Stats
+    print("Running: Enhancement Dashboard Stats...")
+    stats_result = test_enhancement_dashboard_stats(token)
+    results.append(stats_result)
+    print(stats_result)
+    print()
+
+    # Test 6: Delete Enhancement (cleanup)
+    if enhancement_id:
+        print("Running: Enhancement Delete (cleanup)...")
+        delete_result = test_enhancement_delete(token, enhancement_id)
+        results.append(delete_result)
+        print(delete_result)
+        print()
+
+    return results
 
 
 # =============================================================================
@@ -1414,6 +1610,18 @@ def run_api_tests() -> List[TestResult]:
     stream_weather_result = test_stream_constraint_weather(token)
     results.append(stream_weather_result)
     print(stream_weather_result)
+    print()
+
+    # =============================================================================
+    # Enhancement Request Tests
+    # =============================================================================
+    print("=" * 60)
+    print("Enhancement Request Tests (PostgreSQL Integration)")
+    print("=" * 60)
+    print()
+
+    enhancement_results = run_enhancement_tests(token)
+    results.extend(enhancement_results)
 
     return results
 
