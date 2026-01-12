@@ -130,21 +130,28 @@ class DeepAgentAdapter(BaseAgent):
             logger.warning(f"[{self.name}] langchain-openai not available. Install with: pip install langchain-openai")
 
     def _get_llm(self):
-        """LLM 인스턴스 반환 (Lazy initialization)"""
+        """LLM 인스턴스 반환 (Lazy initialization)
+
+        Ollama qwen2.5:3b 모델 사용 (로컬 실행)
+        """
         if self._llm is not None:
             return self._llm
 
         if not LANGCHAIN_AVAILABLE:
             raise RuntimeError("langchain-openai is not installed. Run: pip install langchain-openai")
 
+        # Ollama 사용 (qwen2.5:3b - tool calling 지원)
+        ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+        ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+
         self._llm = ChatOpenAI(
-            model=self.nim_model,
-            base_url=self.nim_base_url,
-            api_key="not-needed",
+            model=ollama_model,
+            base_url=ollama_base_url,
+            api_key="ollama",  # Ollama doesn't need API key but field is required
             temperature=self.temperature,
             max_tokens=self.max_tokens,
         )
-        logger.info(f"[{self.name}] LLM initialized: {self.nim_model} @ {self.nim_base_url}")
+        logger.info(f"[{self.name}] LLM initialized: {ollama_model} @ {ollama_base_url}")
         return self._llm
 
     def _build_subagents(self) -> Optional[List]:
@@ -175,41 +182,71 @@ class DeepAgentAdapter(BaseAgent):
         ]
 
     def _get_deep_agent(self):
-        """Deep Agent 인스턴스 반환 (Lazy initialization)"""
+        """Deep Agent 인스턴스 반환 (Lazy initialization)
+
+        LangGraph의 create_react_agent를 직접 사용하여
+        deepagents의 SubAgentMiddleware 문제를 회피합니다.
+        """
         if self._deep_agent is not None:
             return self._deep_agent
 
-        if not DEEPAGENTS_AVAILABLE:
-            raise RuntimeError("deepagents is not installed. Run: pip install deepagents")
+        if not LANGCHAIN_AVAILABLE:
+            raise RuntimeError("langchain-openai is not installed. Run: pip install langchain-openai")
+
+        try:
+            from langgraph.prebuilt import create_react_agent
+        except ImportError:
+            raise RuntimeError("langgraph is not installed. Run: pip install langgraph")
 
         llm = self._get_llm()
 
-        # create_deep_agent 호출
-        agent_kwargs = {
-            "model": llm,
-            "system_prompt": self.system_prompt,
-            "name": self.name,
-        }
+        # LangGraph의 create_react_agent 사용 (deepagents 대신)
+        # 이렇게 하면 SubAgentMiddleware 문제를 회피할 수 있음
+        tools = self._custom_tools if self._custom_tools else []
 
-        # 커스텀 도구 추가
-        if self._custom_tools:
-            agent_kwargs["tools"] = self._custom_tools
-            logger.debug(f"[{self.name}] Added {len(self._custom_tools)} custom tools")
+        logger.debug(f"[{self.name}] Creating agent with {len(tools)} tools")
+        logger.debug(f"[{self.name}] System prompt length: {len(self.system_prompt)} chars")
 
-        # SubAgents 추가
-        subagents = self._build_subagents()
-        if subagents:
-            agent_kwargs["subagents"] = subagents
-            logger.debug(f"[{self.name}] Added {len(subagents)} subagents")
-
-        self._deep_agent = create_deep_agent(**agent_kwargs)
-        logger.info(f"[{self.name}] Deep Agent created")
+        self._deep_agent = create_react_agent(
+            model=llm,
+            tools=tools,
+            prompt=self.system_prompt,
+        )
+        logger.info(f"[{self.name}] LangGraph React Agent created")
 
         return self._deep_agent
+
+    def _build_language_instruction(self, language: str) -> str:
+        """언어 설정에 따른 응답 언어 지시사항 생성
+
+        Args:
+            language: 언어 코드 (en, ko, ja, auto)
+
+        Returns:
+            언어 지시사항 문자열
+        """
+        if not language or language == "auto":
+            return ""
+
+        language_names = {"en": "English", "ko": "Korean", "ja": "Japanese"}
+        lang_name = language_names.get(language, language)
+
+        return f"""[LANGUAGE REQUIREMENT]
+- You MUST respond in {lang_name} by default
+- This is the user's configured language preference
+- ONLY switch to a different language if the user EXPLICITLY requests it in their message (e.g., "Answer in English", "日本語で答えて", "영어로 대답해줘")
+- If the user's message is in a different language but they don't explicitly request a response in that language, still respond in {lang_name}
+
+"""
 
     def _build_context_message(self, task: str, context: AgentContext) -> str:
         """컨텍스트 정보를 포함한 메시지 생성"""
         parts = []
+
+        # 언어 지시사항 (최우선)
+        language_instruction = self._build_language_instruction(context.language)
+        if language_instruction:
+            parts.append(language_instruction)
 
         # 첨부 파일 컨텍스트
         if context.file_context:
@@ -230,7 +267,7 @@ class DeepAgentAdapter(BaseAgent):
                     parts.append(f"어시스턴트: {hist['answer'][:500]}...\n")
 
         # 사용자 작업
-        parts.append(f"\n[현재 작업]\n{task}")
+        parts.append(f"[현재 작업]\n{task}")
 
         return "\n".join(parts)
 
@@ -299,13 +336,15 @@ class DeepAgentAdapter(BaseAgent):
                 metadata={
                     "engine": "deep_agents",
                     "model": self.nim_model,
-                    "middleware_count": len(self._build_middleware_stack())
+                    "middleware_count": 0
                 }
             )
 
         except Exception as e:
+            import traceback
             execution_time = time.time() - start_time
             logger.error(f"[{self.name}] Execution failed: {e}")
+            logger.error(f"[{self.name}] Traceback:\n{traceback.format_exc()}")
 
             return AgentResult(
                 answer=f"작업 처리 중 오류가 발생했습니다: {str(e)}",
