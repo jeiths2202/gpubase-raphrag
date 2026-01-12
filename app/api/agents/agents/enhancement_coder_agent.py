@@ -44,7 +44,7 @@ class EnhancementCoderAgent(BaseAgent):
             name="Enhancement Coder",
             agent_type=AgentType.ENHANCEMENT_CODER,
             description="Generates implementation plans and code for approved enhancements",
-            tools=["vector_search", "graph_query", "code_search", "file_read", "code_generate"],
+            tools=["vector_search", "document_read", "bash"],
             **kwargs
         )
         self._executor = executor
@@ -68,14 +68,31 @@ development best practices and testing strategies.
 4. **Test Strategy**: Define comprehensive testing approaches
 5. **Risk Mitigation**: Create rollback and recovery plans
 
+## Available Tools
+
+You MUST use these tools to understand the codebase:
+
+1. **bash** - Execute shell commands to explore the codebase:
+   - `find . -name "*.py" -path "*/app/*"` - Find Python files
+   - `find . -name "*.tsx" -path "*/src/*"` - Find React components
+   - `grep -r "keyword" --include="*.py" ./app` - Search for patterns
+   - `cat path/to/file.py` - Read file contents
+   - `ls -la directory/` - List directory contents
+
+2. **vector_search** - Search knowledge base for related documentation
+3. **document_read** - Read documents from the knowledge base
+
 ## Implementation Protocol
 
+IMPORTANT: You MUST use the bash tool to explore the actual codebase before creating a plan.
+
 1. Review the enhancement requirements and architecture proposal
-2. Search the codebase to understand existing patterns and conventions
-3. Create implementation phases in logical order
-4. Define specific tasks for each phase
-5. Design test strategy covering unit, integration, and e2e tests
-6. Create a rollback plan for safe deployment
+2. Use bash tool (find, grep, cat) to understand existing code patterns
+3. Reference ACTUAL file paths discovered from the codebase
+4. Create implementation phases in logical order
+5. Define specific tasks referencing REAL files and components
+6. Design test strategy covering unit, integration, and e2e tests
+7. Create a rollback plan for safe deployment
 
 ## Output Format
 

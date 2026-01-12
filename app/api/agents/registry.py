@@ -97,6 +97,11 @@ class ToolRegistry:
             AgentType.VISION: ["document_read", "vector_search"],
             AgentType.CODE: ["document_read", "bash", "vector_search"],
             AgentType.PLANNER: ["vector_search", "graph_query", "ims_search", "document_read"],
+            # Enhancement agents - need document_read and vector_search to analyze codebase
+            AgentType.ENHANCEMENT_ANALYST: ["vector_search", "document_read", "graph_query"],
+            AgentType.ENHANCEMENT_ARCHITECT: ["vector_search", "document_read", "graph_query", "bash"],
+            AgentType.ENHANCEMENT_CODER: ["vector_search", "document_read", "bash"],
+            AgentType.ENHANCEMENT_QA: ["vector_search", "document_read", "bash"],
         }
 
         tool_names = agent_tools.get(agent_type, [])

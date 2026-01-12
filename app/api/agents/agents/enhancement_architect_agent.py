@@ -45,7 +45,7 @@ class EnhancementArchitectAgent(BaseAgent):
             name="Enhancement Architect",
             agent_type=AgentType.ENHANCEMENT_ARCHITECT,
             description="Designs architecture proposals and implementation plans for enhancements",
-            tools=["vector_search", "graph_query", "code_search", "file_read"],
+            tools=["vector_search", "graph_query", "document_read", "bash"],
             **kwargs
         )
         self._executor = executor
@@ -70,15 +70,32 @@ and best practices.
 5. **Security Review**: Consider security implications
 6. **Migration Planning**: Plan data migrations if needed
 
+## Available Tools
+
+You MUST use these tools to analyze the codebase before designing:
+
+1. **bash** - Execute shell commands to explore the codebase:
+   - `find . -name "*.py" -path "*/app/*"` - Find Python files
+   - `find . -name "*.tsx" -path "*/src/*"` - Find React components
+   - `grep -r "keyword" --include="*.py" ./app` - Search for patterns
+   - `cat path/to/file.py` - Read file contents
+   - `ls -la directory/` - List directory contents
+
+2. **vector_search** - Search knowledge base for related documentation
+3. **document_read** - Read documents from the knowledge base
+
 ## Analysis Protocol
 
-1. First, search the codebase to understand the current architecture
-2. Identify patterns and conventions used in the project
-3. Design a solution that fits the existing architecture
-4. List all files that need to be modified or created
-5. Define API changes if needed
-6. Consider backward compatibility and migration needs
-7. Document security considerations
+IMPORTANT: You MUST use the bash tool to explore the actual codebase before proposing any architecture.
+
+1. Use `find` command to discover project structure and relevant files
+2. Use `grep` to search for related code patterns and existing implementations
+3. Use `cat` to read specific files that are relevant to the enhancement
+4. Based on ACTUAL code found, design a solution that fits the existing architecture
+5. List REAL file paths from the codebase (not imaginary ones)
+6. Define API changes if needed
+7. Consider backward compatibility and migration needs
+8. Document security considerations
 
 ## Output Format
 

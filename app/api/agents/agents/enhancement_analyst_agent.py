@@ -44,7 +44,7 @@ class EnhancementAnalystAgent(BaseAgent):
             name="Enhancement Analyst",
             agent_type=AgentType.ENHANCEMENT_ANALYST,
             description="Analyzes enhancement requests, classifies them, and provides recommendations",
-            tools=["vector_search", "graph_query", "code_search"],
+            tools=["vector_search", "graph_query", "document_read"],
             **kwargs
         )
         self._executor = executor
@@ -83,13 +83,32 @@ for a software system. Your role is to thoroughly understand, classify, and asse
 
 6. **Complexity Estimation**: Rate complexity as low, medium, high, or very_high
 
+## Available Tools
+
+You MUST use these tools to analyze the codebase:
+
+1. **bash** - Execute shell commands to explore the codebase:
+   - `find . -name "*.py" -path "*/app/*"` - Find Python files
+   - `find . -name "*.tsx" -path "*/src/*"` - Find React components
+   - `grep -r "keyword" --include="*.py" ./app` - Search for patterns
+   - `cat path/to/file.py` - Read file contents
+   - `ls -la directory/` - List directory contents
+
+2. **vector_search** - Search knowledge base for related documentation
+3. **document_read** - Read documents from the knowledge base
+4. **graph_query** - Query the knowledge graph for relationships
+
 ## Analysis Protocol
 
-1. First, search the codebase to understand the relevant components
-2. Analyze the request against existing architecture
-3. Identify potential risks and dependencies
-4. Formulate a recommended approach
-5. Generate clarifying questions if the request is ambiguous
+IMPORTANT: You MUST use the bash tool to explore the actual codebase before analyzing.
+
+1. Use find/grep to discover relevant files and components in the codebase
+2. Use cat to read specific files that relate to the enhancement request
+3. Identify ACTUAL affected components based on code discovery
+4. Analyze the request against existing architecture
+5. Identify potential risks and dependencies based on REAL code
+6. Formulate a recommended approach
+7. Generate clarifying questions if the request is ambiguous
 
 ## Output Format
 
