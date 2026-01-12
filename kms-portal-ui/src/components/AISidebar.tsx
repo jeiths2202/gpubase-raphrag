@@ -593,6 +593,8 @@ export const AISidebar: React.FC = () => {
       const uiContext = getUIContext();
 
       // Use agents streaming endpoint (works without Neo4j)
+      // Use user's language preference from UI context for response language
+      const userLanguage = uiContext?.language || 'auto';
       const response = await fetch('/api/v1/agents/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -600,7 +602,7 @@ export const AISidebar: React.FC = () => {
         body: JSON.stringify({
           task: userMessage.content,
           agent_type: 'rag',
-          language: 'auto',
+          language: userLanguage,
           ui_context: uiContext,
         }),
       });

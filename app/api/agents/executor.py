@@ -100,7 +100,13 @@ class AgentExecutor:
         if context.language and context.language != "auto":
             language_names = {"en": "English", "ko": "Korean", "ja": "Japanese"}
             lang_name = language_names.get(context.language, context.language)
-            system_prompt += f"\n\nIMPORTANT: Always respond in {lang_name} unless the user explicitly requests a different language in their message."
+            system_prompt += f"""
+
+LANGUAGE REQUIREMENT:
+- You MUST respond in {lang_name} by default
+- This is the user's configured language preference
+- ONLY switch to a different language if the user EXPLICITLY requests it in their message (e.g., "Answer in English", "日本語で答えて", "영어로 대답해줘")
+- If the user's message is in a different language but they don't explicitly request a response in that language, still respond in {lang_name}"""
 
         # Add UI context if available (context-aware AI)
         if context.metadata.get('ui_context_prompt'):
@@ -310,7 +316,13 @@ User Query: {task}"""
         if context.language and context.language != "auto":
             language_names = {"en": "English", "ko": "Korean", "ja": "Japanese"}
             lang_name = language_names.get(context.language, context.language)
-            system_prompt += f"\n\nIMPORTANT: Always respond in {lang_name} unless the user explicitly requests a different language in their message."
+            system_prompt += f"""
+
+LANGUAGE REQUIREMENT:
+- You MUST respond in {lang_name} by default
+- This is the user's configured language preference
+- ONLY switch to a different language if the user EXPLICITLY requests it in their message (e.g., "Answer in English", "日本語で答えて", "영어로 대답해줘")
+- If the user's message is in a different language but they don't explicitly request a response in that language, still respond in {lang_name}"""
             print(f"[Executor.stream] Added language instruction for {lang_name}", flush=True)
 
         # Add UI context if available (context-aware AI)
