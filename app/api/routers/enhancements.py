@@ -27,6 +27,10 @@ from ..services.enhancement_service import (
     get_enhancement_service, EnhancementService,
     export_enhancement_to_knowledge, search_similar_enhancements
 )
+from ..services.enhancement_queue_manager import (
+    get_queue_manager, EnhancementQueueManager,
+    AgentType as QueueAgentType, TaskStatus
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +44,11 @@ os.makedirs(ATTACHMENT_DIR, exist_ok=True)
 def get_service() -> EnhancementService:
     """Get the enhancement service."""
     return get_enhancement_service()
+
+
+def get_queue() -> EnhancementQueueManager:
+    """Get the enhancement queue manager."""
+    return get_queue_manager()
 
 
 # ============================================================================
@@ -1441,4 +1450,301 @@ async def get_recent_learnings(
         )
     except Exception as e:
         logger.error(f"Error getting recent learnings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Queue Monitoring & Control Endpoints
+# ============================================================================
+
+@router.get("/queue/status", response_model=SuccessResponse[dict])
+async def get_queue_status(
+    current_user: dict = Depends(get_current_user),
+    queue: EnhancementQueueManager = Depends(get_queue)
+):
+    """
+    Get the current status of the enhancement agent queue.
+
+    Returns information about:
+    - All queued tasks waiting to be processed
+    - Currently running tasks for each agent
+    - Agent status (busy/idle, statistics)
+    - Recent task history
+    """
+    try:
+        status = await queue.get_queue_status()
+        return SuccessResponse(
+            data=status,
+            meta=MetaInfo(request_id=str(uuid.uuid4()))
+        )
+    except Exception as e:
+        logger.error(f"Error getting queue status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/queue/agent/{agent_type}", response_model=SuccessResponse[dict])
+async def get_agent_status(
+    agent_type: str,
+    current_user: dict = Depends(get_current_user),
+    queue: EnhancementQueueManager = Depends(get_queue)
+):
+    """
+    Get the status of a specific enhancement agent.
+
+    Args:
+        agent_type: Type of agent (analyst, architect, coder, qa)
+
+    Returns agent status including current task, statistics, and last activity.
+    """
+    try:
+        try:
+            agent = QueueAgentType(agent_type.lower())
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid agent type: {agent_type}. Must be one of: analyst, architect, coder, qa"
+            )
+
+        status = await queue.get_agent_status(agent)
+        return SuccessResponse(
+            data=status,
+            meta=MetaInfo(request_id=str(uuid.uuid4()))
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting agent status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/queue/task/{task_id}", response_model=SuccessResponse[dict])
+async def get_task_status(
+    task_id: str,
+    current_user: dict = Depends(get_current_user),
+    queue: EnhancementQueueManager = Depends(get_queue)
+):
+    """
+    Get the status of a specific queued or running task.
+
+    Args:
+        task_id: ID of the task
+
+    Returns task details including status, position in queue, and timing information.
+    """
+    try:
+        task = await queue.get_task_by_id(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        task_dict = task.to_dict()
+
+        # Add queue position if queued
+        if task.status == TaskStatus.QUEUED:
+            position = await queue.get_queue_position(task_id)
+            task_dict["queue_position"] = position
+
+        return SuccessResponse(
+            data=task_dict,
+            meta=MetaInfo(request_id=str(uuid.uuid4()))
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting task status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/queue/force-stop/{task_id}", response_model=SuccessResponse[dict])
+async def force_stop_task(
+    task_id: str,
+    current_user: dict = Depends(get_current_user),
+    queue: EnhancementQueueManager = Depends(get_queue)
+):
+    """
+    Force stop a running task.
+
+    This will request cancellation of the task. The actual agent must check
+    for cancellation and handle it gracefully.
+
+    Args:
+        task_id: ID of the task to stop
+
+    Note: Only admin users should be able to force stop tasks.
+    """
+    try:
+        # Check if user is admin
+        user_role = current_user.get("role", "user")
+        if user_role != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail="Only administrators can force stop tasks"
+            )
+
+        success = await queue.force_stop_task(task_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail="Task not found or not currently running"
+            )
+
+        user_id = current_user.get("id", current_user.get("user_id", "unknown"))
+        user_name = current_user.get("name", current_user.get("username", "Unknown User"))
+
+        logger.info(f"Task {task_id} force stopped by {user_name} ({user_id})")
+
+        return SuccessResponse(
+            data={
+                "task_id": task_id,
+                "status": "cancelled",
+                "message": "Task has been force stopped"
+            },
+            meta=MetaInfo(request_id=str(uuid.uuid4()))
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error force stopping task: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/queue/force-stop-agent/{agent_type}", response_model=SuccessResponse[dict])
+async def force_stop_agent(
+    agent_type: str,
+    current_user: dict = Depends(get_current_user),
+    queue: EnhancementQueueManager = Depends(get_queue)
+):
+    """
+    Force stop the currently running task for a specific agent type.
+
+    Args:
+        agent_type: Type of agent (analyst, architect, coder, qa)
+
+    Note: Only admin users should be able to force stop agents.
+    """
+    try:
+        # Check if user is admin
+        user_role = current_user.get("role", "user")
+        if user_role != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail="Only administrators can force stop agents"
+            )
+
+        try:
+            agent = QueueAgentType(agent_type.lower())
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid agent type: {agent_type}. Must be one of: analyst, architect, coder, qa"
+            )
+
+        success = await queue.force_stop_agent(agent)
+
+        user_id = current_user.get("id", current_user.get("user_id", "unknown"))
+        user_name = current_user.get("name", current_user.get("username", "Unknown User"))
+
+        if success:
+            logger.info(f"Agent {agent_type} force stopped by {user_name} ({user_id})")
+            return SuccessResponse(
+                data={
+                    "agent_type": agent_type,
+                    "status": "stopped",
+                    "message": f"Agent {agent_type} has been force stopped"
+                },
+                meta=MetaInfo(request_id=str(uuid.uuid4()))
+            )
+        else:
+            return SuccessResponse(
+                data={
+                    "agent_type": agent_type,
+                    "status": "idle",
+                    "message": f"Agent {agent_type} was not running"
+                },
+                meta=MetaInfo(request_id=str(uuid.uuid4()))
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error force stopping agent: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/queue/clear", response_model=SuccessResponse[dict])
+async def clear_queue(
+    agent_type: Optional[str] = Query(None, description="Optional: clear only tasks for specific agent type"),
+    current_user: dict = Depends(get_current_user),
+    queue: EnhancementQueueManager = Depends(get_queue)
+):
+    """
+    Clear all queued tasks.
+
+    Args:
+        agent_type: Optional - if provided, only clear tasks for this agent type
+
+    Note: Only admin users should be able to clear the queue.
+    """
+    try:
+        # Check if user is admin
+        user_role = current_user.get("role", "user")
+        if user_role != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail="Only administrators can clear the queue"
+            )
+
+        target_agent = None
+        if agent_type:
+            try:
+                target_agent = QueueAgentType(agent_type.lower())
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid agent type: {agent_type}. Must be one of: analyst, architect, coder, qa"
+                )
+
+        cleared_count = await queue.clear_queue(target_agent)
+
+        user_id = current_user.get("id", current_user.get("user_id", "unknown"))
+        user_name = current_user.get("name", current_user.get("username", "Unknown User"))
+
+        logger.info(f"Queue cleared by {user_name} ({user_id}): {cleared_count} tasks removed")
+
+        return SuccessResponse(
+            data={
+                "cleared_count": cleared_count,
+                "agent_type": agent_type,
+                "message": f"Cleared {cleared_count} queued task(s)"
+            },
+            meta=MetaInfo(request_id=str(uuid.uuid4()))
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error clearing queue: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/queue/enhancement/{enhancement_id}", response_model=SuccessResponse[List[dict]])
+async def get_enhancement_tasks(
+    enhancement_id: str,
+    current_user: dict = Depends(get_current_user),
+    queue: EnhancementQueueManager = Depends(get_queue)
+):
+    """
+    Get all queued, running, and historical tasks for an enhancement.
+
+    Args:
+        enhancement_id: ID of the enhancement
+
+    Returns all tasks associated with this enhancement.
+    """
+    try:
+        tasks = await queue.get_enhancement_tasks(enhancement_id)
+        return SuccessResponse(
+            data=[task.to_dict() for task in tasks],
+            meta=MetaInfo(request_id=str(uuid.uuid4()))
+        )
+    except Exception as e:
+        logger.error(f"Error getting enhancement tasks: {e}")
         raise HTTPException(status_code=500, detail=str(e))

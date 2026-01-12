@@ -30,6 +30,12 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Square,
+  List,
+  Zap,
+  PauseCircle,
+  XCircle,
+  Settings,
 } from 'lucide-react';
 import {
   UserManagementTable,
@@ -869,6 +875,42 @@ interface EnhanceRequest {
   ai_analyzed: boolean;
 }
 
+// Queue Types
+interface QueuedTask {
+  id: string;
+  enhancement_id: string;
+  agent_type: 'analyst' | 'architect' | 'coder' | 'qa';
+  operation: string;
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  user_id: string;
+  user_name: string;
+  error_message?: string;
+  duration_ms?: number;
+  queue_position?: number;
+}
+
+interface AgentStatus {
+  agent_type: 'analyst' | 'architect' | 'coder' | 'qa';
+  is_running: boolean;
+  current_task?: QueuedTask;
+  total_processed: number;
+  total_failed: number;
+  last_activity?: string;
+}
+
+interface QueueStatus {
+  queue: {
+    total_queued: number;
+    tasks: QueuedTask[];
+  };
+  agents: Record<string, AgentStatus>;
+  running_tasks: QueuedTask[];
+  recent_history: QueuedTask[];
+}
+
 // Enhance Requests Tab
 const EnhanceRequestsTab: React.FC = () => {
   const [requests, setRequests] = useState<EnhanceRequest[]>([]);
@@ -888,6 +930,14 @@ const EnhanceRequestsTab: React.FC = () => {
     analyzed: number;
     implemented: number;
   } | null>(null);
+
+  // Queue monitoring state
+  const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [showQueuePanel, setShowQueuePanel] = useState(true);
+  const [stoppingTaskId, setStoppingTaskId] = useState<string | null>(null);
+  const [stoppingAgentType, setStoppingAgentType] = useState<string | null>(null);
+  const [clearingQueue, setClearingQueue] = useState(false);
 
   // Fetch enhancement requests
   const fetchRequests = useCallback(async () => {
@@ -1037,6 +1087,127 @@ const EnhanceRequestsTab: React.FC = () => {
   // Check if request can be executed (only submitted status)
   const canExecute = (status: string) => status === 'submitted';
 
+  // Fetch queue status
+  const fetchQueueStatus = useCallback(async () => {
+    setQueueLoading(true);
+    try {
+      const response = await fetch('/api/v1/enhancements/queue/status', {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setQueueStatus(data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch queue status:', err);
+    } finally {
+      setQueueLoading(false);
+    }
+  }, []);
+
+  // Auto-refresh queue status
+  useEffect(() => {
+    fetchQueueStatus();
+    const interval = setInterval(fetchQueueStatus, 5000); // Refresh every 5 seconds
+    return () => clearInterval(interval);
+  }, [fetchQueueStatus]);
+
+  // Force stop a task
+  const handleForceStopTask = async (taskId: string) => {
+    setStoppingTaskId(taskId);
+    try {
+      const response = await fetch(`/api/v1/enhancements/queue/force-stop/${taskId}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to stop task');
+      }
+      await fetchQueueStatus();
+    } catch (err) {
+      console.error('Force stop failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to stop task');
+    } finally {
+      setStoppingTaskId(null);
+    }
+  };
+
+  // Force stop an agent
+  const handleForceStopAgent = async (agentType: string) => {
+    setStoppingAgentType(agentType);
+    try {
+      const response = await fetch(`/api/v1/enhancements/queue/force-stop-agent/${agentType}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to stop agent');
+      }
+      await fetchQueueStatus();
+    } catch (err) {
+      console.error('Force stop agent failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to stop agent');
+    } finally {
+      setStoppingAgentType(null);
+    }
+  };
+
+  // Clear the queue
+  const handleClearQueue = async () => {
+    if (!confirm('Are you sure you want to clear all queued tasks? This cannot be undone.')) {
+      return;
+    }
+    setClearingQueue(true);
+    try {
+      const response = await fetch('/api/v1/enhancements/queue/clear', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to clear queue');
+      }
+      await fetchQueueStatus();
+    } catch (err) {
+      console.error('Clear queue failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to clear queue');
+    } finally {
+      setClearingQueue(false);
+    }
+  };
+
+  // Format duration in ms to readable string
+  const formatDurationMs = (ms?: number) => {
+    if (!ms) return '-';
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+    return `${(ms / 60000).toFixed(1)}m`;
+  };
+
+  // Get agent display name
+  const getAgentDisplayName = (agentType: string) => {
+    const names: Record<string, string> = {
+      analyst: 'Analyst Agent',
+      architect: 'Architect Agent',
+      coder: 'Coder Agent',
+      qa: 'QA Agent',
+    };
+    return names[agentType] || agentType;
+  };
+
+  // Get agent icon
+  const getAgentIcon = (agentType: string) => {
+    switch (agentType) {
+      case 'analyst': return <Search size={16} />;
+      case 'architect': return <Settings size={16} />;
+      case 'coder': return <Cpu size={16} />;
+      case 'qa': return <CheckCircle size={16} />;
+      default: return <Bot size={16} />;
+    }
+  };
+
   if (loading && requests.length === 0) {
     return (
       <div className="admin-tab-content">
@@ -1082,6 +1253,233 @@ const EnhanceRequestsTab: React.FC = () => {
           />
         </section>
       )}
+
+      {/* Agent Queue Monitoring Panel */}
+      <section className="admin-queue-monitoring">
+        <div className="admin-queue-header">
+          <h3 className="admin-section-title">
+            <Cpu size={20} />
+            Agent Queue Monitor
+          </h3>
+          <div className="admin-queue-actions">
+            <button
+              className="admin-btn admin-btn--secondary admin-btn--sm"
+              onClick={() => setShowQueuePanel(!showQueuePanel)}
+            >
+              {showQueuePanel ? 'Hide' : 'Show'} Details
+            </button>
+            <button
+              className={`admin-btn admin-btn--sm ${queueLoading ? 'admin-btn--loading' : ''}`}
+              onClick={fetchQueueStatus}
+              disabled={queueLoading}
+            >
+              <RefreshCw size={14} className={queueLoading ? 'spinning' : ''} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Agent Status Cards */}
+        <div className="admin-agent-status-grid">
+          {queueStatus && Object.entries(queueStatus.agents).map(([agentType, status]) => (
+            <div
+              key={agentType}
+              className={`admin-agent-card ${status.is_running ? 'admin-agent-card--running' : 'admin-agent-card--idle'}`}
+            >
+              <div className="admin-agent-card-header">
+                <div className="admin-agent-icon">
+                  {getAgentIcon(agentType)}
+                </div>
+                <div className="admin-agent-info">
+                  <span className="admin-agent-name">{getAgentDisplayName(agentType)}</span>
+                  <span className={`admin-agent-status-badge ${status.is_running ? 'running' : 'idle'}`}>
+                    {status.is_running ? (
+                      <>
+                        <Zap size={12} />
+                        Running
+                      </>
+                    ) : (
+                      <>
+                        <PauseCircle size={12} />
+                        Idle
+                      </>
+                    )}
+                  </span>
+                </div>
+                {status.is_running && (
+                  <button
+                    className="admin-btn admin-btn--danger admin-btn--sm"
+                    onClick={() => handleForceStopAgent(agentType)}
+                    disabled={stoppingAgentType === agentType}
+                    title="Force Stop Agent"
+                  >
+                    {stoppingAgentType === agentType ? (
+                      <Loader2 size={14} className="spinning" />
+                    ) : (
+                      <Square size={14} />
+                    )}
+                  </button>
+                )}
+              </div>
+              {status.is_running && status.current_task && (
+                <div className="admin-agent-task-info">
+                  <span className="admin-agent-task-op">
+                    {status.current_task.operation}
+                  </span>
+                  <span className="admin-agent-task-duration">
+                    {formatDurationMs(status.current_task.duration_ms)}
+                  </span>
+                </div>
+              )}
+              <div className="admin-agent-stats">
+                <span>Processed: {status.total_processed}</span>
+                <span>Failed: {status.total_failed}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {showQueuePanel && (
+          <>
+            {/* Running Tasks */}
+            {queueStatus && queueStatus.running_tasks.length > 0 && (
+              <div className="admin-queue-section">
+                <div className="admin-queue-section-header">
+                  <h4>
+                    <Zap size={16} />
+                    Running Tasks ({queueStatus.running_tasks.length})
+                  </h4>
+                </div>
+                <div className="admin-queue-tasks">
+                  {queueStatus.running_tasks.map((task) => (
+                    <div key={task.id} className="admin-queue-task admin-queue-task--running">
+                      <div className="admin-queue-task-icon">
+                        {getAgentIcon(task.agent_type)}
+                      </div>
+                      <div className="admin-queue-task-info">
+                        <span className="admin-queue-task-op">{task.operation}</span>
+                        <span className="admin-queue-task-agent">{getAgentDisplayName(task.agent_type)}</span>
+                        <span className="admin-queue-task-id">Enhancement: {task.enhancement_id.slice(0, 8)}...</span>
+                      </div>
+                      <div className="admin-queue-task-duration">
+                        {formatDurationMs(task.duration_ms)}
+                      </div>
+                      <button
+                        className="admin-btn admin-btn--danger admin-btn--sm"
+                        onClick={() => handleForceStopTask(task.id)}
+                        disabled={stoppingTaskId === task.id}
+                        title="Force Stop Task"
+                      >
+                        {stoppingTaskId === task.id ? (
+                          <Loader2 size={14} className="spinning" />
+                        ) : (
+                          <XCircle size={14} />
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Queued Tasks */}
+            <div className="admin-queue-section">
+              <div className="admin-queue-section-header">
+                <h4>
+                  <List size={16} />
+                  Queued Tasks ({queueStatus?.queue.total_queued || 0})
+                </h4>
+                {queueStatus && queueStatus.queue.total_queued > 0 && (
+                  <button
+                    className="admin-btn admin-btn--danger admin-btn--sm"
+                    onClick={handleClearQueue}
+                    disabled={clearingQueue}
+                    title="Clear All Queued Tasks"
+                  >
+                    {clearingQueue ? (
+                      <Loader2 size={14} className="spinning" />
+                    ) : (
+                      <>
+                        <Trash2 size={14} />
+                        Clear Queue
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+              {queueStatus && queueStatus.queue.tasks.length > 0 ? (
+                <div className="admin-queue-tasks">
+                  {queueStatus.queue.tasks.map((task, index) => (
+                    <div key={task.id} className="admin-queue-task admin-queue-task--queued">
+                      <div className="admin-queue-task-position">#{index + 1}</div>
+                      <div className="admin-queue-task-icon">
+                        {getAgentIcon(task.agent_type)}
+                      </div>
+                      <div className="admin-queue-task-info">
+                        <span className="admin-queue-task-op">{task.operation}</span>
+                        <span className="admin-queue-task-agent">{getAgentDisplayName(task.agent_type)}</span>
+                        <span className="admin-queue-task-id">Enhancement: {task.enhancement_id.slice(0, 8)}...</span>
+                      </div>
+                      <div className="admin-queue-task-user">
+                        by {task.user_name}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="admin-queue-empty">
+                  <CheckCircle size={24} />
+                  <span>No tasks in queue</span>
+                </div>
+              )}
+            </div>
+
+            {/* Recent History */}
+            {queueStatus && queueStatus.recent_history.length > 0 && (
+              <div className="admin-queue-section">
+                <div className="admin-queue-section-header">
+                  <h4>
+                    <Clock size={16} />
+                    Recent History
+                  </h4>
+                </div>
+                <div className="admin-queue-tasks">
+                  {queueStatus.recent_history.slice(0, 5).map((task) => (
+                    <div
+                      key={task.id}
+                      className={`admin-queue-task admin-queue-task--${task.status}`}
+                    >
+                      <div className="admin-queue-task-icon">
+                        {task.status === 'completed' ? (
+                          <CheckCircle size={16} className="text-success" />
+                        ) : task.status === 'failed' ? (
+                          <XCircle size={16} className="text-danger" />
+                        ) : task.status === 'cancelled' ? (
+                          <Square size={16} className="text-warning" />
+                        ) : (
+                          getAgentIcon(task.agent_type)
+                        )}
+                      </div>
+                      <div className="admin-queue-task-info">
+                        <span className="admin-queue-task-op">{task.operation}</span>
+                        <span className="admin-queue-task-agent">{getAgentDisplayName(task.agent_type)}</span>
+                      </div>
+                      <div className="admin-queue-task-status">
+                        <span className={`admin-queue-status-badge admin-queue-status-badge--${task.status}`}>
+                          {task.status}
+                        </span>
+                      </div>
+                      <div className="admin-queue-task-duration">
+                        {formatDurationMs(task.duration_ms)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </section>
 
       {/* Filters */}
       <section className="admin-filters-section">
