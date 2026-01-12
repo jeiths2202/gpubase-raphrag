@@ -29,6 +29,18 @@ from .registry import (
     get_agent_registry,
 )
 from .permissions import PermissionManager, get_permission_manager
+from .master_system_constraint import (
+    get_master_constraint,
+    build_constrained_system_prompt,
+    validate_constraint_present,
+    validate_constraint_integrity,
+    log_compliance_violation,
+    get_constraint_enforcer,
+    MasterConstraintEnforcer,
+    ConstraintViolationError,
+    ComplianceViolationType,
+    MASTER_SYSTEM_CONSTRAINT,
+)
 
 # Import specialized agents
 from .agents import (
@@ -71,4 +83,15 @@ __all__ = [
     "VisionAgent",
     "CodeAgent",
     "PlannerAgent",
+    # Master System Constraint
+    "get_master_constraint",
+    "build_constrained_system_prompt",
+    "validate_constraint_present",
+    "validate_constraint_integrity",
+    "log_compliance_violation",
+    "get_constraint_enforcer",
+    "MasterConstraintEnforcer",
+    "ConstraintViolationError",
+    "ComplianceViolationType",
+    "MASTER_SYSTEM_CONSTRAINT",
 ]

@@ -22,6 +22,13 @@ from .intent import IntentClassifier, get_intent_classifier, IntentResult
 from .dag import DAGBuilder, get_dag_builder
 from .parallel_executor import ParallelExecutor, get_parallel_executor
 from .evaluator import ResultEvaluator, SynthesisEvaluator, get_evaluator, get_synthesis_evaluator
+from .master_system_constraint import (
+    get_constraint_enforcer,
+    log_compliance_violation,
+    ComplianceViolationType,
+    validate_constraint_present,
+    build_constrained_system_prompt
+)
 
 # Import query log writer for logging all agent queries
 from ..infrastructure.services.query_log_writer import get_query_log_writer
@@ -195,6 +202,23 @@ class AgentOrchestrator:
         # Get agent
         agent = self.agent_registry.get(agent_type)
 
+        # ========================================================================
+        # ORCHESTRATOR-LEVEL CONSTRAINT VALIDATION
+        # Verify agent system prompt includes master constraint before execution
+        # ========================================================================
+        constrained_prompt = build_constrained_system_prompt(agent.system_prompt)
+        if not validate_constraint_present(constrained_prompt):
+            log_compliance_violation(
+                ComplianceViolationType.CONSTRAINT_MISSING,
+                agent_type.value,
+                user_id=user_id,
+                session_id=request.session_id,
+                details={"step": "orchestrator_pre_execute"}
+            )
+            logger.critical(f"[Orchestrator] CRITICAL: Master constraint not present for {agent_type.value} agent")
+        else:
+            logger.info(f"[Orchestrator] Master constraint validated for {agent_type.value} agent")
+
         # Execute
         result = await agent.execute(request.task, context)
 
@@ -299,6 +323,23 @@ class AgentOrchestrator:
 
         agent = self.agent_registry.get(agent_type)
         print(f"[Orchestrator] agent={agent.name}", flush=True)
+
+        # ========================================================================
+        # ORCHESTRATOR-LEVEL CONSTRAINT VALIDATION (Stream)
+        # Verify agent system prompt includes master constraint before execution
+        # ========================================================================
+        constrained_prompt = build_constrained_system_prompt(agent.system_prompt)
+        if not validate_constraint_present(constrained_prompt):
+            log_compliance_violation(
+                ComplianceViolationType.CONSTRAINT_MISSING,
+                agent_type.value,
+                user_id=user_id,
+                session_id=request.session_id,
+                details={"step": "orchestrator_pre_stream"}
+            )
+            print(f"[Orchestrator] CRITICAL: Master constraint not present for {agent_type.value} agent", flush=True)
+        else:
+            print(f"[Orchestrator] Master constraint validated for {agent_type.value} agent", flush=True)
 
         # Collect response text for logging
         response_text_parts = []

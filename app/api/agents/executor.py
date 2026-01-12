@@ -16,6 +16,12 @@ from .types import (
 from .base import BaseAgent
 from .registry import ToolRegistry, get_tool_registry
 from .permissions import PermissionManager, get_permission_manager
+from .master_system_constraint import (
+    build_constrained_system_prompt,
+    get_constraint_enforcer,
+    log_compliance_violation,
+    ComplianceViolationType
+)
 
 logger = logging.getLogger(__name__)
 
@@ -95,8 +101,37 @@ class AgentExecutor:
         """
         start_time = time.time()
 
+        # ========================================================================
+        # MASTER SYSTEM CONSTRAINT INJECTION (HIGHEST PRIORITY)
+        # This constraint MUST be prepended to ALL agent prompts
+        # ========================================================================
+        base_agent_prompt = agent.system_prompt
+        system_prompt = build_constrained_system_prompt(base_agent_prompt)
+        logger.info(f"[Executor] Master system constraint injected for {agent.agent_type.value} agent")
+
+        # Validate constraint is properly applied
+        enforcer = get_constraint_enforcer()
+        try:
+            enforcer.validate_before_execution(
+                agent_type=agent.agent_type.value,
+                system_prompt=system_prompt,
+                context={
+                    "user_id": context.user_id,
+                    "session_id": context.session_id
+                }
+            )
+        except Exception as e:
+            logger.critical(f"[Executor] Constraint validation failed: {e}")
+            # Still proceed but log the violation
+            log_compliance_violation(
+                ComplianceViolationType.CONSTRAINT_MISSING,
+                agent.agent_type.value,
+                user_id=context.user_id,
+                session_id=context.session_id,
+                details={"error": str(e)}
+            )
+
         # Build system prompt with language preference
-        system_prompt = agent.system_prompt
         if context.language and context.language != "auto":
             language_names = {"en": "English", "ko": "Korean", "ja": "Japanese"}
             lang_name = language_names.get(context.language, context.language)
@@ -310,8 +345,36 @@ User Query: {task}"""
         """
         start_time = time.time()
 
+        # ========================================================================
+        # MASTER SYSTEM CONSTRAINT INJECTION (HIGHEST PRIORITY)
+        # This constraint MUST be prepended to ALL agent prompts
+        # ========================================================================
+        base_agent_prompt = agent.system_prompt
+        system_prompt = build_constrained_system_prompt(base_agent_prompt)
+        print(f"[Executor.stream] Master system constraint injected for {agent.agent_type.value} agent", flush=True)
+
+        # Validate constraint is properly applied
+        enforcer = get_constraint_enforcer()
+        try:
+            enforcer.validate_before_execution(
+                agent_type=agent.agent_type.value,
+                system_prompt=system_prompt,
+                context={
+                    "user_id": context.user_id,
+                    "session_id": context.session_id
+                }
+            )
+        except Exception as e:
+            print(f"[Executor.stream] CRITICAL: Constraint validation failed: {e}", flush=True)
+            log_compliance_violation(
+                ComplianceViolationType.CONSTRAINT_MISSING,
+                agent.agent_type.value,
+                user_id=context.user_id,
+                session_id=context.session_id,
+                details={"error": str(e)}
+            )
+
         # Build system prompt with language preference
-        system_prompt = agent.system_prompt
         print(f"[Executor.stream] context.language = '{context.language}'", flush=True)
         if context.language and context.language != "auto":
             language_names = {"en": "English", "ko": "Korean", "ja": "Japanese"}
