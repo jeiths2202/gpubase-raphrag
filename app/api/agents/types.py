@@ -174,6 +174,7 @@ class AgentRequest(BaseModel):
     file_context: Optional[str] = Field(None, description="Attached file content for RAG priority context")
     url_context: Optional[str] = Field(None, description="URL to fetch and use as RAG context")
     ui_context: Optional[Dict[str, Any]] = Field(None, description="UI context for context-aware AI responses")
+    use_deep_agent: bool = Field(False, description="Use Deep Agents framework for execution")
 
 
 class AgentResponse(BaseModel):
