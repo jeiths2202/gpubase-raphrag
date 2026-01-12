@@ -1254,6 +1254,44 @@ const EnhanceRequestsTab: React.FC = () => {
         </section>
       )}
 
+      {/* Request Counter */}
+      <section className="admin-request-counter-section">
+        <div className="admin-request-counter">
+          <div className="admin-request-counter-icon">
+            <Activity size={32} />
+          </div>
+          <div className="admin-request-counter-info">
+            <span className="admin-request-counter-label">Request Counter</span>
+            <span className="admin-request-counter-value">
+              {(queueStatus?.running_tasks.length || 0) + (queueStatus?.queue.total_queued || 0)}
+            </span>
+            <span className="admin-request-counter-detail">
+              <span className="counter-running">
+                <Zap size={14} />
+                {queueStatus?.running_tasks.length || 0} Running
+              </span>
+              <span className="counter-queued">
+                <List size={14} />
+                {queueStatus?.queue.total_queued || 0} Queued
+              </span>
+            </span>
+          </div>
+          <div className="admin-request-counter-indicator">
+            {(queueStatus?.running_tasks.length || 0) > 0 ? (
+              <span className="indicator-active">
+                <Loader2 size={20} className="spinning" />
+                Processing
+              </span>
+            ) : (
+              <span className="indicator-idle">
+                <CheckCircle size={20} />
+                Idle
+              </span>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* Agent Queue Monitoring Panel */}
       <section className="admin-queue-monitoring">
         <div className="admin-queue-header">
