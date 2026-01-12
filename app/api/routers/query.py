@@ -22,6 +22,11 @@ from ..models.query import (
     SourceInfo,
     QueryAnalysis,
 )
+from ..models.ui_context import (
+    UIContext,
+    filter_ui_context_by_role,
+    build_context_prompt_section,
+)
 from ..core.deps import get_current_user, get_rag_service
 from ..core.tracing import get_trace_context_from_request, detect_response_quality, should_sample_trace
 from ..core.app_mode import get_app_mode_manager
@@ -215,6 +220,21 @@ async def stream_query(
     """Stream RAG query response via SSE"""
     query_id = f"q_{uuid.uuid4().hex[:12]}"
 
+    # Process UI context if provided
+    context_prompt = ""
+    if request.ui_context:
+        try:
+            ui_context = UIContext(**request.ui_context)
+            user_role = current_user.get("role", "user")
+            filtered_context = filter_ui_context_by_role(ui_context, user_role)
+            context_prompt = build_context_prompt_section(filtered_context)
+            print(f"[QueryRouter] UI context processed: page={ui_context.current_page}, role={user_role}", flush=True)
+        except Exception as e:
+            try:
+                print(f"[QueryRouter] Failed to process UI context: {type(e).__name__}", flush=True)
+            except Exception:
+                pass
+
     async def generate_events() -> AsyncGenerator[dict, None]:
         start_time = time.time()
         opts = request.options or QueryOptions()
@@ -225,15 +245,29 @@ async def stream_query(
             "data": {"query_id": query_id, "strategy": request.strategy.value}
         }
 
+        # Enhance question with UI context if available
+        enhanced_question = request.question
+        if context_prompt:
+            enhanced_question = f"[Context]\n{context_prompt}\n\n[Question]\n{request.question}"
+
+        # Debug log (ASCII-safe to avoid encoding issues on Windows)
+        try:
+            print(f"[QueryRouter] Starting stream, question length: {len(enhanced_question)}", flush=True)
+        except Exception:
+            pass
+
         try:
             # Stream answer chunks with session document support
+            chunk_count = 0
             async for chunk in rag_service.stream_query(
-                question=request.question,
+                question=enhanced_question,
                 strategy=request.strategy.value,
                 language=request.language.value,
                 session_id=opts.session_id,
                 use_session_docs=opts.use_session_docs
             ):
+                chunk_count += 1
+                print(f"[QueryRouter] Received chunk {chunk_count}: type={chunk.get('type')}", flush=True)
                 if chunk.get("type") == "text":
                     yield {"event": "chunk", "data": {"text": chunk["content"]}}
                 elif chunk.get("type") == "sources":
@@ -241,9 +275,16 @@ async def stream_query(
 
             # Done event
             processing_time = int((time.time() - start_time) * 1000)
+            print(f"[QueryRouter] Stream complete: {chunk_count} chunks in {processing_time}ms", flush=True)
             yield {"event": "done", "data": {"processing_time_ms": processing_time}}
 
         except Exception as e:
+            import traceback
+            try:
+                print(f"[QueryRouter] Stream error: {type(e).__name__}: {str(e)[:200]}", flush=True)
+                traceback.print_exc()
+            except Exception:
+                pass
             yield {"event": "error", "data": {"message": str(e)}}
 
     return EventSourceResponse(generate_events())

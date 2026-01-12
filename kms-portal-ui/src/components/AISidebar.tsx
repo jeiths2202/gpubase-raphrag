@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useUIStore } from '../store/uiStore';
+import { useContextStore } from '../store/contextStore';
 
 // Storage keys
 const AI_SIDEBAR_POSITION_KEY = 'kms-portal-ai-sidebar-position';
@@ -283,6 +284,7 @@ const renderInlineMarkdown = (text: string): React.ReactNode => {
 export const AISidebar: React.FC = () => {
   const { t } = useTranslation();
   const { rightSidebarOpen, toggleRightSidebar } = useUIStore();
+  const { getUIContext } = useContextStore();
 
   // Floating panel state
   const [sidebarPosition, setSidebarPosition] = useState<SidebarPosition>(loadSidebarPosition);
@@ -587,13 +589,19 @@ export const AISidebar: React.FC = () => {
     }
 
     try {
-      // Use streaming endpoint
-      const response = await fetch('/api/v1/query/stream', {
+      // Get UI context for context-aware AI
+      const uiContext = getUIContext();
+
+      // Use agents streaming endpoint (works without Neo4j)
+      const response = await fetch('/api/v1/agents/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
-          question: userMessage.content,
-          conversationId: currentConversationId,
+          task: userMessage.content,
+          agent_type: 'rag',
+          language: 'auto',
+          ui_context: uiContext,
         }),
       });
 
@@ -609,6 +617,7 @@ export const AISidebar: React.FC = () => {
       const decoder = new TextDecoder();
       let accumulatedContent = '';
       let sources: SourceDocument[] = [];
+      let buffer = '';
 
       // Create placeholder assistant message
       const assistantMessageId = `msg-${Date.now()}-assistant`;
@@ -617,28 +626,51 @@ export const AISidebar: React.FC = () => {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter((line) => line.startsWith('data: '));
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        // Keep last potentially incomplete line in buffer
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
-          const data = line.replace('data: ', '').trim();
+          const trimmedLine = line.trim();
 
-          if (data === '[DONE]') {
-            // Streaming complete
-            break;
-          }
+          if (!trimmedLine) continue;
 
-          try {
-            const parsed = JSON.parse(data);
+          // Parse SSE data line
+          if (trimmedLine.startsWith('data:')) {
+            const data = trimmedLine.replace('data:', '').trim();
 
-            if (parsed.type === 'content') {
-              accumulatedContent += parsed.content;
-              setStreamingContent(accumulatedContent);
-            } else if (parsed.type === 'sources') {
-              sources = parsed.sources || [];
+            if (data === '[DONE]') {
+              break;
             }
-          } catch (e) {
-            // Ignore parse errors for incomplete chunks
+
+            try {
+              const chunk = JSON.parse(data);
+
+              // Handle AgentStreamChunk format from /agents/stream
+              if (chunk.chunk_type === 'text' && chunk.content) {
+                accumulatedContent += chunk.content;
+                setStreamingContent(accumulatedContent);
+              } else if (chunk.chunk_type === 'sources' && chunk.sources) {
+                sources = chunk.sources.map((s: { content: string; source: string; score: number }) => ({
+                  id: s.source,
+                  title: s.source,
+                  relevance: s.score,
+                  snippet: s.content,
+                }));
+              } else if (chunk.chunk_type === 'thinking') {
+                // Thinking step - optionally show
+                console.log('[AISidebar] Thinking:', chunk.content);
+              } else if (chunk.chunk_type === 'tool_call') {
+                console.log('[AISidebar] Tool call:', chunk.tool_name);
+              } else if (chunk.chunk_type === 'done') {
+                console.log('[AISidebar] Stream done');
+              } else if (chunk.chunk_type === 'error') {
+                console.error('[AISidebar] Stream error:', chunk.content);
+              }
+            } catch (e) {
+              // Ignore parse errors for incomplete chunks
+            }
           }
         }
       }
