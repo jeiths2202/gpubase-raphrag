@@ -77,7 +77,7 @@ Requires IMS credentials for crawling."""
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Search query for issues"
+                    "description": "The EXACT search keyword from user input. CRITICAL: Extract only the specific keyword (function name, API name, error code) WITHOUT adding words like 'API', 'usage', 'error', 'issue'. Example: If user says 'tcfh_write() API 사용 사례', use query='tcfh_write()' NOT 'tcfh_write() API usage'."
                 },
                 "status": {
                     "type": "string",
@@ -341,7 +341,7 @@ Requires IMS credentials for crawling."""
             job, is_cached = await crawl_use_case.create_crawl_job(
                 user_id=uid,
                 search_query=query,
-                max_results=limit * 2,  # Get more to filter later
+                max_results=999999,  # Unlimited - fetch all matching issues
                 download_attachments=False,  # Skip attachments for faster crawl
                 crawl_related=False,
                 force_refresh=force_refresh
@@ -638,11 +638,10 @@ Requires IMS credentials for crawling."""
 
         print(f"[IMS_SEARCH] Intent: {intent_type.value}, query: {query}", flush=True)
 
-        # Handle list_all intent - list all matching issues (with keyword filter, high limit)
+        # Handle list_all intent - list all matching issues (with keyword filter, no limit)
         if intent_type == IntentType.LIST_ALL:
-            # For list_all, return all matching results (no arbitrary limit unless user specifies)
-            # Use very high limit to effectively return all matches
-            list_all_limit = 10000  # Effectively unlimited
+            # For list_all, return all matching results - no limit
+            list_all_limit = 999999  # Unlimited - fetch all matching issues
 
             # Check if user wants user-specific filtering (e.g., "내가 검색한", "my issues")
             user_specific = intent.extracted_params.get("user_specific", False) if intent else False
