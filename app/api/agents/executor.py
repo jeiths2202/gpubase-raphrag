@@ -510,7 +510,7 @@ User Query: {task}"""
         # ========================================================================
         base_agent_prompt = agent.system_prompt
         system_prompt = build_constrained_system_prompt(base_agent_prompt)
-        print(f"[Executor.stream] Master system constraint injected for {agent.agent_type.value} agent", flush=True)
+        logger.info(f"[Executor.stream] Master system constraint injected for {agent.agent_type.value} agent")
 
         # Validate constraint is properly applied
         enforcer = get_constraint_enforcer()
@@ -524,7 +524,7 @@ User Query: {task}"""
                 }
             )
         except Exception as e:
-            print(f"[Executor.stream] CRITICAL: Constraint validation failed: {e}", flush=True)
+            logger.critical(f"[Executor.stream] Constraint validation failed: {e}")
             log_compliance_violation(
                 ComplianceViolationType.CONSTRAINT_MISSING,
                 agent.agent_type.value,
@@ -534,7 +534,7 @@ User Query: {task}"""
             )
 
         # Build system prompt with language preference
-        print(f"[Executor.stream] context.language = '{context.language}'", flush=True)
+        logger.debug(f"[Executor.stream] context.language = '{context.language}'")
         if context.language and context.language != "auto":
             language_names = {"en": "English", "ko": "Korean", "ja": "Japanese"}
             lang_name = language_names.get(context.language, context.language)
@@ -545,7 +545,7 @@ LANGUAGE REQUIREMENT:
 - This is the user's configured language preference
 - ONLY switch to a different language if the user EXPLICITLY requests it in their message (e.g., "Answer in English", "日本語で答えて", "영어로 대답해줘")
 - If the user's message is in a different language but they don't explicitly request a response in that language, still respond in {lang_name}"""
-            print(f"[Executor.stream] Added language instruction for {lang_name}", flush=True)
+            logger.debug(f"[Executor.stream] Added language instruction for {lang_name}")
 
         # Add UI context if available (context-aware AI)
         if context.metadata.get('ui_context_prompt'):
@@ -556,7 +556,7 @@ CURRENT UI CONTEXT:
 {ui_context_prompt}
 
 Use this context to provide more relevant and context-aware responses. If the user is viewing specific content, consider that context when answering."""
-            print(f"[Executor.stream] Added UI context to system prompt", flush=True)
+            logger.debug("[Executor.stream] Added UI context to system prompt")
 
         # Build user message with optional file context
         user_message = task
@@ -578,7 +578,7 @@ The user has attached file(s) for reference. You MUST:
 IMPORTANT: Answer from the attached file context above if possible. Only use tools if the answer is not in the attached context.
 
 User Query: {task}"""
-            print(f"[Executor.stream] File context attached ({len(context.file_context)} chars)", flush=True)
+            logger.info(f"[Executor.stream] File context attached ({len(context.file_context)} chars)")
 
         # Handle URL context (fetched web content)
         if context.url_context:
@@ -611,7 +611,7 @@ The user has provided a URL and its content has been fetched for reference. You 
 IMPORTANT: Answer from the URL content above if possible. Only use tools if the answer is not in the URL content.
 
 User Query: {task}"""
-            print(f"[Executor.stream] URL context attached ({len(context.url_context)} chars) from {url_source}", flush=True)
+            logger.info(f"[Executor.stream] URL context attached ({len(context.url_context)} chars) from {url_source}")
 
         # Initialize messages
         messages: List[AgentMessage] = [
@@ -623,6 +623,7 @@ User Query: {task}"""
         tool_definitions = [tool.get_definition() for tool in available_tools]
 
         sources = []
+        tool_results: List[ToolResult] = []  # Collect for post-execution validation
         step = 0
 
         # Queue for status messages from tools
@@ -639,10 +640,9 @@ User Query: {task}"""
 
         yield AgentStreamChunk(chunk_type="thinking", content="Analyzing your request...")
 
-        import sys
-        print(f"[Executor] Starting stream for task: {task[:50]}...", file=sys.stderr, flush=True)
-        print(f"[Executor] Agent: {agent.name}, Tools: {[t.name for t in available_tools]}", file=sys.stderr, flush=True)
-        print(f"[Executor] LLM adapter: {self.llm_adapter}", file=sys.stderr, flush=True)
+        logger.debug(f"[Executor] Starting stream for task: {task[:50]}...")
+        logger.debug(f"[Executor] Agent: {agent.name}, Tools: {[t.name for t in available_tools]}")
+        logger.debug(f"[Executor] LLM adapter: {self.llm_adapter}")
 
         while step < context.max_steps:
             step += 1
@@ -667,6 +667,7 @@ User Query: {task}"""
 
                     # Execute tool (may emit status messages)
                     result = await self._execute_tool(tool_call, context)
+                    tool_results.append(result)  # Collect for validation
 
                     # Drain status queue and yield status messages
                     while not status_queue.empty():
@@ -691,7 +692,7 @@ User Query: {task}"""
                             tool_output_data = json.loads(result["output"])
                             if isinstance(tool_output_data, dict) and tool_output_data.get("markdown_table"):
                                 markdown_table = tool_output_data["markdown_table"]
-                                print(f"[Executor] Found markdown_table, bypassing LLM", flush=True)
+                                logger.debug("[Executor] Found markdown_table, bypassing LLM")
 
                                 # Stream the markdown table directly
                                 chunk_size = 50
@@ -730,6 +731,25 @@ User Query: {task}"""
             else:
                 # Stream final answer
                 answer = response.content or ""
+
+                # ========================================================================
+                # POST-EXECUTION VALIDATION: Check for general knowledge violations
+                # ========================================================================
+                is_violation, validated_answer = _check_for_general_knowledge_violation(
+                    answer,
+                    tool_results,
+                    language=context.language or "en"
+                )
+                if is_violation:
+                    logger.warning(f"[Executor.stream] General knowledge violation detected for {agent.agent_type.value} agent")
+                    log_compliance_violation(
+                        ComplianceViolationType.GENERAL_KNOWLEDGE_DETECTED,
+                        agent.agent_type.value,
+                        user_id=context.user_id,
+                        session_id=context.session_id,
+                        details={"original_answer_preview": answer[:200]}
+                    )
+                    answer = validated_answer
 
                 # Detect artifacts in the response
                 from .artifact_detector import detect_artifacts
@@ -783,8 +803,7 @@ User Query: {task}"""
     ) -> Optional[AgentMessage]:
         """Call the LLM with messages and tools"""
         try:
-            import sys
-            print(f"[Executor] _call_llm called, adapter={self.llm_adapter}, tools={len(tools)}", file=sys.stderr, flush=True)
+            logger.debug(f"[Executor] _call_llm called, adapter={self.llm_adapter}, tools={len(tools)}")
 
             if self.llm_adapter is None:
                 # Mock response for testing
