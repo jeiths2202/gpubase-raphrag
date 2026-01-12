@@ -80,7 +80,8 @@
     "backwardCompatible": "Backward Compatible",
     "breakingChanges": "Breaking Changes",
     "migrationRequired": "Migration Required",
-    "noProposal": "No architecture proposal yet. Click 'Design Architecture' to generate one."
+    "noProposal": "No architecture proposal yet. Click 'Design Architecture' to generate one.",
+    "adminOnly": "Architecture design is available only in Admin Dashboard."
   },
   "implementation": {
     "title": "Implementation Plan",
@@ -93,7 +94,8 @@
     "e2eTests": "End-to-End Tests",
     "manualTests": "Manual Tests",
     "rollback": "Rollback Plan",
-    "noPlan": "No implementation plan yet. Click 'Start Implementation' to generate one."
+    "noPlan": "No implementation plan yet. Click 'Start Implementation' to generate one.",
+    "adminOnly": "Implementation control is available only in Admin Dashboard."
   },
   "timeline": {
     "title": "Activity Timeline",

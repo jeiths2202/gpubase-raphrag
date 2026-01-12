@@ -11,9 +11,6 @@ import {
   Bot,
   Clock,
   User,
-  CheckCircle2,
-  XCircle,
-  Play,
   FileText,
   MessageSquare,
   Send,
@@ -27,30 +24,16 @@ import {
   ListChecks,
   TestTube,
   Undo2,
-  Eye,
 } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useAuthStore } from '../../store/authStore';
 import {
   getEnhancement,
-  analyzeEnhancement,
-  designArchitecture,
-  createImplementationPlan,
-  submitForCodeReview,
-  runTests,
-  verifyImplementation,
-  markVerified,
-  releaseEnhancement,
-  closeEnhancement,
-  approveEnhancement,
-  rejectEnhancement,
   addComment,
   EnhancementDetail,
   EnhancementStatus,
   EnhancementType,
   EnhancementPriority,
-  TestReport,
-  VerificationReport,
 } from '../../api/improvements.api';
 import './ImprovementDetailPage.css';
 
@@ -102,22 +85,8 @@ export const ImprovementDetailPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('description');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isDesigningArchitecture, setIsDesigningArchitecture] = useState(false);
-  const [isCreatingPlan, setIsCreatingPlan] = useState(false);
-  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
-  const [isApproving, setIsApproving] = useState(false);
-  const [isRunningTests, setIsRunningTests] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isMarkingVerified, setIsMarkingVerified] = useState(false);
-  const [isReleasing, setIsReleasing] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
-  const [_testReport, setTestReport] = useState<TestReport | null>(null);
-  const [_verificationReport, setVerificationReport] = useState<VerificationReport | null>(null);
   const [commentText, setCommentText] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [showRejectModal, setShowRejectModal] = useState(false);
 
   // Load enhancement
   const loadEnhancement = async () => {
@@ -145,98 +114,6 @@ export const ImprovementDetailPage: React.FC = () => {
     return new Date(dateStr).toLocaleString();
   };
 
-  // Handle analyze
-  const handleAnalyze = async () => {
-    if (!id) return;
-    setIsAnalyzing(true);
-
-    try {
-      await analyzeEnhancement(id);
-      await loadEnhancement();
-      setActiveTab('analysis');
-    } catch (err) {
-      console.error('Failed to analyze:', err);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  // Handle design architecture
-  const handleDesignArchitecture = async () => {
-    if (!id) return;
-    setIsDesigningArchitecture(true);
-
-    try {
-      await designArchitecture(id);
-      await loadEnhancement();
-      setActiveTab('architecture');
-    } catch (err) {
-      console.error('Failed to design architecture:', err);
-    } finally {
-      setIsDesigningArchitecture(false);
-    }
-  };
-
-  // Handle create implementation plan
-  const handleCreateImplementationPlan = async () => {
-    if (!id) return;
-    setIsCreatingPlan(true);
-
-    try {
-      await createImplementationPlan(id);
-      await loadEnhancement();
-      setActiveTab('implementation');
-    } catch (err) {
-      console.error('Failed to create implementation plan:', err);
-    } finally {
-      setIsCreatingPlan(false);
-    }
-  };
-
-  // Handle submit for code review
-  const handleSubmitForReview = async () => {
-    if (!id) return;
-    setIsSubmittingReview(true);
-
-    try {
-      await submitForCodeReview(id);
-      await loadEnhancement();
-    } catch (err) {
-      console.error('Failed to submit for review:', err);
-    } finally {
-      setIsSubmittingReview(false);
-    }
-  };
-
-  // Handle approve
-  const handleApprove = async () => {
-    if (!id) return;
-    setIsApproving(true);
-
-    try {
-      await approveEnhancement(id);
-      await loadEnhancement();
-    } catch (err) {
-      console.error('Failed to approve:', err);
-    } finally {
-      setIsApproving(false);
-    }
-  };
-
-  // Handle reject
-  const handleReject = async () => {
-    if (!id || !rejectReason) return;
-
-    try {
-      await rejectEnhancement(id, { reason: rejectReason });
-      setShowRejectModal(false);
-      setRejectReason('');
-      await loadEnhancement();
-    } catch (err) {
-      console.error('Failed to reject:', err);
-    }
-  };
-
   // Handle comment
   const handleAddComment = async () => {
     if (!id || !commentText.trim()) return;
@@ -250,83 +127,6 @@ export const ImprovementDetailPage: React.FC = () => {
       console.error('Failed to add comment:', err);
     } finally {
       setIsSubmittingComment(false);
-    }
-  };
-
-  // Handle run tests
-  const handleRunTests = async () => {
-    if (!id) return;
-    setIsRunningTests(true);
-
-    try {
-      const report = await runTests(id);
-      setTestReport(report);
-      await loadEnhancement();
-    } catch (err) {
-      console.error('Failed to run tests:', err);
-    } finally {
-      setIsRunningTests(false);
-    }
-  };
-
-  // Handle verify
-  const handleVerify = async () => {
-    if (!id) return;
-    setIsVerifying(true);
-
-    try {
-      const report = await verifyImplementation(id);
-      setVerificationReport(report);
-      await loadEnhancement();
-    } catch (err) {
-      console.error('Failed to verify:', err);
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
-  // Handle mark verified
-  const handleMarkVerified = async () => {
-    if (!id) return;
-    setIsMarkingVerified(true);
-
-    try {
-      await markVerified(id);
-      await loadEnhancement();
-    } catch (err) {
-      console.error('Failed to mark verified:', err);
-    } finally {
-      setIsMarkingVerified(false);
-    }
-  };
-
-  // Handle release
-  const handleRelease = async () => {
-    if (!id) return;
-    setIsReleasing(true);
-
-    try {
-      await releaseEnhancement(id);
-      await loadEnhancement();
-    } catch (err) {
-      console.error('Failed to release:', err);
-    } finally {
-      setIsReleasing(false);
-    }
-  };
-
-  // Handle close
-  const handleClose = async () => {
-    if (!id) return;
-    setIsClosing(true);
-
-    try {
-      await closeEnhancement(id);
-      await loadEnhancement();
-    } catch (err) {
-      console.error('Failed to close:', err);
-    } finally {
-      setIsClosing(false);
     }
   };
 
@@ -360,115 +160,7 @@ export const ImprovementDetailPage: React.FC = () => {
           {t('common.back')}
         </button>
 
-        <div className="header-actions">
-          {enhancement.status === 'submitted' && (
-            <button
-              className="btn-analyze"
-              onClick={handleAnalyze}
-              disabled={isAnalyzing}
-            >
-              {isAnalyzing ? <Loader2 size={18} className="spinning" /> : <Bot size={18} />}
-              {t('improvements.actions.analyze')}
-            </button>
-          )}
-          {enhancement.status === 'analyzed' && (
-            <>
-              {!enhancement.architecture_proposal && (
-                <button
-                  className="btn-architecture"
-                  onClick={handleDesignArchitecture}
-                  disabled={isDesigningArchitecture}
-                >
-                  {isDesigningArchitecture ? <Loader2 size={18} className="spinning" /> : <GitBranch size={18} />}
-                  {t('improvements.actions.designArchitecture')}
-                </button>
-              )}
-              <button
-                className="btn-approve"
-                onClick={handleApprove}
-                disabled={isApproving}
-              >
-                {isApproving ? <Loader2 size={18} className="spinning" /> : <CheckCircle2 size={18} />}
-                {t('improvements.actions.approve')}
-              </button>
-              <button
-                className="btn-reject"
-                onClick={() => setShowRejectModal(true)}
-              >
-                <XCircle size={18} />
-                {t('improvements.actions.reject')}
-              </button>
-            </>
-          )}
-          {enhancement.status === 'approved' && (
-            <button
-              className="btn-implement"
-              onClick={handleCreateImplementationPlan}
-              disabled={isCreatingPlan}
-            >
-              {isCreatingPlan ? <Loader2 size={18} className="spinning" /> : <Play size={18} />}
-              {t('improvements.actions.implement')}
-            </button>
-          )}
-          {enhancement.status === 'implementing' && (
-            <button
-              className="btn-review"
-              onClick={handleSubmitForReview}
-              disabled={isSubmittingReview}
-            >
-              {isSubmittingReview ? <Loader2 size={18} className="spinning" /> : <Eye size={18} />}
-              {t('improvements.actions.submitReview')}
-            </button>
-          )}
-          {enhancement.status === 'testing' && (
-            <>
-              <button
-                className="btn-test"
-                onClick={handleRunTests}
-                disabled={isRunningTests}
-              >
-                {isRunningTests ? <Loader2 size={18} className="spinning" /> : <TestTube size={18} />}
-                {t('improvements.actions.runTests')}
-              </button>
-              <button
-                className="btn-verify"
-                onClick={handleVerify}
-                disabled={isVerifying}
-              >
-                {isVerifying ? <Loader2 size={18} className="spinning" /> : <CheckCircle2 size={18} />}
-                {t('improvements.actions.verify')}
-              </button>
-              <button
-                className="btn-approve"
-                onClick={handleMarkVerified}
-                disabled={isMarkingVerified}
-              >
-                {isMarkingVerified ? <Loader2 size={18} className="spinning" /> : <CheckCircle2 size={18} />}
-                {t('improvements.actions.markVerified')}
-              </button>
-            </>
-          )}
-          {enhancement.status === 'verified' && (
-            <button
-              className="btn-release"
-              onClick={handleRelease}
-              disabled={isReleasing}
-            >
-              {isReleasing ? <Loader2 size={18} className="spinning" /> : <Play size={18} />}
-              {t('improvements.actions.release')}
-            </button>
-          )}
-          {enhancement.status === 'released' && (
-            <button
-              className="btn-close"
-              onClick={handleClose}
-              disabled={isClosing}
-            >
-              {isClosing ? <Loader2 size={18} className="spinning" /> : <XCircle size={18} />}
-              {t('improvements.actions.close')}
-            </button>
-          )}
-        </div>
+        {/* Admin actions are only available in Admin Dashboard */}
       </div>
 
       {/* Title Section */}
@@ -802,16 +494,7 @@ export const ImprovementDetailPage: React.FC = () => {
           <div className="architecture-tab empty">
             <GitBranch size={48} />
             <p>{t('improvements.architecture.noProposal')}</p>
-            {enhancement.status === 'analyzed' && (
-              <button
-                className="btn-architecture"
-                onClick={handleDesignArchitecture}
-                disabled={isDesigningArchitecture}
-              >
-                {isDesigningArchitecture ? <Loader2 size={18} className="spinning" /> : <GitBranch size={18} />}
-                {t('improvements.actions.designArchitecture')}
-              </button>
-            )}
+            <p className="admin-note">{t('improvements.architecture.adminOnly')}</p>
           </div>
         )}
 
@@ -923,16 +606,7 @@ export const ImprovementDetailPage: React.FC = () => {
           <div className="implementation-tab empty">
             <ListChecks size={48} />
             <p>{t('improvements.implementation.noPlan')}</p>
-            {enhancement.status === 'approved' && (
-              <button
-                className="btn-implement"
-                onClick={handleCreateImplementationPlan}
-                disabled={isCreatingPlan}
-              >
-                {isCreatingPlan ? <Loader2 size={18} className="spinning" /> : <Play size={18} />}
-                {t('improvements.actions.implement')}
-              </button>
-            )}
+            <p className="admin-note">{t('improvements.implementation.adminOnly')}</p>
           </div>
         )}
 
@@ -1006,35 +680,6 @@ export const ImprovementDetailPage: React.FC = () => {
         )}
       </div>
 
-      {/* Reject Modal */}
-      {showRejectModal && (
-        <div className="modal-overlay" onClick={() => setShowRejectModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>{t('improvements.actions.reject')}</h3>
-            <textarea
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="Enter rejection reason..."
-              rows={4}
-            />
-            <div className="modal-actions">
-              <button
-                className="btn-secondary"
-                onClick={() => setShowRejectModal(false)}
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                className="btn-reject"
-                onClick={handleReject}
-                disabled={!rejectReason.trim()}
-              >
-                {t('improvements.actions.reject')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

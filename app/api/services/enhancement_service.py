@@ -362,7 +362,8 @@ class EnhancementService:
 
         # Add timeline event
         event = TimelineEvent(
-            event_type="architecture_complete",
+            id=str(uuid.uuid4()),
+            event_type="architecture_completed",
             description=f"Architecture proposal completed by {proposal.reviewer_agent_id}",
             actor_id=proposal.reviewer_agent_id,
             actor_name="Architect Agent",

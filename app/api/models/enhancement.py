@@ -81,6 +81,8 @@ class TimelineEventType(str, Enum):
     ATTACHMENT_ADDED = "attachment_added"
     APPROVED = "approved"
     REJECTED = "rejected"
+    ARCHITECTURE_STARTED = "architecture_started"
+    ARCHITECTURE_COMPLETED = "architecture_completed"
     IMPLEMENTATION_STARTED = "implementation_started"
     CODE_COMMITTED = "code_committed"
     TESTING_STARTED = "testing_started"
