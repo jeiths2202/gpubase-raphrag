@@ -832,6 +832,9 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
         )
         context.intent = intent_result
 
+        # Debug: Log enable_multi_agent and use_deep_agent values
+        print(f"[stream_enterprise] enable_multi_agent={request.enable_multi_agent}, use_deep_agent={request.use_deep_agent}", flush=True)
+
         # Check if multi-agent is needed
         if not request.enable_multi_agent:
             # Stream simple execution wrapped in parallel chunks
@@ -1101,9 +1104,10 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
         Yields:
             AgentStreamChunk with incremental results
         """
-        logger.info(f"[Orchestrator] Streaming with Deep Agent: type={agent_type.value}")
+        print(f"[_stream_deep_agent] Starting Deep Agent streaming: type={agent_type.value}", flush=True)
 
         deep_agent = self.get_deep_agent(agent_type)
+        print(f"[_stream_deep_agent] deep_agent={deep_agent}", flush=True)
         if deep_agent is None:
             yield AgentStreamChunk(
                 chunk_type="error",

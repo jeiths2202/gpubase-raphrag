@@ -518,6 +518,7 @@ def create_project_deep_agent(**kwargs) -> DeepAgentAdapter:
     프로젝트 관리 Deep Agent 생성
 
     SubAgent를 활용한 복잡한 프로젝트 작업 처리
+    RAG, Code, IMS 도구를 모두 포함하여 통합 검색 및 개발 지원
 
     Args:
         **kwargs: DeepAgentAdapter 추가 인자
@@ -525,28 +526,41 @@ def create_project_deep_agent(**kwargs) -> DeepAgentAdapter:
     Returns:
         풀스택 도구가 설정된 DeepAgentAdapter
     """
-    from ..middleware import get_rag_tools, get_code_tools
+    from ..middleware import get_rag_tools, get_code_tools, get_ims_tools
 
-    all_tools = get_rag_tools() + get_code_tools()
+    # RAG + Code + IMS 도구 통합
+    all_tools = get_rag_tools() + get_code_tools() + get_ims_tools()
 
     return DeepAgentAdapter(
         name="ProjectDeepAgent",
         agent_type=AgentType.PLANNER,
-        description="Deep Agents 기반 프로젝트 관리 에이전트",
+        description="Deep Agents 기반 프로젝트 관리 에이전트 (RAG + Code + IMS 통합)",
         tools=all_tools,
         subagents=None,  # Will use default subagents
-        system_prompt="""You are a project manager and tech lead.
+        system_prompt="""You are a project manager and tech lead with access to multiple systems.
 
-Key responsibilities:
-1. Break down complex project tasks
-2. Delegate work to appropriate SubAgents
-3. Integrate results and ensure quality
+## Available Tools:
 
-Available SubAgents:
-- researcher: Information research
-- coder: Code writing
-- reviewer: Code review
+### Knowledge Base (RAG)
+- **vector_search**: Search documents in the knowledge base
+- **document_read**: Read full document content
 
-Use the built-in todo list to track progress.""",
+### Code Tools
+- **code_execute**: Execute code snippets
+
+### IMS (Issue Management System)
+- **ims_search**: Search for issues in IMS (bug reports, feature requests)
+- **ims_get_detail**: Get detailed information for a specific issue
+
+## Key Responsibilities:
+1. Understand user requests and break them down into steps
+2. Use appropriate tools to gather information
+3. For IMS-related questions, ALWAYS use ims_search first
+4. Provide clear, well-organized responses with sources
+
+## Important Rules:
+- When user asks about IMS issues, API usage, or bug reports: Use ims_search
+- When user asks about knowledge base or documents: Use vector_search
+- Always provide URLs so users can access sources directly""",
         **kwargs
     )

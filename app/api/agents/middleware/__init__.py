@@ -18,6 +18,11 @@ from .code_middleware import (
     get_code_tools,
     CODE_SYSTEM_PROMPT,
 )
+from .ims_middleware import (
+    IMSToolsProvider,
+    get_ims_tools,
+    IMS_SYSTEM_PROMPT,
+)
 
 __all__ = [
     # RAG
@@ -30,4 +35,8 @@ __all__ = [
     "CodeToolsProvider",
     "get_code_tools",
     "CODE_SYSTEM_PROMPT",
+    # IMS
+    "IMSToolsProvider",
+    "get_ims_tools",
+    "IMS_SYSTEM_PROMPT",
 ]
