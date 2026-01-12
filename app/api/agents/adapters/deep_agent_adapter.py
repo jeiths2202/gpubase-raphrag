@@ -141,7 +141,9 @@ class DeepAgentAdapter(BaseAgent):
             raise RuntimeError("langchain-openai is not installed. Run: pip install langchain-openai")
 
         # Ollama 사용 (qwen2.5:3b - tool calling 지원)
-        ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+        # 환경변수 OLLAMA_BASE_URL은 /v1 없이 설정 (예: http://localhost:11434)
+        ollama_base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        ollama_base_url = f"{ollama_base.rstrip('/')}/v1"
         ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 
         self._llm = ChatOpenAI(
