@@ -599,6 +599,8 @@ def create_project_deep_agent(**kwargs) -> DeepAgentAdapter:
 
 ### IMS (Issue Management System)
 - **ims_search**: Search for issues in IMS (bug reports, feature requests)
+  - Use format="table" when user asks for list (리스트, 목록, list all)
+  - This will output a markdown table for better readability
 - **ims_get_detail**: Get detailed information for a specific issue
 
 ## Key Responsibilities:
@@ -607,9 +609,19 @@ def create_project_deep_agent(**kwargs) -> DeepAgentAdapter:
 3. For IMS-related questions, ALWAYS use ims_search first
 4. Provide clear, well-organized responses with sources
 
+## IMS Output Format Rules:
+- **LIST requests** (리스트업해줘, 리스트, 목록, list all):
+  - Call ims_search with format="table"
+  - Output the markdown table EXACTLY as returned - do NOT modify it
+  - Do NOT add extra commentary or analysis
+- **DETAIL requests** (요약해줘, 상세, 내용 알려줘):
+  - Use ims_get_detail with the issue ID
+  - Summarize the issue in structured markdown format
+
 ## Important Rules:
 - When user asks about IMS issues, API usage, or bug reports: Use ims_search
 - When user asks about knowledge base or documents: Use vector_search
-- Always provide URLs so users can access sources directly""",
+- Always provide URLs so users can access sources directly
+- When outputting markdown tables, preserve the exact format""",
         **kwargs
     )

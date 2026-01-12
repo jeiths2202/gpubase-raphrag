@@ -66,6 +66,55 @@ class IMSToolsProvider:
     ```
     """
 
+    def _format_as_markdown_table(self, issues: List[dict], language: str = "ko") -> str:
+        """
+        이슈 목록을 markdown 테이블로 포맷팅
+        기존 WebUI Agent와 동일한 형식 유지
+        """
+        if not issues:
+            return ""
+
+        # Headers based on language
+        headers = {
+            "ko": ("No", "Issue ID", "제목", "상태", "제품"),
+            "ja": ("No", "Issue ID", "タイトル", "ステータス", "製品"),
+            "en": ("No", "Issue ID", "Title", "Status", "Product"),
+        }
+
+        lang = language.lower() if language else "ko"
+        if lang.startswith("ko"):
+            lang = "ko"
+        elif lang.startswith("ja"):
+            lang = "ja"
+        else:
+            lang = "en"
+
+        h = headers.get(lang, headers["ko"])
+
+        # Build table header
+        lines = [
+            f"| {h[0]} | {h[1]} | {h[2]} | {h[3]} | {h[4]} |",
+            "|------|----------|------|------|------|"
+        ]
+
+        # Build table rows
+        for idx, issue in enumerate(issues, 1):
+            ims_id = issue.get("id", "")
+            url = issue.get("url", "")
+            title = issue.get("title", "")[:60]  # Truncate long titles
+            status = issue.get("status", "")
+            product = issue.get("product", "")
+
+            # Create clickable link for IMS ID
+            if url:
+                id_cell = f"[{ims_id}]({url})"
+            else:
+                id_cell = ims_id
+
+            lines.append(f"| {idx} | {id_cell} | {title} | {status} | {product} |")
+
+        return "\n".join(lines)
+
     def _search_issues(
         self,
         query: str,
@@ -212,11 +261,13 @@ class IMSToolsProvider:
         provider = self
 
         @tool
-        def ims_search(query: str, status: str = "all", priority: str = "all", product: str = "", limit: int = 10) -> str:
+        def ims_search(query: str, status: str = "all", priority: str = "all", product: str = "", limit: int = 10, format: str = "auto") -> str:
             """Search the Issue Management System (IMS) for issues.
 
             Use this tool to find bug reports, feature requests, or technical issues.
             Can filter by status, priority, product, and other criteria.
+
+            IMPORTANT: When user asks to "list" issues (리스트, 목록, list all), use format="table" to output markdown table.
 
             Args:
                 query: Search query for issues (required). Search in title and description.
@@ -224,9 +275,10 @@ class IMSToolsProvider:
                 priority: Filter by priority - one of: critical, high, medium, low, all (default: all)
                 product: Filter by product name (optional)
                 limit: Maximum number of issues to return (default: 10, max: 50)
+                format: Output format - "table" for markdown table (use when user asks for list/리스트/목록), "detail" for detailed view (default: auto)
 
             Returns:
-                List of matching issues with id, title, status, priority, product, description, url
+                List of matching issues formatted as markdown table or detailed list
             """
             try:
                 limit = min(max(1, limit), 50)
@@ -244,21 +296,35 @@ class IMSToolsProvider:
                 if not results:
                     return f"IMS에서 '{query}'에 대한 검색 결과가 없습니다."
 
-                # Format output
-                output_lines = [f"IMS 검색 결과 ({len(results)}건):"]
-                output_lines.append("=" * 60)
+                # Determine output format
+                # "리스트", "목록", "list" 키워드가 있으면 테이블 형식으로 출력
+                use_table = format == "table"
+                if format == "auto":
+                    query_lower = query.lower()
+                    list_keywords = ["리스트", "목록", "list all", "list ", "나열", "보여줘"]
+                    use_table = any(kw in query_lower for kw in list_keywords)
 
-                for i, issue in enumerate(results, 1):
-                    output_lines.append(f"\n[{i}] {issue['title']}")
-                    output_lines.append(f"    ID: {issue['id']}")
-                    output_lines.append(f"    상태: {issue['status']} | 우선순위: {issue['priority']}")
-                    output_lines.append(f"    제품: {issue['product']}")
-                    output_lines.append(f"    URL: {issue['url']}")
-                    if issue['description']:
-                        desc = issue['description'][:200] + "..." if len(issue['description']) > 200 else issue['description']
-                        output_lines.append(f"    설명: {desc}")
+                if use_table:
+                    # Markdown table format (기존 WebUI Agent와 동일)
+                    header = f"## 검색 결과: {len(results)}건\n\n"
+                    markdown_table = provider._format_as_markdown_table(results, "ko")
+                    return header + markdown_table
+                else:
+                    # Detailed format
+                    output_lines = [f"IMS 검색 결과 ({len(results)}건):"]
+                    output_lines.append("=" * 60)
 
-                return "\n".join(output_lines)
+                    for i, issue in enumerate(results, 1):
+                        output_lines.append(f"\n[{i}] {issue['title']}")
+                        output_lines.append(f"    ID: {issue['id']}")
+                        output_lines.append(f"    상태: {issue['status']} | 우선순위: {issue['priority']}")
+                        output_lines.append(f"    제품: {issue['product']}")
+                        output_lines.append(f"    URL: {issue['url']}")
+                        if issue['description']:
+                            desc = issue['description'][:200] + "..." if len(issue['description']) > 200 else issue['description']
+                            output_lines.append(f"    설명: {desc}")
+
+                    return "\n".join(output_lines)
 
             except Exception as e:
                 logger.error(f"[IMSTools] ims_search error: {e}")
