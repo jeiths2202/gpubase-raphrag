@@ -28,6 +28,7 @@ export interface AgentExecuteRequest {
   file_context?: string;  // Attached file content for RAG priority context
   url_context?: string;   // URL to fetch and use as RAG context
   ui_context?: UIContext; // UI context for context-aware AI responses
+  use_deep_agent?: boolean; // Use Deep Agents framework for execution
 }
 
 /**
@@ -258,9 +259,12 @@ export async function* streamAgent(
   const isEnterprise = request.agent_type === 'planner';
   const endpoint = isEnterprise ? '/agents/enterprise/stream' : '/agents/stream';
 
-  // For enterprise endpoint, enable multi-agent orchestration to generate DAG
+  // For enterprise endpoint:
+  // - If use_deep_agent is true, disable multi-agent to use Deep Agent directly
+  // - Otherwise, enable multi-agent orchestration for DAG visualization
+  const enableMultiAgent = isEnterprise && !request.use_deep_agent;
   const requestBody = isEnterprise
-    ? { ...request, enable_multi_agent: true }
+    ? { ...request, enable_multi_agent: enableMultiAgent }
     : request;
 
   const response = await fetch(`${apiClient.defaults.baseURL}${endpoint}`, {
