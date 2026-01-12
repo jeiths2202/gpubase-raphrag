@@ -418,6 +418,7 @@ class EnterpriseAgentRequest(BaseModel):
     stream: bool = Field(False, description="Enable streaming response")
     file_context: Optional[str] = Field(None, description="Attached file content")
     url_context: Optional[str] = Field(None, description="URL to fetch and use as context")
+    use_deep_agent: bool = Field(False, description="Use Deep Agents framework for execution")
 
     # Enterprise orchestration options
     enable_multi_agent: bool = Field(False, description="Enable multi-agent orchestration")

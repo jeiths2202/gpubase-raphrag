@@ -362,6 +362,9 @@ class AgentOrchestrator:
         else:
             agent_type = await self.classify_task(request.task)
 
+        # Debug: Log use_deep_agent value
+        print(f"[Orchestrator] use_deep_agent={request.use_deep_agent}", flush=True)
+
         # Route to Deep Agent streaming if requested
         if request.use_deep_agent:
             async for chunk in self._stream_deep_agent(request, context, agent_type, user_id, start_time):
@@ -841,7 +844,8 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
                 include_sources=request.include_sources,
                 stream=True,
                 file_context=request.file_context,
-                url_context=request.url_context
+                url_context=request.url_context,
+                use_deep_agent=request.use_deep_agent  # Pass Deep Agent flag
             )
             async for chunk in self.stream(simple_request, user_id):
                 yield ParallelStreamChunk(
