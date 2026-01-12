@@ -243,6 +243,7 @@ export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated, t }) =
               {searchStatus === 'analyzing' && t('ims.search.analyzing')}
               {searchStatus === 'searching' && t('ims.search.searching')}
               {searchStatus === 'crawling' && t('ims.search.crawling')}
+              {searchStatus === 'loading' && t('ims.search.loading')}
               {!searchStatus && t('ims.search.searching')}
             </>
           ) : (

@@ -1250,13 +1250,17 @@ def run_webui_tests() -> List[TestResult]:
         result = TestResult("URL Redirect Warning Display", "WebUI")
         start_time = time.time()
         try:
-            # Make sure we're on agent page
-            if '/agent' not in page.url:
-                page.goto(f"{FRONTEND_URL}/agent", timeout=10000)
-                page.wait_for_selector('.agent-chat', timeout=10000)
+            # Navigate to agent page fresh to avoid state issues from previous tests
+            page.goto(f"{FRONTEND_URL}/agent", timeout=10000)
+            page.wait_for_selector('.agent-chat', timeout=10000)
 
-            # Find chat input and enter a URL that redirects
-            chat_input = page.query_selector('textarea.agent-chat-input')
+            # Wait for chat input to be ready and enabled
+            chat_input = page.wait_for_selector(
+                'textarea.agent-chat-input:not([disabled])',
+                timeout=10000,
+                state='visible'
+            )
+
             if chat_input:
                 # This URL redirects to a different domain (for testing redirect warning)
                 test_url = "https://technet.tmaxsoft.com/upload/download/online/tibero/pver-20220224-000001/tibero_admin/chapter_server_process.html"
@@ -1288,8 +1292,8 @@ def run_webui_tests() -> List[TestResult]:
                             result.message = "URL attachment failed"
                 else:
                     result.response_time = time.time() - start_time
-                    result.success = True
-                    result.message = "URL attach button not found (may use different UI)"
+                    result.success = False
+                    result.message = "URL detection popup not found - URL fetch feature may be broken"
             else:
                 result.response_time = time.time() - start_time
                 result.message = "Chat input not found"
@@ -1305,17 +1309,20 @@ def run_webui_tests() -> List[TestResult]:
         result = TestResult("URL Context Persistence", "WebUI")
         start_time = time.time()
         try:
-            # Make sure we're on agent page (may already have URL attached from previous test)
-            if '/agent' not in page.url:
-                page.goto(f"{FRONTEND_URL}/agent", timeout=10000)
-                page.wait_for_selector('.agent-chat', timeout=10000)
+            # Navigate to agent page fresh to ensure clean state
+            page.goto(f"{FRONTEND_URL}/agent", timeout=10000)
+            page.wait_for_selector('.agent-chat', timeout=10000)
 
             # Check if URL is already attached from previous test
             url_chip = page.query_selector('.agent-attached-url')
 
             if not url_chip:
-                # Attach a URL first (use valid OpenFrame documentation URL)
-                chat_input = page.query_selector('textarea.agent-chat-input')
+                # Wait for chat input to be ready and enabled
+                chat_input = page.wait_for_selector(
+                    'textarea.agent-chat-input:not([disabled])',
+                    timeout=10000,
+                    state='visible'
+                )
                 if chat_input:
                     test_url = "https://docs.tmaxsoft.com/ja/openframe_common/7.3_XSP/getting-started-guide/chapter-openframe-migration-xsp-msp.html"
                     chat_input.fill(test_url)
@@ -1329,7 +1336,12 @@ def run_webui_tests() -> List[TestResult]:
 
             if url_chip:
                 # Send a message about EBCDIC/ASCII conversion
-                chat_input = page.query_selector('textarea.agent-chat-input')
+                # Wait for chat input to be enabled
+                chat_input = page.wait_for_selector(
+                    'textarea.agent-chat-input:not([disabled])',
+                    timeout=10000,
+                    state='visible'
+                )
                 if chat_input:
                     chat_input.fill("EBCDICからASCIIに変換에 대해서 요약하세요")
 
