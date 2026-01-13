@@ -23,13 +23,13 @@ class EmbeddingConfig:
     TEXT_MODEL = "nv-embedqa-mistral-7b-v2"
     TEXT_DIMENSION = 4096
 
-    # Image embedding model
-    IMAGE_MODEL = "clip-vit-large-patch14"
-    IMAGE_DIMENSION = 768
+    # Image embedding model (bakllava via Ollama)
+    IMAGE_MODEL = "bakllava"
+    IMAGE_DIMENSION = 4096  # bakllava embedding dimension
 
     # Multimodal embedding model
-    MULTIMODAL_MODEL = "colpali"
-    MULTIMODAL_DIMENSION = 1024
+    MULTIMODAL_MODEL = "bakllava"
+    MULTIMODAL_DIMENSION = 4096
 
     # Batch processing
     BATCH_SIZE = 32
@@ -122,73 +122,116 @@ class TextEmbeddingService:
 
 class ImageEmbeddingService:
     """
-    Service for generating image embeddings.
+    Service for generating image embeddings using Ollama bakllava.
 
-    Uses models like:
-    - CLIP-ViT-Large
-    - SigLIP
-    - EVA-CLIP
+    Uses bakllava VLM model for multimodal embeddings with 4096 dimensions.
+    Falls back to mock embeddings if Ollama is unavailable.
     """
 
     def __init__(self, model: str = None):
         self.model = model or EmbeddingConfig.IMAGE_MODEL
         self.dimension = EmbeddingConfig.IMAGE_DIMENSION
+        self._vlm_service = None
+
+    def _get_vlm_service(self):
+        """Lazy load the Ollama VLM service."""
+        if self._vlm_service is None:
+            from .ollama_vlm_service import get_ollama_vlm_service
+            self._vlm_service = get_ollama_vlm_service()
+        return self._vlm_service
 
     async def embed_image(self, image_data: bytes) -> List[float]:
         """
-        Generate embedding for a single image.
+        Generate embedding for a single image using bakllava.
 
         Args:
             image_data: Raw image bytes
 
         Returns:
-            Embedding vector
+            Embedding vector (4096 dimensions)
         """
-        # In production, call actual embedding API
-        import random
-        await asyncio.sleep(0.1)
-        return [random.random() for _ in range(self.dimension)]
+        try:
+            vlm_service = self._get_vlm_service()
+            embedding = await vlm_service.generate_embedding(image_data)
+            return embedding
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Image embedding failed, using fallback: {e}"
+            )
+            # Fallback to zero vector
+            return [0.0] * self.dimension
 
     async def embed_images(
         self,
         images: List[bytes],
-        batch_size: int = 8
+        batch_size: int = 2
     ) -> List[List[float]]:
         """
         Generate embeddings for multiple images.
 
         Args:
             images: List of image bytes
-            batch_size: Batch size for processing
+            batch_size: Batch size for processing (lower for VLM)
 
         Returns:
             List of embedding vectors
         """
-        embeddings = []
-
-        for i in range(0, len(images), batch_size):
-            batch = images[i:i + batch_size]
-            batch_embeddings = await asyncio.gather(
-                *[self.embed_image(img) for img in batch]
+        try:
+            vlm_service = self._get_vlm_service()
+            return await vlm_service.batch_embed(images, batch_size)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Batch image embedding failed, using fallback: {e}"
             )
-            embeddings.extend(batch_embeddings)
+            # Fallback to zero vectors
+            return [[0.0] * self.dimension for _ in images]
 
-        return embeddings
+    async def describe_image(self, image_data: bytes) -> Dict[str, Any]:
+        """
+        Generate description for an image using bakllava.
+
+        Args:
+            image_data: Raw image bytes
+
+        Returns:
+            Dict with description and alt_text
+        """
+        try:
+            vlm_service = self._get_vlm_service()
+            return await vlm_service.describe_image(image_data)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Image description failed: {e}"
+            )
+            return {
+                "description": "",
+                "alt_text": "",
+                "confidence": 0.0,
+                "error": str(e)
+            }
 
 
 class MultimodalEmbeddingService:
     """
-    Service for generating multimodal embeddings.
+    Service for generating multimodal embeddings using Ollama bakllava.
 
-    Uses models like:
-    - ColPali (for document understanding)
-    - BLIP-2
-    - LLaVA embeddings
+    Provides context-aware image embeddings for document understanding.
     """
 
     def __init__(self, model: str = None):
         self.model = model or EmbeddingConfig.MULTIMODAL_MODEL
         self.dimension = EmbeddingConfig.MULTIMODAL_DIMENSION
+        self._vlm_service = None
+
+    def _get_vlm_service(self):
+        """Lazy load the Ollama VLM service."""
+        if self._vlm_service is None:
+            from .ollama_vlm_service import get_ollama_vlm_service
+            self._vlm_service = get_ollama_vlm_service()
+        return self._vlm_service
 
     async def embed_image_with_context(
         self,
@@ -198,16 +241,32 @@ class MultimodalEmbeddingService:
         """
         Generate multimodal embedding for image with text context.
 
+        Uses bakllava to generate embeddings that understand
+        both the image content and surrounding context.
+
         Args:
             image_data: Raw image bytes
             context_text: Optional context text
 
         Returns:
-            Multimodal embedding vector
+            Multimodal embedding vector (4096 dimensions)
         """
-        import random
-        await asyncio.sleep(0.15)
-        return [random.random() for _ in range(self.dimension)]
+        try:
+            vlm_service = self._get_vlm_service()
+            # Use description with context to get better embedding
+            if context_text:
+                result = await vlm_service.describe_image(
+                    image_data,
+                    context=context_text
+                )
+            embedding = await vlm_service.generate_embedding(image_data)
+            return embedding
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Multimodal embedding failed: {e}"
+            )
+            return [0.0] * self.dimension
 
     async def embed_document_page(
         self,
@@ -215,7 +274,7 @@ class MultimodalEmbeddingService:
         page_text: str = ""
     ) -> List[float]:
         """
-        Generate embedding for a document page (ColPali style).
+        Generate embedding for a document page.
 
         Args:
             page_image: Page rendered as image

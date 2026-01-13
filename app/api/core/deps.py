@@ -2797,3 +2797,53 @@ class ProjectService:
 
 def get_project_service() -> ProjectService:
     return ProjectService()
+
+
+# ==================== Multimodal RAG Service ====================
+
+# Singleton instances for multimodal RAG
+_image_embedding_repository = None
+_multimodal_rag_service = None
+
+
+async def _get_image_embedding_repository():
+    """Get or create image embedding repository with PostgreSQL pool."""
+    global _image_embedding_repository
+    if _image_embedding_repository is None:
+        import asyncpg
+        from ..infrastructure.postgres.image_embedding_repository import PostgresImageEmbeddingRepository
+
+        dsn = f"postgresql://{api_settings.POSTGRES_USER}:{api_settings.POSTGRES_PASSWORD}@{api_settings.POSTGRES_HOST}:{api_settings.POSTGRES_PORT}/{api_settings.POSTGRES_DB}"
+        pool = await asyncpg.create_pool(dsn, min_size=1, max_size=5)
+        _image_embedding_repository = PostgresImageEmbeddingRepository(pool)
+
+    return _image_embedding_repository
+
+
+async def get_multimodal_rag_service():
+    """
+    Get MultimodalRAGService singleton instance.
+
+    Used for:
+    - Image extraction from PDFs
+    - Image embedding and storage
+    - Image similarity search
+    - RAG context enhancement with images
+    """
+    global _multimodal_rag_service
+    if _multimodal_rag_service is None:
+        from ..services.multimodal_rag_service import MultimodalRAGService
+
+        repository = await _get_image_embedding_repository()
+        _multimodal_rag_service = MultimodalRAGService(image_repository=repository)
+
+    return _multimodal_rag_service
+
+
+def get_multimodal_rag_service_sync():
+    """
+    Synchronous wrapper for multimodal RAG service.
+    Returns None if service not yet initialized.
+    Use get_multimodal_rag_service() for async contexts.
+    """
+    return _multimodal_rag_service
