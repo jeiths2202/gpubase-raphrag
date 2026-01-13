@@ -210,6 +210,72 @@ POST /api/v1/enterprise/stream
 
 ---
 
+## Long-term Memory
+
+### Overview
+Deep Agents는 `CompositeBackend`를 통해 세션 간 영구 메모리를 지원합니다.
+작업 파일은 임시로 유지되고, 중요한 데이터는 세션 간에 유지됩니다.
+
+### Architecture
+```python
+from deepagents import create_deep_agent
+from deepagents.backends import CompositeBackend, StateBackend, StoreBackend
+from langgraph.store.memory import InMemoryStore
+
+agent = create_deep_agent(
+    backend=CompositeBackend(
+        default=StateBackend(),  # 임시 저장 (작업 파일)
+        routes={"/memories/": StoreBackend(store=InMemoryStore())},  # 영구 저장
+    ),
+)
+```
+
+### Persistent Memory Paths
+
+| 경로 | 용도 |
+|------|------|
+| `/memories/` | 일반 장기 메모리 |
+| `/preferences/` | 사용자 선호도 (세션 간 유지) |
+| `/knowledge/` | 대화에서 축적된 지식 |
+| `/instructions/` | 피드백 기반 자기 개선 지침 |
+| `/research/` | 연구 진행 상황 |
+
+### Use Cases
+
+1. **사용자 선호도 유지**: 언어, 응답 스타일, 자주 사용하는 제품 등
+2. **지식 기반 구축**: 여러 대화에서 학습한 내용 축적
+3. **자기 개선**: 사용자 피드백을 기반으로 응답 품질 향상
+4. **연구 진행**: 긴 연구 작업의 중간 결과 저장
+
+### Memory Store Service
+
+`app/api/services/memory_store_service.py`에서 메모리 저장소 서비스를 제공합니다.
+
+```python
+from app.api.services.memory_store_service import (
+    get_memory_store_service,
+    initialize_memory_store,
+)
+
+# 서비스 초기화 (Neo4j 드라이버와 함께)
+memory_service = await initialize_memory_store(neo4j_driver)
+
+# 메모리 저장
+await memory_service.store_memory("preferences", "language", {"lang": "ko"}, user_id="user123")
+
+# 메모리 조회
+pref = await memory_service.retrieve_memory("preferences", "language", user_id="user123")
+```
+
+### Environment Variables
+
+```bash
+# Long-term Memory 설정
+MEMORY_STORE_DIR=data/agent_memory  # 파일 기반 폴백 저장소 경로
+```
+
+---
+
 ## Adding New Agent
 
 1. `agents/` 에 에이전트 클래스 생성 (BaseAgent 상속)

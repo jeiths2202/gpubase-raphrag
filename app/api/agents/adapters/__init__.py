@@ -1,12 +1,20 @@
 """
 Agent LLM Adapters
 Provides LLM adapters for agent execution.
+
+Features:
+- Ollama adapter for local LLM inference
+- Deep Agent adapter with LangGraph integration
+- Long-term Memory support via CompositeBackend
 """
 from .ollama_adapter import OllamaAgentAdapter, get_ollama_adapter
 from .deep_agent_adapter import (
     DeepAgentAdapter,
     create_deep_agent_adapter,
     create_rag_deep_agent,
+    DEEPAGENTS_AVAILABLE,
+    DEEPAGENTS_BACKENDS_AVAILABLE,
+    LANGGRAPH_STORE_AVAILABLE,
 )
 from .integration import (
     register_deep_agent,
@@ -24,6 +32,10 @@ __all__ = [
     "DeepAgentAdapter",
     "create_deep_agent_adapter",
     "create_rag_deep_agent",
+    # Feature Flags
+    "DEEPAGENTS_AVAILABLE",
+    "DEEPAGENTS_BACKENDS_AVAILABLE",
+    "LANGGRAPH_STORE_AVAILABLE",
     # Integration
     "register_deep_agent",
     "enable_deep_agents",

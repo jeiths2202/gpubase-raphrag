@@ -1,6 +1,11 @@
 """
-Deep Agent Adapter (Minimal Version)
+Deep Agent Adapter (With Long-term Memory)
 Deep Agents를 기존 Agent 시스템에서 사용할 수 있도록 래핑하는 어댑터
+
+Features:
+- CompositeBackend를 통한 Long-term Memory 지원
+- /memories/ 경로의 데이터는 세션 간 영구 저장
+- 사용자 선호도, 지식 기반, 연구 진행 상황 유지
 
 PR #719 패치 버전 사용 (system_prompt KeyError 수정됨)
 """
@@ -21,6 +26,21 @@ except ImportError as e:
     logger.warning(f"Deep Agents not available: {e}")
     DEEPAGENTS_AVAILABLE = False
 
+# Deep Agents backends for long-term memory
+try:
+    from deepagents.backends import CompositeBackend, StateBackend, StoreBackend
+    DEEPAGENTS_BACKENDS_AVAILABLE = True
+except ImportError:
+    DEEPAGENTS_BACKENDS_AVAILABLE = False
+    logger.info("Deep Agents backends not available, long-term memory disabled")
+
+# LangGraph store for persistent memory
+try:
+    from langgraph.store.memory import InMemoryStore
+    LANGGRAPH_STORE_AVAILABLE = True
+except ImportError:
+    LANGGRAPH_STORE_AVAILABLE = False
+
 try:
     from langchain_ollama import ChatOllama
     LANGCHAIN_OLLAMA_AVAILABLE = True
@@ -36,10 +56,22 @@ from ..base import BaseAgent
 
 class DeepAgentAdapter(BaseAgent):
     """
-    Deep Agents를 기존 Agent 인터페이스로 래핑하는 최소 어댑터
+    Deep Agents를 기존 Agent 인터페이스로 래핑하는 어댑터
 
-    SubAgent 없이 기본 Deep Agent만 사용하여 안정성 확보
+    Features:
+    - SubAgent 없이 기본 Deep Agent만 사용하여 안정성 확보
+    - CompositeBackend를 통한 Long-term Memory 지원
+    - /memories/ 경로의 데이터는 세션 간 영구 저장
     """
+
+    # Long-term memory paths (persist across sessions)
+    PERSISTENT_MEMORY_PATHS = [
+        "/memories/",           # General long-term memory
+        "/preferences/",        # User preferences
+        "/knowledge/",          # Accumulated knowledge
+        "/instructions/",       # Self-improving instructions
+        "/research/",           # Research progress
+    ]
 
     def __init__(
         self,
@@ -52,6 +84,9 @@ class DeepAgentAdapter(BaseAgent):
         model_id: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 4096,
+        enable_long_term_memory: bool = True,
+        memory_store: Optional[Any] = None,
+        user_id: Optional[str] = None,
     ):
         super().__init__(
             name=name,
@@ -66,9 +101,16 @@ class DeepAgentAdapter(BaseAgent):
         self._llm = llm
         self._custom_tools = tools or []
         self._deep_agent = None
+        self._enable_long_term_memory = enable_long_term_memory
+        self._memory_store = memory_store
+        self._user_id = user_id
+        self._composite_backend = None
 
         if not DEEPAGENTS_AVAILABLE:
             logger.warning(f"[{self.name}] Deep Agents not available")
+
+        if enable_long_term_memory and not DEEPAGENTS_BACKENDS_AVAILABLE:
+            logger.info(f"[{self.name}] Long-term memory backends not available, using ephemeral storage")
 
     def _get_llm(self):
         """LLM 인스턴스 반환"""
@@ -87,8 +129,48 @@ class DeepAgentAdapter(BaseAgent):
             temperature=self.temperature,
         )
 
+    def _get_composite_backend(self):
+        """
+        CompositeBackend 생성 (Long-term Memory 지원)
+
+        /memories/, /preferences/, /knowledge/, /instructions/, /research/ 경로는
+        StoreBackend를 통해 영구 저장됨. 나머지 경로는 StateBackend로 임시 저장.
+        """
+        if self._composite_backend is not None:
+            return self._composite_backend
+
+        if not DEEPAGENTS_BACKENDS_AVAILABLE or not self._enable_long_term_memory:
+            return None
+
+        try:
+            # Get persistent store (from memory_store_service or InMemoryStore)
+            if self._memory_store is not None:
+                persistent_store = self._memory_store
+            elif LANGGRAPH_STORE_AVAILABLE:
+                persistent_store = InMemoryStore()
+            else:
+                logger.warning("No persistent store available, using StateBackend only")
+                return None
+
+            # Build routes for persistent paths
+            routes = {}
+            for path in self.PERSISTENT_MEMORY_PATHS:
+                routes[path] = StoreBackend(store=persistent_store)
+
+            self._composite_backend = CompositeBackend(
+                default=StateBackend(),  # Ephemeral for working files
+                routes=routes            # Persistent for memory paths
+            )
+
+            logger.info(f"[{self.name}] Long-term memory enabled with CompositeBackend")
+            return self._composite_backend
+
+        except Exception as e:
+            logger.warning(f"[{self.name}] Failed to create CompositeBackend: {e}")
+            return None
+
     def _create_deep_agent(self):
-        """Deep Agent 인스턴스 생성 (Lazy initialization)"""
+        """Deep Agent 인스턴스 생성 (Lazy initialization with Long-term Memory)"""
         if self._deep_agent is not None:
             return self._deep_agent
 
@@ -97,14 +179,39 @@ class DeepAgentAdapter(BaseAgent):
 
         llm = self._get_llm()
 
-        # 최소 설정으로 Deep Agent 생성 (SubAgent 없음)
-        self._deep_agent = create_deep_agent(
-            model=llm,
-            tools=self._custom_tools if self._custom_tools else None,
-            system_prompt=self.system_prompt,
-        )
+        # Get CompositeBackend for long-term memory
+        backend = self._get_composite_backend()
+
+        # Create Deep Agent with optional long-term memory backend
+        agent_kwargs = {
+            "model": llm,
+            "tools": self._custom_tools if self._custom_tools else None,
+            "system_prompt": self.system_prompt,
+        }
+
+        # Add backend if available
+        if backend is not None:
+            agent_kwargs["backend"] = backend
+            logger.info(f"[{self.name}] Creating Deep Agent with Long-term Memory backend")
+        else:
+            logger.info(f"[{self.name}] Creating Deep Agent without Long-term Memory (ephemeral only)")
+
+        self._deep_agent = create_deep_agent(**agent_kwargs)
 
         return self._deep_agent
+
+    def set_user_id(self, user_id: str):
+        """
+        Set user ID for user-specific memory.
+
+        Should be called before creating the deep agent to enable
+        user-specific memory isolation.
+        """
+        self._user_id = user_id
+        # Reset agent to recreate with new user context
+        if self._deep_agent is not None:
+            self._deep_agent = None
+            self._composite_backend = None
 
     async def execute(
         self,
@@ -257,13 +364,33 @@ def create_deep_agent_adapter(
     agent_type: AgentType = AgentType.PLANNER,
     tools: Optional[List] = None,
     system_prompt: Optional[str] = None,
+    enable_long_term_memory: bool = True,
+    memory_store: Optional[Any] = None,
+    user_id: Optional[str] = None,
 ) -> DeepAgentAdapter:
-    """Deep Agent 어댑터 팩토리 함수"""
+    """
+    Deep Agent 어댑터 팩토리 함수
+
+    Args:
+        name: 에이전트 이름
+        agent_type: 에이전트 타입
+        tools: 사용할 도구 목록
+        system_prompt: 시스템 프롬프트
+        enable_long_term_memory: Long-term Memory 활성화 여부
+        memory_store: 영구 저장소 (None이면 InMemoryStore 사용)
+        user_id: 사용자 ID (사용자별 메모리 분리)
+
+    Returns:
+        DeepAgentAdapter 인스턴스
+    """
     return DeepAgentAdapter(
         name=name,
         agent_type=agent_type,
         tools=tools,
         system_prompt=system_prompt,
+        enable_long_term_memory=enable_long_term_memory,
+        memory_store=memory_store,
+        user_id=user_id,
     )
 
 
@@ -275,6 +402,9 @@ def create_rag_deep_agent(
     include_image_search: bool = True,
     additional_tools: Optional[List] = None,
     multimodal_service=None,
+    enable_long_term_memory: bool = True,
+    memory_store: Optional[Any] = None,
+    user_id: Optional[str] = None,
 ) -> DeepAgentAdapter:
     """RAG 도구가 포함된 Deep Agent 생성
 
@@ -286,6 +416,9 @@ def create_rag_deep_agent(
         include_image_search: 이미지 검색 도구 포함 여부
         additional_tools: 추가 도구 목록
         multimodal_service: MultimodalRAGService 인스턴스
+        enable_long_term_memory: Long-term Memory 활성화 여부
+        memory_store: 영구 저장소 (None이면 InMemoryStore 사용)
+        user_id: 사용자 ID (사용자별 메모리 분리)
 
     Returns:
         RAG 도구가 연동된 DeepAgentAdapter
@@ -323,9 +456,17 @@ def create_rag_deep_agent(
     if additional_tools:
         tools.extend(additional_tools)
 
-    # 기본 시스템 프롬프트
-    default_prompt = """You are a RAG (Retrieval-Augmented Generation) assistant.
+    # 기본 시스템 프롬프트 (Long-term Memory 기능 설명 추가)
+    default_prompt = """You are a RAG (Retrieval-Augmented Generation) assistant with long-term memory capabilities.
 You have access to a knowledge base through vector_search, graph_query, and image_search tools.
+
+## Long-term Memory
+You can store and retrieve information across conversations using file paths:
+- /memories/: General long-term memory
+- /preferences/: User preferences that persist
+- /knowledge/: Accumulated knowledge from conversations
+- /instructions/: Self-improving instructions based on feedback
+- /research/: Research progress across sessions
 
 When answering questions:
 1. Use vector_search to find relevant documents
@@ -333,6 +474,8 @@ When answering questions:
 3. Use image_search to find relevant images, diagrams, or charts
 4. Synthesize information from multiple sources
 5. Always cite your sources
+6. Store important insights in /knowledge/ for future reference
+7. Remember user preferences in /preferences/
 
 If the user asks about diagrams, flowcharts, or images, use the image_search tool.
 Answer in the user's language."""
@@ -340,9 +483,12 @@ Answer in the user's language."""
     return DeepAgentAdapter(
         name=name,
         agent_type=AgentType.RAG,
-        description="RAG Deep Agent with knowledge base and image search access",
+        description="RAG Deep Agent with knowledge base, image search, and long-term memory",
         tools=tools if tools else None,
         system_prompt=system_prompt or default_prompt,
+        enable_long_term_memory=enable_long_term_memory,
+        memory_store=memory_store,
+        user_id=user_id,
     )
 
 

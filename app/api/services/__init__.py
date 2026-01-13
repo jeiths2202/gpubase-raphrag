@@ -3,6 +3,11 @@
 from .rag_service import RAGService, get_rag_service
 from .stats_service import StatsService, get_stats_service
 from .health_service import HealthService, get_health_service
+from .memory_store_service import (
+    MemoryStoreService,
+    get_memory_store_service,
+    initialize_memory_store,
+)
 
 __all__ = [
     "RAGService",
@@ -11,4 +16,7 @@ __all__ = [
     "get_stats_service",
     "HealthService",
     "get_health_service",
+    "MemoryStoreService",
+    "get_memory_store_service",
+    "initialize_memory_store",
 ]
