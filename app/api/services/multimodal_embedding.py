@@ -19,9 +19,12 @@ from ..models.document import (
 class EmbeddingConfig:
     """Configuration for embedding generation."""
 
-    # Text embedding model
-    TEXT_MODEL = "nv-embedqa-mistral-7b-v2"
-    TEXT_DIMENSION = 4096
+    # Text embedding model (Ollama nomic-embed-text for local, NIM for production)
+    TEXT_MODEL = "nomic-embed-text"  # Ollama model
+    TEXT_DIMENSION = 768  # nomic-embed-text dimension
+
+    # Ollama settings
+    OLLAMA_BASE_URL = "http://localhost:11434"
 
     # Image embedding model (bakllava via Ollama)
     IMAGE_MODEL = "bakllava"
@@ -42,33 +45,58 @@ class EmbeddingConfig:
 
 class TextEmbeddingService:
     """
-    Service for generating text embeddings.
+    Service for generating text embeddings using Ollama.
 
-    Uses models like:
-    - NV-EmbedQA-Mistral-7B-v2
-    - BGE-M3
-    - E5-Mistral-7B
+    Uses nomic-embed-text model via Ollama for local embeddings.
+    Falls back to mock embeddings if Ollama is unavailable.
     """
 
     def __init__(self, model: str = None):
         self.model = model or EmbeddingConfig.TEXT_MODEL
         self.dimension = EmbeddingConfig.TEXT_DIMENSION
+        self.base_url = EmbeddingConfig.OLLAMA_BASE_URL
+        self._session = None
+
+    def _get_session(self):
+        """Get or create aiohttp session."""
+        if self._session is None:
+            import aiohttp
+            self._session = aiohttp.ClientSession()
+        return self._session
 
     async def embed_text(self, text: str) -> List[float]:
         """
-        Generate embedding for a single text.
+        Generate embedding for a single text using Ollama.
 
         Args:
             text: Input text
 
         Returns:
-            Embedding vector
+            Embedding vector (768 dimensions for nomic-embed-text)
         """
-        # In production, call actual embedding API
-        # Mock: return random vector
-        import random
-        await asyncio.sleep(0.05)
-        return [random.random() for _ in range(self.dimension)]
+        import logging
+        logger = logging.getLogger(__name__)
+
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.base_url}/api/embeddings",
+                    json={"model": self.model, "prompt": text[:8192]},
+                    timeout=aiohttp.ClientTimeout(total=60)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        embedding = data.get("embedding", [])
+                        if embedding:
+                            return embedding
+                    else:
+                        logger.warning(f"Ollama embedding failed: HTTP {response.status}")
+        except Exception as e:
+            logger.warning(f"Ollama embedding error: {e}, using fallback")
+
+        # Fallback to zero vector
+        return [0.0] * self.dimension
 
     async def embed_texts(
         self,

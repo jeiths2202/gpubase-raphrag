@@ -1591,9 +1591,40 @@ class TokenStatsService:
 
 
 # Dependency injection functions
-def get_rag_service() -> RAGService:
-    """Get RAG service instance (real implementation)"""
-    return _get_rag_service()
+_use_local_rag = None  # Cache for local RAG decision
+
+
+def get_rag_service():
+    """
+    Get RAG service instance.
+
+    Returns LocalRAGAdapter if Neo4j is not available,
+    otherwise returns the standard RAGService.
+    """
+    global _use_local_rag
+
+    # Check if we should use local RAG (cached)
+    if _use_local_rag is None:
+        # Try to connect to Neo4j
+        try:
+            from neo4j import GraphDatabase
+            driver = GraphDatabase.driver(
+                f"bolt://{api_settings.NEO4J_HOST}:{api_settings.NEO4J_PORT}",
+                auth=(api_settings.NEO4J_USER, api_settings.NEO4J_PASSWORD)
+            )
+            driver.verify_connectivity()
+            driver.close()
+            _use_local_rag = False
+            print("[RAG] Using Neo4j RAG service")
+        except Exception as e:
+            _use_local_rag = True
+            print(f"[RAG] Neo4j not available ({e}), using Local RAG service")
+
+    if _use_local_rag:
+        from ..services.local_rag_adapter import LocalRAGAdapter
+        return LocalRAGAdapter.get_instance()
+    else:
+        return _get_rag_service()
 
 
 def get_document_service() -> DocumentService:
