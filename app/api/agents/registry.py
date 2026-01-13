@@ -36,7 +36,8 @@ class ToolRegistry:
         """Register default tools"""
         from .tools import (
             VectorSearchTool, GraphQueryTool, IMSSearchTool,
-            DocumentReadTool, WebFetchTool, SafeBashTool
+            DocumentReadTool, WebFetchTool, SafeBashTool,
+            ImageSearchTool
         )
 
         default_tools = [
@@ -46,6 +47,7 @@ class ToolRegistry:
             DocumentReadTool(),
             WebFetchTool(),
             SafeBashTool(),
+            ImageSearchTool(),
         ]
 
         for tool in default_tools:

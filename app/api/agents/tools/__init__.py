@@ -7,6 +7,7 @@ from .vector_search import VectorSearchTool, GraphQueryTool
 from .ims_search import IMSSearchTool
 from .document_read import DocumentReadTool, WebFetchTool
 from .bash import BashTool, SafeBashTool
+from .image_search import ImageSearchTool
 
 __all__ = [
     "BaseTool",
@@ -18,6 +19,7 @@ __all__ = [
     "WebFetchTool",
     "BashTool",
     "SafeBashTool",
+    "ImageSearchTool",
 ]
 
 
@@ -30,6 +32,7 @@ def get_all_tools():
         DocumentReadTool(),
         WebFetchTool(),
         SafeBashTool(),
+        ImageSearchTool(),
     ]
 
 
@@ -43,6 +46,7 @@ def get_tool_by_name(name: str) -> BaseTool:
         "web_fetch": WebFetchTool,
         "bash": SafeBashTool,
         "mock_tool": MockTool,
+        "image_search": ImageSearchTool,
     }
 
     tool_class = tools.get(name)

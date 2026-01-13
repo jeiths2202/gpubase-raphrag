@@ -221,7 +221,9 @@ def create_rag_deep_agent(
     system_prompt: Optional[str] = None,
     include_vector_search: bool = True,
     include_graph_query: bool = True,
+    include_image_search: bool = True,
     additional_tools: Optional[List] = None,
+    multimodal_service=None,
 ) -> DeepAgentAdapter:
     """RAG 도구가 포함된 Deep Agent 생성
 
@@ -230,7 +232,9 @@ def create_rag_deep_agent(
         system_prompt: 시스템 프롬프트
         include_vector_search: 벡터 검색 도구 포함 여부
         include_graph_query: 그래프 쿼리 도구 포함 여부
+        include_image_search: 이미지 검색 도구 포함 여부
         additional_tools: 추가 도구 목록
+        multimodal_service: MultimodalRAGService 인스턴스
 
     Returns:
         RAG 도구가 연동된 DeepAgentAdapter
@@ -239,12 +243,29 @@ def create_rag_deep_agent(
 
     tools = []
 
+    # Get multimodal service for image search
+    if multimodal_service is None and include_image_search:
+        try:
+            from ...core.deps import get_multimodal_rag_service
+            import asyncio
+            # Try to get the service synchronously
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # Can't await in sync context, will lazy load later
+                pass
+            else:
+                multimodal_service = loop.run_until_complete(get_multimodal_rag_service())
+        except Exception:
+            pass  # Will use lazy loading in the tool
+
     # RAG 도구 추가
-    rag_tools = get_rag_tools()
+    rag_tools = get_rag_tools(multimodal_service=multimodal_service)
     for tool in rag_tools:
         if include_vector_search and tool.name == "vector_search":
             tools.append(tool)
         elif include_graph_query and tool.name == "graph_query":
+            tools.append(tool)
+        elif include_image_search and tool.name == "image_search":
             tools.append(tool)
 
     # 추가 도구
@@ -253,20 +274,22 @@ def create_rag_deep_agent(
 
     # 기본 시스템 프롬프트
     default_prompt = """You are a RAG (Retrieval-Augmented Generation) assistant.
-You have access to a knowledge base through vector_search and graph_query tools.
+You have access to a knowledge base through vector_search, graph_query, and image_search tools.
 
 When answering questions:
 1. Use vector_search to find relevant documents
 2. Use graph_query to explore entity relationships
-3. Synthesize information from multiple sources
-4. Always cite your sources
+3. Use image_search to find relevant images, diagrams, or charts
+4. Synthesize information from multiple sources
+5. Always cite your sources
 
+If the user asks about diagrams, flowcharts, or images, use the image_search tool.
 Answer in the user's language."""
 
     return DeepAgentAdapter(
         name=name,
         agent_type=AgentType.RAG,
-        description="RAG Deep Agent with knowledge base access",
+        description="RAG Deep Agent with knowledge base and image search access",
         tools=tools if tools else None,
         system_prompt=system_prompt or default_prompt,
     )
