@@ -170,6 +170,7 @@ interface ExternalConnectorsState {
 
   // Active resources for chat
   toggleResourceActive: (resource: ConnectedResource) => void;
+  toggleResourceActiveWithContent: (resource: ConnectedResource, type: ConnectorType) => Promise<void>;
   clearActiveResources: () => void;
   getActiveResourcesContext: () => string;
 
@@ -736,6 +737,56 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
           }));
 
           console.log(`[ExternalConnectors] Processed document ${documentId}: status=${result.status}, chunks=${result.chunk_count}`);
+
+          // If this document is already in activeResources, refresh its content
+          const { activeResources } = get();
+          const isSelected = activeResources.some((r) => r.id === resourceId);
+          if (isSelected && result.status === 'ready') {
+            try {
+              console.log(`[ExternalConnectors] Refreshing content for selected document: ${documentId}`);
+              const contentResponse = await externalConnectorsApi.getDocumentContent(
+                connector.connectionId,
+                documentId
+              );
+
+              if (contentResponse.content) {
+                // Update both connectedResources and activeResources with the content
+                const fetchedContent = contentResponse.content; // Capture for closure
+                set((state) => {
+                  const updatedResource = state.connectors
+                    .find((c) => c.type === type)
+                    ?.connectedResources.find((r) => r.id === resourceId);
+
+                  if (updatedResource) {
+                    const resourceWithContent: ConnectedResource = {
+                      ...updatedResource,
+                      content: fetchedContent,
+                    };
+
+                    return {
+                      connectors: state.connectors.map((c) =>
+                        c.type === type
+                          ? {
+                              ...c,
+                              connectedResources: c.connectedResources.map((r) =>
+                                r.id === resourceId ? resourceWithContent : r
+                              ),
+                            }
+                          : c
+                      ),
+                      activeResources: state.activeResources.map((r) =>
+                        r.id === resourceId ? resourceWithContent : r
+                      ),
+                    };
+                  }
+                  return state;
+                });
+                console.log(`[ExternalConnectors] Content refreshed for ${resourceId}: ${contentResponse.content.length} chars`);
+              }
+            } catch (contentError) {
+              console.error('[ExternalConnectors] Failed to refresh content after processing:', contentError);
+            }
+          }
         } catch (error) {
           // Mark as error
           set((state) => ({
@@ -917,6 +968,97 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
               : [...state.activeResources, resource],
           };
         });
+      },
+
+      // Toggle resource active with content fetch (for RAG context)
+      // This version fetches document content if not already loaded
+      toggleResourceActiveWithContent: async (resource: ConnectedResource, type: ConnectorType) => {
+        const { activeResources, connectors } = get();
+        const isActive = activeResources.some((r) => r.id === resource.id);
+
+        if (isActive) {
+          // Deselecting - just remove from active
+          set((state) => ({
+            activeResources: state.activeResources.filter((r) => r.id !== resource.id),
+          }));
+          return;
+        }
+
+        // Check if document is processed - warn if not ready
+        if (resource.status !== 'ready') {
+          console.warn(`[ExternalConnectors] Document "${resource.title}" is not processed (status: ${resource.status}). Process it first for RAG context.`);
+          // Still add to selection, but content won't be available
+        }
+
+        // Selecting - check if content is already loaded
+        if (resource.content) {
+          // Content already loaded, just add to active
+          set((state) => ({
+            activeResources: [...state.activeResources, resource],
+          }));
+          return;
+        }
+
+        // Need to fetch content
+        const connector = connectors.find((c) => c.type === type);
+        if (!connector?.connectionId) {
+          console.error('[ExternalConnectors] No connection found for type:', type);
+          // Add without content
+          set((state) => ({
+            activeResources: [...state.activeResources, resource],
+          }));
+          return;
+        }
+
+        // Extract actual document ID from prefixed resource ID
+        const documentId = resource.id.startsWith(`${type}_`)
+          ? resource.id.substring(`${type}_`.length)
+          : resource.id;
+
+        try {
+          console.log(`[ExternalConnectors] Fetching content for document: ${documentId}`);
+          const contentResponse = await externalConnectorsApi.getDocumentContent(
+            connector.connectionId,
+            documentId
+          );
+
+          if (contentResponse.content) {
+            // Update resource with content
+            const updatedResource: ConnectedResource = {
+              ...resource,
+              content: contentResponse.content,
+            };
+
+            // Update in connectedResources
+            set((state) => ({
+              connectors: state.connectors.map((c) =>
+                c.type === type
+                  ? {
+                      ...c,
+                      connectedResources: c.connectedResources.map((r) =>
+                        r.id === resource.id ? updatedResource : r
+                      ),
+                    }
+                  : c
+              ),
+              activeResources: [...state.activeResources, updatedResource],
+            }));
+
+            console.log(`[ExternalConnectors] Loaded content for ${resource.title}: ${contentResponse.content.length} chars`);
+          } else {
+            // No content available, add resource without content
+            console.warn(`[ExternalConnectors] No content available for document: ${documentId}`);
+            set((state) => ({
+              activeResources: [...state.activeResources, resource],
+            }));
+          }
+        } catch (error) {
+          console.error('[ExternalConnectors] Failed to fetch document content:', error);
+          // Add resource without content
+          set((state) => ({
+            activeResources: [...state.activeResources, resource],
+          }));
+        }
       },
 
       // Clear all active resources

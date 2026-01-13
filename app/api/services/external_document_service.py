@@ -1005,6 +1005,58 @@ class ExternalDocumentService:
         except Exception:
             return encrypted
 
+    def get_document_content(self, document_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get the content of a processed document for RAG context.
+        Returns the full text content or concatenated sections.
+        """
+        doc = self._documents.get(document_id)
+        if not doc:
+            return None
+
+        # Check if document has been processed
+        if doc.status != ExternalDocumentStatus.READY:
+            return {
+                "id": doc.id,
+                "title": doc.title,
+                "status": doc.status.value if hasattr(doc.status, 'value') else doc.status,
+                "content": None,
+                "error": f"Document not ready (status: {doc.status})"
+            }
+
+        # Build content from sections or text_content
+        content = ""
+        if doc.sections:
+            for section in doc.sections:
+                section_title = section.get("title", "")
+                section_content = section.get("content", "")
+                if isinstance(section_content, list):
+                    section_content = "\n".join(str(c) for c in section_content)
+
+                if section_title:
+                    content += f"\n\n## {section_title}\n{section_content}"
+                else:
+                    content += f"\n\n{section_content}"
+        elif doc.text_content:
+            content = doc.text_content
+        else:
+            # Fallback: concatenate all chunks for this document
+            chunks = [
+                chunk for chunk in self._vector_store._chunk_lookup.values()
+                if chunk.document_id == document_id
+            ]
+            chunks.sort(key=lambda c: c.index)
+            content = "\n\n".join(chunk.content for chunk in chunks)
+
+        return {
+            "id": doc.id,
+            "title": doc.title,
+            "status": "ready",
+            "content": content.strip() if content else "",
+            "url": doc.external_url,
+            "chunk_count": doc.chunk_count
+        }
+
     def get_user_stats(self, user_id: str) -> Dict[str, Any]:
         """Get statistics for a user's external resources"""
         connections = self.get_user_connections(user_id)

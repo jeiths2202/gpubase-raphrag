@@ -329,6 +329,51 @@ async def list_connection_documents(
     )
 
 
+# ================== Document Content ==================
+
+class DocumentContentResponse(BaseModel):
+    """Response for document content retrieval"""
+    id: str
+    title: str
+    status: str
+    content: Optional[str] = None
+    url: Optional[str] = None
+    chunk_count: int = 0
+    error: Optional[str] = None
+
+
+@router.get("/{connection_id}/documents/{document_id}/content", response_model=DocumentContentResponse)
+async def get_document_content(
+    connection_id: str,
+    document_id: str
+):
+    """
+    Get the full text content of a processed document.
+    Use this to retrieve document content for RAG context.
+    """
+    service = get_external_document_service()
+
+    # Verify connection exists
+    connection = service.get_connection(connection_id)
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    result = service.get_document_content(document_id)
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    return DocumentContentResponse(
+        id=result["id"],
+        title=result["title"],
+        status=result["status"],
+        content=result.get("content"),
+        url=result.get("url"),
+        chunk_count=result.get("chunk_count", 0),
+        error=result.get("error")
+    )
+
+
 # ================== Document Processing ==================
 
 class ProcessDocumentResponse(BaseModel):

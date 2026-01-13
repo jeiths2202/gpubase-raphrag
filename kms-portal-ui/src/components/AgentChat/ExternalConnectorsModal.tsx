@@ -820,6 +820,7 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
     disconnectService,
     syncResources,
     toggleResourceActive,
+    toggleResourceActiveWithContent,
     processDocument,
     processSelectedDocuments,
   } = useExternalConnectorsStore();
@@ -905,20 +906,29 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
     }
   }, [selectedConnectorType, selectedConnector, activeResources, processSelectedDocuments]);
 
+  // Handler to toggle resource with content fetch (for individual clicks)
+  const handleToggleResourceWithContent = useCallback((resource: ConnectedResource) => {
+    if (selectedConnectorType) {
+      // Use async version that fetches content when selecting
+      toggleResourceActiveWithContent(resource, selectedConnectorType);
+    }
+  }, [selectedConnectorType, toggleResourceActiveWithContent]);
+
   const handleSelectAll = useCallback(() => {
-    if (selectedConnector) {
+    if (selectedConnector && selectedConnectorType) {
       // Add all resources from this connector that are not already selected
       selectedConnector.connectedResources.forEach((resource) => {
         if (!activeResources.some((r) => r.id === resource.id)) {
-          toggleResourceActive(resource);
+          // Use async version that fetches content
+          toggleResourceActiveWithContent(resource, selectedConnectorType);
         }
       });
     }
-  }, [selectedConnector, activeResources, toggleResourceActive]);
+  }, [selectedConnector, selectedConnectorType, activeResources, toggleResourceActiveWithContent]);
 
   const handleDeselectAll = useCallback(() => {
     if (selectedConnector) {
-      // Remove all resources from this connector
+      // Remove all resources from this connector - use sync version since no content fetch needed
       activeResources
         .filter((r) => selectedConnector.connectedResources.some((cr) => cr.id === r.id))
         .forEach((resource) => {
@@ -954,7 +964,7 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
               onConnectWithToken={handleConnectWithToken}
               onDisconnect={handleDisconnect}
               onSync={handleSync}
-              onToggleResource={toggleResourceActive}
+              onToggleResource={handleToggleResourceWithContent}
               onSelectAll={handleSelectAll}
               onDeselectAll={handleDeselectAll}
               onProcessDocument={handleProcessDocument}

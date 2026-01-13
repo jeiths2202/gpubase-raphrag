@@ -184,6 +184,16 @@ export interface ProcessDocumentResponse {
   error_message: string | null;
 }
 
+export interface DocumentContentResponse {
+  id: string;
+  title: string;
+  status: string;
+  content: string | null;
+  url: string | null;
+  chunk_count: number;
+  error: string | null;
+}
+
 export interface ProcessBatchResponse {
   processed: number;
   failed: number;
@@ -347,6 +357,19 @@ export async function processDocument(
 }
 
 /**
+ * Get the full text content of a processed document for RAG context
+ */
+export async function getDocumentContent(
+  connectionId: string,
+  documentId: string
+): Promise<DocumentContentResponse> {
+  const response = await apiClient.get<DocumentContentResponse>(
+    `/external-connections/${connectionId}/documents/${documentId}/content`
+  );
+  return response.data;
+}
+
+/**
  * Process multiple documents in batch
  * Documents are processed sequentially, already processed ones are skipped
  */
@@ -382,6 +405,7 @@ export const externalConnectorsApi = {
   search: searchExternalResources,
   processDocument,
   processDocumentsBatch,
+  getDocumentContent,
 };
 
 export default externalConnectorsApi;
