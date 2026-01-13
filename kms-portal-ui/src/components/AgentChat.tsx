@@ -29,6 +29,7 @@ import {
   Link,
   ExternalLink,
   GitBranch,
+  Link2,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import './AgentChat.css';
@@ -45,6 +46,7 @@ import { TracePanel } from './TracePanel';
 import {
   MessageBubble,
   IMSCredentialsModal,
+  ExternalConnectorsModal,
   useFileAttachment,
   useUrlAttachment,
   useStreamingChat,
@@ -53,6 +55,9 @@ import {
   SUPPORTED_EXTENSIONS,
   type ChatMessage,
 } from './AgentChat/index';
+
+// External connectors store
+import { useExternalConnectorsStore } from '../store/externalConnectorsStore';
 
 // =============================================================================
 // Component
@@ -121,6 +126,15 @@ export const AgentChat: React.FC = () => {
   // IMS Credentials modal state
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [pendingQuery, setPendingQuery] = useState<string | null>(null);
+
+  // External connectors store and modal state
+  const {
+    isModalOpen: showConnectorsModal,
+    openModal: openConnectorsModal,
+    closeModal: closeConnectorsModal,
+    activeResources,
+    getConnectedCount,
+  } = useExternalConnectorsStore();
 
   // File attachment (using custom hook with per-agent state)
   const {
@@ -452,6 +466,20 @@ export const AgentChat: React.FC = () => {
             <Plus size={16} />
           </button>
 
+          {/* External connectors button */}
+          <button
+            className={`agent-chat-connectors-toggle ${activeResources.length > 0 ? 'has-active' : ''}`}
+            onClick={openConnectorsModal}
+            title={t('externalConnectors.title') || 'External Connectors'}
+          >
+            <Link2 size={16} />
+            {(getConnectedCount() > 0 || activeResources.length > 0) && (
+              <span className="connectors-count">
+                {activeResources.length > 0 ? activeResources.length : getConnectedCount()}
+              </span>
+            )}
+          </button>
+
           {/* Trace panel toggle button - Planner only */}
           {selectedAgent === 'planner' && currentTrace.dag && (
             <button
@@ -706,6 +734,13 @@ export const AgentChat: React.FC = () => {
         isOpen={showCredentialsModal}
         onClose={handleCredentialsClose}
         onSuccess={handleCredentialsSuccess}
+        t={t}
+      />
+
+      {/* External Connectors Modal */}
+      <ExternalConnectorsModal
+        isOpen={showConnectorsModal}
+        onClose={closeConnectorsModal}
         t={t}
       />
     </div>

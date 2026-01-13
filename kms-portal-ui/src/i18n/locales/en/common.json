@@ -79,5 +79,55 @@
       "emptyFields": "Please fill in all fields",
       "saveError": "Failed to save credentials"
     }
+  },
+  "externalConnectors": {
+    "title": "External Connectors",
+    "description": "Connect external services to use their content as context in your conversations.",
+    "connected": "Connected",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "connecting": "Connecting...",
+    "sync": "Sync",
+    "lastSync": "Last synced",
+    "resources": "resources",
+    "selected": "selected",
+    "selectResources": "Select resources for chat context",
+    "selectHint": "Selected resources will be available as context in your conversations",
+    "resourcesSelected": "resources selected for context",
+    "comingSoon": "Coming Soon",
+    "plannedDescription": "This connector is planned for future development.",
+    "status": {
+      "available": "Available",
+      "inDevelopment": "In Development",
+      "planned": "Planned"
+    },
+    "fields": {
+      "accessToken": "Integration Token",
+      "accessTokenPlaceholder": "Enter integration token",
+      "workspaceId": "Workspace ID",
+      "workspaceIdPlaceholder": "Enter workspace ID",
+      "email": "Email",
+      "emailPlaceholder": "Enter your Atlassian email",
+      "apiKey": "API Token",
+      "apiKeyPlaceholder": "Enter Atlassian API token",
+      "siteUrlPlaceholder": "e.g., your-domain.atlassian.net",
+      "notionHint": "Get your integration token from notion.so/my-integrations",
+      "confluenceHint": "Get your API token from id.atlassian.com/manage-profile/security/api-tokens"
+    },
+    "error": {
+      "missingFields": "Please fill in all required fields"
+    },
+    "sso": {
+      "signInWithNotion": "Sign in with Notion",
+      "signInWithAtlassian": "Sign in with Atlassian",
+      "signInWithGithub": "Sign in with GitHub",
+      "signInWithGoogle": "Sign in with Google",
+      "connectedAs": "Connected as",
+      "permissions": "Requested permissions",
+      "authorizingTitle": "Authorizing",
+      "authorizingDescription": "Please complete the authentication in the popup window...",
+      "cancelAuth": "Cancel",
+      "securityInfo": "Your data is securely handled via OAuth 2.0. We only request the permissions necessary to access your content."
+    }
   }
 }

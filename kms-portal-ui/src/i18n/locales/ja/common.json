@@ -79,5 +79,55 @@
       "emptyFields": "すべてのフィールドに入力してください",
       "saveError": "認証情報の保存に失敗しました"
     }
+  },
+  "externalConnectors": {
+    "title": "外部コネクタ",
+    "description": "外部サービスを接続して、会話のコンテキストとして使用します。",
+    "connected": "接続済み",
+    "connect": "接続",
+    "disconnect": "切断",
+    "connecting": "接続中...",
+    "sync": "同期",
+    "lastSync": "最終同期",
+    "resources": "リソース",
+    "selected": "選択済み",
+    "selectResources": "チャットコンテキストに使用するリソースを選択",
+    "selectHint": "選択したリソースは会話のコンテキストとして利用できます",
+    "resourcesSelected": "リソースがコンテキストとして選択されました",
+    "comingSoon": "近日公開",
+    "plannedDescription": "このコネクタは今後開発予定です。",
+    "status": {
+      "available": "利用可能",
+      "inDevelopment": "開発中",
+      "planned": "予定"
+    },
+    "fields": {
+      "accessToken": "統合トークン",
+      "accessTokenPlaceholder": "統合トークンを入力してください",
+      "workspaceId": "ワークスペースID",
+      "workspaceIdPlaceholder": "ワークスペースIDを入力してください",
+      "email": "メールアドレス",
+      "emailPlaceholder": "Atlassianメールアドレスを入力してください",
+      "apiKey": "APIトークン",
+      "apiKeyPlaceholder": "Atlassian APIトークンを入力してください",
+      "siteUrlPlaceholder": "例: your-domain.atlassian.net",
+      "notionHint": "notion.so/my-integrationsから統合トークンを取得してください",
+      "confluenceHint": "id.atlassian.com/manage-profile/security/api-tokensからAPIトークンを取得してください"
+    },
+    "error": {
+      "missingFields": "すべての必須フィールドに入力してください"
+    },
+    "sso": {
+      "signInWithNotion": "Notionでサインイン",
+      "signInWithAtlassian": "Atlassianでサインイン",
+      "signInWithGithub": "GitHubでサインイン",
+      "signInWithGoogle": "Googleでサインイン",
+      "connectedAs": "接続済みアカウント",
+      "permissions": "要求される権限",
+      "authorizingTitle": "認証中",
+      "authorizingDescription": "ポップアップウィンドウで認証を完了してください...",
+      "cancelAuth": "キャンセル",
+      "securityInfo": "お客様のデータはOAuth 2.0により安全に処理されます。コンテンツへのアクセスに必要な権限のみを要求します。"
+    }
   }
 }
