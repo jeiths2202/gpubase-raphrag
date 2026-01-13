@@ -303,6 +303,8 @@ interface ConnectorDetailViewProps {
   onDisconnect: () => void;
   onSync: () => void;
   onToggleResource: (resource: ConnectedResource) => void;
+  onSelectAll: () => void;
+  onDeselectAll: () => void;
   onProcessDocument: (resourceId: string) => void;
   onProcessSelected: () => void;
   activeResources: ConnectedResource[];
@@ -321,6 +323,8 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
   onDisconnect,
   onSync,
   onToggleResource,
+  onSelectAll,
+  onDeselectAll,
   onProcessDocument,
   onProcessSelected,
   activeResources,
@@ -349,6 +353,13 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
   const isResourceActive = (resourceId: string) => {
     return activeResources.some((r) => r.id === resourceId);
   };
+
+  // Count selected resources from this connector
+  const selectedCount = activeResources.filter((r) =>
+    connector.connectedResources.some((cr) => cr.id === r.id)
+  ).length;
+  const totalCount = connector.connectedResources.length;
+  const allSelected = totalCount > 0 && selectedCount === totalCount;
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '';
@@ -485,6 +496,46 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
                 ) : (
                   // Resources list
                   <>
+                    {/* Selection header */}
+                    <div className="connector-selection-header">
+                      <span className="connector-selection-count">
+                        {selectedCount > 0 ? (
+                          <>
+                            <CheckCircle2 size={14} />
+                            {selectedCount} / {totalCount} {t('common.externalConnectors.selected') || 'selected'}
+                          </>
+                        ) : (
+                          <>
+                            <Circle size={14} />
+                            {totalCount} {t('common.externalConnectors.resources') || 'resources'}
+                          </>
+                        )}
+                      </span>
+                      <div className="connector-selection-actions">
+                        {!allSelected && (
+                          <button
+                            className="connector-select-all-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectAll();
+                            }}
+                          >
+                            {t('common.externalConnectors.selectAll') || 'Select All'}
+                          </button>
+                        )}
+                        {selectedCount > 0 && (
+                          <button
+                            className="connector-deselect-all-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeselectAll();
+                            }}
+                          >
+                            {t('common.externalConnectors.deselectAll') || 'Deselect All'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                     {/* Process actions bar */}
                     {unprocessedCount > 0 && (
                       <div className="connector-process-actions">
@@ -854,6 +905,28 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
     }
   }, [selectedConnectorType, selectedConnector, activeResources, processSelectedDocuments]);
 
+  const handleSelectAll = useCallback(() => {
+    if (selectedConnector) {
+      // Add all resources from this connector that are not already selected
+      selectedConnector.connectedResources.forEach((resource) => {
+        if (!activeResources.some((r) => r.id === resource.id)) {
+          toggleResourceActive(resource);
+        }
+      });
+    }
+  }, [selectedConnector, activeResources, toggleResourceActive]);
+
+  const handleDeselectAll = useCallback(() => {
+    if (selectedConnector) {
+      // Remove all resources from this connector
+      activeResources
+        .filter((r) => selectedConnector.connectedResources.some((cr) => cr.id === r.id))
+        .forEach((resource) => {
+          toggleResourceActive(resource);
+        });
+    }
+  }, [selectedConnector, activeResources, toggleResourceActive]);
+
   if (!isOpen) return null;
 
   return (
@@ -882,6 +955,8 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
               onDisconnect={handleDisconnect}
               onSync={handleSync}
               onToggleResource={toggleResourceActive}
+              onSelectAll={handleSelectAll}
+              onDeselectAll={handleDeselectAll}
               onProcessDocument={handleProcessDocument}
               onProcessSelected={handleProcessSelected}
               activeResources={activeResources}

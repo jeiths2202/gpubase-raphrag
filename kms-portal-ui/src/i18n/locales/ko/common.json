@@ -150,6 +150,8 @@
     },
     "needsProcessing": "개 문서 처리 필요",
     "processSelected": "선택 항목 처리",
-    "processDoc": "이 문서 처리"
+    "processDoc": "이 문서 처리",
+    "selectAll": "전체 선택",
+    "deselectAll": "전체 해제"
   }
 }

@@ -150,6 +150,8 @@
     },
     "needsProcessing": "documents need processing",
     "processSelected": "Process selected",
-    "processDoc": "Process this document"
+    "processDoc": "Process this document",
+    "selectAll": "Select All",
+    "deselectAll": "Deselect All"
   }
 }

@@ -150,6 +150,8 @@
     },
     "needsProcessing": "件のドキュメントを処理が必要",
     "processSelected": "選択項目を処理",
-    "processDoc": "このドキュメントを処理"
+    "processDoc": "このドキュメントを処理",
+    "selectAll": "すべて選択",
+    "deselectAll": "すべて解除"
   }
 }
