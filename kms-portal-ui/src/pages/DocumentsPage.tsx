@@ -319,6 +319,7 @@ const DocumentsTab: React.FC = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DocumentListItem | null>(null);
+  const [detailDocId, setDetailDocId] = useState<string | null>(null);
   const limit = 15;
 
   const fetchDocuments = useCallback(async () => {
@@ -540,7 +541,7 @@ const DocumentsTab: React.FC = () => {
                           <button
                             className="doc-action-btn"
                             title="View Details"
-                            onClick={() => window.open(`/api/v1/documents/${doc.id}`, '_blank')}
+                            onClick={() => setDetailDocId(doc.id)}
                           >
                             <Eye size={16} />
                           </button>
@@ -638,6 +639,336 @@ const DocumentsTab: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Document Detail Modal */}
+      {detailDocId && (
+        <DocumentDetailModal
+          documentId={detailDocId}
+          onClose={() => setDetailDocId(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+// =============================================================================
+// Document Detail Modal
+// =============================================================================
+
+interface DocumentDetail {
+  id: string;
+  filename: string;
+  original_name: string;
+  file_size: number;
+  mime_type: string;
+  document_type: string;
+  status: string;
+  chunks_count: number;
+  entities_count: number;
+  embedding_status: string;
+  language: string;
+  processing_mode: string;
+  vlm_processed: boolean;
+  created_at: string;
+  updated_at: string;
+  tags: string[];
+  stats?: {
+    pages: number;
+    chunks_count: number;
+    entities_count: number;
+    avg_chunk_size: number;
+    embedding_dimension: number;
+    images_count: number;
+    tables_count: number;
+    figures_count: number;
+    vlm_processed: boolean;
+  };
+  processing_info?: {
+    started_at: string | null;
+    completed_at: string | null;
+    processing_time_seconds: number | null;
+  };
+  error?: string | null;
+}
+
+interface DetailModalProps {
+  documentId: string;
+  onClose: () => void;
+}
+
+const DocumentDetailModal: React.FC<DetailModalProps> = ({ documentId, onClose }) => {
+  const [document, setDocument] = useState<DocumentDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchDocument = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/v1/documents/${documentId}`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const result = await response.json();
+        setDocument(result.data);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load document');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDocument();
+  }, [documentId]);
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleString('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'ready':
+      case 'completed':
+        return 'var(--color-success, #22c55e)';
+      case 'processing':
+      case 'in_progress':
+        return 'var(--color-primary, #6366f1)';
+      case 'error':
+      case 'failed':
+        return 'var(--color-danger, #ef4444)';
+      default:
+        return 'var(--color-warning, #f59e0b)';
+    }
+  };
+
+  const getFileIcon = (type: string) => {
+    switch (type?.toLowerCase()) {
+      case 'pdf':
+        return <FileText size={32} className="detail-file-icon detail-file-icon--pdf" />;
+      case 'image':
+        return <FileImage size={32} className="detail-file-icon detail-file-icon--image" />;
+      case 'excel':
+        return <FileSpreadsheet size={32} className="detail-file-icon detail-file-icon--excel" />;
+      case 'powerpoint':
+        return <Presentation size={32} className="detail-file-icon detail-file-icon--ppt" />;
+      default:
+        return <File size={32} className="detail-file-icon" />;
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content modal-content--large" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Document Details</h2>
+          <button className="modal-close" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+        <div className="modal-body">
+          {loading ? (
+            <div className="detail-loading">
+              <Loader2 size={32} className="spinning" />
+              <span>Loading document details...</span>
+            </div>
+          ) : error ? (
+            <div className="detail-error">
+              <AlertTriangle size={32} />
+              <span>{error}</span>
+            </div>
+          ) : document ? (
+            <div className="detail-content">
+              {/* Header Section */}
+              <div className="detail-header-section">
+                {getFileIcon(document.document_type)}
+                <div className="detail-header-info">
+                  <h3 className="detail-filename">{document.original_name || document.filename}</h3>
+                  <div className="detail-meta-row">
+                    <span className="detail-type-badge">{document.document_type?.toUpperCase()}</span>
+                    <span
+                      className="detail-status-badge"
+                      style={{ backgroundColor: getStatusColor(document.status), color: 'white' }}
+                    >
+                      {document.status}
+                    </span>
+                    {document.vlm_processed && (
+                      <span className="detail-vlm-badge">VLM Processed</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Error Message */}
+              {document.error && (
+                <div className="detail-error-box">
+                  <AlertTriangle size={16} />
+                  <span>{document.error}</span>
+                </div>
+              )}
+
+              {/* Info Grid */}
+              <div className="detail-grid">
+                {/* Basic Info */}
+                <div className="detail-card">
+                  <h4 className="detail-card-title">
+                    <FileText size={16} />
+                    Basic Information
+                  </h4>
+                  <div className="detail-info-list">
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">File Size</span>
+                      <span className="detail-info-value">{formatFileSize(document.file_size)}</span>
+                    </div>
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">MIME Type</span>
+                      <span className="detail-info-value">{document.mime_type}</span>
+                    </div>
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">Language</span>
+                      <span className="detail-info-value">{document.language?.toUpperCase() || 'AUTO'}</span>
+                    </div>
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">Processing Mode</span>
+                      <span className="detail-info-value">{document.processing_mode?.replace('_', ' ')}</span>
+                    </div>
+                    {document.tags && document.tags.length > 0 && (
+                      <div className="detail-info-row">
+                        <span className="detail-info-label">Tags</span>
+                        <span className="detail-info-value">
+                          {document.tags.map((tag, i) => (
+                            <span key={i} className="detail-tag">{tag}</span>
+                          ))}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Statistics */}
+                <div className="detail-card">
+                  <h4 className="detail-card-title">
+                    <TrendingUp size={16} />
+                    Statistics
+                  </h4>
+                  <div className="detail-stats-grid">
+                    <div className="detail-stat-item">
+                      <span className="detail-stat-value">{document.stats?.pages || 0}</span>
+                      <span className="detail-stat-label">Pages</span>
+                    </div>
+                    <div className="detail-stat-item">
+                      <span className="detail-stat-value">{document.chunks_count || document.stats?.chunks_count || 0}</span>
+                      <span className="detail-stat-label">Chunks</span>
+                    </div>
+                    <div className="detail-stat-item">
+                      <span className="detail-stat-value">{document.entities_count || document.stats?.entities_count || 0}</span>
+                      <span className="detail-stat-label">Entities</span>
+                    </div>
+                    <div className="detail-stat-item">
+                      <span className="detail-stat-value">{document.stats?.images_count || 0}</span>
+                      <span className="detail-stat-label">Images</span>
+                    </div>
+                    <div className="detail-stat-item">
+                      <span className="detail-stat-value">{document.stats?.tables_count || 0}</span>
+                      <span className="detail-stat-label">Tables</span>
+                    </div>
+                    <div className="detail-stat-item">
+                      <span className="detail-stat-value">{Math.round(document.stats?.avg_chunk_size || 0)}</span>
+                      <span className="detail-stat-label">Avg Chunk</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Processing Info */}
+                <div className="detail-card">
+                  <h4 className="detail-card-title">
+                    <Clock size={16} />
+                    Processing Information
+                  </h4>
+                  <div className="detail-info-list">
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">Embedding Status</span>
+                      <span
+                        className="detail-status-badge detail-status-badge--small"
+                        style={{ backgroundColor: getStatusColor(document.embedding_status) }}
+                      >
+                        {document.embedding_status}
+                      </span>
+                    </div>
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">Embedding Dimension</span>
+                      <span className="detail-info-value">{document.stats?.embedding_dimension || 'N/A'}</span>
+                    </div>
+                    {document.processing_info?.started_at && (
+                      <div className="detail-info-row">
+                        <span className="detail-info-label">Started At</span>
+                        <span className="detail-info-value">{formatDate(document.processing_info.started_at)}</span>
+                      </div>
+                    )}
+                    {document.processing_info?.completed_at && (
+                      <div className="detail-info-row">
+                        <span className="detail-info-label">Completed At</span>
+                        <span className="detail-info-value">{formatDate(document.processing_info.completed_at)}</span>
+                      </div>
+                    )}
+                    {document.processing_info?.processing_time_seconds && (
+                      <div className="detail-info-row">
+                        <span className="detail-info-label">Processing Time</span>
+                        <span className="detail-info-value">{document.processing_info.processing_time_seconds}s</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Timestamps */}
+                <div className="detail-card">
+                  <h4 className="detail-card-title">
+                    <Clock size={16} />
+                    Timestamps
+                  </h4>
+                  <div className="detail-info-list">
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">Created</span>
+                      <span className="detail-info-value">{formatDate(document.created_at)}</span>
+                    </div>
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">Updated</span>
+                      <span className="detail-info-value">{formatDate(document.updated_at)}</span>
+                    </div>
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">Document ID</span>
+                      <span className="detail-info-value detail-info-value--mono">{document.id}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn--secondary" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
