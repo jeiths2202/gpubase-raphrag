@@ -129,45 +129,64 @@ class DeepAgentAdapter(BaseAgent):
             temperature=self.temperature,
         )
 
-    def _get_composite_backend(self):
+    def _get_langraph_store(self):
         """
-        CompositeBackend 생성 (Long-term Memory 지원)
+        LangGraph Store 반환 (Long-term Memory 지원)
 
-        /memories/, /preferences/, /knowledge/, /instructions/, /research/ 경로는
-        StoreBackend를 통해 영구 저장됨. 나머지 경로는 StateBackend로 임시 저장.
+        create_deep_agent에 store 파라미터로 전달됩니다.
         """
-        if self._composite_backend is not None:
-            return self._composite_backend
-
-        if not DEEPAGENTS_BACKENDS_AVAILABLE or not self._enable_long_term_memory:
+        if not self._enable_long_term_memory:
             return None
 
         try:
             # Get persistent store (from memory_store_service or InMemoryStore)
             if self._memory_store is not None:
-                persistent_store = self._memory_store
+                return self._memory_store
             elif LANGGRAPH_STORE_AVAILABLE:
-                persistent_store = InMemoryStore()
+                return InMemoryStore()
             else:
-                logger.warning("No persistent store available, using StateBackend only")
+                logger.warning("No persistent store available")
                 return None
-
-            # Build routes for persistent paths
-            routes = {}
-            for path in self.PERSISTENT_MEMORY_PATHS:
-                routes[path] = StoreBackend(store=persistent_store)
-
-            self._composite_backend = CompositeBackend(
-                default=StateBackend(),  # Ephemeral for working files
-                routes=routes            # Persistent for memory paths
-            )
-
-            logger.info(f"[{self.name}] Long-term memory enabled with CompositeBackend")
-            return self._composite_backend
-
         except Exception as e:
-            logger.warning(f"[{self.name}] Failed to create CompositeBackend: {e}")
+            logger.warning(f"[{self.name}] Failed to get LangGraph store: {e}")
             return None
+
+    def _get_composite_backend_factory(self):
+        """
+        CompositeBackend 팩토리 함수 반환 (Long-term Memory 지원)
+
+        deepagents의 backend 파라미터는 ToolRuntime을 받는 callable을 기대합니다.
+        /memories/, /preferences/, /knowledge/, /instructions/, /research/ 경로는
+        StoreBackend를 통해 영구 저장됨. 나머지 경로는 StateBackend로 임시 저장.
+
+        Returns:
+            Callable that takes ToolRuntime and returns CompositeBackend, or None
+        """
+        if not DEEPAGENTS_BACKENDS_AVAILABLE or not self._enable_long_term_memory:
+            return None
+
+        # Create a factory function that will be called with ToolRuntime
+        def backend_factory(runtime):
+            try:
+                # Build routes for persistent paths
+                routes = {}
+                for path in self.PERSISTENT_MEMORY_PATHS:
+                    routes[path] = StoreBackend(runtime)
+
+                composite = CompositeBackend(
+                    default=StateBackend(runtime),  # Ephemeral for working files
+                    routes=routes                    # Persistent for memory paths
+                )
+
+                logger.info(f"[{self.name}] Long-term memory CompositeBackend created")
+                return composite
+
+            except Exception as e:
+                logger.warning(f"[{self.name}] Failed to create CompositeBackend: {e}")
+                # Fallback to StateBackend
+                return StateBackend(runtime)
+
+        return backend_factory
 
     def _create_deep_agent(self):
         """Deep Agent 인스턴스 생성 (Lazy initialization with Long-term Memory)"""
@@ -179,19 +198,23 @@ class DeepAgentAdapter(BaseAgent):
 
         llm = self._get_llm()
 
-        # Get CompositeBackend for long-term memory
-        backend = self._get_composite_backend()
-
-        # Create Deep Agent with optional long-term memory backend
+        # Create Deep Agent with optional long-term memory
         agent_kwargs = {
             "model": llm,
             "tools": self._custom_tools if self._custom_tools else None,
             "system_prompt": self.system_prompt,
         }
 
-        # Add backend if available
-        if backend is not None:
-            agent_kwargs["backend"] = backend
+        # Add LangGraph store for persistence
+        store = self._get_langraph_store()
+        if store is not None:
+            agent_kwargs["store"] = store
+            logger.info(f"[{self.name}] LangGraph store configured for persistence")
+
+        # Add CompositeBackend factory for file system routing
+        backend_factory = self._get_composite_backend_factory()
+        if backend_factory is not None:
+            agent_kwargs["backend"] = backend_factory
             logger.info(f"[{self.name}] Creating Deep Agent with Long-term Memory backend")
         else:
             logger.info(f"[{self.name}] Creating Deep Agent without Long-term Memory (ephemeral only)")
