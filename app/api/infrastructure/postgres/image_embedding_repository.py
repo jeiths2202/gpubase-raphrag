@@ -335,7 +335,7 @@ class PostgresImageEmbeddingRepository(ImageEmbeddingRepository):
         self,
         query_embedding: List[float],
         limit: int = 5,
-        min_similarity: float = 0.5,
+        min_similarity: float = 0.1,
         document_id: Optional[str] = None
     ) -> List[ImageSearchResult]:
         """Search for similar images using vector similarity."""

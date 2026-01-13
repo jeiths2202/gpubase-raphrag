@@ -237,7 +237,7 @@ class MultimodalRAGService:
         self,
         query: str,
         limit: int = 5,
-        min_similarity: float = 0.5,
+        min_similarity: float = 0.1,
         document_id: Optional[str] = None,
         include_data: bool = False,
     ) -> List[Dict[str, Any]]:
@@ -303,7 +303,7 @@ class MultimodalRAGService:
         self,
         image_data: bytes,
         limit: int = 5,
-        min_similarity: float = 0.5,
+        min_similarity: float = 0.3,
         document_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
@@ -456,7 +456,7 @@ class MultimodalRAGService:
         query: str,
         text_results: List[Dict[str, Any]],
         max_images: int = 3,
-        min_similarity: float = 0.5,
+        min_similarity: float = 0.1,
     ) -> Dict[str, Any]:
         """
         Enhance RAG results with relevant images.

@@ -30,8 +30,8 @@ class ImageSearchRequest(BaseModel):
     query: str = Field(..., description="Text query to search for images")
     limit: int = Field(default=5, ge=1, le=20, description="Maximum results")
     min_similarity: float = Field(
-        default=0.5, ge=0.0, le=1.0,
-        description="Minimum similarity threshold"
+        default=0.1, ge=0.0, le=1.0,
+        description="Minimum similarity threshold (text-to-image typically 0.1-0.4)"
     )
     document_id: Optional[str] = Field(
         default=None,
