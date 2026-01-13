@@ -294,12 +294,15 @@ class DocumentService:
     """
     Document Service with multimodal support.
     Handles document upload, parsing, and management.
+    Uses PostgreSQL for persistent storage.
     """
 
-    # In-memory storage (replace with database in production)
+    # In-memory cache (loaded from database on startup)
     _documents: dict = {}  # document_id -> document data
-    _tasks: dict = {}  # task_id -> task status
+    _tasks: dict = {}  # task_id -> task status (in-memory only)
     _chunks: dict = {}  # document_id -> list of chunks
+    _db_loaded: bool = False  # Flag to track if documents loaded from DB
+    _repository = None  # PostgreSQL repository
 
     @classmethod
     def _get_document_type(cls, filename: str, mime_type: str = None) -> tuple:
@@ -316,6 +319,64 @@ class DocumentService:
 
         return doc_type, mime_type
 
+    @classmethod
+    async def _ensure_loaded(cls):
+        """Ensure documents are loaded from database."""
+        if cls._db_loaded:
+            return
+
+        try:
+            from ..infrastructure.postgres.document_repository import get_document_repository
+            cls._repository = await get_document_repository()
+
+            # Load all documents from database into memory cache
+            docs = await cls._repository.get_all_documents_dict()
+            cls._documents.update(docs)
+            cls._db_loaded = True
+            logger.info(f"Loaded {len(docs)} documents from database")
+        except Exception as e:
+            logger.warning(f"Failed to load documents from database: {e}")
+            cls._db_loaded = True  # Prevent repeated failures
+
+    @classmethod
+    async def _save_to_db(cls, doc_id: str, doc: dict):
+        """Save document to database."""
+        if cls._repository is None:
+            return
+
+        try:
+            await cls._repository.save_document(
+                doc_id=doc_id,
+                filename=doc.get("filename", ""),
+                original_name=doc.get("original_name", ""),
+                file_size=doc.get("file_size", 0),
+                mime_type=doc.get("mime_type", ""),
+                document_type=doc.get("document_type", "text"),
+                status=doc.get("status", "processing"),
+                language=doc.get("language", "auto"),
+                tags=doc.get("tags", []),
+                processing_mode=doc.get("processing_mode", "text_only"),
+                vlm_processed=doc.get("vlm_processed", False),
+                chunks_count=doc.get("chunks_count", 0),
+                entities_count=doc.get("entities_count", 0),
+                embedding_status=doc.get("embedding_status", "pending"),
+                stats=doc.get("stats"),
+                processing_info=doc.get("processing_info")
+            )
+        except Exception as e:
+            logger.error(f"Failed to save document to database: {e}")
+
+    @classmethod
+    async def _update_status_in_db(cls, doc_id: str, **kwargs):
+        """Update document status in database."""
+        if cls._repository is None:
+            return
+
+        try:
+            await cls._repository.update_status(doc_id, **kwargs)
+        except Exception as e:
+            logger.error(f"Failed to update document status in database: {e}")
+
     async def list_documents(
         self,
         page: int,
@@ -325,6 +386,9 @@ class DocumentService:
         document_type: str = None
     ) -> dict:
         """List documents with filtering."""
+        # Ensure documents are loaded from database
+        await self._ensure_loaded()
+
         documents = []
 
         for doc_id, doc in self._documents.items():
@@ -390,6 +454,9 @@ class DocumentService:
         # Determine document type
         doc_type, mime_type = self._get_document_type(filename)
 
+        # Ensure database connection is ready
+        await self._ensure_loaded()
+
         # Store document metadata
         self._documents[doc_id] = {
             "id": doc_id,
@@ -415,6 +482,9 @@ class DocumentService:
             "processing_info": None,
             "multimodal_content": None
         }
+
+        # Save to database for persistence
+        await self._save_to_db(doc_id, self._documents[doc_id])
 
         # Store task status
         self._tasks[task_id] = {
@@ -511,6 +581,9 @@ class DocumentService:
                     "processing_time_seconds": 3
                 }
 
+                # Persist updated status to database
+                await self._save_to_db(doc_id, doc)
+
             # Complete task
             self._update_task(task_id, "completed", 100)
             self._tasks[task_id]["status"] = "ready"
@@ -519,6 +592,8 @@ class DocumentService:
             # Handle error
             if doc_id in self._documents:
                 self._documents[doc_id]["status"] = "error"
+                # Persist error status to database
+                await self._update_status_in_db(doc_id, status="error")
             if task_id in self._tasks:
                 self._tasks[task_id]["status"] = "error"
                 self._tasks[task_id]["error"] = str(e)
@@ -612,6 +687,9 @@ class DocumentService:
 
     async def get_document(self, document_id: str) -> dict:
         """Get document details."""
+        # Ensure documents are loaded from database
+        await self._ensure_loaded()
+
         doc = self._documents.get(document_id)
         if not doc:
             return None
@@ -624,13 +702,23 @@ class DocumentService:
 
     async def delete_document(self, document_id: str) -> dict:
         """Delete a document and its chunks."""
+        # Ensure documents are loaded from database
+        await self._ensure_loaded()
+
         if document_id not in self._documents:
             return None
 
         doc = self._documents[document_id]
         chunks = self._chunks.get(document_id, [])
 
-        # Delete document and chunks
+        # Delete from database first
+        if self._repository:
+            try:
+                await self._repository.delete_document(document_id)
+            except Exception as e:
+                logger.error(f"Failed to delete document from database: {e}")
+
+        # Delete from memory cache
         del self._documents[document_id]
         if document_id in self._chunks:
             del self._chunks[document_id]
@@ -647,6 +735,9 @@ class DocumentService:
         limit: int
     ) -> dict:
         """Get document chunks with pagination."""
+        # Ensure documents are loaded from database
+        await self._ensure_loaded()
+
         if document_id not in self._documents:
             return None
 
@@ -664,6 +755,9 @@ class DocumentService:
         enable_vlm: bool = None
     ) -> dict:
         """Reprocess an existing document with different options."""
+        # Ensure documents are loaded from database
+        await self._ensure_loaded()
+
         if document_id not in self._documents:
             return None
 

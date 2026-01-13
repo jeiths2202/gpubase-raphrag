@@ -164,6 +164,7 @@ export const AgentChat: React.FC = () => {
     agentStates,
     createConversation,
     loadConversations,
+    clearActiveConversation: startNewConversation,
     addArtifact,
     createArtifactFromChunk,
     getFileContext,

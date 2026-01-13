@@ -50,10 +50,10 @@ Returns the most relevant text chunks with their sources."""
 
     @property
     def rag_service(self):
-        """Lazy load RAG service"""
+        """Lazy load RAG service (uses LocalRAGAdapter if Neo4j unavailable)"""
         if self._rag_service is None:
-            from ...services.rag_service import RAGService
-            self._rag_service = RAGService.get_instance()
+            from ...core.deps import get_rag_service
+            self._rag_service = get_rag_service()
         return self._rag_service
 
     async def execute(
@@ -149,10 +149,10 @@ for exploring structured knowledge relationships."""
 
     @property
     def rag_service(self):
-        """Lazy load RAG service"""
+        """Lazy load RAG service (uses LocalRAGAdapter if Neo4j unavailable)"""
         if self._rag_service is None:
-            from ...services.rag_service import RAGService
-            self._rag_service = RAGService.get_instance()
+            from ...core.deps import get_rag_service
+            self._rag_service = get_rag_service()
         return self._rag_service
 
     async def execute(

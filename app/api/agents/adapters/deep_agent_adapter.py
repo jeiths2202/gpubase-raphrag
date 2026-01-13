@@ -161,10 +161,49 @@ class DeepAgentAdapter(BaseAgent):
                 success=True
             )
 
+        except asyncio.TimeoutError:
+            logger.warning(f"[{self.name}] Request timed out after 300s")
+            return AgentResult(
+                answer="요청 시간이 초과되었습니다. LLM 서버가 응답하지 않습니다. 잠시 후 다시 시도해주세요.",
+                agent_type=self.agent_type,
+                steps=0,
+                execution_time=time.time() - start_time,
+                success=False,
+                error="Timeout: LLM server not responding"
+            )
+        except asyncio.CancelledError:
+            logger.info(f"[{self.name}] Request was cancelled")
+            return AgentResult(
+                answer="요청이 취소되었습니다.",
+                agent_type=self.agent_type,
+                steps=0,
+                execution_time=time.time() - start_time,
+                success=False,
+                error="Request cancelled"
+            )
+        except ConnectionError as e:
+            logger.error(f"[{self.name}] Connection error: {e}")
+            return AgentResult(
+                answer="LLM 서버에 연결할 수 없습니다. Ollama 서비스가 실행 중인지 확인해주세요.",
+                agent_type=self.agent_type,
+                steps=0,
+                execution_time=time.time() - start_time,
+                success=False,
+                error=f"Connection error: {str(e)}"
+            )
         except Exception as e:
+            error_msg = str(e)
+            # 연결 관련 오류인지 확인
+            if "connection" in error_msg.lower() or "connect" in error_msg.lower():
+                user_message = "LLM 서버에 연결할 수 없습니다. Ollama 서비스가 실행 중인지 확인해주세요."
+            elif "timeout" in error_msg.lower():
+                user_message = "요청 시간이 초과되었습니다. 잠시 후 다시 시도해주세요."
+            else:
+                user_message = f"처리 중 오류가 발생했습니다: {error_msg}"
+
             logger.error(f"[{self.name}] Execution error: {e}", exc_info=True)
             return AgentResult(
-                answer=f"Error: {str(e)}",
+                answer=user_message,
                 agent_type=self.agent_type,
                 steps=0,
                 execution_time=time.time() - start_time,
@@ -194,10 +233,22 @@ class DeepAgentAdapter(BaseAgent):
                 metadata={"execution_time": result.execution_time}
             )
 
-        except Exception as e:
+        except asyncio.CancelledError:
             yield AgentStreamChunk(
                 chunk_type="error",
-                content=str(e)
+                content="요청이 취소되었습니다."
+            )
+        except Exception as e:
+            error_msg = str(e)
+            if "connection" in error_msg.lower() or "connect" in error_msg.lower():
+                user_message = "LLM 서버에 연결할 수 없습니다."
+            elif "timeout" in error_msg.lower():
+                user_message = "요청 시간이 초과되었습니다."
+            else:
+                user_message = f"오류 발생: {error_msg}"
+            yield AgentStreamChunk(
+                chunk_type="error",
+                content=user_message
             )
 
 

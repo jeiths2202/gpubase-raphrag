@@ -1312,6 +1312,11 @@
   color: #dc2626;
 }
 
+.doc-status-badge--interrupted {
+  background: #fef3c7;
+  color: #b45309;
+}
+
 /* Document Actions */
 .doc-actions {
   display: flex;
@@ -1971,6 +1976,11 @@
 [data-theme="dark"] .doc-status-badge--failed {
   color: #f87171;
   background: rgba(239, 68, 68, 0.2);
+}
+
+[data-theme="dark"] .doc-status-badge--interrupted {
+  color: #f59e0b;
+  background: rgba(180, 83, 9, 0.2);
 }
 
 [data-theme="dark"] .upload-dropzone {

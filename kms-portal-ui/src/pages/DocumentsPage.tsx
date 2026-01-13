@@ -395,9 +395,10 @@ const DocumentsTab: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
+      case 'ready':
         return (
           <span className="doc-status-badge doc-status-badge--completed">
-            <CheckCircle size={12} /> Completed
+            <CheckCircle size={12} /> Ready
           </span>
         );
       case 'processing':
@@ -413,9 +414,16 @@ const DocumentsTab: React.FC = () => {
           </span>
         );
       case 'failed':
+      case 'error':
         return (
           <span className="doc-status-badge doc-status-badge--failed">
-            <XCircle size={12} /> Failed
+            <XCircle size={12} /> Error
+          </span>
+        );
+      case 'interrupted':
+        return (
+          <span className="doc-status-badge doc-status-badge--interrupted">
+            <AlertCircle size={12} /> Interrupted
           </span>
         );
       default:
@@ -464,10 +472,11 @@ const DocumentsTab: React.FC = () => {
               }}
             >
               <option value="">All Status</option>
-              <option value="completed">Completed</option>
+              <option value="ready">Ready</option>
               <option value="processing">Processing</option>
               <option value="pending">Pending</option>
-              <option value="failed">Failed</option>
+              <option value="error">Error</option>
+              <option value="interrupted">Interrupted</option>
             </select>
           </div>
           <div className="documents-header-actions">

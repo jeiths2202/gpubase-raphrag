@@ -15,6 +15,7 @@ class DocumentStatus(str, Enum):
     ERROR = "error"
     EXTRACTING = "extracting"  # VLM extraction in progress
     EMBEDDING = "embedding"  # Generating embeddings
+    INTERRUPTED = "interrupted"  # Server restart interrupted processing
 
 
 class EmbeddingStatus(str, Enum):

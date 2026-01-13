@@ -32,6 +32,8 @@ export interface StreamingChatDependencies {
   agentStates: Record<AgentType, { activeConversationId: string | null }>;
   createConversation: (agentType: AgentType, title: string) => Promise<{ id: string }>;
   loadConversations: (agentType: AgentType) => void;
+  // Optional callback to clear invalid conversation (called on 403/404)
+  clearActiveConversation?: (agentType: AgentType) => void;
 
   // Artifact operations (using any for flexibility with store types)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -110,6 +112,7 @@ export function useStreamingChat(
     agentStates,
     createConversation,
     loadConversations,
+    clearActiveConversation,
     addArtifact,
     createArtifactFromChunk,
     getFileContext,
@@ -206,15 +209,25 @@ export function useStreamingChat(
   const saveMessageToDb = useCallback(async (
     conversationId: string,
     role: 'user' | 'assistant',
-    content: string
+    content: string,
+    agentType?: AgentType
   ) => {
     try {
       await conversationApi.addMessage(conversationId, { role, content });
       console.log('[useStreamingChat] Message saved to conversation:', conversationId);
     } catch (error) {
-      console.error('[useStreamingChat] Failed to save message:', error);
+      // Check if error is 403/404 (conversation not found or access denied)
+      const axiosError = error as { response?: { status?: number } };
+      const status = axiosError.response?.status;
+
+      if ((status === 403 || status === 404) && agentType && clearActiveConversation) {
+        console.warn('[useStreamingChat] Conversation not found or access denied, clearing active conversation');
+        clearActiveConversation(agentType);
+      } else {
+        console.error('[useStreamingChat] Failed to save message:', error);
+      }
     }
-  }, []);
+  }, [clearActiveConversation]);
 
   // ============================================================================
   // Stream Processing
@@ -256,7 +269,7 @@ export function useStreamingChat(
 
     // Save user message to database
     if (conversationId) {
-      saveMessageToDb(conversationId, 'user', userMessage.content);
+      saveMessageToDb(conversationId, 'user', userMessage.content, requestingAgent);
     }
 
     // Create streaming message placeholder
@@ -525,7 +538,7 @@ export function useStreamingChat(
 
       // Save assistant response to database
       if (conversationId && accumulatedContent) {
-        saveMessageToDb(conversationId, 'assistant', accumulatedContent);
+        saveMessageToDb(conversationId, 'assistant', accumulatedContent, requestingAgent);
         loadConversations(requestingAgent);
       }
     } catch (error) {
