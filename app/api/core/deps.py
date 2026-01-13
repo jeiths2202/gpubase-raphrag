@@ -532,11 +532,27 @@ class DocumentService:
         task["current_step"] = step
         task["overall_progress"] = progress
 
-        for s in task["steps"]:
+        # Get step names list
+        step_names = [ss["name"] for ss in task["steps"]]
+
+        # Handle "completed" step (not in steps list)
+        if step == "completed":
+            for s in task["steps"]:
+                s["status"] = "completed"
+                s["progress"] = 100
+            return
+
+        # Check if step exists in steps list
+        if step not in step_names:
+            return
+
+        step_index = step_names.index(step)
+
+        for i, s in enumerate(task["steps"]):
             if s["name"] == step:
                 s["status"] = "in_progress"
                 s["progress"] = 50
-            elif task["steps"].index(s) < [ss["name"] for ss in task["steps"]].index(step):
+            elif i < step_index:
                 s["status"] = "completed"
                 s["progress"] = 100
 
