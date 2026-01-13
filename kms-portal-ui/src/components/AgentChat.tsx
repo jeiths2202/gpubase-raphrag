@@ -143,6 +143,8 @@ export const AgentChat: React.FC = () => {
     getActiveResourcesContext,
     setCurrentUserId,
     loadConnections,
+    toggleResourceActive,
+    clearActiveResources,
   } = useExternalConnectorsStore();
 
   // File attachment (using custom hook with per-agent state)
@@ -666,6 +668,75 @@ export const AgentChat: React.FC = () => {
                     className="agent-attached-url-remove"
                     onClick={() => handleRemoveUrl(urlItem.url)}
                     title="Remove"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Selected External Resources display */}
+        {activeResources.length > 0 && (
+          <div className="agent-external-resources">
+            <div className="agent-external-resources-header">
+              <span className="agent-external-resources-label">
+                <Link2 size={14} />
+                {activeResources.length} {t('externalConnectors.selected') || 'external resource(s) selected'}
+              </span>
+              <div className="agent-external-resources-actions">
+                <button
+                  className="agent-external-resources-add"
+                  onClick={openConnectorsModal}
+                  title={t('externalConnectors.title') || 'Manage connectors'}
+                >
+                  <Plus size={12} />
+                </button>
+                <button
+                  className="agent-external-resources-clear"
+                  onClick={clearActiveResources}
+                  title={t('common.delete') || 'Clear all'}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+            <div className="agent-external-resources-list">
+              {activeResources.map(resource => (
+                <div
+                  key={resource.id}
+                  className={`agent-external-resource ${resource.status === 'ready' ? 'ready' : ''} ${resource.status === 'error' ? 'error' : ''}`}
+                >
+                  {resource.status === 'ready' ? (
+                    <GitBranch size={14} />
+                  ) : resource.status === 'error' ? (
+                    <AlertCircle size={14} />
+                  ) : (
+                    <Loader2 size={14} className="spin" />
+                  )}
+                  <div className="agent-external-resource-info">
+                    <span className="agent-external-resource-title" title={resource.title}>
+                      {resource.title.length > 30 ? resource.title.slice(0, 30) + '...' : resource.title}
+                    </span>
+                    <span className="agent-external-resource-meta">
+                      {resource.status === 'ready' && resource.content ? (
+                        <>
+                          {resource.content.length < 1024
+                            ? `${resource.content.length} chars`
+                            : `${Math.round(resource.content.length / 1024)}KB`}
+                        </>
+                      ) : resource.status === 'error' ? (
+                        <span className="error-text">{resource.errorMessage || 'Error'}</span>
+                      ) : (
+                        <span>{t(`externalConnectors.docStatus.${resource.status}`) || resource.status}</span>
+                      )}
+                    </span>
+                  </div>
+                  <button
+                    className="agent-external-resource-remove"
+                    onClick={() => toggleResourceActive(resource)}
+                    title={t('common.delete') || 'Remove'}
                   >
                     <X size={12} />
                   </button>
