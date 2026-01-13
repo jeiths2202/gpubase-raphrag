@@ -44,6 +44,8 @@ export interface StreamingChatDependencies {
   // Context getters
   getFileContext: () => string | undefined;
   getUrlContext: () => string | undefined;
+  // External resources context from connected services (Notion, Confluence, etc.)
+  getExternalResourcesContext?: () => string | undefined;
   // UI context for context-aware AI (optional, from contextStore)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getUIContext?: () => any;
@@ -117,6 +119,7 @@ export function useStreamingChat(
     createArtifactFromChunk,
     getFileContext,
     getUrlContext,
+    getExternalResourcesContext,
     getUIContext,
     onCredentialsRequired,
     onMessageSent,
@@ -301,9 +304,10 @@ export function useStreamingChat(
       // Build request payload
       const fileContext = getFileContext();
       const urlContext = getUrlContext();
-      // Combine file and URL contexts into file_context
+      const externalContext = getExternalResourcesContext ? getExternalResourcesContext() : undefined;
+      // Combine file, URL, and external resource contexts into file_context
       // (url_context field is for URLs that backend will fetch, but we already have content)
-      const combinedContext = [fileContext, urlContext].filter(Boolean).join('\n\n') || undefined;
+      const combinedContext = [fileContext, urlContext, externalContext].filter(Boolean).join('\n\n') || undefined;
 
       // Get UI context for context-aware AI (if available)
       const uiContext = getUIContext ? getUIContext() : undefined;
@@ -575,6 +579,7 @@ export function useStreamingChat(
     createArtifactFromChunk,
     getFileContext,
     getUrlContext,
+    getExternalResourcesContext,
     getUIContext,
     onCredentialsRequired,
     onMessageSent,

@@ -1869,6 +1869,9 @@
 
 /* Modal Footer */
 .external-connectors-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: var(--space-3, 12px) var(--space-4, 16px);
   border-top: 1px solid var(--color-border, #334155);
   background: var(--color-bg-secondary, #1e293b);
@@ -1886,6 +1889,23 @@
   color: var(--color-primary, #6366f1);
   font-size: 13px;
   font-weight: 500;
+}
+
+.external-connectors-done-btn {
+  padding: 8px 20px;
+  background: var(--color-primary, #6366f1);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md, 6px);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.external-connectors-done-btn:hover {
+  background: var(--color-primary-dark, #4f46e5);
+  transform: translateY(-1px);
 }
 
 /* Connector List */
@@ -2190,6 +2210,51 @@
   overflow-y: auto;
 }
 
+/* Resources Loading State */
+.connector-resources-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6, 24px) var(--space-4, 16px);
+  gap: var(--space-3, 12px);
+  color: var(--color-text-muted, #64748b);
+}
+
+.connector-resources-loading svg {
+  color: var(--color-primary, #6366f1);
+}
+
+.connector-resources-loading-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary, #f1f5f9);
+}
+
+[data-theme="light"] .connector-resources-loading-text {
+  color: #0f172a;
+}
+
+.connector-resources-loading-hint {
+  font-size: 12px;
+  color: var(--color-text-muted, #64748b);
+}
+
+/* Resources Empty State */
+.connector-resources-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6, 24px) var(--space-4, 16px);
+  gap: var(--space-2, 8px);
+  color: var(--color-text-muted, #64748b);
+}
+
+.connector-resources-empty span {
+  font-size: 13px;
+}
+
 .connector-resource-item {
   display: flex;
   align-items: center;
@@ -2274,6 +2339,158 @@
 
 [data-theme="light"] .connector-resource-link:hover {
   background: #f1f5f9;
+}
+
+/* Document Status Badge */
+.document-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.document-status-badge.doc-status-ready {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.document-status-badge.doc-status-processing {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.document-status-badge.doc-status-error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.document-status-badge.doc-status-discovered {
+  background: rgba(100, 116, 139, 0.15);
+  color: #94a3b8;
+}
+
+[data-theme="light"] .document-status-badge.doc-status-ready {
+  background: rgba(34, 197, 94, 0.1);
+}
+
+[data-theme="light"] .document-status-badge.doc-status-processing {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+[data-theme="light"] .document-status-badge.doc-status-error {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+[data-theme="light"] .document-status-badge.doc-status-discovered {
+  background: rgba(100, 116, 139, 0.1);
+  color: #64748b;
+}
+
+/* Resource Item Meta */
+.connector-resource-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Resource Actions */
+.connector-resource-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  pointer-events: auto;
+  position: relative;
+  z-index: 20;
+}
+
+/* Process Button */
+.connector-process-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 6px 8px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid var(--color-primary, #6366f1);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-primary, #6366f1);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  z-index: 10;
+}
+
+.connector-process-btn:hover {
+  background: var(--color-primary, #6366f1);
+  border-color: var(--color-primary, #6366f1);
+  color: white;
+}
+
+[data-theme="light"] .connector-process-btn {
+  border-color: #cbd5e1;
+}
+
+[data-theme="light"] .connector-process-btn:hover {
+  background: var(--color-primary, #6366f1);
+  border-color: var(--color-primary, #6366f1);
+}
+
+/* Resource Ready State */
+.connector-resource-item.ready {
+  border-left: 3px solid #22c55e;
+}
+
+/* Process Actions Bar */
+.connector-process-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--color-bg-tertiary, rgba(255, 255, 255, 0.02));
+  border-radius: var(--radius-sm, 4px);
+  margin-bottom: 8px;
+}
+
+.connector-process-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-muted, #94a3b8);
+}
+
+.connector-process-info svg {
+  color: #f59e0b;
+}
+
+.connector-process-selected-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--color-primary, #6366f1);
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.connector-process-selected-btn:hover {
+  filter: brightness(1.1);
+}
+
+[data-theme="light"] .connector-process-actions {
+  background: #f8fafc;
 }
 
 /* Connect Form */
@@ -2757,4 +2974,118 @@
 
 .connector-sso-error svg {
   flex-shrink: 0;
+}
+
+/* =============================================================================
+   API Token Authentication Styles
+   ============================================================================= */
+
+.connector-api-token-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4, 16px);
+}
+
+.connector-api-token-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+}
+
+.connector-api-token-field label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary, #f1f5f9);
+}
+
+[data-theme="light"] .connector-api-token-field label {
+  color: #0f172a;
+}
+
+.connector-api-token-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  background: var(--color-bg-secondary, #1e293b);
+  border: 1px solid var(--color-border, #334155);
+  border-radius: var(--radius-md, 8px);
+  transition: all 0.2s ease;
+}
+
+[data-theme="light"] .connector-api-token-input-wrapper {
+  background: #ffffff;
+  border-color: #cbd5e1;
+}
+
+.connector-api-token-input-wrapper:focus-within {
+  border-color: var(--color-primary, #6366f1);
+  box-shadow: 0 0 0 2px var(--color-primary-light, rgba(99, 102, 241, 0.2));
+}
+
+.connector-api-token-input-wrapper svg {
+  flex-shrink: 0;
+  color: var(--color-text-muted, #64748b);
+}
+
+.connector-api-token-input-wrapper input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--color-text-primary, #f1f5f9);
+}
+
+[data-theme="light"] .connector-api-token-input-wrapper input {
+  color: #0f172a;
+}
+
+.connector-api-token-input-wrapper input::placeholder {
+  color: var(--color-text-muted, #64748b);
+}
+
+.connector-api-token-toggle {
+  background: transparent;
+  border: none;
+  color: var(--color-primary, #6366f1);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: var(--space-1, 4px);
+}
+
+.connector-api-token-toggle:hover {
+  text-decoration: underline;
+}
+
+.connector-api-token-hint {
+  font-size: 12px;
+  color: var(--color-text-muted, #64748b);
+  margin: 0;
+}
+
+.connector-api-token-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2, 8px);
+  padding: var(--space-3, 12px);
+  background: var(--color-primary, #6366f1);
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.connector-api-token-submit:hover:not(:disabled) {
+  background: var(--color-primary-hover, #4f46e5);
+}
+
+.connector-api-token-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

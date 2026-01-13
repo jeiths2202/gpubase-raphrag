@@ -59,6 +59,9 @@ import {
 // External connectors store
 import { useExternalConnectorsStore } from '../store/externalConnectorsStore';
 
+// Auth store for user ID
+import { useAuthStore } from '../store/authStore';
+
 // =============================================================================
 // Component
 // =============================================================================
@@ -127,6 +130,9 @@ export const AgentChat: React.FC = () => {
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [pendingQuery, setPendingQuery] = useState<string | null>(null);
 
+  // Auth store - get current user ID
+  const { user } = useAuthStore();
+
   // External connectors store and modal state
   const {
     isModalOpen: showConnectorsModal,
@@ -134,6 +140,9 @@ export const AgentChat: React.FC = () => {
     closeModal: closeConnectorsModal,
     activeResources,
     getConnectedCount,
+    getActiveResourcesContext,
+    setCurrentUserId,
+    loadConnections,
   } = useExternalConnectorsStore();
 
   // File attachment (using custom hook with per-agent state)
@@ -162,6 +171,15 @@ export const AgentChat: React.FC = () => {
     syncAgentUrlState,
   } = useUrlAttachment(selectedAgentRef);
 
+  // Set user ID in external connectors store when user is available
+  useEffect(() => {
+    if (user?.id) {
+      setCurrentUserId(user.id);
+      // Load existing connections for this user
+      loadConnections();
+    }
+  }, [user?.id, setCurrentUserId, loadConnections]);
+
   // Streaming chat (using custom hook)
   const {
     messages,
@@ -183,6 +201,10 @@ export const AgentChat: React.FC = () => {
     createArtifactFromChunk,
     getFileContext,
     getUrlContext,
+    getExternalResourcesContext: () => {
+      const context = getActiveResourcesContext();
+      return context || undefined;
+    },
     getUIContext,
     onCredentialsRequired: (query: string) => {
       setPendingQuery(query);

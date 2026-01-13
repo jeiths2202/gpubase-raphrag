@@ -114,7 +114,7 @@ class ConfluenceConnector(BaseConnector):
         path: Optional[str] = None,
         modified_since: Optional[datetime] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        """List pages from Confluence spaces"""
+        """List pages and attachments from Confluence spaces"""
         try:
             async with aiohttp.ClientSession() as session:
                 # Get spaces
@@ -132,9 +132,13 @@ class ConfluenceConnector(BaseConnector):
                     async for page in self._list_pages(
                         session, space_key, modified_since
                     ):
+                        page_id = page["id"]
+                        page_title = page["title"]
+
+                        # Yield page itself
                         yield {
-                            "external_id": page["id"],
-                            "title": page["title"],
+                            "external_id": page_id,
+                            "title": page_title,
                             "path": f"{space_name}",
                             "space_key": space_key,
                             "url": f"{self.base_url}{page['_links']['webui']}",
@@ -143,6 +147,23 @@ class ConfluenceConnector(BaseConnector):
                             "version": page.get("version", {}).get("number"),
                             "modified_time": page.get("version", {}).get("when")
                         }
+
+                        # Also list attachments for this page
+                        async for attachment in self._list_attachments(
+                            session, page_id, page_title, space_name
+                        ):
+                            yield {
+                                "external_id": f"att_{attachment['id']}",
+                                "title": attachment["title"],
+                                "path": f"{space_name} / {page_title}",
+                                "space_key": space_key,
+                                "url": f"{self.base_url}{attachment['download_link']}",
+                                "type": "attachment",
+                                "mime_type": attachment["media_type"],
+                                "parent_page_id": page_id,
+                                "version": attachment.get("version"),
+                                "modified_time": attachment.get("modified_time")
+                            }
 
         except Exception as e:
             print(f"[ConfluenceConnector] List documents error: {e}")
@@ -165,8 +186,8 @@ class ConfluenceConnector(BaseConnector):
                     params={
                         "start": start,
                         "limit": limit,
-                        "type": "global",
                         "status": "current"
+                        # Removed "type": "global" to include all space types
                     }
                 ) as resp:
                     if resp.status != 200:
@@ -236,8 +257,66 @@ class ConfluenceConnector(BaseConnector):
         except Exception as e:
             print(f"[ConfluenceConnector] List pages error: {e}")
 
+    async def _list_attachments(
+        self,
+        session: aiohttp.ClientSession,
+        page_id: str,
+        page_title: str,
+        space_name: str
+    ) -> AsyncGenerator[Dict, None]:
+        """List attachments for a page"""
+        try:
+            start = 0
+            limit = 50
+
+            while True:
+                async with session.get(
+                    f"{self._get_api_base()}/content/{page_id}/child/attachment",
+                    headers=self._get_headers(),
+                    params={
+                        "start": start,
+                        "limit": limit,
+                        "expand": "version"
+                    }
+                ) as resp:
+                    if resp.status != 200:
+                        break
+
+                    data = await resp.json()
+                    results = data.get("results", [])
+
+                    for attachment in results:
+                        # Only process supported file types
+                        media_type = attachment.get("metadata", {}).get("mediaType", "")
+                        if media_type in ["application/pdf", "text/plain", "text/markdown",
+                                          "application/msword",
+                                          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
+                            yield {
+                                "id": attachment["id"],
+                                "title": attachment["title"],
+                                "media_type": media_type,
+                                "page_id": page_id,
+                                "page_title": page_title,
+                                "space_name": space_name,
+                                "download_link": attachment.get("_links", {}).get("download", ""),
+                                "version": attachment.get("version", {}).get("number"),
+                                "modified_time": attachment.get("version", {}).get("when")
+                            }
+
+                    if len(results) < limit:
+                        break
+                    start += limit
+
+        except Exception as e:
+            print(f"[ConfluenceConnector] List attachments error: {e}")
+
     async def fetch_document(self, external_id: str) -> ConnectorResult:
-        """Fetch Confluence page content"""
+        """Fetch Confluence page or attachment content"""
+        # Check if this is an attachment
+        if external_id.startswith("att_"):
+            return await self._fetch_attachment(external_id[4:])  # Remove "att_" prefix
+
+        # Fetch regular page
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
@@ -310,6 +389,145 @@ class ConfluenceConnector(BaseConnector):
                 status=ConnectorStatus.ERROR,
                 error=str(e)
             )
+
+    async def _fetch_attachment(self, attachment_id: str) -> ConnectorResult:
+        """Fetch and parse Confluence attachment content"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                # First get attachment metadata
+                async with session.get(
+                    f"{self._get_api_base()}/content/{attachment_id}",
+                    headers=self._get_headers(),
+                    params={"expand": "version,container,space"}
+                ) as resp:
+                    if resp.status == 404:
+                        return ConnectorResult(
+                            status=ConnectorStatus.NOT_FOUND,
+                            error="Attachment not found"
+                        )
+                    if resp.status != 200:
+                        return ConnectorResult(
+                            status=ConnectorStatus.ERROR,
+                            error=f"API error: {resp.status}"
+                        )
+
+                    attachment = await resp.json()
+
+                title = attachment.get("title", "Untitled")
+                download_link = attachment.get("_links", {}).get("download", "")
+                media_type = attachment.get("metadata", {}).get("mediaType", "")
+                container = attachment.get("container", {})
+                space = attachment.get("space", {})
+
+                # Parse modification time
+                modified_at = None
+                version_when = attachment.get("version", {}).get("when")
+                if version_when:
+                    modified_at = datetime.fromisoformat(
+                        version_when.replace("Z", "+00:00")
+                    )
+
+                # Download attachment content
+                download_url = f"{self.base_url}{download_link}"
+                async with session.get(
+                    download_url,
+                    headers=self._get_headers()
+                ) as download_resp:
+                    if download_resp.status != 200:
+                        return ConnectorResult(
+                            status=ConnectorStatus.ERROR,
+                            error=f"Failed to download attachment: {download_resp.status}"
+                        )
+
+                    file_content = await download_resp.read()
+
+                # Extract text based on media type
+                content = ""
+                if media_type == "application/pdf":
+                    content = self._extract_pdf_text(file_content)
+                elif media_type in ["text/plain", "text/markdown"]:
+                    content = file_content.decode("utf-8", errors="ignore")
+                elif media_type in ["application/msword",
+                                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
+                    content = self._extract_docx_text(file_content)
+                else:
+                    content = f"[Binary attachment: {title}]"
+
+                content_hash = hashlib.md5(content.encode()).hexdigest()
+                path = f"{space.get('name', '')} / {container.get('title', '')}"
+
+                doc = ConnectorDocument(
+                    external_id=f"att_{attachment_id}",
+                    title=title,
+                    content=content,
+                    external_url=download_url,
+                    path=path,
+                    mime_type=media_type,
+                    modified_at=modified_at,
+                    sections=[{"title": title, "content": content, "type": "document"}],
+                    content_hash=content_hash,
+                    metadata={
+                        "confluence_attachment_id": attachment_id,
+                        "parent_page_id": container.get("id"),
+                        "parent_page_title": container.get("title"),
+                        "space_key": space.get("key"),
+                        "space_name": space.get("name"),
+                        "media_type": media_type,
+                        "type": "attachment"
+                    }
+                )
+
+                return ConnectorResult(
+                    status=ConnectorStatus.SUCCESS,
+                    data=doc
+                )
+
+        except Exception as e:
+            return ConnectorResult(
+                status=ConnectorStatus.ERROR,
+                error=str(e)
+            )
+
+    def _extract_pdf_text(self, pdf_content: bytes) -> str:
+        """Extract text from PDF content"""
+        try:
+            import io
+            from pypdf import PdfReader
+
+            pdf_file = io.BytesIO(pdf_content)
+            reader = PdfReader(pdf_file)
+
+            text_parts = []
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text_parts.append(page_text)
+
+            return "\n\n".join(text_parts)
+
+        except Exception as e:
+            print(f"[ConfluenceConnector] PDF extraction error: {e}")
+            return f"[PDF extraction failed: {e}]"
+
+    def _extract_docx_text(self, docx_content: bytes) -> str:
+        """Extract text from DOCX content"""
+        try:
+            import io
+            from docx import Document
+
+            docx_file = io.BytesIO(docx_content)
+            doc = Document(docx_file)
+
+            text_parts = []
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    text_parts.append(paragraph.text)
+
+            return "\n\n".join(text_parts)
+
+        except Exception as e:
+            print(f"[ConfluenceConnector] DOCX extraction error: {e}")
+            return f"[DOCX extraction failed: {e}]"
 
     def _parse_confluence_sections(self, html: str) -> List[Dict]:
         """Parse Confluence storage format HTML into sections"""

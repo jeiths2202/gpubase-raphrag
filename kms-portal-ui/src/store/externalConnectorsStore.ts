@@ -8,6 +8,12 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import {
+  externalConnectorsApi,
+  type ExternalDocument,
+  type ExternalResourceType,
+  type ConnectionStatus,
+} from '../api/externalConnectors.api';
 
 // =============================================================================
 // Types
@@ -34,6 +40,11 @@ export type DevelopmentStatus = 'available' | 'in_development' | 'planned';
 export type SSOState = 'idle' | 'authorizing' | 'success' | 'error';
 
 /**
+ * Document processing status
+ */
+export type DocumentProcessingStatus = 'discovered' | 'chunking' | 'embedding' | 'ready' | 'error';
+
+/**
  * Connected page/document from external service
  */
 export interface ConnectedResource {
@@ -44,6 +55,10 @@ export interface ConnectedResource {
   lastSynced?: string;
   content?: string;
   metadata?: Record<string, unknown>;
+  status?: DocumentProcessingStatus;
+  chunkCount?: number;
+  errorMessage?: string;
+  isProcessing?: boolean;
 }
 
 /**
@@ -78,6 +93,10 @@ export interface ExternalConnector {
   connectedResources: ConnectedResource[];
   lastConnected?: string;
   error?: string;
+  // Backend connection info
+  connectionId?: string;
+  documentCount?: number;
+  chunkCount?: number;
 }
 
 /**
@@ -89,7 +108,7 @@ export interface ConnectorConfig {
   icon: string;
   description: string;
   developmentStatus: DevelopmentStatus;
-  authType: 'sso';
+  authType: 'sso' | 'api_token';
   oauthUrl: string;
   scopes: string[];
 }
@@ -107,33 +126,47 @@ interface ExternalConnectorsState {
   // Modal states
   isModalOpen: boolean;
   isConnecting: boolean;
+  isLoading: boolean;
 
   // SSO state
   ssoState: SSOState;
   ssoError: string | null;
 
+  // OAuth flow state
+  pendingOAuthConnectionId: string | null;
+
   // Active resources for chat context
   activeResources: ConnectedResource[];
+
+  // Current user ID (needed for API calls)
+  currentUserId: string | null;
 
   // Actions
   openModal: () => void;
   closeModal: () => void;
   selectConnectorType: (type: ConnectorType | null) => void;
+  setCurrentUserId: (userId: string | null) => void;
 
-  // SSO Authentication
+  // Backend API integration
+  loadConnections: () => Promise<void>;
   initiateSSO: (type: ConnectorType) => void;
   handleSSOCallback: (type: ConnectorType, authCode: string) => Promise<void>;
+  completeOAuthFlow: (connectionId: string, code: string) => Promise<void>;
   cancelSSO: () => void;
 
-  // Connector management (legacy - kept for compatibility)
-  connectService: (type: ConnectorType, credentials: ExternalConnector['credentials']) => Promise<void>;
+  // Connector management
+  connectService: (type: ConnectorType, credentials: ExternalConnector['credentials'], config?: Record<string, unknown>) => Promise<void>;
   disconnectService: (type: ConnectorType) => void;
   testConnection: (type: ConnectorType) => Promise<boolean>;
 
   // Resource management
   addResource: (type: ConnectorType, resource: ConnectedResource) => void;
   removeResource: (type: ConnectorType, resourceId: string) => void;
-  syncResources: (type: ConnectorType) => Promise<void>;
+  syncResources: (type: ConnectorType, specificConnectionId?: string) => Promise<void>;
+  loadDocuments: (type: ConnectorType) => Promise<void>;
+  loadDocumentsById: (connectionId: string, type: ConnectorType) => Promise<void>;
+  processDocument: (type: ConnectorType, resourceId: string) => Promise<void>;
+  processSelectedDocuments: (type: ConnectorType, resourceIds: string[]) => Promise<void>;
 
   // Active resources for chat
   toggleResourceActive: (resource: ConnectedResource) => void;
@@ -167,7 +200,7 @@ export const CONNECTOR_CONFIGS: Record<ConnectorType, ConnectorConfig> = {
     icon: 'confluence',
     description: 'Connect to Atlassian Confluence spaces',
     developmentStatus: 'in_development',
-    authType: 'sso',
+    authType: 'api_token',
     oauthUrl: 'https://auth.atlassian.com/authorize',
     scopes: ['read:confluence-content.all', 'read:confluence-space.summary'],
   },
@@ -194,38 +227,60 @@ export const CONNECTOR_CONFIGS: Record<ConnectorType, ConnectorConfig> = {
 };
 
 // =============================================================================
-// Mock SSO Profiles for Development
+// Helper Functions
 // =============================================================================
 
-const MOCK_SSO_PROFILES: Record<ConnectorType, SSOProfile> = {
-  notion: {
-    id: 'notion_user_123',
-    email: 'user@example.com',
-    name: 'Demo User',
-    avatar: 'https://www.notion.so/images/meta/default.png',
-    provider: 'notion',
-  },
-  confluence: {
-    id: 'confluence_user_456',
-    email: 'user@company.atlassian.net',
-    name: 'Demo User',
-    avatar: 'https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/default-avatar.png',
-    provider: 'confluence',
-  },
-  github: {
-    id: 'github_user_789',
-    email: 'user@github.com',
-    name: 'Demo User',
-    avatar: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
-    provider: 'github',
-  },
-  google_drive: {
-    id: 'google_user_012',
-    email: 'user@gmail.com',
-    name: 'Demo User',
-    avatar: 'https://www.gstatic.com/images/branding/product/2x/drive_2020q4_48dp.png',
-    provider: 'google_drive',
-  },
+/**
+ * Map backend resource type to frontend connector type
+ */
+const mapResourceType = (resourceType: ExternalResourceType): ConnectorType | null => {
+  const mapping: Record<string, ConnectorType> = {
+    notion: 'notion',
+    confluence: 'confluence',
+    github: 'github',
+    google_drive: 'google_drive',
+  };
+  return mapping[resourceType] || null;
+};
+
+/**
+ * Map backend connection status to frontend status
+ */
+const mapConnectionStatus = (status: ConnectionStatus): ConnectorStatus => {
+  switch (status) {
+    case 'connected':
+      return 'active';
+    case 'connecting':
+    case 'syncing':
+      return 'connecting';
+    case 'error':
+    case 'expired':
+      return 'error';
+    default:
+      return 'inactive';
+  }
+};
+
+/**
+ * Map backend document to frontend resource
+ */
+const mapDocumentToResource = (doc: ExternalDocument): ConnectedResource => ({
+  id: doc.id,
+  title: doc.title,
+  url: doc.external_url || '',
+  type: 'page',
+  lastSynced: doc.last_synced_at || undefined,
+  content: undefined,
+  status: doc.status as DocumentProcessingStatus || 'discovered',
+  chunkCount: doc.chunk_count || 0,
+});
+
+/**
+ * Get OAuth redirect URI
+ */
+const getOAuthRedirectUri = (): string => {
+  const baseUrl = window.location.origin;
+  return `${baseUrl}/oauth/callback`;
 };
 
 // =============================================================================
@@ -249,117 +304,6 @@ const initialConnectors: ExternalConnector[] = [
 ];
 
 // =============================================================================
-// Mock Data for Development
-// =============================================================================
-
-const MOCK_NOTION_PAGES: ConnectedResource[] = [
-  {
-    id: 'notion_page_1',
-    title: 'Project Roadmap 2025',
-    url: 'https://notion.so/workspace/roadmap-2025',
-    type: 'page',
-    lastSynced: new Date().toISOString(),
-    content: `# Project Roadmap 2025
-
-## Q1 Goals
-- Launch v2.0 of the platform
-- Implement new authentication system
-- Add multi-language support (Korean, Japanese, English)
-
-## Q2 Goals
-- Mobile app beta release
-- Integration with external services
-- Performance optimization
-
-## Key Metrics
-- User acquisition: 10,000 new users
-- Revenue target: $500K
-- Customer satisfaction: 95%`,
-  },
-  {
-    id: 'notion_page_2',
-    title: 'API Documentation',
-    url: 'https://notion.so/workspace/api-docs',
-    type: 'page',
-    lastSynced: new Date().toISOString(),
-    content: `# API Documentation
-
-## Authentication
-All API requests require Bearer token authentication.
-
-## Endpoints
-
-### GET /api/v1/users
-Returns list of users.
-
-### POST /api/v1/documents
-Creates a new document.
-
-### PUT /api/v1/documents/:id
-Updates an existing document.`,
-  },
-  {
-    id: 'notion_db_1',
-    title: 'Task Database',
-    url: 'https://notion.so/workspace/tasks',
-    type: 'database',
-    lastSynced: new Date().toISOString(),
-    content: `Task Database contains 150 items across 5 projects.
-Status breakdown: 45 In Progress, 80 Completed, 25 Pending`,
-  },
-];
-
-const MOCK_CONFLUENCE_PAGES: ConnectedResource[] = [
-  {
-    id: 'confluence_page_1',
-    title: 'System Architecture Overview',
-    url: 'https://company.atlassian.net/wiki/spaces/DEV/pages/123',
-    type: 'page',
-    lastSynced: new Date().toISOString(),
-    content: `# System Architecture Overview
-
-## Components
-1. Frontend: React 18 + TypeScript
-2. Backend: FastAPI (Python 3.10+)
-3. Database: Neo4j (Graph) + PostgreSQL
-4. AI/ML: NVIDIA NIM Containers
-
-## Infrastructure
-- GPU Server: NVIDIA A100 x 8
-- Container Orchestration: Docker Compose
-- Load Balancer: NGINX
-
-## Security
-- JWT Authentication with HttpOnly cookies
-- Role-based access control (RBAC)
-- Data encryption at rest and in transit`,
-  },
-  {
-    id: 'confluence_page_2',
-    title: 'Development Guidelines',
-    url: 'https://company.atlassian.net/wiki/spaces/DEV/pages/456',
-    type: 'page',
-    lastSynced: new Date().toISOString(),
-    content: `# Development Guidelines
-
-## Code Style
-- Python: Black formatter, type hints required
-- TypeScript: ESLint + Prettier, strict mode
-- Comments: Korean allowed for business logic
-
-## Git Workflow
-- Feature branches from develop
-- PR reviews required (min 2 approvers)
-- Squash merge to main
-
-## Testing
-- Unit tests: pytest (Python), Vitest (TS)
-- Integration tests required for API endpoints
-- E2E tests for critical user flows`,
-  },
-];
-
-// =============================================================================
 // Store
 // =============================================================================
 
@@ -371,18 +315,72 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
       selectedConnectorType: null,
       isModalOpen: false,
       isConnecting: false,
+      isLoading: false,
       ssoState: 'idle',
       ssoError: null,
+      pendingOAuthConnectionId: null,
       activeResources: [],
+      currentUserId: null,
 
       // Modal actions
       openModal: () => set({ isModalOpen: true }),
-      closeModal: () => set({ isModalOpen: false, selectedConnectorType: null, ssoState: 'idle', ssoError: null }),
-      selectConnectorType: (type) => set({ selectedConnectorType: type, ssoState: 'idle', ssoError: null }),
+      closeModal: () =>
+        set({
+          isModalOpen: false,
+          selectedConnectorType: null,
+          ssoState: 'idle',
+          ssoError: null,
+        }),
+      selectConnectorType: (type) =>
+        set({ selectedConnectorType: type, ssoState: 'idle', ssoError: null }),
+      setCurrentUserId: (userId) => set({ currentUserId: userId }),
+
+      // Load connections from backend
+      loadConnections: async () => {
+        const { currentUserId } = get();
+        if (!currentUserId) {
+          console.warn('Cannot load connections: no user ID');
+          return;
+        }
+
+        set({ isLoading: true });
+
+        try {
+          const response = await externalConnectorsApi.listConnections(currentUserId);
+
+          // Update connectors with backend data
+          set((state) => ({
+            isLoading: false,
+            connectors: state.connectors.map((connector) => {
+              const backendConn = response.connections.find(
+                (c) => mapResourceType(c.resource_type) === connector.type
+              );
+
+              if (backendConn) {
+                return {
+                  ...connector,
+                  status: mapConnectionStatus(backendConn.status),
+                  connectionId: backendConn.id,
+                  documentCount: backendConn.document_count,
+                  chunkCount: backendConn.chunk_count,
+                  lastConnected: backendConn.last_sync_at || backendConn.created_at,
+                  error: backendConn.error_message || undefined,
+                };
+              }
+
+              return connector;
+            }),
+          }));
+        } catch (error) {
+          console.error('Failed to load connections:', error);
+          set({ isLoading: false });
+        }
+      },
 
       // SSO Authentication - Initiate OAuth flow
-      initiateSSO: (type) => {
+      initiateSSO: async (type: ConnectorType) => {
         const config = CONNECTOR_CONFIGS[type];
+        const { currentUserId } = get();
 
         // Check if connector is available
         if (config.developmentStatus === 'planned') {
@@ -390,59 +388,68 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
           return;
         }
 
+        if (!currentUserId) {
+          set({ ssoError: 'User not authenticated' });
+          return;
+        }
+
         set({ ssoState: 'authorizing', ssoError: null, isConnecting: true });
 
-        // In a real implementation, this would open a popup or redirect
-        // For mock, we simulate the OAuth flow with a timeout
-        setTimeout(() => {
-          // Simulate successful OAuth callback
-          get().handleSSOCallback(type, 'mock_auth_code_' + Date.now());
-        }, 2000);
+        try {
+          // Create connection in backend
+          const connection = await externalConnectorsApi.createConnection(currentUserId, {
+            resource_type: type as ExternalResourceType,
+          });
+
+          // Get OAuth URL
+          const redirectUri = getOAuthRedirectUri();
+          const oauthResponse = await externalConnectorsApi.getOAuthUrl(connection.id, redirectUri);
+
+          // Store pending connection ID for OAuth callback
+          set({ pendingOAuthConnectionId: connection.id });
+
+          // Open OAuth popup or redirect
+          const width = 600;
+          const height = 700;
+          const left = window.screenX + (window.outerWidth - width) / 2;
+          const top = window.screenY + (window.outerHeight - height) / 2;
+
+          const popup = window.open(
+            oauthResponse.oauth_url,
+            'OAuth',
+            `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no`
+          );
+
+          // Check if popup was blocked
+          if (!popup) {
+            // Fallback: redirect in same window
+            window.location.href = oauthResponse.oauth_url;
+          }
+        } catch (error) {
+          console.error('Failed to initiate SSO:', error);
+          set({
+            ssoState: 'error',
+            ssoError: error instanceof Error ? error.message : 'Failed to initiate SSO',
+            isConnecting: false,
+          });
+        }
       },
 
-      // Handle SSO callback (exchange auth code for tokens)
-      handleSSOCallback: async (type, _authCode) => {
-        try {
-          // Simulate token exchange delay
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Handle SSO callback (from OAuth redirect)
+      handleSSOCallback: async (_type, authCode) => {
+        const { pendingOAuthConnectionId } = get();
 
-          // Check if connector is available
-          const config = CONNECTOR_CONFIGS[type];
-          if (config.developmentStatus === 'planned') {
-            set({
-              ssoState: 'error',
-              ssoError: 'This connector is not yet available',
-              isConnecting: false,
-            });
-            return;
-          }
-
-          // Mock successful SSO with profile and resources
-          const mockProfile = MOCK_SSO_PROFILES[type];
-          const mockResources = type === 'notion' ? MOCK_NOTION_PAGES : MOCK_CONFLUENCE_PAGES;
-          const mockCredentials = {
-            accessToken: 'mock_access_token_' + Date.now(),
-            refreshToken: 'mock_refresh_token_' + Date.now(),
-            expiresAt: new Date(Date.now() + 3600000).toISOString(), // 1 hour
-          };
-
-          set((state) => ({
-            ssoState: 'success',
+        if (!pendingOAuthConnectionId) {
+          set({
+            ssoState: 'error',
+            ssoError: 'No pending OAuth connection',
             isConnecting: false,
-            connectors: state.connectors.map((c) =>
-              c.type === type
-                ? {
-                    ...c,
-                    status: 'active',
-                    ssoProfile: mockProfile,
-                    credentials: mockCredentials,
-                    connectedResources: mockResources,
-                    lastConnected: new Date().toISOString(),
-                    error: undefined,
-                  }
-                : c
-            ),
-          }));
+          });
+          return;
+        }
+
+        try {
+          await get().completeOAuthFlow(pendingOAuthConnectionId, authCode);
         } catch (error) {
           set({
             ssoState: 'error',
@@ -452,54 +459,149 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
         }
       },
 
-      // Cancel SSO flow
-      cancelSSO: () => {
-        set({ ssoState: 'idle', ssoError: null, isConnecting: false });
+      // Complete OAuth flow with authorization code
+      completeOAuthFlow: async (connectionId, code) => {
+        try {
+          const redirectUri = getOAuthRedirectUri();
+          const connection = await externalConnectorsApi.completeOAuth(connectionId, code, redirectUri);
+
+          const connectorType = mapResourceType(connection.resource_type);
+          if (!connectorType) {
+            throw new Error('Unknown resource type');
+          }
+
+          // Update connector state
+          set((state) => ({
+            ssoState: 'success',
+            isConnecting: false,
+            pendingOAuthConnectionId: null,
+            connectors: state.connectors.map((c) =>
+              c.type === connectorType
+                ? {
+                    ...c,
+                    status: 'active',
+                    connectionId: connection.id,
+                    documentCount: connection.document_count,
+                    chunkCount: connection.chunk_count,
+                    lastConnected: new Date().toISOString(),
+                    error: undefined,
+                  }
+                : c
+            ),
+          }));
+
+          // Load documents after successful connection
+          await get().loadDocuments(connectorType);
+        } catch (error) {
+          set({
+            ssoState: 'error',
+            ssoError: error instanceof Error ? error.message : 'OAuth completion failed',
+            isConnecting: false,
+          });
+          throw error;
+        }
       },
 
-      // Connect to service (Legacy - uses SSO now)
-      connectService: async (type, credentials) => {
+      // Cancel SSO flow
+      cancelSSO: () => {
+        set({
+          ssoState: 'idle',
+          ssoError: null,
+          isConnecting: false,
+          pendingOAuthConnectionId: null,
+        });
+      },
+
+      // Connect to service (for API token auth like Confluence)
+      connectService: async (type, credentials, config) => {
+        const { currentUserId } = get();
+        if (!currentUserId) {
+          throw new Error('User not authenticated');
+        }
+
         set({ isConnecting: true });
 
-        // Simulate API call delay
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        try {
+          const connection = await externalConnectorsApi.createConnection(currentUserId, {
+            resource_type: type as ExternalResourceType,
+            api_token: credentials?.apiKey || credentials?.accessToken,
+            config: config,
+          });
 
-        // Check if connector is available for development
-        const config = CONNECTOR_CONFIGS[type];
-        if (config.developmentStatus === 'planned') {
+          // Capture the connectionId before state update to pass to syncResources
+          const newConnectionId = connection.id;
+
           set((state) => ({
             isConnecting: false,
             connectors: state.connectors.map((c) =>
               c.type === type
-                ? { ...c, status: 'error', error: 'This connector is not yet available' }
+                ? {
+                    ...c,
+                    status: 'active',
+                    connectionId: connection.id,
+                    documentCount: connection.document_count,
+                    chunkCount: connection.chunk_count,
+                    lastConnected: new Date().toISOString(),
+                    credentials,
+                    error: undefined,
+                  }
                 : c
             ),
+          }));
+
+          // Trigger sync and load documents after successful connection
+          // Pass the specific connectionId to avoid race condition if user clicks Connect again
+          await get().syncResources(type, newConnectionId);
+        } catch (error) {
+          set((state) => ({
+            isConnecting: false,
+            connectors: state.connectors.map((c) =>
+              c.type === type
+                ? {
+                    ...c,
+                    status: 'error',
+                    error: error instanceof Error ? error.message : 'Connection failed',
+                  }
+                : c
+            ),
+          }));
+          throw error;
+        }
+      },
+
+      // Disconnect from service
+      disconnectService: async (type) => {
+        const connector = get().connectors.find((c) => c.type === type);
+        if (!connector?.connectionId) {
+          // If no backend connection, just reset local state
+          set((state) => ({
+            connectors: state.connectors.map((c) =>
+              c.type === type
+                ? {
+                    ...c,
+                    status: 'inactive',
+                    ssoProfile: undefined,
+                    credentials: undefined,
+                    connectedResources: [],
+                    lastConnected: undefined,
+                    connectionId: undefined,
+                  }
+                : c
+            ),
+            activeResources: state.activeResources.filter((r) => !r.id.startsWith(`${type}_`)),
+            ssoState: 'idle',
+            ssoError: null,
           }));
           return;
         }
 
-        // Mock successful connection with mock data
-        const mockResources = type === 'notion' ? MOCK_NOTION_PAGES : MOCK_CONFLUENCE_PAGES;
+        try {
+          await externalConnectorsApi.disconnect(connector.connectionId);
+        } catch (error) {
+          console.error('Failed to disconnect:', error);
+        }
 
-        set((state) => ({
-          isConnecting: false,
-          connectors: state.connectors.map((c) =>
-            c.type === type
-              ? {
-                  ...c,
-                  status: 'active',
-                  credentials,
-                  connectedResources: mockResources,
-                  lastConnected: new Date().toISOString(),
-                  error: undefined,
-                }
-              : c
-          ),
-        }));
-      },
-
-      // Disconnect from service
-      disconnectService: (type) => {
+        // Update local state
         set((state) => ({
           connectors: state.connectors.map((c) =>
             c.type === type
@@ -510,27 +612,217 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
                   credentials: undefined,
                   connectedResources: [],
                   lastConnected: undefined,
+                  connectionId: undefined,
+                  documentCount: undefined,
+                  chunkCount: undefined,
                 }
               : c
           ),
-          activeResources: state.activeResources.filter(
-            (r) => !r.id.startsWith(`${type}_`)
-          ),
+          activeResources: state.activeResources.filter((r) => !r.id.startsWith(`${type}_`)),
           ssoState: 'idle',
           ssoError: null,
         }));
       },
 
-      // Test connection (Mock)
+      // Test connection
       testConnection: async (type) => {
         const connector = get().connectors.find((c) => c.type === type);
-        if (!connector || connector.status !== 'active') {
+        if (!connector?.connectionId) {
           return false;
         }
 
-        // Simulate test delay
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        return true;
+        try {
+          const connection = await externalConnectorsApi.getConnection(connector.connectionId);
+          return connection.status === 'connected';
+        } catch {
+          return false;
+        }
+      },
+
+      // Load documents for a connector
+      loadDocuments: async (type) => {
+        const connector = get().connectors.find((c) => c.type === type);
+        if (!connector?.connectionId) {
+          return;
+        }
+        await get().loadDocumentsById(connector.connectionId, type);
+      },
+
+      // Load documents by specific connectionId (avoids race condition)
+      loadDocumentsById: async (connectionId: string, type: ConnectorType) => {
+        try {
+          const response = await externalConnectorsApi.listDocuments(connectionId);
+          console.log(`[ExternalConnectors] Loaded ${response.documents.length} documents for ${type}`);
+
+          const resources: ConnectedResource[] = response.documents.map((doc) => ({
+            ...mapDocumentToResource(doc),
+            id: `${type}_${doc.id}`, // Prefix with type for unique IDs
+          }));
+
+          set((state) => ({
+            connectors: state.connectors.map((c) =>
+              c.type === type
+                ? {
+                    ...c,
+                    connectedResources: resources,
+                    documentCount: response.total,
+                  }
+                : c
+            ),
+          }));
+        } catch (error) {
+          console.error('Failed to load documents:', error);
+        }
+      },
+
+      // Process a single document (fetch content, chunk, embed)
+      processDocument: async (type: ConnectorType, resourceId: string) => {
+        console.log('[ExternalConnectors Store] processDocument called:', { type, resourceId });
+        const connector = get().connectors.find((c) => c.type === type);
+        console.log('[ExternalConnectors Store] Found connector:', connector ? { type: connector.type, connectionId: connector.connectionId, status: connector.status } : 'null');
+        if (!connector?.connectionId) {
+          console.error('[ExternalConnectors Store] No connection found for type:', type, 'connector:', connector);
+          return;
+        }
+
+        // Extract actual document ID from prefixed resource ID
+        const documentId = resourceId.startsWith(`${type}_`)
+          ? resourceId.substring(`${type}_`.length)
+          : resourceId;
+
+        // Mark resource as processing
+        set((state) => ({
+          connectors: state.connectors.map((c) =>
+            c.type === type
+              ? {
+                  ...c,
+                  connectedResources: c.connectedResources.map((r) =>
+                    r.id === resourceId
+                      ? { ...r, isProcessing: true, status: 'chunking' as DocumentProcessingStatus }
+                      : r
+                  ),
+                }
+              : c
+          ),
+        }));
+
+        try {
+          const result = await externalConnectorsApi.processDocument(
+            connector.connectionId,
+            documentId
+          );
+
+          // Update resource with result
+          set((state) => ({
+            connectors: state.connectors.map((c) =>
+              c.type === type
+                ? {
+                    ...c,
+                    connectedResources: c.connectedResources.map((r) =>
+                      r.id === resourceId
+                        ? {
+                            ...r,
+                            isProcessing: false,
+                            status: result.status,
+                            chunkCount: result.chunk_count,
+                            errorMessage: result.error_message || undefined,
+                          }
+                        : r
+                    ),
+                    chunkCount: (c.chunkCount || 0) + result.chunk_count,
+                  }
+                : c
+            ),
+          }));
+
+          console.log(`[ExternalConnectors] Processed document ${documentId}: status=${result.status}, chunks=${result.chunk_count}`);
+        } catch (error) {
+          // Mark as error
+          set((state) => ({
+            connectors: state.connectors.map((c) =>
+              c.type === type
+                ? {
+                    ...c,
+                    connectedResources: c.connectedResources.map((r) =>
+                      r.id === resourceId
+                        ? {
+                            ...r,
+                            isProcessing: false,
+                            status: 'error' as DocumentProcessingStatus,
+                            errorMessage: error instanceof Error ? error.message : 'Processing failed',
+                          }
+                        : r
+                    ),
+                  }
+                : c
+            ),
+          }));
+          console.error('Failed to process document:', error);
+        }
+      },
+
+      // Process multiple documents
+      processSelectedDocuments: async (type: ConnectorType, resourceIds: string[]) => {
+        const connector = get().connectors.find((c) => c.type === type);
+        if (!connector?.connectionId) {
+          console.error('No connection found for type:', type);
+          return;
+        }
+
+        // Extract actual document IDs from prefixed resource IDs
+        const documentIds = resourceIds.map((id) =>
+          id.startsWith(`${type}_`) ? id.substring(`${type}_`.length) : id
+        );
+
+        // Mark all resources as processing
+        set((state) => ({
+          connectors: state.connectors.map((c) =>
+            c.type === type
+              ? {
+                  ...c,
+                  connectedResources: c.connectedResources.map((r) =>
+                    resourceIds.includes(r.id)
+                      ? { ...r, isProcessing: true, status: 'chunking' as DocumentProcessingStatus }
+                      : r
+                  ),
+                }
+              : c
+          ),
+        }));
+
+        try {
+          const result = await externalConnectorsApi.processDocumentsBatch(
+            connector.connectionId,
+            documentIds
+          );
+
+          console.log(`[ExternalConnectors] Batch processing: processed=${result.processed}, failed=${result.failed}, skipped=${result.skipped}`);
+
+          // Reload documents to get updated statuses
+          await get().loadDocumentsById(connector.connectionId, type);
+        } catch (error) {
+          // Mark all as error
+          set((state) => ({
+            connectors: state.connectors.map((c) =>
+              c.type === type
+                ? {
+                    ...c,
+                    connectedResources: c.connectedResources.map((r) =>
+                      resourceIds.includes(r.id)
+                        ? {
+                            ...r,
+                            isProcessing: false,
+                            status: 'error' as DocumentProcessingStatus,
+                            errorMessage: error instanceof Error ? error.message : 'Processing failed',
+                          }
+                        : r
+                    ),
+                  }
+                : c
+            ),
+          }));
+          console.error('Failed to process documents batch:', error);
+        }
       },
 
       // Add resource to connector
@@ -562,10 +854,19 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
         }));
       },
 
-      // Sync resources (Mock - refresh data)
-      syncResources: async (type) => {
+      // Sync resources from backend
+      syncResources: async (type, specificConnectionId?: string) => {
         const connector = get().connectors.find((c) => c.type === type);
-        if (!connector || connector.status !== 'active') {
+
+        // Prevent duplicate sync requests - don't sync if already syncing
+        if (connector?.status === 'connecting') {
+          console.log(`[ExternalConnectors] Already syncing ${type}, skipping duplicate request`);
+          return;
+        }
+
+        // Use specific connectionId if provided, otherwise use connector's connectionId
+        const connectionId = specificConnectionId || connector?.connectionId;
+        if (!connectionId) {
           return;
         }
 
@@ -575,23 +876,35 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
           ),
         }));
 
-        // Simulate sync delay
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        try {
+          await externalConnectorsApi.sync(connectionId);
+          // Use the same connectionId for loading documents to avoid race condition
+          await get().loadDocumentsById(connectionId, type);
 
-        set((state) => ({
-          connectors: state.connectors.map((c) =>
-            c.type === type
-              ? {
-                  ...c,
-                  status: 'active',
-                  connectedResources: c.connectedResources.map((r) => ({
-                    ...r,
-                    lastSynced: new Date().toISOString(),
-                  })),
-                }
-              : c
-          ),
-        }));
+          set((state) => ({
+            connectors: state.connectors.map((c) =>
+              c.type === type
+                ? {
+                    ...c,
+                    status: 'active',
+                    lastConnected: new Date().toISOString(),
+                  }
+                : c
+            ),
+          }));
+        } catch (error) {
+          set((state) => ({
+            connectors: state.connectors.map((c) =>
+              c.type === type
+                ? {
+                    ...c,
+                    status: 'error',
+                    error: error instanceof Error ? error.message : 'Sync failed',
+                  }
+                : c
+            ),
+          }));
+        }
       },
 
       // Toggle resource active state for chat context
@@ -653,8 +966,12 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
           credentials: c.credentials,
           connectedResources: c.connectedResources,
           lastConnected: c.lastConnected,
+          connectionId: c.connectionId,
+          documentCount: c.documentCount,
+          chunkCount: c.chunkCount,
         })),
         activeResources: state.activeResources,
+        currentUserId: state.currentUserId,
       }),
     }
   )

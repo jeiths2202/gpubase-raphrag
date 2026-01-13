@@ -88,8 +88,11 @@
     "disconnect": "연결 해제",
     "connecting": "연결 중...",
     "sync": "동기화",
+    "syncing": "리소스 동기화 중...",
+    "syncingHint": "약 1분 정도 소요될 수 있습니다",
     "lastSync": "마지막 동기화",
     "resources": "개 리소스",
+    "noResources": "리소스가 없습니다",
     "selected": "개 선택됨",
     "selectResources": "채팅 컨텍스트에 사용할 리소스 선택",
     "selectHint": "선택한 리소스는 대화에서 컨텍스트로 사용됩니다",
@@ -110,7 +113,8 @@
       "emailPlaceholder": "Atlassian 이메일을 입력하세요",
       "apiKey": "API 토큰",
       "apiKeyPlaceholder": "Atlassian API 토큰을 입력하세요",
-      "siteUrlPlaceholder": "예: your-domain.atlassian.net",
+      "siteUrl": "사이트 URL",
+      "siteUrlPlaceholder": "예: your-domain.atlassian.net (또는 /wiki 포함 전체 URL)",
       "notionHint": "notion.so/my-integrations에서 통합 토큰을 발급받으세요",
       "confluenceHint": "id.atlassian.com/manage-profile/security/api-tokens에서 API 토큰을 발급받으세요"
     },
@@ -120,14 +124,32 @@
     "sso": {
       "signInWithNotion": "Notion으로 로그인",
       "signInWithAtlassian": "Atlassian으로 로그인",
-      "signInWithGithub": "GitHub으로 로그인",
+      "signInWithGitHub": "GitHub으로 로그인",
       "signInWithGoogle": "Google로 로그인",
+      "signIn": "로그인",
       "connectedAs": "연결된 계정",
       "permissions": "요청 권한",
-      "authorizingTitle": "인증 중",
-      "authorizingDescription": "팝업 창에서 인증을 완료해주세요...",
-      "cancelAuth": "취소",
+      "secureAuth": "보안 인증",
+      "secureAuthDesc": "OAuth 2.0을 사용하여 계정에 안전하게 연결합니다. 비밀번호는 저장되지 않습니다.",
+      "authorizing": "인증 중...",
+      "authorizingDesc": "팝업 창에서 로그인을 완료해주세요.",
+      "cancel": "취소",
       "securityInfo": "귀하의 데이터는 OAuth 2.0을 통해 안전하게 처리됩니다. 콘텐츠 접근에 필요한 권한만 요청합니다."
-    }
+    },
+    "apiToken": {
+      "label": "API 토큰",
+      "placeholder": "API 토큰을 입력하세요",
+      "hint": "Atlassian 계정 설정에서 API 토큰을 발급받을 수 있습니다."
+    },
+    "docStatus": {
+      "ready": "준비됨",
+      "processing": "처리 중...",
+      "error": "오류",
+      "notProcessed": "미처리",
+      "chunks": "청크"
+    },
+    "needsProcessing": "개 문서 처리 필요",
+    "processSelected": "선택 항목 처리",
+    "processDoc": "이 문서 처리"
   }
 }

@@ -28,6 +28,7 @@ from ..models.external_connection import (
     ExternalChunk, ExternalSearchResult
 )
 from ..connectors import ConnectorManager, get_connector_manager
+from ..connectors.base import ConnectorStatus
 
 
 class UserVectorStore:
@@ -377,7 +378,8 @@ class ExternalDocumentService:
     ) -> Dict[str, Any]:
         """
         Sync documents from external resource.
-        Full sync fetches all documents, incremental only fetches changes.
+        Only fetches document metadata (list) - content is fetched on-demand when user selects.
+        This makes sync fast (seconds instead of minutes).
         """
         connection = self._connections.get(connection_id)
         if not connection:
@@ -417,7 +419,7 @@ class ExternalDocumentService:
             # Track seen documents for deletion detection
             seen_external_ids = set()
 
-            # List and sync documents
+            # List documents (metadata only - fast)
             async for doc_meta in connector.list_documents(modified_since=modified_since):
                 try:
                     external_id = doc_meta["external_id"]
@@ -428,27 +430,22 @@ class ExternalDocumentService:
                         connection_id, external_id
                     )
 
-                    # Fetch full document
-                    result = await connector.fetch_document(external_id)
-                    if result.status.value != "success":
-                        stats["errors"].append(f"Failed to fetch {external_id}: {result.error}")
-                        continue
-
-                    doc_data = result.data
-
                     if existing_doc:
-                        # Check if content changed
-                        if existing_doc.content_hash != doc_data.content_hash:
-                            # Update document
-                            await self._update_document(existing_doc.id, doc_data)
-                            stats["documents_updated"] += 1
+                        # Update metadata only (don't re-fetch content)
+                        existing_doc.title = doc_meta.get("title", existing_doc.title)
+                        existing_doc.path = doc_meta.get("path", existing_doc.path)
+                        existing_doc.external_url = doc_meta.get("url", existing_doc.external_url)
+                        existing_doc.mime_type = doc_meta.get("mime_type", existing_doc.mime_type)
+                        existing_doc.updated_at = datetime.now(timezone.utc)
+                        self._documents[existing_doc.id] = existing_doc
+                        stats["documents_updated"] += 1
                     else:
-                        # Create new document
-                        await self._create_document(
+                        # Create new document with metadata only (status: DISCOVERED)
+                        await self._create_document_metadata(
                             connection_id,
                             connection.user_id,
                             connection.resource_type,
-                            doc_data
+                            doc_meta
                         )
                         stats["documents_added"] += 1
 
@@ -479,6 +476,7 @@ class ExternalDocumentService:
                 connection.user_id
             ).get("connections", {}).get(connection_id, 0)
             self._connections[connection_id] = connection
+            print(f"[ExternalDocumentService] Sync completed: {stats}, document_count={connection.document_count}")
 
         except Exception as e:
             connection.status = ConnectionStatus.ERROR
@@ -500,6 +498,43 @@ class ExternalDocumentService:
                 return doc
         return None
 
+    async def _create_document_metadata(
+        self,
+        connection_id: str,
+        user_id: str,
+        source: ExternalResourceType,
+        doc_meta: Dict[str, Any]
+    ) -> ExternalDocument:
+        """
+        Create document record with metadata only (no content fetching).
+        Status will be DISCOVERED - content is fetched on-demand when user processes.
+        """
+        doc_id = f"edoc_{uuid.uuid4().hex[:12]}"
+        print(f"[ExternalDocumentService] Creating document metadata: {doc_id}, title: {doc_meta.get('title')}")
+
+        doc = ExternalDocument(
+            id=doc_id,
+            user_id=user_id,
+            connection_id=connection_id,
+            source=source,
+            external_id=doc_meta.get("external_id"),
+            external_url=doc_meta.get("url"),
+            title=doc_meta.get("title", "Untitled"),
+            path=doc_meta.get("path", ""),
+            mime_type=doc_meta.get("mime_type", "text/html"),
+            sections=[],  # Not fetched yet - empty list (required by model)
+            text_content=None,  # Not fetched yet
+            metadata=doc_meta.get("metadata", {}),
+            status=ExternalDocumentStatus.DISCOVERED,
+            external_modified_at=doc_meta.get("modified_at"),
+            content_hash=None  # Not computed yet
+        )
+
+        self._documents[doc_id] = doc
+        print(f"[ExternalDocumentService] Document metadata stored: {doc_id}, total: {len(self._documents)}")
+
+        return doc
+
     async def _create_document(
         self,
         connection_id: str,
@@ -507,8 +542,9 @@ class ExternalDocumentService:
         source: ExternalResourceType,
         doc_data
     ) -> ExternalDocument:
-        """Create new document from connector data"""
+        """Create new document from connector data (with full content)"""
         doc_id = f"edoc_{uuid.uuid4().hex[:12]}"
+        print(f"[ExternalDocumentService] Creating document: {doc_id}, title: {doc_data.title}")
 
         doc = ExternalDocument(
             id=doc_id,
@@ -529,6 +565,7 @@ class ExternalDocumentService:
         )
 
         self._documents[doc_id] = doc
+        print(f"[ExternalDocumentService] Document stored: {doc_id}, total documents: {len(self._documents)}")
 
         # Process document (chunk and embed)
         await self._process_document(doc_id)
@@ -573,6 +610,158 @@ class ExternalDocumentService:
 
         # Remove document
         del self._documents[doc_id]
+
+    # ================== On-Demand Document Processing ==================
+
+    async def process_document(self, document_id: str) -> ExternalDocument:
+        """
+        Process a document on-demand: fetch content, chunk, and embed.
+        Called when user selects a document for processing.
+
+        Args:
+            document_id: The document ID to process
+
+        Returns:
+            Updated document with status READY or ERROR
+        """
+        doc = self._documents.get(document_id)
+        if not doc:
+            raise ValueError(f"Document not found: {document_id}")
+
+        # Check if already processed
+        if doc.status == ExternalDocumentStatus.READY:
+            return doc
+
+        # Check if already processing
+        if doc.status in [ExternalDocumentStatus.CHUNKING, ExternalDocumentStatus.EMBEDDING]:
+            raise ValueError(f"Document is already being processed: {doc.status}")
+
+        connection = self._connections.get(doc.connection_id)
+        if not connection:
+            raise ValueError(f"Connection not found: {doc.connection_id}")
+
+        if connection.status != ConnectionStatus.CONNECTED:
+            raise ValueError(f"Connection not active: {connection.status}")
+
+        try:
+            # Update status to processing
+            doc.status = ExternalDocumentStatus.CHUNKING
+            self._documents[document_id] = doc
+            print(f"[ExternalDocumentService] Processing document: {document_id}, title: {doc.title}")
+
+            # Get connector
+            connector = self._connector_manager.get_connector(
+                connection.resource_type,
+                access_token=self._decrypt_token(connection.access_token),
+                refresh_token=self._decrypt_token(connection.refresh_token) if connection.refresh_token else None,
+                api_token=self._decrypt_token(connection.api_token) if connection.api_token else None,
+                config=connection.resource_config
+            )
+
+            # Fetch document content
+            result = await connector.fetch_document(doc.external_id)
+
+            # Check if fetch was successful
+            if not result or result.status != ConnectorStatus.SUCCESS or not result.data:
+                doc.status = ExternalDocumentStatus.ERROR
+                doc.error_message = result.error if result and result.error else "Failed to fetch document content"
+                self._documents[document_id] = doc
+                print(f"[ExternalDocumentService] Fetch failed for {document_id}: {doc.error_message}")
+                return doc
+
+            # Get the actual document data from ConnectorResult
+            doc_data = result.data
+
+            # Update document with fetched content
+            doc.sections = doc_data.sections if doc_data.sections else []
+            doc.text_content = doc_data.content
+            doc.content_hash = doc_data.content_hash
+            doc.external_modified_at = doc_data.modified_at
+
+            # Process (chunk and embed)
+            await self._process_document(document_id)
+
+            # Update connection stats
+            connection.chunk_count = self._vector_store.get_user_stats(
+                connection.user_id
+            ).get("connections", {}).get(connection.id, 0)
+            self._connections[connection.id] = connection
+
+            print(f"[ExternalDocumentService] Document processed successfully: {document_id}")
+            return self._documents[document_id]
+
+        except Exception as e:
+            doc.status = ExternalDocumentStatus.ERROR
+            doc.error_message = str(e)
+            self._documents[document_id] = doc
+            print(f"[ExternalDocumentService] Processing error for {document_id}: {e}")
+            raise
+
+    async def process_documents_batch(
+        self,
+        document_ids: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Process multiple documents in batch.
+
+        Args:
+            document_ids: List of document IDs to process
+
+        Returns:
+            Stats about processed documents
+        """
+        stats = {
+            "processed": 0,
+            "failed": 0,
+            "skipped": 0,
+            "errors": []
+        }
+
+        for doc_id in document_ids:
+            try:
+                doc = self._documents.get(doc_id)
+                if not doc:
+                    stats["skipped"] += 1
+                    continue
+
+                if doc.status == ExternalDocumentStatus.READY:
+                    stats["skipped"] += 1
+                    continue
+
+                await self.process_document(doc_id)
+                stats["processed"] += 1
+
+            except Exception as e:
+                stats["failed"] += 1
+                stats["errors"].append(f"{doc_id}: {str(e)}")
+
+        return stats
+
+    def get_connection_documents(
+        self,
+        connection_id: str,
+        limit: int = 50,
+        offset: int = 0
+    ) -> Tuple[List[ExternalDocument], int]:
+        """
+        Get documents for a connection with pagination.
+
+        Returns:
+            Tuple of (documents list, total count)
+        """
+        all_docs = [
+            doc for doc in self._documents.values()
+            if doc.connection_id == connection_id
+        ]
+        total = len(all_docs)
+
+        # Sort by title
+        all_docs.sort(key=lambda d: d.title.lower())
+
+        # Apply pagination
+        paginated = all_docs[offset:offset + limit]
+
+        return paginated, total
 
     # ================== Document Processing ==================
 

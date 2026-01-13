@@ -44,6 +44,7 @@ import { AgentPage } from './pages/AgentPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { ImprovementsPage, SubmitImprovementPage, ImprovementDetailPage } from './pages/improvements';
+import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 
 // Import global styles
 import './styles/index.css';
@@ -126,6 +127,9 @@ export const App: React.FC = () => {
           {/* External Portal (Phase 6) - Separate layout without AI sidebar */}
           <Route path="/portal" element={<ExternalPortalPage />} />
           <Route path="/portal/*" element={<ExternalPortalPage />} />
+
+          {/* OAuth Callback - No auth required, handles external OAuth redirects */}
+          <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
 
           {/* 404 - Redirect to home */}
           <Route path="*" element={<Navigate to="/" replace />} />

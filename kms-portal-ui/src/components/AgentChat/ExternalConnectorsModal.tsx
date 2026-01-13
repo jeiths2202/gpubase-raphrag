@@ -6,7 +6,7 @@
  * Allows users to connect external services and select resources for chat context.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   X,
   Loader2,
@@ -29,6 +29,11 @@ import {
   LogIn,
   Shield,
   User,
+  Key,
+  Globe,
+  Play,
+  Zap,
+  XCircle,
 } from 'lucide-react';
 import {
   useExternalConnectorsStore,
@@ -37,6 +42,7 @@ import {
   type ConnectedResource,
   type ExternalConnector,
   type SSOState,
+  type DocumentProcessingStatus,
 } from '../../store/externalConnectorsStore';
 
 // =============================================================================
@@ -117,19 +123,19 @@ const StatusBadge: React.FC<{ status: string; t: (key: string) => string }> = ({
       case 'available':
         return {
           icon: <CheckCircle2 size={12} />,
-          label: t('externalConnectors.status.available') || 'Available',
+          label: t('common.externalConnectors.status.available') || 'Available',
           className: 'status-available',
         };
       case 'in_development':
         return {
           icon: <Construction size={12} />,
-          label: t('externalConnectors.status.inDevelopment') || 'In Development',
+          label: t('common.externalConnectors.status.inDevelopment') || 'In Development',
           className: 'status-in-development',
         };
       case 'planned':
         return {
           icon: <Calendar size={12} />,
-          label: t('externalConnectors.status.planned') || 'Planned',
+          label: t('common.externalConnectors.status.planned') || 'Planned',
           className: 'status-planned',
         };
       default:
@@ -145,6 +151,65 @@ const StatusBadge: React.FC<{ status: string; t: (key: string) => string }> = ({
 
   return (
     <span className={`connector-status-badge ${config.className}`}>
+      {config.icon}
+      <span>{config.label}</span>
+    </span>
+  );
+};
+
+// =============================================================================
+// Document Status Badge
+// =============================================================================
+
+const DocumentStatusBadge: React.FC<{
+  status?: DocumentProcessingStatus;
+  chunkCount?: number;
+  isProcessing?: boolean;
+  t: (key: string) => string;
+}> = ({ status, chunkCount, isProcessing, t }) => {
+  const getStatusConfig = () => {
+    if (isProcessing) {
+      return {
+        icon: <Loader2 size={12} className="spin" />,
+        label: t('common.externalConnectors.docStatus.processing') || 'Processing...',
+        className: 'doc-status-processing',
+      };
+    }
+
+    switch (status) {
+      case 'ready':
+        return {
+          icon: <CheckCircle2 size={12} />,
+          label: `${chunkCount || 0} ${t('common.externalConnectors.docStatus.chunks') || 'chunks'}`,
+          className: 'doc-status-ready',
+        };
+      case 'chunking':
+      case 'embedding':
+        return {
+          icon: <Loader2 size={12} className="spin" />,
+          label: t('common.externalConnectors.docStatus.processing') || 'Processing...',
+          className: 'doc-status-processing',
+        };
+      case 'error':
+        return {
+          icon: <XCircle size={12} />,
+          label: t('common.externalConnectors.docStatus.error') || 'Error',
+          className: 'doc-status-error',
+        };
+      case 'discovered':
+      default:
+        return {
+          icon: <Circle size={12} />,
+          label: t('common.externalConnectors.docStatus.notProcessed') || 'Not processed',
+          className: 'doc-status-discovered',
+        };
+    }
+  };
+
+  const config = getStatusConfig();
+
+  return (
+    <span className={`document-status-badge ${config.className}`}>
       {config.icon}
       <span>{config.label}</span>
     </span>
@@ -195,12 +260,12 @@ const ConnectorListView: React.FC<ConnectorListViewProps> = ({
                 <div className="connector-item-stats">
                   <span className="connector-resource-count">
                     {connector.connectedResources.length}{' '}
-                    {t('externalConnectors.resources') || 'resources'}
+                    {t('common.externalConnectors.resources') || 'resources'}
                   </span>
                   {activeCount > 0 && (
                     <span className="connector-active-count">
                       <CheckCircle2 size={12} />
-                      {activeCount} {t('externalConnectors.selected') || 'selected'}
+                      {activeCount} {t('common.externalConnectors.selected') || 'selected'}
                     </span>
                   )}
                 </div>
@@ -210,7 +275,7 @@ const ConnectorListView: React.FC<ConnectorListViewProps> = ({
               {connector.status === 'active' ? (
                 <span className="connector-connected-badge">
                   <Check size={14} />
-                  {t('externalConnectors.connected') || 'Connected'}
+                  {t('common.externalConnectors.connected') || 'Connected'}
                 </span>
               ) : connector.status === 'connecting' ? (
                 <Loader2 size={16} className="spin" />
@@ -234,9 +299,12 @@ interface ConnectorDetailViewProps {
   onBack: () => void;
   onInitiateSSO: () => void;
   onCancelSSO: () => void;
+  onConnectWithToken: (apiToken: string, siteUrl?: string, email?: string) => void;
   onDisconnect: () => void;
   onSync: () => void;
   onToggleResource: (resource: ConnectedResource) => void;
+  onProcessDocument: (resourceId: string) => void;
+  onProcessSelected: () => void;
   activeResources: ConnectedResource[];
   isConnecting: boolean;
   ssoState: SSOState;
@@ -249,9 +317,12 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
   onBack,
   onInitiateSSO,
   onCancelSSO,
+  onConnectWithToken,
   onDisconnect,
   onSync,
   onToggleResource,
+  onProcessDocument,
+  onProcessSelected,
   activeResources,
   isConnecting,
   ssoState,
@@ -259,6 +330,21 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
   t,
 }) => {
   const config = CONNECTOR_CONFIGS[connector.type];
+
+  // State for API token input (Confluence)
+  const [apiToken, setApiToken] = useState('');
+  const [showToken, setShowToken] = useState(false);
+  const [confluenceSiteUrl, setConfluenceSiteUrl] = useState('');
+  const [confluenceEmail, setConfluenceEmail] = useState('');
+
+  // Count documents needing processing
+  const unprocessedCount = connector.connectedResources.filter(
+    (r) => r.status === 'discovered' || !r.status
+  ).length;
+  const selectedUnprocessedCount = activeResources.filter((r) => {
+    const resource = connector.connectedResources.find((cr) => cr.id === r.id);
+    return resource && (resource.status === 'discovered' || !resource.status);
+  }).length;
 
   const isResourceActive = (resourceId: string) => {
     return activeResources.some((r) => r.id === resourceId);
@@ -275,27 +361,27 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
     switch (connector.type) {
       case 'notion':
         return {
-          text: t('externalConnectors.sso.signInWithNotion') || 'Sign in with Notion',
+          text: t('common.externalConnectors.sso.signInWithNotion') || 'Sign in with Notion',
           className: 'sso-btn-notion',
         };
       case 'confluence':
         return {
-          text: t('externalConnectors.sso.signInWithAtlassian') || 'Sign in with Atlassian',
+          text: t('common.externalConnectors.sso.signInWithAtlassian') || 'Sign in with Atlassian',
           className: 'sso-btn-atlassian',
         };
       case 'github':
         return {
-          text: t('externalConnectors.sso.signInWithGitHub') || 'Sign in with GitHub',
+          text: t('common.externalConnectors.sso.signInWithGitHub') || 'Sign in with GitHub',
           className: 'sso-btn-github',
         };
       case 'google_drive':
         return {
-          text: t('externalConnectors.sso.signInWithGoogle') || 'Sign in with Google',
+          text: t('common.externalConnectors.sso.signInWithGoogle') || 'Sign in with Google',
           className: 'sso-btn-google',
         };
       default:
         return {
-          text: t('externalConnectors.sso.signIn') || 'Sign in',
+          text: t('common.externalConnectors.sso.signIn') || 'Sign in',
           className: '',
         };
     }
@@ -319,15 +405,15 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
 
       {/* Content */}
       <div className="connector-detail-content">
-        {connector.status === 'active' ? (
-          // Connected state - show SSO profile and resources
+        {connector.status === 'active' || connector.status === 'connecting' ? (
+          // Connected state - show SSO profile and resources (also shown during sync)
           <>
             {/* SSO Profile Section */}
             {connector.ssoProfile && (
               <div className="connector-sso-profile">
                 <div className="connector-sso-profile-header">
                   <Shield size={16} />
-                  <span>{t('externalConnectors.sso.connectedAs') || 'Connected as'}</span>
+                  <span>{t('common.externalConnectors.sso.connectedAs') || 'Connected as'}</span>
                 </div>
                 <div className="connector-sso-profile-info">
                   {connector.ssoProfile.avatar ? (
@@ -352,11 +438,11 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
             <div className="connector-detail-actions">
               <button className="connector-sync-btn" onClick={onSync} disabled={isConnecting}>
                 <RefreshCw size={16} className={isConnecting ? 'spin' : ''} />
-                {t('externalConnectors.sync') || 'Sync'}
+                {t('common.externalConnectors.sync') || 'Sync'}
               </button>
               <button className="connector-disconnect-btn" onClick={onDisconnect}>
                 <Link2Off size={16} />
-                {t('externalConnectors.disconnect') || 'Disconnect'}
+                {t('common.externalConnectors.disconnect') || 'Disconnect'}
               </button>
             </div>
 
@@ -364,7 +450,7 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
               <div className="connector-last-sync">
                 <Clock size={14} />
                 <span>
-                  {t('externalConnectors.lastSync') || 'Last synced'}:{' '}
+                  {t('common.externalConnectors.lastSync') || 'Last synced'}:{' '}
                   {formatDate(connector.lastConnected)}
                 </span>
               </div>
@@ -372,42 +458,118 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
 
             <div className="connector-resources">
               <h4>
-                {t('externalConnectors.selectResources') || 'Select resources for chat context'}
+                {t('common.externalConnectors.selectResources') || 'Select resources for chat context'}
               </h4>
               <p className="connector-resources-hint">
-                {t('externalConnectors.selectHint') ||
+                {t('common.externalConnectors.selectHint') ||
                   'Selected resources will be available as context in your conversations'}
               </p>
               <div className="connector-resources-list">
-                {connector.connectedResources.map((resource) => (
-                  <div
-                    key={resource.id}
-                    className={`connector-resource-item ${isResourceActive(resource.id) ? 'active' : ''}`}
-                    onClick={() => onToggleResource(resource)}
-                  >
-                    <div className="connector-resource-checkbox">
-                      {isResourceActive(resource.id) ? (
-                        <CheckCircle2 size={18} />
-                      ) : (
-                        <Circle size={18} />
-                      )}
-                    </div>
-                    <ResourceIcon type={resource.type} />
-                    <div className="connector-resource-info">
-                      <span className="connector-resource-title">{resource.title}</span>
-                      <span className="connector-resource-type">{resource.type}</span>
-                    </div>
-                    <a
-                      href={resource.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="connector-resource-link"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ExternalLink size={14} />
-                    </a>
+                {connector.status === 'connecting' ? (
+                  // Syncing state - show spinner
+                  <div className="connector-resources-loading">
+                    <Loader2 size={32} className="spin" />
+                    <span className="connector-resources-loading-text">
+                      {t('common.externalConnectors.syncing') || 'Syncing resources...'}
+                    </span>
+                    <span className="connector-resources-loading-hint">
+                      {t('common.externalConnectors.syncingHint') || 'This may take a minute'}
+                    </span>
                   </div>
-                ))}
+                ) : connector.connectedResources.length === 0 ? (
+                  // No resources
+                  <div className="connector-resources-empty">
+                    <FileText size={32} />
+                    <span>{t('common.externalConnectors.noResources') || 'No resources found'}</span>
+                  </div>
+                ) : (
+                  // Resources list
+                  <>
+                    {/* Process actions bar */}
+                    {unprocessedCount > 0 && (
+                      <div className="connector-process-actions">
+                        <span className="connector-process-info">
+                          <Zap size={14} />
+                          {unprocessedCount} {t('common.externalConnectors.needsProcessing') || 'documents need processing'}
+                        </span>
+                        {selectedUnprocessedCount > 0 && (
+                          <button
+                            className="connector-process-selected-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onProcessSelected();
+                            }}
+                          >
+                            <Play size={14} />
+                            {t('common.externalConnectors.processSelected') || 'Process selected'} ({selectedUnprocessedCount})
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {connector.connectedResources.map((resource) => (
+                      <div
+                        key={resource.id}
+                        className={`connector-resource-item ${isResourceActive(resource.id) ? 'active' : ''} ${resource.status === 'ready' ? 'ready' : ''}`}
+                        onClick={() => onToggleResource(resource)}
+                      >
+                        <div className="connector-resource-checkbox">
+                          {isResourceActive(resource.id) ? (
+                            <CheckCircle2 size={18} />
+                          ) : (
+                            <Circle size={18} />
+                          )}
+                        </div>
+                        <ResourceIcon type={resource.type} />
+                        <div className="connector-resource-info">
+                          <span className="connector-resource-title">{resource.title}</span>
+                          <div className="connector-resource-meta">
+                            <span className="connector-resource-type">{resource.type}</span>
+                            <DocumentStatusBadge
+                              status={resource.status}
+                              chunkCount={resource.chunkCount}
+                              isProcessing={resource.isProcessing}
+                              t={t}
+                            />
+                          </div>
+                        </div>
+                        <div className="connector-resource-actions">
+                          {/* Debug: Always show button for non-ready status */}
+                          {resource.status !== 'ready' && !resource.isProcessing && (
+                            <button
+                              className="connector-process-btn"
+                              style={{ pointerEvents: 'auto', gap: '4px' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                console.log('[ExternalConnectors] Process button clicked for:', resource.id, resource.title, 'status:', resource.status);
+                                onProcessDocument(resource.id);
+                              }}
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                                console.log('[ExternalConnectors] Process button mousedown');
+                              }}
+                              title={t('common.externalConnectors.processDoc') || 'Process this document'}
+                            >
+                              <Play size={14} fill="currentColor" />
+                              <span style={{ fontSize: '11px', fontWeight: 500 }}>Process</span>
+                            </button>
+                          )}
+                          {resource.url && (
+                            <a
+                              href={resource.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="connector-resource-link"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ExternalLink size={14} />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
           </>
@@ -415,9 +577,9 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
           // Planned connector
           <div className="connector-planned">
             <Calendar size={48} />
-            <h4>{t('externalConnectors.comingSoon') || 'Coming Soon'}</h4>
+            <h4>{t('common.externalConnectors.comingSoon') || 'Coming Soon'}</h4>
             <p>
-              {t('externalConnectors.plannedDescription') ||
+              {t('common.externalConnectors.plannedDescription') ||
                 'This connector is planned for future development.'}
             </p>
           </div>
@@ -431,10 +593,10 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
               <Shield size={18} />
               <div className="connector-sso-info-text">
                 <span className="connector-sso-info-title">
-                  {t('externalConnectors.sso.secureAuth') || 'Secure Authentication'}
+                  {t('common.externalConnectors.sso.secureAuth') || 'Secure Authentication'}
                 </span>
                 <span className="connector-sso-info-desc">
-                  {t('externalConnectors.sso.secureAuthDesc') ||
+                  {t('common.externalConnectors.sso.secureAuthDesc') ||
                     'We use OAuth 2.0 to securely connect to your account. We never store your password.'}
                 </span>
               </div>
@@ -453,17 +615,103 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
               // Authorizing state
               <div className="connector-sso-authorizing">
                 <Loader2 size={32} className="spin" />
-                <h4>{t('externalConnectors.sso.authorizing') || 'Authorizing...'}</h4>
+                <h4>{t('common.externalConnectors.sso.authorizing') || 'Authorizing...'}</h4>
                 <p>
-                  {t('externalConnectors.sso.authorizingDesc') ||
+                  {t('common.externalConnectors.sso.authorizingDesc') ||
                     'Please complete the login in the popup window.'}
                 </p>
                 <button className="connector-sso-cancel-btn" onClick={onCancelSSO}>
-                  {t('externalConnectors.sso.cancel') || 'Cancel'}
+                  {t('common.externalConnectors.sso.cancel') || 'Cancel'}
+                </button>
+              </div>
+            ) : config.authType === 'api_token' ? (
+              // API Token authentication (for Confluence)
+              <div className="connector-api-token-form">
+                {/* Site URL */}
+                <div className="connector-api-token-field">
+                  <label htmlFor="site-url">
+                    {t('common.externalConnectors.fields.siteUrl') || 'Site URL'}
+                  </label>
+                  <div className="connector-api-token-input-wrapper">
+                    <Globe size={16} />
+                    <input
+                      id="site-url"
+                      type="text"
+                      value={confluenceSiteUrl}
+                      onChange={(e) => setConfluenceSiteUrl(e.target.value)}
+                      placeholder={t('common.externalConnectors.fields.siteUrlPlaceholder') || 'e.g., your-domain.atlassian.net'}
+                      disabled={isConnecting}
+                    />
+                  </div>
+                </div>
+
+                {/* Email */}
+                <div className="connector-api-token-field">
+                  <label htmlFor="email">
+                    {t('common.externalConnectors.fields.email') || 'Email'}
+                  </label>
+                  <div className="connector-api-token-input-wrapper">
+                    <User size={16} />
+                    <input
+                      id="email"
+                      type="email"
+                      value={confluenceEmail}
+                      onChange={(e) => setConfluenceEmail(e.target.value)}
+                      placeholder={t('common.externalConnectors.fields.emailPlaceholder') || 'Enter your Atlassian email'}
+                      disabled={isConnecting}
+                    />
+                  </div>
+                </div>
+
+                {/* API Token */}
+                <div className="connector-api-token-field">
+                  <label htmlFor="api-token">
+                    {t('common.externalConnectors.apiToken.label') || 'API Token'}
+                  </label>
+                  <div className="connector-api-token-input-wrapper">
+                    <Key size={16} />
+                    <input
+                      id="api-token"
+                      type={showToken ? 'text' : 'password'}
+                      value={apiToken}
+                      onChange={(e) => setApiToken(e.target.value)}
+                      placeholder={t('common.externalConnectors.apiToken.placeholder') || 'Enter your API token'}
+                      disabled={isConnecting}
+                    />
+                    <button
+                      type="button"
+                      className="connector-api-token-toggle"
+                      onClick={() => setShowToken(!showToken)}
+                    >
+                      {showToken ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  <p className="connector-api-token-hint">
+                    {t('common.externalConnectors.fields.confluenceHint') ||
+                      'Get your API token from id.atlassian.com/manage-profile/security/api-tokens'}
+                  </p>
+                </div>
+
+                <button
+                  className="connector-api-token-submit"
+                  onClick={() => onConnectWithToken(apiToken, confluenceSiteUrl, confluenceEmail)}
+                  disabled={!apiToken.trim() || !confluenceSiteUrl.trim() || !confluenceEmail.trim() || isConnecting}
+                >
+                  {isConnecting ? (
+                    <>
+                      <Loader2 size={18} className="spin" />
+                      <span>{t('common.externalConnectors.connecting') || 'Connecting...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Link2 size={18} />
+                      <span>{t('common.externalConnectors.connect') || 'Connect'}</span>
+                    </>
+                  )}
                 </button>
               </div>
             ) : (
-              // Ready to connect
+              // Ready to connect with SSO
               <div className="connector-sso-buttons">
                 <button
                   className={`connector-sso-btn ${providerConfig.className}`}
@@ -478,7 +726,7 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
                 {/* Scopes Info */}
                 <div className="connector-sso-scopes">
                   <span className="connector-sso-scopes-label">
-                    {t('externalConnectors.sso.permissions') || 'Requested permissions'}:
+                    {t('common.externalConnectors.sso.permissions') || 'Requested permissions'}:
                   </span>
                   <ul className="connector-sso-scopes-list">
                     {config.scopes.map((scope, index) => (
@@ -517,9 +765,12 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
     selectConnectorType,
     initiateSSO,
     cancelSSO,
+    connectService,
     disconnectService,
     syncResources,
     toggleResourceActive,
+    processDocument,
+    processSelectedDocuments,
   } = useExternalConnectorsStore();
 
   const selectedConnector = selectedConnectorType
@@ -550,6 +801,59 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
     }
   }, [selectedConnectorType, syncResources]);
 
+  const handleConnectWithToken = useCallback((apiToken: string, siteUrl?: string, email?: string) => {
+    if (selectedConnectorType && apiToken.trim()) {
+      // For Confluence, include site URL and email in config
+      if (selectedConnectorType === 'confluence' && siteUrl && email) {
+        // Format Confluence URL: ensure https:// prefix and /wiki suffix
+        let formattedUrl = siteUrl.trim();
+        if (!formattedUrl.startsWith('http')) {
+          formattedUrl = `https://${formattedUrl}`;
+        }
+        // Remove trailing slash if present
+        if (formattedUrl.endsWith('/')) {
+          formattedUrl = formattedUrl.slice(0, -1);
+        }
+        // Append /wiki if not present (Confluence Cloud API requires this)
+        if (!formattedUrl.endsWith('/wiki')) {
+          formattedUrl = `${formattedUrl}/wiki`;
+        }
+
+        connectService(selectedConnectorType, {
+          apiKey: apiToken,
+        }, {
+          base_url: formattedUrl,
+          user_email: email,
+        });
+      } else {
+        connectService(selectedConnectorType, { apiKey: apiToken });
+      }
+    }
+  }, [selectedConnectorType, connectService]);
+
+  const handleProcessDocument = useCallback((resourceId: string) => {
+    console.log('[ExternalConnectors] handleProcessDocument called:', { resourceId, selectedConnectorType });
+    if (selectedConnectorType) {
+      processDocument(selectedConnectorType, resourceId);
+    } else {
+      console.error('[ExternalConnectors] No selectedConnectorType!');
+    }
+  }, [selectedConnectorType, processDocument]);
+
+  const handleProcessSelected = useCallback(() => {
+    if (selectedConnectorType && selectedConnector) {
+      const unprocessedIds = activeResources
+        .filter((r) => {
+          const resource = selectedConnector.connectedResources.find((cr) => cr.id === r.id);
+          return resource && (resource.status === 'discovered' || !resource.status);
+        })
+        .map((r) => r.id);
+      if (unprocessedIds.length > 0) {
+        processSelectedDocuments(selectedConnectorType, unprocessedIds);
+      }
+    }
+  }, [selectedConnectorType, selectedConnector, activeResources, processSelectedDocuments]);
+
   if (!isOpen) return null;
 
   return (
@@ -559,7 +863,7 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
         <div className="external-connectors-modal-header">
           <div className="external-connectors-modal-title">
             <Link2 size={20} />
-            <h3>{t('externalConnectors.title') || 'External Connectors'}</h3>
+            <h3>{t('common.externalConnectors.title') || 'External Connectors'}</h3>
           </div>
           <button className="external-connectors-modal-close" onClick={handleClose}>
             <X size={20} />
@@ -574,9 +878,12 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
               onBack={() => selectConnectorType(null)}
               onInitiateSSO={handleInitiateSSO}
               onCancelSSO={cancelSSO}
+              onConnectWithToken={handleConnectWithToken}
               onDisconnect={handleDisconnect}
               onSync={handleSync}
               onToggleResource={toggleResourceActive}
+              onProcessDocument={handleProcessDocument}
+              onProcessSelected={handleProcessSelected}
               activeResources={activeResources}
               isConnecting={isConnecting}
               ssoState={ssoState}
@@ -586,7 +893,7 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
           ) : (
             <>
               <p className="external-connectors-description">
-                {t('externalConnectors.description') ||
+                {t('common.externalConnectors.description') ||
                   'Connect external services to use their content as context in your conversations.'}
               </p>
               <ConnectorListView
@@ -599,16 +906,22 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
           )}
         </div>
 
-        {/* Footer with active resources count */}
-        {activeResources.length > 0 && !selectedConnectorType && (
+        {/* Footer with active resources count and Done button */}
+        {activeResources.length > 0 && (
           <div className="external-connectors-modal-footer">
             <div className="active-resources-summary">
               <CheckCircle2 size={16} />
               <span>
                 {activeResources.length}{' '}
-                {t('externalConnectors.resourcesSelected') || 'resources selected for context'}
+                {t('common.externalConnectors.resourcesSelected') || 'resources selected for context'}
               </span>
             </div>
+            <button
+              className="external-connectors-done-btn"
+              onClick={handleClose}
+            >
+              {t('common.confirm') || 'Done'}
+            </button>
           </div>
         )}
       </div>

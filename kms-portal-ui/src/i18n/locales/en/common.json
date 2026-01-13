@@ -88,8 +88,11 @@
     "disconnect": "Disconnect",
     "connecting": "Connecting...",
     "sync": "Sync",
+    "syncing": "Syncing resources...",
+    "syncingHint": "This may take a minute",
     "lastSync": "Last synced",
     "resources": "resources",
+    "noResources": "No resources found",
     "selected": "selected",
     "selectResources": "Select resources for chat context",
     "selectHint": "Selected resources will be available as context in your conversations",
@@ -110,7 +113,8 @@
       "emailPlaceholder": "Enter your Atlassian email",
       "apiKey": "API Token",
       "apiKeyPlaceholder": "Enter Atlassian API token",
-      "siteUrlPlaceholder": "e.g., your-domain.atlassian.net",
+      "siteUrl": "Site URL",
+      "siteUrlPlaceholder": "e.g., your-domain.atlassian.net (or full URL with /wiki)",
       "notionHint": "Get your integration token from notion.so/my-integrations",
       "confluenceHint": "Get your API token from id.atlassian.com/manage-profile/security/api-tokens"
     },
@@ -120,14 +124,32 @@
     "sso": {
       "signInWithNotion": "Sign in with Notion",
       "signInWithAtlassian": "Sign in with Atlassian",
-      "signInWithGithub": "Sign in with GitHub",
+      "signInWithGitHub": "Sign in with GitHub",
       "signInWithGoogle": "Sign in with Google",
+      "signIn": "Sign in",
       "connectedAs": "Connected as",
       "permissions": "Requested permissions",
-      "authorizingTitle": "Authorizing",
-      "authorizingDescription": "Please complete the authentication in the popup window...",
-      "cancelAuth": "Cancel",
+      "secureAuth": "Secure Authentication",
+      "secureAuthDesc": "We use OAuth 2.0 to securely connect to your account. We never store your password.",
+      "authorizing": "Authorizing...",
+      "authorizingDesc": "Please complete the login in the popup window.",
+      "cancel": "Cancel",
       "securityInfo": "Your data is securely handled via OAuth 2.0. We only request the permissions necessary to access your content."
-    }
+    },
+    "apiToken": {
+      "label": "API Token",
+      "placeholder": "Enter your API token",
+      "hint": "You can generate an API token from your Atlassian account settings."
+    },
+    "docStatus": {
+      "ready": "Ready",
+      "processing": "Processing...",
+      "error": "Error",
+      "notProcessed": "Not processed",
+      "chunks": "chunks"
+    },
+    "needsProcessing": "documents need processing",
+    "processSelected": "Process selected",
+    "processDoc": "Process this document"
   }
 }

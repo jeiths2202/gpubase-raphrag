@@ -316,7 +316,7 @@ async def list_connection_documents(
                 "title": doc.title,
                 "path": doc.path,
                 "external_url": doc.external_url,
-                "status": doc.status.value,
+                "status": doc.status if isinstance(doc.status, str) else doc.status.value,
                 "chunk_count": doc.chunk_count,
                 "last_synced_at": doc.last_synced_at.isoformat() if doc.last_synced_at else None,
                 "external_modified_at": doc.external_modified_at.isoformat() if doc.external_modified_at else None
@@ -327,6 +327,97 @@ async def list_connection_documents(
         connection_id=connection_id,
         resource_type=connection.resource_type
     )
+
+
+# ================== Document Processing ==================
+
+class ProcessDocumentResponse(BaseModel):
+    """Response for document processing"""
+    id: str
+    title: str
+    status: str
+    chunk_count: int
+    error_message: Optional[str] = None
+
+
+class ProcessBatchRequest(BaseModel):
+    """Request for batch document processing"""
+    document_ids: List[str] = Field(..., min_length=1, max_length=50)
+
+
+class ProcessBatchResponse(BaseModel):
+    """Response for batch document processing"""
+    processed: int
+    failed: int
+    skipped: int
+    errors: List[str] = []
+
+
+@router.post("/{connection_id}/documents/{document_id}/process", response_model=ProcessDocumentResponse)
+async def process_document(
+    connection_id: str,
+    document_id: str
+):
+    """
+    Process a single document: fetch content, chunk, and generate embeddings.
+
+    Documents start with status 'discovered' after sync (metadata only).
+    Call this endpoint to process and make them searchable.
+    """
+    service = get_external_document_service()
+
+    # Verify connection exists
+    connection = service.get_connection(connection_id)
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    try:
+        doc = await service.process_document(document_id)
+
+        return ProcessDocumentResponse(
+            id=doc.id,
+            title=doc.title,
+            status=doc.status if isinstance(doc.status, str) else doc.status.value,
+            chunk_count=doc.chunk_count,
+            error_message=doc.error_message
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{connection_id}/documents/process-batch", response_model=ProcessBatchResponse)
+async def process_documents_batch(
+    connection_id: str,
+    request: ProcessBatchRequest
+):
+    """
+    Process multiple documents in batch.
+
+    Documents are processed sequentially to avoid overwhelming the system.
+    Already processed documents (status='ready') are skipped.
+    """
+    service = get_external_document_service()
+
+    # Verify connection exists
+    connection = service.get_connection(connection_id)
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    try:
+        stats = await service.process_documents_batch(request.document_ids)
+
+        return ProcessBatchResponse(
+            processed=stats["processed"],
+            failed=stats["failed"],
+            skipped=stats["skipped"],
+            errors=stats["errors"]
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ================== User Stats ==================
