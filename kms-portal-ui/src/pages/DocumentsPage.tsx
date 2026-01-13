@@ -651,6 +651,27 @@ interface UploadModalProps {
   onSuccess: () => void;
 }
 
+interface UploadStep {
+  name: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  progress: number;
+}
+
+interface UploadProgress {
+  current_step: string;
+  steps: UploadStep[];
+  overall_progress: number;
+}
+
+interface UploadStatus {
+  task_id: string;
+  document_id: string;
+  status: 'processing' | 'ready' | 'error';
+  progress: UploadProgress;
+  started_at: string;
+  estimated_completion?: string;
+}
+
 const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess }) => {
   const [file, setFile] = useState<File | null>(null);
   const [displayName, setDisplayName] = useState('');
@@ -661,6 +682,11 @@ const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess })
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+
+  // Progress tracking state
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -683,6 +709,48 @@ const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess })
       }
     }
   };
+
+  // Poll for upload status
+  useEffect(() => {
+    if (!taskId || !isProcessing) return;
+
+    const pollStatus = async () => {
+      try {
+        const response = await fetch(`/api/v1/documents/upload-status/${taskId}`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          console.error('Failed to fetch upload status');
+          return;
+        }
+
+        const result = await response.json();
+        const status = result.data as UploadStatus;
+        setUploadStatus(status);
+
+        // Check if processing is complete
+        if (status.status === 'ready' || status.progress.overall_progress >= 100) {
+          setIsProcessing(false);
+          setTimeout(() => {
+            onSuccess();
+          }, 500);
+        } else if (status.status === 'error') {
+          setIsProcessing(false);
+          setError('Document processing failed');
+        }
+      } catch (err) {
+        console.error('Error polling status:', err);
+      }
+    };
+
+    // Poll every 800ms
+    const interval = setInterval(pollStatus, 800);
+    // Initial poll
+    pollStatus();
+
+    return () => clearInterval(interval);
+  }, [taskId, isProcessing, onSuccess]);
 
   const handleUpload = async () => {
     if (!file) {
@@ -713,139 +781,265 @@ const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess })
         throw new Error(result.error?.message || `Upload failed: HTTP ${response.status}`);
       }
 
-      onSuccess();
+      const result = await response.json();
+      const uploadedTaskId = result.data?.task_id;
+
+      if (uploadedTaskId) {
+        setTaskId(uploadedTaskId);
+        setIsProcessing(true);
+        setUploading(false);
+        // Initialize progress display
+        setUploadStatus({
+          task_id: uploadedTaskId,
+          document_id: result.data?.document_id || '',
+          status: 'processing',
+          progress: {
+            current_step: 'uploading',
+            steps: [
+              { name: 'uploading', status: 'completed', progress: 100 },
+              { name: 'parsing', status: 'pending', progress: 0 },
+              { name: 'chunking', status: 'pending', progress: 0 },
+              { name: 'embedding', status: 'pending', progress: 0 },
+            ],
+            overall_progress: 10,
+          },
+          started_at: new Date().toISOString(),
+        });
+      } else {
+        // No task_id returned, just call success
+        onSuccess();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
-    } finally {
       setUploading(false);
     }
   };
 
+  const getStepIcon = (step: UploadStep) => {
+    switch (step.status) {
+      case 'completed':
+        return <CheckCircle size={16} className="step-icon step-icon--completed" />;
+      case 'in_progress':
+        return <Loader2 size={16} className="step-icon step-icon--progress spinning" />;
+      case 'failed':
+        return <XCircle size={16} className="step-icon step-icon--failed" />;
+      default:
+        return <Clock size={16} className="step-icon step-icon--pending" />;
+    }
+  };
+
+  const getStepLabel = (stepName: string) => {
+    const labels: Record<string, string> = {
+      uploading: 'Uploading',
+      parsing: 'Parsing Document',
+      chunking: 'Creating Chunks',
+      embedding: 'Generating Embeddings',
+    };
+    return labels[stepName] || stepName;
+  };
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={isProcessing ? undefined : onClose}>
       <div className="modal-content modal-content--medium" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Upload Document</h2>
-          <button className="modal-close" onClick={onClose}>
-            <X size={20} />
-          </button>
+          <h2>{isProcessing ? 'Processing Document' : 'Upload Document'}</h2>
+          {!isProcessing && (
+            <button className="modal-close" onClick={onClose}>
+              <X size={20} />
+            </button>
+          )}
         </div>
         <div className="modal-body">
           {error && <div className="modal-error">{error}</div>}
 
-          {/* Drop Zone */}
-          <div
-            className={`upload-dropzone ${dragOver ? 'upload-dropzone--active' : ''} ${file ? 'upload-dropzone--has-file' : ''}`}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            onClick={() => document.getElementById('file-input')?.click()}
-          >
-            <input
-              id="file-input"
-              type="file"
-              onChange={handleFileSelect}
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.gif,.html"
-              style={{ display: 'none' }}
-            />
-            {file ? (
-              <div className="upload-file-preview">
-                <FileText size={32} />
-                <div className="upload-file-info">
-                  <span className="upload-file-name">{file.name}</span>
-                  <span className="upload-file-size">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+          {/* Progress View - shown during processing */}
+          {isProcessing && uploadStatus && (
+            <div className="upload-progress-container">
+              {/* File info */}
+              <div className="upload-progress-file">
+                <FileText size={24} />
+                <div className="upload-progress-file-info">
+                  <span className="upload-progress-filename">{file?.name}</span>
+                  <span className="upload-progress-status">
+                    {uploadStatus.status === 'ready' ? 'Completed' : 'Processing...'}
+                  </span>
                 </div>
-                <button
-                  className="upload-file-remove"
-                  onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                >
-                  <X size={16} />
-                </button>
               </div>
-            ) : (
-              <>
-                <Upload size={40} strokeWidth={1} />
-                <p>Drag & drop a file here, or click to browse</p>
-                <span className="upload-hint">
-                  Supports: PDF, Word, Excel, PowerPoint, Text, Images
+
+              {/* Overall progress bar */}
+              <div className="upload-progress-bar-container">
+                <div className="upload-progress-bar">
+                  <div
+                    className="upload-progress-bar-fill"
+                    style={{ width: `${uploadStatus.progress.overall_progress}%` }}
+                  />
+                </div>
+                <span className="upload-progress-percentage">
+                  {uploadStatus.progress.overall_progress}%
                 </span>
-              </>
-            )}
-          </div>
-
-          {/* Upload Options */}
-          <div className="upload-options">
-            <div className="form-group">
-              <label>Display Name</label>
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Optional display name"
-              />
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Language</label>
-                <select value={language} onChange={(e) => setLanguage(e.target.value)}>
-                  <option value="auto">Auto Detect</option>
-                  <option value="ko">Korean</option>
-                  <option value="en">English</option>
-                  <option value="ja">Japanese</option>
-                  <option value="zh">Chinese</option>
-                </select>
               </div>
-              <div className="form-group">
-                <label>Processing Mode</label>
-                <select value={processingMode} onChange={(e) => setProcessingMode(e.target.value)}>
-                  <option value="text_only">Text Only</option>
-                  <option value="vlm_enhanced">VLM Enhanced</option>
-                  <option value="multimodal">Full Multimodal</option>
-                  <option value="ocr">OCR (Scanned)</option>
-                </select>
+
+              {/* Steps */}
+              <div className="upload-progress-steps">
+                {uploadStatus.progress.steps.map((step, index) => (
+                  <div
+                    key={step.name}
+                    className={`upload-progress-step ${step.status === 'in_progress' ? 'upload-progress-step--active' : ''} ${step.status === 'completed' ? 'upload-progress-step--completed' : ''}`}
+                  >
+                    <div className="upload-progress-step-icon">
+                      {getStepIcon(step)}
+                    </div>
+                    <div className="upload-progress-step-content">
+                      <span className="upload-progress-step-name">{getStepLabel(step.name)}</span>
+                      {step.status === 'in_progress' && (
+                        <span className="upload-progress-step-detail">{step.progress}%</span>
+                      )}
+                    </div>
+                    {index < uploadStatus.progress.steps.length - 1 && (
+                      <div className={`upload-progress-step-line ${step.status === 'completed' ? 'upload-progress-step-line--completed' : ''}`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Current step info */}
+              <div className="upload-progress-info">
+                <Clock size={14} />
+                <span>
+                  Current step: {getStepLabel(uploadStatus.progress.current_step)}
+                </span>
               </div>
             </div>
+          )}
 
-            <div className="form-group">
-              <label>Tags (comma separated)</label>
-              <input
-                type="text"
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
-                placeholder="e.g., manual, guide, internal"
-              />
-            </div>
-
-            <div className="form-group form-group--checkbox">
-              <label>
+          {/* Upload Form - hidden during processing */}
+          {!isProcessing && (
+            <>
+              {/* Drop Zone */}
+              <div
+                className={`upload-dropzone ${dragOver ? 'upload-dropzone--active' : ''} ${file ? 'upload-dropzone--has-file' : ''}`}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                onClick={() => document.getElementById('file-input')?.click()}
+              >
                 <input
-                  type="checkbox"
-                  checked={enableVlm}
-                  onChange={(e) => setEnableVlm(e.target.checked)}
+                  id="file-input"
+                  type="file"
+                  onChange={handleFileSelect}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.gif,.html"
+                  style={{ display: 'none' }}
                 />
-                Enable VLM Analysis (images, charts, tables)
-              </label>
-            </div>
-          </div>
+                {file ? (
+                  <div className="upload-file-preview">
+                    <FileText size={32} />
+                    <div className="upload-file-info">
+                      <span className="upload-file-name">{file.name}</span>
+                      <span className="upload-file-size">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                    </div>
+                    <button
+                      className="upload-file-remove"
+                      onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <Upload size={40} strokeWidth={1} />
+                    <p>Drag & drop a file here, or click to browse</p>
+                    <span className="upload-hint">
+                      Supports: PDF, Word, Excel, PowerPoint, Text, Images
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Upload Options */}
+              <div className="upload-options">
+                <div className="form-group">
+                  <label>Display Name</label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Optional display name"
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Language</label>
+                    <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+                      <option value="auto">Auto Detect</option>
+                      <option value="ko">Korean</option>
+                      <option value="en">English</option>
+                      <option value="ja">Japanese</option>
+                      <option value="zh">Chinese</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Processing Mode</label>
+                    <select value={processingMode} onChange={(e) => setProcessingMode(e.target.value)}>
+                      <option value="text_only">Text Only</option>
+                      <option value="vlm_enhanced">VLM Enhanced</option>
+                      <option value="multimodal">Full Multimodal</option>
+                      <option value="ocr">OCR (Scanned)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Tags (comma separated)</label>
+                  <input
+                    type="text"
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
+                    placeholder="e.g., manual, guide, internal"
+                  />
+                </div>
+
+                <div className="form-group form-group--checkbox">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={enableVlm}
+                      onChange={(e) => setEnableVlm(e.target.checked)}
+                    />
+                    Enable VLM Analysis (images, charts, tables)
+                  </label>
+                </div>
+              </div>
+            </>
+          )}
         </div>
         <div className="modal-footer">
-          <button className="btn btn--secondary" onClick={onClose} disabled={uploading}>
-            Cancel
-          </button>
-          <button className="btn btn--primary" onClick={handleUpload} disabled={uploading || !file}>
-            {uploading ? (
-              <>
-                <Loader2 size={16} className="spinning" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <Upload size={16} />
-                Upload
-              </>
-            )}
-          </button>
+          {isProcessing ? (
+            <div className="upload-progress-footer">
+              <span className="upload-progress-footer-text">
+                Please wait while the document is being processed...
+              </span>
+            </div>
+          ) : (
+            <>
+              <button className="btn btn--secondary" onClick={onClose} disabled={uploading}>
+                Cancel
+              </button>
+              <button className="btn btn--primary" onClick={handleUpload} disabled={uploading || !file}>
+                {uploading ? (
+                  <>
+                    <Loader2 size={16} className="spinning" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload size={16} />
+                    Upload
+                  </>
+                )}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

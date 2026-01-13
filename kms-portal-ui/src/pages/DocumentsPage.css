@@ -1494,6 +1494,208 @@
 }
 
 /* ============================================================================
+   UPLOAD PROGRESS
+   ============================================================================ */
+
+.upload-progress-container {
+  padding: 1rem 0;
+}
+
+.upload-progress-file {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--color-bg-secondary, #f1f5f9);
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.upload-progress-file svg {
+  color: var(--color-primary, #6366f1);
+}
+
+.upload-progress-file-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.upload-progress-filename {
+  font-weight: 600;
+  color: var(--color-text-primary, #1e293b);
+}
+
+.upload-progress-status {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary, #64748b);
+}
+
+.upload-progress-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.upload-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--color-bg-tertiary, #e2e8f0);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.upload-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.upload-progress-percentage {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-primary, #6366f1);
+  min-width: 40px;
+}
+
+.upload-progress-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--color-bg-elevated, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.upload-progress-step {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  position: relative;
+}
+
+.upload-progress-step--active {
+  background: rgba(99, 102, 241, 0.05);
+  border-radius: 6px;
+}
+
+.upload-progress-step--completed .upload-progress-step-name {
+  color: var(--color-text-secondary, #64748b);
+}
+
+.upload-progress-step-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-bg-secondary, #f1f5f9);
+  flex-shrink: 0;
+}
+
+.step-icon--completed {
+  color: #22c55e;
+}
+
+.step-icon--progress {
+  color: #6366f1;
+}
+
+.step-icon--failed {
+  color: #ef4444;
+}
+
+.step-icon--pending {
+  color: #94a3b8;
+}
+
+.upload-progress-step-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.upload-progress-step-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-primary, #1e293b);
+}
+
+.upload-progress-step-detail {
+  font-size: 0.75rem;
+  color: var(--color-primary, #6366f1);
+  font-weight: 600;
+}
+
+.upload-progress-step-line {
+  position: absolute;
+  left: 18px;
+  top: 100%;
+  width: 2px;
+  height: 0.5rem;
+  background: var(--color-border, #e2e8f0);
+}
+
+.upload-progress-step-line--completed {
+  background: #22c55e;
+}
+
+.upload-progress-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(99, 102, 241, 0.05);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary, #64748b);
+}
+
+.upload-progress-info svg {
+  color: var(--color-primary, #6366f1);
+}
+
+.upload-progress-footer {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.upload-progress-footer-text {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary, #64748b);
+}
+
+/* Dark mode for upload progress */
+[data-theme="dark"] .upload-progress-file {
+  background: var(--color-bg-tertiary, #334155);
+}
+
+[data-theme="dark"] .upload-progress-bar {
+  background: var(--color-bg-tertiary, #334155);
+}
+
+[data-theme="dark"] .upload-progress-steps {
+  background: var(--color-bg-secondary, #1e293b);
+  border-color: var(--color-border, #475569);
+}
+
+[data-theme="dark"] .upload-progress-step-icon {
+  background: var(--color-bg-tertiary, #334155);
+}
+
+[data-theme="dark"] .upload-progress-info {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+/* ============================================================================
    DOCUMENTS TAB DARK MODE
    ============================================================================ */
 
