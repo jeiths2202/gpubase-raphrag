@@ -85,7 +85,9 @@ playwright-report/
 *.swp
 debug/
 temp/
+tmpclaude-*
 test_*.py
+!tests/**/test_*.py
 !verify_tracing_setup.py
 cookies*.txt
 token.txt
