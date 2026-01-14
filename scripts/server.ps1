@@ -148,7 +148,8 @@ function Start-Backend {
     Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $command -WindowStyle Hidden
     Pop-Location
 
-    Start-Sleep -Seconds 5
+    # Backend takes ~11 seconds to initialize (PostgreSQL, services, etc.)
+    Start-Sleep -Seconds 15
     $procId = Get-PidByPort -Port $BackendPort
     if ($procId) {
         Write-Status "Backend started successfully (PID: $procId)"
