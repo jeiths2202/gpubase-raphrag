@@ -126,6 +126,7 @@
       "signInWithAtlassian": "Sign in with Atlassian",
       "signInWithGitHub": "Sign in with GitHub",
       "signInWithGoogle": "Sign in with Google",
+      "signInWithMicrosoft": "Sign in with Microsoft",
       "signIn": "Sign in",
       "connectedAs": "Connected as",
       "permissions": "Requested permissions",

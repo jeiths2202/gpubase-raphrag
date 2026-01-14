@@ -126,6 +126,7 @@
       "signInWithAtlassian": "Atlassian으로 로그인",
       "signInWithGitHub": "GitHub으로 로그인",
       "signInWithGoogle": "Google로 로그인",
+      "signInWithMicrosoft": "Microsoft로 로그인",
       "signIn": "로그인",
       "connectedAs": "연결된 계정",
       "permissions": "요청 권한",

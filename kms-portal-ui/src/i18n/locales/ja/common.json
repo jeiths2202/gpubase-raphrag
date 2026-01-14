@@ -126,6 +126,7 @@
       "signInWithAtlassian": "Atlassianでサインイン",
       "signInWithGitHub": "GitHubでサインイン",
       "signInWithGoogle": "Googleでサインイン",
+      "signInWithMicrosoft": "Microsoftでサインイン",
       "signIn": "サインイン",
       "connectedAs": "接続済みアカウント",
       "permissions": "要求される権限",
