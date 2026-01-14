@@ -303,9 +303,8 @@ class ConversationService:
         if update.metadata is not None:
             conversation.metadata = update.metadata
 
-        # Build update dict for repository
-        update_data = update.model_dump(exclude_none=True)
-        updated = await self._repository.update(conversation_id, update_data)
+        # Update via repository - pass the modified entity
+        updated = await self._repository.update(conversation)
 
         if self._audit_service:
             await self._log_audit(
