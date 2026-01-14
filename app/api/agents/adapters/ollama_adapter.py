@@ -6,13 +6,14 @@ from typing import Dict, List, Any, Optional
 import logging
 import json
 import asyncio
+import os
 import aiohttp
 
 logger = logging.getLogger(__name__)
 
-# Default Ollama settings
-OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "qwen2.5:3b"  # Supports tool calling
+# Default Ollama settings (configurable via environment variables)
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")  # Supports tool calling
 
 
 class OllamaAgentAdapter:

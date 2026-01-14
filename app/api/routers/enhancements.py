@@ -338,6 +338,7 @@ async def reject_enhancement(
 @router.post("/{enhancement_id}/analyze", response_model=SuccessResponse[AnalysisResponse])
 async def analyze_enhancement(
     enhancement_id: str,
+    use_deep_agent: bool = Query(default=False, description="Use Deep Agents framework for analysis"),
     current_user: dict = Depends(get_current_user),
     service: EnhancementService = Depends(get_service)
 ):
@@ -345,6 +346,10 @@ async def analyze_enhancement(
     Trigger AI analysis of an enhancement request.
 
     The Analyst Agent will classify, assess, and provide recommendations.
+
+    Args:
+        enhancement_id: ID of the enhancement to analyze
+        use_deep_agent: If true, uses Deep Agents framework for analysis
     """
     try:
         enhancement = await service.get(enhancement_id)
@@ -363,17 +368,22 @@ async def analyze_enhancement(
             "user"
         )
 
-        # Trigger actual agent analysis
-        from ..agents.agents.enhancement_analyst_agent import get_analyst_agent
-
-        analyst = get_analyst_agent()
-
         # Collect attachment text if available
         attachments_text = None
         if enhancement.attachments:
             texts = [att.extracted_text for att in enhancement.attachments if att.extracted_text]
             if texts:
                 attachments_text = "\n\n".join(texts)
+
+        # Select agent based on use_deep_agent flag
+        if use_deep_agent:
+            from ..agents.agents.enhancement_analyst_deep_agent import get_deep_analyst_agent
+            analyst = get_deep_analyst_agent()
+            logger.info(f"[Enhancement] Using Deep Agent for analysis: {enhancement_id}")
+        else:
+            from ..agents.agents.enhancement_analyst_agent import get_analyst_agent
+            analyst = get_analyst_agent()
+            logger.info(f"[Enhancement] Using regular agent for analysis: {enhancement_id}")
 
         # Run analysis
         analysis = await analyst.analyze_enhancement(

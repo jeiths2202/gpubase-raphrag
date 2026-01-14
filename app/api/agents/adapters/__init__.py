@@ -12,6 +12,8 @@ from .deep_agent_adapter import (
     DeepAgentAdapter,
     create_deep_agent_adapter,
     create_rag_deep_agent,
+    create_code_deep_agent,
+    create_project_deep_agent,
     DEEPAGENTS_AVAILABLE,
     DEEPAGENTS_BACKENDS_AVAILABLE,
     LANGGRAPH_STORE_AVAILABLE,
@@ -32,6 +34,8 @@ __all__ = [
     "DeepAgentAdapter",
     "create_deep_agent_adapter",
     "create_rag_deep_agent",
+    "create_code_deep_agent",
+    "create_project_deep_agent",
     # Feature Flags
     "DEEPAGENTS_AVAILABLE",
     "DEEPAGENTS_BACKENDS_AVAILABLE",

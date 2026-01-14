@@ -31,6 +31,18 @@ from .master_system_constraint import (
     build_constrained_system_prompt
 )
 
+# Deep Agents integration
+try:
+    from .adapters.deep_agent_adapter import (
+        DeepAgentAdapter,
+        create_rag_deep_agent,
+        create_code_deep_agent,
+        create_project_deep_agent,
+    )
+    DEEP_AGENTS_AVAILABLE = True
+except ImportError:
+    DEEP_AGENTS_AVAILABLE = False
+
 # Import query log writer for logging all agent queries
 from ..infrastructure.services.query_log_writer import get_query_log_writer
 
@@ -108,6 +120,8 @@ class AgentOrchestrator:
         self._parallel_executor = parallel_executor
         self._evaluator = evaluator
         self._synthesis_evaluator = synthesis_evaluator
+        # Deep Agents cache (lazy-initialized)
+        self._deep_agents: Dict[AgentType, Any] = {}
 
     @property
     def dag_builder(self) -> DAGBuilder:
@@ -141,6 +155,41 @@ class AgentOrchestrator:
         if self._synthesis_evaluator is None:
             self._synthesis_evaluator = get_synthesis_evaluator()
         return self._synthesis_evaluator
+
+    def get_deep_agent(self, agent_type: AgentType) -> Optional['DeepAgentAdapter']:
+        """
+        Get or create a Deep Agent for the specified type.
+
+        Args:
+            agent_type: The agent type to get Deep Agent for
+
+        Returns:
+            DeepAgentAdapter instance or None if Deep Agents not available
+        """
+        if not DEEP_AGENTS_AVAILABLE:
+            logger.warning("[Orchestrator] Deep Agents not available")
+            return None
+
+        if agent_type not in self._deep_agents:
+            # Create appropriate Deep Agent based on type
+            if agent_type == AgentType.RAG:
+                self._deep_agents[agent_type] = create_rag_deep_agent()
+            elif agent_type == AgentType.CODE:
+                self._deep_agents[agent_type] = create_code_deep_agent()
+            elif agent_type == AgentType.PLANNER:
+                self._deep_agents[agent_type] = create_project_deep_agent()
+            else:
+                # For other types, create a generic Deep Agent with RAG tools
+                from .middleware import get_rag_tools
+                self._deep_agents[agent_type] = DeepAgentAdapter(
+                    name=f"DeepAgent-{agent_type.value}",
+                    agent_type=agent_type,
+                    description=f"Deep Agent for {agent_type.value} tasks",
+                    tools=get_rag_tools(),
+                )
+            logger.info(f"[Orchestrator] Created Deep Agent for {agent_type.value}")
+
+        return self._deep_agents[agent_type]
 
     @classmethod
     def get_instance(cls) -> 'AgentOrchestrator':
@@ -186,11 +235,15 @@ class AgentOrchestrator:
             use_deep_agent=getattr(request, 'use_deep_agent', False)
         )
 
-        # Select agent
+        # Select agent type
         if request.agent_type:
             agent_type = request.agent_type
         else:
             agent_type = await self.classify_task(request.task)
+
+        # Route to Deep Agent if requested
+        if request.use_deep_agent:
+            return await self._execute_deep_agent(request, context, agent_type, user_id, start_time)
 
         # Classify intent and attach to context
         intent_result = await self.intent_classifier.classify(
@@ -319,6 +372,15 @@ class AgentOrchestrator:
             agent_type = request.agent_type
         else:
             agent_type = await self.classify_task(request.task)
+
+        # Debug: Log use_deep_agent value
+        print(f"[Orchestrator] use_deep_agent={request.use_deep_agent}", flush=True)
+
+        # Route to Deep Agent streaming if requested
+        if request.use_deep_agent:
+            async for chunk in self._stream_deep_agent(request, context, agent_type, user_id, start_time):
+                yield chunk
+            return
 
         # Classify intent and attach to context
         intent_result = await self.intent_classifier.classify(
@@ -793,6 +855,9 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
         )
         context.intent = intent_result
 
+        # Debug: Log enable_multi_agent and use_deep_agent values
+        print(f"[stream_enterprise] enable_multi_agent={request.enable_multi_agent}, use_deep_agent={request.use_deep_agent}", flush=True)
+
         # Check if multi-agent is needed
         if not request.enable_multi_agent:
             # Stream simple execution wrapped in parallel chunks
@@ -805,7 +870,8 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
                 include_sources=request.include_sources,
                 stream=True,
                 file_context=request.file_context,
-                url_context=request.url_context
+                url_context=request.url_context,
+                use_deep_agent=request.use_deep_agent  # Pass Deep Agent flag
             )
             async for chunk in self.stream(simple_request, user_id):
                 yield ParallelStreamChunk(
@@ -941,6 +1007,179 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
                 "total_tasks": len(dag.tasks)
             }
         )
+
+    # =========================================================================
+    # Deep Agent Execution Methods
+    # =========================================================================
+
+    async def _execute_deep_agent(
+        self,
+        request: AgentRequest,
+        context: AgentContext,
+        agent_type: AgentType,
+        user_id: Optional[str],
+        start_time: float
+    ) -> AgentResponse:
+        """
+        Execute request using Deep Agents framework.
+
+        Args:
+            request: The agent request
+            context: Agent execution context
+            agent_type: Classified agent type
+            user_id: Optional user ID
+            start_time: Execution start time
+
+        Returns:
+            AgentResponse with answer and metadata
+        """
+        logger.info(f"[Orchestrator] Executing with Deep Agent: type={agent_type.value}")
+
+        deep_agent = self.get_deep_agent(agent_type)
+        if deep_agent is None:
+            # Fallback to regular execution if Deep Agents not available
+            logger.warning("[Orchestrator] Deep Agents not available, falling back to regular execution")
+            # Create a new request without use_deep_agent to avoid infinite loop
+            fallback_request = AgentRequest(
+                task=request.task,
+                agent_type=request.agent_type,
+                session_id=request.session_id,
+                language=request.language,
+                max_steps=request.max_steps,
+                include_sources=request.include_sources,
+                stream=False,
+                file_context=request.file_context,
+                url_context=request.url_context,
+                ui_context=request.ui_context,
+                use_deep_agent=False
+            )
+            return await self.execute(fallback_request, user_id)
+
+        try:
+            # Execute via Deep Agent
+            result = await deep_agent.execute(request.task, context)
+
+            execution_time_ms = int((time.time() - start_time) * 1000)
+
+            # Estimate tokens
+            input_tokens = len(request.task) // 4
+            output_tokens = len(result.answer) // 4 if result.answer else 0
+
+            # Log query
+            await self._log_query(
+                query_text=request.task,
+                user_id=user_id,
+                session_id=request.session_id,
+                agent_type=f"deep_{agent_type.value}",
+                intent_type=None,
+                category=None,
+                language=request.language,
+                execution_time_ms=execution_time_ms,
+                success=result.success,
+                response_summary=result.answer[:500] if result.answer else None,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens
+            )
+
+            return AgentResponse(
+                answer=result.answer,
+                agent_type=result.agent_type,
+                session_id=context.session_id,
+                steps=result.steps,
+                sources=result.sources if request.include_sources else [],
+                execution_time=result.execution_time,
+                success=result.success,
+                error=result.error
+            )
+
+        except Exception as e:
+            logger.error(f"[Orchestrator] Deep Agent execution failed: {e}")
+            execution_time = time.time() - start_time
+            return AgentResponse(
+                answer=f"Deep Agent 실행 중 오류가 발생했습니다: {str(e)}",
+                agent_type=agent_type,
+                session_id=context.session_id,
+                steps=0,
+                sources=[],
+                execution_time=execution_time,
+                success=False,
+                error=str(e)
+            )
+
+    async def _stream_deep_agent(
+        self,
+        request: AgentRequest,
+        context: AgentContext,
+        agent_type: AgentType,
+        user_id: Optional[str],
+        start_time: float
+    ) -> AsyncGenerator[AgentStreamChunk, None]:
+        """
+        Stream execution using Deep Agents framework.
+
+        Args:
+            request: The agent request
+            context: Agent execution context
+            agent_type: Classified agent type
+            user_id: Optional user ID
+            start_time: Execution start time
+
+        Yields:
+            AgentStreamChunk with incremental results
+        """
+        print(f"[_stream_deep_agent] Starting Deep Agent streaming: type={agent_type.value}", flush=True)
+
+        deep_agent = self.get_deep_agent(agent_type)
+        print(f"[_stream_deep_agent] deep_agent={deep_agent}", flush=True)
+        if deep_agent is None:
+            yield AgentStreamChunk(
+                chunk_type="error",
+                content="Deep Agents가 설치되지 않았습니다. pip install deepagents langchain-openai를 실행하세요."
+            )
+            return
+
+        response_text_parts = []
+        success = True
+
+        try:
+            async for chunk in deep_agent.stream(request.task, context):
+                # Collect text chunks for logging
+                if chunk.chunk_type == "text" and chunk.content:
+                    response_text_parts.append(chunk.content)
+                elif chunk.chunk_type == "error":
+                    success = False
+                yield chunk
+
+        except Exception as e:
+            logger.error(f"[Orchestrator] Deep Agent streaming failed: {e}")
+            success = False
+            yield AgentStreamChunk(
+                chunk_type="error",
+                content=str(e)
+            )
+        finally:
+            # Log query after stream completes
+            execution_time_ms = int((time.time() - start_time) * 1000)
+            full_response = ''.join(response_text_parts)
+            response_summary = full_response[:500] if full_response else None
+
+            input_tokens = len(request.task) // 4
+            output_tokens = len(full_response) // 4
+
+            await self._log_query(
+                query_text=request.task,
+                user_id=user_id,
+                session_id=request.session_id,
+                agent_type=f"deep_{agent_type.value}",
+                intent_type=None,
+                category=None,
+                language=request.language,
+                execution_time_ms=execution_time_ms,
+                success=success,
+                response_summary=response_summary,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens
+            )
 
     async def _synthesize_results(
         self,
