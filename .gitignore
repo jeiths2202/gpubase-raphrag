@@ -69,6 +69,7 @@ htmlcov/
 test-results/
 playwright-report/
 *.png
+!kms-portal-ui/public/tmax-logo.png
 *.jpg
 *.jpeg
 

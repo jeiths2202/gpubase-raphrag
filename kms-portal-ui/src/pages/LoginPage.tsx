@@ -254,7 +254,7 @@ const LoginPage: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <h1>{APP_CONFIG.name}</h1>
+          <img src="/tmax-logo.png" alt="TMAXSOFT" className="login-logo" />
           <p className="subtitle">{APP_CONFIG.fullName}</p>
         </motion.div>
 

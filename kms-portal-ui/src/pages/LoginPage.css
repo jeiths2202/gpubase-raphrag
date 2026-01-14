@@ -76,12 +76,13 @@
 /* Login Card - Enhanced Premium Glassmorphism */
 .login-card {
   width: 100%;
-  max-width: 945px;
+  min-width: 480px;
+  max-width: 520px;
   background: var(--color-bg-card);
   backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card-large, 24px);
-  padding: var(--space-8);
+  padding: var(--space-4) var(--space-6);
   box-shadow: var(--shadow-xl);
   position: relative;
 }
@@ -108,7 +109,21 @@
 /* Header Section - Compact */
 .login-header {
   text-align: center;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.login-logo {
+  height: 32px;
+  width: auto;
+  margin-bottom: var(--space-2);
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Dark theme: invert logo colors for visibility */
+[data-theme="dark"] .login-logo {
+  filter: invert(1) brightness(2);
 }
 
 .logo {
@@ -147,7 +162,7 @@
 .auth-tabs {
   display: flex;
   gap: var(--space-2);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-3);
   background: var(--color-bg-hover);
   padding: var(--space-1);
   border-radius: var(--radius-base-large, 12px);
@@ -204,7 +219,7 @@
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-3);
 }
 
 .input-group {
@@ -220,7 +235,7 @@
 }
 
 .input-group input {
-  padding: var(--spacing-input-padding-y) var(--spacing-input-padding-x);
+  padding: var(--space-2-5) var(--space-3);
   background: var(--color-bg-input);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-input-large, 12px);
@@ -248,7 +263,7 @@
 
 /* Premium Buttons */
 .btn-primary {
-  padding: var(--spacing-input-padding-y) var(--space-6);
+  padding: var(--space-2-5) var(--space-6);
   background: var(--gradient-primary);
   border: none;
   border-radius: var(--radius-input-large, 12px);
@@ -261,7 +276,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: 48px;
+  min-height: 44px;
   box-shadow: var(--shadow-sm);
 }
 
@@ -314,11 +329,11 @@
 .social-buttons {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .btn-google {
-  padding: var(--space-3) var(--space-6);
+  padding: var(--space-2-5) var(--space-6);
   background: white;
   border: 1px solid #dadce0;
   border-radius: var(--radius-input-large, 12px);
@@ -358,7 +373,7 @@
 
 /* SSO Button */
 .btn-sso {
-  padding: var(--space-3) var(--space-6);
+  padding: var(--space-2-5) var(--space-6);
   background: var(--color-bg-hover);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-input-large, 12px);
@@ -426,8 +441,8 @@
 
 /* Footer */
 .login-footer {
-  margin-top: var(--space-8);
-  padding-top: var(--space-5);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
   border-top: 1px solid var(--color-border);
   display: flex;
   justify-content: center;
@@ -461,12 +476,14 @@
 }
 
 /* Responsive Design */
-@media (max-width: 480px) {
+@media (max-width: 540px) {
   .login-container {
     padding: var(--space-4);
   }
 
   .login-card {
+    min-width: auto;
+    max-width: 100%;
     padding: var(--space-6);
   }
 

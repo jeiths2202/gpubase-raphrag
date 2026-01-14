@@ -72,7 +72,10 @@
 }
 
 .auth-footer {
-  padding: var(--space-4);
+  position: absolute;
+  bottom: var(--space-8);
+  left: 0;
+  right: 0;
   text-align: center;
   font-size: var(--text-sm);
   color: var(--color-text-muted);

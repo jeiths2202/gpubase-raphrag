@@ -24,7 +24,7 @@ export const AuthLayout: React.FC = () => {
 
       {/* Footer */}
       <footer className="auth-footer">
-        <span>&copy; 2024 KMS Portal. All rights reserved.</span>
+        <span>&copy; 2026 KMS Portal. All rights reserved.</span>
       </footer>
     </div>
   );
