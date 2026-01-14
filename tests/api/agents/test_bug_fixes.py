@@ -31,15 +31,21 @@ class TestBashToolZombieProcessFix:
         )
 
     @pytest.mark.asyncio
-    async def test_timeout_calls_process_wait(self, bash_tool, context):
+    async def test_timeout_calls_process_wait(self, context):
         """Verify that process.wait() is called after process.kill() on timeout."""
         mock_process = AsyncMock()
         mock_process.kill = MagicMock()
         mock_process.wait = AsyncMock()
 
-        with patch('asyncio.create_subprocess_shell', return_value=mock_process):
+        # Create bash tool with 'sleep' in whitelist for testing timeout handling
+        # (The default security whitelist blocks sleep, but this test is about
+        # timeout/zombie process handling, not command validation)
+        from app.api.agents.tools.bash import ALLOWED_COMMANDS
+        bash_tool_with_sleep = BashTool(custom_allowed_commands=ALLOWED_COMMANDS | {'sleep'})
+
+        with patch('asyncio.create_subprocess_exec', return_value=mock_process):
             with patch('asyncio.wait_for', side_effect=asyncio.TimeoutError()):
-                result = await bash_tool.execute(
+                result = await bash_tool_with_sleep.execute(
                     context,
                     command="sleep 100",
                     timeout=1
@@ -60,7 +66,8 @@ class TestBashToolZombieProcessFix:
         mock_process.returncode = 0
         mock_process.communicate = AsyncMock(return_value=(b"output", b""))
 
-        with patch('asyncio.create_subprocess_shell', return_value=mock_process):
+        # Use create_subprocess_exec since bash tool now uses shell=False
+        with patch('asyncio.create_subprocess_exec', return_value=mock_process):
             with patch('asyncio.wait_for', return_value=(b"output", b"")):
                 # Mock the communicate to return properly
                 result = await bash_tool.execute(
