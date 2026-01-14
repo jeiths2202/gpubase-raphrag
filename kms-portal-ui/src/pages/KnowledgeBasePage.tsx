@@ -52,14 +52,6 @@ interface Suggestion {
   category: string;
 }
 
-interface ArticlesResponse {
-  items: Article[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
 // Category icons mapping
 const categoryIcons: Record<string, React.ReactNode> = {
   all: <BookOpen size={18} />,

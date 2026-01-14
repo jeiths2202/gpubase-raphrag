@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Database,
   Loader2,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { MessageContent } from './MessageContent';
@@ -150,6 +151,43 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 <span className="agent-source-score">{Math.round(source.score * 100)}%</span>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Images from Multimodal RAG */}
+        {message.images && message.images.length > 0 && (
+          <div className="agent-message-images">
+            <span className="agent-images-label">
+              <ImageIcon size={12} />
+              Related Images:
+            </span>
+            <div className="agent-images-gallery">
+              {message.images.map((image, idx) => (
+                <div key={idx} className="agent-image-item">
+                  {image.imageBase64 ? (
+                    <img
+                      src={`data:${image.mimeType || 'image/png'};base64,${image.imageBase64}`}
+                      alt={image.altText || image.description || `Image ${idx + 1}`}
+                      className="agent-image-preview"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="agent-image-placeholder">
+                      <ImageIcon size={24} />
+                    </div>
+                  )}
+                  <div className="agent-image-info">
+                    <span className="agent-image-description">
+                      {image.description?.substring(0, 100) || `Page ${image.pageNumber || 'N/A'}`}
+                      {image.description && image.description.length > 100 && '...'}
+                    </span>
+                    {image.similarity && (
+                      <span className="agent-image-score">{Math.round(image.similarity * 100)}%</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

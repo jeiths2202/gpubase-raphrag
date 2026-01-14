@@ -319,6 +319,7 @@ const DocumentsTab: React.FC = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DocumentListItem | null>(null);
+  const [detailDocId, setDetailDocId] = useState<string | null>(null);
   const limit = 15;
 
   const fetchDocuments = useCallback(async () => {
@@ -394,9 +395,10 @@ const DocumentsTab: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
+      case 'ready':
         return (
           <span className="doc-status-badge doc-status-badge--completed">
-            <CheckCircle size={12} /> Completed
+            <CheckCircle size={12} /> Ready
           </span>
         );
       case 'processing':
@@ -412,9 +414,16 @@ const DocumentsTab: React.FC = () => {
           </span>
         );
       case 'failed':
+      case 'error':
         return (
           <span className="doc-status-badge doc-status-badge--failed">
-            <XCircle size={12} /> Failed
+            <XCircle size={12} /> Error
+          </span>
+        );
+      case 'interrupted':
+        return (
+          <span className="doc-status-badge doc-status-badge--interrupted">
+            <AlertCircle size={12} /> Interrupted
           </span>
         );
       default:
@@ -463,10 +472,11 @@ const DocumentsTab: React.FC = () => {
               }}
             >
               <option value="">All Status</option>
-              <option value="completed">Completed</option>
+              <option value="ready">Ready</option>
               <option value="processing">Processing</option>
               <option value="pending">Pending</option>
-              <option value="failed">Failed</option>
+              <option value="error">Error</option>
+              <option value="interrupted">Interrupted</option>
             </select>
           </div>
           <div className="documents-header-actions">
@@ -540,7 +550,7 @@ const DocumentsTab: React.FC = () => {
                           <button
                             className="doc-action-btn"
                             title="View Details"
-                            onClick={() => window.open(`/api/v1/documents/${doc.id}`, '_blank')}
+                            onClick={() => setDetailDocId(doc.id)}
                           >
                             <Eye size={16} />
                           </button>
@@ -638,6 +648,336 @@ const DocumentsTab: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Document Detail Modal */}
+      {detailDocId && (
+        <DocumentDetailModal
+          documentId={detailDocId}
+          onClose={() => setDetailDocId(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+// =============================================================================
+// Document Detail Modal
+// =============================================================================
+
+interface DocumentDetail {
+  id: string;
+  filename: string;
+  original_name: string;
+  file_size: number;
+  mime_type: string;
+  document_type: string;
+  status: string;
+  chunks_count: number;
+  entities_count: number;
+  embedding_status: string;
+  language: string;
+  processing_mode: string;
+  vlm_processed: boolean;
+  created_at: string;
+  updated_at: string;
+  tags: string[];
+  stats?: {
+    pages: number;
+    chunks_count: number;
+    entities_count: number;
+    avg_chunk_size: number;
+    embedding_dimension: number;
+    images_count: number;
+    tables_count: number;
+    figures_count: number;
+    vlm_processed: boolean;
+  };
+  processing_info?: {
+    started_at: string | null;
+    completed_at: string | null;
+    processing_time_seconds: number | null;
+  };
+  error?: string | null;
+}
+
+interface DetailModalProps {
+  documentId: string;
+  onClose: () => void;
+}
+
+const DocumentDetailModal: React.FC<DetailModalProps> = ({ documentId, onClose }) => {
+  const [document, setDocument] = useState<DocumentDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchDocument = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/v1/documents/${documentId}`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const result = await response.json();
+        setDocument(result.data);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load document');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDocument();
+  }, [documentId]);
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleString('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'ready':
+      case 'completed':
+        return 'var(--color-success, #22c55e)';
+      case 'processing':
+      case 'in_progress':
+        return 'var(--color-primary, #6366f1)';
+      case 'error':
+      case 'failed':
+        return 'var(--color-danger, #ef4444)';
+      default:
+        return 'var(--color-warning, #f59e0b)';
+    }
+  };
+
+  const getFileIcon = (type: string) => {
+    switch (type?.toLowerCase()) {
+      case 'pdf':
+        return <FileText size={32} className="detail-file-icon detail-file-icon--pdf" />;
+      case 'image':
+        return <FileImage size={32} className="detail-file-icon detail-file-icon--image" />;
+      case 'excel':
+        return <FileSpreadsheet size={32} className="detail-file-icon detail-file-icon--excel" />;
+      case 'powerpoint':
+        return <Presentation size={32} className="detail-file-icon detail-file-icon--ppt" />;
+      default:
+        return <File size={32} className="detail-file-icon" />;
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content modal-content--large" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Document Details</h2>
+          <button className="modal-close" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+        <div className="modal-body">
+          {loading ? (
+            <div className="detail-loading">
+              <Loader2 size={32} className="spinning" />
+              <span>Loading document details...</span>
+            </div>
+          ) : error ? (
+            <div className="detail-error">
+              <AlertTriangle size={32} />
+              <span>{error}</span>
+            </div>
+          ) : document ? (
+            <div className="detail-content">
+              {/* Header Section */}
+              <div className="detail-header-section">
+                {getFileIcon(document.document_type)}
+                <div className="detail-header-info">
+                  <h3 className="detail-filename">{document.original_name || document.filename}</h3>
+                  <div className="detail-meta-row">
+                    <span className="detail-type-badge">{document.document_type?.toUpperCase()}</span>
+                    <span
+                      className="detail-status-badge"
+                      style={{ backgroundColor: getStatusColor(document.status), color: 'white' }}
+                    >
+                      {document.status}
+                    </span>
+                    {document.vlm_processed && (
+                      <span className="detail-vlm-badge">VLM Processed</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Error Message */}
+              {document.error && (
+                <div className="detail-error-box">
+                  <AlertTriangle size={16} />
+                  <span>{document.error}</span>
+                </div>
+              )}
+
+              {/* Info Grid */}
+              <div className="detail-grid">
+                {/* Basic Info */}
+                <div className="detail-card">
+                  <h4 className="detail-card-title">
+                    <FileText size={16} />
+                    Basic Information
+                  </h4>
+                  <div className="detail-info-list">
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">File Size</span>
+                      <span className="detail-info-value">{formatFileSize(document.file_size)}</span>
+                    </div>
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">MIME Type</span>
+                      <span className="detail-info-value">{document.mime_type}</span>
+                    </div>
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">Language</span>
+                      <span className="detail-info-value">{document.language?.toUpperCase() || 'AUTO'}</span>
+                    </div>
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">Processing Mode</span>
+                      <span className="detail-info-value">{document.processing_mode?.replace('_', ' ')}</span>
+                    </div>
+                    {document.tags && document.tags.length > 0 && (
+                      <div className="detail-info-row">
+                        <span className="detail-info-label">Tags</span>
+                        <span className="detail-info-value">
+                          {document.tags.map((tag, i) => (
+                            <span key={i} className="detail-tag">{tag}</span>
+                          ))}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Statistics */}
+                <div className="detail-card">
+                  <h4 className="detail-card-title">
+                    <TrendingUp size={16} />
+                    Statistics
+                  </h4>
+                  <div className="detail-stats-grid">
+                    <div className="detail-stat-item">
+                      <span className="detail-stat-value">{document.stats?.pages || 0}</span>
+                      <span className="detail-stat-label">Pages</span>
+                    </div>
+                    <div className="detail-stat-item">
+                      <span className="detail-stat-value">{document.chunks_count || document.stats?.chunks_count || 0}</span>
+                      <span className="detail-stat-label">Chunks</span>
+                    </div>
+                    <div className="detail-stat-item">
+                      <span className="detail-stat-value">{document.entities_count || document.stats?.entities_count || 0}</span>
+                      <span className="detail-stat-label">Entities</span>
+                    </div>
+                    <div className="detail-stat-item">
+                      <span className="detail-stat-value">{document.stats?.images_count || 0}</span>
+                      <span className="detail-stat-label">Images</span>
+                    </div>
+                    <div className="detail-stat-item">
+                      <span className="detail-stat-value">{document.stats?.tables_count || 0}</span>
+                      <span className="detail-stat-label">Tables</span>
+                    </div>
+                    <div className="detail-stat-item">
+                      <span className="detail-stat-value">{Math.round(document.stats?.avg_chunk_size || 0)}</span>
+                      <span className="detail-stat-label">Avg Chunk</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Processing Info */}
+                <div className="detail-card">
+                  <h4 className="detail-card-title">
+                    <Clock size={16} />
+                    Processing Information
+                  </h4>
+                  <div className="detail-info-list">
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">Embedding Status</span>
+                      <span
+                        className="detail-status-badge detail-status-badge--small"
+                        style={{ backgroundColor: getStatusColor(document.embedding_status) }}
+                      >
+                        {document.embedding_status}
+                      </span>
+                    </div>
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">Embedding Dimension</span>
+                      <span className="detail-info-value">{document.stats?.embedding_dimension || 'N/A'}</span>
+                    </div>
+                    {document.processing_info?.started_at && (
+                      <div className="detail-info-row">
+                        <span className="detail-info-label">Started At</span>
+                        <span className="detail-info-value">{formatDate(document.processing_info.started_at)}</span>
+                      </div>
+                    )}
+                    {document.processing_info?.completed_at && (
+                      <div className="detail-info-row">
+                        <span className="detail-info-label">Completed At</span>
+                        <span className="detail-info-value">{formatDate(document.processing_info.completed_at)}</span>
+                      </div>
+                    )}
+                    {document.processing_info?.processing_time_seconds && (
+                      <div className="detail-info-row">
+                        <span className="detail-info-label">Processing Time</span>
+                        <span className="detail-info-value">{document.processing_info.processing_time_seconds}s</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Timestamps */}
+                <div className="detail-card">
+                  <h4 className="detail-card-title">
+                    <Clock size={16} />
+                    Timestamps
+                  </h4>
+                  <div className="detail-info-list">
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">Created</span>
+                      <span className="detail-info-value">{formatDate(document.created_at)}</span>
+                    </div>
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">Updated</span>
+                      <span className="detail-info-value">{formatDate(document.updated_at)}</span>
+                    </div>
+                    <div className="detail-info-row">
+                      <span className="detail-info-label">Document ID</span>
+                      <span className="detail-info-value detail-info-value--mono">{document.id}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn--secondary" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -651,6 +991,27 @@ interface UploadModalProps {
   onSuccess: () => void;
 }
 
+interface UploadStep {
+  name: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  progress: number;
+}
+
+interface UploadProgress {
+  current_step: string;
+  steps: UploadStep[];
+  overall_progress: number;
+}
+
+interface UploadStatus {
+  task_id: string;
+  document_id: string;
+  status: 'processing' | 'ready' | 'error';
+  progress: UploadProgress;
+  started_at: string;
+  estimated_completion?: string;
+}
+
 const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess }) => {
   const [file, setFile] = useState<File | null>(null);
   const [displayName, setDisplayName] = useState('');
@@ -661,6 +1022,11 @@ const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess })
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+
+  // Progress tracking state
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -683,6 +1049,48 @@ const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess })
       }
     }
   };
+
+  // Poll for upload status
+  useEffect(() => {
+    if (!taskId || !isProcessing) return;
+
+    const pollStatus = async () => {
+      try {
+        const response = await fetch(`/api/v1/documents/upload-status/${taskId}`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          console.error('Failed to fetch upload status');
+          return;
+        }
+
+        const result = await response.json();
+        const status = result.data as UploadStatus;
+        setUploadStatus(status);
+
+        // Check if processing is complete
+        if (status.status === 'ready' || status.progress.overall_progress >= 100) {
+          setIsProcessing(false);
+          setTimeout(() => {
+            onSuccess();
+          }, 500);
+        } else if (status.status === 'error') {
+          setIsProcessing(false);
+          setError('Document processing failed');
+        }
+      } catch (err) {
+        console.error('Error polling status:', err);
+      }
+    };
+
+    // Poll every 800ms
+    const interval = setInterval(pollStatus, 800);
+    // Initial poll
+    pollStatus();
+
+    return () => clearInterval(interval);
+  }, [taskId, isProcessing, onSuccess]);
 
   const handleUpload = async () => {
     if (!file) {
@@ -713,139 +1121,265 @@ const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess })
         throw new Error(result.error?.message || `Upload failed: HTTP ${response.status}`);
       }
 
-      onSuccess();
+      const result = await response.json();
+      const uploadedTaskId = result.data?.task_id;
+
+      if (uploadedTaskId) {
+        setTaskId(uploadedTaskId);
+        setIsProcessing(true);
+        setUploading(false);
+        // Initialize progress display
+        setUploadStatus({
+          task_id: uploadedTaskId,
+          document_id: result.data?.document_id || '',
+          status: 'processing',
+          progress: {
+            current_step: 'uploading',
+            steps: [
+              { name: 'uploading', status: 'completed', progress: 100 },
+              { name: 'parsing', status: 'pending', progress: 0 },
+              { name: 'chunking', status: 'pending', progress: 0 },
+              { name: 'embedding', status: 'pending', progress: 0 },
+            ],
+            overall_progress: 10,
+          },
+          started_at: new Date().toISOString(),
+        });
+      } else {
+        // No task_id returned, just call success
+        onSuccess();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
-    } finally {
       setUploading(false);
     }
   };
 
+  const getStepIcon = (step: UploadStep) => {
+    switch (step.status) {
+      case 'completed':
+        return <CheckCircle size={16} className="step-icon step-icon--completed" />;
+      case 'in_progress':
+        return <Loader2 size={16} className="step-icon step-icon--progress spinning" />;
+      case 'failed':
+        return <XCircle size={16} className="step-icon step-icon--failed" />;
+      default:
+        return <Clock size={16} className="step-icon step-icon--pending" />;
+    }
+  };
+
+  const getStepLabel = (stepName: string) => {
+    const labels: Record<string, string> = {
+      uploading: 'Uploading',
+      parsing: 'Parsing Document',
+      chunking: 'Creating Chunks',
+      embedding: 'Generating Embeddings',
+    };
+    return labels[stepName] || stepName;
+  };
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={isProcessing ? undefined : onClose}>
       <div className="modal-content modal-content--medium" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Upload Document</h2>
-          <button className="modal-close" onClick={onClose}>
-            <X size={20} />
-          </button>
+          <h2>{isProcessing ? 'Processing Document' : 'Upload Document'}</h2>
+          {!isProcessing && (
+            <button className="modal-close" onClick={onClose}>
+              <X size={20} />
+            </button>
+          )}
         </div>
         <div className="modal-body">
           {error && <div className="modal-error">{error}</div>}
 
-          {/* Drop Zone */}
-          <div
-            className={`upload-dropzone ${dragOver ? 'upload-dropzone--active' : ''} ${file ? 'upload-dropzone--has-file' : ''}`}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            onClick={() => document.getElementById('file-input')?.click()}
-          >
-            <input
-              id="file-input"
-              type="file"
-              onChange={handleFileSelect}
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.gif,.html"
-              style={{ display: 'none' }}
-            />
-            {file ? (
-              <div className="upload-file-preview">
-                <FileText size={32} />
-                <div className="upload-file-info">
-                  <span className="upload-file-name">{file.name}</span>
-                  <span className="upload-file-size">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+          {/* Progress View - shown during processing */}
+          {isProcessing && uploadStatus && (
+            <div className="upload-progress-container">
+              {/* File info */}
+              <div className="upload-progress-file">
+                <FileText size={24} />
+                <div className="upload-progress-file-info">
+                  <span className="upload-progress-filename">{file?.name}</span>
+                  <span className="upload-progress-status">
+                    {uploadStatus.status === 'ready' ? 'Completed' : 'Processing...'}
+                  </span>
                 </div>
-                <button
-                  className="upload-file-remove"
-                  onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                >
-                  <X size={16} />
-                </button>
               </div>
-            ) : (
-              <>
-                <Upload size={40} strokeWidth={1} />
-                <p>Drag & drop a file here, or click to browse</p>
-                <span className="upload-hint">
-                  Supports: PDF, Word, Excel, PowerPoint, Text, Images
+
+              {/* Overall progress bar */}
+              <div className="upload-progress-bar-container">
+                <div className="upload-progress-bar">
+                  <div
+                    className="upload-progress-bar-fill"
+                    style={{ width: `${uploadStatus.progress.overall_progress}%` }}
+                  />
+                </div>
+                <span className="upload-progress-percentage">
+                  {uploadStatus.progress.overall_progress}%
                 </span>
-              </>
-            )}
-          </div>
-
-          {/* Upload Options */}
-          <div className="upload-options">
-            <div className="form-group">
-              <label>Display Name</label>
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Optional display name"
-              />
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Language</label>
-                <select value={language} onChange={(e) => setLanguage(e.target.value)}>
-                  <option value="auto">Auto Detect</option>
-                  <option value="ko">Korean</option>
-                  <option value="en">English</option>
-                  <option value="ja">Japanese</option>
-                  <option value="zh">Chinese</option>
-                </select>
               </div>
-              <div className="form-group">
-                <label>Processing Mode</label>
-                <select value={processingMode} onChange={(e) => setProcessingMode(e.target.value)}>
-                  <option value="text_only">Text Only</option>
-                  <option value="vlm_enhanced">VLM Enhanced</option>
-                  <option value="multimodal">Full Multimodal</option>
-                  <option value="ocr">OCR (Scanned)</option>
-                </select>
+
+              {/* Steps */}
+              <div className="upload-progress-steps">
+                {uploadStatus.progress.steps.map((step, index) => (
+                  <div
+                    key={step.name}
+                    className={`upload-progress-step ${step.status === 'in_progress' ? 'upload-progress-step--active' : ''} ${step.status === 'completed' ? 'upload-progress-step--completed' : ''}`}
+                  >
+                    <div className="upload-progress-step-icon">
+                      {getStepIcon(step)}
+                    </div>
+                    <div className="upload-progress-step-content">
+                      <span className="upload-progress-step-name">{getStepLabel(step.name)}</span>
+                      {step.status === 'in_progress' && (
+                        <span className="upload-progress-step-detail">{step.progress}%</span>
+                      )}
+                    </div>
+                    {index < uploadStatus.progress.steps.length - 1 && (
+                      <div className={`upload-progress-step-line ${step.status === 'completed' ? 'upload-progress-step-line--completed' : ''}`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Current step info */}
+              <div className="upload-progress-info">
+                <Clock size={14} />
+                <span>
+                  Current step: {getStepLabel(uploadStatus.progress.current_step)}
+                </span>
               </div>
             </div>
+          )}
 
-            <div className="form-group">
-              <label>Tags (comma separated)</label>
-              <input
-                type="text"
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
-                placeholder="e.g., manual, guide, internal"
-              />
-            </div>
-
-            <div className="form-group form-group--checkbox">
-              <label>
+          {/* Upload Form - hidden during processing */}
+          {!isProcessing && (
+            <>
+              {/* Drop Zone */}
+              <div
+                className={`upload-dropzone ${dragOver ? 'upload-dropzone--active' : ''} ${file ? 'upload-dropzone--has-file' : ''}`}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                onClick={() => document.getElementById('file-input')?.click()}
+              >
                 <input
-                  type="checkbox"
-                  checked={enableVlm}
-                  onChange={(e) => setEnableVlm(e.target.checked)}
+                  id="file-input"
+                  type="file"
+                  onChange={handleFileSelect}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.gif,.html"
+                  style={{ display: 'none' }}
                 />
-                Enable VLM Analysis (images, charts, tables)
-              </label>
-            </div>
-          </div>
+                {file ? (
+                  <div className="upload-file-preview">
+                    <FileText size={32} />
+                    <div className="upload-file-info">
+                      <span className="upload-file-name">{file.name}</span>
+                      <span className="upload-file-size">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                    </div>
+                    <button
+                      className="upload-file-remove"
+                      onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <Upload size={40} strokeWidth={1} />
+                    <p>Drag & drop a file here, or click to browse</p>
+                    <span className="upload-hint">
+                      Supports: PDF, Word, Excel, PowerPoint, Text, Images
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Upload Options */}
+              <div className="upload-options">
+                <div className="form-group">
+                  <label>Display Name</label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Optional display name"
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Language</label>
+                    <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+                      <option value="auto">Auto Detect</option>
+                      <option value="ko">Korean</option>
+                      <option value="en">English</option>
+                      <option value="ja">Japanese</option>
+                      <option value="zh">Chinese</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Processing Mode</label>
+                    <select value={processingMode} onChange={(e) => setProcessingMode(e.target.value)}>
+                      <option value="text_only">Text Only</option>
+                      <option value="vlm_enhanced">VLM Enhanced</option>
+                      <option value="multimodal">Full Multimodal</option>
+                      <option value="ocr">OCR (Scanned)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Tags (comma separated)</label>
+                  <input
+                    type="text"
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
+                    placeholder="e.g., manual, guide, internal"
+                  />
+                </div>
+
+                <div className="form-group form-group--checkbox">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={enableVlm}
+                      onChange={(e) => setEnableVlm(e.target.checked)}
+                    />
+                    Enable VLM Analysis (images, charts, tables)
+                  </label>
+                </div>
+              </div>
+            </>
+          )}
         </div>
         <div className="modal-footer">
-          <button className="btn btn--secondary" onClick={onClose} disabled={uploading}>
-            Cancel
-          </button>
-          <button className="btn btn--primary" onClick={handleUpload} disabled={uploading || !file}>
-            {uploading ? (
-              <>
-                <Loader2 size={16} className="spinning" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <Upload size={16} />
-                Upload
-              </>
-            )}
-          </button>
+          {isProcessing ? (
+            <div className="upload-progress-footer">
+              <span className="upload-progress-footer-text">
+                Please wait while the document is being processed...
+              </span>
+            </div>
+          ) : (
+            <>
+              <button className="btn btn--secondary" onClick={onClose} disabled={uploading}>
+                Cancel
+              </button>
+              <button className="btn btn--primary" onClick={handleUpload} disabled={uploading || !file}>
+                {uploading ? (
+                  <>
+                    <Loader2 size={16} className="spinning" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload size={16} />
+                    Upload
+                  </>
+                )}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

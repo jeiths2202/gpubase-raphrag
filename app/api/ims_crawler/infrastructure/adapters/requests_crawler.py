@@ -165,7 +165,7 @@ class RequestsBasedCrawler(CrawlerPort):
         all_issues: List[Issue] = []
         total_count = None
         page = 1
-        max_pages = 100  # Safety limit increased
+        max_pages = 99999  # Unlimited - fetch all pages
 
         logger.info(f"[IMS Crawler] Searching for '{query}' in {len(products)} products")
         logger.info(f"Searching for '{query}' in {len(products)} products")

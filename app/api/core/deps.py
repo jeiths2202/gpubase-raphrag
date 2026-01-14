@@ -5,18 +5,44 @@ SECURITY FEATURES:
 - HttpOnly cookie authentication (prevents XSS token theft)
 - Authorization header fallback for API clients
 - No DEBUG bypass - authentication always required
+- bcrypt password hashing (salted, resistant to rainbow tables)
 """
 import logging
+import hashlib
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
+import bcrypt
 
 from .config import api_settings
 from .cookie_auth import get_token_from_request
 
 logger = logging.getLogger(__name__)
+
+
+# Password hashing utilities (bcrypt with salt)
+def hash_password(password: str) -> str:
+    """Hash password using bcrypt with auto-generated salt."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    """
+    Verify password against hash.
+    Supports both bcrypt (preferred) and legacy SHA256 hashes for migration.
+    """
+    try:
+        # Try bcrypt first (preferred)
+        if hashed.startswith("$2"):  # bcrypt hash prefix
+            return bcrypt.checkpw(password.encode(), hashed.encode())
+        else:
+            # Legacy SHA256 support for existing users (migration path)
+            legacy_hash = hashlib.sha256(password.encode()).hexdigest()
+            return hashed == legacy_hash
+    except Exception:
+        return False
 
 # Security scheme (still accepts Authorization header for API clients)
 security = HTTPBearer(auto_error=False)
@@ -294,12 +320,15 @@ class DocumentService:
     """
     Document Service with multimodal support.
     Handles document upload, parsing, and management.
+    Uses PostgreSQL for persistent storage.
     """
 
-    # In-memory storage (replace with database in production)
+    # In-memory cache (loaded from database on startup)
     _documents: dict = {}  # document_id -> document data
-    _tasks: dict = {}  # task_id -> task status
+    _tasks: dict = {}  # task_id -> task status (in-memory only)
     _chunks: dict = {}  # document_id -> list of chunks
+    _db_loaded: bool = False  # Flag to track if documents loaded from DB
+    _repository = None  # PostgreSQL repository
 
     @classmethod
     def _get_document_type(cls, filename: str, mime_type: str = None) -> tuple:
@@ -316,6 +345,64 @@ class DocumentService:
 
         return doc_type, mime_type
 
+    @classmethod
+    async def _ensure_loaded(cls):
+        """Ensure documents are loaded from database."""
+        if cls._db_loaded:
+            return
+
+        try:
+            from ..infrastructure.postgres.document_repository import get_document_repository
+            cls._repository = await get_document_repository()
+
+            # Load all documents from database into memory cache
+            docs = await cls._repository.get_all_documents_dict()
+            cls._documents.update(docs)
+            cls._db_loaded = True
+            logger.info(f"Loaded {len(docs)} documents from database")
+        except Exception as e:
+            logger.warning(f"Failed to load documents from database: {e}")
+            cls._db_loaded = True  # Prevent repeated failures
+
+    @classmethod
+    async def _save_to_db(cls, doc_id: str, doc: dict):
+        """Save document to database."""
+        if cls._repository is None:
+            return
+
+        try:
+            await cls._repository.save_document(
+                doc_id=doc_id,
+                filename=doc.get("filename", ""),
+                original_name=doc.get("original_name", ""),
+                file_size=doc.get("file_size", 0),
+                mime_type=doc.get("mime_type", ""),
+                document_type=doc.get("document_type", "text"),
+                status=doc.get("status", "processing"),
+                language=doc.get("language", "auto"),
+                tags=doc.get("tags", []),
+                processing_mode=doc.get("processing_mode", "text_only"),
+                vlm_processed=doc.get("vlm_processed", False),
+                chunks_count=doc.get("chunks_count", 0),
+                entities_count=doc.get("entities_count", 0),
+                embedding_status=doc.get("embedding_status", "pending"),
+                stats=doc.get("stats"),
+                processing_info=doc.get("processing_info")
+            )
+        except Exception as e:
+            logger.error(f"Failed to save document to database: {e}")
+
+    @classmethod
+    async def _update_status_in_db(cls, doc_id: str, **kwargs):
+        """Update document status in database."""
+        if cls._repository is None:
+            return
+
+        try:
+            await cls._repository.update_status(doc_id, **kwargs)
+        except Exception as e:
+            logger.error(f"Failed to update document status in database: {e}")
+
     async def list_documents(
         self,
         page: int,
@@ -325,6 +412,9 @@ class DocumentService:
         document_type: str = None
     ) -> dict:
         """List documents with filtering."""
+        # Ensure documents are loaded from database
+        await self._ensure_loaded()
+
         documents = []
 
         for doc_id, doc in self._documents.items():
@@ -390,6 +480,9 @@ class DocumentService:
         # Determine document type
         doc_type, mime_type = self._get_document_type(filename)
 
+        # Ensure database connection is ready
+        await self._ensure_loaded()
+
         # Store document metadata
         self._documents[doc_id] = {
             "id": doc_id,
@@ -415,6 +508,9 @@ class DocumentService:
             "processing_info": None,
             "multimodal_content": None
         }
+
+        # Save to database for persistence
+        await self._save_to_db(doc_id, self._documents[doc_id])
 
         # Store task status
         self._tasks[task_id] = {
@@ -511,6 +607,9 @@ class DocumentService:
                     "processing_time_seconds": 3
                 }
 
+                # Persist updated status to database
+                await self._save_to_db(doc_id, doc)
+
             # Complete task
             self._update_task(task_id, "completed", 100)
             self._tasks[task_id]["status"] = "ready"
@@ -519,6 +618,8 @@ class DocumentService:
             # Handle error
             if doc_id in self._documents:
                 self._documents[doc_id]["status"] = "error"
+                # Persist error status to database
+                await self._update_status_in_db(doc_id, status="error")
             if task_id in self._tasks:
                 self._tasks[task_id]["status"] = "error"
                 self._tasks[task_id]["error"] = str(e)
@@ -532,11 +633,27 @@ class DocumentService:
         task["current_step"] = step
         task["overall_progress"] = progress
 
-        for s in task["steps"]:
+        # Get step names list
+        step_names = [ss["name"] for ss in task["steps"]]
+
+        # Handle "completed" step (not in steps list)
+        if step == "completed":
+            for s in task["steps"]:
+                s["status"] = "completed"
+                s["progress"] = 100
+            return
+
+        # Check if step exists in steps list
+        if step not in step_names:
+            return
+
+        step_index = step_names.index(step)
+
+        for i, s in enumerate(task["steps"]):
             if s["name"] == step:
                 s["status"] = "in_progress"
                 s["progress"] = 50
-            elif task["steps"].index(s) < [ss["name"] for ss in task["steps"]].index(step):
+            elif i < step_index:
                 s["status"] = "completed"
                 s["progress"] = 100
 
@@ -596,6 +713,9 @@ class DocumentService:
 
     async def get_document(self, document_id: str) -> dict:
         """Get document details."""
+        # Ensure documents are loaded from database
+        await self._ensure_loaded()
+
         doc = self._documents.get(document_id)
         if not doc:
             return None
@@ -608,13 +728,23 @@ class DocumentService:
 
     async def delete_document(self, document_id: str) -> dict:
         """Delete a document and its chunks."""
+        # Ensure documents are loaded from database
+        await self._ensure_loaded()
+
         if document_id not in self._documents:
             return None
 
         doc = self._documents[document_id]
         chunks = self._chunks.get(document_id, [])
 
-        # Delete document and chunks
+        # Delete from database first
+        if self._repository:
+            try:
+                await self._repository.delete_document(document_id)
+            except Exception as e:
+                logger.error(f"Failed to delete document from database: {e}")
+
+        # Delete from memory cache
         del self._documents[document_id]
         if document_id in self._chunks:
             del self._chunks[document_id]
@@ -631,6 +761,9 @@ class DocumentService:
         limit: int
     ) -> dict:
         """Get document chunks with pagination."""
+        # Ensure documents are loaded from database
+        await self._ensure_loaded()
+
         if document_id not in self._documents:
             return None
 
@@ -648,6 +781,9 @@ class DocumentService:
         enable_vlm: bool = None
     ) -> dict:
         """Reprocess an existing document with different options."""
+        # Ensure documents are loaded from database
+        await self._ensure_loaded()
+
         if document_id not in self._documents:
             return None
 
@@ -981,7 +1117,7 @@ class AuthService:
             "id": "user_admin",
             "username": "admin",
             "email": admin_email,
-            "password_hash": hashlib.sha256(admin_password.encode()).hexdigest(),
+            "password_hash": hash_password(admin_password),  # bcrypt with salt
             "role": "admin",
             "is_verified": True,
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -998,13 +1134,11 @@ class AuthService:
 
     async def authenticate(self, username: str, password: str) -> dict:
         """Authenticate user with username and password"""
-        import hashlib
-
         # Check registered users
         if username in self._users:
             user = self._users[username]
-            hashed = hashlib.sha256(password.encode()).hexdigest()
-            if user["password_hash"] == hashed and user.get("is_verified", False):
+            # Use bcrypt verification (with legacy SHA256 fallback for migration)
+            if verify_password(password, user["password_hash"]) and user.get("is_verified", False):
                 if not user.get("is_active", True):
                     return None  # User is deactivated
                 return {
@@ -1017,7 +1151,6 @@ class AuthService:
 
     async def register_user(self, user_id: str, email: str, password: str) -> dict:
         """Register a new user and send verification email"""
-        import hashlib
         import random
         import uuid
 
@@ -1033,8 +1166,8 @@ class AuthService:
         # Generate verification code
         verification_code = str(random.randint(100000, 999999))
 
-        # Hash password
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        # Hash password with bcrypt (salted)
+        password_hashed = hash_password(password)
 
         # Store pending verification
         self._pending_verifications[email] = {
@@ -1043,7 +1176,7 @@ class AuthService:
                 "id": f"user_{uuid.uuid4().hex[:12]}",
                 "username": user_id,
                 "email": email,
-                "password_hash": password_hash,
+                "password_hash": password_hashed,
                 "role": "user",
                 "is_verified": False
             },
@@ -1115,7 +1248,8 @@ class AuthService:
     async def _send_verification_email(self, email: str, code: str) -> bool:
         """Send verification email (mock implementation)"""
         # TODO: Implement actual email sending (SMTP, SendGrid, etc.)
-        print(f"[EMAIL] Sending verification code {code} to {email}")
+        # SECURITY: Don't log verification codes - only log that email was sent
+        logger.debug(f"[EMAIL] Verification email sent to {email}")
         return True
 
     async def authenticate_google(self, credential: str) -> dict:
@@ -1398,8 +1532,17 @@ class TokenStatsService:
         """Get database connection pool"""
         if self._pool is None:
             import asyncpg
-            dsn = f"postgresql://{api_settings.POSTGRES_USER}:{api_settings.POSTGRES_PASSWORD}@{api_settings.POSTGRES_HOST}:{api_settings.POSTGRES_PORT}/{api_settings.POSTGRES_DB}"
-            self._pool = await asyncpg.create_pool(dsn, min_size=1, max_size=5)
+            # SECURITY: Use separate parameters instead of DSN string
+            # to prevent password exposure in logs/error messages
+            self._pool = await asyncpg.create_pool(
+                host=api_settings.POSTGRES_HOST,
+                port=int(api_settings.POSTGRES_PORT),
+                user=api_settings.POSTGRES_USER,
+                password=api_settings.POSTGRES_PASSWORD,
+                database=api_settings.POSTGRES_DB,
+                min_size=1,
+                max_size=5
+            )
         return self._pool
 
     async def get_token_overview(self) -> dict:
@@ -1591,9 +1734,40 @@ class TokenStatsService:
 
 
 # Dependency injection functions
-def get_rag_service() -> RAGService:
-    """Get RAG service instance (real implementation)"""
-    return _get_rag_service()
+_use_local_rag = None  # Cache for local RAG decision
+
+
+def get_rag_service():
+    """
+    Get RAG service instance.
+
+    Returns LocalRAGAdapter if Neo4j is not available,
+    otherwise returns the standard RAGService.
+    """
+    global _use_local_rag
+
+    # Check if we should use local RAG (cached)
+    if _use_local_rag is None:
+        # Try to connect to Neo4j
+        try:
+            from neo4j import GraphDatabase
+            driver = GraphDatabase.driver(
+                f"bolt://{api_settings.NEO4J_HOST}:{api_settings.NEO4J_PORT}",
+                auth=(api_settings.NEO4J_USER, api_settings.NEO4J_PASSWORD)
+            )
+            driver.verify_connectivity()
+            driver.close()
+            _use_local_rag = False
+            print("[RAG] Using Neo4j RAG service")
+        except Exception as e:
+            _use_local_rag = True
+            print(f"[RAG] Neo4j not available ({e}), using Local RAG service")
+
+    if _use_local_rag:
+        from ..services.local_rag_adapter import LocalRAGAdapter
+        return LocalRAGAdapter.get_instance()
+    else:
+        return _get_rag_service()
 
 
 def get_document_service() -> DocumentService:
@@ -2797,3 +2971,62 @@ class ProjectService:
 
 def get_project_service() -> ProjectService:
     return ProjectService()
+
+
+# ==================== Multimodal RAG Service ====================
+
+# Singleton instances for multimodal RAG
+_image_embedding_repository = None
+_multimodal_rag_service = None
+
+
+async def _get_image_embedding_repository():
+    """Get or create image embedding repository with PostgreSQL pool."""
+    global _image_embedding_repository
+    if _image_embedding_repository is None:
+        import asyncpg
+        from ..infrastructure.postgres.image_embedding_repository import PostgresImageEmbeddingRepository
+
+        # SECURITY: Use separate parameters instead of DSN string
+        # to prevent password exposure in logs/error messages
+        pool = await asyncpg.create_pool(
+            host=api_settings.POSTGRES_HOST,
+            port=int(api_settings.POSTGRES_PORT),
+            user=api_settings.POSTGRES_USER,
+            password=api_settings.POSTGRES_PASSWORD,
+            database=api_settings.POSTGRES_DB,
+            min_size=1,
+            max_size=5
+        )
+        _image_embedding_repository = PostgresImageEmbeddingRepository(pool)
+
+    return _image_embedding_repository
+
+
+async def get_multimodal_rag_service():
+    """
+    Get MultimodalRAGService singleton instance.
+
+    Used for:
+    - Image extraction from PDFs
+    - Image embedding and storage
+    - Image similarity search
+    - RAG context enhancement with images
+    """
+    global _multimodal_rag_service
+    if _multimodal_rag_service is None:
+        from ..services.multimodal_rag_service import MultimodalRAGService
+
+        repository = await _get_image_embedding_repository()
+        _multimodal_rag_service = MultimodalRAGService(image_repository=repository)
+
+    return _multimodal_rag_service
+
+
+def get_multimodal_rag_service_sync():
+    """
+    Synchronous wrapper for multimodal RAG service.
+    Returns None if service not yet initialized.
+    Use get_multimodal_rag_service() for async contexts.
+    """
+    return _multimodal_rag_service

@@ -31,7 +31,7 @@ class CrawlJobCreateRequest(BaseModel):
     include_related_issues: bool = Field(default=True)
     max_issues: Optional[int] = Field(default=None, description="Maximum issues to crawl (None = unlimited)")
     product_codes: Optional[List[str]] = Field(default=None, description="Product codes to filter search (e.g., ['128', '520'])")
-    force_refresh: bool = Field(default=False, description="Skip cache and force new crawl")
+    force_refresh: bool = Field(default=True, description="Always crawl fresh data (cache disabled by default)")
 
 
 class CrawlJobResponse(BaseModel):
@@ -65,11 +65,10 @@ async def create_crawl_job(
     use_case: CrawlJobsUseCase = Depends(get_crawl_jobs_use_case)
 ):
     """
-    Create a new IMS crawl job or return cached results.
+    Create a new IMS crawl job.
 
-    If a completed crawl job with the same query exists within the cache period
-    (configured by IMS_QUERY_CACHE_HOURS, default 24h), returns the cached job.
-    Use `force_refresh=true` to skip cache and force a new crawl.
+    By default, always performs fresh crawl (force_refresh=true).
+    Set `force_refresh=false` to use cached results if available.
 
     The job is created in PENDING status and can be monitored via SSE stream.
 

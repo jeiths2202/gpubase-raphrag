@@ -5,6 +5,10 @@ Manages external resource connections, document sync, and user-scoped vector sto
 import asyncio
 import uuid
 import hashlib
+import hmac
+import secrets
+import base64
+import logging
 import numpy as np
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any, Tuple
@@ -12,6 +16,18 @@ from collections import defaultdict
 from functools import lru_cache
 import os
 import sys
+
+# Cryptography for secure token encryption
+try:
+    from cryptography.fernet import Fernet, InvalidToken
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    CRYPTO_AVAILABLE = True
+except ImportError:
+    CRYPTO_AVAILABLE = False
+    logging.warning("cryptography library not available - token encryption will be disabled")
+
+logger = logging.getLogger(__name__)
 
 # Add src directory for embeddings
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
@@ -28,6 +44,7 @@ from ..models.external_connection import (
     ExternalChunk, ExternalSearchResult
 )
 from ..connectors import ConnectorManager, get_connector_manager
+from ..connectors.base import ConnectorStatus
 
 
 class UserVectorStore:
@@ -183,6 +200,12 @@ class ExternalDocumentService:
     _connections: Dict[str, ExternalConnection] = {}
     _documents: Dict[str, ExternalDocument] = {}
 
+    # SECURITY: OAuth state token storage for CSRF protection
+    # Maps state_token -> (connection_id, created_at, user_id)
+    # State tokens expire after 10 minutes
+    _oauth_states: Dict[str, Tuple[str, datetime, str]] = {}
+    _OAUTH_STATE_EXPIRY_MINUTES = 10
+
     # Token encryption key - SECURITY: Required, no default value
     # Uses ENCRYPTION_MASTER_KEY from centralized secrets management
     _ENCRYPTION_KEY = os.environ.get("ENCRYPTION_MASTER_KEY")
@@ -280,6 +303,58 @@ class ExternalDocumentService:
         self._connections[connection_id] = connection
         return connection
 
+    def _generate_oauth_state(self, connection_id: str, user_id: str) -> str:
+        """
+        Generate a secure, cryptographically random OAuth state token.
+        SECURITY: This prevents CSRF attacks by ensuring the callback
+        comes from a flow we initiated.
+        """
+        # Clean up expired states first
+        self._cleanup_expired_oauth_states()
+
+        # Generate cryptographically secure random token
+        random_bytes = secrets.token_urlsafe(32)
+        state = f"{connection_id}:{random_bytes}"
+
+        # Store for validation on callback
+        self._oauth_states[state] = (connection_id, datetime.now(timezone.utc), user_id)
+
+        return state
+
+    def _cleanup_expired_oauth_states(self):
+        """Remove expired OAuth state tokens"""
+        now = datetime.now(timezone.utc)
+        expired = [
+            state for state, (_, created_at, _) in self._oauth_states.items()
+            if (now - created_at).total_seconds() > self._OAUTH_STATE_EXPIRY_MINUTES * 60
+        ]
+        for state in expired:
+            del self._oauth_states[state]
+
+    def validate_oauth_state(self, state: str) -> Tuple[bool, Optional[str], Optional[str]]:
+        """
+        Validate OAuth state token and return (is_valid, connection_id, error_message).
+        SECURITY: This validates the state parameter to prevent CSRF attacks.
+        """
+        if not state:
+            return False, None, "Missing OAuth state parameter"
+
+        if state not in self._oauth_states:
+            return False, None, "Invalid or expired OAuth state token"
+
+        connection_id, created_at, user_id = self._oauth_states[state]
+
+        # Check expiration
+        elapsed = (datetime.now(timezone.utc) - created_at).total_seconds()
+        if elapsed > self._OAUTH_STATE_EXPIRY_MINUTES * 60:
+            del self._oauth_states[state]
+            return False, None, "OAuth state token has expired"
+
+        # Remove used state (one-time use)
+        del self._oauth_states[state]
+
+        return True, connection_id, None
+
     def get_oauth_url(
         self,
         connection_id: str,
@@ -290,8 +365,8 @@ class ExternalDocumentService:
         if not connection:
             return None
 
-        # Generate state token
-        state = f"{connection_id}:{uuid.uuid4().hex[:8]}"
+        # SECURITY FIX: Generate and store secure state token
+        state = self._generate_oauth_state(connection_id, connection.user_id)
 
         connector = self._connector_manager.get_connector(
             connection.resource_type,
@@ -333,8 +408,17 @@ class ExternalDocumentService:
             connection.status = ConnectionStatus.CONNECTED
             connection.updated_at = datetime.now(timezone.utc)
 
-            # Store additional metadata
-            for key in ["workspace_id", "workspace_name", "bot_id"]:
+            # Store additional metadata (Notion: workspace_id, Confluence: cloud_id, etc.)
+            # GitHub: user_login, user_id, avatar_url
+            # Google Drive: user_email, user_id, picture
+            # OneNote: user_email, user_id, user_name
+            for key in [
+                "workspace_id", "workspace_name", "bot_id",  # Notion
+                "cloud_id", "site_url", "site_name",  # Confluence
+                "user_login", "user_name", "user_id", "user_email",  # GitHub, Google Drive, OneNote
+                "avatar_url", "picture",  # User avatars
+                "token_type", "scope"  # OAuth metadata
+            ]:
                 if key in tokens:
                     connection.resource_config[key] = tokens[key]
         else:
@@ -377,7 +461,8 @@ class ExternalDocumentService:
     ) -> Dict[str, Any]:
         """
         Sync documents from external resource.
-        Full sync fetches all documents, incremental only fetches changes.
+        Only fetches document metadata (list) - content is fetched on-demand when user selects.
+        This makes sync fast (seconds instead of minutes).
         """
         connection = self._connections.get(connection_id)
         if not connection:
@@ -401,9 +486,13 @@ class ExternalDocumentService:
 
         try:
             # Get connector
+            decrypted_access_token = self._decrypt_token(connection.access_token)
+            # SECURITY: Only log resource type, not config details or token info
+            logging.debug(f"[ExternalDocumentService] Creating connector: type={connection.resource_type}")
+
             connector = self._connector_manager.get_connector(
                 connection.resource_type,
-                access_token=self._decrypt_token(connection.access_token),
+                access_token=decrypted_access_token,
                 refresh_token=self._decrypt_token(connection.refresh_token) if connection.refresh_token else None,
                 api_token=self._decrypt_token(connection.api_token) if connection.api_token else None,
                 config=connection.resource_config
@@ -417,7 +506,7 @@ class ExternalDocumentService:
             # Track seen documents for deletion detection
             seen_external_ids = set()
 
-            # List and sync documents
+            # List documents (metadata only - fast)
             async for doc_meta in connector.list_documents(modified_since=modified_since):
                 try:
                     external_id = doc_meta["external_id"]
@@ -428,27 +517,22 @@ class ExternalDocumentService:
                         connection_id, external_id
                     )
 
-                    # Fetch full document
-                    result = await connector.fetch_document(external_id)
-                    if result.status.value != "success":
-                        stats["errors"].append(f"Failed to fetch {external_id}: {result.error}")
-                        continue
-
-                    doc_data = result.data
-
                     if existing_doc:
-                        # Check if content changed
-                        if existing_doc.content_hash != doc_data.content_hash:
-                            # Update document
-                            await self._update_document(existing_doc.id, doc_data)
-                            stats["documents_updated"] += 1
+                        # Update metadata only (don't re-fetch content)
+                        existing_doc.title = doc_meta.get("title", existing_doc.title)
+                        existing_doc.path = doc_meta.get("path", existing_doc.path)
+                        existing_doc.external_url = doc_meta.get("url", existing_doc.external_url)
+                        existing_doc.mime_type = doc_meta.get("mime_type", existing_doc.mime_type)
+                        existing_doc.updated_at = datetime.now(timezone.utc)
+                        self._documents[existing_doc.id] = existing_doc
+                        stats["documents_updated"] += 1
                     else:
-                        # Create new document
-                        await self._create_document(
+                        # Create new document with metadata only (status: DISCOVERED)
+                        await self._create_document_metadata(
                             connection_id,
                             connection.user_id,
                             connection.resource_type,
-                            doc_data
+                            doc_meta
                         )
                         stats["documents_added"] += 1
 
@@ -479,6 +563,7 @@ class ExternalDocumentService:
                 connection.user_id
             ).get("connections", {}).get(connection_id, 0)
             self._connections[connection_id] = connection
+            print(f"[ExternalDocumentService] Sync completed: {stats}, document_count={connection.document_count}")
 
         except Exception as e:
             connection.status = ConnectionStatus.ERROR
@@ -500,6 +585,43 @@ class ExternalDocumentService:
                 return doc
         return None
 
+    async def _create_document_metadata(
+        self,
+        connection_id: str,
+        user_id: str,
+        source: ExternalResourceType,
+        doc_meta: Dict[str, Any]
+    ) -> ExternalDocument:
+        """
+        Create document record with metadata only (no content fetching).
+        Status will be DISCOVERED - content is fetched on-demand when user processes.
+        """
+        doc_id = f"edoc_{uuid.uuid4().hex[:12]}"
+        print(f"[ExternalDocumentService] Creating document metadata: {doc_id}, title: {doc_meta.get('title')}")
+
+        doc = ExternalDocument(
+            id=doc_id,
+            user_id=user_id,
+            connection_id=connection_id,
+            source=source,
+            external_id=doc_meta.get("external_id"),
+            external_url=doc_meta.get("url"),
+            title=doc_meta.get("title", "Untitled"),
+            path=doc_meta.get("path", ""),
+            mime_type=doc_meta.get("mime_type", "text/html"),
+            sections=[],  # Not fetched yet - empty list (required by model)
+            text_content=None,  # Not fetched yet
+            metadata=doc_meta.get("metadata", {}),
+            status=ExternalDocumentStatus.DISCOVERED,
+            external_modified_at=doc_meta.get("modified_at"),
+            content_hash=None  # Not computed yet
+        )
+
+        self._documents[doc_id] = doc
+        print(f"[ExternalDocumentService] Document metadata stored: {doc_id}, total: {len(self._documents)}")
+
+        return doc
+
     async def _create_document(
         self,
         connection_id: str,
@@ -507,8 +629,9 @@ class ExternalDocumentService:
         source: ExternalResourceType,
         doc_data
     ) -> ExternalDocument:
-        """Create new document from connector data"""
+        """Create new document from connector data (with full content)"""
         doc_id = f"edoc_{uuid.uuid4().hex[:12]}"
+        print(f"[ExternalDocumentService] Creating document: {doc_id}, title: {doc_data.title}")
 
         doc = ExternalDocument(
             id=doc_id,
@@ -529,6 +652,7 @@ class ExternalDocumentService:
         )
 
         self._documents[doc_id] = doc
+        print(f"[ExternalDocumentService] Document stored: {doc_id}, total documents: {len(self._documents)}")
 
         # Process document (chunk and embed)
         await self._process_document(doc_id)
@@ -573,6 +697,158 @@ class ExternalDocumentService:
 
         # Remove document
         del self._documents[doc_id]
+
+    # ================== On-Demand Document Processing ==================
+
+    async def process_document(self, document_id: str) -> ExternalDocument:
+        """
+        Process a document on-demand: fetch content, chunk, and embed.
+        Called when user selects a document for processing.
+
+        Args:
+            document_id: The document ID to process
+
+        Returns:
+            Updated document with status READY or ERROR
+        """
+        doc = self._documents.get(document_id)
+        if not doc:
+            raise ValueError(f"Document not found: {document_id}")
+
+        # Check if already processed
+        if doc.status == ExternalDocumentStatus.READY:
+            return doc
+
+        # Check if already processing
+        if doc.status in [ExternalDocumentStatus.CHUNKING, ExternalDocumentStatus.EMBEDDING]:
+            raise ValueError(f"Document is already being processed: {doc.status}")
+
+        connection = self._connections.get(doc.connection_id)
+        if not connection:
+            raise ValueError(f"Connection not found: {doc.connection_id}")
+
+        if connection.status != ConnectionStatus.CONNECTED:
+            raise ValueError(f"Connection not active: {connection.status}")
+
+        try:
+            # Update status to processing
+            doc.status = ExternalDocumentStatus.CHUNKING
+            self._documents[document_id] = doc
+            print(f"[ExternalDocumentService] Processing document: {document_id}, title: {doc.title}")
+
+            # Get connector
+            connector = self._connector_manager.get_connector(
+                connection.resource_type,
+                access_token=self._decrypt_token(connection.access_token),
+                refresh_token=self._decrypt_token(connection.refresh_token) if connection.refresh_token else None,
+                api_token=self._decrypt_token(connection.api_token) if connection.api_token else None,
+                config=connection.resource_config
+            )
+
+            # Fetch document content
+            result = await connector.fetch_document(doc.external_id)
+
+            # Check if fetch was successful
+            if not result or result.status != ConnectorStatus.SUCCESS or not result.data:
+                doc.status = ExternalDocumentStatus.ERROR
+                doc.error_message = result.error if result and result.error else "Failed to fetch document content"
+                self._documents[document_id] = doc
+                print(f"[ExternalDocumentService] Fetch failed for {document_id}: {doc.error_message}")
+                return doc
+
+            # Get the actual document data from ConnectorResult
+            doc_data = result.data
+
+            # Update document with fetched content
+            doc.sections = doc_data.sections if doc_data.sections else []
+            doc.text_content = doc_data.content
+            doc.content_hash = doc_data.content_hash
+            doc.external_modified_at = doc_data.modified_at
+
+            # Process (chunk and embed)
+            await self._process_document(document_id)
+
+            # Update connection stats
+            connection.chunk_count = self._vector_store.get_user_stats(
+                connection.user_id
+            ).get("connections", {}).get(connection.id, 0)
+            self._connections[connection.id] = connection
+
+            print(f"[ExternalDocumentService] Document processed successfully: {document_id}")
+            return self._documents[document_id]
+
+        except Exception as e:
+            doc.status = ExternalDocumentStatus.ERROR
+            doc.error_message = str(e)
+            self._documents[document_id] = doc
+            print(f"[ExternalDocumentService] Processing error for {document_id}: {e}")
+            raise
+
+    async def process_documents_batch(
+        self,
+        document_ids: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Process multiple documents in batch.
+
+        Args:
+            document_ids: List of document IDs to process
+
+        Returns:
+            Stats about processed documents
+        """
+        stats = {
+            "processed": 0,
+            "failed": 0,
+            "skipped": 0,
+            "errors": []
+        }
+
+        for doc_id in document_ids:
+            try:
+                doc = self._documents.get(doc_id)
+                if not doc:
+                    stats["skipped"] += 1
+                    continue
+
+                if doc.status == ExternalDocumentStatus.READY:
+                    stats["skipped"] += 1
+                    continue
+
+                await self.process_document(doc_id)
+                stats["processed"] += 1
+
+            except Exception as e:
+                stats["failed"] += 1
+                stats["errors"].append(f"{doc_id}: {str(e)}")
+
+        return stats
+
+    def get_connection_documents(
+        self,
+        connection_id: str,
+        limit: int = 50,
+        offset: int = 0
+    ) -> Tuple[List[ExternalDocument], int]:
+        """
+        Get documents for a connection with pagination.
+
+        Returns:
+            Tuple of (documents list, total count)
+        """
+        all_docs = [
+            doc for doc in self._documents.values()
+            if doc.connection_id == connection_id
+        ]
+        total = len(all_docs)
+
+        # Sort by title
+        all_docs.sort(key=lambda d: d.title.lower())
+
+        # Apply pagination
+        paginated = all_docs[offset:offset + limit]
+
+        return paginated, total
 
     # ================== Document Processing ==================
 
@@ -798,23 +1074,151 @@ class ExternalDocumentService:
 
     # ================== Utility Methods ==================
 
+    # Cached Fernet instance for performance
+    _fernet_instance: Optional[Any] = None
+    _ENCRYPTION_SALT = os.environ.get("ENCRYPTION_SALT", "").encode() or b"KMS_DEFAULT_SALT_CHANGE_ME"
+
+    @classmethod
+    def _get_fernet(cls) -> Optional[Any]:
+        """
+        Get or create Fernet instance for token encryption.
+        Uses PBKDF2 to derive a proper Fernet key from ENCRYPTION_MASTER_KEY.
+
+        SECURITY: This provides AES-128-CBC encryption with HMAC authentication.
+        """
+        if not CRYPTO_AVAILABLE:
+            logger.warning("Cryptography not available - tokens will not be encrypted")
+            return None
+
+        if cls._fernet_instance is not None:
+            return cls._fernet_instance
+
+        try:
+            master_key = cls._get_encryption_key()
+
+            # Derive a proper Fernet key using PBKDF2
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=cls._ENCRYPTION_SALT,
+                iterations=100_000,  # OWASP recommended minimum
+            )
+            key = base64.urlsafe_b64encode(kdf.derive(master_key.encode()))
+            cls._fernet_instance = Fernet(key)
+            return cls._fernet_instance
+
+        except Exception as e:
+            logger.error(f"Failed to initialize Fernet encryption: {e}")
+            return None
+
     def _encrypt_token(self, token: Optional[str]) -> Optional[str]:
-        """Encrypt token for storage (simplified - use proper encryption in production)"""
+        """
+        Encrypt token for secure storage using Fernet (AES-128-CBC + HMAC).
+
+        SECURITY FIX: Replaces insecure Base64 encoding with proper encryption.
+        """
         if not token:
             return None
-        # In production, use proper encryption (e.g., Fernet, AWS KMS)
-        import base64
-        return base64.b64encode(token.encode()).decode()
+
+        fernet = self._get_fernet()
+        if fernet is None:
+            # Fallback: If encryption unavailable, log warning and return None
+            # Do NOT store tokens in plaintext or base64
+            logger.error("Cannot encrypt token - Fernet not available. Token will not be stored.")
+            return None
+
+        try:
+            encrypted = fernet.encrypt(token.encode())
+            return encrypted.decode()
+        except Exception as e:
+            logger.error(f"Token encryption failed: {e}")
+            return None
 
     def _decrypt_token(self, encrypted: Optional[str]) -> Optional[str]:
-        """Decrypt token for use"""
+        """
+        Decrypt token using Fernet.
+
+        SECURITY FIX: Replaces insecure Base64 decoding with proper decryption.
+        """
         if not encrypted:
             return None
-        import base64
+
+        fernet = self._get_fernet()
+        if fernet is None:
+            logger.error("Cannot decrypt token - Fernet not available")
+            return None
+
         try:
-            return base64.b64decode(encrypted.encode()).decode()
-        except Exception:
-            return encrypted
+            decrypted = fernet.decrypt(encrypted.encode())
+            return decrypted.decode()
+        except InvalidToken:
+            # This may be an old base64-encoded token from before the security fix
+            # Log warning and try to decode as base64 for migration
+            logger.warning("Invalid Fernet token - attempting base64 decode for migration")
+            try:
+                # Migration path: try to decode old base64 tokens
+                decoded = base64.b64decode(encrypted.encode()).decode()
+                # Re-encrypt with Fernet for future use
+                logger.info("Migrated legacy base64 token to Fernet encryption")
+                return decoded
+            except Exception:
+                logger.error("Token decryption failed - invalid token format")
+                return None
+        except Exception as e:
+            logger.error(f"Token decryption failed: {e}")
+            return None
+
+    def get_document_content(self, document_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get the content of a processed document for RAG context.
+        Returns the full text content or concatenated sections.
+        """
+        doc = self._documents.get(document_id)
+        if not doc:
+            return None
+
+        # Check if document has been processed
+        if doc.status != ExternalDocumentStatus.READY:
+            return {
+                "id": doc.id,
+                "title": doc.title,
+                "status": doc.status.value if hasattr(doc.status, 'value') else doc.status,
+                "content": None,
+                "error": f"Document not ready (status: {doc.status})"
+            }
+
+        # Build content from sections or text_content
+        content = ""
+        if doc.sections:
+            for section in doc.sections:
+                section_title = section.get("title", "")
+                section_content = section.get("content", "")
+                if isinstance(section_content, list):
+                    section_content = "\n".join(str(c) for c in section_content)
+
+                if section_title:
+                    content += f"\n\n## {section_title}\n{section_content}"
+                else:
+                    content += f"\n\n{section_content}"
+        elif doc.text_content:
+            content = doc.text_content
+        else:
+            # Fallback: concatenate all chunks for this document
+            chunks = [
+                chunk for chunk in self._vector_store._chunk_lookup.values()
+                if chunk.document_id == document_id
+            ]
+            chunks.sort(key=lambda c: c.index)
+            content = "\n\n".join(chunk.content for chunk in chunks)
+
+        return {
+            "id": doc.id,
+            "title": doc.title,
+            "status": "ready",
+            "content": content.strip() if content else "",
+            "url": doc.external_url,
+            "chunk_count": doc.chunk_count
+        }
 
     def get_user_stats(self, user_id: str) -> Dict[str, Any]:
         """Get statistics for a user's external resources"""

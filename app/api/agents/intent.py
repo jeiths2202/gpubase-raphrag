@@ -210,13 +210,17 @@ class IntentClassifier:
 
     def _extract_product(self, task: str) -> Optional[str]:
         """Extract product/keyword from task"""
+        # Stopwords - these are not meaningful as product filters
+        # "IMS" is a stopword because this system is already IMS-based
+        STOPWORDS = {"all", "the", "a", "an", "my", "our", "ims"}
+
         for pattern in self._product_patterns:
             match = pattern.search(task)
             if match:
                 # Get the first capturing group
                 product = match.group(1)
-                # Filter out common words that aren't products
-                if product.lower() not in {"all", "the", "a", "an", "my", "our"}:
+                # Filter out stopwords
+                if product.lower() not in STOPWORDS:
                     return product
         return None
 

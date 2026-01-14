@@ -20,6 +20,7 @@ from .types import (
 from .base import BaseAgent
 from .registry import AgentRegistry, get_agent_registry
 from .executor import AgentExecutor, get_executor
+from .adapters.integration import get_deep_agent
 from ..core.config import api_settings
 
 logger = logging.getLogger(__name__)
@@ -261,8 +262,16 @@ class ParallelExecutor:
         task_context = self._build_task_context(subtask, base_context, previous_results)
 
         try:
-            # Get agent from registry
-            agent = self.agent_registry.get(subtask.agent_type)
+            # Get agent - use Deep Agent if enabled in context
+            if getattr(task_context, 'use_deep_agent', False):
+                try:
+                    agent = get_deep_agent(subtask.agent_type)
+                    logger.info(f"[ParallelExecutor] Using Deep Agent: {agent.name}")
+                except Exception as e:
+                    logger.warning(f"[ParallelExecutor] Failed to create Deep Agent, falling back: {e}")
+                    agent = self.agent_registry.get(subtask.agent_type)
+            else:
+                agent = self.agent_registry.get(subtask.agent_type)
 
             # Execute with timeout
             result = await asyncio.wait_for(
@@ -342,7 +351,8 @@ class ParallelExecutor:
             file_context=base_context.file_context,
             url_context=base_context.url_context,
             url_source=base_context.url_source,
-            intent=base_context.intent
+            intent=base_context.intent,
+            use_deep_agent=base_context.use_deep_agent
         )
 
         # Add dependency results to context if any
@@ -603,7 +613,16 @@ class ParallelExecutor:
         task_context = self._build_task_context(subtask, base_context, results)
 
         try:
-            agent = self.agent_registry.get(subtask.agent_type)
+            # Get agent - use Deep Agent if enabled in context
+            if getattr(task_context, 'use_deep_agent', False):
+                try:
+                    agent = get_deep_agent(subtask.agent_type)
+                    logger.info(f"[ParallelExecutor] Stream using Deep Agent: {agent.name}")
+                except Exception as e:
+                    logger.warning(f"[ParallelExecutor] Failed to create Deep Agent for stream, falling back: {e}")
+                    agent = self.agent_registry.get(subtask.agent_type)
+            else:
+                agent = self.agent_registry.get(subtask.agent_type)
 
             # Collect answer parts for final result
             answer_parts = []

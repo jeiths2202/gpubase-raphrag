@@ -18,6 +18,7 @@ export interface ChatMessage {
   agentType?: AgentType;
   toolCalls?: ToolCallInfo[];
   sources?: AgentSource[];
+  images?: ImageReference[];  // Multimodal RAG images
   isStreaming?: boolean;
   error?: string;
   statusType?: 'crawling' | 'ready' | 'credentials_required';
@@ -31,6 +32,20 @@ export interface ToolCallInfo {
   input: Record<string, unknown>;
   output?: string;
   status: 'pending' | 'success' | 'error';
+}
+
+/**
+ * Image reference from multimodal RAG
+ */
+export interface ImageReference {
+  imageId: string;
+  documentId: string;
+  pageNumber?: number;
+  description?: string;
+  altText?: string;
+  similarity?: number;
+  imageBase64?: string;
+  mimeType?: string;
 }
 
 /**

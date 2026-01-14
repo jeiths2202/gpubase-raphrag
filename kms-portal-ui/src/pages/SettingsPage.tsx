@@ -11,13 +11,13 @@
  */
 import React, { useState, useEffect, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Copy, Trash2, Plus, Key, Eye, EyeOff } from 'lucide-react';
+import { X, Copy, Trash2, Plus, Key } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useTheme } from '../hooks/useTheme';
 import { LanguageCode } from '../i18n/types';
 import { Theme } from '../store/preferencesStore';
 import { useApiKeyStore } from '../store/apiKeyStore';
-import type { ApiKeyCreateRequest, ApiKeyResponse } from '../api/apiKey.api';
+import type { ApiKeyCreateRequest } from '../api/apiKey.api';
 
 // Settings sections
 type SettingsSection = 'general' | 'notifications' | 'security' | 'apikeys' | 'account' | 'subscription';

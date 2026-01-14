@@ -12,7 +12,7 @@ import {
   type ApiKeyUpdateRequest,
   type ApiKeyCreatedResponse,
 } from '../api/apiKey.api';
-import { isApiError, getErrorMessage } from '../api/client';
+import { getErrorMessage } from '../api/client';
 
 // =============================================================================
 // Types

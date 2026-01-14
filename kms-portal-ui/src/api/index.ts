@@ -136,3 +136,39 @@ export type {
 } from './types';
 
 export { AUTH_ERROR_CODES } from './types';
+
+// External Connectors API
+export { default as externalConnectorsApi } from './externalConnectors.api';
+export {
+  getAvailableResources,
+  listConnections,
+  createConnection,
+  getConnection,
+  disconnectConnection,
+  getOAuthUrl,
+  completeOAuth,
+  syncConnection,
+  listConnectionDocuments,
+  getUserStats,
+  searchExternalResources,
+} from './externalConnectors.api';
+export type {
+  ExternalResourceType,
+  ConnectionStatus,
+  SyncStatus,
+  AuthType,
+  AvailableResource,
+  ExternalConnection,
+  ExternalDocument,
+  ExternalSearchResult,
+  UserStats,
+  SyncStats,
+  CreateConnectionRequest,
+  SearchRequest,
+  SyncRequest,
+  AvailableResourcesResponse,
+  ConnectionListResponse,
+  OAuthUrlResponse,
+  DocumentListResponse,
+  SearchResponse,
+} from './externalConnectors.api';

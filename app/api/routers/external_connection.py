@@ -1,12 +1,15 @@
 """
 External Connection Router
 API endpoints for managing external resource connections (OneNote, GitHub, Google Drive, Notion, Confluence)
+
+SECURITY: All endpoints require authentication and verify connection ownership.
 """
 from typing import Optional, List
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Depends
 from pydantic import BaseModel, Field
 
+from ..core.deps import get_current_user
 from ..models.external_connection import (
     ExternalResourceType, ConnectionStatus, SyncStatus,
     ExternalConnectionCreate, ExternalConnectionResponse,
@@ -15,6 +18,14 @@ from ..models.external_connection import (
     ExternalDocumentListResponse, EXTERNAL_RESOURCE_CONFIGS
 )
 from ..services.external_document_service import get_external_document_service
+
+
+def verify_connection_ownership(connection, user: dict) -> None:
+    """Verify that the current user owns the connection."""
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    if connection.user_id != user.get("id"):
+        raise HTTPException(status_code=403, detail="Access denied: You don't own this connection")
 
 router = APIRouter(
     prefix="/external-connections",
@@ -144,13 +155,16 @@ async def create_connection(
 
 
 @router.get("/{connection_id}", response_model=ExternalConnectionResponse)
-async def get_connection(connection_id: str):
-    """Get connection details"""
+async def get_connection(
+    connection_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get connection details (requires ownership)"""
     service = get_external_document_service()
     connection = service.get_connection(connection_id)
 
-    if not connection:
-        raise HTTPException(status_code=404, detail="Connection not found")
+    # SECURITY: Verify ownership
+    verify_connection_ownership(connection, current_user)
 
     return ExternalConnectionResponse(
         id=connection.id,
@@ -168,12 +182,20 @@ async def get_connection(connection_id: str):
 
 
 @router.delete("/{connection_id}")
-async def disconnect(connection_id: str):
+async def disconnect(
+    connection_id: str,
+    current_user: dict = Depends(get_current_user)
+):
     """
-    Disconnect and remove an external resource.
+    Disconnect and remove an external resource (requires ownership).
     This removes all synced documents and chunks.
     """
     service = get_external_document_service()
+
+    # SECURITY: Verify ownership before deletion
+    connection = service.get_connection(connection_id)
+    verify_connection_ownership(connection, current_user)
+
     success = await service.disconnect(connection_id)
 
     if not success:
@@ -187,13 +209,19 @@ async def disconnect(connection_id: str):
 @router.get("/{connection_id}/oauth-url", response_model=OAuthUrlResponse)
 async def get_oauth_url(
     connection_id: str,
-    redirect_uri: str = Query(..., description="OAuth callback URI")
+    redirect_uri: str = Query(..., description="OAuth callback URI"),
+    current_user: dict = Depends(get_current_user)
 ):
     """
-    Get OAuth authorization URL for a connection.
+    Get OAuth authorization URL for a connection (requires ownership).
     Redirect user to this URL to authorize access.
     """
     service = get_external_document_service()
+
+    # SECURITY: Verify ownership before generating OAuth URL
+    connection = service.get_connection(connection_id)
+    verify_connection_ownership(connection, current_user)
+
     oauth_url = service.get_oauth_url(connection_id, redirect_uri)
 
     if not oauth_url:
@@ -212,13 +240,31 @@ async def get_oauth_url(
 async def oauth_callback(
     connection_id: str,
     code: str = Query(..., description="Authorization code"),
-    redirect_uri: str = Query(..., description="Redirect URI used in initial request")
+    redirect_uri: str = Query(..., description="Redirect URI used in initial request"),
+    state: str = Query(..., description="OAuth state token for CSRF protection")
 ):
     """
     Complete OAuth flow with authorization code.
     Called after user authorizes access in the OAuth flow.
+
+    SECURITY: The state parameter is validated to prevent CSRF attacks.
     """
     service = get_external_document_service()
+
+    # SECURITY FIX: Validate OAuth state token to prevent CSRF
+    is_valid, validated_connection_id, error_msg = service.validate_oauth_state(state)
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"OAuth state validation failed: {error_msg}"
+        )
+
+    # Additional check: ensure connection_id in URL matches state
+    if validated_connection_id != connection_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Connection ID mismatch in OAuth state"
+        )
 
     try:
         connection = await service.complete_oauth(
@@ -316,7 +362,7 @@ async def list_connection_documents(
                 "title": doc.title,
                 "path": doc.path,
                 "external_url": doc.external_url,
-                "status": doc.status.value,
+                "status": doc.status if isinstance(doc.status, str) else doc.status.value,
                 "chunk_count": doc.chunk_count,
                 "last_synced_at": doc.last_synced_at.isoformat() if doc.last_synced_at else None,
                 "external_modified_at": doc.external_modified_at.isoformat() if doc.external_modified_at else None
@@ -327,6 +373,142 @@ async def list_connection_documents(
         connection_id=connection_id,
         resource_type=connection.resource_type
     )
+
+
+# ================== Document Content ==================
+
+class DocumentContentResponse(BaseModel):
+    """Response for document content retrieval"""
+    id: str
+    title: str
+    status: str
+    content: Optional[str] = None
+    url: Optional[str] = None
+    chunk_count: int = 0
+    error: Optional[str] = None
+
+
+@router.get("/{connection_id}/documents/{document_id}/content", response_model=DocumentContentResponse)
+async def get_document_content(
+    connection_id: str,
+    document_id: str
+):
+    """
+    Get the full text content of a processed document.
+    Use this to retrieve document content for RAG context.
+    """
+    service = get_external_document_service()
+
+    # Verify connection exists
+    connection = service.get_connection(connection_id)
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    result = service.get_document_content(document_id)
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    return DocumentContentResponse(
+        id=result["id"],
+        title=result["title"],
+        status=result["status"],
+        content=result.get("content"),
+        url=result.get("url"),
+        chunk_count=result.get("chunk_count", 0),
+        error=result.get("error")
+    )
+
+
+# ================== Document Processing ==================
+
+class ProcessDocumentResponse(BaseModel):
+    """Response for document processing"""
+    id: str
+    title: str
+    status: str
+    chunk_count: int
+    error_message: Optional[str] = None
+
+
+class ProcessBatchRequest(BaseModel):
+    """Request for batch document processing"""
+    document_ids: List[str] = Field(..., min_length=1, max_length=50)
+
+
+class ProcessBatchResponse(BaseModel):
+    """Response for batch document processing"""
+    processed: int
+    failed: int
+    skipped: int
+    errors: List[str] = []
+
+
+@router.post("/{connection_id}/documents/{document_id}/process", response_model=ProcessDocumentResponse)
+async def process_document(
+    connection_id: str,
+    document_id: str
+):
+    """
+    Process a single document: fetch content, chunk, and generate embeddings.
+
+    Documents start with status 'discovered' after sync (metadata only).
+    Call this endpoint to process and make them searchable.
+    """
+    service = get_external_document_service()
+
+    # Verify connection exists
+    connection = service.get_connection(connection_id)
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    try:
+        doc = await service.process_document(document_id)
+
+        return ProcessDocumentResponse(
+            id=doc.id,
+            title=doc.title,
+            status=doc.status if isinstance(doc.status, str) else doc.status.value,
+            chunk_count=doc.chunk_count,
+            error_message=doc.error_message
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{connection_id}/documents/process-batch", response_model=ProcessBatchResponse)
+async def process_documents_batch(
+    connection_id: str,
+    request: ProcessBatchRequest
+):
+    """
+    Process multiple documents in batch.
+
+    Documents are processed sequentially to avoid overwhelming the system.
+    Already processed documents (status='ready') are skipped.
+    """
+    service = get_external_document_service()
+
+    # Verify connection exists
+    connection = service.get_connection(connection_id)
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    try:
+        stats = await service.process_documents_batch(request.document_ids)
+
+        return ProcessBatchResponse(
+            processed=stats["processed"],
+            failed=stats["failed"],
+            skipped=stats["skipped"],
+            errors=stats["errors"]
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ================== User Stats ==================

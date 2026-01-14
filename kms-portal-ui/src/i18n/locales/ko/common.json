@@ -79,5 +79,80 @@
       "emptyFields": "모든 필드를 입력해주세요",
       "saveError": "계정 정보 저장에 실패했습니다"
     }
+  },
+  "externalConnectors": {
+    "title": "외부 커넥터",
+    "description": "외부 서비스를 연결하여 대화 컨텍스트로 사용하세요.",
+    "connected": "연결됨",
+    "connect": "연결",
+    "disconnect": "연결 해제",
+    "connecting": "연결 중...",
+    "sync": "동기화",
+    "syncing": "리소스 동기화 중...",
+    "syncingHint": "약 1분 정도 소요될 수 있습니다",
+    "lastSync": "마지막 동기화",
+    "resources": "개 리소스",
+    "noResources": "리소스가 없습니다",
+    "selected": "개 선택됨",
+    "selectResources": "채팅 컨텍스트에 사용할 리소스 선택",
+    "selectHint": "선택한 리소스는 대화에서 컨텍스트로 사용됩니다",
+    "resourcesSelected": "개 리소스가 컨텍스트로 선택됨",
+    "comingSoon": "곧 출시 예정",
+    "plannedDescription": "이 커넥터는 향후 개발 예정입니다.",
+    "status": {
+      "available": "사용 가능",
+      "inDevelopment": "개발 중",
+      "planned": "예정"
+    },
+    "fields": {
+      "accessToken": "통합 토큰",
+      "accessTokenPlaceholder": "통합 토큰을 입력하세요",
+      "workspaceId": "워크스페이스 ID",
+      "workspaceIdPlaceholder": "워크스페이스 ID를 입력하세요",
+      "email": "이메일",
+      "emailPlaceholder": "Atlassian 이메일을 입력하세요",
+      "apiKey": "API 토큰",
+      "apiKeyPlaceholder": "Atlassian API 토큰을 입력하세요",
+      "siteUrl": "사이트 URL",
+      "siteUrlPlaceholder": "예: your-domain.atlassian.net (또는 /wiki 포함 전체 URL)",
+      "notionHint": "notion.so/my-integrations에서 통합 토큰을 발급받으세요",
+      "confluenceHint": "id.atlassian.com/manage-profile/security/api-tokens에서 API 토큰을 발급받으세요"
+    },
+    "error": {
+      "missingFields": "모든 필수 필드를 입력해주세요"
+    },
+    "sso": {
+      "signInWithNotion": "Notion으로 로그인",
+      "signInWithAtlassian": "Atlassian으로 로그인",
+      "signInWithGitHub": "GitHub으로 로그인",
+      "signInWithGoogle": "Google로 로그인",
+      "signInWithMicrosoft": "Microsoft로 로그인",
+      "signIn": "로그인",
+      "connectedAs": "연결된 계정",
+      "permissions": "요청 권한",
+      "secureAuth": "보안 인증",
+      "secureAuthDesc": "OAuth 2.0을 사용하여 계정에 안전하게 연결합니다. 비밀번호는 저장되지 않습니다.",
+      "authorizing": "인증 중...",
+      "authorizingDesc": "팝업 창에서 로그인을 완료해주세요.",
+      "cancel": "취소",
+      "securityInfo": "귀하의 데이터는 OAuth 2.0을 통해 안전하게 처리됩니다. 콘텐츠 접근에 필요한 권한만 요청합니다."
+    },
+    "apiToken": {
+      "label": "API 토큰",
+      "placeholder": "API 토큰을 입력하세요",
+      "hint": "Atlassian 계정 설정에서 API 토큰을 발급받을 수 있습니다."
+    },
+    "docStatus": {
+      "ready": "준비됨",
+      "processing": "처리 중...",
+      "error": "오류",
+      "notProcessed": "미처리",
+      "chunks": "청크"
+    },
+    "needsProcessing": "개 문서 처리 필요",
+    "processSelected": "선택 항목 처리",
+    "processDoc": "이 문서 처리",
+    "selectAll": "전체 선택",
+    "deselectAll": "전체 해제"
   }
 }

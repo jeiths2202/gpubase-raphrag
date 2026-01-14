@@ -6,6 +6,10 @@
 export { MessageBubble } from './MessageBubble';
 export { MessageContent } from './MessageContent';
 export { IMSCredentialsModal, type IMSCredentialsModalProps } from './IMSCredentialsModal';
+export {
+  ExternalConnectorsModal,
+  type ExternalConnectorsModalProps,
+} from './ExternalConnectorsModal';
 
 // Hooks
 export { useFileAttachment, type UseFileAttachmentReturn } from './hooks';

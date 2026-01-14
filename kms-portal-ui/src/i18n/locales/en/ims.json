@@ -20,8 +20,11 @@
   },
   "search": {
     "placeholder": "Enter your search query in natural language...",
-    "button": "Search",
+    "button": "AI Search",
     "searching": "Searching...",
+    "analyzing": "Analyzing...",
+    "crawling": "Crawling...",
+    "loading": "Loading...",
     "includeAttachments": "Include attachments",
     "includeRelated": "Include related issues",
     "deepSearch": "Deep Search",

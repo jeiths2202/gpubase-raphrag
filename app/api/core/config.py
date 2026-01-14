@@ -181,6 +181,56 @@ class APISettings(BaseSettings):
     USE_SENDMAIL: bool = Field(default=True, description="Use Linux sendmail if available")
     SENDMAIL_PATH: str = Field(default="/usr/sbin/sendmail", description="Path to sendmail binary")
 
+    # External Connectors - Notion OAuth
+    NOTION_CLIENT_ID: Optional[str] = Field(
+        default=None,
+        description="Notion OAuth client ID (from Notion integration)"
+    )
+    NOTION_CLIENT_SECRET: Optional[str] = Field(
+        default=None,
+        description="Notion OAuth client secret (from Notion integration)"
+    )
+
+    # External Connectors - Google Drive OAuth
+    GOOGLE_DRIVE_CLIENT_ID: Optional[str] = Field(
+        default=None,
+        description="Google Drive OAuth client ID"
+    )
+    GOOGLE_DRIVE_CLIENT_SECRET: Optional[str] = Field(
+        default=None,
+        description="Google Drive OAuth client secret"
+    )
+
+    # External Connectors - GitHub OAuth
+    GITHUB_CLIENT_ID: Optional[str] = Field(
+        default=None,
+        description="GitHub OAuth client ID"
+    )
+    GITHUB_CLIENT_SECRET: Optional[str] = Field(
+        default=None,
+        description="GitHub OAuth client secret"
+    )
+
+    # External Connectors - Atlassian (Confluence) OAuth
+    ATLASSIAN_CLIENT_ID: Optional[str] = Field(
+        default=None,
+        description="Atlassian OAuth client ID (from developer.atlassian.com)"
+    )
+    ATLASSIAN_CLIENT_SECRET: Optional[str] = Field(
+        default=None,
+        description="Atlassian OAuth client secret"
+    )
+
+    # External Connectors - Microsoft (OneNote) OAuth
+    MICROSOFT_CLIENT_ID: Optional[str] = Field(
+        default=None,
+        description="Microsoft OAuth client ID (from Azure AD App Registration)"
+    )
+    MICROSOFT_CLIENT_SECRET: Optional[str] = Field(
+        default=None,
+        description="Microsoft OAuth client secret"
+    )
+
     # Corporate SSO
     CORP_EMAIL_DOMAINS: str = Field(
         default="*",

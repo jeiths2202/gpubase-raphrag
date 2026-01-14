@@ -8,6 +8,8 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any, AsyncGenerator
 from enum import Enum
 
+import aiohttp
+
 
 class ConnectorStatus(str, Enum):
     """Connector operation status"""
@@ -90,6 +92,24 @@ class BaseConnector(ABC):
         self.refresh_token = refresh_token
         self.api_token = api_token
         self.config = config or {}
+
+        # Initialize timeout from IMS_CRAWLER_TIMEOUT (in ms) or default to 1 hour
+        self._timeout_seconds = self._get_timeout_from_config()
+
+    def _get_timeout_from_config(self) -> float:
+        """Get timeout in seconds from config or environment"""
+        try:
+            from ..core.config import get_api_settings
+            settings = get_api_settings()
+            # IMS_CRAWLER_TIMEOUT is in milliseconds, convert to seconds
+            return settings.IMS_CRAWLER_TIMEOUT / 1000
+        except Exception:
+            # Default: 1 hour (for long sync operations during development)
+            return 3600.0
+
+    def _get_client_timeout(self) -> aiohttp.ClientTimeout:
+        """Get aiohttp client timeout configuration for HTTP requests"""
+        return aiohttp.ClientTimeout(total=self._timeout_seconds)
 
     @property
     @abstractmethod

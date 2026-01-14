@@ -29,6 +29,7 @@ import {
   Link,
   ExternalLink,
   GitBranch,
+  Link2,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import './AgentChat.css';
@@ -45,6 +46,7 @@ import { TracePanel } from './TracePanel';
 import {
   MessageBubble,
   IMSCredentialsModal,
+  ExternalConnectorsModal,
   useFileAttachment,
   useUrlAttachment,
   useStreamingChat,
@@ -53,6 +55,12 @@ import {
   SUPPORTED_EXTENSIONS,
   type ChatMessage,
 } from './AgentChat/index';
+
+// External connectors store
+import { useExternalConnectorsStore } from '../store/externalConnectorsStore';
+
+// Auth store for user ID
+import { useAuthStore } from '../store/authStore';
 
 // =============================================================================
 // Component
@@ -105,12 +113,6 @@ export const AgentChat: React.FC = () => {
   const selectedAgentRef = useRef<AgentType>(selectedAgent);
   selectedAgentRef.current = selectedAgent;
 
-  // Wrapper to update selectedAgent and persist to store
-  const setSelectedAgent = useCallback((agentType: AgentType) => {
-    setSelectedAgentState(agentType);
-    setLastSelectedAgent(agentType);
-  }, [setLastSelectedAgent]);
-
   // Get active conversation ID for current agent
   const agentState = agentStates[selectedAgent] || { activeConversationId: null };
   const activeConversationId = agentState.activeConversationId;
@@ -122,7 +124,38 @@ export const AgentChat: React.FC = () => {
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [pendingQuery, setPendingQuery] = useState<string | null>(null);
 
-  // File attachment (using custom hook)
+  // Auth store - get current user ID
+  const { user } = useAuthStore();
+
+  // External connectors store and modal state (must be before setSelectedAgent callback)
+  const {
+    isModalOpen: showConnectorsModal,
+    openModal: openConnectorsModal,
+    closeModal: closeConnectorsModal,
+    activeResourcesByAgent,
+    currentAgentType,
+    getConnectedCount,
+    getActiveResourcesContext,
+    setCurrentUserId,
+    setCurrentAgentType,
+    loadConnections,
+    toggleResourceActive,
+    clearActiveResources,
+  } = useExternalConnectorsStore();
+
+  // Compute activeResources from activeResourcesByAgent and currentAgentType
+  // (Zustand doesn't support object getters, so we compute it here)
+  const activeResources = activeResourcesByAgent[currentAgentType] || [];
+
+  // Wrapper to update selectedAgent and persist to store
+  const setSelectedAgent = useCallback((agentType: AgentType) => {
+    setSelectedAgentState(agentType);
+    setLastSelectedAgent(agentType);
+    // Update external connectors store to scope resources by agent type
+    setCurrentAgentType(agentType);
+  }, [setLastSelectedAgent, setCurrentAgentType]);
+
+  // File attachment (using custom hook with per-agent state)
   const {
     attachedFiles,
     fileError,
@@ -133,9 +166,10 @@ export const AgentChat: React.FC = () => {
     handleClearAllFiles,
     getFileContext,
     clearFileError,
-  } = useFileAttachment();
+    syncAgentFileState,
+  } = useFileAttachment(selectedAgentRef);
 
-  // URL attachment (using custom hook)
+  // URL attachment (using custom hook with per-agent state)
   const {
     attachedUrls,
     detectedUrl,
@@ -144,7 +178,22 @@ export const AgentChat: React.FC = () => {
     handleRemoveUrl,
     getUrlContext,
     dismissDetectedUrl,
-  } = useUrlAttachment();
+    syncAgentUrlState,
+  } = useUrlAttachment(selectedAgentRef);
+
+  // Set user ID in external connectors store when user is available
+  useEffect(() => {
+    if (user?.id) {
+      setCurrentUserId(user.id);
+      // Load existing connections for this user
+      loadConnections();
+    }
+  }, [user?.id, setCurrentUserId, loadConnections]);
+
+  // Set current agent type for external connectors scoping
+  useEffect(() => {
+    setCurrentAgentType(selectedAgent);
+  }, [selectedAgent, setCurrentAgentType]);
 
   // Streaming chat (using custom hook)
   const {
@@ -162,10 +211,15 @@ export const AgentChat: React.FC = () => {
     agentStates,
     createConversation,
     loadConversations,
+    clearActiveConversation: startNewConversation,
     addArtifact,
     createArtifactFromChunk,
     getFileContext,
     getUrlContext,
+    getExternalResourcesContext: () => {
+      const context = getActiveResourcesContext();
+      return context || undefined;
+    },
     getUIContext,
     onCredentialsRequired: (query: string) => {
       setPendingQuery(query);
@@ -210,12 +264,16 @@ export const AgentChat: React.FC = () => {
     // Sync streaming chat state for the selected agent
     syncAgentState(selectedAgent);
 
+    // Sync file and URL attachment states for the selected agent
+    syncAgentFileState(selectedAgent);
+    syncAgentUrlState(selectedAgent);
+
     // Update artifact store to show this agent's artifacts
     setArtifactAgentType(selectedAgent);
 
     // Load conversations for the new agent type
     loadConversations(selectedAgent);
-  }, [selectedAgent, loadConversations, setArtifactAgentType, syncAgentState]);
+  }, [selectedAgent, loadConversations, setArtifactAgentType, syncAgentState, syncAgentFileState, syncAgentUrlState]);
 
   // Auto-load active conversation when agent type changes and there's an active conversation
   useEffect(() => {
@@ -247,6 +305,19 @@ export const AgentChat: React.FC = () => {
     // Detect URLs in input
     handleUrlDetect(value);
   };
+
+  // Handle paste event explicitly to ensure URL detection works
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    // Get pasted text
+    const pastedText = e.clipboardData.getData('text');
+    if (pastedText) {
+      // Use setTimeout to ensure the input value is updated before detection
+      setTimeout(() => {
+        const currentValue = inputRef.current?.value || '';
+        handleUrlDetect(currentValue);
+      }, 0);
+    }
+  }, [handleUrlDetect]);
 
   // Handle send message (wrapper for streaming hook)
   const handleSend = useCallback(async () => {
@@ -432,8 +503,22 @@ export const AgentChat: React.FC = () => {
             <Plus size={16} />
           </button>
 
-          {/* Trace panel toggle button */}
-          {currentTrace.dag && (
+          {/* External connectors button */}
+          <button
+            className={`agent-chat-connectors-toggle ${activeResources.length > 0 ? 'has-active' : ''}`}
+            onClick={openConnectorsModal}
+            title={t('externalConnectors.title') || 'External Connectors'}
+          >
+            <Link2 size={16} />
+            {(getConnectedCount() > 0 || activeResources.length > 0) && (
+              <span className="connectors-count">
+                {activeResources.length > 0 ? activeResources.length : getConnectedCount()}
+              </span>
+            )}
+          </button>
+
+          {/* Trace panel toggle button - Planner only */}
+          {selectedAgent === 'planner' && currentTrace.dag && (
             <button
               className={`agent-chat-trace-toggle ${tracePanel.isOpen ? 'active' : ''}`}
               onClick={toggleTracePanel}
@@ -605,6 +690,75 @@ export const AgentChat: React.FC = () => {
           </div>
         )}
 
+        {/* Selected External Resources display */}
+        {activeResources.length > 0 && (
+          <div className="agent-external-resources">
+            <div className="agent-external-resources-header">
+              <span className="agent-external-resources-label">
+                <Link2 size={14} />
+                {activeResources.length} {t('externalConnectors.selected') || 'external resource(s) selected'}
+              </span>
+              <div className="agent-external-resources-actions">
+                <button
+                  className="agent-external-resources-add"
+                  onClick={openConnectorsModal}
+                  title={t('externalConnectors.title') || 'Manage connectors'}
+                >
+                  <Plus size={12} />
+                </button>
+                <button
+                  className="agent-external-resources-clear"
+                  onClick={clearActiveResources}
+                  title={t('common.delete') || 'Clear all'}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+            <div className="agent-external-resources-list">
+              {activeResources.map(resource => (
+                <div
+                  key={resource.id}
+                  className={`agent-external-resource ${resource.status === 'ready' ? 'ready' : ''} ${resource.status === 'error' ? 'error' : ''}`}
+                >
+                  {resource.status === 'ready' ? (
+                    <GitBranch size={14} />
+                  ) : resource.status === 'error' ? (
+                    <AlertCircle size={14} />
+                  ) : (
+                    <Loader2 size={14} className="spin" />
+                  )}
+                  <div className="agent-external-resource-info">
+                    <span className="agent-external-resource-title" title={resource.title}>
+                      {resource.title.length > 30 ? resource.title.slice(0, 30) + '...' : resource.title}
+                    </span>
+                    <span className="agent-external-resource-meta">
+                      {resource.status === 'ready' && resource.content ? (
+                        <>
+                          {resource.content.length < 1024
+                            ? `${resource.content.length} chars`
+                            : `${Math.round(resource.content.length / 1024)}KB`}
+                        </>
+                      ) : resource.status === 'error' ? (
+                        <span className="error-text">{resource.errorMessage || 'Error'}</span>
+                      ) : (
+                        <span>{t(`externalConnectors.docStatus.${resource.status}`) || resource.status}</span>
+                      )}
+                    </span>
+                  </div>
+                  <button
+                    className="agent-external-resource-remove"
+                    onClick={() => toggleResourceActive(resource)}
+                    title={t('common.delete') || 'Remove'}
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* URL detection prompt */}
         {detectedUrl && (
           <div className="agent-url-detected">
@@ -667,6 +821,7 @@ export const AgentChat: React.FC = () => {
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleKeyPress}
+            onPaste={handlePaste}
             rows={1}
             disabled={isLoading}
           />
@@ -685,6 +840,13 @@ export const AgentChat: React.FC = () => {
         isOpen={showCredentialsModal}
         onClose={handleCredentialsClose}
         onSuccess={handleCredentialsSuccess}
+        t={t}
+      />
+
+      {/* External Connectors Modal */}
+      <ExternalConnectorsModal
+        isOpen={showConnectorsModal}
+        onClose={closeConnectorsModal}
         t={t}
       />
     </div>

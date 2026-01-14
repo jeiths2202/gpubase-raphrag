@@ -443,6 +443,30 @@ class PostgreSQLIssueRepository(IssueRepositoryPort):
             rows = await conn.fetch(query, issue_ids, user_id)
             return [self._row_to_issue(row) for row in rows]
 
+    async def find_by_ims_ids(self, ims_ids: List[str], user_id: UUID) -> List[Issue]:
+        """
+        Find multiple issues by their IMS IDs (batch loading).
+
+        Args:
+            ims_ids: List of IMS IDs (strings like "304640") to fetch
+            user_id: User UUID for authorization
+
+        Returns:
+            List of Issue entities that match the IMS IDs and belong to the user
+        """
+        if not ims_ids:
+            return []
+
+        query = """
+            SELECT * FROM ims_issues
+            WHERE ims_id = ANY($1) AND user_id = $2
+            ORDER BY created_at DESC
+        """
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, ims_ids, user_id)
+            return [self._row_to_issue(row) for row in rows]
+
     async def find_by_ids_with_details(self, issue_ids: List[UUID], user_id: UUID) -> List[Issue]:
         """
         Find multiple issues by their IDs with full details (including issue_details, action_no).

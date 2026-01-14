@@ -1,12 +1,13 @@
 /**
  * IMS Search Bar Component
  *
- * Natural language search input with job creation and product selection
+ * Natural language search input with Deep Agent integration
+ * Uses the same IMS Agent as Agent Chat for consistent results
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Search, Loader2, Settings2, ChevronDown, Check, Sparkles } from 'lucide-react';
-import { createCrawlJob } from '../services/ims-api';
+import { searchWithAgent } from '../services/ims-api';
 import { useIMSStore } from '../store/imsStore';
 import { useAuthStore } from '../../../store/authStore';
 import { IMS_PRODUCTS } from '../types';
@@ -20,9 +21,10 @@ interface IMSSearchBarProps {
   t: (key: string) => string;
 }
 
-export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated, t }) => {
-  const { isSearching, setIsSearching, setSearchQuery, setCurrentJob } = useIMSStore();
+export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated: _onJobCreated, t }) => {
+  const { isSearching, setIsSearching, setSearchQuery, addSearchTab, setActiveTab } = useIMSStore();
   const { user } = useAuthStore();
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Check if user has Pro access (based on role - admin/leader have pro features)
   const hasProAccess = user?.role === 'admin' || user?.role === 'leader';
@@ -31,6 +33,7 @@ export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated, t }) =
   const [showOptions, setShowOptions] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<string[]>(DEFAULT_PRODUCT_CODES);
+  const [searchStatus, setSearchStatus] = useState<string>('');
   const [options, setOptions] = useState({
     includeAttachments: true,
     includeRelated: true,
@@ -43,46 +46,79 @@ export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated, t }) =
 
     setIsSearching(true);
     setSearchQuery(query);
+    setSearchStatus('analyzing');
+
+    // Create abort controller for this request
+    abortControllerRef.current = new AbortController();
+
+    const startTime = Date.now();
 
     try {
-      const job = await createCrawlJob({
-        query: query.trim(),
-        include_attachments: options.includeAttachments,
-        include_related_issues: options.includeRelated,
-        product_codes: selectedProducts.length > 0 ? selectedProducts : undefined,
-      });
+      console.log('[IMS] Starting Deep Agent search:', query);
 
-      // Check if job is cached - if so, fetch results directly without streaming
-      if (job.is_cached && job.result_issue_ids && job.result_issue_ids.length > 0) {
-        console.log('[IMS] Using cached results:', job.result_issue_ids.length, 'issues');
-        // Fetch cached results directly
-        const { fetchResults } = useIMSStore.getState();
-        await fetchResults(query.trim(), {
-          totalIssues: job.issues_found,
-          successfulIssues: job.issues_crawled,
-          duration: 0, // Cached = instant
-          outcome: 'success',
-          relatedIssues: 0,
-          attachments: job.attachments_processed,
-          resultIssueIds: job.result_issue_ids,
-          progressSnapshot: {
-            status: 'completed',
-            progress: 100,
-            currentStep: 'Cached results',
-            timestamp: new Date().toISOString(),
-            issuesFound: job.issues_found,
-            issuesCrawled: job.issues_crawled,
-            relatedCount: 0,
+      // Use Deep Agent for search (same as Agent Chat)
+      const result = await searchWithAgent(
+        query.trim(),
+        (status) => setSearchStatus(status),
+        abortControllerRef.current.signal
+      );
+
+      const duration = (Date.now() - startTime) / 1000;
+
+      if (result.success && result.issues.length > 0) {
+        console.log('[IMS] Agent search complete:', result.issues.length, 'issues found');
+
+        // Add results as a new tab
+        const tabId = `tab-${Date.now()}`;
+        addSearchTab({
+          id: tabId,
+          query: query.trim(),
+          timestamp: new Date().toISOString(),
+          results: result.issues,
+          viewMode: 'table',
+          completionStats: {
+            totalIssues: result.issues.length,
+            successfulIssues: result.issues.length,
+            duration: duration,
+            outcome: 'success',
+            relatedIssues: 0,
+            attachments: 0,
           },
         });
+        setActiveTab(tabId);
+      } else if (result.success && result.issues.length === 0) {
+        // No results found - show message
+        console.log('[IMS] No issues found for query:', query);
+        const tabId = `tab-${Date.now()}`;
+        addSearchTab({
+          id: tabId,
+          query: query.trim(),
+          timestamp: new Date().toISOString(),
+          results: [],
+          viewMode: 'table',
+          completionStats: {
+            totalIssues: 0,
+            successfulIssues: 0,
+            duration: duration,
+            outcome: 'success',
+            relatedIssues: 0,
+            attachments: 0,
+          },
+        });
+        setActiveTab(tabId);
       } else {
-        // New job - show progress tracker
-        setCurrentJob(job);
-        onJobCreated(job);
+        console.error('[IMS] Agent search failed:', result.error);
       }
     } catch (error) {
-      console.error('[IMS] Failed to create crawl job:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[IMS] Search cancelled');
+      } else {
+        console.error('[IMS] Search error:', error);
+      }
+    } finally {
       setIsSearching(false);
+      setSearchStatus('');
+      abortControllerRef.current = null;
     }
   };
 
@@ -201,16 +237,20 @@ export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated, t }) =
         <button
           type="submit"
           className="btn btn-primary ims-search__btn"
-          disabled={!query.trim() || isSearching || selectedProducts.length === 0}
+          disabled={!query.trim() || isSearching}
         >
           {isSearching ? (
             <>
               <Loader2 size={18} className="spin" />
-              {t('ims.search.searching')}
+              {searchStatus === 'analyzing' && t('ims.search.analyzing')}
+              {searchStatus === 'searching' && t('ims.search.searching')}
+              {searchStatus === 'crawling' && t('ims.search.crawling')}
+              {searchStatus === 'loading' && t('ims.search.loading')}
+              {!searchStatus && t('ims.search.searching')}
             </>
           ) : (
             <>
-              <Search size={18} />
+              <Sparkles size={18} />
               {t('ims.search.button')}
             </>
           )}

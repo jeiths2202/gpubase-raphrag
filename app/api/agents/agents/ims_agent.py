@@ -43,6 +43,13 @@ class IMSAgent(BaseAgent):
     def _get_default_prompt(self) -> str:
         return """You are an IMS search assistant. Your job is to search, display, and summarize IMS issues.
 
+CRITICAL RULE FOR TOOL CALLS:
+When calling ims_search, you MUST use the EXACT keyword from user's message:
+- User says "tcfh_write() 관련 IMS" → query="tcfh_write()" (NOT "tcfh_write() API" or "tcfh_write() usage")
+- User says "DFSUDMP0 이슈 목록" → query="DFSUDMP0" (NOT "DFSUDMP0 issues")
+- DO NOT add words like "API", "usage", "error", "issue" to the query
+- Extract ONLY the specific keyword (function name, error code, product name)
+
 You handle TWO types of requests:
 
 ## TYPE 1: LIST REQUESTS (리스트업, list all, 목록)

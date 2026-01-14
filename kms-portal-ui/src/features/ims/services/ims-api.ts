@@ -125,8 +125,8 @@ export async function getIssueDetails(issueId: string): Promise<IMSIssue> {
 }
 
 /**
- * Get multiple issues by their IDs
- * Use this to fetch specific crawled issues instead of searching the database
+ * Get multiple issues by their database UUIDs
+ * Use this to fetch specific crawled issues by UUID
  */
 export async function getIssuesByIds(issueIds: string[]): Promise<IMSIssue[]> {
   const response = await fetch(`${API_BASE}/ims-search/by-ids`, {
@@ -134,6 +134,20 @@ export async function getIssuesByIds(issueIds: string[]): Promise<IMSIssue[]> {
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify({ issue_ids: issueIds }),
+  });
+  return handleResponse<IMSIssue[]>(response);
+}
+
+/**
+ * Get multiple issues by their IMS IDs (e.g., "304640", "278109")
+ * Use this to fetch specific issues by IMS ID strings
+ */
+export async function getIssuesByImsIds(imsIds: string[]): Promise<IMSIssue[]> {
+  const response = await fetch(`${API_BASE}/ims-search/by-ims-ids`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ ims_ids: imsIds }),
   });
   return handleResponse<IMSIssue[]>(response);
 }
@@ -322,4 +336,193 @@ export async function getChatConversation(conversationId: string): Promise<IMSCh
     credentials: 'include',
   });
   return handleResponse<IMSChatConversation>(response);
+}
+
+// ============================================
+// Deep Agent Search API
+// ============================================
+
+/**
+ * Result from agent-based IMS search
+ */
+export interface AgentSearchResult {
+  issues: IMSIssue[];
+  rawResponse: string;
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Parse markdown table from agent response to extract IMS issues
+ * Table format: | No | Issue ID | Title | Status | Product |
+ */
+function parseMarkdownTableToIssues(markdown: string): IMSIssue[] {
+  const issues: IMSIssue[] = [];
+  const lines = markdown.split('\n');
+
+  let inTable = false;
+  let headerPassed = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Detect table start
+    if (trimmed.startsWith('|') && trimmed.includes('Issue ID')) {
+      inTable = true;
+      continue;
+    }
+
+    // Skip separator line
+    if (inTable && trimmed.startsWith('|') && trimmed.includes('---')) {
+      headerPassed = true;
+      continue;
+    }
+
+    // Parse table row
+    if (inTable && headerPassed && trimmed.startsWith('|')) {
+      const cells = trimmed.split('|').map(c => c.trim()).filter(c => c);
+
+      if (cells.length >= 5) {
+        // Extract IMS ID and URL from markdown link [IMS-123](url)
+        const idCell = cells[1];
+        const linkMatch = idCell.match(/\[([^\]]+)\]\(([^)]+)\)/);
+
+        const imsId = linkMatch ? linkMatch[1] : idCell;
+        const url = linkMatch ? linkMatch[2] : '';
+
+        const title = cells[2] || '';
+        const status = cells[3] || '';
+        const product = cells[4] || '';
+
+        issues.push({
+          id: imsId,
+          ims_id: imsId,
+          title: title,
+          description: '',
+          status: status as IMSIssue['status'],
+          priority: 'medium' as IMSIssue['priority'],
+          product: product,
+          reporter: '',
+          project_key: '',
+          labels: [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          // Store URL in custom field for click handling
+          _url: url,
+        } as IMSIssue & { _url?: string });
+      }
+    }
+
+    // Detect table end
+    if (inTable && headerPassed && !trimmed.startsWith('|') && trimmed !== '') {
+      break;
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Search IMS using Deep Agent (same as Agent Chat)
+ * Streams the response, extracts IMS IDs, then fetches full details from DB
+ */
+export async function searchWithAgent(
+  query: string,
+  onProgress?: (status: string) => void,
+  signal?: AbortSignal
+): Promise<AgentSearchResult> {
+  try {
+    const response = await fetch(`${API_BASE}/agents/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        task: query,
+        agent_type: 'ims',
+        language: 'ko',
+      }),
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Agent request failed: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('No response body');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let accumulatedContent = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6).trim();
+          if (data && data !== '[DONE]') {
+            try {
+              const chunk = JSON.parse(data);
+
+              // Handle different chunk types
+              if (chunk.chunk_type === 'text' && chunk.content) {
+                accumulatedContent += chunk.content;
+              } else if (chunk.chunk_type === 'status' && chunk.content && onProgress) {
+                onProgress(chunk.content);
+              } else if (chunk.chunk_type === 'thinking' && onProgress) {
+                onProgress('analyzing');
+              } else if (chunk.chunk_type === 'tool_call' && onProgress) {
+                onProgress('searching');
+              }
+            } catch {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+    }
+
+    // Parse the markdown table to extract IMS IDs
+    const parsedIssues = parseMarkdownTableToIssues(accumulatedContent);
+    const imsIds = parsedIssues.map(issue => issue.ims_id).filter(id => id);
+
+    console.log('[IMS Agent] Parsed IMS IDs:', imsIds);
+
+    // Fetch full issue details from database using IMS IDs
+    let fullIssues: IMSIssue[] = [];
+    if (imsIds.length > 0) {
+      try {
+        if (onProgress) onProgress('loading');
+        fullIssues = await getIssuesByImsIds(imsIds);
+        console.log('[IMS Agent] Fetched full details:', fullIssues.length, 'issues');
+      } catch (fetchError) {
+        console.warn('[IMS Agent] Failed to fetch full details, using parsed data:', fetchError);
+        // Fallback to parsed data if fetch fails
+        fullIssues = parsedIssues;
+      }
+    }
+
+    return {
+      issues: fullIssues.length > 0 ? fullIssues : parsedIssues,
+      rawResponse: accumulatedContent,
+      success: true,
+    };
+
+  } catch (error) {
+    console.error('[IMS Agent] Search error:', error);
+    return {
+      issues: [],
+      rawResponse: '',
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
 }

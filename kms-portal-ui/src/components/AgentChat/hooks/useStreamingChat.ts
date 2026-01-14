@@ -32,6 +32,8 @@ export interface StreamingChatDependencies {
   agentStates: Record<AgentType, { activeConversationId: string | null }>;
   createConversation: (agentType: AgentType, title: string) => Promise<{ id: string }>;
   loadConversations: (agentType: AgentType) => void;
+  // Optional callback to clear invalid conversation (called on 403/404)
+  clearActiveConversation?: (agentType: AgentType) => void;
 
   // Artifact operations (using any for flexibility with store types)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -42,6 +44,8 @@ export interface StreamingChatDependencies {
   // Context getters
   getFileContext: () => string | undefined;
   getUrlContext: () => string | undefined;
+  // External resources context from connected services (Notion, Confluence, etc.)
+  getExternalResourcesContext?: () => string | undefined;
   // UI context for context-aware AI (optional, from contextStore)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getUIContext?: () => any;
@@ -110,10 +114,12 @@ export function useStreamingChat(
     agentStates,
     createConversation,
     loadConversations,
+    clearActiveConversation,
     addArtifact,
     createArtifactFromChunk,
     getFileContext,
     getUrlContext,
+    getExternalResourcesContext,
     getUIContext,
     onCredentialsRequired,
     onMessageSent,
@@ -206,15 +212,25 @@ export function useStreamingChat(
   const saveMessageToDb = useCallback(async (
     conversationId: string,
     role: 'user' | 'assistant',
-    content: string
+    content: string,
+    agentType?: AgentType
   ) => {
     try {
       await conversationApi.addMessage(conversationId, { role, content });
       console.log('[useStreamingChat] Message saved to conversation:', conversationId);
     } catch (error) {
-      console.error('[useStreamingChat] Failed to save message:', error);
+      // Check if error is 403/404 (conversation not found or access denied)
+      const axiosError = error as { response?: { status?: number } };
+      const status = axiosError.response?.status;
+
+      if ((status === 403 || status === 404) && agentType && clearActiveConversation) {
+        console.warn('[useStreamingChat] Conversation not found or access denied, clearing active conversation');
+        clearActiveConversation(agentType);
+      } else {
+        console.error('[useStreamingChat] Failed to save message:', error);
+      }
     }
-  }, []);
+  }, [clearActiveConversation]);
 
   // ============================================================================
   // Stream Processing
@@ -256,7 +272,7 @@ export function useStreamingChat(
 
     // Save user message to database
     if (conversationId) {
-      saveMessageToDb(conversationId, 'user', userMessage.content);
+      saveMessageToDb(conversationId, 'user', userMessage.content, requestingAgent);
     }
 
     // Create streaming message placeholder
@@ -288,18 +304,21 @@ export function useStreamingChat(
       // Build request payload
       const fileContext = getFileContext();
       const urlContext = getUrlContext();
-      // Combine file and URL contexts into file_context
+      const externalContext = getExternalResourcesContext ? getExternalResourcesContext() : undefined;
+      // Combine file, URL, and external resource contexts into file_context
       // (url_context field is for URLs that backend will fetch, but we already have content)
-      const combinedContext = [fileContext, urlContext].filter(Boolean).join('\n\n') || undefined;
+      const combinedContext = [fileContext, urlContext, externalContext].filter(Boolean).join('\n\n') || undefined;
 
       // Get UI context for context-aware AI (if available)
       const uiContext = getUIContext ? getUIContext() : undefined;
 
       // Cast language to supported type (validated by UI)
       const language = userLanguage as SupportedLanguage;
+      // 모든 에이전트에서 Deep Agents 사용
+      const useDeepAgent = true;
       const requestPayload = requestingAgent === 'auto'
-        ? { task: userMessage.content, language, file_context: combinedContext, ui_context: uiContext }
-        : { task: userMessage.content, agent_type: requestingAgent, language, file_context: combinedContext, ui_context: uiContext };
+        ? { task: userMessage.content, language, file_context: combinedContext, ui_context: uiContext, use_deep_agent: useDeepAgent }
+        : { task: userMessage.content, agent_type: requestingAgent, language, file_context: combinedContext, ui_context: uiContext, use_deep_agent: useDeepAgent };
 
       // Process stream
       for await (const chunk of streamAgent(requestPayload, controller.signal)) {
@@ -523,7 +542,7 @@ export function useStreamingChat(
 
       // Save assistant response to database
       if (conversationId && accumulatedContent) {
-        saveMessageToDb(conversationId, 'assistant', accumulatedContent);
+        saveMessageToDb(conversationId, 'assistant', accumulatedContent, requestingAgent);
         loadConversations(requestingAgent);
       }
     } catch (error) {
@@ -560,6 +579,7 @@ export function useStreamingChat(
     createArtifactFromChunk,
     getFileContext,
     getUrlContext,
+    getExternalResourcesContext,
     getUIContext,
     onCredentialsRequired,
     onMessageSent,

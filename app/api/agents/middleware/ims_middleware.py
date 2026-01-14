@@ -270,7 +270,10 @@ class IMSToolsProvider:
             IMPORTANT: When user asks to "list" issues (리스트, 목록, list all), use format="table" to output markdown table.
 
             Args:
-                query: Search query for issues (required). Search in title and description.
+                query: The exact search keyword or phrase from user input.
+                    CRITICAL: Use the EXACT keyword the user mentioned (e.g., function name, API name, error message).
+                    DO NOT translate, paraphrase, or add words like "usage", "error", "issue".
+                    Example: If user says "tcfh_write() API 사용 사례", use query="tcfh_write()" NOT "tcfh_write() API usage".
                 status: Filter by status - one of: open, closed, in_progress, all (default: all)
                 priority: Filter by priority - one of: critical, high, medium, low, all (default: all)
                 product: Filter by product name (optional)

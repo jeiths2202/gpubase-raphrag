@@ -3,6 +3,7 @@ Notion Connector
 Connects to Notion API for pages and databases.
 """
 import hashlib
+import os
 import aiohttp
 from datetime import datetime
 from typing import Optional, List, Dict, Any, AsyncGenerator
@@ -14,15 +15,15 @@ class NotionConnector(BaseConnector):
     """
     Connector for Notion integration.
     Uses Notion API v1 for accessing pages and databases.
+
+    Environment Variables:
+        NOTION_CLIENT_ID: OAuth client ID from Notion integration
+        NOTION_CLIENT_SECRET: OAuth client secret from Notion integration
     """
 
     API_BASE = "https://api.notion.com/v1"
     OAUTH_AUTH_URL = "https://api.notion.com/v1/oauth/authorize"
     OAUTH_TOKEN_URL = "https://api.notion.com/v1/oauth/token"
-
-    # OAuth settings (configure in environment)
-    CLIENT_ID = ""  # Set from config
-    CLIENT_SECRET = ""  # Set from config
 
     @property
     def resource_type(self) -> str:
@@ -38,8 +39,9 @@ class NotionConnector(BaseConnector):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.CLIENT_ID = self.config.get("client_id", "")
-        self.CLIENT_SECRET = self.config.get("client_secret", "")
+        # Read from config first, then fall back to environment variables
+        self.CLIENT_ID = self.config.get("client_id") or os.environ.get("NOTION_CLIENT_ID", "")
+        self.CLIENT_SECRET = self.config.get("client_secret") or os.environ.get("NOTION_CLIENT_SECRET", "")
 
     def _get_headers(self) -> Dict[str, str]:
         """Get API request headers"""
@@ -72,7 +74,7 @@ class NotionConnector(BaseConnector):
                 f"{self.CLIENT_ID}:{self.CLIENT_SECRET}".encode()
             ).decode()
 
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 async with session.post(
                     self.OAUTH_TOKEN_URL,
                     headers={
@@ -123,8 +125,12 @@ class NotionConnector(BaseConnector):
         modified_since: Optional[datetime] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """List all accessible pages and databases"""
+        print(f"[NotionConnector] list_documents called: path={path}, modified_since={modified_since}")
+        print(f"[NotionConnector] Access token present: {bool(self.access_token)}, API token present: {bool(self.api_token)}")
+
+        doc_count = 0
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 # Search for all pages
                 has_more = True
                 start_cursor = None
@@ -137,16 +143,21 @@ class NotionConnector(BaseConnector):
                     if start_cursor:
                         payload["start_cursor"] = start_cursor
 
+                    print(f"[NotionConnector] POST {self.API_BASE}/search payload={payload}")
+
                     async with session.post(
                         f"{self.API_BASE}/search",
                         headers=self._get_headers(),
                         json=payload
                     ) as resp:
                         if resp.status != 200:
+                            error_text = await resp.text()
+                            print(f"[NotionConnector] Search failed: status={resp.status}, error={error_text}")
                             break
 
                         data = await resp.json()
                         results = data.get("results", [])
+                        print(f"[NotionConnector] Got {len(results)} results")
 
                         for page in results:
                             # Filter by modification time
@@ -161,6 +172,7 @@ class NotionConnector(BaseConnector):
                             # Extract title
                             title = self._extract_title(page)
 
+                            doc_count += 1
                             yield {
                                 "external_id": page["id"],
                                 "title": title,
@@ -174,8 +186,12 @@ class NotionConnector(BaseConnector):
                         has_more = data.get("has_more", False)
                         start_cursor = data.get("next_cursor")
 
+            print(f"[NotionConnector] list_documents completed: total {doc_count} documents")
+
         except Exception as e:
             print(f"[NotionConnector] List documents error: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _extract_title(self, page: Dict) -> str:
         """Extract title from Notion page"""
@@ -206,7 +222,7 @@ class NotionConnector(BaseConnector):
     async def fetch_document(self, external_id: str) -> ConnectorResult:
         """Fetch full page content"""
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 # Get page metadata
                 async with session.get(
                     f"{self.API_BASE}/pages/{external_id}",
