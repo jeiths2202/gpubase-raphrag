@@ -3054,6 +3054,25 @@
   color: #1f1f1f;
 }
 
+.sso-btn-microsoft {
+  background: #2f2f2f;
+  color: #ffffff;
+}
+
+.sso-btn-microsoft:hover:not(:disabled) {
+  background: #404040;
+  box-shadow: 0 4px 12px rgba(47, 47, 47, 0.3);
+}
+
+[data-theme="dark"] .sso-btn-microsoft {
+  background: #ffffff;
+  color: #2f2f2f;
+}
+
+[data-theme="dark"] .sso-btn-microsoft:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
 /* SSO Scopes Information */
 .connector-sso-scopes {
   display: flex;

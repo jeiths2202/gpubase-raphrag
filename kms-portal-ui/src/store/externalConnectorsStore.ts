@@ -22,7 +22,7 @@ import {
 /**
  * Connector types supported by the system
  */
-export type ConnectorType = 'notion' | 'confluence' | 'github' | 'google_drive';
+export type ConnectorType = 'notion' | 'confluence' | 'github' | 'google_drive' | 'onenote';
 
 /**
  * Implementation status of connectors
@@ -210,7 +210,7 @@ export const CONNECTOR_CONFIGS: Record<ConnectorType, ConnectorConfig> = {
     name: 'GitHub',
     icon: 'github',
     description: 'Connect to GitHub repositories',
-    developmentStatus: 'planned',
+    developmentStatus: 'available',
     authType: 'sso',
     oauthUrl: 'https://github.com/login/oauth/authorize',
     scopes: ['repo', 'read:user'],
@@ -220,10 +220,20 @@ export const CONNECTOR_CONFIGS: Record<ConnectorType, ConnectorConfig> = {
     name: 'Google Drive',
     icon: 'google-drive',
     description: 'Connect to Google Drive files and folders',
-    developmentStatus: 'planned',
+    developmentStatus: 'available',
     authType: 'sso',
     oauthUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+  },
+  onenote: {
+    type: 'onenote',
+    name: 'OneNote',
+    icon: 'onenote',
+    description: 'Connect to Microsoft OneNote notebooks',
+    developmentStatus: 'available',
+    authType: 'sso',
+    oauthUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+    scopes: ['Notes.Read', 'Notes.Read.All', 'User.Read', 'offline_access'],
   },
 };
 
@@ -240,6 +250,7 @@ const mapResourceType = (resourceType: ExternalResourceType): ConnectorType | nu
     confluence: 'confluence',
     github: 'github',
     google_drive: 'google_drive',
+    onenote: 'onenote',
   };
   return mapping[resourceType] || null;
 };
@@ -302,6 +313,7 @@ const initialConnectors: ExternalConnector[] = [
   createInitialConnector('confluence'),
   createInitialConnector('github'),
   createInitialConnector('google_drive'),
+  createInitialConnector('onenote'),
 ];
 
 // =============================================================================

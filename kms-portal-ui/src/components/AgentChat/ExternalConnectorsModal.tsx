@@ -87,6 +87,12 @@ const ConnectorIcon: React.FC<{ type: ConnectorType; size?: number }> = ({ type,
           <path d="M7.71 3.5L1.15 15l4.58 7.5H12l-4.29-7.5L14.29 3.5H7.71zm8.58 0l-6.58 12 4.29 7.5h6.58l-4.29-7.5L22.87 3.5H16.29zm-4.29 9L7.71 19h8.58l-4.29-6.5z" />
         </svg>
       );
+    case 'onenote':
+      return (
+        <svg style={iconStyle} viewBox="0 0 24 24" fill="currentColor">
+          <path d="M23.33 2.67H14.67v18.66h8.66c.38 0 .67-.29.67-.67V3.33c0-.38-.29-.66-.67-.66zM2 4.67V19c0 .92.75 1.67 1.67 1.67h9.66V3.33H3.67C2.75 3.33 2 4.08 2 5zm5.12 12.38H5.57V7.97h1.55l2.93 5.69V7.97h1.52v8.08h-1.52l-2.93-5.55v5.55z" />
+        </svg>
+      );
     default:
       return <Link2 size={size} />;
   }
@@ -389,6 +395,11 @@ const ConnectorDetailView: React.FC<ConnectorDetailViewProps> = ({
         return {
           text: t('common.externalConnectors.sso.signInWithGoogle') || 'Sign in with Google',
           className: 'sso-btn-google',
+        };
+      case 'onenote':
+        return {
+          text: t('common.externalConnectors.sso.signInWithMicrosoft') || 'Sign in with Microsoft',
+          className: 'sso-btn-microsoft',
         };
       default:
         return {
