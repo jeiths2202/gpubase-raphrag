@@ -76,7 +76,9 @@ export const OAuthCallbackPage: React.FC = () => {
       // Try to close the popup window if this was opened in a popup
       if (window.opener) {
         // Notify opener window
+        console.log('[OAuthCallback] Sending oauth_success message to opener:', { connectionId, origin: window.location.origin });
         window.opener.postMessage({ type: 'oauth_success', connectionId: connectionId }, window.location.origin);
+        console.log('[OAuthCallback] Message sent, closing popup in 1.5s');
         // Close popup after brief delay
         setTimeout(() => {
           window.close();

@@ -844,9 +844,14 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
 
   // Listen for OAuth success message from popup window
   useEffect(() => {
+    console.log('[ExternalConnectors] Setting up OAuth message listener');
+
     const handleOAuthMessage = async (event: MessageEvent) => {
+      console.log('[ExternalConnectors] Received message:', event.origin, event.data);
+
       // Verify origin for security
       if (event.origin !== window.location.origin) {
+        console.log('[ExternalConnectors] Origin mismatch:', event.origin, 'vs', window.location.origin);
         return;
       }
 
@@ -880,7 +885,10 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
     };
 
     window.addEventListener('message', handleOAuthMessage);
+    console.log('[ExternalConnectors] Message listener registered');
+
     return () => {
+      console.log('[ExternalConnectors] Message listener removed');
       window.removeEventListener('message', handleOAuthMessage);
     };
   }, [loadConnections, loadDocuments, syncResources, selectedConnectorType, cancelSSO]);
