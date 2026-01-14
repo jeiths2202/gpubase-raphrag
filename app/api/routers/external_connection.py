@@ -212,13 +212,31 @@ async def get_oauth_url(
 async def oauth_callback(
     connection_id: str,
     code: str = Query(..., description="Authorization code"),
-    redirect_uri: str = Query(..., description="Redirect URI used in initial request")
+    redirect_uri: str = Query(..., description="Redirect URI used in initial request"),
+    state: str = Query(..., description="OAuth state token for CSRF protection")
 ):
     """
     Complete OAuth flow with authorization code.
     Called after user authorizes access in the OAuth flow.
+
+    SECURITY: The state parameter is validated to prevent CSRF attacks.
     """
     service = get_external_document_service()
+
+    # SECURITY FIX: Validate OAuth state token to prevent CSRF
+    is_valid, validated_connection_id, error_msg = service.validate_oauth_state(state)
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"OAuth state validation failed: {error_msg}"
+        )
+
+    # Additional check: ensure connection_id in URL matches state
+    if validated_connection_id != connection_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Connection ID mismatch in OAuth state"
+        )
 
     try:
         connection = await service.complete_oauth(

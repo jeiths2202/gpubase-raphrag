@@ -266,17 +266,19 @@ export async function getOAuthUrl(connectionId: string, redirectUri: string): Pr
 
 /**
  * Complete OAuth flow with authorization code
+ * SECURITY: state parameter is required to prevent CSRF attacks
  */
 export async function completeOAuth(
   connectionId: string,
   code: string,
-  redirectUri: string
+  redirectUri: string,
+  state: string
 ): Promise<ExternalConnection> {
   const response = await apiClient.post<ExternalConnection>(
     `/external-connections/${connectionId}/oauth-callback`,
     null,
     {
-      params: { code, redirect_uri: redirectUri },
+      params: { code, redirect_uri: redirectUri, state },
     }
   );
   return response.data;

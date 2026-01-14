@@ -61,10 +61,20 @@ export const OAuthCallbackPage: React.FC = () => {
       return;
     }
 
-    // Get connection ID from state parameter or pending connection
-    // State format: "{connection_id}:{random_string}"
+    // SECURITY: State parameter is required for CSRF protection
+    // State format: "{connection_id}:{random_token}"
+    if (!state) {
+      hasProcessedRef.current = true;
+      isProcessingRef.current = false;
+      setStatus('error');
+      setErrorMessage('Missing OAuth state parameter. This may be a security issue.');
+      console.error('[OAuthCallback] Missing state parameter - potential CSRF attack');
+      return;
+    }
+
+    // Extract connection ID from state for fallback (primary source is pendingOAuthConnectionId)
     let connectionId = pendingOAuthConnectionId;
-    if (!connectionId && state) {
+    if (!connectionId) {
       const stateParts = state.split(':');
       if (stateParts.length >= 1) {
         connectionId = stateParts[0];
@@ -85,8 +95,8 @@ export const OAuthCallbackPage: React.FC = () => {
     console.log('[OAuthCallback] Using connectionId:', connectionId);
 
     try {
-      // Complete the OAuth flow
-      await completeOAuthFlow(connectionId, code);
+      // Complete the OAuth flow with state for CSRF validation
+      await completeOAuthFlow(connectionId, code, state);
       hasProcessedRef.current = true;
       setStatus('success');
 

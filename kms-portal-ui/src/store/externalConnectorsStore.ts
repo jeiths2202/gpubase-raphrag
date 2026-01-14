@@ -161,7 +161,7 @@ interface ExternalConnectorsState {
   loadConnections: () => Promise<void>;
   initiateSSO: (type: ConnectorType) => void;
   handleSSOCallback: (type: ConnectorType, authCode: string) => Promise<void>;
-  completeOAuthFlow: (connectionId: string, code: string) => Promise<void>;
+  completeOAuthFlow: (connectionId: string, code: string, state: string) => Promise<void>;
   cancelSSO: () => void;
 
   // Connector management
@@ -485,10 +485,11 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
       },
 
       // Complete OAuth flow with authorization code
-      completeOAuthFlow: async (connectionId, code) => {
+      // SECURITY: state parameter is required to prevent CSRF attacks
+      completeOAuthFlow: async (connectionId, code, state) => {
         try {
           const redirectUri = getOAuthRedirectUri();
-          const connection = await externalConnectorsApi.completeOAuth(connectionId, code, redirectUri);
+          const connection = await externalConnectorsApi.completeOAuth(connectionId, code, redirectUri, state);
 
           const connectorType = mapResourceType(connection.resource_type);
           if (!connectorType) {

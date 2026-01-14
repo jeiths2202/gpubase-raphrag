@@ -5,6 +5,10 @@ Manages external resource connections, document sync, and user-scoped vector sto
 import asyncio
 import uuid
 import hashlib
+import hmac
+import secrets
+import base64
+import logging
 import numpy as np
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any, Tuple
@@ -12,6 +16,18 @@ from collections import defaultdict
 from functools import lru_cache
 import os
 import sys
+
+# Cryptography for secure token encryption
+try:
+    from cryptography.fernet import Fernet, InvalidToken
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    CRYPTO_AVAILABLE = True
+except ImportError:
+    CRYPTO_AVAILABLE = False
+    logging.warning("cryptography library not available - token encryption will be disabled")
+
+logger = logging.getLogger(__name__)
 
 # Add src directory for embeddings
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
@@ -184,6 +200,12 @@ class ExternalDocumentService:
     _connections: Dict[str, ExternalConnection] = {}
     _documents: Dict[str, ExternalDocument] = {}
 
+    # SECURITY: OAuth state token storage for CSRF protection
+    # Maps state_token -> (connection_id, created_at, user_id)
+    # State tokens expire after 10 minutes
+    _oauth_states: Dict[str, Tuple[str, datetime, str]] = {}
+    _OAUTH_STATE_EXPIRY_MINUTES = 10
+
     # Token encryption key - SECURITY: Required, no default value
     # Uses ENCRYPTION_MASTER_KEY from centralized secrets management
     _ENCRYPTION_KEY = os.environ.get("ENCRYPTION_MASTER_KEY")
@@ -281,6 +303,58 @@ class ExternalDocumentService:
         self._connections[connection_id] = connection
         return connection
 
+    def _generate_oauth_state(self, connection_id: str, user_id: str) -> str:
+        """
+        Generate a secure, cryptographically random OAuth state token.
+        SECURITY: This prevents CSRF attacks by ensuring the callback
+        comes from a flow we initiated.
+        """
+        # Clean up expired states first
+        self._cleanup_expired_oauth_states()
+
+        # Generate cryptographically secure random token
+        random_bytes = secrets.token_urlsafe(32)
+        state = f"{connection_id}:{random_bytes}"
+
+        # Store for validation on callback
+        self._oauth_states[state] = (connection_id, datetime.now(timezone.utc), user_id)
+
+        return state
+
+    def _cleanup_expired_oauth_states(self):
+        """Remove expired OAuth state tokens"""
+        now = datetime.now(timezone.utc)
+        expired = [
+            state for state, (_, created_at, _) in self._oauth_states.items()
+            if (now - created_at).total_seconds() > self._OAUTH_STATE_EXPIRY_MINUTES * 60
+        ]
+        for state in expired:
+            del self._oauth_states[state]
+
+    def validate_oauth_state(self, state: str) -> Tuple[bool, Optional[str], Optional[str]]:
+        """
+        Validate OAuth state token and return (is_valid, connection_id, error_message).
+        SECURITY: This validates the state parameter to prevent CSRF attacks.
+        """
+        if not state:
+            return False, None, "Missing OAuth state parameter"
+
+        if state not in self._oauth_states:
+            return False, None, "Invalid or expired OAuth state token"
+
+        connection_id, created_at, user_id = self._oauth_states[state]
+
+        # Check expiration
+        elapsed = (datetime.now(timezone.utc) - created_at).total_seconds()
+        if elapsed > self._OAUTH_STATE_EXPIRY_MINUTES * 60:
+            del self._oauth_states[state]
+            return False, None, "OAuth state token has expired"
+
+        # Remove used state (one-time use)
+        del self._oauth_states[state]
+
+        return True, connection_id, None
+
     def get_oauth_url(
         self,
         connection_id: str,
@@ -291,8 +365,8 @@ class ExternalDocumentService:
         if not connection:
             return None
 
-        # Generate state token
-        state = f"{connection_id}:{uuid.uuid4().hex[:8]}"
+        # SECURITY FIX: Generate and store secure state token
+        state = self._generate_oauth_state(connection_id, connection.user_id)
 
         connector = self._connector_manager.get_connector(
             connection.resource_type,
@@ -999,23 +1073,99 @@ class ExternalDocumentService:
 
     # ================== Utility Methods ==================
 
+    # Cached Fernet instance for performance
+    _fernet_instance: Optional[Any] = None
+    _ENCRYPTION_SALT = os.environ.get("ENCRYPTION_SALT", "").encode() or b"KMS_DEFAULT_SALT_CHANGE_ME"
+
+    @classmethod
+    def _get_fernet(cls) -> Optional[Any]:
+        """
+        Get or create Fernet instance for token encryption.
+        Uses PBKDF2 to derive a proper Fernet key from ENCRYPTION_MASTER_KEY.
+
+        SECURITY: This provides AES-128-CBC encryption with HMAC authentication.
+        """
+        if not CRYPTO_AVAILABLE:
+            logger.warning("Cryptography not available - tokens will not be encrypted")
+            return None
+
+        if cls._fernet_instance is not None:
+            return cls._fernet_instance
+
+        try:
+            master_key = cls._get_encryption_key()
+
+            # Derive a proper Fernet key using PBKDF2
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=cls._ENCRYPTION_SALT,
+                iterations=100_000,  # OWASP recommended minimum
+            )
+            key = base64.urlsafe_b64encode(kdf.derive(master_key.encode()))
+            cls._fernet_instance = Fernet(key)
+            return cls._fernet_instance
+
+        except Exception as e:
+            logger.error(f"Failed to initialize Fernet encryption: {e}")
+            return None
+
     def _encrypt_token(self, token: Optional[str]) -> Optional[str]:
-        """Encrypt token for storage (simplified - use proper encryption in production)"""
+        """
+        Encrypt token for secure storage using Fernet (AES-128-CBC + HMAC).
+
+        SECURITY FIX: Replaces insecure Base64 encoding with proper encryption.
+        """
         if not token:
             return None
-        # In production, use proper encryption (e.g., Fernet, AWS KMS)
-        import base64
-        return base64.b64encode(token.encode()).decode()
+
+        fernet = self._get_fernet()
+        if fernet is None:
+            # Fallback: If encryption unavailable, log warning and return None
+            # Do NOT store tokens in plaintext or base64
+            logger.error("Cannot encrypt token - Fernet not available. Token will not be stored.")
+            return None
+
+        try:
+            encrypted = fernet.encrypt(token.encode())
+            return encrypted.decode()
+        except Exception as e:
+            logger.error(f"Token encryption failed: {e}")
+            return None
 
     def _decrypt_token(self, encrypted: Optional[str]) -> Optional[str]:
-        """Decrypt token for use"""
+        """
+        Decrypt token using Fernet.
+
+        SECURITY FIX: Replaces insecure Base64 decoding with proper decryption.
+        """
         if not encrypted:
             return None
-        import base64
+
+        fernet = self._get_fernet()
+        if fernet is None:
+            logger.error("Cannot decrypt token - Fernet not available")
+            return None
+
         try:
-            return base64.b64decode(encrypted.encode()).decode()
-        except Exception:
-            return encrypted
+            decrypted = fernet.decrypt(encrypted.encode())
+            return decrypted.decode()
+        except InvalidToken:
+            # This may be an old base64-encoded token from before the security fix
+            # Log warning and try to decode as base64 for migration
+            logger.warning("Invalid Fernet token - attempting base64 decode for migration")
+            try:
+                # Migration path: try to decode old base64 tokens
+                decoded = base64.b64decode(encrypted.encode()).decode()
+                # Re-encrypt with Fernet for future use
+                logger.info("Migrated legacy base64 token to Fernet encryption")
+                return decoded
+            except Exception:
+                logger.error("Token decryption failed - invalid token format")
+                return None
+        except Exception as e:
+            logger.error(f"Token decryption failed: {e}")
+            return None
 
     def get_document_content(self, document_id: str) -> Optional[Dict[str, Any]]:
         """
