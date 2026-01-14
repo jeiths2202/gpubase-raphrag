@@ -114,7 +114,7 @@ class ConfluenceConnector(BaseConnector):
     async def exchange_code(self, code: str, redirect_uri: str) -> ConnectorResult:
         """Exchange authorization code for access and refresh tokens"""
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 # Exchange code for tokens
                 async with session.post(
                     self.OAUTH_TOKEN_URL,
@@ -195,7 +195,7 @@ class ConfluenceConnector(BaseConnector):
             )
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 async with session.post(
                     self.OAUTH_TOKEN_URL,
                     headers={"Content-Type": "application/json"},
@@ -242,7 +242,7 @@ class ConfluenceConnector(BaseConnector):
             )
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 async with session.get(
                     f"{self._get_api_base()}/spaces",
                     headers=self._get_headers(),
@@ -284,7 +284,7 @@ class ConfluenceConnector(BaseConnector):
 
         doc_count = 0
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 # Get spaces
                 spaces = await self._list_spaces(session)
                 print(f"[ConfluenceConnector] Found {len(spaces)} spaces")
@@ -563,7 +563,7 @@ class ConfluenceConnector(BaseConnector):
 
         # Fetch regular page using v2 API
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 # First get page metadata
                 async with session.get(
                     f"{self._get_api_base()}/pages/{external_id}",
@@ -666,7 +666,7 @@ class ConfluenceConnector(BaseConnector):
     async def _fetch_attachment(self, attachment_id: str) -> ConnectorResult:
         """Fetch and parse Confluence attachment content"""
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 # First get attachment metadata
                 async with session.get(
                     f"{self._get_api_base()}/content/{attachment_id}",

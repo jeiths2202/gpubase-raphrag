@@ -73,7 +73,7 @@ class OneNoteConnector(BaseConnector):
     async def exchange_code(self, code: str, redirect_uri: str) -> ConnectorResult:
         """Exchange authorization code for tokens"""
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 async with session.post(
                     self.OAUTH_TOKEN_URL,
                     data={
@@ -116,7 +116,7 @@ class OneNoteConnector(BaseConnector):
             )
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 async with session.post(
                     self.OAUTH_TOKEN_URL,
                     data={
@@ -158,7 +158,7 @@ class OneNoteConnector(BaseConnector):
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """List pages from all OneNote notebooks"""
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 # Get all notebooks
                 notebooks = await self._list_notebooks(session)
 
@@ -261,7 +261,7 @@ class OneNoteConnector(BaseConnector):
     async def fetch_document(self, external_id: str) -> ConnectorResult:
         """Fetch OneNote page content"""
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 # Get page metadata
                 async with session.get(
                     f"{self.GRAPH_API_BASE}/me/onenote/pages/{external_id}",

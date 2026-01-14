@@ -69,7 +69,7 @@ class GitHubConnector(BaseConnector):
     async def exchange_code(self, code: str, redirect_uri: str) -> ConnectorResult:
         """Exchange authorization code for tokens"""
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 async with session.post(
                     self.OAUTH_TOKEN_URL,
                     headers={"Accept": "application/json"},
@@ -123,7 +123,7 @@ class GitHubConnector(BaseConnector):
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """List documentation files from all accessible repositories"""
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 # Get user's repositories
                 repos = await self._list_repositories(session)
 
@@ -243,7 +243,7 @@ class GitHubConnector(BaseConnector):
 
             repo_full_name, file_path = external_id.split(":", 1)
 
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 async with session.get(
                     f"{self.API_BASE}/repos/{repo_full_name}/contents/{file_path}",
                     headers=self._get_headers()

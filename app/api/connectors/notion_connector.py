@@ -74,7 +74,7 @@ class NotionConnector(BaseConnector):
                 f"{self.CLIENT_ID}:{self.CLIENT_SECRET}".encode()
             ).decode()
 
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 async with session.post(
                     self.OAUTH_TOKEN_URL,
                     headers={
@@ -130,7 +130,7 @@ class NotionConnector(BaseConnector):
 
         doc_count = 0
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 # Search for all pages
                 has_more = True
                 start_cursor = None
@@ -222,7 +222,7 @@ class NotionConnector(BaseConnector):
     async def fetch_document(self, external_id: str) -> ConnectorResult:
         """Fetch full page content"""
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 # Get page metadata
                 async with session.get(
                     f"{self.API_BASE}/pages/{external_id}",

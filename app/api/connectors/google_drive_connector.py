@@ -82,7 +82,7 @@ class GoogleDriveConnector(BaseConnector):
     async def exchange_code(self, code: str, redirect_uri: str) -> ConnectorResult:
         """Exchange authorization code for tokens"""
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 async with session.post(
                     self.OAUTH_TOKEN_URL,
                     data={
@@ -125,7 +125,7 @@ class GoogleDriveConnector(BaseConnector):
             )
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 async with session.post(
                     self.OAUTH_TOKEN_URL,
                     data={
@@ -165,7 +165,7 @@ class GoogleDriveConnector(BaseConnector):
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """List documents from Google Drive"""
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 page_token = None
 
                 while True:
@@ -230,7 +230,7 @@ class GoogleDriveConnector(BaseConnector):
     async def fetch_document(self, external_id: str) -> ConnectorResult:
         """Fetch document content from Google Drive"""
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
                 # Get file metadata
                 async with session.get(
                     f"{self.API_BASE}/files/{external_id}",
