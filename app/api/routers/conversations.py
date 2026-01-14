@@ -136,6 +136,76 @@ async def create_conversation(
     )
 
 
+# ==================== Search & Statistics ====================
+# NOTE: Static routes must be defined BEFORE dynamic routes like /{conversation_id}
+
+@router.get(
+    "/search",
+    response_model=SuccessResponse[List[ConversationSearchResult]],
+    summary="대화 검색",
+    description="대화 내용을 검색합니다."
+)
+async def search_conversations(
+    q: str = Query(..., min_length=2, max_length=200, description="검색어"),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user),
+    service: ConversationService = Depends(get_conversation_service)
+):
+    """
+    Search conversations by content.
+
+    Performs full-text search across all message content
+    in the user's conversations.
+    """
+    request_id = _generate_request_id()
+
+    results = await service.search_conversations(
+        user_id=current_user["id"],
+        query=q,
+        limit=limit
+    )
+
+    search_results = [
+        ConversationSearchResult(
+            conversation=conv,
+            relevance_score=score
+        )
+        for conv, score in results
+    ]
+
+    return SuccessResponse(
+        data=search_results,
+        meta=MetaInfo(request_id=request_id)
+    )
+
+
+@router.get(
+    "/stats",
+    response_model=SuccessResponse[dict],
+    summary="통계 조회",
+    description="사용자의 대화 통계를 조회합니다."
+)
+async def get_stats(
+    current_user: dict = Depends(get_current_user),
+    service: ConversationService = Depends(get_conversation_service)
+):
+    """
+    Get conversation statistics for the current user.
+
+    Returns counts of conversations, messages, and total tokens.
+    """
+    request_id = _generate_request_id()
+
+    stats = await service.get_user_stats(current_user["id"])
+
+    return SuccessResponse(
+        data=stats,
+        meta=MetaInfo(request_id=request_id)
+    )
+
+
+# ==================== Single Conversation Operations ====================
+
 @router.get(
     "/{conversation_id}",
     response_model=SuccessResponse[ConversationDetail],
@@ -551,72 +621,3 @@ async def fork_conversation(
                 "message": str(e)
             }
         )
-
-
-# ==================== Search ====================
-
-@router.get(
-    "/search",
-    response_model=SuccessResponse[List[ConversationSearchResult]],
-    summary="대화 검색",
-    description="대화 내용을 검색합니다."
-)
-async def search_conversations(
-    q: str = Query(..., min_length=2, max_length=200, description="검색어"),
-    limit: int = Query(20, ge=1, le=100),
-    current_user: dict = Depends(get_current_user),
-    service: ConversationService = Depends(get_conversation_service)
-):
-    """
-    Search conversations by content.
-
-    Performs full-text search across all message content
-    in the user's conversations.
-    """
-    request_id = _generate_request_id()
-
-    results = await service.search_conversations(
-        user_id=current_user["id"],
-        query=q,
-        limit=limit
-    )
-
-    search_results = [
-        ConversationSearchResult(
-            conversation=conv,
-            relevance_score=score
-        )
-        for conv, score in results
-    ]
-
-    return SuccessResponse(
-        data=search_results,
-        meta=MetaInfo(request_id=request_id)
-    )
-
-
-# ==================== Statistics ====================
-
-@router.get(
-    "/stats",
-    response_model=SuccessResponse[dict],
-    summary="통계 조회",
-    description="사용자의 대화 통계를 조회합니다."
-)
-async def get_stats(
-    current_user: dict = Depends(get_current_user),
-    service: ConversationService = Depends(get_conversation_service)
-):
-    """
-    Get conversation statistics for the current user.
-
-    Returns counts of conversations, messages, and total tokens.
-    """
-    request_id = _generate_request_id()
-
-    stats = await service.get_user_stats(current_user["id"])
-
-    return SuccessResponse(
-        data=stats,
-        meta=MetaInfo(request_id=request_id)
-    )
