@@ -4,7 +4,7 @@
 **Branch**: `feature/cpu-local-llm-stable`
 **Reviewer**: Claude Code (Automated Security Analysis)
 **Scope**: 95 modified files across backend and frontend
-**Last Updated**: 2026-01-14 (Critical + High vulnerabilities fixed)
+**Last Updated**: 2026-01-14 (All vulnerabilities fixed)
 
 ---
 
@@ -14,8 +14,8 @@
 |----------|-------|--------|
 | **Critical** | 3 | ✅ **ALL FIXED** |
 | **High** | 9 | ✅ **ALL FIXED** |
-| **Medium** | 3 | Plan Remediation |
-| **Total** | 15 | 12 Fixed, 3 Remaining |
+| **Medium** | 3 | ✅ **ALL FIXED** |
+| **Total** | 15 | ✅ **ALL FIXED** |
 
 ### Critical Vulnerabilities - All Fixed ✅
 
@@ -355,25 +355,29 @@ import rehypeSanitize from 'rehype-sanitize';
 
 ## Medium Severity Vulnerabilities
 
-### 13. Verification Codes Logged
+### 13. Verification Codes Logged ✅ FIXED
 
 | Field | Value |
 |-------|-------|
 | **Confidence** | 9/10 |
 | **Severity** | Medium |
 | **File** | `app/api/core/deps.py:1225-1229` |
+| **Status** | ✅ **FIXED** |
+
+**Fix Applied**: Removed verification code from log message, only logging that email was sent.
 
 ---
 
-### 14. Database Credentials in DSN String
+### 14. Database Credentials in DSN String ✅ FIXED
 
 | Field | Value |
 |-------|-------|
 | **Confidence** | 8/10 |
 | **Severity** | Medium |
 | **File** | `app/api/core/deps.py:1511-1512` |
+| **Status** | ✅ **FIXED** |
 
-**Recommendation**:
+**Fix Applied**: Changed from DSN string to separate parameters:
 ```python
 self._pool = await asyncpg.create_pool(
     host=settings.POSTGRES_HOST,
@@ -384,15 +388,16 @@ self._pool = await asyncpg.create_pool(
 
 ---
 
-### 15. HTTP Header Injection in Content-Disposition
+### 15. HTTP Header Injection in Content-Disposition ✅ FIXED
 
 | Field | Value |
 |-------|-------|
 | **Confidence** | 8/10 |
 | **Severity** | Medium |
 | **File** | `app/api/routers/images.py:219-221` |
+| **Status** | ✅ **FIXED** |
 
-**Recommendation**:
+**Fix Applied**: Sanitize filename before use in header:
 ```python
 safe_filename = re.sub(r'[^\w\-.]', '_', image_id)
 ```
@@ -412,7 +417,9 @@ safe_filename = re.sub(r'[^\w\-.]', '_', image_id)
 | **P2** | SQL Injection (LIMIT) | ✅ Fixed |
 | **P2** | Missing Authorization | ✅ Fixed |
 | **P2** | Log Data Exposure | ✅ Fixed |
-| **P3** | Medium vulnerabilities | Pending |
+| **P3** | Verification Codes Logged | ✅ Fixed |
+| **P3** | DB Credentials in DSN | ✅ Fixed |
+| **P3** | HTTP Header Injection | ✅ Fixed |
 
 ---
 
@@ -432,10 +439,10 @@ safe_filename = re.sub(r'[^\w\-.]', '_', image_id)
 9. ~~**Remove sensitive logging**~~ ✅ Fixed - print statements removed
 10. ~~**Fix stored XSS**~~ ✅ Fixed with URL sanitization
 
-### Remaining (Medium Priority)
-- Verification codes logged (medium)
-- Database credentials in DSN string (medium)
-- HTTP header injection (medium)
+### ✅ Completed (Medium - All Fixed)
+11. ~~**Verification codes logging**~~ ✅ Fixed - code removed from logs
+12. ~~**DB credentials in DSN**~~ ✅ Fixed - separate parameters used
+13. ~~**HTTP header injection**~~ ✅ Fixed - filename sanitization
 
 ---
 

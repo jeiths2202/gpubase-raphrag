@@ -6,10 +6,13 @@ Provides endpoints for:
 - Image retrieval by ID
 - Document images listing
 - Image upload and processing
+
+SECURITY: Content-Disposition filenames are sanitized to prevent header injection.
 """
 
 import base64
 import logging
+import re
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -213,11 +216,15 @@ async def get_image_raw(
         image_bytes = base64.b64decode(result["image_base64"])
         mime_type = result.get("mime_type", "image/png")
 
+        # SECURITY: Sanitize filename to prevent HTTP header injection
+        # Only allow alphanumeric, hyphens, underscores, and dots
+        safe_filename = re.sub(r'[^\w\-.]', '_', image_id)
+
         return Response(
             content=image_bytes,
             media_type=mime_type,
             headers={
-                "Content-Disposition": f'inline; filename="{image_id}.png"',
+                "Content-Disposition": f'inline; filename="{safe_filename}.png"',
                 "Cache-Control": "public, max-age=86400",
             }
         )

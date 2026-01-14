@@ -1248,7 +1248,8 @@ class AuthService:
     async def _send_verification_email(self, email: str, code: str) -> bool:
         """Send verification email (mock implementation)"""
         # TODO: Implement actual email sending (SMTP, SendGrid, etc.)
-        print(f"[EMAIL] Sending verification code {code} to {email}")
+        # SECURITY: Don't log verification codes - only log that email was sent
+        logger.debug(f"[EMAIL] Verification email sent to {email}")
         return True
 
     async def authenticate_google(self, credential: str) -> dict:
@@ -1531,8 +1532,17 @@ class TokenStatsService:
         """Get database connection pool"""
         if self._pool is None:
             import asyncpg
-            dsn = f"postgresql://{api_settings.POSTGRES_USER}:{api_settings.POSTGRES_PASSWORD}@{api_settings.POSTGRES_HOST}:{api_settings.POSTGRES_PORT}/{api_settings.POSTGRES_DB}"
-            self._pool = await asyncpg.create_pool(dsn, min_size=1, max_size=5)
+            # SECURITY: Use separate parameters instead of DSN string
+            # to prevent password exposure in logs/error messages
+            self._pool = await asyncpg.create_pool(
+                host=api_settings.POSTGRES_HOST,
+                port=int(api_settings.POSTGRES_PORT),
+                user=api_settings.POSTGRES_USER,
+                password=api_settings.POSTGRES_PASSWORD,
+                database=api_settings.POSTGRES_DB,
+                min_size=1,
+                max_size=5
+            )
         return self._pool
 
     async def get_token_overview(self) -> dict:
@@ -2977,8 +2987,17 @@ async def _get_image_embedding_repository():
         import asyncpg
         from ..infrastructure.postgres.image_embedding_repository import PostgresImageEmbeddingRepository
 
-        dsn = f"postgresql://{api_settings.POSTGRES_USER}:{api_settings.POSTGRES_PASSWORD}@{api_settings.POSTGRES_HOST}:{api_settings.POSTGRES_PORT}/{api_settings.POSTGRES_DB}"
-        pool = await asyncpg.create_pool(dsn, min_size=1, max_size=5)
+        # SECURITY: Use separate parameters instead of DSN string
+        # to prevent password exposure in logs/error messages
+        pool = await asyncpg.create_pool(
+            host=api_settings.POSTGRES_HOST,
+            port=int(api_settings.POSTGRES_PORT),
+            user=api_settings.POSTGRES_USER,
+            password=api_settings.POSTGRES_PASSWORD,
+            database=api_settings.POSTGRES_DB,
+            min_size=1,
+            max_size=5
+        )
         _image_embedding_repository = PostgresImageEmbeddingRepository(pool)
 
     return _image_embedding_repository
