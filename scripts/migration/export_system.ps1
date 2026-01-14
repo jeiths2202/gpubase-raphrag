@@ -141,11 +141,11 @@ function Export-Source {
 
     $sourceDir = Join-Path $OutputDir "source"
 
-    # Export backend
+    # Export backend (using robocopy to handle special files)
     Write-Info "Exporting backend source..."
     $appSrc = Join-Path $ProjectRoot "app"
     $appDst = Join-Path $sourceDir "app"
-    Copy-Item -Path $appSrc -Destination $appDst -Recurse -Force
+    & robocopy $appSrc $appDst /E /XD "__pycache__" ".pytest_cache" /XF "*.pyc" "nul" /NFL /NDL /NJH /NJS /NC /NS /NP 2>$null
 
     # Export frontend (excluding node_modules and dist)
     Write-Info "Exporting frontend source..."
@@ -155,23 +155,35 @@ function Export-Source {
     # Create destination directory
     New-Item -ItemType Directory -Force -Path $frontendDst | Out-Null
 
-    # Copy files excluding node_modules and dist
-    Get-ChildItem -Path $frontendSrc -Exclude @("node_modules", "dist", ".git") | ForEach-Object {
-        Copy-Item -Path $_.FullName -Destination $frontendDst -Recurse -Force
+    # Use robocopy for more robust copying (excludes node_modules, dist, and temp files)
+    try {
+        & robocopy $frontendSrc $frontendDst /E /XD "node_modules" "dist" ".git" /XF "*.tmp" "tmpclaude-*" /NFL /NDL /NJH /NJS /NC /NS /NP 2>$null
+        # robocopy returns non-zero for success, so we ignore the exit code
+    }
+    catch {
+        # Fallback to Copy-Item with error handling
+        Get-ChildItem -Path $frontendSrc -Exclude @("node_modules", "dist", ".git", "tmpclaude-*") | ForEach-Object {
+            try {
+                Copy-Item -Path $_.FullName -Destination $frontendDst -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            catch {
+                Write-Warn "Skipped: $($_.Name)"
+            }
+        }
     }
 
-    # Export scripts
+    # Export scripts (using robocopy to handle special files)
     Write-Info "Exporting utility scripts..."
     $scriptsSrc = Join-Path $ProjectRoot "scripts"
     $scriptsDst = Join-Path $sourceDir "scripts"
-    Copy-Item -Path $scriptsSrc -Destination $scriptsDst -Recurse -Force
+    & robocopy $scriptsSrc $scriptsDst /E /XF "nul" "tmpclaude-*" /XD "__pycache__" /NFL /NDL /NJH /NJS /NC /NS /NP 2>$null
 
     # Export tests
     Write-Info "Exporting test files..."
     $testsSrc = Join-Path $ProjectRoot "tests"
     if (Test-Path $testsSrc) {
         $testsDst = Join-Path $sourceDir "tests"
-        Copy-Item -Path $testsSrc -Destination $testsDst -Recurse -Force -ErrorAction SilentlyContinue
+        & robocopy $testsSrc $testsDst /E /XD "__pycache__" /NFL /NDL /NJH /NJS /NC /NS /NP 2>$null
     }
 
     # Export migrations
@@ -179,14 +191,14 @@ function Export-Source {
     $migrationsSrc = Join-Path $ProjectRoot "migrations"
     if (Test-Path $migrationsSrc) {
         $migrationsDst = Join-Path $sourceDir "migrations"
-        Copy-Item -Path $migrationsSrc -Destination $migrationsDst -Recurse -Force
+        & robocopy $migrationsSrc $migrationsDst /E /NFL /NDL /NJH /NJS /NC /NS /NP 2>$null
     }
 
     # Export docs
     $docsSrc = Join-Path $ProjectRoot "docs"
     if (Test-Path $docsSrc) {
         $docsDst = Join-Path $sourceDir "docs"
-        Copy-Item -Path $docsSrc -Destination $docsDst -Recurse -Force -ErrorAction SilentlyContinue
+        & robocopy $docsSrc $docsDst /E /XF "~$*" /NFL /NDL /NJH /NJS /NC /NS /NP 2>$null
     }
 
     Write-Info "Source code export completed"
