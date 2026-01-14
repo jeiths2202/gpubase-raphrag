@@ -89,16 +89,8 @@ Response format:
         context: AgentContext
     ) -> AgentResult:
         """Execute a vision analysis task"""
-        # Check if there are uploaded documents with images
-        if context.uploaded_documents and self.vision_service:
-            # Try to use vision service for image analysis
-            try:
-                for doc_id in context.uploaded_documents:
-                    # This would integrate with the vision LLM
-                    pass
-            except Exception as e:
-                logger.error(f"Vision analysis failed: {e}")
-
+        # TODO: Integrate vision_service for direct image analysis when available
+        # Currently relies on executor's tool-based approach (document_read, vector_search)
         return await self.executor.run(self, task, context)
 
     async def stream(
