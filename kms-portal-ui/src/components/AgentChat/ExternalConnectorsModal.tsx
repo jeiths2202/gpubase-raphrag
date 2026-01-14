@@ -6,7 +6,7 @@
  * Allows users to connect external services and select resources for chat context.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   X,
   Loader2,
@@ -823,11 +823,56 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
     toggleResourceActiveWithContent,
     processDocument,
     processSelectedDocuments,
+    loadConnections,
+    loadDocuments,
   } = useExternalConnectorsStore();
 
   const selectedConnector = selectedConnectorType
     ? connectors.find((c) => c.type === selectedConnectorType)
     : null;
+
+  // Listen for OAuth success message from popup window
+  useEffect(() => {
+    const handleOAuthMessage = async (event: MessageEvent) => {
+      // Verify origin for security
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      if (event.data?.type === 'oauth_success') {
+        console.log('[ExternalConnectors] Received OAuth success message from popup:', event.data);
+        const { connectionId } = event.data;
+
+        // Cancel SSO state (stop showing "authorizing" spinner)
+        cancelSSO();
+
+        // Reload connections to get updated state from backend
+        await loadConnections();
+
+        // Sync and load documents for the connected service
+        // Use the connectionId from the message to determine which connector was connected
+        if (connectionId) {
+          // Find which connector type this connection belongs to
+          const updatedConnectors = useExternalConnectorsStore.getState().connectors;
+          const connectedConnector = updatedConnectors.find((c) => c.connectionId === connectionId);
+
+          if (connectedConnector) {
+            console.log('[ExternalConnectors] Found connected connector:', connectedConnector.type);
+            // Sync resources first, then documents will be loaded
+            await syncResources(connectedConnector.type, connectionId);
+          }
+        } else if (selectedConnectorType) {
+          // Fallback: use selected connector type if connectionId not provided
+          await loadDocuments(selectedConnectorType);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleOAuthMessage);
+    return () => {
+      window.removeEventListener('message', handleOAuthMessage);
+    };
+  }, [loadConnections, loadDocuments, syncResources, selectedConnectorType, cancelSSO]);
 
   const handleClose = useCallback(() => {
     cancelSSO();

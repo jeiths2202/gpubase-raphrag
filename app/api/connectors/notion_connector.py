@@ -3,6 +3,7 @@ Notion Connector
 Connects to Notion API for pages and databases.
 """
 import hashlib
+import os
 import aiohttp
 from datetime import datetime
 from typing import Optional, List, Dict, Any, AsyncGenerator
@@ -14,15 +15,15 @@ class NotionConnector(BaseConnector):
     """
     Connector for Notion integration.
     Uses Notion API v1 for accessing pages and databases.
+
+    Environment Variables:
+        NOTION_CLIENT_ID: OAuth client ID from Notion integration
+        NOTION_CLIENT_SECRET: OAuth client secret from Notion integration
     """
 
     API_BASE = "https://api.notion.com/v1"
     OAUTH_AUTH_URL = "https://api.notion.com/v1/oauth/authorize"
     OAUTH_TOKEN_URL = "https://api.notion.com/v1/oauth/token"
-
-    # OAuth settings (configure in environment)
-    CLIENT_ID = ""  # Set from config
-    CLIENT_SECRET = ""  # Set from config
 
     @property
     def resource_type(self) -> str:
@@ -38,8 +39,9 @@ class NotionConnector(BaseConnector):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.CLIENT_ID = self.config.get("client_id", "")
-        self.CLIENT_SECRET = self.config.get("client_secret", "")
+        # Read from config first, then fall back to environment variables
+        self.CLIENT_ID = self.config.get("client_id") or os.environ.get("NOTION_CLIENT_ID", "")
+        self.CLIENT_SECRET = self.config.get("client_secret") or os.environ.get("NOTION_CLIENT_SECRET", "")
 
     def _get_headers(self) -> Dict[str, str]:
         """Get API request headers"""

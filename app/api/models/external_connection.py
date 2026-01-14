@@ -307,7 +307,7 @@ EXTERNAL_RESOURCE_CONFIGS = {
         resource_type=ExternalResourceType.CONFLUENCE,
         display_name="Confluence",
         icon="📚",
-        auth_type=AuthType.API_TOKEN,
+        auth_type=AuthType.OAUTH2,
         description="Atlassian Confluence 페이지 연결",
         supported_formats=["page", "blog", "attachment"]
     )

@@ -334,8 +334,8 @@ class ExternalDocumentService:
             connection.status = ConnectionStatus.CONNECTED
             connection.updated_at = datetime.now(timezone.utc)
 
-            # Store additional metadata
-            for key in ["workspace_id", "workspace_name", "bot_id"]:
+            # Store additional metadata (Notion: workspace_id, Confluence: cloud_id, etc.)
+            for key in ["workspace_id", "workspace_name", "bot_id", "cloud_id", "site_url", "site_name"]:
                 if key in tokens:
                     connection.resource_config[key] = tokens[key]
         else:

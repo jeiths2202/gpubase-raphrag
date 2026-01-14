@@ -29,7 +29,9 @@ export const OAuthCallbackPage: React.FC = () => {
     const code = searchParams.get('code');
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
-    // Note: state parameter would be used for CSRF protection in production
+    const state = searchParams.get('state');
+
+    console.log('[OAuthCallback] Processing callback:', { code: code?.substring(0, 20), state, error, pendingOAuthConnectionId });
 
     // Check for OAuth errors
     if (error) {
@@ -45,22 +47,36 @@ export const OAuthCallbackPage: React.FC = () => {
       return;
     }
 
+    // Get connection ID from state parameter or pending connection
+    // State format: "{connection_id}:{random_string}"
+    let connectionId = pendingOAuthConnectionId;
+    if (!connectionId && state) {
+      const stateParts = state.split(':');
+      if (stateParts.length >= 1) {
+        connectionId = stateParts[0];
+        console.log('[OAuthCallback] Extracted connectionId from state:', connectionId);
+      }
+    }
+
     // Check for pending connection
-    if (!pendingOAuthConnectionId) {
+    if (!connectionId) {
       setStatus('error');
       setErrorMessage('No pending OAuth connection found. Please try connecting again.');
+      console.error('[OAuthCallback] No connectionId found. state:', state, 'pendingOAuthConnectionId:', pendingOAuthConnectionId);
       return;
     }
 
+    console.log('[OAuthCallback] Using connectionId:', connectionId);
+
     try {
       // Complete the OAuth flow
-      await completeOAuthFlow(pendingOAuthConnectionId, code);
+      await completeOAuthFlow(connectionId, code);
       setStatus('success');
 
       // Try to close the popup window if this was opened in a popup
       if (window.opener) {
         // Notify opener window
-        window.opener.postMessage({ type: 'oauth_success', connectionId: pendingOAuthConnectionId }, window.location.origin);
+        window.opener.postMessage({ type: 'oauth_success', connectionId: connectionId }, window.location.origin);
         // Close popup after brief delay
         setTimeout(() => {
           window.close();
