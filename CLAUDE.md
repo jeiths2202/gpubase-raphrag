@@ -131,9 +131,16 @@ docs: Documentation only
 | Agent System | `app/api/agents/orchestrator.py` |
 | Deep Agents | `app/api/agents/adapters/deep_agent_adapter.py` |
 
+## Windows Tool Paths
+
+| Tool | Path |
+|------|------|
+| GitHub CLI | `"/c/Program Files/GitHub CLI/gh.exe"` |
+
 ## Notes for Claude
 
 - Use `Task` tool with `Explore` agent for broad searches
 - Read sub-CLAUDE.md files for detailed context on specific areas
 - Always run tests after modifications
 - Update translations in all 3 locales (en, ko, ja) for UI changes
+- Use full path for `gh.exe` on Windows (see Windows Tool Paths above)
