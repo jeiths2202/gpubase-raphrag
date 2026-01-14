@@ -85,10 +85,10 @@ cd kms-portal-ui && npm run test:run                   # Frontend
 ## Environment Setup
 
 ```bash
-# Required in .env
-JWT_SECRET_KEY=        # min 32 chars
-ENCRYPTION_MASTER_KEY= # min 32 chars
-ENCRYPTION_SALT=       # min 16 chars
+# Required in .env (see docs/SECURITY_KEYS_SETUP.md for key generation)
+JWT_SECRET_KEY=        # min 32 chars - JWT signing
+ENCRYPTION_MASTER_KEY= # min 32 chars - OAuth token encryption (Fernet/AES)
+ENCRYPTION_SALT=       # min 16 chars - PBKDF2 key derivation salt
 NEO4J_PASSWORD=        # database password
 
 # Optional
@@ -97,6 +97,8 @@ ENABLE_DEEP_AGENT=true   # enable Deep Agent framework
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:3b
 ```
+
+**보안 키 생성:** `docs/SECURITY_KEYS_SETUP.md` 참조
 
 ## Coding Conventions
 
