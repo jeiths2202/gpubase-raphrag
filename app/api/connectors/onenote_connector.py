@@ -47,6 +47,7 @@ class OneNoteConnector(BaseConnector):
         # Read from config first, then fall back to environment variables
         self.CLIENT_ID = self.config.get("client_id") or os.environ.get("MICROSOFT_CLIENT_ID", "")
         self.CLIENT_SECRET = self.config.get("client_secret") or os.environ.get("MICROSOFT_CLIENT_SECRET", "")
+        print(f"[OneNoteConnector] Initialized with CLIENT_ID: {self.CLIENT_ID[:8]}... (from {'config' if self.config.get('client_id') else 'env'})")
 
     def _get_headers(self) -> Dict[str, str]:
         """Get API request headers"""
@@ -71,7 +72,9 @@ class OneNoteConnector(BaseConnector):
             "response_mode": "query"
         }
         query = urllib.parse.urlencode(params)
-        return f"{self.OAUTH_AUTH_URL}?{query}"
+        oauth_url = f"{self.OAUTH_AUTH_URL}?{query}"
+        print(f"[OneNoteConnector] Generated OAuth URL with client_id: {self.CLIENT_ID}")
+        return oauth_url
 
     async def exchange_code(self, code: str, redirect_uri: str) -> ConnectorResult:
         """Exchange authorization code for tokens"""
@@ -268,9 +271,16 @@ class OneNoteConnector(BaseConnector):
                 f"{self.GRAPH_API_BASE}/me/onenote/notebooks",
                 headers=self._get_headers()
             ) as resp:
+                print(f"[OneNoteConnector] List notebooks response status: {resp.status}")
                 if resp.status == 200:
                     data = await resp.json()
                     notebooks = data.get("value", [])
+                    print(f"[OneNoteConnector] Found {len(notebooks)} notebooks")
+                    for nb in notebooks:
+                        print(f"[OneNoteConnector]   - {nb.get('displayName')}")
+                else:
+                    error_text = await resp.text()
+                    print(f"[OneNoteConnector] List notebooks error: {resp.status} - {error_text}")
         except Exception as e:
             print(f"[OneNoteConnector] List notebooks error: {e}")
 
