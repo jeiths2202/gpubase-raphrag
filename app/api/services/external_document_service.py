@@ -335,7 +335,16 @@ class ExternalDocumentService:
             connection.updated_at = datetime.now(timezone.utc)
 
             # Store additional metadata (Notion: workspace_id, Confluence: cloud_id, etc.)
-            for key in ["workspace_id", "workspace_name", "bot_id", "cloud_id", "site_url", "site_name"]:
+            # GitHub: user_login, user_id, avatar_url
+            # Google Drive: user_email, user_id, picture
+            # OneNote: user_email, user_id, user_name
+            for key in [
+                "workspace_id", "workspace_name", "bot_id",  # Notion
+                "cloud_id", "site_url", "site_name",  # Confluence
+                "user_login", "user_name", "user_id", "user_email",  # GitHub, Google Drive, OneNote
+                "avatar_url", "picture",  # User avatars
+                "token_type", "scope"  # OAuth metadata
+            ]:
                 if key in tokens:
                     connection.resource_config[key] = tokens[key]
         else:

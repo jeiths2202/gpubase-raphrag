@@ -221,6 +221,16 @@ class APISettings(BaseSettings):
         description="Atlassian OAuth client secret"
     )
 
+    # External Connectors - Microsoft (OneNote) OAuth
+    MICROSOFT_CLIENT_ID: Optional[str] = Field(
+        default=None,
+        description="Microsoft OAuth client ID (from Azure AD App Registration)"
+    )
+    MICROSOFT_CLIENT_SECRET: Optional[str] = Field(
+        default=None,
+        description="Microsoft OAuth client secret"
+    )
+
     # Corporate SSO
     CORP_EMAIL_DOMAINS: str = Field(
         default="*",

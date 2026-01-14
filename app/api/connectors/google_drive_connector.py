@@ -3,6 +3,7 @@ Google Drive Connector
 Connects to Google Drive API for documents and files.
 """
 import hashlib
+import os
 import aiohttp
 from datetime import datetime
 from typing import Optional, List, Dict, Any, AsyncGenerator
@@ -14,9 +15,14 @@ class GoogleDriveConnector(BaseConnector):
     """
     Connector for Google Drive integration.
     Supports Google Docs, Sheets, and uploaded files.
+
+    Environment Variables:
+        GOOGLE_DRIVE_CLIENT_ID: Google OAuth client ID (from Google Cloud Console)
+        GOOGLE_DRIVE_CLIENT_SECRET: Google OAuth client secret
     """
 
     API_BASE = "https://www.googleapis.com/drive/v3"
+    USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
     OAUTH_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
     OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
 
@@ -30,9 +36,6 @@ class GoogleDriveConnector(BaseConnector):
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word"
     }
 
-    CLIENT_ID = ""
-    CLIENT_SECRET = ""
-
     @property
     def resource_type(self) -> str:
         return "google_drive"
@@ -45,13 +48,16 @@ class GoogleDriveConnector(BaseConnector):
     def oauth_scopes(self) -> List[str]:
         return [
             "https://www.googleapis.com/auth/drive.readonly",
-            "https://www.googleapis.com/auth/documents.readonly"
+            "https://www.googleapis.com/auth/documents.readonly",
+            "https://www.googleapis.com/auth/userinfo.profile",
+            "https://www.googleapis.com/auth/userinfo.email"
         ]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.CLIENT_ID = self.config.get("client_id", "")
-        self.CLIENT_SECRET = self.config.get("client_secret", "")
+        # Read from config first, then fall back to environment variables
+        self.CLIENT_ID = self.config.get("client_id") or os.environ.get("GOOGLE_DRIVE_CLIENT_ID", "")
+        self.CLIENT_SECRET = self.config.get("client_secret") or os.environ.get("GOOGLE_DRIVE_CLIENT_SECRET", "")
 
     def _get_headers(self) -> Dict[str, str]:
         """Get API request headers"""
@@ -101,15 +107,74 @@ class GoogleDriveConnector(BaseConnector):
                             error=data.get("error_description", data["error"])
                         )
 
+                    access_token = data.get("access_token")
+
+                    # Get user info for metadata
+                    user_info = await self._get_user_info(session, access_token)
+
                     return ConnectorResult(
                         status=ConnectorStatus.SUCCESS,
                         data={
-                            "access_token": data.get("access_token"),
+                            "access_token": access_token,
                             "refresh_token": data.get("refresh_token"),
                             "expires_in": data.get("expires_in"),
-                            "token_type": data.get("token_type")
+                            "token_type": data.get("token_type"),
+                            "user_email": user_info.get("email"),
+                            "user_name": user_info.get("name"),
+                            "user_id": user_info.get("id"),
+                            "picture": user_info.get("picture")
                         }
                     )
+        except Exception as e:
+            return ConnectorResult(
+                status=ConnectorStatus.ERROR,
+                error=str(e)
+            )
+
+    async def _get_user_info(self, session: aiohttp.ClientSession, access_token: str) -> Dict[str, Any]:
+        """Get authenticated user information"""
+        try:
+            async with session.get(
+                self.USERINFO_URL,
+                headers={"Authorization": f"Bearer {access_token}"}
+            ) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+        except Exception as e:
+            print(f"[GoogleDriveConnector] Failed to get user info: {e}")
+        return {}
+
+    async def validate_connection(self) -> ConnectorResult:
+        """Validate Google Drive OAuth connection"""
+        if not self.access_token:
+            return ConnectorResult(
+                status=ConnectorStatus.ERROR,
+                error="No access token available"
+            )
+
+        try:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
+                async with session.get(
+                    self.USERINFO_URL,
+                    headers=self._get_headers()
+                ) as resp:
+                    if resp.status == 200:
+                        user_data = await resp.json()
+                        return ConnectorResult(
+                            status=ConnectorStatus.SUCCESS,
+                            message=f"Connected as {user_data.get('email', 'unknown')}"
+                        )
+                    elif resp.status == 401:
+                        return ConnectorResult(
+                            status=ConnectorStatus.AUTH_EXPIRED,
+                            error="Access token expired"
+                        )
+                    else:
+                        error = await resp.text()
+                        return ConnectorResult(
+                            status=ConnectorStatus.ERROR,
+                            error=error
+                        )
         except Exception as e:
             return ConnectorResult(
                 status=ConnectorStatus.ERROR,

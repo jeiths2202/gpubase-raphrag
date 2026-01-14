@@ -3,6 +3,7 @@ OneNote Connector
 Connects to Microsoft Graph API for OneNote notebooks.
 """
 import hashlib
+import os
 import aiohttp
 from datetime import datetime
 from typing import Optional, List, Dict, Any, AsyncGenerator
@@ -14,14 +15,15 @@ class OneNoteConnector(BaseConnector):
     """
     Connector for Microsoft OneNote integration.
     Uses Microsoft Graph API to access notebooks, sections, and pages.
+
+    Environment Variables:
+        MICROSOFT_CLIENT_ID: Microsoft Azure AD App client ID
+        MICROSOFT_CLIENT_SECRET: Microsoft Azure AD App client secret
     """
 
     GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
     OAUTH_AUTH_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
     OAUTH_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
-
-    CLIENT_ID = ""
-    CLIENT_SECRET = ""
 
     @property
     def resource_type(self) -> str:
@@ -42,8 +44,9 @@ class OneNoteConnector(BaseConnector):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.CLIENT_ID = self.config.get("client_id", "")
-        self.CLIENT_SECRET = self.config.get("client_secret", "")
+        # Read from config first, then fall back to environment variables
+        self.CLIENT_ID = self.config.get("client_id") or os.environ.get("MICROSOFT_CLIENT_ID", "")
+        self.CLIENT_SECRET = self.config.get("client_secret") or os.environ.get("MICROSOFT_CLIENT_SECRET", "")
 
     def _get_headers(self) -> Dict[str, str]:
         """Get API request headers"""
@@ -93,14 +96,76 @@ class OneNoteConnector(BaseConnector):
                             error=data.get("error_description", data["error"])
                         )
 
+                    access_token = data.get("access_token")
+
+                    # Get user info for metadata
+                    user_info = await self._get_user_info(session, access_token)
+
                     return ConnectorResult(
                         status=ConnectorStatus.SUCCESS,
                         data={
-                            "access_token": data.get("access_token"),
+                            "access_token": access_token,
                             "refresh_token": data.get("refresh_token"),
-                            "expires_in": data.get("expires_in")
+                            "expires_in": data.get("expires_in"),
+                            "user_email": user_info.get("mail") or user_info.get("userPrincipalName"),
+                            "user_name": user_info.get("displayName"),
+                            "user_id": user_info.get("id")
                         }
                     )
+        except Exception as e:
+            return ConnectorResult(
+                status=ConnectorStatus.ERROR,
+                error=str(e)
+            )
+
+    async def _get_user_info(self, session: aiohttp.ClientSession, access_token: str) -> Dict[str, Any]:
+        """Get authenticated user information from Microsoft Graph"""
+        try:
+            async with session.get(
+                f"{self.GRAPH_API_BASE}/me",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/json"
+                }
+            ) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+        except Exception as e:
+            print(f"[OneNoteConnector] Failed to get user info: {e}")
+        return {}
+
+    async def validate_connection(self) -> ConnectorResult:
+        """Validate Microsoft Graph OAuth connection"""
+        if not self.access_token:
+            return ConnectorResult(
+                status=ConnectorStatus.ERROR,
+                error="No access token available"
+            )
+
+        try:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
+                async with session.get(
+                    f"{self.GRAPH_API_BASE}/me",
+                    headers=self._get_headers()
+                ) as resp:
+                    if resp.status == 200:
+                        user_data = await resp.json()
+                        display_name = user_data.get('displayName') or user_data.get('userPrincipalName', 'unknown')
+                        return ConnectorResult(
+                            status=ConnectorStatus.SUCCESS,
+                            message=f"Connected as {display_name}"
+                        )
+                    elif resp.status == 401:
+                        return ConnectorResult(
+                            status=ConnectorStatus.AUTH_EXPIRED,
+                            error="Access token expired"
+                        )
+                    else:
+                        error = await resp.text()
+                        return ConnectorResult(
+                            status=ConnectorStatus.ERROR,
+                            error=error
+                        )
         except Exception as e:
             return ConnectorResult(
                 status=ConnectorStatus.ERROR,

@@ -4,6 +4,7 @@ Connects to GitHub API for repository documentation.
 """
 import base64
 import hashlib
+import os
 import aiohttp
 from datetime import datetime
 from typing import Optional, List, Dict, Any, AsyncGenerator
@@ -15,6 +16,10 @@ class GitHubConnector(BaseConnector):
     """
     Connector for GitHub integration.
     Fetches documentation files from repositories.
+
+    Environment Variables:
+        GITHUB_CLIENT_ID: GitHub OAuth App client ID
+        GITHUB_CLIENT_SECRET: GitHub OAuth App client secret
     """
 
     API_BASE = "https://api.github.com"
@@ -23,9 +28,6 @@ class GitHubConnector(BaseConnector):
 
     # Supported documentation file extensions
     DOC_EXTENSIONS = {".md", ".txt", ".rst", ".adoc", ".markdown", ".mdx"}
-
-    CLIENT_ID = ""
-    CLIENT_SECRET = ""
 
     @property
     def resource_type(self) -> str:
@@ -41,8 +43,9 @@ class GitHubConnector(BaseConnector):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.CLIENT_ID = self.config.get("client_id", "")
-        self.CLIENT_SECRET = self.config.get("client_secret", "")
+        # Read from config first, then fall back to environment variables
+        self.CLIENT_ID = self.config.get("client_id") or os.environ.get("GITHUB_CLIENT_ID", "")
+        self.CLIENT_SECRET = self.config.get("client_secret") or os.environ.get("GITHUB_CLIENT_SECRET", "")
 
     def _get_headers(self) -> Dict[str, str]:
         """Get API request headers"""
@@ -87,13 +90,76 @@ class GitHubConnector(BaseConnector):
                                 status=ConnectorStatus.ERROR,
                                 error=data.get("error_description", data["error"])
                             )
+
+                        access_token = data.get("access_token")
+
+                        # Get user info for metadata
+                        user_info = await self._get_user_info(session, access_token)
+
                         return ConnectorResult(
                             status=ConnectorStatus.SUCCESS,
                             data={
-                                "access_token": data.get("access_token"),
+                                "access_token": access_token,
                                 "token_type": data.get("token_type"),
-                                "scope": data.get("scope")
+                                "scope": data.get("scope"),
+                                "user_login": user_info.get("login"),
+                                "user_name": user_info.get("name"),
+                                "user_id": user_info.get("id"),
+                                "avatar_url": user_info.get("avatar_url")
                             }
+                        )
+                    else:
+                        error = await resp.text()
+                        return ConnectorResult(
+                            status=ConnectorStatus.ERROR,
+                            error=error
+                        )
+        except Exception as e:
+            return ConnectorResult(
+                status=ConnectorStatus.ERROR,
+                error=str(e)
+            )
+
+    async def _get_user_info(self, session: aiohttp.ClientSession, access_token: str) -> Dict[str, Any]:
+        """Get authenticated user information"""
+        try:
+            async with session.get(
+                f"{self.API_BASE}/user",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/vnd.github.v3+json"
+                }
+            ) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+        except Exception as e:
+            print(f"[GitHubConnector] Failed to get user info: {e}")
+        return {}
+
+    async def validate_connection(self) -> ConnectorResult:
+        """Validate GitHub OAuth connection"""
+        if not self.access_token:
+            return ConnectorResult(
+                status=ConnectorStatus.ERROR,
+                error="No access token available"
+            )
+
+        try:
+            async with aiohttp.ClientSession(timeout=self._get_client_timeout()) as session:
+                async with session.get(
+                    f"{self.API_BASE}/user",
+                    headers=self._get_headers()
+                ) as resp:
+                    if resp.status == 200:
+                        user_data = await resp.json()
+                        return ConnectorResult(
+                            status=ConnectorStatus.SUCCESS,
+                            message=f"Connected as {user_data.get('login', 'unknown')}"
+                        )
+                    elif resp.status == 401:
+                        return ConnectorResult(
+                            status=ConnectorStatus.AUTH_EXPIRED,
+                            error="Access token expired or invalid"
                         )
                     else:
                         error = await resp.text()
