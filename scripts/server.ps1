@@ -44,7 +44,26 @@ function Write-LogMessage {
         [string]$Message
     )
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    Add-Content -Path $LogFile -Value "[$timestamp] $Message"
+    $logEntry = "[$timestamp] $Message"
+
+    # Retry up to 3 times with small delay to handle file locking
+    $maxRetries = 3
+    for ($i = 0; $i -lt $maxRetries; $i++) {
+        try {
+            # Use .NET FileStream with FileShare.ReadWrite to allow concurrent access
+            $stream = [System.IO.File]::Open($LogFile, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
+            $writer = New-Object System.IO.StreamWriter($stream)
+            $writer.WriteLine($logEntry)
+            $writer.Close()
+            $stream.Close()
+            return
+        } catch {
+            if ($i -lt ($maxRetries - 1)) {
+                Start-Sleep -Milliseconds 100
+            }
+            # Silently ignore if all retries fail - server logs are more important
+        }
+    }
 }
 
 function Write-Status {
