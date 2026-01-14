@@ -111,8 +111,8 @@ class CodeToolsProvider:
                 # 임시 파일 삭제
                 try:
                     os.unlink(temp_path)
-                except:
-                    pass
+                except OSError:
+                    pass  # Ignore file deletion errors (file may already be deleted)
 
         except subprocess.TimeoutExpired:
             return "Execution timed out (30 seconds limit)"
