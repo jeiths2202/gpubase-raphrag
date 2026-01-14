@@ -109,12 +109,21 @@ nul
 kms-portal-ui-antigraphy/
 
 # Documentation working files (exclude important ones)
+# Exclude auto-generated reports from root, but include in docs/
 *_COMPLETE.md
-!E2E_TRACING_IMPLEMENTATION_COMPLETE.md
-!docs/IMS_ENHANCEMENTS_COMPLETE.md
+!docs/*_COMPLETE.md
 *_SUMMARY.md
-!SUCCESS_SUMMARY.md
+!docs/*_SUMMARY.md
 *_REPORT.md
+!docs/*_REPORT.md
+*_GUIDE.md
+!docs/*_GUIDE.md
+*_RESULTS.md
+!docs/*_RESULTS.md
+*_INTEGRATION.md
+!docs/*_INTEGRATION.md
+MILESTONE_*.md
+!docs/MILESTONE_*.md
 
 # Embedded repos
 local-llm/
@@ -122,11 +131,14 @@ chrome-extension-ims/
 /agents/
 !app/api/agents/
 
-# OpenCode
-.opencode/node_modules/
-.opencode/bun.lock
-.opencode/.gitignore
-.opencode/package.json
+# OpenCode (entire directory)
+.opencode/
+
+# Test environment files
+.env.test
+
+# Verify scripts
+verify_tracing_setup.py
 
 # Debug files
 debug_*.html
@@ -151,3 +163,25 @@ scripts/capture_*.py
 frontend.lnk
 not_use_frontend/
 logs/
+
+# Excel temp files
+*.xlsx
+~$*.xlsx
+
+# Diff files
+*.diff
+
+# Prompt/work files
+prompt_*.txt
+rag_*.txt
+test_api_key.txt
+test_rag_*.txt
+
+# Environment backup
+.env.bak
+
+# Root-level logo (use kms-portal-ui/public/ version)
+/tmax-logo.png
+
+# Startup debug
+startup_debug.log
