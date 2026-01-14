@@ -403,9 +403,12 @@ class ExternalDocumentService:
 
         try:
             # Get connector
+            decrypted_access_token = self._decrypt_token(connection.access_token)
+            print(f"[ExternalDocumentService] Creating connector: type={connection.resource_type}, access_token_present={bool(decrypted_access_token)}, config={connection.resource_config}")
+
             connector = self._connector_manager.get_connector(
                 connection.resource_type,
-                access_token=self._decrypt_token(connection.access_token),
+                access_token=decrypted_access_token,
                 refresh_token=self._decrypt_token(connection.refresh_token) if connection.refresh_token else None,
                 api_token=self._decrypt_token(connection.api_token) if connection.api_token else None,
                 config=connection.resource_config

@@ -125,6 +125,10 @@ class NotionConnector(BaseConnector):
         modified_since: Optional[datetime] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """List all accessible pages and databases"""
+        print(f"[NotionConnector] list_documents called: path={path}, modified_since={modified_since}")
+        print(f"[NotionConnector] Access token present: {bool(self.access_token)}, API token present: {bool(self.api_token)}")
+
+        doc_count = 0
         try:
             async with aiohttp.ClientSession() as session:
                 # Search for all pages
@@ -139,16 +143,21 @@ class NotionConnector(BaseConnector):
                     if start_cursor:
                         payload["start_cursor"] = start_cursor
 
+                    print(f"[NotionConnector] POST {self.API_BASE}/search payload={payload}")
+
                     async with session.post(
                         f"{self.API_BASE}/search",
                         headers=self._get_headers(),
                         json=payload
                     ) as resp:
                         if resp.status != 200:
+                            error_text = await resp.text()
+                            print(f"[NotionConnector] Search failed: status={resp.status}, error={error_text}")
                             break
 
                         data = await resp.json()
                         results = data.get("results", [])
+                        print(f"[NotionConnector] Got {len(results)} results")
 
                         for page in results:
                             # Filter by modification time
@@ -163,6 +172,7 @@ class NotionConnector(BaseConnector):
                             # Extract title
                             title = self._extract_title(page)
 
+                            doc_count += 1
                             yield {
                                 "external_id": page["id"],
                                 "title": title,
@@ -176,8 +186,12 @@ class NotionConnector(BaseConnector):
                         has_more = data.get("has_more", False)
                         start_cursor = data.get("next_cursor")
 
+            print(f"[NotionConnector] list_documents completed: total {doc_count} documents")
+
         except Exception as e:
             print(f"[NotionConnector] List documents error: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _extract_title(self, page: Dict) -> str:
         """Extract title from Notion page"""
