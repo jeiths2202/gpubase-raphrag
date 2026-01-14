@@ -150,9 +150,6 @@ interface ExternalConnectorsState {
   // Current user ID (needed for API calls)
   currentUserId: string | null;
 
-  // Computed getter for active resources (for current agent)
-  activeResources: ConnectedResource[];
-
   // Actions
   openModal: () => void;
   closeModal: () => void;
@@ -348,12 +345,6 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
       activeResourcesByAgent: {},
       currentAgentType: 'rag' as AgentType,
       currentUserId: null,
-
-      // Computed getter for active resources (for current agent type)
-      get activeResources() {
-        const state = get();
-        return state.activeResourcesByAgent[state.currentAgentType] || [];
-      },
 
       // Modal actions
       openModal: () => set({ isModalOpen: true }),
@@ -1182,7 +1173,8 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
 
       // Get context string from active resources for chat
       getActiveResourcesContext: () => {
-        const { activeResources } = get();
+        const { activeResourcesByAgent, currentAgentType } = get();
+        const activeResources = activeResourcesByAgent[currentAgentType] || [];
         if (activeResources.length === 0) {
           return '';
         }

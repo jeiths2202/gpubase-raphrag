@@ -5,7 +5,7 @@
  * Extracts authorization code from URL and completes the OAuth flow.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { useExternalConnectorsStore } from '../store/externalConnectorsStore';
@@ -18,6 +18,10 @@ export const OAuthCallbackPage: React.FC = () => {
   const [status, setStatus] = useState<CallbackStatus>('processing');
   const [errorMessage, setErrorMessage] = useState<string>('');
 
+  // Flag to prevent duplicate processing (React strict mode or dependency changes)
+  const isProcessingRef = useRef(false);
+  const hasProcessedRef = useRef(false);
+
   const {
     pendingOAuthConnectionId,
     completeOAuthFlow,
@@ -25,6 +29,12 @@ export const OAuthCallbackPage: React.FC = () => {
   } = useExternalConnectorsStore();
 
   const processCallback = useCallback(async () => {
+    // Prevent duplicate processing
+    if (isProcessingRef.current || hasProcessedRef.current) {
+      console.log('[OAuthCallback] Skipping duplicate processing');
+      return;
+    }
+    isProcessingRef.current = true;
     // Extract parameters from URL
     const code = searchParams.get('code');
     const error = searchParams.get('error');
@@ -35,6 +45,8 @@ export const OAuthCallbackPage: React.FC = () => {
 
     // Check for OAuth errors
     if (error) {
+      hasProcessedRef.current = true;
+      isProcessingRef.current = false;
       setStatus('error');
       setErrorMessage(errorDescription || error || 'OAuth authorization was denied');
       return;
@@ -42,6 +54,8 @@ export const OAuthCallbackPage: React.FC = () => {
 
     // Validate authorization code
     if (!code) {
+      hasProcessedRef.current = true;
+      isProcessingRef.current = false;
       setStatus('error');
       setErrorMessage('No authorization code received');
       return;
@@ -60,6 +74,8 @@ export const OAuthCallbackPage: React.FC = () => {
 
     // Check for pending connection
     if (!connectionId) {
+      hasProcessedRef.current = true;
+      isProcessingRef.current = false;
       setStatus('error');
       setErrorMessage('No pending OAuth connection found. Please try connecting again.');
       console.error('[OAuthCallback] No connectionId found. state:', state, 'pendingOAuthConnectionId:', pendingOAuthConnectionId);
@@ -71,6 +87,7 @@ export const OAuthCallbackPage: React.FC = () => {
     try {
       // Complete the OAuth flow
       await completeOAuthFlow(connectionId, code);
+      hasProcessedRef.current = true;
       setStatus('success');
 
       // Try to close the popup window if this was opened in a popup
@@ -90,8 +107,11 @@ export const OAuthCallbackPage: React.FC = () => {
         }, 2000);
       }
     } catch (err) {
+      hasProcessedRef.current = true;
       setStatus('error');
       setErrorMessage(err instanceof Error ? err.message : 'Failed to complete authentication');
+    } finally {
+      isProcessingRef.current = false;
     }
   }, [searchParams, pendingOAuthConnectionId, completeOAuthFlow, navigate]);
 

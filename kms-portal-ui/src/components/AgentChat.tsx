@@ -132,7 +132,8 @@ export const AgentChat: React.FC = () => {
     isModalOpen: showConnectorsModal,
     openModal: openConnectorsModal,
     closeModal: closeConnectorsModal,
-    activeResources,
+    activeResourcesByAgent,
+    currentAgentType,
     getConnectedCount,
     getActiveResourcesContext,
     setCurrentUserId,
@@ -141,6 +142,10 @@ export const AgentChat: React.FC = () => {
     toggleResourceActive,
     clearActiveResources,
   } = useExternalConnectorsStore();
+
+  // Compute activeResources from activeResourcesByAgent and currentAgentType
+  // (Zustand doesn't support object getters, so we compute it here)
+  const activeResources = activeResourcesByAgent[currentAgentType] || [];
 
   // Wrapper to update selectedAgent and persist to store
   const setSelectedAgent = useCallback((agentType: AgentType) => {

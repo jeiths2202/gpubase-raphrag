@@ -823,7 +823,8 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
     isConnecting,
     ssoState,
     ssoError,
-    activeResources,
+    activeResourcesByAgent,
+    currentAgentType,
     selectConnectorType,
     initiateSSO,
     cancelSSO,
@@ -837,6 +838,10 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
     loadConnections,
     loadDocuments,
   } = useExternalConnectorsStore();
+
+  // Compute activeResources from activeResourcesByAgent and currentAgentType
+  // (Zustand doesn't support object getters, so we compute it here)
+  const activeResources = activeResourcesByAgent[currentAgentType] || [];
 
   const selectedConnector = selectedConnectorType
     ? connectors.find((c) => c.type === selectedConnectorType)
@@ -1056,8 +1061,8 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
         </div>
 
         {/* Footer with active resources count and Done button */}
-        {activeResources.length > 0 && (
-          <div className="external-connectors-modal-footer">
+        <div className="external-connectors-modal-footer">
+          {activeResources.length > 0 && (
             <div className="active-resources-summary">
               <CheckCircle2 size={16} />
               <span>
@@ -1065,14 +1070,14 @@ export const ExternalConnectorsModal: React.FC<ExternalConnectorsModalProps> = (
                 {t('common.externalConnectors.resourcesSelected') || 'resources selected for context'}
               </span>
             </div>
-            <button
-              className="external-connectors-done-btn"
-              onClick={handleClose}
-            >
-              {t('common.confirm') || 'Done'}
-            </button>
-          </div>
-        )}
+          )}
+          <button
+            className="external-connectors-done-btn"
+            onClick={handleClose}
+          >
+            {t('common.confirm') || 'Done'}
+          </button>
+        </div>
       </div>
     </div>
   );
