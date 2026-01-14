@@ -1127,6 +1127,37 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
         activeResources: state.activeResources,
         currentUserId: state.currentUserId,
       }),
+      // Merge persisted state with initial state to ensure new connectors are added
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<ExternalConnectorsState>;
+        const persistedConnectors = persisted.connectors || [];
+
+        // Get all connector types from initial connectors
+        const allConnectorTypes = initialConnectors.map((c) => c.type);
+
+        // Merge: keep persisted data for existing connectors, add new ones
+        const mergedConnectors = allConnectorTypes.map((type) => {
+          const persistedConnector = persistedConnectors.find((c) => c.type === type);
+          const initialConnector = initialConnectors.find((c) => c.type === type)!;
+
+          if (persistedConnector) {
+            // Update developmentStatus from config (in case it changed)
+            return {
+              ...persistedConnector,
+              developmentStatus: CONNECTOR_CONFIGS[type].developmentStatus,
+            };
+          }
+
+          // New connector - use initial state
+          return initialConnector;
+        });
+
+        return {
+          ...currentState,
+          ...persisted,
+          connectors: mergedConnectors,
+        };
+      },
     }
   )
 );
