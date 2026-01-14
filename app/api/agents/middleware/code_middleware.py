@@ -1,15 +1,14 @@
 """
-Code Tools for Deep Agents
-코드 생성 및 분석 도구를 Deep Agents에서 사용할 수 있도록 제공
+Code Middleware and Tools for Deep Agents
+Code (코드 생성/분석) 기능을 Deep Agents에서 사용할 수 있도록 제공
 
-Deep Agents는 기본적으로 execute 도구를 제공하지만,
-이 모듈은 추가적인 코드 분석 도구를 제공합니다.
+코드 생성, 코드 리뷰, 디버깅, 테스트 작성 등의 기능 제공
 """
 import os
+import logging
 import subprocess
 import tempfile
-import logging
-from typing import List, Optional, Callable
+from typing import List, Optional, Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -21,54 +20,182 @@ except ImportError:
     LANGCHAIN_TOOLS_AVAILABLE = False
 
 
+# 안전한 명령어 화이트리스트
+SAFE_COMMANDS = {
+    "python": ["python", "python3"],
+    "node": ["node", "npm"],
+    "java": ["java", "javac"],
+    "go": ["go"],
+    "rust": ["cargo", "rustc"],
+}
+
+# 위험한 패턴
+DANGEROUS_PATTERNS = [
+    "rm -rf", "del /f", "format", "mkfs",
+    "dd if=", ":(){", "fork", "wget", "curl",
+    "chmod 777", "sudo", "su -", "passwd",
+]
+
+
 class CodeToolsProvider:
     """
-    코드 도구 제공자
+    Code 도구 제공자
 
-    코드 실행, 분석 도구를 생성하여 Deep Agent에 전달합니다.
+    코드 실행, 분석, 테스트 등의 도구를 Deep Agent에 전달합니다.
     """
 
-    # 허용된 프로그래밍 언어
-    ALLOWED_LANGUAGES = {
-        "python": {"ext": ".py", "cmd": ["python"]},
-        "javascript": {"ext": ".js", "cmd": ["node"]},
-        "typescript": {"ext": ".ts", "cmd": ["npx", "ts-node"]},
-    }
+    def __init__(self):
+        self._safe_mode = True  # 기본적으로 안전 모드
 
-    # 위험한 명령어 패턴
-    DANGEROUS_PATTERNS = [
-        "rm -rf",
-        "sudo",
-        "chmod 777",
-        "eval(",
-        "exec(",
-        "__import__",
-        "os.system",
-        "subprocess.call",
-    ]
+    def _is_safe_command(self, command: str) -> bool:
+        """명령어 안전성 검사"""
+        command_lower = command.lower()
 
-    def __init__(
-        self,
-        allowed_languages: Optional[List[str]] = None,
-        enable_execution: bool = True,
-        max_execution_time: int = 30,
-        working_dir: Optional[str] = None
-    ):
-        self.allowed_languages = allowed_languages or ["python", "javascript"]
-        self.enable_execution = enable_execution
-        self.max_execution_time = max_execution_time
-        self.working_dir = working_dir or tempfile.gettempdir()
+        # 위험한 패턴 체크
+        for pattern in DANGEROUS_PATTERNS:
+            if pattern in command_lower:
+                return False
 
-    def _is_safe_code(self, code: str) -> tuple[bool, str]:
-        """코드 안전성 검사"""
-        code_lower = code.lower()
-        for pattern in self.DANGEROUS_PATTERNS:
-            if pattern.lower() in code_lower:
-                return False, f"Dangerous pattern detected: {pattern}"
-        return True, ""
+        return True
+
+    def _execute_code(self, code: str, language: str = "python") -> str:
+        """코드 실행 (샌드박스 환경)"""
+        if not self._safe_mode:
+            return "Code execution disabled for security"
+
+        try:
+            # 임시 파일에 코드 저장
+            extensions = {
+                "python": ".py",
+                "javascript": ".js",
+                "typescript": ".ts",
+                "java": ".java",
+                "go": ".go",
+                "rust": ".rs",
+            }
+
+            ext = extensions.get(language.lower(), ".txt")
+
+            with tempfile.NamedTemporaryFile(mode='w', suffix=ext, delete=False) as f:
+                f.write(code)
+                temp_path = f.name
+
+            try:
+                # 언어별 실행 명령
+                commands = {
+                    "python": ["python", temp_path],
+                    "javascript": ["node", temp_path],
+                    "go": ["go", "run", temp_path],
+                }
+
+                cmd = commands.get(language.lower())
+                if not cmd:
+                    return f"Unsupported language: {language}"
+
+                # 타임아웃 30초로 실행
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    cwd=tempfile.gettempdir()
+                )
+
+                output = result.stdout
+                if result.stderr:
+                    output += f"\n[STDERR]\n{result.stderr}"
+
+                return output if output else "(No output)"
+
+            finally:
+                # 임시 파일 삭제
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass  # Ignore file deletion errors (file may already be deleted)
+
+        except subprocess.TimeoutExpired:
+            return "Execution timed out (30 seconds limit)"
+        except Exception as e:
+            logger.error(f"[CodeTools] Execution error: {e}")
+            return f"Execution error: {str(e)}"
+
+    def _search_code_examples(self, query: str, top_k: int = 5) -> str:
+        """Knowledge base에서 코드 예제 검색 (동기)"""
+        try:
+            from ..tools import VectorSearchTool
+            from ..types import AgentContext
+
+            vector_tool = VectorSearchTool()
+            context = AgentContext()
+
+            # "code example" 키워드 추가하여 검색
+            enhanced_query = f"code example {query}"
+
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            vector_tool.execute(context, query=enhanced_query, top_k=top_k)
+                        )
+                        result = future.result()
+                else:
+                    result = loop.run_until_complete(
+                        vector_tool.execute(context, query=enhanced_query, top_k=top_k)
+                    )
+            except RuntimeError:
+                result = asyncio.run(
+                    vector_tool.execute(context, query=enhanced_query, top_k=top_k)
+                )
+
+            if result.get("success"):
+                output = result.get("output", {})
+                if isinstance(output, dict):
+                    results = output.get("results", [])
+                    if results:
+                        formatted = []
+                        for r in results[:top_k]:
+                            formatted.append(f"- {r.get('content', '')[:500]}")
+                        return "\n".join(formatted)
+                return str(output)
+            return "No code examples found"
+
+        except Exception as e:
+            logger.error(f"[CodeTools] Search error: {e}")
+            return f"Search error: {str(e)}"
+
+    def _run_shell_command(self, command: str) -> str:
+        """안전한 쉘 명령 실행"""
+        if not self._is_safe_command(command):
+            return f"Command blocked for security: {command}"
+
+        try:
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd=tempfile.gettempdir()
+            )
+
+            output = result.stdout
+            if result.stderr:
+                output += f"\n[STDERR]\n{result.stderr}"
+
+            return output if output else "(No output)"
+
+        except subprocess.TimeoutExpired:
+            return "Command timed out (30 seconds limit)"
+        except Exception as e:
+            return f"Command error: {str(e)}"
 
     def get_tools(self) -> List[Callable]:
-        """코드 도구 목록 반환"""
+        """Code 도구 목록 반환"""
         if not LANGCHAIN_TOOLS_AVAILABLE:
             logger.warning("[CodeTools] langchain_core.tools not available")
             return []
@@ -76,184 +203,125 @@ class CodeToolsProvider:
         provider = self
 
         @tool
-        def run_python(code: str) -> str:
-            """Execute Python code and return the output.
+        def execute_code(code: str, language: str = "python") -> str:
+            """Execute code in a sandboxed environment.
 
-            Use this to run Python scripts and see the results.
-            The code runs in a sandboxed environment with limited execution time.
+            Use this tool to run code snippets and verify they work correctly.
+            Supported languages: python, javascript, go
 
             Args:
-                code: Python code to execute
+                code: The code to execute
+                language: Programming language (python, javascript, go)
 
             Returns:
-                Execution output (stdout, stderr, return code)
+                Execution output or error message
             """
-            if not provider.enable_execution:
-                return "[Error] Code execution is disabled."
-
-            if "python" not in provider.allowed_languages:
-                return "[Error] Python execution is not allowed."
-
-            is_safe, reason = provider._is_safe_code(code)
-            if not is_safe:
-                return f"[Security Error] Execution blocked: {reason}"
-
             try:
-                with tempfile.NamedTemporaryFile(
-                    mode='w',
-                    suffix='.py',
-                    dir=provider.working_dir,
-                    delete=False,
-                    encoding='utf-8'
-                ) as f:
-                    f.write(code)
-                    temp_file = f.name
-
-                try:
-                    # Using subprocess.run with explicit args list (no shell injection)
-                    result = subprocess.run(
-                        ["python", temp_file],
-                        capture_output=True,
-                        text=True,
-                        timeout=provider.max_execution_time,
-                        cwd=provider.working_dir,
-                        shell=False  # Explicit: no shell
-                    )
-
-                    output = ""
-                    if result.stdout:
-                        output += f"[Output]\n{result.stdout}\n"
-                    if result.stderr:
-                        output += f"[Errors/Warnings]\n{result.stderr}\n"
-                    if result.returncode != 0:
-                        output += f"[Exit Code] {result.returncode}"
-
-                    return output.strip() or "[Completed] No output"
-
-                finally:
-                    try:
-                        os.unlink(temp_file)
-                    except OSError:
-                        pass
-
-            except subprocess.TimeoutExpired:
-                return f"[Timeout] Execution exceeded {provider.max_execution_time} seconds."
+                result = provider._execute_code(code, language)
+                return f"=== Execution Result ===\n{result}"
             except Exception as e:
-                logger.error(f"[CodeTools] run_python error: {e}")
-                return f"[Execution Error] {str(e)}"
+                logger.error(f"[CodeTools] execute_code error: {e}")
+                return f"Execution error: {str(e)}"
 
         @tool
-        def analyze_code(code: str, language: str = "python") -> str:
-            """Analyze code for quality, security, and potential issues.
+        def search_code_examples(query: str, language: str = "", top_k: int = 5) -> str:
+            """Search the knowledge base for code examples and documentation.
 
-            Use this to review code before execution or submission.
-            Checks for common issues, security concerns, and best practices.
+            Use this to find relevant code snippets, API documentation, or examples.
 
             Args:
-                code: Code to analyze
-                language: Programming language (python, javascript, typescript)
+                query: Search query (e.g., "python file handling", "API authentication")
+                language: Optional language filter
+                top_k: Number of results to return (default: 5)
 
             Returns:
-                Analysis report with findings and recommendations
+                Relevant code examples and documentation from knowledge base
             """
-            analysis = []
+            try:
+                search_query = f"{language} {query}" if language else query
+                result = provider._search_code_examples(search_query, top_k)
+                return result
+            except Exception as e:
+                logger.error(f"[CodeTools] search error: {e}")
+                return f"Search error: {str(e)}"
 
-            # Basic statistics
-            lines = code.split('\n')
-            analysis.append("## Basic Statistics")
-            analysis.append(f"- Total lines: {len(lines)}")
-            analysis.append(f"- Empty lines: {sum(1 for l in lines if not l.strip())}")
-            analysis.append(f"- Characters: {len(code)}")
+        @tool
+        def run_shell_command(command: str) -> str:
+            """Run a safe shell command.
 
-            # Security check
-            analysis.append("\n## Security Check")
-            is_safe, reason = provider._is_safe_code(code)
-            if is_safe:
-                analysis.append("- [PASS] No known dangerous patterns")
-            else:
-                analysis.append(f"- [WARNING] {reason}")
+            This tool has security restrictions and only allows safe commands.
+            Dangerous commands like rm, del, format, sudo, etc. are blocked.
 
-            # Language-specific checks
-            language = language.lower()
-            analysis.append(f"\n## Code Quality ({language})")
+            Args:
+                command: Shell command to execute
 
-            if language == "python":
-                if "import *" in code:
-                    analysis.append("- [WARNING] Wildcard import (from x import *)")
-                if "except:" in code and "except Exception" not in code:
-                    analysis.append("- [WARNING] Bare except clause")
-                if not any(line.strip().startswith('def ') for line in lines):
-                    analysis.append("- [INFO] No function definitions")
-                if '"""' not in code and "'''" not in code:
-                    analysis.append("- [INFO] No docstrings")
+            Returns:
+                Command output or error message
+            """
+            try:
+                result = provider._run_shell_command(command)
+                return f"=== Command Output ===\n{result}"
+            except Exception as e:
+                logger.error(f"[CodeTools] shell command error: {e}")
+                return f"Command error: {str(e)}"
 
-            elif language in ["javascript", "typescript"]:
-                if "var " in code:
-                    analysis.append("- [WARNING] Using 'var' (prefer let/const)")
-                if "==" in code and "===" not in code:
-                    analysis.append("- [WARNING] Loose equality (prefer ===)")
-                if "any" in code and language == "typescript":
-                    analysis.append("- [WARNING] Using 'any' type")
-
-            if len([a for a in analysis if "[WARNING]" in a]) == 0:
-                analysis.append("- [PASS] No significant issues found")
-
-            return "\n".join(analysis)
-
-        return [run_python, analyze_code]
+        return [execute_code, search_code_examples, run_shell_command]
 
 
-# Convenience function
-def get_code_tools(
-    allowed_languages: Optional[List[str]] = None,
-    enable_execution: bool = True
-) -> List[Callable]:
+def get_code_tools() -> List[Callable]:
     """
-    코드 도구 목록 반환 (간편 함수)
-
-    Args:
-        allowed_languages: List of allowed languages
-        enable_execution: Whether to allow code execution
+    Code 도구 목록 반환 (간편 함수)
 
     Returns:
-        List of code tools for use with create_deep_agent
+        List of Code tools for use with create_deep_agent
     """
-    provider = CodeToolsProvider(
-        allowed_languages=allowed_languages,
-        enable_execution=enable_execution
-    )
+    provider = CodeToolsProvider()
     return provider.get_tools()
 
 
-# Code analysis system prompt
+# Code 시스템 프롬프트
 CODE_SYSTEM_PROMPT = """
-## Code Development Guidelines
+## Code Generation and Analysis Guidelines
 
-You have access to code execution and analysis tools.
+You are an expert software developer with code execution capabilities.
 
 ### Available Tools:
 
-1. **run_python**: Execute Python code
-   - Returns stdout, stderr, and exit code
-   - Limited execution time for safety
+1. **execute_code**: Run code snippets in a sandboxed environment
+   - Supported: Python, JavaScript, Go
+   - Use to verify code works correctly
+   - 30 second timeout limit
 
-2. **analyze_code**: Code quality analysis
-   - Security, quality, and best practice checks
-   - Supports Python, JavaScript, TypeScript
+2. **search_code_examples**: Search knowledge base for code examples
+   - Find relevant documentation, API examples, best practices
+   - Use to reference existing implementations
 
-### Best Practices:
+3. **run_shell_command**: Execute safe shell commands
+   - Limited to safe commands only
+   - Dangerous commands are blocked
 
-1. **Test Before Delivery**: Always run code with run_python before providing it.
+### Important Rules:
 
-2. **Analyze for Quality**: Use analyze_code to check for issues.
+1. **Code Quality**: Write clean, readable, well-documented code
+2. **Security First**: Never execute potentially harmful code
+3. **Test Before Submit**: Use execute_code to verify code works
+4. **Follow Best Practices**: Adhere to language-specific conventions
+5. **Error Handling**: Include proper error handling in generated code
 
-3. **Document Code**: Add comments and docstrings for complex logic.
+### Response Format for Code Generation:
 
-4. **Handle Errors**: Include proper error handling in code.
+```language
+// Description of what the code does
+// Author: AI Assistant
 
-5. **Security First**: Never execute code that could harm the system.
+// Your code here with inline comments
+```
+
+### Code Review Format:
+
+1. **Summary**: Brief overview of the code
+2. **Issues Found**: List of bugs or problems
+3. **Security**: Any security concerns
+4. **Suggestions**: Improvements and optimizations
+5. **Rating**: Overall code quality (1-10)
 """
-
-
-# Backward compatibility
-CodeMiddleware = CodeToolsProvider

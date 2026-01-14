@@ -146,6 +146,7 @@ Dangerous operations like rm, sudo, and system modifications are blocked."""
                 )
             except asyncio.TimeoutError:
                 process.kill()
+                await process.wait()  # Reap the process to prevent zombie
                 return self.create_error_result(
                     f"Command timed out after {timeout} seconds"
                 )

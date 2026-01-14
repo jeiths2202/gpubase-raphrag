@@ -414,6 +414,10 @@ User Query: {task}"""
                             )
                             break
 
+                # Skip tool execution if doom loop was detected
+                if final_answer:
+                    break
+
                 # Act: Execute tool calls
                 for tool_call in response.tool_calls:
                     tool_calls_made.append(tool_call)
