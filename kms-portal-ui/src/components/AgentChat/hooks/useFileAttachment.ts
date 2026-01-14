@@ -4,7 +4,7 @@
  * Supports per-agent file attachment state.
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import type { AttachedFile } from '../types';
 import type { AgentType } from '../../../api/agent.api';
 import {

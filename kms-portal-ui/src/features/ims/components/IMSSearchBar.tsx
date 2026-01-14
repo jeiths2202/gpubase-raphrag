@@ -21,7 +21,7 @@ interface IMSSearchBarProps {
   t: (key: string) => string;
 }
 
-export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated, t }) => {
+export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated: _onJobCreated, t }) => {
   const { isSearching, setIsSearching, setSearchQuery, addSearchTab, setActiveTab } = useIMSStore();
   const { user } = useAuthStore();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -73,6 +73,7 @@ export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated, t }) =
         addSearchTab({
           id: tabId,
           query: query.trim(),
+          timestamp: new Date().toISOString(),
           results: result.issues,
           viewMode: 'table',
           completionStats: {
@@ -92,6 +93,7 @@ export const IMSSearchBar: React.FC<IMSSearchBarProps> = ({ onJobCreated, t }) =
         addSearchTab({
           id: tabId,
           query: query.trim(),
+          timestamp: new Date().toISOString(),
           results: [],
           viewMode: 'table',
           completionStats: {

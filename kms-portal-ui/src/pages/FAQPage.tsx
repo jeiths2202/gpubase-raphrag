@@ -25,7 +25,6 @@ import {
   X,
   Sparkles,
   Loader2,
-  Copy,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -533,7 +532,7 @@ export const FAQPage: React.FC = () => {
                 <span className="faq-top5__question">
                   {getQuestion(faq)}
                   {faq.sourceType === 'dynamic' && (
-                    <Sparkles size={14} className="faq-top5__dynamic-badge" title="AI Generated" />
+                    <Sparkles size={14} className="faq-top5__dynamic-badge" aria-label="AI Generated" />
                   )}
                 </span>
                 <span className="faq-top5__views">
@@ -612,7 +611,7 @@ export const FAQPage: React.FC = () => {
                         <HelpCircle size={20} className="faq-item__icon" />
                         <span>{question}</span>
                         {faq.sourceType === 'dynamic' && (
-                          <Sparkles size={14} className="faq-item__dynamic-badge" title="AI Generated" />
+                          <Sparkles size={14} className="faq-item__dynamic-badge" aria-label="AI Generated" />
                         )}
                       </div>
                       <div className="faq-item__meta">
