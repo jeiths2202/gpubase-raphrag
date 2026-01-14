@@ -113,12 +113,6 @@ export const AgentChat: React.FC = () => {
   const selectedAgentRef = useRef<AgentType>(selectedAgent);
   selectedAgentRef.current = selectedAgent;
 
-  // Wrapper to update selectedAgent and persist to store
-  const setSelectedAgent = useCallback((agentType: AgentType) => {
-    setSelectedAgentState(agentType);
-    setLastSelectedAgent(agentType);
-  }, [setLastSelectedAgent]);
-
   // Get active conversation ID for current agent
   const agentState = agentStates[selectedAgent] || { activeConversationId: null };
   const activeConversationId = agentState.activeConversationId;
@@ -133,7 +127,7 @@ export const AgentChat: React.FC = () => {
   // Auth store - get current user ID
   const { user } = useAuthStore();
 
-  // External connectors store and modal state
+  // External connectors store and modal state (must be before setSelectedAgent callback)
   const {
     isModalOpen: showConnectorsModal,
     openModal: openConnectorsModal,
@@ -142,10 +136,19 @@ export const AgentChat: React.FC = () => {
     getConnectedCount,
     getActiveResourcesContext,
     setCurrentUserId,
+    setCurrentAgentType,
     loadConnections,
     toggleResourceActive,
     clearActiveResources,
   } = useExternalConnectorsStore();
+
+  // Wrapper to update selectedAgent and persist to store
+  const setSelectedAgent = useCallback((agentType: AgentType) => {
+    setSelectedAgentState(agentType);
+    setLastSelectedAgent(agentType);
+    // Update external connectors store to scope resources by agent type
+    setCurrentAgentType(agentType);
+  }, [setLastSelectedAgent, setCurrentAgentType]);
 
   // File attachment (using custom hook with per-agent state)
   const {
@@ -181,6 +184,11 @@ export const AgentChat: React.FC = () => {
       loadConnections();
     }
   }, [user?.id, setCurrentUserId, loadConnections]);
+
+  // Set current agent type for external connectors scoping
+  useEffect(() => {
+    setCurrentAgentType(selectedAgent);
+  }, [selectedAgent, setCurrentAgentType]);
 
   // Streaming chat (using custom hook)
   const {

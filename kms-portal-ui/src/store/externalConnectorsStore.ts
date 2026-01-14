@@ -14,6 +14,7 @@ import {
   type ExternalResourceType,
   type ConnectionStatus,
 } from '../api/externalConnectors.api';
+import type { AgentType } from '../api/agent.api';
 
 // =============================================================================
 // Types
@@ -114,6 +115,11 @@ export interface ConnectorConfig {
 }
 
 /**
+ * Active resources stored per agent type
+ */
+type ActiveResourcesByAgent = Partial<Record<AgentType, ConnectedResource[]>>;
+
+/**
  * Store state
  */
 interface ExternalConnectorsState {
@@ -135,17 +141,24 @@ interface ExternalConnectorsState {
   // OAuth flow state
   pendingOAuthConnectionId: string | null;
 
-  // Active resources for chat context
-  activeResources: ConnectedResource[];
+  // Active resources for chat context (per agent type)
+  activeResourcesByAgent: ActiveResourcesByAgent;
+
+  // Current agent type for resource scoping
+  currentAgentType: AgentType;
 
   // Current user ID (needed for API calls)
   currentUserId: string | null;
+
+  // Computed getter for active resources (for current agent)
+  activeResources: ConnectedResource[];
 
   // Actions
   openModal: () => void;
   closeModal: () => void;
   selectConnectorType: (type: ConnectorType | null) => void;
   setCurrentUserId: (userId: string | null) => void;
+  setCurrentAgentType: (agentType: AgentType) => void;
 
   // Backend API integration
   loadConnections: () => Promise<void>;
@@ -332,8 +345,15 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
       ssoState: 'idle',
       ssoError: null,
       pendingOAuthConnectionId: null,
-      activeResources: [],
+      activeResourcesByAgent: {},
+      currentAgentType: 'rag' as AgentType,
       currentUserId: null,
+
+      // Computed getter for active resources (for current agent type)
+      get activeResources() {
+        const state = get();
+        return state.activeResourcesByAgent[state.currentAgentType] || [];
+      },
 
       // Modal actions
       openModal: () => set({ isModalOpen: true }),
@@ -347,6 +367,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
       selectConnectorType: (type) =>
         set({ selectedConnectorType: type, ssoState: 'idle', ssoError: null }),
       setCurrentUserId: (userId) => set({ currentUserId: userId }),
+      setCurrentAgentType: (agentType) => set({ currentAgentType: agentType }),
 
       // Load connections from backend
       loadConnections: async () => {
@@ -587,6 +608,15 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
         const connector = get().connectors.find((c) => c.type === type);
         if (!connector?.connectionId) {
           // If no backend connection, just reset local state
+          // Remove resources from all agent types when disconnecting
+          const filterResourcesFromAllAgents = (resourcesByAgent: ActiveResourcesByAgent): ActiveResourcesByAgent => {
+            const result: ActiveResourcesByAgent = {};
+            for (const [agentType, resources] of Object.entries(resourcesByAgent)) {
+              result[agentType as AgentType] = resources.filter((r) => !r.id.startsWith(`${type}_`));
+            }
+            return result;
+          };
+
           set((state) => ({
             connectors: state.connectors.map((c) =>
               c.type === type
@@ -601,7 +631,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
                   }
                 : c
             ),
-            activeResources: state.activeResources.filter((r) => !r.id.startsWith(`${type}_`)),
+            activeResourcesByAgent: filterResourcesFromAllAgents(state.activeResourcesByAgent),
             ssoState: 'idle',
             ssoError: null,
           }));
@@ -615,6 +645,15 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
         }
 
         // Update local state
+        // Remove resources from all agent types when disconnecting
+        const filterResourcesFromAllAgents = (resourcesByAgent: ActiveResourcesByAgent): ActiveResourcesByAgent => {
+          const result: ActiveResourcesByAgent = {};
+          for (const [agentType, resources] of Object.entries(resourcesByAgent)) {
+            result[agentType as AgentType] = resources.filter((r) => !r.id.startsWith(`${type}_`));
+          }
+          return result;
+        };
+
         set((state) => ({
           connectors: state.connectors.map((c) =>
             c.type === type
@@ -631,7 +670,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
                 }
               : c
           ),
-          activeResources: state.activeResources.filter((r) => !r.id.startsWith(`${type}_`)),
+          activeResourcesByAgent: filterResourcesFromAllAgents(state.activeResourcesByAgent),
           ssoState: 'idle',
           ssoError: null,
         }));
@@ -750,10 +789,12 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
 
           console.log(`[ExternalConnectors] Processed document ${documentId}: status=${result.status}, chunks=${result.chunk_count}`);
 
-          // If this document is already in activeResources, refresh its content
-          const { activeResources } = get();
-          const isSelected = activeResources.some((r) => r.id === resourceId);
-          if (isSelected && result.status === 'ready') {
+          // If this document is already in activeResourcesByAgent (any agent), refresh its content
+          const { activeResourcesByAgent } = get();
+          const isSelectedInAnyAgent = Object.values(activeResourcesByAgent).some(
+            (resources) => resources.some((r) => r.id === resourceId)
+          );
+          if (isSelectedInAnyAgent && result.status === 'ready') {
             try {
               console.log(`[ExternalConnectors] Refreshing content for selected document: ${documentId}`);
               const contentResponse = await externalConnectorsApi.getDocumentContent(
@@ -762,7 +803,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
               );
 
               if (contentResponse.content) {
-                // Update both connectedResources and activeResources with the content
+                // Update both connectedResources and activeResourcesByAgent with the content
                 const fetchedContent = contentResponse.content; // Capture for closure
                 set((state) => {
                   const updatedResource = state.connectors
@@ -775,6 +816,14 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
                       content: fetchedContent,
                     };
 
+                    // Update activeResourcesByAgent for all agent types that have this resource
+                    const updatedActiveResourcesByAgent: ActiveResourcesByAgent = {};
+                    for (const [agentType, resources] of Object.entries(state.activeResourcesByAgent)) {
+                      updatedActiveResourcesByAgent[agentType as AgentType] = resources.map((r) =>
+                        r.id === resourceId ? resourceWithContent : r
+                      );
+                    }
+
                     return {
                       connectors: state.connectors.map((c) =>
                         c.type === type
@@ -786,9 +835,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
                             }
                           : c
                       ),
-                      activeResources: state.activeResources.map((r) =>
-                        r.id === resourceId ? resourceWithContent : r
-                      ),
+                      activeResourcesByAgent: updatedActiveResourcesByAgent,
                     };
                   }
                   return state;
@@ -902,19 +949,27 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
         }));
       },
 
-      // Remove resource from connector
+      // Remove resource from connector (removes from all agent types)
       removeResource: (type, resourceId) => {
-        set((state) => ({
-          connectors: state.connectors.map((c) =>
-            c.type === type
-              ? {
-                  ...c,
-                  connectedResources: c.connectedResources.filter((r) => r.id !== resourceId),
-                }
-              : c
-          ),
-          activeResources: state.activeResources.filter((r) => r.id !== resourceId),
-        }));
+        set((state) => {
+          // Remove from activeResourcesByAgent for all agent types
+          const updatedActiveResourcesByAgent: ActiveResourcesByAgent = {};
+          for (const [agentType, resources] of Object.entries(state.activeResourcesByAgent)) {
+            updatedActiveResourcesByAgent[agentType as AgentType] = resources.filter((r) => r.id !== resourceId);
+          }
+
+          return {
+            connectors: state.connectors.map((c) =>
+              c.type === type
+                ? {
+                    ...c,
+                    connectedResources: c.connectedResources.filter((r) => r.id !== resourceId),
+                  }
+                : c
+            ),
+            activeResourcesByAgent: updatedActiveResourcesByAgent,
+          };
+        });
       },
 
       // Sync resources from backend
@@ -971,13 +1026,18 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
       },
 
       // Toggle resource active state for chat context
+      // Toggle resource active state for chat context (scoped by current agent type)
       toggleResourceActive: (resource) => {
         set((state) => {
-          const isActive = state.activeResources.some((r) => r.id === resource.id);
+          const currentResources = state.activeResourcesByAgent[state.currentAgentType] || [];
+          const isActive = currentResources.some((r) => r.id === resource.id);
           return {
-            activeResources: isActive
-              ? state.activeResources.filter((r) => r.id !== resource.id)
-              : [...state.activeResources, resource],
+            activeResourcesByAgent: {
+              ...state.activeResourcesByAgent,
+              [state.currentAgentType]: isActive
+                ? currentResources.filter((r) => r.id !== resource.id)
+                : [...currentResources, resource],
+            },
           };
         });
       },
@@ -985,14 +1045,21 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
       // Toggle resource active with content fetch (for RAG context)
       // This version fetches document content if not already loaded
       toggleResourceActiveWithContent: async (resource: ConnectedResource, type: ConnectorType) => {
-        const { activeResources, connectors } = get();
-        const isActive = activeResources.some((r) => r.id === resource.id);
+        const { activeResourcesByAgent, currentAgentType, connectors } = get();
+        const currentResources = activeResourcesByAgent[currentAgentType] || [];
+        const isActive = currentResources.some((r) => r.id === resource.id);
 
         if (isActive) {
           // Deselecting - just remove from active
-          set((state) => ({
-            activeResources: state.activeResources.filter((r) => r.id !== resource.id),
-          }));
+          set((state) => {
+            const resources = state.activeResourcesByAgent[state.currentAgentType] || [];
+            return {
+              activeResourcesByAgent: {
+                ...state.activeResourcesByAgent,
+                [state.currentAgentType]: resources.filter((r) => r.id !== resource.id),
+              },
+            };
+          });
           return;
         }
 
@@ -1005,9 +1072,15 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
         // Selecting - check if content is already loaded
         if (resource.content) {
           // Content already loaded, just add to active
-          set((state) => ({
-            activeResources: [...state.activeResources, resource],
-          }));
+          set((state) => {
+            const resources = state.activeResourcesByAgent[state.currentAgentType] || [];
+            return {
+              activeResourcesByAgent: {
+                ...state.activeResourcesByAgent,
+                [state.currentAgentType]: [...resources, resource],
+              },
+            };
+          });
           return;
         }
 
@@ -1016,9 +1089,15 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
         if (!connector?.connectionId) {
           console.error('[ExternalConnectors] No connection found for type:', type);
           // Add without content
-          set((state) => ({
-            activeResources: [...state.activeResources, resource],
-          }));
+          set((state) => {
+            const resources = state.activeResourcesByAgent[state.currentAgentType] || [];
+            return {
+              activeResourcesByAgent: {
+                ...state.activeResourcesByAgent,
+                [state.currentAgentType]: [...resources, resource],
+              },
+            };
+          });
           return;
         }
 
@@ -1041,41 +1120,64 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
               content: contentResponse.content,
             };
 
-            // Update in connectedResources
-            set((state) => ({
-              connectors: state.connectors.map((c) =>
-                c.type === type
-                  ? {
-                      ...c,
-                      connectedResources: c.connectedResources.map((r) =>
-                        r.id === resource.id ? updatedResource : r
-                      ),
-                    }
-                  : c
-              ),
-              activeResources: [...state.activeResources, updatedResource],
-            }));
+            // Update in connectedResources and activeResourcesByAgent
+            set((state) => {
+              const resources = state.activeResourcesByAgent[state.currentAgentType] || [];
+              return {
+                connectors: state.connectors.map((c) =>
+                  c.type === type
+                    ? {
+                        ...c,
+                        connectedResources: c.connectedResources.map((r) =>
+                          r.id === resource.id ? updatedResource : r
+                        ),
+                      }
+                    : c
+                ),
+                activeResourcesByAgent: {
+                  ...state.activeResourcesByAgent,
+                  [state.currentAgentType]: [...resources, updatedResource],
+                },
+              };
+            });
 
             console.log(`[ExternalConnectors] Loaded content for ${resource.title}: ${contentResponse.content.length} chars`);
           } else {
             // No content available, add resource without content
             console.warn(`[ExternalConnectors] No content available for document: ${documentId}`);
-            set((state) => ({
-              activeResources: [...state.activeResources, resource],
-            }));
+            set((state) => {
+              const resources = state.activeResourcesByAgent[state.currentAgentType] || [];
+              return {
+                activeResourcesByAgent: {
+                  ...state.activeResourcesByAgent,
+                  [state.currentAgentType]: [...resources, resource],
+                },
+              };
+            });
           }
         } catch (error) {
           console.error('[ExternalConnectors] Failed to fetch document content:', error);
           // Add resource without content
-          set((state) => ({
-            activeResources: [...state.activeResources, resource],
-          }));
+          set((state) => {
+            const resources = state.activeResourcesByAgent[state.currentAgentType] || [];
+            return {
+              activeResourcesByAgent: {
+                ...state.activeResourcesByAgent,
+                [state.currentAgentType]: [...resources, resource],
+              },
+            };
+          });
         }
       },
 
-      // Clear all active resources
+      // Clear all active resources for current agent type
       clearActiveResources: () => {
-        set({ activeResources: [] });
+        set((state) => ({
+          activeResourcesByAgent: {
+            ...state.activeResourcesByAgent,
+            [state.currentAgentType]: [],
+          },
+        }));
       },
 
       // Get context string from active resources for chat
@@ -1108,7 +1210,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
     {
       name: 'external-connectors-storage',
       storage: createJSONStorage(() => localStorage),
-      // Only persist connector credentials, SSO profile, and active resources
+      // Only persist connector credentials, SSO profile, and active resources by agent
       partialize: (state) => ({
         connectors: state.connectors.map((c) => ({
           id: c.id,
@@ -1124,7 +1226,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
           documentCount: c.documentCount,
           chunkCount: c.chunkCount,
         })),
-        activeResources: state.activeResources,
+        activeResourcesByAgent: state.activeResourcesByAgent,
         currentUserId: state.currentUserId,
       }),
       // Merge persisted state with initial state to ensure new connectors are added
