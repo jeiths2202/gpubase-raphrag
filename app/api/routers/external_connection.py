@@ -1,12 +1,15 @@
 """
 External Connection Router
 API endpoints for managing external resource connections (OneNote, GitHub, Google Drive, Notion, Confluence)
+
+SECURITY: All endpoints require authentication and verify connection ownership.
 """
 from typing import Optional, List
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Depends
 from pydantic import BaseModel, Field
 
+from ..core.deps import get_current_user
 from ..models.external_connection import (
     ExternalResourceType, ConnectionStatus, SyncStatus,
     ExternalConnectionCreate, ExternalConnectionResponse,
@@ -15,6 +18,14 @@ from ..models.external_connection import (
     ExternalDocumentListResponse, EXTERNAL_RESOURCE_CONFIGS
 )
 from ..services.external_document_service import get_external_document_service
+
+
+def verify_connection_ownership(connection, user: dict) -> None:
+    """Verify that the current user owns the connection."""
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    if connection.user_id != user.get("id"):
+        raise HTTPException(status_code=403, detail="Access denied: You don't own this connection")
 
 router = APIRouter(
     prefix="/external-connections",
@@ -144,13 +155,16 @@ async def create_connection(
 
 
 @router.get("/{connection_id}", response_model=ExternalConnectionResponse)
-async def get_connection(connection_id: str):
-    """Get connection details"""
+async def get_connection(
+    connection_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get connection details (requires ownership)"""
     service = get_external_document_service()
     connection = service.get_connection(connection_id)
 
-    if not connection:
-        raise HTTPException(status_code=404, detail="Connection not found")
+    # SECURITY: Verify ownership
+    verify_connection_ownership(connection, current_user)
 
     return ExternalConnectionResponse(
         id=connection.id,
@@ -168,12 +182,20 @@ async def get_connection(connection_id: str):
 
 
 @router.delete("/{connection_id}")
-async def disconnect(connection_id: str):
+async def disconnect(
+    connection_id: str,
+    current_user: dict = Depends(get_current_user)
+):
     """
-    Disconnect and remove an external resource.
+    Disconnect and remove an external resource (requires ownership).
     This removes all synced documents and chunks.
     """
     service = get_external_document_service()
+
+    # SECURITY: Verify ownership before deletion
+    connection = service.get_connection(connection_id)
+    verify_connection_ownership(connection, current_user)
+
     success = await service.disconnect(connection_id)
 
     if not success:
@@ -187,13 +209,19 @@ async def disconnect(connection_id: str):
 @router.get("/{connection_id}/oauth-url", response_model=OAuthUrlResponse)
 async def get_oauth_url(
     connection_id: str,
-    redirect_uri: str = Query(..., description="OAuth callback URI")
+    redirect_uri: str = Query(..., description="OAuth callback URI"),
+    current_user: dict = Depends(get_current_user)
 ):
     """
-    Get OAuth authorization URL for a connection.
+    Get OAuth authorization URL for a connection (requires ownership).
     Redirect user to this URL to authorize access.
     """
     service = get_external_document_service()
+
+    # SECURITY: Verify ownership before generating OAuth URL
+    connection = service.get_connection(connection_id)
+    verify_connection_ownership(connection, current_user)
+
     oauth_url = service.get_oauth_url(connection_id, redirect_uri)
 
     if not oauth_url:

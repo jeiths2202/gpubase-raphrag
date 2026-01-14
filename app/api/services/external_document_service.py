@@ -487,7 +487,8 @@ class ExternalDocumentService:
         try:
             # Get connector
             decrypted_access_token = self._decrypt_token(connection.access_token)
-            print(f"[ExternalDocumentService] Creating connector: type={connection.resource_type}, access_token_present={bool(decrypted_access_token)}, config={connection.resource_config}")
+            # SECURITY: Only log resource type, not config details or token info
+            logging.debug(f"[ExternalDocumentService] Creating connector: type={connection.resource_type}")
 
             connector = self._connector_manager.get_connector(
                 connection.resource_type,

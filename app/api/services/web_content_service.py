@@ -6,12 +6,61 @@ import uuid
 import hashlib
 import asyncio
 import re
+import socket
+from ipaddress import ip_address, ip_network
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timezone
 from urllib.parse import urlparse, urljoin
 import time
 
 import httpx
+
+# SSRF Protection: Block internal/private IP ranges
+BLOCKED_NETWORKS = [
+    ip_network("127.0.0.0/8"),       # Loopback
+    ip_network("10.0.0.0/8"),        # Private Class A
+    ip_network("172.16.0.0/12"),     # Private Class B
+    ip_network("192.168.0.0/16"),    # Private Class C
+    ip_network("169.254.0.0/16"),    # Link-local
+    ip_network("::1/128"),           # IPv6 loopback
+    ip_network("fc00::/7"),          # IPv6 private
+    ip_network("fe80::/10"),         # IPv6 link-local
+]
+
+
+def is_ssrf_safe_url(url: str) -> Tuple[bool, str]:
+    """
+    Validate URL against SSRF attacks by checking resolved IP.
+
+    Returns:
+        Tuple of (is_safe, error_message)
+    """
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+
+        if not hostname:
+            return False, "Invalid URL: no hostname"
+
+        # Block non-HTTP(S) schemes
+        if parsed.scheme not in ("http", "https"):
+            return False, f"Invalid scheme: {parsed.scheme}"
+
+        # Resolve hostname to IP
+        try:
+            resolved_ip = socket.gethostbyname(hostname)
+        except socket.gaierror:
+            return False, f"Cannot resolve hostname: {hostname}"
+
+        # Check against blocked networks
+        ip_obj = ip_address(resolved_ip)
+        for blocked_net in BLOCKED_NETWORKS:
+            if ip_obj in blocked_net:
+                return False, f"Access to internal network blocked: {resolved_ip}"
+
+        return True, ""
+    except Exception as e:
+        return False, f"URL validation error: {str(e)}"
 
 # Optional imports with fallbacks
 try:
@@ -383,6 +432,11 @@ class WebContentService:
         Returns:
             Tuple of (html_content, status_code, error_message)
         """
+        # SSRF Protection: Validate URL before fetching
+        is_safe, ssrf_error = is_ssrf_safe_url(url)
+        if not is_safe:
+            return None, 0, f"SSRF protection: {ssrf_error}"
+
         try:
             response = await self.http_client.get(url)
             if response.status_code == 200:

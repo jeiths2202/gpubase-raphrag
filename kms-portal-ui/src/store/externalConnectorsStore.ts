@@ -1203,7 +1203,8 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
     {
       name: 'external-connectors-storage',
       storage: createJSONStorage(() => localStorage),
-      // Only persist connector credentials, SSO profile, and active resources by agent
+      // SECURITY: Only persist non-sensitive connector state to localStorage
+      // OAuth tokens/credentials are stored server-side only to prevent XSS token theft
       partialize: (state) => ({
         connectors: state.connectors.map((c) => ({
           id: c.id,
@@ -1212,7 +1213,8 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
           status: c.status,
           developmentStatus: c.developmentStatus,
           ssoProfile: c.ssoProfile,
-          credentials: c.credentials,
+          // SECURITY: Do NOT persist credentials (tokens) to localStorage
+          // credentials: c.credentials, // Removed - stored server-side only
           connectedResources: c.connectedResources,
           lastConnected: c.lastConnected,
           connectionId: c.connectionId,

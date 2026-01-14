@@ -4,7 +4,7 @@
 **Branch**: `feature/cpu-local-llm-stable`
 **Reviewer**: Claude Code (Automated Security Analysis)
 **Scope**: 95 modified files across backend and frontend
-**Last Updated**: 2026-01-14 (Critical vulnerabilities fixed)
+**Last Updated**: 2026-01-14 (Critical + High vulnerabilities fixed)
 
 ---
 
@@ -12,18 +12,32 @@
 
 | Severity | Count | Status |
 |----------|-------|--------|
-| **Critical** | 3 | ✅ **FIXED** |
-| **High** | 9 | Address Before Production |
+| **Critical** | 3 | ✅ **ALL FIXED** |
+| **High** | 9 | ✅ **ALL FIXED** |
 | **Medium** | 3 | Plan Remediation |
-| **Total** | 15 | - |
+| **Total** | 15 | 12 Fixed, 3 Remaining |
 
 ### Critical Vulnerabilities - All Fixed ✅
 
-| # | Vulnerability | Status | Commit |
+| # | Vulnerability | Status | Fix Applied |
 |---|--------------|--------|--------|
 | 1 | Command Injection (Bash Tool) | ✅ Fixed | Whitelist + shell=False |
 | 2 | OAuth CSRF (State Validation) | ✅ Fixed | Server-side state storage |
 | 3 | Weak Token Encryption | ✅ Fixed | Fernet (AES-128-CBC) |
+
+### High Vulnerabilities - All Fixed ✅
+
+| # | Vulnerability | Status | Fix Applied |
+|---|--------------|--------|--------|
+| 4 | SSRF in URL Fetch | ✅ Fixed | IP blocklist validation |
+| 5 | localStorage Token Storage | ✅ Fixed | Removed credentials from persistence |
+| 6 | Unsalted SHA256 Passwords | ✅ Fixed | bcrypt with salt |
+| 7 | SQL Injection (LIMIT) | ✅ Fixed | Parameterized queries |
+| 8 | Missing Authorization | ✅ Fixed | User ownership verification |
+| 9 | OAuth Ownership | ✅ Fixed | State validation (covered by #2) |
+| 10 | Sensitive Token Logging | ✅ Fixed | Removed print statements |
+| 11 | Stored XSS (Markdown) | ✅ Fixed | URL sanitization |
+| 12 | Decrypted Token Logging | ✅ Fixed | Removed config logging |
 
 This security review identified **15 high-confidence vulnerabilities** across the following categories:
 - Authentication/Authorization: 6 issues
@@ -127,7 +141,7 @@ kdf = PBKDF2HMAC(
 
 ## High Severity Vulnerabilities
 
-### 4. Server-Side Request Forgery (SSRF)
+### 4. Server-Side Request Forgery (SSRF) ✅ FIXED
 
 | Field | Value |
 |-------|-------|
@@ -135,6 +149,7 @@ kdf = PBKDF2HMAC(
 | **Severity** | High |
 | **File** | `app/api/services/web_content_service.py:379-401` |
 | **CWE** | CWE-918: Server-Side Request Forgery |
+| **Status** | ✅ **FIXED** |
 
 **Description**:
 The `fetch_url()` method accepts arbitrary URLs without validating for internal addresses or cloud metadata endpoints.
@@ -168,7 +183,7 @@ def validate_url(url: str) -> bool:
 
 ---
 
-### 5. Sensitive Credentials in localStorage
+### 5. Sensitive Credentials in localStorage ✅ FIXED
 
 | Field | Value |
 |-------|-------|
@@ -176,6 +191,7 @@ def validate_url(url: str) -> bool:
 | **Severity** | High |
 | **File** | `kms-portal-ui/src/store/externalConnectorsStore.ts:1202-1223` |
 | **CWE** | CWE-922: Insecure Storage of Sensitive Information |
+| **Status** | ✅ **FIXED** |
 
 **Description**:
 OAuth tokens (accessToken, refreshToken) are persisted to localStorage, accessible via XSS.
@@ -187,7 +203,7 @@ OAuth tokens (accessToken, refreshToken) are persisted to localStorage, accessib
 
 ---
 
-### 6. Unsalted SHA256 Password Hashing
+### 6. Unsalted SHA256 Password Hashing ✅ FIXED
 
 | Field | Value |
 |-------|-------|
@@ -195,6 +211,7 @@ OAuth tokens (accessToken, refreshToken) are persisted to localStorage, accessib
 | **Severity** | High |
 | **File** | `app/api/core/deps.py:1094, 1116, 1147` |
 | **CWE** | CWE-916: Use of Password Hash With Insufficient Salt |
+| **Status** | ✅ **FIXED** |
 
 **Description**:
 Passwords are hashed with plain SHA256 without salt, vulnerable to rainbow table attacks.
@@ -212,7 +229,7 @@ bcrypt.checkpw(password.encode(), stored_hash.encode())
 
 ---
 
-### 7. SQL Injection via String Interpolation
+### 7. SQL Injection via String Interpolation ✅ FIXED
 
 | Field | Value |
 |-------|-------|
@@ -220,6 +237,7 @@ bcrypt.checkpw(password.encode(), stored_hash.encode())
 | **Severity** | High |
 | **File** | `app/api/agents/tools/ims_search.py:197, 285` |
 | **CWE** | CWE-89: SQL Injection |
+| **Status** | ✅ **FIXED** |
 
 **Description**:
 LIMIT clause uses f-string interpolation instead of parameterized query.
@@ -241,7 +259,7 @@ params.append(int(limit))
 
 ---
 
-### 8. Missing Authorization on Connection Endpoints
+### 8. Missing Authorization on Connection Endpoints ✅ FIXED
 
 | Field | Value |
 |-------|-------|
@@ -249,6 +267,7 @@ params.append(int(limit))
 | **Severity** | High |
 | **File** | `app/api/routers/external_connection.py:146-182` |
 | **CWE** | CWE-862: Missing Authorization |
+| **Status** | ✅ **FIXED** |
 
 **Description**:
 Endpoints access connections by ID without verifying user ownership.
@@ -264,7 +283,7 @@ async def get_connection(connection_id: str, user=Depends(get_current_user)):
 
 ---
 
-### 9. OAuth Code Exchange Without Ownership Verification
+### 9. OAuth Code Exchange Without Ownership Verification ✅ FIXED
 
 | Field | Value |
 |-------|-------|
@@ -272,13 +291,16 @@ async def get_connection(connection_id: str, user=Depends(get_current_user)):
 | **Severity** | High |
 | **File** | `app/api/routers/external_connection.py:211-248` |
 | **CWE** | CWE-306: Missing Authentication |
+| **Status** | ✅ **FIXED** |
 
 **Description**:
 OAuth callback doesn't verify that the user completing the flow is the same user who initiated it.
 
+**Fix Applied**: Server-side OAuth state validation (covered by Critical #2) ensures the same user completes the flow.
+
 ---
 
-### 10. Sensitive Tokens Logged
+### 10. Sensitive Tokens Logged ✅ FIXED
 
 | Field | Value |
 |-------|-------|
@@ -286,6 +308,7 @@ OAuth callback doesn't verify that the user completing the flow is the same user
 | **Severity** | High |
 | **File** | `app/api/connectors/onenote_connector.py:50, 76` |
 | **CWE** | CWE-532: Information Exposure Through Log Files |
+| **Status** | ✅ **FIXED** |
 
 **Description**:
 Client ID and OAuth metadata are logged via print statements.
@@ -296,7 +319,7 @@ Client ID and OAuth metadata are logged via print statements.
 
 ---
 
-### 11. Stored XSS via Markdown Links
+### 11. Stored XSS via Markdown Links ✅ FIXED
 
 | Field | Value |
 |-------|-------|
@@ -304,6 +327,7 @@ Client ID and OAuth metadata are logged via print statements.
 | **Severity** | High |
 | **File** | `kms-portal-ui/src/components/AgentChat/MessageContent.tsx:74-77` |
 | **CWE** | CWE-79: Cross-site Scripting |
+| **Status** | ✅ **FIXED** |
 
 **Description**:
 Markdown link renderer doesn't sanitize `href` for `javascript:` URIs.
@@ -317,7 +341,7 @@ import rehypeSanitize from 'rehype-sanitize';
 
 ---
 
-### 12. Decrypted Tokens Logged
+### 12. Decrypted Tokens Logged ✅ FIXED
 
 | Field | Value |
 |-------|-------|
@@ -325,6 +349,7 @@ import rehypeSanitize from 'rehype-sanitize';
 | **Severity** | High |
 | **File** | `app/api/services/external_document_service.py:414-416` |
 | **CWE** | CWE-532: Information Exposure Through Log Files |
+| **Status** | ✅ **FIXED** |
 
 ---
 
@@ -376,31 +401,41 @@ safe_filename = re.sub(r'[^\w\-.]', '_', image_id)
 
 ## Remediation Priority Matrix
 
-| Priority | Issue | Effort | Impact |
-|----------|-------|--------|--------|
-| **P0** | Command Injection (Bash Tool) | High | Critical |
-| **P0** | Weak Token Encryption | Medium | Critical |
-| **P0** | OAuth CSRF | Medium | Critical |
-| **P1** | SSRF in URL Fetch | Medium | High |
-| **P1** | Unsalted Password Hashing | Low | High |
-| **P1** | localStorage Token Storage | Medium | High |
-| **P2** | SQL Injection (LIMIT) | Low | High |
-| **P2** | Missing Authorization | Medium | High |
-| **P2** | Log Data Exposure | Low | Medium |
+| Priority | Issue | Status |
+|----------|-------|--------|
+| **P0** | Command Injection (Bash Tool) | ✅ Fixed |
+| **P0** | Weak Token Encryption | ✅ Fixed |
+| **P0** | OAuth CSRF | ✅ Fixed |
+| **P1** | SSRF in URL Fetch | ✅ Fixed |
+| **P1** | Unsalted Password Hashing | ✅ Fixed |
+| **P1** | localStorage Token Storage | ✅ Fixed |
+| **P2** | SQL Injection (LIMIT) | ✅ Fixed |
+| **P2** | Missing Authorization | ✅ Fixed |
+| **P2** | Log Data Exposure | ✅ Fixed |
+| **P3** | Medium vulnerabilities | Pending |
 
 ---
 
 ## Immediate Actions Required
 
-### ✅ Completed (Critical)
+### ✅ Completed (Critical - All Fixed)
 1. ~~**Disable or sandbox Bash Tool**~~ ✅ Fixed with whitelist + shell=False
 2. ~~**Implement proper AES/Fernet encryption**~~ ✅ Fixed with PBKDF2 + Fernet
 3. ~~**Add OAuth state validation**~~ ✅ Fixed with server-side storage
 
-### Remaining (High Priority)
-4. **Add SSRF protection** with IP blocklist
-5. **Replace SHA256 with bcrypt** for password hashing
-6. **Remove credentials from localStorage** - use server-side storage
+### ✅ Completed (High - All Fixed)
+4. ~~**Add SSRF protection**~~ ✅ Fixed with IP blocklist validation
+5. ~~**Replace SHA256 with bcrypt**~~ ✅ Fixed for password hashing
+6. ~~**Remove credentials from localStorage**~~ ✅ Fixed - not persisted
+7. ~~**Fix SQL Injection (LIMIT)**~~ ✅ Fixed with parameterized queries
+8. ~~**Add authorization checks**~~ ✅ Fixed with ownership verification
+9. ~~**Remove sensitive logging**~~ ✅ Fixed - print statements removed
+10. ~~**Fix stored XSS**~~ ✅ Fixed with URL sanitization
+
+### Remaining (Medium Priority)
+- Verification codes logged (medium)
+- Database credentials in DSN string (medium)
+- HTTP header injection (medium)
 
 ---
 

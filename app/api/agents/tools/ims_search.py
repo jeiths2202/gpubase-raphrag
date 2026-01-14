@@ -184,9 +184,11 @@ Requires IMS credentials for crawling."""
         search_pattern = f"%{query}%"
         where_clauses.append(f"(title ILIKE ${param_idx} OR description ILIKE ${param_idx + 1})")
         params.extend([search_pattern, search_pattern])
+        param_idx += 2
 
         where_clause = " AND ".join(where_clauses) if where_clauses else "TRUE"
 
+        # Parameterize LIMIT to prevent SQL injection
         sql = f"""
             SELECT
                 ims_id, title, description, status, priority,
@@ -194,8 +196,9 @@ Requires IMS credentials for crawling."""
             FROM ims_issues
             WHERE {where_clause}
             ORDER BY created_at DESC
-            LIMIT {limit}
+            LIMIT ${param_idx}
         """
+        params.append(int(limit))  # Ensure limit is integer
 
         pool = await get_db_pool()
         async with pool.acquire() as conn:
@@ -275,6 +278,7 @@ Requires IMS credentials for crawling."""
 
         where_clause = " AND ".join(where_clauses) if where_clauses else "TRUE"
 
+        # Parameterize LIMIT to prevent SQL injection
         sql = f"""
             SELECT
                 ims_id, title, description, status, priority,
@@ -282,8 +286,9 @@ Requires IMS credentials for crawling."""
             FROM ims_issues
             WHERE {where_clause}
             ORDER BY created_at DESC
-            LIMIT {limit}
+            LIMIT ${param_idx}
         """
+        params.append(int(limit))  # Ensure limit is integer
 
         print(f"[IMS_SEARCH] list_all SQL: {sql}", flush=True)
         print(f"[IMS_SEARCH] list_all params: {params}", flush=True)

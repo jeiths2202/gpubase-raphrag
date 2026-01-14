@@ -5,18 +5,44 @@ SECURITY FEATURES:
 - HttpOnly cookie authentication (prevents XSS token theft)
 - Authorization header fallback for API clients
 - No DEBUG bypass - authentication always required
+- bcrypt password hashing (salted, resistant to rainbow tables)
 """
 import logging
+import hashlib
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
+import bcrypt
 
 from .config import api_settings
 from .cookie_auth import get_token_from_request
 
 logger = logging.getLogger(__name__)
+
+
+# Password hashing utilities (bcrypt with salt)
+def hash_password(password: str) -> str:
+    """Hash password using bcrypt with auto-generated salt."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    """
+    Verify password against hash.
+    Supports both bcrypt (preferred) and legacy SHA256 hashes for migration.
+    """
+    try:
+        # Try bcrypt first (preferred)
+        if hashed.startswith("$2"):  # bcrypt hash prefix
+            return bcrypt.checkpw(password.encode(), hashed.encode())
+        else:
+            # Legacy SHA256 support for existing users (migration path)
+            legacy_hash = hashlib.sha256(password.encode()).hexdigest()
+            return hashed == legacy_hash
+    except Exception:
+        return False
 
 # Security scheme (still accepts Authorization header for API clients)
 security = HTTPBearer(auto_error=False)
@@ -1091,7 +1117,7 @@ class AuthService:
             "id": "user_admin",
             "username": "admin",
             "email": admin_email,
-            "password_hash": hashlib.sha256(admin_password.encode()).hexdigest(),
+            "password_hash": hash_password(admin_password),  # bcrypt with salt
             "role": "admin",
             "is_verified": True,
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1108,13 +1134,11 @@ class AuthService:
 
     async def authenticate(self, username: str, password: str) -> dict:
         """Authenticate user with username and password"""
-        import hashlib
-
         # Check registered users
         if username in self._users:
             user = self._users[username]
-            hashed = hashlib.sha256(password.encode()).hexdigest()
-            if user["password_hash"] == hashed and user.get("is_verified", False):
+            # Use bcrypt verification (with legacy SHA256 fallback for migration)
+            if verify_password(password, user["password_hash"]) and user.get("is_verified", False):
                 if not user.get("is_active", True):
                     return None  # User is deactivated
                 return {
@@ -1127,7 +1151,6 @@ class AuthService:
 
     async def register_user(self, user_id: str, email: str, password: str) -> dict:
         """Register a new user and send verification email"""
-        import hashlib
         import random
         import uuid
 
@@ -1143,8 +1166,8 @@ class AuthService:
         # Generate verification code
         verification_code = str(random.randint(100000, 999999))
 
-        # Hash password
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        # Hash password with bcrypt (salted)
+        password_hashed = hash_password(password)
 
         # Store pending verification
         self._pending_verifications[email] = {
@@ -1153,7 +1176,7 @@ class AuthService:
                 "id": f"user_{uuid.uuid4().hex[:12]}",
                 "username": user_id,
                 "email": email,
-                "password_hash": password_hash,
+                "password_hash": password_hashed,
                 "role": "user",
                 "is_verified": False
             },

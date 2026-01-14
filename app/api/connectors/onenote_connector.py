@@ -47,7 +47,9 @@ class OneNoteConnector(BaseConnector):
         # Read from config first, then fall back to environment variables
         self.CLIENT_ID = self.config.get("client_id") or os.environ.get("MICROSOFT_CLIENT_ID", "")
         self.CLIENT_SECRET = self.config.get("client_secret") or os.environ.get("MICROSOFT_CLIENT_SECRET", "")
-        print(f"[OneNoteConnector] Initialized with CLIENT_ID: {self.CLIENT_ID[:8]}... (from {'config' if self.config.get('client_id') else 'env'})")
+        # SECURITY: Don't log credentials - just log initialization status
+        import logging
+        logging.getLogger(__name__).debug("[OneNoteConnector] Initialized")
 
     def _get_headers(self) -> Dict[str, str]:
         """Get API request headers"""
@@ -73,7 +75,7 @@ class OneNoteConnector(BaseConnector):
         }
         query = urllib.parse.urlencode(params)
         oauth_url = f"{self.OAUTH_AUTH_URL}?{query}"
-        print(f"[OneNoteConnector] Generated OAuth URL with client_id: {self.CLIENT_ID}")
+        # SECURITY: Don't log client_id or OAuth URL with sensitive params
         return oauth_url
 
     async def exchange_code(self, code: str, redirect_uri: str) -> ConnectorResult:
