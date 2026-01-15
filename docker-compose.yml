@@ -26,9 +26,14 @@ services:
     
     # Volume mounts for persistence
     volumes:
+      # Source code mount (enables live updates without rebuild)
+      - .:/opt/kms
+      # Named volumes for persistent data
       - kms-data:/opt/kms/data
       - kms-uploads:/opt/kms/uploads
       - kms-logs:/opt/kms/logs
+      # Python virtual environment (avoid overwriting)
+      - kms-venv:/opt/kms/venv
     
     # Environment
     environment:
@@ -48,6 +53,7 @@ volumes:
   kms-data:
   kms-uploads:
   kms-logs:
+  kms-venv:
 
 networks:
   kms-network:
