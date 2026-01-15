@@ -37,11 +37,13 @@ try:
         DeepAgentAdapter,
         create_rag_deep_agent,
         create_code_deep_agent,
-        create_project_deep_agent,
+        create_planner_deep_agent,
     )
     DEEP_AGENTS_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     DEEP_AGENTS_AVAILABLE = False
+    import logging
+    logging.getLogger(__name__).warning(f"Deep Agents import failed: {e}")
 
 # Import query log writer for logging all agent queries
 from ..infrastructure.services.query_log_writer import get_query_log_writer
@@ -177,7 +179,7 @@ class AgentOrchestrator:
             elif agent_type == AgentType.CODE:
                 self._deep_agents[agent_type] = create_code_deep_agent()
             elif agent_type == AgentType.PLANNER:
-                self._deep_agents[agent_type] = create_project_deep_agent()
+                self._deep_agents[agent_type] = create_planner_deep_agent()
             else:
                 # For other types, create a generic Deep Agent with RAG tools
                 from .middleware import get_rag_tools
@@ -241,8 +243,21 @@ class AgentOrchestrator:
         else:
             agent_type = await self.classify_task(request.task)
 
+        # Check environment variable for global Deep Agent setting
+        # ENABLE_DEEP_AGENT=true/false overrides request.use_deep_agent
+        import os
+        env_deep_agent = os.getenv("ENABLE_DEEP_AGENT", "").lower()
+        if env_deep_agent in ("true", "1", "yes"):
+            use_deep_agent = True
+        elif env_deep_agent in ("false", "0", "no"):
+            use_deep_agent = False
+        else:
+            use_deep_agent = request.use_deep_agent
+
+        logger.info(f"[Orchestrator] use_deep_agent={use_deep_agent} (env={env_deep_agent or 'not set'})")
+
         # Route to Deep Agent if requested
-        if request.use_deep_agent:
+        if use_deep_agent:
             return await self._execute_deep_agent(request, context, agent_type, user_id, start_time)
 
         # Classify intent and attach to context
@@ -254,16 +269,9 @@ class AgentOrchestrator:
         logger.info(f"[Orchestrator] Intent: {intent_result.intent.value} "
                    f"(confidence={intent_result.confidence:.2f}, method={intent_result.method})")
 
-        # Get agent - use Deep Agent if enabled
-        if getattr(request, 'use_deep_agent', False):
-            try:
-                agent = get_deep_agent(agent_type)
-                logger.info(f"[Orchestrator] Using Deep Agent: {agent.name}")
-            except Exception as e:
-                logger.warning(f"[Orchestrator] Failed to create Deep Agent, falling back: {e}")
-                agent = self.agent_registry.get(agent_type)
-        else:
-            agent = self.agent_registry.get(agent_type)
+        # Get agent - use regular agent since use_deep_agent is False here
+        agent = self.agent_registry.get(agent_type)
+        logger.info(f"[Orchestrator] Using regular agent: {agent.name}")
 
         # ========================================================================
         # ORCHESTRATOR-LEVEL CONSTRAINT VALIDATION
@@ -373,11 +381,22 @@ class AgentOrchestrator:
         else:
             agent_type = await self.classify_task(request.task)
 
+        # Check environment variable for global Deep Agent setting
+        # ENABLE_DEEP_AGENT=true/false overrides request.use_deep_agent
+        import os
+        env_deep_agent = os.getenv("ENABLE_DEEP_AGENT", "").lower()
+        if env_deep_agent in ("true", "1", "yes"):
+            use_deep_agent = True
+        elif env_deep_agent in ("false", "0", "no"):
+            use_deep_agent = False
+        else:
+            use_deep_agent = request.use_deep_agent
+
         # Debug: Log use_deep_agent value
-        print(f"[Orchestrator] use_deep_agent={request.use_deep_agent}", flush=True)
+        print(f"[Orchestrator] use_deep_agent={use_deep_agent} (env={env_deep_agent or 'not set'})", flush=True)
 
         # Route to Deep Agent streaming if requested
-        if request.use_deep_agent:
+        if use_deep_agent:
             async for chunk in self._stream_deep_agent(request, context, agent_type, user_id, start_time):
                 yield chunk
             return
@@ -394,8 +413,8 @@ class AgentOrchestrator:
 
         print(f"[Orchestrator] agent_type={agent_type.value}", flush=True)
 
-        # Get agent - use Deep Agent if enabled
-        if getattr(request, 'use_deep_agent', False):
+        # Get agent - use Deep Agent if enabled (use env-modified value, not request value)
+        if use_deep_agent:
             try:
                 agent = get_deep_agent(agent_type)
                 print(f"[Orchestrator] Using Deep Agent: {agent.name}", flush=True)
@@ -405,7 +424,7 @@ class AgentOrchestrator:
                 print(f"[Orchestrator] Fallback to regular agent: {agent.name}", flush=True)
         else:
             agent = self.agent_registry.get(agent_type)
-            print(f"[Orchestrator] agent={agent.name}", flush=True)
+            print(f"[Orchestrator] Using regular agent: {agent.name}", flush=True)
 
         # ========================================================================
         # ORCHESTRATOR-LEVEL CONSTRAINT VALIDATION (Stream)
@@ -427,15 +446,80 @@ class AgentOrchestrator:
         # Collect response text for logging
         response_text_parts = []
         success = True
+        has_sent_content = False
+
+        # State-based thinking tag filter for streaming
+        # Nemotron model outputs thinking without <think> but with </think> at end
+        inside_thinking = False
+        waiting_for_think_end = False  # For cases without <think> but with </think>
+        text_buffer = ""
 
         try:
             async for chunk in agent.stream(request.task, context):
                 logger.debug(f"[Orchestrator] chunk={chunk.chunk_type}")
-                # Collect text chunks for summary
+                # Filter thinking tags from text content (state-based for streaming)
                 if chunk.chunk_type == "text" and chunk.content:
-                    response_text_parts.append(chunk.content)
+                    text_buffer += chunk.content
+
+                    # Detect thinking start pattern (model outputs thinking without <think> tag)
+                    if not inside_thinking and not waiting_for_think_end and not has_sent_content:
+                        thinking_patterns = [
+                            "Okay, let's", "Okay let's", "Let me ", "I need to ",
+                            "First, ", "The user ", "Looking at ", "I should ",
+                        ]
+                        if any(text_buffer.strip().startswith(p) for p in thinking_patterns):
+                            waiting_for_think_end = True
+                            logger.debug("[Orchestrator] Detected thinking pattern, waiting for </think>")
+
+                    # Check for <think> tag to enter thinking mode
+                    if "<think>" in text_buffer and not inside_thinking:
+                        inside_thinking = True
+                        waiting_for_think_end = False
+                        # Keep content before <think>
+                        before_think = text_buffer.split("<think>")[0]
+                        if before_think.strip():
+                            has_sent_content = True
+                            response_text_parts.append(before_think)
+                            yield AgentStreamChunk(chunk_type="text", content=before_think)
+                        text_buffer = "<think>" + text_buffer.split("<think>", 1)[1]
+
+                    # Check for </think> tag to exit thinking mode
+                    if "</think>" in text_buffer:
+                        inside_thinking = False
+                        waiting_for_think_end = False
+                        # Get content after </think>
+                        after_think = text_buffer.split("</think>", 1)[1].lstrip()
+                        text_buffer = ""
+                        if after_think.strip():
+                            has_sent_content = True
+                            response_text_parts.append(after_think)
+                            yield AgentStreamChunk(chunk_type="text", content=after_think)
+                        continue
+
+                    # If inside thinking or waiting for </think>, skip this chunk
+                    if inside_thinking or waiting_for_think_end:
+                        continue
+
+                    # If not inside thinking, apply regular filtering and yield
+                    filtered_content = self._strip_thinking_tags(text_buffer)
+                    text_buffer = ""  # Clear buffer after processing
+                    if filtered_content:
+                        has_sent_content = True
+                        response_text_parts.append(filtered_content)
+                        chunk = AgentStreamChunk(
+                            chunk_type=chunk.chunk_type,
+                            content=filtered_content,
+                            metadata=chunk.metadata
+                        )
+                    else:
+                        continue  # Skip empty chunks after filtering
                 elif chunk.chunk_type == "error":
                     success = False
+                elif chunk.chunk_type == "done" and not has_sent_content:
+                    # 응답이 전부 필터링됨 - 기본 메시지 전송
+                    default_msg = "죄송합니다. 해당 질문에 대한 관련 정보를 지식 베이스에서 찾을 수 없습니다. 다른 키워드로 검색하거나 질문을 더 구체적으로 해주세요."
+                    yield AgentStreamChunk(chunk_type="text", content=default_msg)
+                    response_text_parts.append(default_msg)
                 yield chunk
         except Exception as e:
             logger.error(f"[Orchestrator] ERROR: {e}")
@@ -952,14 +1036,14 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
             )
             yield ParallelStreamChunk(
                 chunk_type="synthesis",
-                content=synthesized_answer,
+                content=self._strip_thinking_tags(synthesized_answer),
                 metadata={"is_final": True}
             )
         elif successful_results:
             single_result = list(successful_results.values())[0]
             yield ParallelStreamChunk(
                 chunk_type="synthesis",
-                content=single_result.answer,
+                content=self._strip_thinking_tags(single_result.answer),
                 metadata={"is_final": True}
             )
 
@@ -1141,13 +1225,29 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
         response_text_parts = []
         success = True
 
+        has_sent_content = False
         try:
             async for chunk in deep_agent.stream(request.task, context):
-                # Collect text chunks for logging
+                # Filter thinking tags from text content
                 if chunk.chunk_type == "text" and chunk.content:
-                    response_text_parts.append(chunk.content)
+                    filtered_content = self._strip_thinking_tags(chunk.content)
+                    if filtered_content:
+                        has_sent_content = True
+                        response_text_parts.append(filtered_content)
+                        chunk = AgentStreamChunk(
+                            chunk_type=chunk.chunk_type,
+                            content=filtered_content,
+                            metadata=chunk.metadata
+                        )
+                    else:
+                        continue  # Skip empty chunks after filtering
                 elif chunk.chunk_type == "error":
                     success = False
+                elif chunk.chunk_type == "done" and not has_sent_content:
+                    # 응답이 전부 필터링됨 - 기본 메시지 전송
+                    default_msg = "죄송합니다. 해당 질문에 대한 관련 정보를 지식 베이스에서 찾을 수 없습니다. 다른 키워드로 검색하거나 질문을 더 구체적으로 해주세요."
+                    yield AgentStreamChunk(chunk_type="text", content=default_msg)
+                    response_text_parts.append(default_msg)
                 yield chunk
 
         except Exception as e:
@@ -1417,6 +1517,69 @@ List each suggestion on a new line, starting with "- ":"""
         except Exception as e:
             logger.warning(f"[Orchestrator] Failed to process UI context: {e}")
             return None
+
+    def _strip_thinking_tags(self, text: str) -> str:
+        """
+        LLM 응답에서 thinking 관련 콘텐츠 제거
+        - <think>...</think> 태그
+        - 내부 추론 과정 전체
+        """
+        if not text:
+            return text
+
+        # <think>...</think> 태그와 그 내용 제거 (멀티라인 지원)
+        cleaned = re.sub(r'<think>.*?</think>\s*', '', text, flags=re.DOTALL)
+
+        # 내부 추론 패턴 (응답 전체가 이런 패턴이면 무시)
+        internal_reasoning_patterns = [
+            r'This will help me',
+            r'I (?:need to|should|will|\'ll) (?:search|check|look|find|use|try)',
+            r'(?:Let me|I\'m going to) (?:search|check|look|find|use|try)',
+            r'using the available tools',
+            r'(?:First|Next),? I (?:need to|should|will)',
+            r'The (?:user|question) (?:is asking|wants|asked)',
+            r'I don\'t have (?:enough|any) information',
+            r'(?:Maybe|Perhaps) (?:I should|using)',
+        ]
+
+        # 응답이 내부 추론인지 확인
+        is_internal_reasoning = any(
+            re.search(pattern, cleaned, re.IGNORECASE)
+            for pattern in internal_reasoning_patterns
+        )
+
+        if is_internal_reasoning:
+            # 전체 응답이 추론이면 빈 문자열 반환
+            return ""
+
+        # 응답이 내부 추론으로 시작하는지 확인
+        thinking_start_patterns = [
+            r'^Okay,?\s+(?:so\s+)?(?:the user|I)',
+            r'^(?:First|Let me|I need to|I should|I\'ll|I will)\s+',
+            r'^(?:Hmm|Well|Alright|The user)',
+            r'^(?:Since|Looking at|Based on)\s+(?:the|this|my)',
+        ]
+
+        is_thinking_response = any(
+            re.match(pattern, cleaned, re.IGNORECASE)
+            for pattern in thinking_start_patterns
+        )
+
+        if is_thinking_response:
+            # 마지막 문단에서 실제 답변 찾기
+            paragraphs = cleaned.split('\n\n')
+            for para in reversed(paragraphs):
+                para = para.strip()
+                if para and not any(
+                    re.match(p, para, re.IGNORECASE)
+                    for p in thinking_start_patterns
+                ) and not any(
+                    re.search(p, para, re.IGNORECASE)
+                    for p in internal_reasoning_patterns
+                ):
+                    return para
+
+        return cleaned.strip()
 
     async def _fetch_url_content(self, url: str) -> tuple[Optional[str], Optional[str]]:
         """

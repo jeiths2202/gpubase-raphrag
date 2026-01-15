@@ -40,7 +40,7 @@ class LLMAgentAdapter:
         self,
         base_url: str = None,
         model: str = None,
-        temperature: float = 0.7,
+        temperature: float = 0.1,  # Low temperature for accurate RAG responses
         timeout: int = 300,
         use_nim: bool = True
     ):
