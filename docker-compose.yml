@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  kms-system:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kms-tmaxjapan
+    hostname: kms-tmaxjapan
+    restart: unless-stopped
+    
+    # GPU Configuration - ONLY GPU 4,5,6,7
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['4', '5', '6', '7']
+              capabilities: [gpu]
+    
+    # Port mappings
+    ports:
+      - "9022:22"      # SSH
+      - "9000:9000"    # Backend API
+      - "3000:3000"    # Frontend
+    
+    # Volume mounts for persistence
+    volumes:
+      - kms-data:/opt/kms/data
+      - kms-uploads:/opt/kms/uploads
+      - kms-logs:/opt/kms/logs
+    
+    # Environment
+    environment:
+      - CUDA_VISIBLE_DEVICES=4,5,6,7
+      - NVIDIA_VISIBLE_DEVICES=4,5,6,7
+
+    # Extra hosts for NIM services on host machine
+    extra_hosts:
+      - "nim-host:192.168.8.11"
+      - "host.docker.internal:host-gateway"
+
+    # Network
+    networks:
+      - kms-network
+
+volumes:
+  kms-data:
+  kms-uploads:
+  kms-logs:
+
+networks:
+  kms-network:
+    driver: bridge
