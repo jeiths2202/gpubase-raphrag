@@ -6,8 +6,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 FRONTEND_DIR="$PROJECT_ROOT/kms-portal-ui"
 LOG_DIR="$PROJECT_ROOT/logs"
+VENV_PYTHON="$PROJECT_ROOT/venv/bin/python"
 FRONTEND_PORT=3000
 BACKEND_PORT=9000
+
+# Environment variables for backend
+export CORS_ORIGINS='["http://localhost:3000","http://localhost:8501"]'
+
+# Load nvm for Node.js version management
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
 # Colors for output
 RED='\033[0;31m'
@@ -50,12 +58,16 @@ log_message() {
 
 get_pid_by_port() {
     local port=$1
-    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
-        # Windows (Git Bash / MSYS)
-        netstat -ano 2>/dev/null | grep ":$port" | grep "LISTENING" | awk '{print $5}' | head -1
-    else
-        # Linux/Mac
+    # Try multiple methods to find PID by port
+    if command -v lsof &>/dev/null; then
         lsof -ti:$port 2>/dev/null
+    elif command -v ss &>/dev/null; then
+        ss -tlnp 2>/dev/null | grep ":$port " | grep -oP 'pid=\K[0-9]+' | head -1
+    elif command -v netstat &>/dev/null; then
+        netstat -tlnp 2>/dev/null | grep ":$port " | awk '{print $7}' | cut -d'/' -f1 | head -1
+    else
+        # Fallback: search process list
+        ps aux 2>/dev/null | grep -E "(node.*$port|python.*$port)" | grep -v grep | awk '{print $2}' | head -1
     fi
 }
 
@@ -65,14 +77,13 @@ kill_process_by_port() {
 
     if [ -n "$pid" ]; then
         print_status "Killing process on port $port (PID: $pid)"
-        if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
-            taskkill //F //PID $pid 2>/dev/null || powershell -Command "Stop-Process -Id $pid -Force" 2>/dev/null
-        else
-            kill -9 $pid 2>/dev/null
-        fi
+        kill -9 $pid 2>/dev/null
         sleep 1
         return 0
     else
+        # Try to find and kill by process name
+        pkill -f "app.api.main.*$port" 2>/dev/null
+        pkill -f "vite.*$port" 2>/dev/null
         print_warning "No process found on port $port"
         return 1
     fi
@@ -129,8 +140,8 @@ start_backend() {
     log_message "$log_file" "========== Backend Server Starting =========="
 
     cd "$PROJECT_ROOT"
-    nohup python -m app.api.main --mode develop --port $BACKEND_PORT >> "$log_file" 2>&1 &
-    sleep 5
+    nohup "$VENV_PYTHON" -m app.api.main --mode develop --port $BACKEND_PORT >> "$log_file" 2>&1 &
+    sleep 8
 
     pid=$(get_pid_by_port $BACKEND_PORT)
     if [ -n "$pid" ]; then

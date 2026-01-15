@@ -47,6 +47,13 @@ try:
 except ImportError:
     LANGCHAIN_OLLAMA_AVAILABLE = False
 
+# NIM (OpenAI-compatible) support
+try:
+    from langchain_openai import ChatOpenAI
+    LANGCHAIN_OPENAI_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_OPENAI_AVAILABLE = False
+
 from ..types import (
     AgentType, AgentContext, AgentResult, AgentStreamChunk,
     MessageRole
@@ -113,21 +120,38 @@ class DeepAgentAdapter(BaseAgent):
             logger.info(f"[{self.name}] Long-term memory backends not available, using ephemeral storage")
 
     def _get_llm(self):
-        """LLM 인스턴스 반환"""
+        """LLM instance - NIM first, Ollama fallback"""
         if self._llm is not None:
             return self._llm
 
-        if not LANGCHAIN_OLLAMA_AVAILABLE:
-            raise RuntimeError("langchain-ollama not installed")
+        llm_api_url = os.getenv("LLM_API_URL")
+        llm_model = os.getenv("LLM_MODEL", "nvidia/nvidia-nemotron-nano-9b-v2")
 
-        ollama_base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+        if llm_api_url and LANGCHAIN_OPENAI_AVAILABLE:
+            base_url = llm_api_url.replace("/chat/completions", "")
+            if not base_url.endswith("/v1"):
+                base_url = base_url.rstrip("/") + "/v1"
 
-        return ChatOllama(
-            base_url=ollama_base,
-            model=ollama_model,
-            temperature=self.temperature,
-        )
+            logger.info(f"[{self.name}] Using NIM: {llm_model}")
+            return ChatOpenAI(
+                api_key="not-needed",
+                base_url=base_url,
+                model=llm_model,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+            )
+
+        if LANGCHAIN_OLLAMA_AVAILABLE:
+            ollama_base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+            ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+            logger.info(f"[{self.name}] Using Ollama: {ollama_model}")
+            return ChatOllama(
+                base_url=ollama_base,
+                model=ollama_model,
+                temperature=self.temperature,
+            )
+
+        raise RuntimeError("No LLM backend available")
 
     def _get_langraph_store(self):
         """
