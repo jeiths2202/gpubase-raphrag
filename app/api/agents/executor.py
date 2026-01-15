@@ -201,15 +201,16 @@ class AgentExecutor:
 
     @property
     def llm_adapter(self):
-        """Lazy load LLM adapter"""
+        """Lazy load LLM adapter (NIM primary, Ollama fallback)"""
         if self._llm_adapter is None:
-            # Try Ollama first (local LLM with tool calling support)
+            # Try LLM adapter first (NIM primary, Ollama fallback)
             try:
-                from .adapters.ollama_adapter import get_ollama_adapter
-                self._llm_adapter = get_ollama_adapter()
-                logger.info("Using Ollama LLM adapter")
+                from .adapters.ollama_adapter import get_llm_adapter
+                self._llm_adapter = get_llm_adapter()
+                backend_info = self._llm_adapter.get_backend_info()
+                logger.info(f"Using LLM adapter: backend={backend_info['backend']}, model={backend_info['model']}")
             except ImportError as e:
-                logger.warning(f"Ollama adapter import failed: {e}")
+                logger.warning(f"LLM adapter import failed: {e}")
                 # Fallback to LangChain adapter
                 try:
                     from ..adapters.langchain.llm_adapter import get_langchain_llm

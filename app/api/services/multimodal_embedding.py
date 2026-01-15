@@ -3,6 +3,7 @@ Multimodal Embedding Pipeline
 Generates embeddings for text, images, and combined multimodal content
 """
 import asyncio
+import os
 import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple, Union
@@ -19,89 +20,143 @@ from ..models.document import (
 class EmbeddingConfig:
     """Configuration for embedding generation."""
 
-    # Text embedding model (Ollama nomic-embed-text for local, NIM for production)
-    TEXT_MODEL = "nomic-embed-text"  # Ollama model
-    TEXT_DIMENSION = 768  # nomic-embed-text dimension
+    # NIM Embedding API (production)
+    EMBEDDING_API_URL = os.getenv("EMBEDDING_API_URL", "http://localhost:12801/v1")
+    EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nvidia/nv-embedqa-mistral-7b-v2")
+    EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", "4096"))
 
-    # Ollama settings
-    OLLAMA_BASE_URL = "http://localhost:11434"
+    # Text embedding model
+    TEXT_MODEL = EMBEDDING_MODEL
+    TEXT_DIMENSION = EMBEDDING_DIMENSION
 
-    # Image embedding model (bakllava via Ollama)
+    # Ollama settings (fallback)
+    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    OLLAMA_MODEL = "nomic-embed-text"
+    OLLAMA_DIMENSION = 768
+
+    # Image embedding model (via VLM service)
     IMAGE_MODEL = "bakllava"
-    IMAGE_DIMENSION = 4096  # bakllava embedding dimension
+    IMAGE_DIMENSION = 4096
 
     # Multimodal embedding model
     MULTIMODAL_MODEL = "bakllava"
     MULTIMODAL_DIMENSION = 4096
 
     # Batch processing
-    BATCH_SIZE = 32
+    BATCH_SIZE = int(os.getenv("EMBEDDING_BATCH_SIZE", "32"))
     MAX_TEXT_LENGTH = 8192
 
     # Chunk settings
     CHUNK_SIZE = 500
     CHUNK_OVERLAP = 100
 
+    # Use NIM or Ollama
+    USE_NIM = EMBEDDING_API_URL is not None
+
 
 class TextEmbeddingService:
     """
-    Service for generating text embeddings using Ollama.
+    Service for generating text embeddings.
 
-    Uses nomic-embed-text model via Ollama for local embeddings.
-    Falls back to mock embeddings if Ollama is unavailable.
+    Supports:
+    - NIM Embedding API (nvidia/nv-embedqa-mistral-7b-v2) - Primary
+    - Ollama nomic-embed-text - Fallback
+
+    Falls back to mock embeddings if both are unavailable.
     """
 
-    def __init__(self, model: str = None):
-        self.model = model or EmbeddingConfig.TEXT_MODEL
-        self.dimension = EmbeddingConfig.TEXT_DIMENSION
-        self.base_url = EmbeddingConfig.OLLAMA_BASE_URL
-        self._session = None
+    # Class-level semaphore to limit concurrent requests
+    _ollama_semaphore = None
 
-    def _get_session(self):
-        """Get or create aiohttp session."""
-        if self._session is None:
-            import aiohttp
-            self._session = aiohttp.ClientSession()
-        return self._session
+    def __init__(self, model: str = None, use_nim: bool = True):
+        self.use_nim = use_nim and EmbeddingConfig.USE_NIM
 
-    async def embed_text(self, text: str) -> List[float]:
+        if self.use_nim:
+            self.model = model or EmbeddingConfig.EMBEDDING_MODEL
+            self.dimension = EmbeddingConfig.EMBEDDING_DIMENSION
+            self.base_url = EmbeddingConfig.EMBEDDING_API_URL
+        else:
+            self.model = model or EmbeddingConfig.OLLAMA_MODEL
+            self.dimension = EmbeddingConfig.OLLAMA_DIMENSION
+            self.base_url = EmbeddingConfig.OLLAMA_BASE_URL
+
+        # Initialize class-level semaphore (limit to 2 concurrent requests)
+        if TextEmbeddingService._ollama_semaphore is None:
+            TextEmbeddingService._ollama_semaphore = asyncio.Semaphore(2)
+
+    async def embed_text(self, text: str, input_type: str = "passage") -> List[float]:
         """
-        Generate embedding for a single text using Ollama.
+        Generate embedding for a single text.
+
+        Uses NIM API (OpenAI-compatible) when available, falls back to Ollama.
 
         Args:
             text: Input text
+            input_type: Type of input - "passage" for documents, "query" for search queries
 
         Returns:
-            Embedding vector (768 dimensions for nomic-embed-text)
+            Embedding vector (4096 dimensions for NIM, 768 for Ollama)
         """
         import logging
         logger = logging.getLogger(__name__)
 
+        # Try NIM API first (OpenAI-compatible format)
+        if self.use_nim:
+            try:
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        f"{self.base_url}/embeddings",
+                        json={
+                            "input": [text[:8192]],
+                            "model": self.model,
+                            "input_type": input_type
+                        },
+                        headers={"Content-Type": "application/json"},
+                        timeout=aiohttp.ClientTimeout(total=30, connect=5)
+                    ) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            embeddings = data.get("data", [])
+                            if embeddings and "embedding" in embeddings[0]:
+                                logger.debug(f"NIM embedding generated: {len(embeddings[0]['embedding'])} dims")
+                                return embeddings[0]["embedding"]
+                        else:
+                            error_text = await response.text()
+                            logger.warning(f"NIM embedding failed: HTTP {response.status} - {error_text[:200]}")
+            except Exception as e:
+                logger.warning(f"NIM embedding error: {e}, trying Ollama fallback")
+
+        # Fallback to Ollama
         try:
             import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.base_url}/api/embeddings",
-                    json={"model": self.model, "prompt": text[:8192]},
-                    timeout=aiohttp.ClientTimeout(total=60)
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        embedding = data.get("embedding", [])
-                        if embedding:
-                            return embedding
-                    else:
-                        logger.warning(f"Ollama embedding failed: HTTP {response.status}")
+            async with TextEmbeddingService._ollama_semaphore:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        f"{EmbeddingConfig.OLLAMA_BASE_URL}/api/embeddings",
+                        json={"model": EmbeddingConfig.OLLAMA_MODEL, "prompt": text[:8192]},
+                        timeout=aiohttp.ClientTimeout(total=10, connect=3)
+                    ) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            embedding = data.get("embedding", [])
+                            if embedding:
+                                logger.debug(f"Ollama embedding generated: {len(embedding)} dims")
+                                return embedding
+                        else:
+                            logger.warning(f"Ollama embedding failed: HTTP {response.status}")
         except Exception as e:
-            logger.warning(f"Ollama embedding error: {e}, using fallback")
+            logger.warning(f"Ollama embedding error: {e}, using zero vector fallback")
 
-        # Fallback to zero vector
+        # Final fallback to zero vector
+        logger.warning(f"All embedding services unavailable, using zero vector")
         return [0.0] * self.dimension
 
     async def embed_texts(
         self,
         texts: List[str],
-        batch_size: int = None
+        batch_size: int = None,
+        input_type: str = "passage"
     ) -> List[List[float]]:
         """
         Generate embeddings for multiple texts.
@@ -109,6 +164,7 @@ class TextEmbeddingService:
         Args:
             texts: List of input texts
             batch_size: Batch size for processing
+            input_type: Type of input - "passage" for documents, "query" for search queries
 
         Returns:
             List of embedding vectors
@@ -116,11 +172,14 @@ class TextEmbeddingService:
         batch_size = batch_size or EmbeddingConfig.BATCH_SIZE
         embeddings = []
 
+        # Process sequentially to avoid overwhelming Ollama
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]
-            batch_embeddings = await asyncio.gather(
-                *[self.embed_text(text) for text in batch]
-            )
+            # Process batch sequentially instead of using gather
+            batch_embeddings = []
+            for text in batch:
+                emb = await self.embed_text(text, input_type=input_type)
+                batch_embeddings.append(emb)
             embeddings.extend(batch_embeddings)
 
         return embeddings
