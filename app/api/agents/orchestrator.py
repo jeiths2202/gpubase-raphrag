@@ -464,8 +464,9 @@ class AgentOrchestrator:
                     # Detect thinking start pattern (model outputs thinking without <think> tag)
                     if not inside_thinking and not waiting_for_think_end and not has_sent_content:
                         thinking_patterns = [
-                            "Okay, let's", "Okay let's", "Let me ", "I need to ",
-                            "First, ", "The user ", "Looking at ", "I should ",
+                            "Okay, let's", "Okay let's", "Okay, let me", "Okay let me",
+                            "Let me ", "I need to ", "First, ", "The user ",
+                            "Looking at ", "I should ", '{ "query"', '{"query"',
                         ]
                         if any(text_buffer.strip().startswith(p) for p in thinking_patterns):
                             waiting_for_think_end = True
@@ -1571,10 +1572,12 @@ List each suggestion on a new line, starting with "- ":"""
 
         # 응답이 내부 추론으로 시작하는지 확인
         thinking_start_patterns = [
-            r'^Okay,?\s+(?:so\s+)?(?:the user|I)',
+            r'^Okay,?\s+(?:so\s+)?(?:the user|I|let me)',
             r'^(?:First|Let me|I need to|I should|I\'ll|I will)\s+',
             r'^(?:Hmm|Well|Alright|The user)',
             r'^(?:Since|Looking at|Based on)\s+(?:the|this|my)',
+            r'^{\s*"query"',  # Tool result JSON output
+            r'^{\s*"results',  # Tool result JSON output
         ]
 
         is_thinking_response = any(
@@ -1587,6 +1590,9 @@ List each suggestion on a new line, starting with "- ":"""
             paragraphs = cleaned.split('\n\n')
             for para in reversed(paragraphs):
                 para = para.strip()
+                # Skip JSON outputs and thinking patterns
+                if para.startswith('{') or para.startswith('['):
+                    continue
                 if para and not any(
                     re.match(p, para, re.IGNORECASE)
                     for p in thinking_start_patterns
@@ -1595,6 +1601,12 @@ List each suggestion on a new line, starting with "- ":"""
                     for p in internal_reasoning_patterns
                 ):
                     return para
+            # If no valid paragraph found, return empty
+            return ""
+
+        # Remove any JSON tool results that might be mixed in
+        cleaned = re.sub(r'{\s*"query"[^}]+}[^{]*', '', cleaned)
+        cleaned = re.sub(r'{\s*"results[^}]+}[^{]*', '', cleaned)
 
         return cleaned.strip()
 
