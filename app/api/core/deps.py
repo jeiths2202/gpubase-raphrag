@@ -753,10 +753,11 @@ class DocumentService:
                 return False
 
             # Check alphanumeric ratio (filter out formatting-heavy chunks)
+            # Note: 0.15 threshold to allow TOC pages with dots (.....)
             alnum_count = sum(1 for c in chunk_text if c.isalnum())
             total_count = len(chunk_text)
             alnum_ratio = alnum_count / total_count if total_count > 0 else 0
-            if alnum_ratio < 0.3:
+            if alnum_ratio < 0.15:
                 return False
 
             # Filter chunks with too many digits (tables, data, etc.)
