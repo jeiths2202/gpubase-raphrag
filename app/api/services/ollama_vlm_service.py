@@ -485,7 +485,7 @@ Extracted text:"""
             result = await self._generate_with_image(
                 prompt=ocr_prompt,
                 image_b64=image_b64,
-                options={"num_predict": 4096}  # Allow longer output for full page OCR
+                options={"num_predict": 2048}  # OCR output (NIM Vision context limit: 4096)
             )
 
             extracted_text = result.get("response", "").strip()
