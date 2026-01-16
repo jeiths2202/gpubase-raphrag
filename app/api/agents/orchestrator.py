@@ -1613,12 +1613,10 @@ List each suggestion on a new line, starting with "- ":"""
 
             detector = get_figure_detector()
 
-            # Detect figure references in response
+            # Detect figure references in response (optional - images can be fetched by page numbers too)
             figure_refs = detector.detect_references(response_text)
-            if not figure_refs:
-                return
-
-            logger.info(f"[Orchestrator] Detected figure references: {figure_refs}")
+            if figure_refs:
+                logger.info(f"[Orchestrator] Detected figure references: {figure_refs}")
 
             # Get document IDs from context metadata
             document_ids = []
@@ -1647,8 +1645,10 @@ List each suggestion on a new line, starting with "- ":"""
                                 doc_pages[doc_id] = set()
                             doc_pages[doc_id].add(page_num)
 
-            if not document_ids:
-                logger.debug("[Orchestrator] No document IDs for figure image lookup")
+            # Check if we have anything to look up (either figure_refs or page_numbers)
+            has_page_numbers = any(pages for pages in doc_pages.values())
+            if not document_ids or (not figure_refs and not has_page_numbers):
+                logger.debug("[Orchestrator] No document IDs or page numbers for image lookup")
                 return
 
             # Get image repository
