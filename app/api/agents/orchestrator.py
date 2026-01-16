@@ -524,6 +524,13 @@ class AgentOrchestrator:
                 # Stream figure reference images before done chunk
                 if chunk.chunk_type == "done":
                     full_response_for_images = ''.join(response_text_parts)
+                    # Debug: Log context.metadata for image lookup
+                    logger.info(f"[Orchestrator] Before image lookup - metadata keys: {list(context.metadata.keys()) if context.metadata else 'None'}")
+                    if context.metadata and 'sources' in context.metadata:
+                        sources = context.metadata['sources']
+                        logger.info(f"[Orchestrator] Sources count: {len(sources)}")
+                        for s in sources[:3]:
+                            logger.info(f"[Orchestrator] Source: doc_id={s.get('doc_id')}, page={s.get('page_number')}")
                     if full_response_for_images:
                         async for img_chunk in self._stream_figure_images(
                             full_response_for_images, context
@@ -1647,8 +1654,9 @@ List each suggestion on a new line, starting with "- ":"""
 
             # Check if we have anything to look up (either figure_refs or page_numbers)
             has_page_numbers = any(pages for pages in doc_pages.values())
+            logger.info(f"[Orchestrator] Image lookup: doc_ids={document_ids}, figure_refs={figure_refs}, has_pages={has_page_numbers}, doc_pages={dict(doc_pages)}")
             if not document_ids or (not figure_refs and not has_page_numbers):
-                logger.debug("[Orchestrator] No document IDs or page numbers for image lookup")
+                logger.info("[Orchestrator] No document IDs or page numbers for image lookup - skipping")
                 return
 
             # Get image repository
