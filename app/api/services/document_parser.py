@@ -319,6 +319,13 @@ class PDFParser(BaseDocumentParser):
                         pix = fitz_page.get_pixmap(matrix=mat)
                         img_bytes = pix.tobytes("png")
 
+                        # Check if page is mostly blank before OCR
+                        if self._is_blank_page(pix):
+                            print(f"[OCR] Page {page_num}: Skipped (blank page)")
+                            enhanced_pages.append(page_info)
+                            full_text_parts.append(page_text)
+                            continue
+
                         # Call VLM OCR
                         ocr_result = await self.vlm_service.extract_text_ocr(
                             img_bytes, language=language
@@ -327,7 +334,14 @@ class PDFParser(BaseDocumentParser):
                         ocr_text = ocr_result.get("text", "")
                         ocr_confidence = ocr_result.get("confidence", 0)
 
+                        # Validate OCR result to detect hallucination
                         if ocr_text and len(ocr_text) > char_count:
+                            if self._is_hallucinated_ocr(ocr_text, language):
+                                print(f"[OCR] Page {page_num}: Skipped (hallucination detected)")
+                                enhanced_pages.append(page_info)
+                                full_text_parts.append(page_text)
+                                continue
+
                             # Use OCR result if it's better than pypdf extraction
                             enhanced_pages.append({
                                 "page_number": page_num,
@@ -373,6 +387,107 @@ class PDFParser(BaseDocumentParser):
         except Exception as e:
             print(f"[OCR] VLM enhancement failed: {e}")
             return parsed_result
+
+    def _is_blank_page(self, pixmap) -> bool:
+        """
+        Check if a page image is mostly blank/white.
+
+        Args:
+            pixmap: PyMuPDF pixmap object
+
+        Returns:
+            True if page is mostly blank (>95% white pixels)
+        """
+        try:
+            # Get pixel data as samples
+            samples = pixmap.samples
+            width, height = pixmap.width, pixmap.height
+            n = pixmap.n  # Number of components (RGB=3, RGBA=4, Gray=1)
+
+            # Count white/near-white pixels
+            white_threshold = 250  # Near white (0-255)
+            total_pixels = width * height
+            white_pixels = 0
+
+            # Sample every 10th pixel for performance
+            step = 10 * n
+            for i in range(0, len(samples) - n + 1, step):
+                # Check if pixel is white (all components >= threshold)
+                is_white = all(samples[i + j] >= white_threshold for j in range(min(n, 3)))
+                if is_white:
+                    white_pixels += 1
+
+            sampled_total = total_pixels // 10
+            white_ratio = white_pixels / sampled_total if sampled_total > 0 else 0
+
+            return white_ratio > 0.95  # More than 95% white = blank page
+
+        except Exception:
+            return False  # If check fails, assume not blank
+
+    def _is_hallucinated_ocr(self, ocr_text: str, language: str = "auto") -> bool:
+        """
+        Detect if OCR result appears to be hallucinated content.
+
+        Args:
+            ocr_text: The OCR extracted text
+            language: Expected document language
+
+        Returns:
+            True if the text appears to be hallucinated
+        """
+        if not ocr_text:
+            return False
+
+        # Hallucination patterns - content unrelated to document context
+        hallucination_patterns = [
+            # Generic data tables that VLMs often hallucinate
+            r"Number of employees",
+            r"Characteristic\s*\|\s*Number",
+            r"\d{4}\s*\|\s*\d{4}",  # Year | Number pattern
+            r"population|revenue|sales|growth",
+            # Lorem ipsum and placeholder text
+            r"lorem ipsum",
+            r"sample text",
+            r"placeholder",
+            # Generic AI responses
+            r"I cannot see|I don't see|image is blank|no text visible",
+            r"I'm unable to|I am unable to",
+        ]
+
+        text_lower = ocr_text.lower()
+
+        for pattern in hallucination_patterns:
+            if re.search(pattern, text_lower, re.IGNORECASE):
+                return True
+
+        # Check for suspicious repetitive content
+        # If the same phrase repeats too many times, likely hallucination
+        words = ocr_text.split()
+        if len(words) > 20:
+            word_counts = {}
+            for word in words:
+                word_counts[word] = word_counts.get(word, 0) + 1
+
+            # If any word appears more than 30% of the time, suspicious
+            max_count = max(word_counts.values())
+            if max_count / len(words) > 0.3:
+                return True
+
+        # Language mismatch detection
+        if language == "ja":
+            # Japanese document should have some Japanese characters
+            jp_chars = sum(1 for c in ocr_text if '\u3040' <= c <= '\u30ff' or '\u4e00' <= c <= '\u9fff')
+            if len(ocr_text) > 100 and jp_chars < len(ocr_text) * 0.1:
+                # Less than 10% Japanese in a Japanese document = suspicious
+                return True
+        elif language == "ko":
+            # Korean document should have some Hangul
+            ko_chars = sum(1 for c in ocr_text if '\uac00' <= c <= '\ud7af')
+            if len(ocr_text) > 100 and ko_chars < len(ocr_text) * 0.1:
+                return True
+
+        return False
 
     def _sync_extract_pdf(
         self,
