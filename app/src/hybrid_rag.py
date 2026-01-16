@@ -738,66 +738,154 @@ Response:"""
         This helps identify the main topic to prioritize documents
         where that topic is central, not just mentioned.
 
+        Changed: Now extracts compound keywords (2-gram) for better query differentiation.
+        Example: "MFSバイナリの関係" → "MFSバイナリ", "MFSの処理手順" → "MFS処理"
+
         Args:
             query: User's query
 
         Returns:
-            The key concept/keyword that is most central to the query
+            The key concept/keyword phrase that is most central to the query
         """
-        prompt = f"""다음 질문에서 핵심 주제/동작을 나타내는 키워드 1개만 추출하세요.
+        prompt = f"""다음 질문에서 핵심 주제를 나타내는 복합 키워드(2단어)를 추출하세요.
 
 규칙:
-- 주요 동작/프로세스 단어를 우선 선택 (예: 마이그레이션, 변환, 설치, 설정)
-- 대상 명사보다 행위/과정을 나타내는 단어를 선택
-- 조사(을/를/이/가/의/에서/으로)는 제외하고 단어만 반환
-- 영어 단어도 가능
+- 주요 명사 + 동작/대상을 조합하여 2단어로 추출 (예: MFS처리, 데이터변환, 시스템설치)
+- 단일 단어로는 구분되지 않는 경우 반드시 2단어 조합 사용
+- 조사(을/를/이/가/의/에서/으로/の/を/が)는 제외
+- 영어+한글, 영어+일본어 조합도 가능
+- 공백 없이 붙여서 반환
+
+예시:
+- "MFSバイナリの関係" → "MFSバイナリ"
+- "MFSの処理手順" → "MFS処理"
+- "데이터 마이그레이션 방법" → "데이터마이그레이션"
+- "IMS 에러 해결" → "IMS에러"
 
 질문: {query}
 
-핵심 키워드(한 단어만):"""
+복합 키워드(2단어, 공백없이):"""
 
-        # First try fallback for common action words (faster and more reliable)
-        fallback_concept = self._fallback_key_concept(query)
+        # First try fallback for compound keywords
+        fallback_concept = self._fallback_key_concept_compound(query)
 
         try:
             response = self.llm.invoke(prompt)
             concept = response.content.strip()
 
             # Clean up - remove quotes, periods, particles, etc.
-            concept = re.sub(r'["\'.。、:：]', '', concept)
+            concept = re.sub(r'["\'.。、:：\s]', '', concept)
             concept = concept.split('\n')[0].strip()  # Take first line only
-            concept = concept.split()[0] if concept.split() else concept  # Take first word only
 
-            # Remove Korean particles if present
-            concept = re.sub(r'(을|를|이|가|의|에서|으로|에|와|과|도|만)$', '', concept)
+            # Remove Japanese/Korean particles if at the end
+            concept = re.sub(r'(을|를|이|가|의|에서|으로|에|와|과|도|만|の|を|が|に|で|と)$', '', concept)
 
-            # Validate: concept should be in the original query
-            if concept and len(concept) >= 2:
-                # Check if concept is in query (with or without particles)
-                if concept.lower() in query.lower():
-                    # Prefer action words from fallback if LLM returned something else
-                    if fallback_concept and fallback_concept != concept:
-                        # Check if fallback found an action word
-                        action_words = {'마이그레이션', '변환', '이동', '전환', '이관',
-                                       '설치', '설정', '구성', '배포', '실행',
-                                       '에러', '오류', '해결', 'migration', 'error'}
-                        if fallback_concept.lower() in action_words or any(aw in fallback_concept.lower() for aw in action_words):
-                            return fallback_concept
+            # Validate: concept should be in the original query (partially)
+            if concept and len(concept) >= 3:
+                # Check if concept is in query (allowing for particles between words)
+                query_normalized = re.sub(r'[의の를を이가]', '', query.lower())
+                concept_normalized = concept.lower()
+                if concept_normalized in query_normalized or any(part in query_normalized for part in [concept_normalized[:len(concept_normalized)//2], concept_normalized[len(concept_normalized)//2:]]):
                     return concept
-                # Also try without potential particle at the end
-                for suffix in ['을', '를', '이', '가', '의', '에서', '으로', '에', '하는', '한']:
-                    if (concept + suffix).lower() in query.lower():
-                        return concept
 
-            # Return fallback result
-            return fallback_concept
+            # Return fallback result if LLM extraction failed
+            return fallback_concept if fallback_concept else self._fallback_key_concept(query)
 
         except Exception as e:
             print(f"Key concept extraction error: {e}")
-            return fallback_concept
+            return fallback_concept if fallback_concept else self._fallback_key_concept(query)
+
+    def _fallback_key_concept_compound(self, query: str) -> str:
+        """
+        Fallback compound keyword extraction using heuristics.
+        Extracts 2-word combinations for better query differentiation.
+        """
+        # Action/process words patterns (for matching in query)
+        action_patterns = [
+            (r'バイナリ', 'バイナリ'),
+            (r'処理', '処理'),
+            (r'手順', '手順'),
+            (r'関係', '関係'),
+            (r'変換', '変換'),
+            (r'設定', '設定'),
+            (r'構成', '構成'),
+            (r'実行', '実行'),
+            (r'生成', '生成'),
+            (r'マイグレーション', 'マイグレーション'),
+            (r'エラー', 'エラー'),
+            (r'인스톨|설치', '설치'),
+            (r'마이그레이션', '마이그레이션'),
+            (r'에러|오류', '에러'),
+            (r'처리', '처리'),
+            (r'변환', '변환'),
+            (r'설정', '설정'),
+            (r'구성', '구성'),
+            (r'실행', '실행'),
+            (r'생성', '생성'),
+            (r'관계', '관계'),
+            (r'절차|순서', '절차'),
+            (r'해결', '해결'),
+            (r'binary', 'binary'),
+            (r'processing', 'processing'),
+            (r'migration', 'migration'),
+            (r'error', 'error'),
+        ]
+
+        # Find main subject (uppercase acronym like MFS, IMS, DFS)
+        # Also capture any attached word (e.g., MFSバイナリ)
+        main_subject_match = re.search(r'\b([A-Z]{2,}[A-Za-z0-9]*[ぁ-んァ-ン一-龥가-힣]*)\b', query)
+        main_subject = main_subject_match.group(1) if main_subject_match else None
+
+        # If no acronym, try to find first significant word (Korean/Japanese)
+        if not main_subject:
+            # Remove particles and split by spaces
+            normalized = re.sub(r'\s+', ' ', query)
+            words = normalized.strip().split()
+            if words:
+                # Get first word that's not a stop word
+                stop_words = {'방법', '하는', '대해', '대해서', '알려', '주세요', '무엇', '어떻게', 'の', 'を', 'が'}
+                for w in words:
+                    # Clean particles from word
+                    w_clean = re.sub(r'(の|を|が|に|で|と|은|는|이|가|을|를|의|에서|으로|에)$', '', w)
+                    if len(w_clean) >= 2 and w_clean not in stop_words:
+                        main_subject = w_clean
+                        break
+
+        if not main_subject:
+            return ""
+
+        # Find the action/modifier word from patterns (not already in main_subject)
+        action_word = None
+        for pattern, replacement in action_patterns:
+            # Only match if not already part of main_subject
+            if re.search(pattern, query, re.IGNORECASE) and replacement not in main_subject:
+                action_word = replacement
+                break
+
+        # If no action word found, get the word right after the main subject
+        if not action_word:
+            # Find position of main_subject and get next word
+            idx = query.find(main_subject)
+            if idx >= 0:
+                after_subject = query[idx + len(main_subject):]
+                # Remove leading particles
+                after_subject = re.sub(r'^(の|を|が|に|で|と|은|는|이|가|을|를|의|에서|으로|에|\s)+', '', after_subject)
+                # Get first word
+                next_word_match = re.match(r'([A-Za-z]+|[가-힣]+|[ぁ-んァ-ン一-龥]+)', after_subject)
+                if next_word_match:
+                    candidate = next_word_match.group(1)
+                    # Don't use stop words as action
+                    if candidate not in {'방법', '하는', '대해', '알려', '주세요'}:
+                        action_word = candidate
+
+        if main_subject and action_word:
+            return f"{main_subject}{action_word}"
+
+        # If only main_subject found, return it alone
+        return main_subject if main_subject else ""
 
     def _fallback_key_concept(self, query: str) -> str:
-        """Fallback key concept extraction using simple heuristics"""
+        """Fallback key concept extraction using simple heuristics (single word)"""
         # Priority action/process words (these are likely the central topic)
         action_patterns = [
             r'마이그레이션', r'변환', r'이동', r'전환', r'이관',
