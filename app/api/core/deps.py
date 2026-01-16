@@ -4075,3 +4075,126 @@ async def get_figure_image_service():
         _figure_image_service = FigureImageService(image_repository=repository)
 
     return _figure_image_service
+
+
+# =============================================================================
+# Adaptive Embedding Service (PDF Structure-Preserving Embedding)
+# =============================================================================
+
+# Singleton instances for adaptive embedding service
+_adaptive_embedding_service = None
+_adaptive_chunk_repository = None
+_pdf_structure_repository = None
+_coverage_repository = None
+
+
+_adaptive_db_pool = None
+
+
+async def _get_db_pool():
+    """Get or create database pool for adaptive embedding service."""
+    global _adaptive_db_pool
+
+    if _adaptive_db_pool is None:
+        import asyncpg
+        from .config import api_settings
+
+        _adaptive_db_pool = await asyncpg.create_pool(
+            host=api_settings.POSTGRES_HOST,
+            port=int(api_settings.POSTGRES_PORT),
+            user=api_settings.POSTGRES_USER,
+            password=api_settings.POSTGRES_PASSWORD,
+            database=api_settings.POSTGRES_DB,
+            min_size=2,
+            max_size=10
+        )
+        logger.info("Created database pool for adaptive embedding service")
+
+    return _adaptive_db_pool
+
+
+async def get_adaptive_embedding_service():
+    """
+    Get PDFAdaptiveEmbeddingService singleton instance.
+
+    Used for:
+    - Adaptive PDF structure analysis
+    - Semantic boundary-based chunking
+    - Parallel embedding generation
+    - Coverage validation and quality evaluation
+    """
+    global _adaptive_embedding_service
+    global _adaptive_chunk_repository
+    global _pdf_structure_repository
+    global _coverage_repository
+
+    if _adaptive_embedding_service is None:
+        from ..services.pdf_adaptive_embedding_service import (
+            create_pdf_adaptive_embedding_service
+        )
+        from ..infrastructure.postgres.adaptive_chunk_repository import (
+            PostgresAdaptiveChunkRepository,
+            PostgresPDFStructureRepository,
+            PostgresCoverageRepository,
+        )
+
+        # Get database pool
+        pool = await _get_db_pool()
+        if pool is None:
+            raise RuntimeError("Database pool not available for adaptive embedding service")
+
+        # Create repositories
+        _adaptive_chunk_repository = PostgresAdaptiveChunkRepository(pool)
+        _pdf_structure_repository = PostgresPDFStructureRepository(pool)
+        _coverage_repository = PostgresCoverageRepository(pool)
+
+        # Create embedding executor with NIM TextEmbeddingService
+        from ..services.parallel_embedding_executor import ParallelEmbeddingExecutor
+        from ..services.multimodal_embedding import TextEmbeddingService
+        from ..ports.embedding_port import EmbeddingResult
+
+        # Create adapter wrapper for TextEmbeddingService
+        class NIMEmbeddingAdapter:
+            """Adapter to make TextEmbeddingService compatible with EmbeddingPort interface."""
+
+            def __init__(self):
+                self.service = TextEmbeddingService()
+
+            async def embed_text(self, text: str) -> EmbeddingResult:
+                """Generate embedding and return as EmbeddingResult."""
+                embedding = await self.service.embed_text(text, input_type="passage")
+                return EmbeddingResult(
+                    text=text,
+                    embedding=embedding,
+                    token_count=len(text) // 4,  # Estimate
+                    metadata={"model": "nvidia/nv-embedqa-mistral-7b-v2"}
+                )
+
+        embedding_executor = ParallelEmbeddingExecutor(
+            embedding_service=NIMEmbeddingAdapter(),
+            default_concurrency=5,
+            default_retry_count=3
+        )
+
+        # Create service with embedding executor
+        _adaptive_embedding_service = create_pdf_adaptive_embedding_service(
+            chunk_repository=_adaptive_chunk_repository,
+            structure_repository=_pdf_structure_repository,
+            coverage_repository=_coverage_repository,
+            embedding_executor=embedding_executor
+        )
+
+        logger.info("Adaptive embedding service initialized")
+
+    return _adaptive_embedding_service
+
+
+async def get_embedding_service():
+    """
+    Get text embedding service for adaptive embedding.
+
+    Uses NV-EmbedQA-Mistral 7B v2 via NIM container (port 12801).
+    """
+    from ..services.multimodal_embedding import TextEmbeddingService
+
+    return TextEmbeddingService()
