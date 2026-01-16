@@ -28,6 +28,12 @@ wheels/
 venv/
 ENV/
 
+# Certificates & Keys
+*.pem
+*.key
+*.crt
+*.p12
+
 # Neo4j
 neo4j/
 
