@@ -1613,6 +1613,7 @@ List each suggestion on a new line, starting with "- ":"""
         Yields:
             AgentStreamChunk with image data for detected figure references
         """
+        print(f"[Orchestrator] _stream_figure_images called, response_len={len(response_text)}", flush=True)
         try:
             from ..services.figure_reference_extractor import get_figure_detector
             from ..services.figure_image_service import FigureImageService
@@ -1722,8 +1723,10 @@ List each suggestion on a new line, starting with "- ":"""
                         logger.warning(f"[Orchestrator] Error encoding image {img.image_id}: {e}")
 
         except ImportError as e:
+            print(f"[Orchestrator] ImportError in _stream_figure_images: {e}", flush=True)
             logger.debug(f"[Orchestrator] Figure image service not available: {e}")
         except Exception as e:
+            print(f"[Orchestrator] Exception in _stream_figure_images: {e}", flush=True)
             logger.error(f"[Orchestrator] Error streaming figure images: {e}")
 
     async def _fetch_url_content(self, url: str) -> tuple[Optional[str], Optional[str]]:
