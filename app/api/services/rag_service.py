@@ -3,11 +3,27 @@ RAG Service - Integrates existing Hybrid RAG with FastAPI
 Provides async wrappers for RAG operations with session document priority
 """
 import asyncio
+import re
+import logging
 from typing import Dict, List, Any, Optional, AsyncGenerator
 from functools import lru_cache
 from datetime import datetime
 import sys
 import os
+
+logger = logging.getLogger(__name__)
+
+
+def strip_thinking_tags(text: str) -> str:
+    """
+    LLM 응답에서 <think>...</think> 태그 제거
+    일부 LLM (DeepSeek, Qwen 등)은 chain-of-thought를 이 태그로 출력함
+    """
+    if not text:
+        return text
+    # <think>...</think> 태그와 그 내용 제거 (멀티라인 지원)
+    cleaned = re.sub(r'<think>.*?</think>\s*', '', text, flags=re.DOTALL)
+    return cleaned.strip()
 
 # Add src directory to path for importing existing modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
@@ -59,6 +75,126 @@ class RAGService:
 
             self._initialized = True
         return self._hybrid_rag
+
+    async def _get_document_names(self, document_ids: List[str]) -> Dict[str, str]:
+        """
+        Fetch document names from PostgreSQL documents table.
+
+        Args:
+            document_ids: List of document IDs to look up
+
+        Returns:
+            Dict mapping document_id to original_name
+        """
+        if not document_ids:
+            return {}
+
+        try:
+            import asyncpg
+            from ..core.config import api_settings
+
+            dsn = f"postgresql://{api_settings.POSTGRES_USER}:{api_settings.POSTGRES_PASSWORD}@{api_settings.POSTGRES_HOST}:{api_settings.POSTGRES_PORT}/{api_settings.POSTGRES_DB}"
+            pool = await asyncpg.create_pool(dsn, min_size=1, max_size=2)
+            try:
+                async with pool.acquire() as conn:
+                    rows = await conn.fetch("""
+                        SELECT id, original_name FROM documents
+                        WHERE id = ANY($1)
+                    """, document_ids)
+                    return {row['id']: row['original_name'] for row in rows}
+            finally:
+                await pool.close()
+        except Exception as e:
+            logger.warning(f"Failed to fetch document names: {e}")
+            return {}
+
+    def _get_document_names_sync(self, document_ids: List[str]) -> Dict[str, str]:
+        """
+        Synchronous version of _get_document_names for use in sync methods.
+        """
+        if not document_ids:
+            return {}
+
+        try:
+            import asyncio
+            # Run async method in new event loop if needed
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're in an async context, create a new thread
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            self._get_document_names(document_ids)
+                        )
+                        return future.result(timeout=5)
+                else:
+                    return loop.run_until_complete(self._get_document_names(document_ids))
+            except RuntimeError:
+                return asyncio.run(self._get_document_names(document_ids))
+        except Exception as e:
+            logger.warning(f"Failed to fetch document names (sync): {e}")
+            return {}
+
+    async def _get_chunk_page_numbers(self, chunk_ids: List[str]) -> Dict[str, int]:
+        """
+        Fetch page numbers for chunks from PostgreSQL text_chunks table.
+
+        Args:
+            chunk_ids: List of chunk IDs to look up
+
+        Returns:
+            Dict mapping chunk_id to page_number
+        """
+        if not chunk_ids:
+            return {}
+
+        try:
+            import asyncpg
+            from ..core.config import api_settings
+
+            dsn = f"postgresql://{api_settings.POSTGRES_USER}:{api_settings.POSTGRES_PASSWORD}@{api_settings.POSTGRES_HOST}:{api_settings.POSTGRES_PORT}/{api_settings.POSTGRES_DB}"
+            pool = await asyncpg.create_pool(dsn, min_size=1, max_size=2)
+            try:
+                async with pool.acquire() as conn:
+                    rows = await conn.fetch("""
+                        SELECT id, page_number FROM text_chunks
+                        WHERE id = ANY($1)
+                    """, chunk_ids)
+                    return {row['id']: row['page_number'] for row in rows if row['page_number']}
+            finally:
+                await pool.close()
+        except Exception as e:
+            logger.warning(f"Failed to fetch chunk page numbers: {e}")
+            return {}
+
+    def _get_chunk_page_numbers_sync(self, chunk_ids: List[str]) -> Dict[str, int]:
+        """
+        Synchronous version of _get_chunk_page_numbers for use in sync methods.
+        """
+        if not chunk_ids:
+            return {}
+
+        try:
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            self._get_chunk_page_numbers(chunk_ids)
+                        )
+                        return future.result(timeout=5)
+                else:
+                    return loop.run_until_complete(self._get_chunk_page_numbers(chunk_ids))
+            except RuntimeError:
+                return asyncio.run(self._get_chunk_page_numbers(chunk_ids))
+        except Exception as e:
+            logger.warning(f"Failed to fetch chunk page numbers (sync): {e}")
+            return {}
 
     async def query(
         self,
@@ -376,6 +512,11 @@ class RAGService:
 
             context = "\n\n".join(context_parts)
 
+            # Truncate context to prevent LLM token limit errors
+            max_context_len = int(os.getenv("LLM_MAX_CONTEXT_LENGTH", "3000"))
+            if len(context) > max_context_len:
+                context = context[:max_context_len] + "\n...[truncated]"
+
             # Language instruction from policy service
             from .language_policy import get_language_policy_service
             policy_service = get_language_policy_service()
@@ -404,9 +545,8 @@ class RAGService:
 
             answer = response.content
 
-            # Clean thinking tokens
-            if "</think>" in answer:
-                answer = answer.split("</think>")[-1].strip()
+            # Clean thinking tags from LLM output
+            answer = strip_thinking_tags(answer)
 
             return answer
 
@@ -470,6 +610,11 @@ class RAGService:
 
             context = "\n\n".join(context_parts)
 
+            # Truncate context to prevent LLM token limit errors
+            max_context_len = int(os.getenv("LLM_MAX_CONTEXT_LENGTH", "3000"))
+            if len(context) > max_context_len:
+                context = context[:max_context_len] + "\n...[truncated]"
+
             # Language instruction from policy service
             from .language_policy import get_language_policy_service
             policy_service = get_language_policy_service()
@@ -503,9 +648,8 @@ class RAGService:
 
             answer = response.content
 
-            # Clean thinking tokens
-            if "</think>" in answer:
-                answer = answer.split("</think>")[-1].strip()
+            # Clean thinking tags from LLM output
+            answer = strip_thinking_tags(answer)
 
             return answer
 
@@ -536,18 +680,29 @@ class RAGService:
         # Get query features for analysis
         features = self._query_router.get_query_features(question)
 
+        # Fetch document names and page numbers from PostgreSQL
+        results_list = result.get("results", [])
+        doc_ids = list(set(r.get("doc_id", "") for r in results_list if r.get("doc_id")))
+        chunk_ids = list(set(r.get("chunk_id", "") for r in results_list if r.get("chunk_id")))
+
+        doc_names = self._get_document_names_sync(doc_ids)
+        page_numbers = self._get_chunk_page_numbers_sync(chunk_ids)
+
         # Format sources for API response
         sources = []
-        for r in result.get("results", []):
+        for r in results_list:
+            doc_id = r.get("doc_id", "")
+            chunk_id = r.get("chunk_id", "")
             sources.append({
-                "doc_id": r.get("doc_id", ""),
-                "doc_name": r.get("doc_id", ""),
-                "chunk_id": r.get("chunk_id", ""),
+                "doc_id": doc_id,
+                "doc_name": doc_names.get(doc_id, doc_id),  # Use actual name or fallback to ID
+                "chunk_id": chunk_id,
                 "chunk_index": r.get("chunk_index", 0),
                 "content": r.get("content", "")[:500],
                 "score": r.get("score", 0.0) if isinstance(r.get("score"), (int, float)) else 0.0,
                 "source_type": r.get("source", "unknown"),
-                "entities": r.get("entities", [])
+                "entities": r.get("entities", []),
+                "page_number": r.get("page_number") or page_numbers.get(chunk_id)
             })
 
         return {
