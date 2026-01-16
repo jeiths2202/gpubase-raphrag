@@ -524,7 +524,8 @@ class SessionDocumentService:
         session_id: str,
         query: str,
         top_k: int = 5,
-        min_score: float = 0.3
+        min_score: float = 0.3,
+        language: str = "auto"
     ) -> List[SessionSearchResult]:
         """Search session documents for relevant content"""
         if not self._embedding_service:
@@ -535,12 +536,23 @@ class SessionDocumentService:
             return []
 
         try:
-            # Generate query embedding
+            # Apply query expansion for better retrieval
+            search_query = query
+            try:
+                from .query_expansion_service import get_query_expansion_service
+                expansion_service = get_query_expansion_service()
+                expanded = expansion_service.expand(query, language)
+                search_query = expanded.get_expanded_query()
+                print(f"[SessionDocumentService] Query expanded: '{query}' -> '{search_query}'")
+            except Exception as e:
+                print(f"[SessionDocumentService] Query expansion failed: {e}")
+
+            # Generate query embedding with expanded terms
             loop = asyncio.get_event_loop()
             query_embedding = await loop.run_in_executor(
                 None,
                 self._embedding_service.embed_text,
-                query,
+                search_query,
                 "query"
             )
 

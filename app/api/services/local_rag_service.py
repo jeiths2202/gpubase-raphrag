@@ -93,7 +93,9 @@ class LocalRAGService:
         query: str,
         limit: int = 5,
         min_similarity: float = 0.3,
-        document_id: Optional[str] = None
+        document_id: Optional[str] = None,
+        language: str = "auto",
+        use_expansion: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Search for relevant chunks using vector similarity.
@@ -103,6 +105,8 @@ class LocalRAGService:
             limit: Maximum number of results
             min_similarity: Minimum similarity threshold
             document_id: Optional filter by document
+            language: Query language for expansion (auto, ja, ko, en)
+            use_expansion: Whether to use query expansion for synonyms
 
         Returns:
             List of matching chunks with similarity scores
@@ -110,8 +114,20 @@ class LocalRAGService:
         if not self._chunk_repo:
             raise RuntimeError("Text chunk repository not initialized")
 
-        # Generate query embedding
-        query_embedding = await self._text_embedder.embed_text(query)
+        # Apply query expansion for better retrieval
+        search_query = query
+        if use_expansion:
+            try:
+                from .query_expansion_service import get_query_expansion_service
+                expansion_service = get_query_expansion_service()
+                expanded = expansion_service.expand(query, language)
+                search_query = expanded.get_expanded_query()
+                logger.info(f"Query expanded: '{query}' -> '{search_query}'")
+            except Exception as e:
+                logger.warning(f"Query expansion failed, using original: {e}")
+
+        # Generate query embedding with expanded terms
+        query_embedding = await self._text_embedder.embed_text(search_query)
 
         # Search for similar chunks
         results = await self._chunk_repo.search_similar(
