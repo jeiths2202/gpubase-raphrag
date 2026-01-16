@@ -29,10 +29,6 @@ class EmbeddingConfig:
     TEXT_MODEL = EMBEDDING_MODEL
     TEXT_DIMENSION = EMBEDDING_DIMENSION
 
-    # Ollama settings (fallback)
-    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    OLLAMA_MODEL = "nomic-embed-text"
-    OLLAMA_DIMENSION = 768
 
     # Image embedding model (via VLM service)
     IMAGE_MODEL = "bakllava"
@@ -50,106 +46,155 @@ class EmbeddingConfig:
     CHUNK_SIZE = 500
     CHUNK_OVERLAP = 100
 
-    # Use NIM or Ollama
-    USE_NIM = EMBEDDING_API_URL is not None
-
+    # NIM token limit (default 512 for nvidia/nv-embedqa-mistral-7b-v2)
+    NIM_MAX_TOKENS = int(os.getenv("EMBEDDING_MAX_TOKENS", "512"))
+    NIM_SAFE_TOKEN_LIMIT = int(os.getenv("EMBEDDING_SAFE_TOKEN_LIMIT", "500"))
 
 class TextEmbeddingService:
     """
     Service for generating text embeddings.
 
-    Supports:
-    - NIM Embedding API (nvidia/nv-embedqa-mistral-7b-v2) - Primary
-    - Ollama nomic-embed-text - Fallback
-
-    Falls back to mock embeddings if both are unavailable.
+    Uses NIM Embedding API (nvidia/nv-embedqa-mistral-7b-v2).
+    Falls back to zero vector if NIM is unavailable.
     """
 
-    # Class-level semaphore to limit concurrent requests
-    _ollama_semaphore = None
+    def __init__(self, model: str = None):
+        self.model = model or EmbeddingConfig.EMBEDDING_MODEL
+        self.dimension = EmbeddingConfig.EMBEDDING_DIMENSION
+        self.base_url = EmbeddingConfig.EMBEDDING_API_URL
+        self.max_tokens = EmbeddingConfig.NIM_SAFE_TOKEN_LIMIT
 
-    def __init__(self, model: str = None, use_nim: bool = True):
-        self.use_nim = use_nim and EmbeddingConfig.USE_NIM
+    def _estimate_tokens(self, text: str) -> int:
+        """
+        Estimate token count for text.
 
-        if self.use_nim:
-            self.model = model or EmbeddingConfig.EMBEDDING_MODEL
-            self.dimension = EmbeddingConfig.EMBEDDING_DIMENSION
-            self.base_url = EmbeddingConfig.EMBEDDING_API_URL
-        else:
-            self.model = model or EmbeddingConfig.OLLAMA_MODEL
-            self.dimension = EmbeddingConfig.OLLAMA_DIMENSION
-            self.base_url = EmbeddingConfig.OLLAMA_BASE_URL
+        CJK characters (Korean, Japanese, Chinese) typically use more tokens
+        than Latin characters. This provides a conservative estimate.
 
-        # Initialize class-level semaphore (limit to 2 concurrent requests)
-        if TextEmbeddingService._ollama_semaphore is None:
-            TextEmbeddingService._ollama_semaphore = asyncio.Semaphore(2)
+        Args:
+            text: Input text
+
+        Returns:
+            Estimated token count
+        """
+        if not text:
+            return 0
+
+        cjk_count = 0
+        for char in text:
+            # CJK Unified Ideographs, Hiragana, Katakana, Hangul
+            if ('\u4e00' <= char <= '\u9fff' or  # CJK Unified Ideographs
+                '\u3040' <= char <= '\u309f' or  # Hiragana
+                '\u30a0' <= char <= '\u30ff' or  # Katakana
+                '\uac00' <= char <= '\ud7af'):   # Hangul
+                cjk_count += 1
+
+        other_count = len(text) - cjk_count
+
+        # CJK: ~1.5 tokens per character, Latin: ~0.25 tokens per character
+        estimated = int(cjk_count * 1.5) + int(other_count / 4)
+        return max(estimated, 1)
+
+    def _truncate_to_token_limit(self, text: str, max_tokens: int = None) -> str:
+        """
+        Truncate text to stay within token limit.
+
+        Uses binary search to find optimal truncation point.
+
+        Args:
+            text: Input text
+            max_tokens: Maximum tokens (defaults to self.max_tokens)
+
+        Returns:
+            Truncated text within token limit
+        """
+        if not text:
+            return text
+
+        max_tokens = max_tokens or self.max_tokens
+
+        # Quick check: if already within limit, return as-is
+        if self._estimate_tokens(text) <= max_tokens:
+            return text
+
+        # Binary search for optimal truncation point
+        left, right = 0, len(text)
+        best_end = 0
+
+        while left <= right:
+            mid = (left + right) // 2
+            if self._estimate_tokens(text[:mid]) <= max_tokens:
+                best_end = mid
+                left = mid + 1
+            else:
+                right = mid - 1
+
+        # Try to truncate at word/sentence boundary
+        truncated = text[:best_end]
+
+        # Look for last sentence boundary (。.!?)
+        for sep in ['。', '. ', '! ', '? ', '\n']:
+            last_sep = truncated.rfind(sep)
+            if last_sep > best_end * 0.7:  # Only if we keep >70% of content
+                return truncated[:last_sep + len(sep)].strip()
+
+        # Look for last word boundary (space)
+        last_space = truncated.rfind(' ')
+        if last_space > best_end * 0.8:  # Only if we keep >80% of content
+            return truncated[:last_space].strip()
+
+        return truncated.strip()
 
     async def embed_text(self, text: str, input_type: str = "passage") -> List[float]:
         """
-        Generate embedding for a single text.
-
-        Uses NIM API (OpenAI-compatible) when available, falls back to Ollama.
+        Generate embedding for a single text using NIM API.
 
         Args:
             text: Input text
             input_type: Type of input - "passage" for documents, "query" for search queries
 
         Returns:
-            Embedding vector (4096 dimensions for NIM, 768 for Ollama)
+            Embedding vector (4096 dimensions)
         """
         import logging
         logger = logging.getLogger(__name__)
 
-        # Try NIM API first (OpenAI-compatible format)
-        if self.use_nim:
-            try:
-                import aiohttp
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        f"{self.base_url}/embeddings",
-                        json={
-                            "input": [text[:8192]],
-                            "model": self.model,
-                            "input_type": input_type
-                        },
-                        headers={"Content-Type": "application/json"},
-                        timeout=aiohttp.ClientTimeout(total=30, connect=5)
-                    ) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            embeddings = data.get("data", [])
-                            if embeddings and "embedding" in embeddings[0]:
-                                logger.debug(f"NIM embedding generated: {len(embeddings[0]['embedding'])} dims")
-                                return embeddings[0]["embedding"]
-                        else:
-                            error_text = await response.text()
-                            logger.warning(f"NIM embedding failed: HTTP {response.status} - {error_text[:200]}")
-            except Exception as e:
-                logger.warning(f"NIM embedding error: {e}, trying Ollama fallback")
-
-        # Fallback to Ollama
         try:
             import aiohttp
-            async with TextEmbeddingService._ollama_semaphore:
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        f"{EmbeddingConfig.OLLAMA_BASE_URL}/api/embeddings",
-                        json={"model": EmbeddingConfig.OLLAMA_MODEL, "prompt": text[:8192]},
-                        timeout=aiohttp.ClientTimeout(total=10, connect=3)
-                    ) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            embedding = data.get("embedding", [])
-                            if embedding:
-                                logger.debug(f"Ollama embedding generated: {len(embedding)} dims")
-                                return embedding
-                        else:
-                            logger.warning(f"Ollama embedding failed: HTTP {response.status}")
-        except Exception as e:
-            logger.warning(f"Ollama embedding error: {e}, using zero vector fallback")
 
-        # Final fallback to zero vector
-        logger.warning(f"All embedding services unavailable, using zero vector")
+            # Truncate text to stay within NIM token limit
+            truncated_text = self._truncate_to_token_limit(text)
+            if len(truncated_text) < len(text):
+                logger.debug(
+                    f"Text truncated for NIM: {len(text)} -> {len(truncated_text)} chars "
+                    f"(~{self._estimate_tokens(truncated_text)} tokens)"
+                )
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.base_url}/embeddings",
+                    json={
+                        "input": [truncated_text],
+                        "model": self.model,
+                        "input_type": input_type
+                    },
+                    headers={"Content-Type": "application/json"},
+                    timeout=aiohttp.ClientTimeout(total=30, connect=5)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        embeddings = data.get("data", [])
+                        if embeddings and "embedding" in embeddings[0]:
+                            logger.debug(f"NIM embedding generated: {len(embeddings[0]['embedding'])} dims")
+                            return embeddings[0]["embedding"]
+                    else:
+                        error_text = await response.text()
+                        logger.warning(f"NIM embedding failed: HTTP {response.status} - {error_text[:200]}")
+        except Exception as e:
+            logger.warning(f"NIM embedding error: {e}")
+
+        # Fallback to zero vector if NIM fails
+        logger.warning(f"NIM embedding service unavailable, using zero vector")
         return [0.0] * self.dimension
 
     async def embed_texts(
@@ -172,7 +217,7 @@ class TextEmbeddingService:
         batch_size = batch_size or EmbeddingConfig.BATCH_SIZE
         embeddings = []
 
-        # Process sequentially to avoid overwhelming Ollama
+        # Process in batches
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]
             # Process batch sequentially instead of using gather
@@ -207,118 +252,426 @@ class TextEmbeddingService:
         return chunks
 
 
+class ImageType:
+    """Image type detection and prompt customization."""
+
+    CHART = "chart"
+    DIAGRAM = "diagram"
+    TABLE = "table"
+    SCREENSHOT = "screenshot"
+    PHOTO = "photo"
+    UNKNOWN = "unknown"
+
+    # Customized prompts for different image types
+    PROMPTS = {
+        CHART: """Analyze this chart/graph image in detail.
+
+Describe:
+1. Chart type (bar, line, pie, scatter, etc.)
+2. Axes labels and units
+3. Data trends and key values
+4. Legend information if present
+5. Overall insight from the data
+
+Be specific about numbers and percentages visible.""",
+
+        DIAGRAM: """Analyze this diagram/flowchart image in detail.
+
+Describe:
+1. Type of diagram (flowchart, architecture, sequence, etc.)
+2. Main components/nodes and their labels
+3. Connections and flow direction
+4. Key relationships shown
+5. Overall purpose of the diagram
+
+Include all text labels visible.""",
+
+        TABLE: """Analyze this table image in detail.
+
+Describe:
+1. Column headers
+2. Row structure and categories
+3. Key data values
+4. Any totals or summaries
+5. Overall content and purpose
+
+Extract specific values where readable.""",
+
+        SCREENSHOT: """Analyze this screenshot/UI image in detail.
+
+Describe:
+1. Type of interface (web, mobile, desktop app)
+2. Main UI elements visible
+3. Text content shown
+4. Current state/context
+5. Key actions or information displayed""",
+
+        PHOTO: """Describe this photograph/image in detail.
+
+Include:
+1. Main subjects and objects
+2. Setting/environment
+3. Notable details
+4. Any text visible
+5. Relevance to document context""",
+
+        UNKNOWN: """Describe this image in detail.
+
+Include:
+1. What type of image this is
+2. Main content and elements
+3. Any text visible
+4. Key information conveyed
+5. How it relates to the document context"""
+    }
+
+    @staticmethod
+    def detect_type(image_data: bytes) -> str:
+        """
+        Detect image type based on content analysis.
+
+        This is a simple heuristic. Could be enhanced with ML.
+        """
+        # For now, return UNKNOWN - VLM will figure it out
+        # Future: Add image analysis to detect charts, diagrams, etc.
+        return ImageType.UNKNOWN
+
+    @staticmethod
+    def get_prompt(image_type: str, context: Optional[str] = None) -> str:
+        """Get customized prompt for image type."""
+        base_prompt = ImageType.PROMPTS.get(image_type, ImageType.PROMPTS[ImageType.UNKNOWN])
+
+        if context:
+            return f"{base_prompt}\n\nDocument context: {context}"
+        return base_prompt
+
+
 class ImageEmbeddingService:
     """
-    Service for generating image embeddings using Ollama bakllava.
+    Service for generating image embeddings using VLM description + text embedding.
 
-    Uses bakllava VLM model for multimodal embeddings with 4096 dimensions.
-    Falls back to mock embeddings if Ollama is unavailable.
+    Features:
+    - VLM (port 12803) generates image description
+    - NIM (port 12801) embeds the description text
+    - Hash-based caching to avoid duplicate VLM calls
+    - Semaphore-based concurrency control
+    - Image type-specific prompts
+
+    Flow:
+    1. Check cache for existing description
+    2. If miss, call VLM with type-specific prompt
+    3. Cache the description
+    4. Embed description text using NIM
+    5. Return 4096-dim vector
     """
 
-    def __init__(self, model: str = None):
+    # Default concurrency limit for VLM calls
+    DEFAULT_MAX_CONCURRENT = int(os.getenv("VLM_MAX_CONCURRENT", "3"))
+
+    def __init__(
+        self,
+        model: str = None,
+        max_concurrent: int = None,
+        enable_cache: bool = True
+    ):
         self.model = model or EmbeddingConfig.IMAGE_MODEL
         self.dimension = EmbeddingConfig.IMAGE_DIMENSION
-        self._vlm_service = None
+        self.max_concurrent = max_concurrent or self.DEFAULT_MAX_CONCURRENT
+        self.enable_cache = enable_cache
 
-    def _get_vlm_service(self):
-        """Lazy load the Ollama VLM service."""
+        self._vlm_service = None
+        self._text_embedder = None
+        self._cache = None
+        self._semaphore = None
+        self._logger = None
+
+        # Statistics
+        self._stats = {
+            "vlm_calls": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "embeddings_generated": 0,
+            "errors": 0
+        }
+
+    @property
+    def logger(self):
+        if self._logger is None:
+            import logging
+            self._logger = logging.getLogger(__name__)
+        return self._logger
+
+    @property
+    def vlm_service(self):
+        """Lazy initialization of VLM service."""
         if self._vlm_service is None:
-            from .ollama_vlm_service import get_ollama_vlm_service
-            self._vlm_service = get_ollama_vlm_service()
+            from .ollama_vlm_service import OllamaVLMService
+            self._vlm_service = OllamaVLMService()
         return self._vlm_service
 
-    async def embed_image(self, image_data: bytes) -> List[float]:
+    @property
+    def text_embedder(self):
+        """Lazy initialization of text embedding service."""
+        if self._text_embedder is None:
+            self._text_embedder = TextEmbeddingService()
+        return self._text_embedder
+
+    @property
+    def cache(self):
+        """Lazy initialization of VLM image cache."""
+        if self._cache is None and self.enable_cache:
+            from .vlm_image_cache import get_vlm_image_cache
+            self._cache = get_vlm_image_cache()
+        return self._cache
+
+    @property
+    def semaphore(self):
+        """Lazy initialization of semaphore for concurrency control."""
+        if self._semaphore is None:
+            self._semaphore = asyncio.Semaphore(self.max_concurrent)
+        return self._semaphore
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get service statistics."""
+        stats = self._stats.copy()
+        if self.cache:
+            stats["cache"] = self.cache.get_stats()
+        return stats
+
+    async def describe_image(
+        self,
+        image_data: bytes,
+        context: Optional[str] = None,
+        image_type: Optional[str] = None,
+        use_cache: bool = True
+    ) -> Dict[str, Any]:
         """
-        Generate embedding for a single image using bakllava.
+        Generate description for an image using VLM.
 
         Args:
             image_data: Raw image bytes
+            context: Optional context about the document
+            image_type: Optional image type hint (chart, diagram, etc.)
+            use_cache: Whether to use caching
+
+        Returns:
+            Dict with description, alt_text, confidence, and cache info
+        """
+        # Try cache first
+        if use_cache and self.cache:
+            cached = await self.cache.get(image_data)
+            if cached:
+                self._stats["cache_hits"] += 1
+                self.logger.debug(f"Cache hit for image description")
+                return cached
+
+        self._stats["cache_misses"] += 1
+
+        # Detect image type if not provided
+        if not image_type:
+            image_type = ImageType.detect_type(image_data)
+
+        # Get type-specific prompt
+        prompt = ImageType.get_prompt(image_type, context)
+
+        # Call VLM with semaphore for concurrency control
+        async with self.semaphore:
+            try:
+                self._stats["vlm_calls"] += 1
+
+                result = await self.vlm_service.describe_image(
+                    image_data=image_data,
+                    prompt=prompt,
+                    context=context
+                )
+
+                description = result.get("description", "")
+
+                if description:
+                    self.logger.info(
+                        f"VLM description generated: {len(description)} chars "
+                        f"(type: {image_type})"
+                    )
+
+                    # Cache the result
+                    if use_cache and self.cache:
+                        await self.cache.set(
+                            image_data=image_data,
+                            description=description,
+                            alt_text=result.get("alt_text", ""),
+                            confidence=result.get("confidence", 0.0)
+                        )
+
+                return result
+
+            except Exception as e:
+                self._stats["errors"] += 1
+                self.logger.error(f"VLM describe_image failed: {e}")
+                return {
+                    "description": "",
+                    "alt_text": "",
+                    "confidence": 0.0,
+                    "error": str(e)
+                }
+
+    async def embed_image(
+        self,
+        image_data: bytes,
+        context: Optional[str] = None,
+        image_type: Optional[str] = None,
+        use_cache: bool = True
+    ) -> List[float]:
+        """
+        Generate embedding for a single image.
+
+        Process:
+        1. Check cache / Call VLM to generate image description
+        2. Embed the description text using NIM
+        3. Fallback to zero vector on failure
+
+        Args:
+            image_data: Raw image bytes
+            context: Optional context about the document
+            image_type: Optional image type hint
+            use_cache: Whether to use caching
 
         Returns:
             Embedding vector (4096 dimensions)
         """
         try:
-            vlm_service = self._get_vlm_service()
-            embedding = await vlm_service.generate_embedding(image_data)
-            return embedding
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(
-                f"Image embedding failed, using fallback: {e}"
+            # Step 1: Get image description (with cache)
+            description_result = await self.describe_image(
+                image_data, context, image_type, use_cache
             )
-            # Fallback to zero vector
+            description = description_result.get("description", "")
+
+            if not description:
+                self.logger.warning("VLM returned empty description, using zero vector")
+                return [0.0] * self.dimension
+
+            # Step 2: Embed the description text
+            embedding = await self.text_embedder.embed_text(description, input_type="passage")
+
+            self._stats["embeddings_generated"] += 1
+            self.logger.info(
+                f"Image embedded: {len(description)} chars -> {len(embedding)} dims "
+                f"(cached: {description_result.get('cached', False)})"
+            )
+            return embedding
+
+        except Exception as e:
+            self._stats["errors"] += 1
+            self.logger.error(f"Image embedding failed: {e}")
             return [0.0] * self.dimension
 
     async def embed_images(
         self,
         images: List[bytes],
-        batch_size: int = 2
+        context: Optional[str] = None,
+        image_types: Optional[List[str]] = None,
+        use_cache: bool = True
     ) -> List[List[float]]:
         """
         Generate embeddings for multiple images.
 
+        Uses semaphore-based concurrency control.
+
         Args:
             images: List of image bytes
-            batch_size: Batch size for processing (lower for VLM)
+            context: Optional context about the document
+            image_types: Optional list of image type hints
+            use_cache: Whether to use caching
 
         Returns:
             List of embedding vectors
         """
-        try:
-            vlm_service = self._get_vlm_service()
-            return await vlm_service.batch_embed(images, batch_size)
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(
-                f"Batch image embedding failed, using fallback: {e}"
-            )
-            # Fallback to zero vectors
-            return [[0.0] * self.dimension for _ in images]
+        if not images:
+            return []
 
-    async def describe_image(self, image_data: bytes) -> Dict[str, Any]:
+        # Prepare image types
+        if image_types is None:
+            image_types = [None] * len(images)
+        elif len(image_types) < len(images):
+            image_types.extend([None] * (len(images) - len(image_types)))
+
+        # Process all images concurrently (semaphore limits actual concurrency)
+        tasks = [
+            self.embed_image(img_data, context, img_type, use_cache)
+            for img_data, img_type in zip(images, image_types)
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        embeddings = []
+        for result in results:
+            if isinstance(result, Exception):
+                self.logger.error(f"Batch image embedding error: {result}")
+                embeddings.append([0.0] * self.dimension)
+            else:
+                embeddings.append(result)
+
+        self.logger.info(
+            f"Embedded {len(embeddings)} images "
+            f"(cache hits: {self._stats['cache_hits']})"
+        )
+        return embeddings
+
+    async def describe_and_embed_image(
+        self,
+        image_data: bytes,
+        context: Optional[str] = None,
+        image_type: Optional[str] = None,
+        use_cache: bool = True
+    ) -> Dict[str, Any]:
         """
-        Generate description for an image using bakllava.
+        Generate both description and embedding for an image.
 
         Args:
             image_data: Raw image bytes
+            context: Optional context
+            image_type: Optional image type hint
+            use_cache: Whether to use caching
 
         Returns:
-            Dict with description and alt_text
+            Dict with description, alt_text, embedding, and metadata
         """
-        try:
-            vlm_service = self._get_vlm_service()
-            return await vlm_service.describe_image(image_data)
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(
-                f"Image description failed: {e}"
-            )
-            return {
-                "description": "",
-                "alt_text": "",
-                "confidence": 0.0,
-                "error": str(e)
-            }
+        description_result = await self.describe_image(
+            image_data, context, image_type, use_cache
+        )
+        description = description_result.get("description", "")
+
+        if description:
+            embedding = await self.text_embedder.embed_text(description, input_type="passage")
+            self._stats["embeddings_generated"] += 1
+        else:
+            embedding = [0.0] * self.dimension
+
+        return {
+            "description": description,
+            "alt_text": description_result.get("alt_text", ""),
+            "confidence": description_result.get("confidence", 0.0),
+            "embedding": embedding,
+            "has_embedding": bool(description),
+            "cached": description_result.get("cached", False),
+            "error": description_result.get("error")
+        }
+
+    async def clear_cache(self) -> int:
+        """Clear the description cache."""
+        if self.cache:
+            return await self.cache.clear()
+        return 0
 
 
 class MultimodalEmbeddingService:
     """
-    Service for generating multimodal embeddings using Ollama bakllava.
-
-    Provides context-aware image embeddings for document understanding.
+    Service for generating multimodal embeddings.
+    Currently returns zero vectors as placeholder.
     """
 
     def __init__(self, model: str = None):
         self.model = model or EmbeddingConfig.MULTIMODAL_MODEL
         self.dimension = EmbeddingConfig.MULTIMODAL_DIMENSION
-        self._vlm_service = None
-
-    def _get_vlm_service(self):
-        """Lazy load the Ollama VLM service."""
-        if self._vlm_service is None:
-            from .ollama_vlm_service import get_ollama_vlm_service
-            self._vlm_service = get_ollama_vlm_service()
-        return self._vlm_service
 
     async def embed_image_with_context(
         self,
@@ -328,32 +681,14 @@ class MultimodalEmbeddingService:
         """
         Generate multimodal embedding for image with text context.
 
-        Uses bakllava to generate embeddings that understand
-        both the image content and surrounding context.
-
         Args:
             image_data: Raw image bytes
             context_text: Optional context text
 
         Returns:
-            Multimodal embedding vector (4096 dimensions)
+            Zero vector (4096 dimensions) - placeholder
         """
-        try:
-            vlm_service = self._get_vlm_service()
-            # Use description with context to get better embedding
-            if context_text:
-                result = await vlm_service.describe_image(
-                    image_data,
-                    context=context_text
-                )
-            embedding = await vlm_service.generate_embedding(image_data)
-            return embedding
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(
-                f"Multimodal embedding failed: {e}"
-            )
-            return [0.0] * self.dimension
+        return [0.0] * self.dimension
 
     async def embed_document_page(
         self,
@@ -368,9 +703,9 @@ class MultimodalEmbeddingService:
             page_text: Extracted text from page
 
         Returns:
-            Embedding vector for the entire page
+            Zero vector - placeholder
         """
-        return await self.embed_image_with_context(page_image, page_text)
+        return [0.0] * self.dimension
 
     async def embed_table_with_context(
         self,
@@ -387,10 +722,9 @@ class MultimodalEmbeddingService:
             surrounding_text: Text around the table
 
         Returns:
-            Embedding vector
+            Zero vector - placeholder
         """
-        context = f"{surrounding_text}\n\n{table_markdown}"
-        return await self.embed_image_with_context(table_image, context)
+        return [0.0] * self.dimension
 
 
 class ChunkingService:
@@ -558,9 +892,14 @@ class MultimodalEmbeddingPipeline:
 
     Handles:
     - Text chunking and embedding
-    - Image embedding
+    - Image embedding via VLM description
     - Table embedding
     - Combined multimodal embedding
+
+    Processing Modes:
+    - TEXT_ONLY: Only text embedding (images stored but not embedded)
+    - IMAGE_ONLY: OCR extraction for scanned/image-based documents
+    - VLM_ENHANCED: VLM-assisted: text + OCR + layout + table extraction + image embeddings
     """
 
     def __init__(self):
@@ -568,13 +907,78 @@ class MultimodalEmbeddingPipeline:
         self.image_embedder = ImageEmbeddingService()
         self.multimodal_embedder = MultimodalEmbeddingService()
         self.chunker = ChunkingService()
+        self._logger = None
+
+    @property
+    def logger(self):
+        if self._logger is None:
+            import logging
+            self._logger = logging.getLogger(__name__)
+        return self._logger
+
+    async def _generate_image_descriptions(
+        self,
+        images: List[Tuple[bytes, ImageInfo]],
+        document_context: str = None
+    ) -> List[Tuple[bytes, ImageInfo]]:
+        """
+        Generate descriptions for images using VLM.
+
+        Updates ImageInfo.description with VLM-generated descriptions.
+
+        Args:
+            images: List of (image_bytes, ImageInfo) tuples
+            document_context: Optional context about the document
+
+        Returns:
+            Updated images list with descriptions
+        """
+        updated_images = []
+
+        for img_bytes, img_info in images:
+            # Skip if already has a description
+            if img_info.description:
+                updated_images.append((img_bytes, img_info))
+                continue
+
+            try:
+                # Generate description using VLM
+                result = await self.image_embedder.describe_image(
+                    image_data=img_bytes,
+                    context=document_context
+                )
+
+                description = result.get("description", "")
+                alt_text = result.get("alt_text", "")
+
+                if description:
+                    # Update ImageInfo with generated description
+                    img_info.description = description
+                    if not img_info.alt_text:
+                        img_info.alt_text = alt_text
+
+                    self.logger.info(
+                        f"VLM description for image {img_info.id}: {len(description)} chars"
+                    )
+                else:
+                    self.logger.warning(
+                        f"VLM returned empty description for image {img_info.id}"
+                    )
+
+            except Exception as e:
+                self.logger.error(f"Failed to generate description for image {img_info.id}: {e}")
+
+            updated_images.append((img_bytes, img_info))
+
+        return updated_images
 
     async def process_document(
         self,
         text_content: str,
         images: List[Tuple[bytes, ImageInfo]] = None,
         tables: List[TableInfo] = None,
-        processing_mode: ProcessingMode = ProcessingMode.TEXT_ONLY
+        processing_mode: ProcessingMode = ProcessingMode.TEXT_ONLY,
+        document_context: str = None
     ) -> Dict[str, Any]:
         """
         Process a complete document and generate all embeddings.
@@ -584,6 +988,7 @@ class MultimodalEmbeddingPipeline:
             images: List of (image_bytes, ImageInfo) tuples
             tables: List of extracted tables
             processing_mode: How to process the document
+            document_context: Optional context for VLM (e.g., document title)
 
         Returns:
             Dictionary with chunks, embeddings, and metadata
@@ -594,6 +999,7 @@ class MultimodalEmbeddingPipeline:
         result = {
             "chunks": [],
             "image_embeddings": [],
+            "vlm_descriptions_generated": 0,
             "stats": {
                 "total_chunks": 0,
                 "text_chunks": 0,
@@ -603,7 +1009,20 @@ class MultimodalEmbeddingPipeline:
             }
         }
 
-        # Create chunks based on content
+        # Step 1: Generate VLM descriptions for images if in VLM mode
+        if images and processing_mode in [ProcessingMode.IMAGE_ONLY, ProcessingMode.VLM_ENHANCED]:
+            self.logger.info(
+                f"Generating VLM descriptions for {len(images)} images "
+                f"(mode: {processing_mode.value})"
+            )
+            images = await self._generate_image_descriptions(images, document_context)
+
+            # Count successfully generated descriptions
+            result["vlm_descriptions_generated"] = sum(
+                1 for _, info in images if info.description
+            )
+
+        # Step 2: Create chunks based on content
         if tables:
             chunks = self.chunker.chunk_with_tables(
                 text_content,
@@ -612,7 +1031,7 @@ class MultimodalEmbeddingPipeline:
         else:
             chunks = self.chunker.chunk_text(text_content)
 
-        # Add image caption chunks
+        # Step 3: Add image caption chunks (now with VLM descriptions)
         if images:
             image_infos = [info for _, info in images]
             image_chunks = self.chunker.chunk_with_images(
@@ -625,22 +1044,48 @@ class MultimodalEmbeddingPipeline:
                     chunk["index"] = len(chunks)
                     chunks.append(chunk)
 
-        # Generate text embeddings for all chunks
+        # Step 4: Generate text embeddings for all chunks (including image captions)
         chunks = await self.text_embedder.embed_chunks(chunks)
         result["chunks"] = chunks
 
-        # Generate image embeddings if in multimodal mode
-        if processing_mode in [ProcessingMode.MULTIMODAL, ProcessingMode.VLM_ENHANCED]:
+        # Step 5: Generate separate image embeddings if in VLM mode
+        if processing_mode in [ProcessingMode.IMAGE_ONLY, ProcessingMode.VLM_ENHANCED]:
             if images:
-                image_data = [img_bytes for img_bytes, _ in images]
-                embeddings = await self.image_embedder.embed_images(image_data)
+                # Use describe_and_embed_image for efficient processing
+                for img_bytes, info in images:
+                    try:
+                        # If description already exists, just embed it
+                        if info.description:
+                            embedding = await self.text_embedder.embed_text(
+                                info.description,
+                                input_type="passage"
+                            )
+                        else:
+                            # Generate description and embedding together
+                            embed_result = await self.image_embedder.describe_and_embed_image(
+                                img_bytes,
+                                context=document_context
+                            )
+                            embedding = embed_result.get("embedding", [0.0] * self.image_embedder.dimension)
 
-                for i, (_, info) in enumerate(images):
-                    result["image_embeddings"].append({
-                        "image_id": info.id,
-                        "embedding": embeddings[i],
-                        "dimension": self.image_embedder.dimension
-                    })
+                        result["image_embeddings"].append({
+                            "image_id": info.id,
+                            "description": info.description,
+                            "embedding": embedding,
+                            "dimension": self.image_embedder.dimension,
+                            "has_vlm_description": bool(info.description)
+                        })
+
+                    except Exception as e:
+                        self.logger.error(f"Failed to embed image {info.id}: {e}")
+                        result["image_embeddings"].append({
+                            "image_id": info.id,
+                            "description": info.description,
+                            "embedding": [0.0] * self.image_embedder.dimension,
+                            "dimension": self.image_embedder.dimension,
+                            "has_vlm_description": bool(info.description),
+                            "error": str(e)
+                        })
 
         # Update stats
         result["stats"]["total_chunks"] = len(chunks)
@@ -652,6 +1097,15 @@ class MultimodalEmbeddingPipeline:
         )
         result["stats"]["image_chunks"] = sum(
             1 for c in chunks if c["chunk_type"] == "image_caption"
+        )
+        result["stats"]["vlm_descriptions_generated"] = result["vlm_descriptions_generated"]
+        result["stats"]["image_embeddings_count"] = len(result["image_embeddings"])
+        result["stats"]["processing_mode"] = processing_mode.value
+
+        self.logger.info(
+            f"Document processed: {result['stats']['total_chunks']} chunks, "
+            f"{result['stats']['image_chunks']} image captions, "
+            f"{result['vlm_descriptions_generated']} VLM descriptions"
         )
 
         return result

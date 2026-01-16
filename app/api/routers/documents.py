@@ -176,7 +176,7 @@ async def upload_document(
         )
 
     # Validate processing mode
-    valid_modes = ["text_only", "vlm_enhanced", "multimodal", "ocr"]
+    valid_modes = ["text_only", "image_only", "vlm_enhanced"]
     if processing_mode not in valid_modes:
         processing_mode = "text_only"
 
@@ -203,7 +203,7 @@ async def upload_document(
     # Determine message based on document type
     if doc_type == DocumentType.IMAGE:
         message = "이미지 업로드가 시작되었습니다. VLM 분석이 진행됩니다."
-    elif enable_vlm or processing_mode in ["vlm_enhanced", "multimodal"]:
+    elif enable_vlm or processing_mode in ["image_only", "vlm_enhanced"]:
         message = "문서 업로드가 시작되었습니다. VLM 기반 분석으로 인해 처리 시간이 다소 길어질 수 있습니다."
     else:
         message = "문서 업로드가 시작되었습니다. 처리 완료까지 약 2-5분 소요됩니다."
@@ -281,9 +281,8 @@ async def get_supported_formats(
             "max_file_size_mb": api_settings.MAX_UPLOAD_SIZE_MB,
             "processing_modes": [
                 {"mode": "text_only", "description": "텍스트만 추출 (기본)"},
-                {"mode": "vlm_enhanced", "description": "VLM 보조 추출 (이미지/도표 이해)"},
-                {"mode": "multimodal", "description": "전체 멀티모달 처리"},
-                {"mode": "ocr", "description": "스캔 문서용 OCR"}
+                {"mode": "image_only", "description": "이미지만 (OCR) - 스캔 문서용"},
+                {"mode": "vlm_enhanced", "description": "VLM 향상 - 텍스트+OCR+레이아웃+테이블"}
             ]
         },
         meta=MetaInfo(request_id=request_id)

@@ -35,6 +35,8 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  Database,
+  Shield,
 } from 'lucide-react';
 import {
   BarChart,
@@ -48,6 +50,7 @@ import {
 } from 'recharts';
 import './DocumentsPage.css';
 import { useSimplePageContext } from '../hooks/usePageContext';
+import { useAuthStore } from '../store/authStore';
 
 // =============================================================================
 // Types
@@ -119,6 +122,19 @@ interface DocumentListItem {
   tags: string[];
   created_at: string;
   updated_at: string;
+}
+
+interface OrphanedDataInfo {
+  orphaned_image_embeddings: number;
+  orphaned_text_chunks: number;
+  orphaned_document_ids: string[];
+}
+
+interface CleanupResult {
+  deleted_image_embeddings: number;
+  deleted_text_chunks: number;
+  cleaned_document_ids: string[];
+  message: string;
 }
 
 // =============================================================================
@@ -310,6 +326,9 @@ export const DocumentsPage: React.FC = () => {
 // =============================================================================
 
 const DocumentsTab: React.FC = () => {
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
+
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -321,6 +340,14 @@ const DocumentsTab: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<DocumentListItem | null>(null);
   const [detailDocId, setDetailDocId] = useState<string | null>(null);
   const limit = 15;
+
+  // Admin: Orphaned data state
+  const [orphanedData, setOrphanedData] = useState<OrphanedDataInfo | null>(null);
+  const [orphanedLoading, setOrphanedLoading] = useState(false);
+  const [cleanupLoading, setCleanupLoading] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState<CleanupResult | null>(null);
+  const [showCleanupConfirm, setShowCleanupConfirm] = useState(false);
+  const [showFullCleanupConfirm, setShowFullCleanupConfirm] = useState(false);
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -376,6 +403,88 @@ const DocumentsTab: React.FC = () => {
       console.error('Failed to delete document:', err);
     }
   };
+
+  // Admin: Check for orphaned data
+  const checkOrphanedData = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      setOrphanedLoading(true);
+      const response = await fetch('/api/v1/admin/cleanup/orphaned-data', {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const result = await response.json();
+        setOrphanedData(result.data);
+      }
+    } catch (err) {
+      console.error('Failed to check orphaned data:', err);
+    } finally {
+      setOrphanedLoading(false);
+    }
+  }, [isAdmin]);
+
+  // Admin: Cleanup orphaned data
+  const cleanupOrphanedData = async () => {
+    try {
+      setCleanupLoading(true);
+      const response = await fetch('/api/v1/admin/cleanup/orphaned-data', {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const result = await response.json();
+        setCleanupResult(result.data);
+        setOrphanedData(null);
+        await checkOrphanedData();
+      }
+    } catch (err) {
+      console.error('Failed to cleanup orphaned data:', err);
+    } finally {
+      setCleanupLoading(false);
+      setShowCleanupConfirm(false);
+    }
+  };
+
+  // Admin: Full embedding cleanup (delete all embeddings)
+  const cleanupAllEmbeddings = async () => {
+    try {
+      setCleanupLoading(true);
+      // First, get all document IDs from image_embeddings that exist
+      const checkResponse = await fetch('/api/v1/admin/cleanup/orphaned-data', {
+        credentials: 'include',
+      });
+
+      if (checkResponse.ok) {
+        const checkResult = await checkResponse.json();
+        const orphanedIds = checkResult.data?.orphaned_document_ids || [];
+
+        // Delete orphaned data
+        if (orphanedIds.length > 0) {
+          const response = await fetch('/api/v1/admin/cleanup/orphaned-data', {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+          if (response.ok) {
+            const result = await response.json();
+            setCleanupResult(result.data);
+          }
+        }
+      }
+      await checkOrphanedData();
+    } catch (err) {
+      console.error('Failed to cleanup all embeddings:', err);
+    } finally {
+      setCleanupLoading(false);
+      setShowFullCleanupConfirm(false);
+    }
+  };
+
+  // Auto-check orphaned data for admin users
+  useEffect(() => {
+    if (isAdmin) {
+      checkOrphanedData();
+    }
+  }, [isAdmin, checkOrphanedData]);
 
   const getFileIcon = (type: string) => {
     switch (type?.toLowerCase()) {
@@ -490,6 +599,90 @@ const DocumentsTab: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Admin: Data Cleanup Section */}
+        {isAdmin && (
+          <div className="admin-cleanup-section">
+            <div className="admin-cleanup-header">
+              <div className="admin-cleanup-title">
+                <Shield size={18} />
+                <span>Data Management (Admin)</span>
+              </div>
+              <button
+                className="btn btn--secondary btn--sm"
+                onClick={checkOrphanedData}
+                disabled={orphanedLoading}
+              >
+                {orphanedLoading ? <Loader2 size={14} className="spinning" /> : <RefreshCw size={14} />}
+                Check Orphaned Data
+              </button>
+            </div>
+
+            {/* Orphaned Data Status */}
+            {orphanedData && (
+              <div className="admin-cleanup-status">
+                <div className="cleanup-stat-card">
+                  <Database size={24} />
+                  <div className="cleanup-stat-info">
+                    <span className="cleanup-stat-value">{orphanedData.orphaned_image_embeddings}</span>
+                    <span className="cleanup-stat-label">Orphaned Images</span>
+                  </div>
+                </div>
+                <div className="cleanup-stat-card">
+                  <FileText size={24} />
+                  <div className="cleanup-stat-info">
+                    <span className="cleanup-stat-value">{orphanedData.orphaned_text_chunks}</span>
+                    <span className="cleanup-stat-label">Orphaned Chunks</span>
+                  </div>
+                </div>
+                <div className="cleanup-stat-card">
+                  <File size={24} />
+                  <div className="cleanup-stat-info">
+                    <span className="cleanup-stat-value">{orphanedData.orphaned_document_ids.length}</span>
+                    <span className="cleanup-stat-label">Orphaned Doc IDs</span>
+                  </div>
+                </div>
+
+                {(orphanedData.orphaned_image_embeddings > 0 || orphanedData.orphaned_text_chunks > 0) && (
+                  <button
+                    className="btn btn--warning btn--sm"
+                    onClick={() => setShowCleanupConfirm(true)}
+                    disabled={cleanupLoading}
+                  >
+                    {cleanupLoading ? <Loader2 size={14} className="spinning" /> : <Trash2 size={14} />}
+                    Cleanup Orphaned Data
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Cleanup Result */}
+            {cleanupResult && (
+              <div className="cleanup-result">
+                <CheckCircle size={16} />
+                <span>{cleanupResult.message}</span>
+                <button className="cleanup-result-close" onClick={() => setCleanupResult(null)}>
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+
+            {/* Full Cleanup Button */}
+            <div className="admin-cleanup-actions">
+              <button
+                className="btn btn--danger btn--sm"
+                onClick={() => setShowFullCleanupConfirm(true)}
+                disabled={cleanupLoading}
+              >
+                <Trash2 size={14} />
+                Full Embedding Cleanup
+              </button>
+              <span className="cleanup-help-text">
+                Removes all orphaned embeddings not linked to any document
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Documents Table */}
         {loading ? (
@@ -656,6 +849,81 @@ const DocumentsTab: React.FC = () => {
           onClose={() => setDetailDocId(null)}
         />
       )}
+
+      {/* Orphaned Data Cleanup Confirmation Modal */}
+      {showCleanupConfirm && (
+        <div className="modal-overlay" onClick={() => setShowCleanupConfirm(false)}>
+          <div className="modal-content modal-content--small" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header modal-header--warning">
+              <h2>Cleanup Orphaned Data</h2>
+              <button className="modal-close" onClick={() => setShowCleanupConfirm(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="delete-warning">
+                <AlertTriangle size={48} className="delete-warning-icon" />
+                <p className="delete-warning-text">
+                  Are you sure you want to clean up orphaned data?
+                </p>
+                <p className="delete-warning-subtext">
+                  This will permanently remove embeddings and chunks that are not linked to any document.
+                </p>
+              </div>
+              {orphanedData && (
+                <div className="delete-doc-info">
+                  <div><strong>Orphaned Images:</strong> {orphanedData.orphaned_image_embeddings}</div>
+                  <div><strong>Orphaned Chunks:</strong> {orphanedData.orphaned_text_chunks}</div>
+                  <div><strong>Orphaned Doc IDs:</strong> {orphanedData.orphaned_document_ids.length}</div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn--secondary" onClick={() => setShowCleanupConfirm(false)}>
+                Cancel
+              </button>
+              <button className="btn btn--warning" onClick={cleanupOrphanedData} disabled={cleanupLoading}>
+                {cleanupLoading ? <Loader2 size={16} className="spinning" /> : <Trash2 size={16} />}
+                Cleanup Orphaned Data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full Embedding Cleanup Confirmation Modal */}
+      {showFullCleanupConfirm && (
+        <div className="modal-overlay" onClick={() => setShowFullCleanupConfirm(false)}>
+          <div className="modal-content modal-content--small" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header modal-header--danger">
+              <h2>Full Embedding Cleanup</h2>
+              <button className="modal-close" onClick={() => setShowFullCleanupConfirm(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="delete-warning">
+                <AlertTriangle size={48} className="delete-warning-icon" />
+                <p className="delete-warning-text">
+                  Are you sure you want to perform a full embedding cleanup?
+                </p>
+                <p className="delete-warning-subtext">
+                  This will remove ALL orphaned embeddings from the database that are not linked to any document in the documents table.
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn--secondary" onClick={() => setShowFullCleanupConfirm(false)}>
+                Cancel
+              </button>
+              <button className="btn btn--danger" onClick={cleanupAllEmbeddings} disabled={cleanupLoading}>
+                {cleanupLoading ? <Loader2 size={16} className="spinning" /> : <Trash2 size={16} />}
+                Full Cleanup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -663,6 +931,36 @@ const DocumentsTab: React.FC = () => {
 // =============================================================================
 // Document Detail Modal
 // =============================================================================
+
+// Embedding Quality Types
+interface EmbeddingQualityMetrics {
+  overall_score: number;
+  quality_level: 'excellent' | 'good' | 'fair' | 'poor';
+  retrieval_accuracy: number;
+  avg_similarity: number;
+  similarity_std: number;
+  coverage_score: number;
+}
+
+interface SimilarityTestResult {
+  query: string;
+  expected_chunk_index: number;
+  retrieved_chunk_index: number;
+  similarity_score: number;
+  is_hit: boolean;
+}
+
+interface EmbeddingQualityResult {
+  document_id: string;
+  verified_at: string;
+  metrics: EmbeddingQualityMetrics;
+  embedding_dimension: number;
+  chunks_tested: number;
+  chunks_total: number;
+  test_results: SimilarityTestResult[];
+  issues: string[];
+  recommendations: string[];
+}
 
 interface DocumentDetail {
   id: string;
@@ -697,6 +995,12 @@ interface DocumentDetail {
     completed_at: string | null;
     processing_time_seconds: number | null;
   };
+  embedding_quality?: {
+    overall_score: number;
+    quality_level: string;
+    verified_at: string;
+    has_issues: boolean;
+  };
   error?: string | null;
 }
 
@@ -709,6 +1013,34 @@ const DocumentDetailModal: React.FC<DetailModalProps> = ({ documentId, onClose }
   const [document, setDocument] = useState<DocumentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Embedding quality verification state
+  const [qualityResult, setQualityResult] = useState<EmbeddingQualityResult | null>(null);
+  const [qualityLoading, setQualityLoading] = useState(false);
+  const [qualityError, setQualityError] = useState<string | null>(null);
+
+  // Re-embedding state
+  const [showReEmbedForm, setShowReEmbedForm] = useState(false);
+  const [reEmbedLoading, setReEmbedLoading] = useState(false);
+  const [reEmbedError, setReEmbedError] = useState<string | null>(null);
+  const [reEmbedParams, setReEmbedParams] = useState({
+    chunk_size: 512,
+    chunk_overlap: 50,
+    processing_mode: 'text_only',
+    enable_vlm: false,
+    extract_tables: true,
+    extract_images: true,
+    force: false,
+  });
+
+  // Re-embedding progress state
+  const [reEmbedTaskId, setReEmbedTaskId] = useState<string | null>(null);
+  const [reEmbedProgress, setReEmbedProgress] = useState<{
+    current_step: string;
+    steps: Array<{ name: string; status: string; progress: number }>;
+    overall_progress: number;
+  } | null>(null);
+  const [isReEmbedding, setIsReEmbedding] = useState(false);
 
   useEffect(() => {
     const fetchDocument = async () => {
@@ -725,6 +1057,11 @@ const DocumentDetailModal: React.FC<DetailModalProps> = ({ documentId, onClose }
         const result = await response.json();
         setDocument(result.data);
         setError(null);
+
+        // Auto-fetch existing quality result if available
+        if (result.data?.embedding_status === 'completed') {
+          fetchQualityResult();
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load document');
       } finally {
@@ -734,6 +1071,195 @@ const DocumentDetailModal: React.FC<DetailModalProps> = ({ documentId, onClose }
 
     fetchDocument();
   }, [documentId]);
+
+  // Poll for re-embedding progress
+  useEffect(() => {
+    if (!reEmbedTaskId || !isReEmbedding) return;
+
+    const pollStatus = async () => {
+      try {
+        const response = await fetch(`/api/v1/documents/upload-status/${reEmbedTaskId}`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          console.error('Failed to fetch re-embed status');
+          return;
+        }
+
+        const result = await response.json();
+        const status = result.data;
+
+        setReEmbedProgress({
+          current_step: status.progress.current_step,
+          steps: status.progress.steps,
+          overall_progress: status.progress.overall_progress,
+        });
+
+        // Check if processing is complete
+        if (status.status === 'ready' || status.progress.overall_progress >= 100) {
+          setIsReEmbedding(false);
+          setReEmbedTaskId(null);
+          setReEmbedProgress(null);
+
+          // Refresh document data
+          const docResponse = await fetch(`/api/v1/documents/${documentId}`, {
+            credentials: 'include',
+          });
+          if (docResponse.ok) {
+            const docResult = await docResponse.json();
+            setDocument(docResult.data);
+
+            // Fetch new quality result if available
+            if (docResult.data?.embedding_status === 'completed') {
+              fetchQualityResult();
+            }
+          }
+        } else if (status.status === 'error') {
+          setIsReEmbedding(false);
+          setReEmbedError('Re-embedding failed');
+        }
+      } catch (err) {
+        console.error('Error polling re-embed status:', err);
+      }
+    };
+
+    // Poll every 800ms
+    const interval = setInterval(pollStatus, 800);
+    // Initial poll
+    pollStatus();
+
+    return () => clearInterval(interval);
+  }, [reEmbedTaskId, isReEmbedding, documentId]);
+
+  // Fetch existing quality verification result
+  const fetchQualityResult = async () => {
+    try {
+      const response = await fetch(`/api/v1/documents/${documentId}/embedding-quality`, {
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setQualityResult(result.data);
+      }
+    } catch (err) {
+      // Silent fail - quality result may not exist yet
+      console.log('No existing quality result found');
+    }
+  };
+
+  // Run quality verification
+  const runQualityVerification = async () => {
+    try {
+      setQualityLoading(true);
+      setQualityError(null);
+
+      const response = await fetch(`/api/v1/documents/${documentId}/verify-embedding?sample_size=10`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail?.message || 'Verification failed');
+      }
+
+      const result = await response.json();
+      setQualityResult(result.data);
+    } catch (err) {
+      setQualityError(err instanceof Error ? err.message : 'Quality verification failed');
+    } finally {
+      setQualityLoading(false);
+    }
+  };
+
+  // Run re-embedding with custom parameters
+  const runReEmbed = async () => {
+    try {
+      setReEmbedLoading(true);
+      setReEmbedError(null);
+
+      const response = await fetch(`/api/v1/documents/${documentId}/re-embed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(reEmbedParams),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail?.message || 'Re-embedding failed');
+      }
+
+      const result = await response.json();
+      const taskId = result.data?.task_id;
+
+      // Update document status to show it's processing
+      if (document) {
+        setDocument({
+          ...document,
+          status: 'processing',
+          embedding_status: 'pending',
+        });
+      }
+
+      // Close re-embed form and start progress tracking
+      setShowReEmbedForm(false);
+      setQualityResult(null); // Clear old quality result
+
+      if (taskId) {
+        setReEmbedTaskId(taskId);
+        setIsReEmbedding(true);
+        // Initialize progress display
+        setReEmbedProgress({
+          current_step: 're-chunking',
+          steps: [
+            { name: 're-chunking', status: 'pending', progress: 0 },
+            { name: 'embedding', status: 'pending', progress: 0 },
+            { name: 'quality-check', status: 'pending', progress: 0 },
+          ],
+          overall_progress: 10,
+        });
+      }
+    } catch (err) {
+      setReEmbedError(err instanceof Error ? err.message : 'Re-embedding failed');
+    } finally {
+      setReEmbedLoading(false);
+    }
+  };
+
+  // Get quality level color
+  const getQualityLevelColor = (level: string) => {
+    switch (level) {
+      case 'excellent':
+        return '#22c55e';
+      case 'good':
+        return '#3b82f6';
+      case 'fair':
+        return '#f59e0b';
+      case 'poor':
+        return '#ef4444';
+      default:
+        return '#6b7280';
+    }
+  };
+
+  // Get quality level label
+  const getQualityLevelLabel = (level: string) => {
+    switch (level) {
+      case 'excellent':
+        return 'Excellent (우수)';
+      case 'good':
+        return 'Good (양호)';
+      case 'fair':
+        return 'Fair (보통)';
+      case 'poor':
+        return 'Poor (개선필요)';
+      default:
+        return level;
+    }
+  };
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -969,6 +1495,356 @@ const DocumentDetailModal: React.FC<DetailModalProps> = ({ documentId, onClose }
                   </div>
                 </div>
               </div>
+
+              {/* Embedding Quality Verification Section */}
+              {document.embedding_status === 'completed' && (
+                <div className="detail-quality-section">
+                  <div className="detail-quality-header">
+                    <h4 className="detail-card-title">
+                      <CheckCircle size={16} />
+                      Embedding Quality Verification
+                    </h4>
+                    <button
+                      className="btn btn--sm btn--primary"
+                      onClick={runQualityVerification}
+                      disabled={qualityLoading}
+                    >
+                      {qualityLoading ? (
+                        <>
+                          <Loader2 size={14} className="spinning" />
+                          Verifying...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw size={14} />
+                          {qualityResult ? 'Re-verify' : 'Verify Quality'}
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {qualityError && (
+                    <div className="detail-quality-error">
+                      <AlertTriangle size={14} />
+                      <span>{qualityError}</span>
+                    </div>
+                  )}
+
+                  {qualityResult && (
+                    <div className="detail-quality-content">
+                      {/* Overall Score */}
+                      <div className="detail-quality-score">
+                        <div
+                          className="quality-score-circle"
+                          style={{
+                            borderColor: getQualityLevelColor(qualityResult.metrics.quality_level),
+                          }}
+                        >
+                          <span className="quality-score-value">
+                            {Math.round(qualityResult.metrics.overall_score * 100)}
+                          </span>
+                          <span className="quality-score-label">점</span>
+                        </div>
+                        <div className="quality-score-info">
+                          <span
+                            className="quality-level-badge"
+                            style={{
+                              backgroundColor: getQualityLevelColor(qualityResult.metrics.quality_level),
+                            }}
+                          >
+                            {getQualityLevelLabel(qualityResult.metrics.quality_level)}
+                          </span>
+                          <span className="quality-verified-at">
+                            Verified: {formatDate(qualityResult.verified_at)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Metrics Grid */}
+                      <div className="detail-quality-metrics">
+                        <div className="quality-metric-item">
+                          <span className="quality-metric-value">
+                            {Math.round(qualityResult.metrics.retrieval_accuracy * 100)}%
+                          </span>
+                          <span className="quality-metric-label">Retrieval Accuracy</span>
+                        </div>
+                        <div className="quality-metric-item">
+                          <span className="quality-metric-value">
+                            {(qualityResult.metrics.avg_similarity * 100).toFixed(1)}%
+                          </span>
+                          <span className="quality-metric-label">Avg Similarity</span>
+                        </div>
+                        <div className="quality-metric-item">
+                          <span className="quality-metric-value">
+                            {Math.round(qualityResult.metrics.coverage_score * 100)}%
+                          </span>
+                          <span className="quality-metric-label">Coverage</span>
+                        </div>
+                        <div className="quality-metric-item">
+                          <span className="quality-metric-value">
+                            {qualityResult.chunks_tested}/{qualityResult.chunks_total}
+                          </span>
+                          <span className="quality-metric-label">Chunks Tested</span>
+                        </div>
+                      </div>
+
+                      {/* Issues & Recommendations */}
+                      {qualityResult.issues.length > 0 && (
+                        <div className="detail-quality-issues">
+                          <h5>
+                            <AlertCircle size={14} />
+                            Issues Found
+                          </h5>
+                          <ul>
+                            {qualityResult.issues.map((issue, idx) => (
+                              <li key={idx}>{issue}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {qualityResult.recommendations.length > 0 && (
+                        <div className="detail-quality-recommendations">
+                          <h5>
+                            <CheckCircle size={14} />
+                            Recommendations
+                          </h5>
+                          <ul>
+                            {qualityResult.recommendations.map((rec, idx) => (
+                              <li key={idx}>{rec}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {!qualityResult && !qualityLoading && !qualityError && (
+                    <div className="detail-quality-empty">
+                      <p>Click "Verify Quality" to check embedding quality for this document.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Re-Embedding Section */}
+              {(document.status !== 'processing' || isReEmbedding) && (
+                <div className="detail-reembed-section">
+                  <div className="detail-reembed-header">
+                    <h4 className="detail-card-title">
+                      <RefreshCw size={16} className={isReEmbedding ? 'spinning' : ''} />
+                      Re-Embed Document
+                    </h4>
+                    {!isReEmbedding && (
+                      <button
+                        className="btn btn--sm btn--secondary"
+                        onClick={() => setShowReEmbedForm(!showReEmbedForm)}
+                      >
+                        {showReEmbedForm ? 'Hide Parameters' : 'Configure & Re-embed'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Re-Embedding Progress Display */}
+                  {isReEmbedding && reEmbedProgress && (
+                    <div className="reembed-progress-container">
+                      {/* Overall progress bar */}
+                      <div className="reembed-progress-bar-container">
+                        <div className="reembed-progress-bar">
+                          <div
+                            className="reembed-progress-bar-fill"
+                            style={{ width: `${reEmbedProgress.overall_progress}%` }}
+                          />
+                        </div>
+                        <span className="reembed-progress-percentage">
+                          {reEmbedProgress.overall_progress}%
+                        </span>
+                      </div>
+
+                      {/* Steps */}
+                      <div className="reembed-progress-steps">
+                        {reEmbedProgress.steps.map((step, index) => (
+                          <div
+                            key={step.name}
+                            className={`reembed-progress-step ${step.status === 'in_progress' ? 'reembed-progress-step--active' : ''} ${step.status === 'completed' ? 'reembed-progress-step--completed' : ''}`}
+                          >
+                            <div className="reembed-progress-step-icon">
+                              {step.status === 'completed' ? (
+                                <CheckCircle size={16} className="step-icon step-icon--completed" />
+                              ) : step.status === 'in_progress' ? (
+                                <Loader2 size={16} className="step-icon step-icon--progress spinning" />
+                              ) : (
+                                <Clock size={16} className="step-icon step-icon--pending" />
+                              )}
+                            </div>
+                            <div className="reembed-progress-step-content">
+                              <span className="reembed-progress-step-name">
+                                {step.name === 're-chunking' && 'Re-chunking Document'}
+                                {step.name === 'embedding' && 'Generating Embeddings'}
+                                {step.name === 'quality-check' && 'Quality Check'}
+                              </span>
+                              {step.status === 'in_progress' && (
+                                <span className="reembed-progress-step-detail">{step.progress}%</span>
+                              )}
+                            </div>
+                            {index < reEmbedProgress.steps.length - 1 && (
+                              <div className={`reembed-progress-step-line ${step.status === 'completed' ? 'reembed-progress-step-line--completed' : ''}`} />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Current step info */}
+                      <div className="reembed-progress-info">
+                        <Loader2 size={14} className="spinning" />
+                        <span>
+                          Processing: {reEmbedProgress.current_step === 're-chunking' && 'Re-chunking Document'}
+                          {reEmbedProgress.current_step === 'embedding' && 'Generating Embeddings'}
+                          {reEmbedProgress.current_step === 'quality-check' && 'Quality Check'}
+                          {reEmbedProgress.current_step === 'completed' && 'Completed'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {showReEmbedForm && !isReEmbedding && (
+                    <div className="detail-reembed-form">
+                      {reEmbedError && (
+                        <div className="detail-quality-error">
+                          <AlertTriangle size={14} />
+                          <span>{reEmbedError}</span>
+                        </div>
+                      )}
+
+                      <div className="reembed-form-grid">
+                        <div className="form-group">
+                          <label>Chunk Size (100-4000)</label>
+                          <input
+                            type="number"
+                            value={reEmbedParams.chunk_size}
+                            onChange={(e) => setReEmbedParams({
+                              ...reEmbedParams,
+                              chunk_size: Math.max(100, Math.min(4000, Number(e.target.value)))
+                            })}
+                            min={100}
+                            max={4000}
+                          />
+                          <span className="form-hint">Characters per chunk</span>
+                        </div>
+
+                        <div className="form-group">
+                          <label>Chunk Overlap (0-500)</label>
+                          <input
+                            type="number"
+                            value={reEmbedParams.chunk_overlap}
+                            onChange={(e) => setReEmbedParams({
+                              ...reEmbedParams,
+                              chunk_overlap: Math.max(0, Math.min(500, Number(e.target.value)))
+                            })}
+                            min={0}
+                            max={500}
+                          />
+                          <span className="form-hint">Overlap between chunks</span>
+                        </div>
+
+                        <div className="form-group">
+                          <label>Processing Mode</label>
+                          <select
+                            value={reEmbedParams.processing_mode}
+                            onChange={(e) => setReEmbedParams({
+                              ...reEmbedParams,
+                              processing_mode: e.target.value
+                            })}
+                          >
+                            <option value="text_only">Text Only</option>
+                            <option value="image_only">Image Only (OCR)</option>
+                            <option value="vlm_enhanced">VLM Enhanced</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="reembed-form-checkboxes">
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={reEmbedParams.enable_vlm}
+                            onChange={(e) => setReEmbedParams({
+                              ...reEmbedParams,
+                              enable_vlm: e.target.checked
+                            })}
+                          />
+                          Enable VLM Analysis
+                        </label>
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={reEmbedParams.extract_tables}
+                            onChange={(e) => setReEmbedParams({
+                              ...reEmbedParams,
+                              extract_tables: e.target.checked
+                            })}
+                          />
+                          Extract Tables
+                        </label>
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={reEmbedParams.extract_images}
+                            onChange={(e) => setReEmbedParams({
+                              ...reEmbedParams,
+                              extract_images: e.target.checked
+                            })}
+                          />
+                          Extract Images
+                        </label>
+                      </div>
+
+                      <div className="reembed-form-info">
+                        <AlertCircle size={14} />
+                        <span>
+                          Re-embedding will delete existing chunks and embeddings, then create new ones
+                          with the specified parameters. This process may take several minutes.
+                        </span>
+                      </div>
+
+                      <div className="reembed-form-actions">
+                        <button
+                          className="btn btn--secondary"
+                          onClick={() => setShowReEmbedForm(false)}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          className="btn btn--primary"
+                          onClick={runReEmbed}
+                          disabled={reEmbedLoading}
+                        >
+                          {reEmbedLoading ? (
+                            <>
+                              <Loader2 size={14} className="spinning" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw size={14} />
+                              Start Re-embedding
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {!showReEmbedForm && !isReEmbedding && (
+                    <div className="detail-reembed-hint">
+                      <p>
+                        If embedding quality is poor, you can re-embed the document with different
+                        chunk sizes and processing options to improve retrieval accuracy.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : null}
         </div>
@@ -1322,9 +2198,8 @@ const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess })
                     <label>Processing Mode</label>
                     <select value={processingMode} onChange={(e) => setProcessingMode(e.target.value)}>
                       <option value="text_only">Text Only</option>
+                      <option value="image_only">Image Only (OCR)</option>
                       <option value="vlm_enhanced">VLM Enhanced</option>
-                      <option value="multimodal">Full Multimodal</option>
-                      <option value="ocr">OCR (Scanned)</option>
                     </select>
                   </div>
                 </div>

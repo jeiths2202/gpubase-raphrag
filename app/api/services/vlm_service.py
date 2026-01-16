@@ -89,8 +89,16 @@ class VLMService:
             "confidence": 0.0
         }
 
-        if processing_mode == ProcessingMode.VLM_ENHANCED:
-            # Full VLM analysis
+        if processing_mode == ProcessingMode.IMAGE_ONLY:
+            # OCR-focused extraction for scanned/image documents
+            ocr_result = await self.process_image(
+                page_image, task="extract_text"
+            )
+            results["text_content"] = ocr_result.text_content
+            results["confidence"] = ocr_result.confidence_score
+
+        elif processing_mode == ProcessingMode.VLM_ENHANCED:
+            # Full VLM analysis: layout + text + tables
             layout_result = await self.process_image(
                 page_image, task="analyze_layout"
             )
@@ -111,25 +119,7 @@ class VLMService:
                 table_result.confidence_score
             ) / 3
 
-        elif processing_mode == ProcessingMode.OCR:
-            # OCR-focused extraction
-            ocr_result = await self.process_image(
-                page_image, task="extract_text"
-            )
-            results["text_content"] = ocr_result.text_content
-            results["confidence"] = ocr_result.confidence_score
-
-        elif processing_mode == ProcessingMode.MULTIMODAL:
-            # Full multimodal with detailed image analysis
-            full_result = await self.process_image(
-                page_image, task="describe"
-            )
-            results["text_content"] = full_result.text_content
-            results["tables"] = full_result.tables
-            results["figures"] = full_result.figures
-            results["layout"] = full_result.layout_analysis
-            results["images"] = full_result.detected_objects
-            results["confidence"] = full_result.confidence_score
+        # TEXT_ONLY mode: no VLM processing, use traditional text extraction
 
         return results
 

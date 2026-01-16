@@ -1,6 +1,30 @@
 {
   "title": "Knowledge Base",
   "searchPlaceholder": "Search knowledge...",
+  "reembed": {
+    "title": "Re-Embed Document",
+    "configureButton": "Configure & Re-embed",
+    "hideParameters": "Hide Parameters",
+    "chunkSize": "Chunk Size (100-4000)",
+    "chunkSizeHint": "Characters per chunk",
+    "chunkOverlap": "Chunk Overlap (0-500)",
+    "chunkOverlapHint": "Overlap between chunks",
+    "processingMode": "Processing Mode",
+    "processingModes": {
+      "textOnly": "Text Only",
+      "imageOnly": "Image Only (OCR)",
+      "vlmEnhanced": "VLM Enhanced"
+    },
+    "enableVlm": "Enable VLM Analysis",
+    "extractTables": "Extract Tables",
+    "extractImages": "Extract Images",
+    "warning": "Re-embedding will delete existing chunks and embeddings, then create new ones with the specified parameters. This process may take several minutes.",
+    "hint": "If embedding quality is poor, you can re-embed the document with different chunk sizes and processing options to improve retrieval accuracy.",
+    "startButton": "Start Re-embedding",
+    "processing": "Processing...",
+    "cancel": "Cancel",
+    "started": "Re-embedding started!"
+  },
   "askQuestion": "Ask a question",
   "noResults": "No results found",
   "sources": "Sources",

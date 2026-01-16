@@ -183,6 +183,15 @@ class PDFParser(BaseDocumentParser):
 
     SUPPORTED_TYPES = ["application/pdf"]
 
+    def __init__(self, vlm_service=None):
+        """
+        Initialize PDF parser.
+
+        Args:
+            vlm_service: Optional VLM service for OCR and enhanced extraction
+        """
+        self.vlm_service = vlm_service
+
     def supports(self, mime_type: str) -> bool:
         return mime_type in self.SUPPORTED_TYPES
 
@@ -221,18 +230,32 @@ class PDFParser(BaseDocumentParser):
         content: bytes,
         options: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Extract real content from PDF using pypdf."""
+        """Extract real content from PDF using pypdf, with optional VLM OCR."""
+        processing_mode = options.get("processing_mode", "text_only")
+        enable_vlm = options.get("enable_vlm", False)
+        language = options.get("language", "auto")
+
         try:
             from pypdf import PdfReader
 
             # Run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(
+            result = await loop.run_in_executor(
                 None,
                 self._sync_extract_pdf,
                 content,
                 options
             )
+
+            # Check if VLM OCR is needed
+            if (processing_mode in ["image_only", "vlm_enhanced"] or enable_vlm) and self.vlm_service:
+                # Enhance pages with low text content using VLM OCR
+                result = await self._enhance_with_vlm_ocr(
+                    content, result, processing_mode, language
+                )
+
+            return result
+
         except ImportError:
             # Fallback to mock if pypdf not available
             return await self._fallback_mock_extraction(content)
@@ -240,6 +263,116 @@ class PDFParser(BaseDocumentParser):
             # Fallback on any error
             print(f"PDF extraction error: {e}, using fallback")
             return await self._fallback_mock_extraction(content)
+
+    async def _enhance_with_vlm_ocr(
+        self,
+        pdf_content: bytes,
+        parsed_result: Dict[str, Any],
+        processing_mode: str,
+        language: str = "auto"
+    ) -> Dict[str, Any]:
+        """
+        Enhance PDF extraction with VLM-based OCR for pages with little/no text.
+
+        Args:
+            pdf_content: Original PDF bytes
+            parsed_result: Initial parsing result from pypdf
+            processing_mode: Processing mode (ocr, vlm_enhanced, multimodal)
+            language: Expected document language
+
+        Returns:
+            Enhanced parsing result with OCR text
+        """
+        if not self.vlm_service:
+            return parsed_result
+
+        try:
+            import fitz  # PyMuPDF for page-to-image conversion
+
+            pdf_doc = fitz.open(stream=pdf_content, filetype="pdf")
+            pages = parsed_result.get("pages", [])
+            enhanced_pages = []
+            full_text_parts = []
+            ocr_count = 0
+
+            # Threshold for considering a page as needing OCR
+            # If a page has less than 50 characters, it likely needs OCR
+            MIN_TEXT_THRESHOLD = 50
+
+            for page_info in pages:
+                page_num = page_info.get("page_number", 1)
+                page_text = page_info.get("content", "")
+                char_count = len(page_text.strip())
+
+                # Check if this page needs OCR
+                needs_ocr = (
+                    processing_mode == "image_only" or  # Force OCR for all pages
+                    (processing_mode == "vlm_enhanced" and char_count < MIN_TEXT_THRESHOLD)
+                )
+
+                if needs_ocr and page_num <= len(pdf_doc):
+                    try:
+                        # Convert page to image
+                        fitz_page = pdf_doc[page_num - 1]
+                        # Use higher resolution for better OCR (2x zoom)
+                        mat = fitz.Matrix(2, 2)
+                        pix = fitz_page.get_pixmap(matrix=mat)
+                        img_bytes = pix.tobytes("png")
+
+                        # Call VLM OCR
+                        ocr_result = await self.vlm_service.extract_text_ocr(
+                            img_bytes, language=language
+                        )
+
+                        ocr_text = ocr_result.get("text", "")
+                        ocr_confidence = ocr_result.get("confidence", 0)
+
+                        if ocr_text and len(ocr_text) > char_count:
+                            # Use OCR result if it's better than pypdf extraction
+                            enhanced_pages.append({
+                                "page_number": page_num,
+                                "content": ocr_text,
+                                "char_count": len(ocr_text),
+                                "ocr_applied": True,
+                                "ocr_confidence": ocr_confidence,
+                                "original_char_count": char_count
+                            })
+                            full_text_parts.append(ocr_text)
+                            ocr_count += 1
+                            print(f"[OCR] Page {page_num}: {char_count} → {len(ocr_text)} chars (VLM OCR)")
+                        else:
+                            # Keep original if OCR didn't improve
+                            enhanced_pages.append(page_info)
+                            full_text_parts.append(page_text)
+
+                    except Exception as ocr_error:
+                        print(f"[OCR] Page {page_num} OCR failed: {ocr_error}")
+                        enhanced_pages.append(page_info)
+                        full_text_parts.append(page_text)
+                else:
+                    # Keep original page
+                    enhanced_pages.append(page_info)
+                    full_text_parts.append(page_text)
+
+            pdf_doc.close()
+
+            # Update result with enhanced pages
+            parsed_result["pages"] = enhanced_pages
+            parsed_result["text_content"] = "\n\n".join(full_text_parts)
+            parsed_result["metadata"]["ocr_pages_count"] = ocr_count
+            parsed_result["metadata"]["vlm_enhanced"] = True
+
+            if ocr_count > 0:
+                print(f"[OCR] Enhanced {ocr_count} pages with VLM OCR")
+
+            return parsed_result
+
+        except ImportError:
+            print("[OCR] PyMuPDF (fitz) not available for page-to-image conversion")
+            return parsed_result
+        except Exception as e:
+            print(f"[OCR] VLM enhancement failed: {e}")
+            return parsed_result
 
     def _sync_extract_pdf(
         self,
@@ -844,7 +977,7 @@ class DocumentParserFactory:
         self.vlm_service = vlm_service
         self.parsers: List[BaseDocumentParser] = [
             TextParser(),
-            PDFParser(),
+            PDFParser(vlm_service),
             WordParser(),
             ExcelParser(),
             PowerPointParser(),

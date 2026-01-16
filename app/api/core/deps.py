@@ -559,12 +559,24 @@ class DocumentService:
             # Step 1: Parse document using real parser
             self._update_task(task_id, "parsing", 25)
 
-            # Use real document parser
-            factory = get_document_parser_factory()
+            # Get VLM service if OCR/VLM processing is enabled
+            vlm_service = None
+            if processing_mode in ["image_only", "vlm_enhanced"] or enable_vlm:
+                try:
+                    from ..services.ollama_vlm_service import get_ollama_vlm_service
+                    vlm_service = get_ollama_vlm_service()
+                except Exception as vlm_err:
+                    print(f"VLM service not available, continuing without OCR: {vlm_err}")
+
+            # Use real document parser with VLM service for OCR
+            factory = get_document_parser_factory(vlm_service)
             parse_options = {
                 "extract_tables": extract_tables,
                 "extract_images": extract_images,
-                "filename": filename
+                "filename": filename,
+                "processing_mode": processing_mode,
+                "enable_vlm": enable_vlm,
+                "language": "auto"  # Auto-detect language for OCR
             }
 
             try:
@@ -908,10 +920,9 @@ class DocumentService:
         # Ensure documents are loaded from database
         await self._ensure_loaded()
 
-        if document_id not in self._documents:
-            return None
-
-        doc = self._documents[document_id]
+        # Check if document exists in memory cache
+        doc_exists_in_cache = document_id in self._documents
+        doc = self._documents.get(document_id, {})
         chunks = self._chunks.get(document_id, [])
 
         deleted_counts = {
@@ -958,10 +969,24 @@ class DocumentService:
             except Exception as e:
                 logger.error(f"Failed to delete document from repository: {e}")
 
-        # 6. Delete from memory cache
-        del self._documents[document_id]
-        if document_id in self._chunks:
-            del self._chunks[document_id]
+        # 6. Delete from memory cache (if exists)
+        if doc_exists_in_cache:
+            del self._documents[document_id]
+            if document_id in self._chunks:
+                del self._chunks[document_id]
+
+        # Check if any data was actually deleted
+        total_deleted = sum([
+            deleted_counts["deleted_neo4j_nodes"],
+            deleted_counts["deleted_text_chunks"],
+            deleted_counts["deleted_images"],
+            deleted_counts["deleted_rag_profiles"]
+        ])
+
+        if not doc_exists_in_cache and total_deleted == 0:
+            # Document doesn't exist and no related data found
+            logger.warning(f"Document {document_id} not found in any storage")
+            return None
 
         logger.info(f"Document {document_id} deleted. Stats: {deleted_counts}")
 
@@ -1689,7 +1714,13 @@ class DocumentService:
         file_content: bytes,
         filename: str
     ):
-        """Store image embeddings to PostgreSQL."""
+        """Store image embeddings to PostgreSQL with VLM-generated descriptions.
+
+        Uses ImageEmbeddingService to:
+        1. Generate descriptions via VLM (port 12803)
+        2. Generate embeddings via NIM (port 12801)
+        3. Store both description and embedding in PostgreSQL
+        """
         try:
             from ..services.multimodal_embedding import ImageEmbeddingService
             from ..repositories.image_embedding_repository import ImageEmbeddingEntity
@@ -1699,6 +1730,8 @@ class DocumentService:
 
             stored_count = 0
             skipped_count = 0
+            vlm_success_count = 0
+
             for idx, img_info in enumerate(parsed_images):
                 try:
                     image_id = f"{doc_id}_img_{idx:03d}"
@@ -1709,16 +1742,39 @@ class DocumentService:
                         skipped_count += 1
                         continue
 
-                    # Generate embedding for image
-                    embedding = await embedding_service.embed_image(image_data)
-
                     # Get image metadata
                     page_number = img_info.get("page_number", 1) if isinstance(img_info, dict) else getattr(img_info, "page_number", 1)
-                    description = img_info.get("description", "") if isinstance(img_info, dict) else getattr(img_info, "description", "")
                     width = img_info.get("width", 0) if isinstance(img_info, dict) else getattr(img_info, "width", 0)
                     height = img_info.get("height", 0) if isinstance(img_info, dict) else getattr(img_info, "height", 0)
 
-                    # Create entity
+                    # Use document context for VLM description generation
+                    document_context = f"Document: {filename}, Page {page_number}"
+
+                    # Generate VLM description AND embedding together
+                    # This uses VLM to analyze the image and generate a description,
+                    # then embeds that description for semantic search
+                    vlm_result = await embedding_service.describe_and_embed_image(
+                        image_data=image_data,
+                        context=document_context,
+                        use_cache=True
+                    )
+
+                    # Use VLM-generated description (fallback to placeholder if VLM fails)
+                    description = vlm_result.get("description", "")
+                    embedding = vlm_result.get("embedding", [0.0] * 4096)
+                    has_vlm_description = vlm_result.get("has_embedding", False)
+
+                    if has_vlm_description:
+                        vlm_success_count += 1
+                        logger.info(f"VLM description generated for image {idx} on page {page_number}: {len(description)} chars")
+                    else:
+                        # Fallback to placeholder if VLM failed
+                        placeholder = img_info.get("description", "") if isinstance(img_info, dict) else getattr(img_info, "description", "")
+                        if not description:
+                            description = placeholder or f"Image on page {page_number}"
+                        logger.warning(f"VLM description failed for image {idx}, using placeholder")
+
+                    # Create entity with VLM-generated description
                     entity = ImageEmbeddingEntity(
                         id=None,  # Will be generated
                         document_id=doc_id,
@@ -1731,7 +1787,11 @@ class DocumentService:
                         file_size=len(image_data),
                         description=description,
                         embedding=embedding,
-                        metadata={"source_file": filename}
+                        metadata={
+                            "source_file": filename,
+                            "has_vlm_description": has_vlm_description,
+                            "vlm_confidence": vlm_result.get("confidence", 0.0)
+                        }
                     )
 
                     await repository.store_image(entity)
@@ -1740,7 +1800,10 @@ class DocumentService:
                 except Exception as img_error:
                     logger.warning(f"Failed to store image {idx} for {doc_id}: {img_error}")
 
-            logger.info(f"Stored {stored_count} image embeddings for {doc_id} (skipped {skipped_count})")
+            logger.info(
+                f"Stored {stored_count} image embeddings for {doc_id} "
+                f"(VLM descriptions: {vlm_success_count}, skipped: {skipped_count})"
+            )
 
         except Exception as e:
             logger.error(f"Failed to store image embeddings for {doc_id}: {e}")

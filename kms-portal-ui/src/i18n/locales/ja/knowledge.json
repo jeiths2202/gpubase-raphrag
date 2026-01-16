@@ -1,6 +1,30 @@
 {
   "title": "ナレッジベース",
   "searchPlaceholder": "ナレッジを検索...",
+  "reembed": {
+    "title": "ドキュメント再埋め込み",
+    "configureButton": "設定して再埋め込み",
+    "hideParameters": "パラメータを非表示",
+    "chunkSize": "チャンクサイズ (100-4000)",
+    "chunkSizeHint": "チャンクあたりの文字数",
+    "chunkOverlap": "チャンクオーバーラップ (0-500)",
+    "chunkOverlapHint": "チャンク間の重複文字数",
+    "processingMode": "処理モード",
+    "processingModes": {
+      "textOnly": "テキストのみ",
+      "imageOnly": "画像のみ (OCR)",
+      "vlmEnhanced": "VLM強化"
+    },
+    "enableVlm": "VLM分析を有効化",
+    "extractTables": "テーブル抽出",
+    "extractImages": "画像抽出",
+    "warning": "再埋め込みは既存のチャンクと埋め込みを削除し、指定されたパラメータで新しく作成します。この処理には数分かかる場合があります。",
+    "hint": "埋め込み品質が低い場合、異なるチャンクサイズと処理オプションでドキュメントを再埋め込みして検索精度を向上させることができます。",
+    "startButton": "再埋め込みを開始",
+    "processing": "処理中...",
+    "cancel": "キャンセル",
+    "started": "再埋め込みが開始されました！"
+  },
   "askQuestion": "質問する",
   "noResults": "結果が見つかりません",
   "sources": "ソース",

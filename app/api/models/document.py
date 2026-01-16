@@ -42,10 +42,9 @@ class DocumentType(str, Enum):
 
 class ProcessingMode(str, Enum):
     """Document processing mode"""
-    TEXT_ONLY = "text_only"  # Traditional text extraction
-    VLM_ENHANCED = "vlm_enhanced"  # VLM-assisted extraction
-    MULTIMODAL = "multimodal"  # Full multimodal with image understanding
-    OCR = "ocr"  # OCR for scanned documents
+    TEXT_ONLY = "text_only"  # Traditional text extraction (pypdf)
+    IMAGE_ONLY = "image_only"  # OCR extraction for scanned/image-based documents
+    VLM_ENHANCED = "vlm_enhanced"  # VLM-assisted: text + OCR + layout + table extraction
 
 
 # MIME type mappings
