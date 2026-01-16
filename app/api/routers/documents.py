@@ -390,7 +390,8 @@ async def delete_document(
             deleted_entities=result.get("deleted_entities", 0),
             deleted_text_chunks=result.get("deleted_text_chunks", 0),
             deleted_images=result.get("deleted_images", 0),
-            deleted_neo4j_nodes=result.get("deleted_neo4j_nodes", 0)
+            deleted_neo4j_nodes=result.get("deleted_neo4j_nodes", 0),
+            deleted_rag_profiles=result.get("deleted_rag_profiles", 0)
         ),
         meta=MetaInfo(request_id=request_id)
     )

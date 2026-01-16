@@ -919,7 +919,8 @@ class DocumentService:
             "deleted_entities": doc.get("entities_count", 0),
             "deleted_text_chunks": 0,
             "deleted_images": 0,
-            "deleted_neo4j_nodes": 0
+            "deleted_neo4j_nodes": 0,
+            "deleted_rag_profiles": 0
         }
 
         # 1. Delete from Neo4j (Document and Chunk nodes)
@@ -943,14 +944,21 @@ class DocumentService:
         except Exception as e:
             logger.error(f"Failed to delete images from PostgreSQL: {e}")
 
-        # 4. Delete from document repository (original implementation)
+        # 4. Delete from PostgreSQL document_rag_profiles table
+        try:
+            deleted_counts["deleted_rag_profiles"] = await self._delete_rag_profiles(document_id)
+            logger.info(f"Deleted {deleted_counts['deleted_rag_profiles']} RAG profile assignments from PostgreSQL for document {document_id}")
+        except Exception as e:
+            logger.error(f"Failed to delete RAG profiles from PostgreSQL: {e}")
+
+        # 5. Delete from document repository (original implementation)
         if self._repository:
             try:
                 await self._repository.delete_document(document_id)
             except Exception as e:
                 logger.error(f"Failed to delete document from repository: {e}")
 
-        # 5. Delete from memory cache
+        # 6. Delete from memory cache
         del self._documents[document_id]
         if document_id in self._chunks:
             del self._chunks[document_id]
@@ -1055,6 +1063,37 @@ class DocumentService:
 
         except Exception as e:
             logger.error(f"PostgreSQL image_embeddings deletion error: {e}")
+            raise
+
+    async def _delete_rag_profiles(self, document_id: str) -> int:
+        """Delete RAG profile assignments from PostgreSQL."""
+        try:
+            import asyncpg
+            from ..core.config import api_settings
+
+            pool = await asyncpg.create_pool(
+                host=api_settings.POSTGRES_HOST,
+                port=int(api_settings.POSTGRES_PORT),
+                user=api_settings.POSTGRES_USER,
+                password=api_settings.POSTGRES_PASSWORD,
+                database=api_settings.POSTGRES_DB,
+                min_size=1,
+                max_size=3
+            )
+
+            try:
+                async with pool.acquire() as conn:
+                    result = await conn.execute("""
+                        DELETE FROM document_rag_profiles WHERE document_id = $1
+                    """, document_id)
+                    # Parse "DELETE N" to get count
+                    count = int(result.split()[-1]) if result else 0
+                    return count
+            finally:
+                await pool.close()
+
+        except Exception as e:
+            logger.error(f"PostgreSQL document_rag_profiles deletion error: {e}")
             raise
 
     async def get_document_chunks(

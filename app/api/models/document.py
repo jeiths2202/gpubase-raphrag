@@ -245,6 +245,7 @@ class DocumentDeleteResponse(BaseModel):
     deleted_text_chunks: int = Field(default=0, description="PostgreSQL text_chunks 삭제 수")
     deleted_images: int = Field(default=0, description="PostgreSQL image_embeddings 삭제 수")
     deleted_neo4j_nodes: int = Field(default=0, description="Neo4j 노드 삭제 수")
+    deleted_rag_profiles: int = Field(default=0, description="PostgreSQL document_rag_profiles 삭제 수")
 
 
 class ChunkInfo(BaseModel):
