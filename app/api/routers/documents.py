@@ -4,6 +4,7 @@ Documents API Router
 Supports: PDF, Word, Excel, PowerPoint, Text, Markdown, CSV, JSON, Images
 """
 import os
+import json
 import uuid
 from datetime import datetime
 from typing import Optional, List
@@ -22,6 +23,12 @@ from ..models.document import (
     UploadStatusResponse,
     UploadProgress,
     UploadStep,
+    EmbeddingQualityResponse,
+    EmbeddingQualityMetrics,
+    QualityLevel,
+    SimilarityTestResult,
+    ReEmbedRequest,
+    ReEmbedResponse,
     EXTENSION_TO_MIME,
     SUPPORTED_MIME_TYPES,
 )
@@ -33,6 +40,19 @@ router = APIRouter(prefix="/documents", tags=["Documents"])
 # Supported file extensions
 SUPPORTED_EXTENSIONS = list(EXTENSION_TO_MIME.keys())
 SUPPORTED_EXTENSIONS_STR = ", ".join(SUPPORTED_EXTENSIONS)
+
+
+def _parse_json_fields(result: dict) -> dict:
+    """Parse JSON string fields from database result"""
+    json_fields = ['tags', 'stats', 'processing_info']
+    for field in json_fields:
+        if field in result and isinstance(result[field], str):
+            try:
+                result[field] = json.loads(result[field])
+            except (json.JSONDecodeError, TypeError):
+                # Keep as-is if parsing fails
+                pass
+    return result
 
 
 @router.get(
@@ -331,6 +351,9 @@ async def get_document(
             detail={"code": "DOCUMENT_NOT_FOUND", "message": "문서를 찾을 수 없습니다."}
         )
 
+    # Parse JSON string fields from database
+    result = _parse_json_fields(result)
+
     return SuccessResponse(
         data=DocumentDetail(**result),
         meta=MetaInfo(request_id=request_id)
@@ -363,8 +386,11 @@ async def delete_document(
         data=DocumentDeleteResponse(
             document_id=document_id,
             message="문서가 성공적으로 삭제되었습니다.",
-            deleted_chunks=result["deleted_chunks"],
-            deleted_entities=result["deleted_entities"]
+            deleted_chunks=result.get("deleted_chunks", 0),
+            deleted_entities=result.get("deleted_entities", 0),
+            deleted_text_chunks=result.get("deleted_text_chunks", 0),
+            deleted_images=result.get("deleted_images", 0),
+            deleted_neo4j_nodes=result.get("deleted_neo4j_nodes", 0)
         ),
         meta=MetaInfo(request_id=request_id)
     )
@@ -407,4 +433,219 @@ async def get_document_chunks(
             has_next=page * limit < result["total"],
             has_prev=page > 1
         )
+    )
+
+
+@router.post(
+    "/{document_id}/verify-embedding",
+    response_model=SuccessResponse[EmbeddingQualityResponse],
+    summary="임베딩 품질 검증",
+    description="""문서의 임베딩 품질을 검증합니다.
+
+검증 항목:
+- **검색 정확도**: 청크가 자기 자신을 올바르게 검색하는지
+- **유사도 분포**: 임베딩 벡터가 적절히 분포되어 있는지
+- **커버리지**: 모든 청크가 검색 가능한지
+
+품질 등급:
+- **excellent**: 0.8 이상 (우수)
+- **good**: 0.6 이상 (양호)
+- **fair**: 0.4 이상 (보통)
+- **poor**: 0.4 미만 (개선 필요)
+"""
+)
+async def verify_embedding_quality(
+    document_id: str,
+    sample_size: int = Query(default=10, ge=1, le=50, description="테스트할 청크 샘플 수"),
+    current_user: dict = Depends(get_current_user),
+    doc_service = Depends(get_document_service)
+):
+    """
+    Verify embedding quality for a document.
+
+    Runs quality tests on document embeddings including:
+    - Self-retrieval accuracy
+    - Similarity distribution analysis
+    - Coverage verification
+    """
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    # Check if document exists
+    document = await doc_service.get_document(document_id)
+    if not document:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "DOCUMENT_NOT_FOUND", "message": "문서를 찾을 수 없습니다."}
+        )
+
+    # Check if embeddings are ready
+    if document.get("embedding_status") != "completed":
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "EMBEDDING_NOT_READY",
+                "message": "임베딩이 아직 완료되지 않았습니다.",
+                "details": {"current_status": document.get("embedding_status")}
+            }
+        )
+
+    # Run quality verification
+    result = await doc_service.verify_embedding_quality(document_id, sample_size)
+
+    if not result:
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "VERIFICATION_FAILED", "message": "품질 검증에 실패했습니다."}
+        )
+
+    return SuccessResponse(
+        data=EmbeddingQualityResponse(
+            document_id=result["document_id"],
+            verified_at=result["verified_at"],
+            metrics=EmbeddingQualityMetrics(
+                overall_score=result["overall_score"],
+                quality_level=QualityLevel(result["quality_level"]),
+                retrieval_accuracy=result["retrieval_accuracy"],
+                avg_similarity=result["avg_similarity"],
+                similarity_std=result["similarity_std"],
+                coverage_score=result["coverage_score"]
+            ),
+            embedding_dimension=result["embedding_dimension"],
+            chunks_tested=result["chunks_tested"],
+            chunks_total=result["chunks_total"],
+            test_results=[
+                SimilarityTestResult(**tr) for tr in result.get("test_results", [])
+            ],
+            issues=result.get("issues", []),
+            recommendations=result.get("recommendations", [])
+        ),
+        meta=MetaInfo(request_id=request_id)
+    )
+
+
+@router.get(
+    "/{document_id}/embedding-quality",
+    response_model=SuccessResponse[EmbeddingQualityResponse],
+    summary="임베딩 품질 결과 조회",
+    description="저장된 임베딩 품질 검증 결과를 조회합니다."
+)
+async def get_embedding_quality(
+    document_id: str,
+    current_user: dict = Depends(get_current_user),
+    doc_service = Depends(get_document_service)
+):
+    """Get stored embedding quality verification result."""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    result = await doc_service.get_embedding_quality(document_id)
+
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "QUALITY_NOT_FOUND",
+                "message": "품질 검증 결과가 없습니다. 먼저 검증을 수행해주세요."
+            }
+        )
+
+    return SuccessResponse(
+        data=EmbeddingQualityResponse(
+            document_id=result["document_id"],
+            verified_at=result["verified_at"],
+            metrics=EmbeddingQualityMetrics(
+                overall_score=result["overall_score"],
+                quality_level=QualityLevel(result["quality_level"]),
+                retrieval_accuracy=result["retrieval_accuracy"],
+                avg_similarity=result["avg_similarity"],
+                similarity_std=result["similarity_std"],
+                coverage_score=result["coverage_score"]
+            ),
+            embedding_dimension=result["embedding_dimension"],
+            chunks_tested=result["chunks_tested"],
+            chunks_total=result["chunks_total"],
+            test_results=[
+                SimilarityTestResult(**tr) for tr in result.get("test_results", [])
+            ],
+            issues=result.get("issues", []),
+            recommendations=result.get("recommendations", [])
+        ),
+        meta=MetaInfo(request_id=request_id)
+    )
+
+
+@router.post(
+    "/{document_id}/re-embed",
+    response_model=SuccessResponse[ReEmbedResponse],
+    summary="문서 재임베딩",
+    description="""문서를 새로운 파라미터로 다시 임베딩합니다.
+
+재임베딩 파라미터:
+- **chunk_size**: 텍스트 청크 크기 (100-4000자)
+- **chunk_overlap**: 청크 간 오버랩 (0-500자)
+- **processing_mode**: 처리 모드 (text_only, vlm_enhanced, multimodal, ocr)
+- **enable_vlm**: VLM 활성화 여부
+- **extract_tables**: 표 추출 여부
+- **extract_images**: 이미지 추출 여부
+- **force**: 처리 중인 문서도 강제 재임베딩
+"""
+)
+async def re_embed_document(
+    document_id: str,
+    request: ReEmbedRequest,
+    current_user: dict = Depends(get_current_user),
+    doc_service = Depends(get_document_service)
+):
+    """
+    Re-embed a document with custom parameters.
+
+    This endpoint allows users to re-process a document with different
+    chunking and processing parameters to improve embedding quality.
+    """
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    # Check if document exists
+    document = await doc_service.get_document(document_id)
+    if not document:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "DOCUMENT_NOT_FOUND", "message": "문서를 찾을 수 없습니다."}
+        )
+
+    # Check if document is currently processing
+    if document.get("status") == "processing" and not request.force:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "DOCUMENT_PROCESSING",
+                "message": "문서가 현재 처리 중입니다. force=true로 강제 재임베딩할 수 있습니다."
+            }
+        )
+
+    # Start re-embedding
+    result = await doc_service.re_embed_document(
+        document_id=document_id,
+        chunk_size=request.chunk_size,
+        chunk_overlap=request.chunk_overlap,
+        processing_mode=request.processing_mode.value,
+        enable_vlm=request.enable_vlm,
+        extract_tables=request.extract_tables,
+        extract_images=request.extract_images
+    )
+
+    return SuccessResponse(
+        data=ReEmbedResponse(
+            document_id=document_id,
+            task_id=result["task_id"],
+            status=result["status"],
+            message="재임베딩이 시작되었습니다. 처리 완료까지 약 2-5분 소요됩니다.",
+            parameters={
+                "chunk_size": request.chunk_size,
+                "chunk_overlap": request.chunk_overlap,
+                "processing_mode": request.processing_mode.value,
+                "enable_vlm": request.enable_vlm,
+                "extract_tables": request.extract_tables,
+                "extract_images": request.extract_images
+            }
+        ),
+        meta=MetaInfo(request_id=request_id)
     )

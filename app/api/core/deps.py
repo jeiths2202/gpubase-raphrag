@@ -904,7 +904,7 @@ class DocumentService:
         }
 
     async def delete_document(self, document_id: str) -> dict:
-        """Delete a document and its chunks."""
+        """Delete a document and all related data from all storage backends."""
         # Ensure documents are loaded from database
         await self._ensure_loaded()
 
@@ -914,22 +914,148 @@ class DocumentService:
         doc = self._documents[document_id]
         chunks = self._chunks.get(document_id, [])
 
-        # Delete from database first
+        deleted_counts = {
+            "deleted_chunks": len(chunks),
+            "deleted_entities": doc.get("entities_count", 0),
+            "deleted_text_chunks": 0,
+            "deleted_images": 0,
+            "deleted_neo4j_nodes": 0
+        }
+
+        # 1. Delete from Neo4j (Document and Chunk nodes)
+        try:
+            deleted_counts["deleted_neo4j_nodes"] = await self._delete_from_neo4j(document_id)
+            logger.info(f"Deleted {deleted_counts['deleted_neo4j_nodes']} nodes from Neo4j for document {document_id}")
+        except Exception as e:
+            logger.error(f"Failed to delete from Neo4j: {e}")
+
+        # 2. Delete from PostgreSQL text_chunks table
+        try:
+            deleted_counts["deleted_text_chunks"] = await self._delete_text_chunks(document_id)
+            logger.info(f"Deleted {deleted_counts['deleted_text_chunks']} text chunks from PostgreSQL for document {document_id}")
+        except Exception as e:
+            logger.error(f"Failed to delete text chunks from PostgreSQL: {e}")
+
+        # 3. Delete from PostgreSQL image_embeddings table
+        try:
+            deleted_counts["deleted_images"] = await self._delete_image_embeddings(document_id)
+            logger.info(f"Deleted {deleted_counts['deleted_images']} images from PostgreSQL for document {document_id}")
+        except Exception as e:
+            logger.error(f"Failed to delete images from PostgreSQL: {e}")
+
+        # 4. Delete from document repository (original implementation)
         if self._repository:
             try:
                 await self._repository.delete_document(document_id)
             except Exception as e:
-                logger.error(f"Failed to delete document from database: {e}")
+                logger.error(f"Failed to delete document from repository: {e}")
 
-        # Delete from memory cache
+        # 5. Delete from memory cache
         del self._documents[document_id]
         if document_id in self._chunks:
             del self._chunks[document_id]
 
-        return {
-            "deleted_chunks": len(chunks),
-            "deleted_entities": doc.get("entities_count", 0)
-        }
+        logger.info(f"Document {document_id} deleted. Stats: {deleted_counts}")
+
+        return deleted_counts
+
+    async def _delete_from_neo4j(self, document_id: str) -> int:
+        """Delete document and related chunks from Neo4j."""
+        try:
+            from langchain_neo4j import Neo4jGraph
+            from app.src.config import config
+
+            graph = Neo4jGraph(
+                url=config.neo4j.uri,
+                username=config.neo4j.user,
+                password=config.neo4j.password
+            )
+
+            # First, delete Chunk nodes linked to Document via CONTAINS relationship
+            chunk_result = graph.query("""
+                MATCH (d:Document {id: $doc_id})-[:CONTAINS]->(c:Chunk)
+                DETACH DELETE c
+                RETURN count(*) as deleted_count
+            """, params={"doc_id": document_id})
+
+            chunk_count = chunk_result[0]["deleted_count"] if chunk_result else 0
+
+            # Then delete the Document node
+            doc_result = graph.query("""
+                MATCH (d:Document {id: $doc_id})
+                DETACH DELETE d
+                RETURN count(*) as deleted_count
+            """, params={"doc_id": document_id})
+
+            doc_count = doc_result[0]["deleted_count"] if doc_result else 0
+
+            return chunk_count + doc_count
+
+        except Exception as e:
+            logger.error(f"Neo4j deletion error: {e}")
+            raise
+
+    async def _delete_text_chunks(self, document_id: str) -> int:
+        """Delete text chunks from PostgreSQL."""
+        try:
+            import asyncpg
+            from ..core.config import api_settings
+
+            pool = await asyncpg.create_pool(
+                host=api_settings.POSTGRES_HOST,
+                port=int(api_settings.POSTGRES_PORT),
+                user=api_settings.POSTGRES_USER,
+                password=api_settings.POSTGRES_PASSWORD,
+                database=api_settings.POSTGRES_DB,
+                min_size=1,
+                max_size=3
+            )
+
+            try:
+                async with pool.acquire() as conn:
+                    result = await conn.execute("""
+                        DELETE FROM text_chunks WHERE document_id = $1
+                    """, document_id)
+                    # Parse "DELETE N" to get count
+                    count = int(result.split()[-1]) if result else 0
+                    return count
+            finally:
+                await pool.close()
+
+        except Exception as e:
+            logger.error(f"PostgreSQL text_chunks deletion error: {e}")
+            raise
+
+    async def _delete_image_embeddings(self, document_id: str) -> int:
+        """Delete image embeddings from PostgreSQL."""
+        try:
+            import asyncpg
+            from ..core.config import api_settings
+
+            pool = await asyncpg.create_pool(
+                host=api_settings.POSTGRES_HOST,
+                port=int(api_settings.POSTGRES_PORT),
+                user=api_settings.POSTGRES_USER,
+                password=api_settings.POSTGRES_PASSWORD,
+                database=api_settings.POSTGRES_DB,
+                min_size=1,
+                max_size=3
+            )
+
+            try:
+                async with pool.acquire() as conn:
+                    result = await conn.execute("""
+                        DELETE FROM image_embeddings WHERE document_id = $1
+                    """, document_id)
+                    # Parse "DELETE N" to get count
+                    count = int(result.split()[-1]) if result else 0
+                    return count
+            finally:
+                await pool.close()
+
+        except Exception as e:
+            logger.error(f"PostgreSQL image_embeddings deletion error: {e}")
+            raise
 
     async def get_document_chunks(
         self,
