@@ -467,8 +467,8 @@ class RAGService:
                     **gs,
                     "is_session_doc": False,
                     "is_external_resource": False,
-                    "page_number": None,
                     "source_url": None
+                    # page_number is preserved from gs via **gs spread
                 })
 
         # Sort by score descending
@@ -685,8 +685,14 @@ class RAGService:
         doc_ids = list(set(r.get("doc_id", "") for r in results_list if r.get("doc_id")))
         chunk_ids = list(set(r.get("chunk_id", "") for r in results_list if r.get("chunk_id")))
 
+        print(f"[RAGService] Fetching doc_names for: {doc_ids}", flush=True)
+        print(f"[RAGService] Fetching page_numbers for chunk_ids: {chunk_ids}", flush=True)
+
         doc_names = self._get_document_names_sync(doc_ids)
         page_numbers = self._get_chunk_page_numbers_sync(chunk_ids)
+
+        print(f"[RAGService] doc_names result: {doc_names}", flush=True)
+        print(f"[RAGService] page_numbers result: {page_numbers}", flush=True)
 
         # Format sources for API response
         sources = []
