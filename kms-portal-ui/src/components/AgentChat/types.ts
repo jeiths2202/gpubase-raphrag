@@ -46,6 +46,11 @@ export interface ImageReference {
   similarity?: number;
   imageBase64?: string;
   mimeType?: string;
+  // Figure reference fields for document image display
+  figureReference?: string;  // e.g., "fig_1_1", "fig_2"
+  figureCaption?: string;    // Caption text for the figure
+  width?: number;
+  height?: number;
 }
 
 /**

@@ -125,6 +125,18 @@ class ImageInfo(BaseModel):
     alt_text: str = ""
     embedding: Optional[List[float]] = None
     vlm_analysis: Optional[Dict[str, Any]] = None
+    # Actual image binary data for embedding processing
+    data: Optional[bytes] = None
+    width: int = 0
+    height: int = 0
+    mime_type: str = ""
+    # Figure reference for matching images to text references (e.g., "図1.1", "Figure 1-1")
+    figure_reference: Optional[str] = None
+    figure_caption: Optional[str] = None
+
+    class Config:
+        # Allow arbitrary types for bytes field
+        arbitrary_types_allowed = True
 
 
 class TableInfo(BaseModel):
@@ -169,13 +181,16 @@ class DocumentStats(BaseModel):
     tables_count: int = 0
     figures_count: int = 0
     vlm_processed: bool = False
+    total_characters: Optional[int] = None
+    title: Optional[str] = None
+    author: Optional[str] = None
 
 
 class ProcessingInfo(BaseModel):
     """Document processing information"""
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
-    processing_time_seconds: Optional[int] = None
+    processing_time_seconds: Optional[float] = None
 
 
 class DocumentListItem(BaseModel):
@@ -266,3 +281,107 @@ class UploadStatusResponse(BaseModel):
     progress: UploadProgress
     started_at: datetime
     estimated_completion: Optional[datetime] = None
+
+
+# =============================================================================
+# Embedding Quality Verification Models
+# =============================================================================
+
+class QualityLevel(str, Enum):
+    """Embedding quality level"""
+    EXCELLENT = "excellent"  # >= 0.8
+    GOOD = "good"           # >= 0.6
+    FAIR = "fair"           # >= 0.4
+    POOR = "poor"           # < 0.4
+
+
+class SimilarityTestResult(BaseModel):
+    """Result of a single similarity test"""
+    query: str
+    expected_chunk_index: int
+    retrieved_chunk_index: int
+    similarity_score: float
+    is_hit: bool
+
+
+class EmbeddingQualityMetrics(BaseModel):
+    """Embedding quality metrics"""
+    overall_score: float = Field(ge=0.0, le=1.0, description="Overall quality score (0-1)")
+    quality_level: QualityLevel = Field(description="Quality level classification")
+    retrieval_accuracy: float = Field(ge=0.0, le=1.0, description="Retrieval accuracy rate")
+    avg_similarity: float = Field(ge=0.0, le=1.0, description="Average similarity score")
+    similarity_std: float = Field(ge=0.0, description="Similarity standard deviation")
+    coverage_score: float = Field(ge=0.0, le=1.0, description="Embedding coverage score")
+
+
+class EmbeddingQualityResponse(BaseModel):
+    """Embedding quality verification response"""
+    document_id: str
+    verified_at: datetime
+    metrics: EmbeddingQualityMetrics
+    embedding_dimension: int
+    chunks_tested: int
+    chunks_total: int
+    test_results: List[SimilarityTestResult] = Field(default_factory=list)
+    issues: List[str] = Field(default_factory=list)
+    recommendations: List[str] = Field(default_factory=list)
+
+
+class EmbeddingQualitySummary(BaseModel):
+    """Summary of embedding quality for document list"""
+    overall_score: float = Field(ge=0.0, le=1.0)
+    quality_level: QualityLevel
+    verified_at: Optional[datetime] = None
+    has_issues: bool = False
+
+
+# =============================================================================
+# Re-Embedding Models
+# =============================================================================
+
+class ReEmbedRequest(BaseModel):
+    """Request to re-embed a document with custom parameters"""
+    chunk_size: int = Field(
+        default=512,
+        ge=100,
+        le=4000,
+        description="Size of each text chunk in characters"
+    )
+    chunk_overlap: int = Field(
+        default=50,
+        ge=0,
+        le=500,
+        description="Overlap between consecutive chunks"
+    )
+    processing_mode: ProcessingMode = Field(
+        default=ProcessingMode.TEXT_ONLY,
+        description="Processing mode for document"
+    )
+    enable_vlm: bool = Field(
+        default=False,
+        description="Enable Vision Language Model processing"
+    )
+    extract_tables: bool = Field(
+        default=True,
+        description="Extract tables from document"
+    )
+    extract_images: bool = Field(
+        default=True,
+        description="Extract images from document"
+    )
+    force: bool = Field(
+        default=False,
+        description="Force re-embedding even if already processing"
+    )
+
+
+class ReEmbedResponse(BaseModel):
+    """Response for re-embedding request"""
+    document_id: str
+    task_id: str
+    status: str = Field(description="Current status: processing, queued")
+    message: str
+    parameters: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Applied re-embedding parameters"
+    )

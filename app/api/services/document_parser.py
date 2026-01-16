@@ -179,7 +179,7 @@ class TextParser(BaseDocumentParser):
 
 
 class PDFParser(BaseDocumentParser):
-    """Parser for PDF documents."""
+    """Parser for PDF documents using pypdf for real extraction."""
 
     SUPPORTED_TYPES = ["application/pdf"]
 
@@ -193,102 +193,241 @@ class PDFParser(BaseDocumentParser):
         options: Dict[str, Any] = None
     ) -> ParsedDocument:
         """
-        Parse PDF document.
-
-        In production, this would use libraries like:
-        - PyMuPDF (fitz)
-        - pdfplumber
-        - PyPDF2
-        - pdf2image for page rendering
+        Parse PDF document using pypdf library for real statistics.
         """
         options = options or {}
         doc = ParsedDocument(DocumentType.PDF, filename, "application/pdf")
 
-        # Mock PDF parsing (in production, use actual PDF library)
-        doc.text_content = await self._mock_pdf_extraction(file_content)
+        # Use real PDF parsing with pypdf
+        pdf_data = await self._extract_pdf_content(file_content, options)
 
-        # Extract metadata
-        doc.metadata = {
-            "pages": 10,  # Mock page count
-            "title": filename.replace(".pdf", ""),
-            "author": "Unknown",
-            "created_date": datetime.now(timezone.utc).isoformat(),
-            "pdf_version": "1.7"
-        }
-
-        # Mock pages
-        doc.pages = [
-            {"page_number": i + 1, "content": f"Page {i + 1} content..."}
-            for i in range(doc.metadata["pages"])
-        ]
-
-        # Mock table extraction
-        if options.get("extract_tables", True):
-            doc.tables = await self._mock_table_extraction()
-
-        # Mock image extraction
-        if options.get("extract_images", True):
-            doc.images = await self._mock_image_extraction()
+        doc.text_content = pdf_data["text_content"]
+        doc.pages = pdf_data["pages"]
+        doc.metadata = pdf_data["metadata"]
+        doc.images = pdf_data["images"]
+        doc.tables = pdf_data["tables"]
 
         doc.processing_info = {
             "parser": "PDFParser",
             "parsed_at": datetime.now(timezone.utc).isoformat(),
-            "options": options
+            "options": options,
+            "extraction_method": "pypdf"
         }
 
         return doc
 
-    async def _mock_pdf_extraction(self, content: bytes) -> str:
-        """Mock PDF text extraction."""
-        await asyncio.sleep(0.5)
-        return """PDF 문서 내용
+    async def _extract_pdf_content(
+        self,
+        content: bytes,
+        options: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Extract real content from PDF using pypdf."""
+        try:
+            from pypdf import PdfReader
 
-1. 개요
-본 문서는 시스템 설계 및 구현에 대한 내용을 담고 있습니다.
-
-2. 시스템 아키텍처
-- 프론트엔드: React + TypeScript
-- 백엔드: FastAPI + Python
-- 데이터베이스: Neo4j, PostgreSQL
-
-3. 주요 기능
-3.1 문서 관리
-문서 업로드, 분석, 검색 기능을 제공합니다.
-
-3.2 AI 기반 질의응답
-RAG 기술을 활용한 지능형 Q&A 시스템입니다.
-
-4. 결론
-본 시스템은 효율적인 지식 관리를 위한 종합 솔루션입니다."""
-
-    async def _mock_table_extraction(self) -> List[TableInfo]:
-        """Mock table extraction from PDF."""
-        return [
-            TableInfo(
-                id=f"table_{uuid.uuid4().hex[:8]}",
-                page_number=3,
-                headers=["구성요소", "기술", "버전"],
-                rows=[
-                    ["프론트엔드", "React", "18.2"],
-                    ["백엔드", "FastAPI", "0.100"],
-                    ["데이터베이스", "Neo4j", "5.0"]
-                ],
-                caption="시스템 기술 스택",
-                markdown=""
+            # Run in thread pool to avoid blocking
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(
+                None,
+                self._sync_extract_pdf,
+                content,
+                options
             )
-        ]
+        except ImportError:
+            # Fallback to mock if pypdf not available
+            return await self._fallback_mock_extraction(content)
+        except Exception as e:
+            # Fallback on any error
+            print(f"PDF extraction error: {e}, using fallback")
+            return await self._fallback_mock_extraction(content)
 
-    async def _mock_image_extraction(self) -> List[ImageInfo]:
-        """Mock image extraction from PDF."""
-        return [
-            ImageInfo(
-                id=f"img_{uuid.uuid4().hex[:8]}",
-                page_number=2,
-                position={"x": 100, "y": 200, "width": 400, "height": 300},
-                description="시스템 아키텍처 다이어그램",
-                alt_text="System Architecture Diagram"
-            )
-        ]
+    def _sync_extract_pdf(
+        self,
+        content: bytes,
+        options: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Synchronous PDF extraction using pypdf."""
+        from pypdf import PdfReader
+
+        pdf_file = io.BytesIO(content)
+        reader = PdfReader(pdf_file)
+
+        # Extract real page count
+        page_count = len(reader.pages)
+
+        # Extract text from each page
+        pages = []
+        full_text = []
+        image_count = 0
+
+        for i, page in enumerate(reader.pages):
+            page_text = page.extract_text() or ""
+            pages.append({
+                "page_number": i + 1,
+                "content": page_text,
+                "char_count": len(page_text)
+            })
+            full_text.append(page_text)
+
+            # Count images in page (pypdf can detect image objects)
+            try:
+                if "/XObject" in page["/Resources"]:
+                    x_objects = page["/Resources"]["/XObject"].get_object()
+                    for obj_name in x_objects:
+                        obj = x_objects[obj_name]
+                        if obj["/Subtype"] == "/Image":
+                            image_count += 1
+            except (KeyError, TypeError, AttributeError):
+                pass
+
+        # Extract metadata
+        pdf_metadata = reader.metadata or {}
+        metadata = {
+            "pages": page_count,
+            "title": pdf_metadata.get("/Title", "").strip() if pdf_metadata.get("/Title") else "",
+            "author": pdf_metadata.get("/Author", "").strip() if pdf_metadata.get("/Author") else "",
+            "subject": pdf_metadata.get("/Subject", "").strip() if pdf_metadata.get("/Subject") else "",
+            "creator": pdf_metadata.get("/Creator", "").strip() if pdf_metadata.get("/Creator") else "",
+            "created_date": str(pdf_metadata.get("/CreationDate", "")) if pdf_metadata.get("/CreationDate") else "",
+            "modified_date": str(pdf_metadata.get("/ModDate", "")) if pdf_metadata.get("/ModDate") else "",
+            "pdf_version": f"{reader.pdf_header}" if hasattr(reader, 'pdf_header') else "unknown"
+        }
+
+        # Use filename as title if not available
+        if not metadata["title"]:
+            metadata["title"] = options.get("filename", "Untitled").replace(".pdf", "")
+
+        # Create image info list with actual image data using PyMuPDF
+        images = []
+        if options.get("extract_images", True):
+            try:
+                import fitz  # PyMuPDF
+                pdf_doc = fitz.open(stream=content, filetype="pdf")
+                img_idx = 0
+                for page_num in range(len(pdf_doc)):
+                    page = pdf_doc[page_num]
+                    image_list = page.get_images(full=True)
+                    for img in image_list:
+                        try:
+                            xref = img[0]
+                            base_image = pdf_doc.extract_image(xref)
+                            if base_image:
+                                image_bytes = base_image["image"]
+                                image_ext = base_image["ext"]
+                                # Only include images larger than 100x100
+                                width = base_image.get("width", 0)
+                                height = base_image.get("height", 0)
+                                if width >= 100 and height >= 100:
+                                    images.append(ImageInfo(
+                                        id=f"img_{uuid.uuid4().hex[:8]}",
+                                        page_number=page_num + 1,
+                                        position={"x": 0, "y": 0, "width": width, "height": height},
+                                        description=f"Image on page {page_num + 1}",
+                                        alt_text=f"Embedded image {img_idx + 1}",
+                                        data=image_bytes,  # Actual image binary data
+                                        width=width,
+                                        height=height,
+                                        mime_type=f"image/{image_ext}"
+                                    ))
+                                    img_idx += 1
+                        except Exception as img_err:
+                            pass  # Skip problematic images
+                pdf_doc.close()
+            except ImportError:
+                # PyMuPDF not available, create metadata-only entries
+                for i in range(image_count):
+                    images.append(ImageInfo(
+                        id=f"img_{uuid.uuid4().hex[:8]}",
+                        page_number=0,
+                        position={"x": 0, "y": 0, "width": 0, "height": 0},
+                        description=f"Image {i + 1}",
+                        alt_text=f"Embedded image {i + 1}"
+                    ))
+            except Exception as e:
+                print(f"Image extraction error: {e}")
+
+        # Extract figure references and match to images
+        if images:
+            try:
+                from .figure_reference_extractor import get_figure_extractor
+                extractor = get_figure_extractor()
+
+                # Extract figure references from page text
+                figure_refs = extractor.extract_references(pages)
+
+                if figure_refs:
+                    # Convert images to dict format for matching
+                    image_dicts = [{"page_number": img.page_number} for img in images]
+
+                    # Match references to images
+                    mappings = extractor.match_to_images(figure_refs, image_dicts)
+
+                    # Update images with figure references
+                    for mapping in mappings:
+                        if 0 <= mapping.image_index < len(images):
+                            img = images[mapping.image_index]
+                            # Update the ImageInfo with figure reference
+                            images[mapping.image_index] = ImageInfo(
+                                id=img.id,
+                                page_number=img.page_number,
+                                position=img.position,
+                                description=img.description,
+                                alt_text=img.alt_text,
+                                data=img.data,
+                                width=img.width,
+                                height=img.height,
+                                mime_type=img.mime_type,
+                                figure_reference=mapping.normalized,
+                                figure_caption=mapping.caption
+                            )
+                            print(f"Matched figure {mapping.reference} -> image {mapping.image_index} (page {img.page_number})")
+            except Exception as e:
+                print(f"Figure reference extraction error: {e}")
+
+        # Table detection (basic heuristic - count lines with multiple | or tabs)
+        tables = []
+        table_pattern = re.compile(r'(\|.*\|)|(\t.*\t.*\t)')
+        table_count = 0
+        for i, page in enumerate(pages):
+            content = page.get("content", "")
+            if table_pattern.search(content):
+                table_count += 1
+                tables.append(TableInfo(
+                    id=f"table_{uuid.uuid4().hex[:8]}",
+                    page_number=i + 1,
+                    headers=[],
+                    rows=[],
+                    caption=f"Table detected on page {i + 1}",
+                    markdown=""
+                ))
+
+        return {
+            "text_content": "\n\n".join(full_text),
+            "pages": pages,
+            "metadata": metadata,
+            "images": images,
+            "tables": tables
+        }
+
+    async def _fallback_mock_extraction(self, content: bytes) -> Dict[str, Any]:
+        """Fallback mock extraction when pypdf fails."""
+        await asyncio.sleep(0.1)
+        return {
+            "text_content": "PDF content could not be extracted",
+            "pages": [{"page_number": 1, "content": "Content extraction failed", "char_count": 0}],
+            "metadata": {
+                "pages": 1,
+                "title": "Unknown",
+                "author": "",
+                "subject": "",
+                "creator": "",
+                "created_date": "",
+                "modified_date": "",
+                "pdf_version": "unknown"
+            },
+            "images": [],
+            "tables": []
+        }
 
 
 class WordParser(BaseDocumentParser):

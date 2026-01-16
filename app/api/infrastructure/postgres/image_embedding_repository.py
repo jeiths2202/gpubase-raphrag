@@ -140,6 +140,8 @@ class PostgresImageEmbeddingRepository(ImageEmbeddingRepository):
             alt_text=row.get("alt_text"),
             embedding=embedding,
             metadata=metadata,
+            figure_reference=row.get("figure_reference"),
+            figure_caption=row.get("figure_caption"),
             created_at=row["created_at"],
             updated_at=row["updated_at"]
         )
@@ -302,15 +304,17 @@ class PostgresImageEmbeddingRepository(ImageEmbeddingRepository):
                 INSERT INTO image_embeddings (
                     id, document_id, image_id, page_number,
                     image_data, mime_type, width, height, file_size,
-                    position, description, alt_text, embedding, metadata
+                    position, description, alt_text, embedding, metadata,
+                    figure_reference, figure_caption
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-                    $13::vector, $14::jsonb
+                    $13::vector, $14::jsonb, $15, $16
                 )
                 RETURNING id, document_id, image_id, page_number,
                           image_data, mime_type, width, height, file_size,
                           position, description, alt_text, embedding,
-                          metadata, created_at, updated_at
+                          metadata, figure_reference, figure_caption,
+                          created_at, updated_at
                 """,
                 entity_id,
                 entity.document_id,
@@ -325,7 +329,9 @@ class PostgresImageEmbeddingRepository(ImageEmbeddingRepository):
                 entity.description,
                 entity.alt_text,
                 self._embedding_to_pgvector(entity.embedding),
-                json.dumps(entity.metadata) if entity.metadata else "{}"
+                json.dumps(entity.metadata) if entity.metadata else "{}",
+                entity.figure_reference,
+                entity.figure_caption
             )
 
             logger.info(f"Stored image {image_id} for document {entity.document_id}")
@@ -543,3 +549,85 @@ class PostgresImageEmbeddingRepository(ImageEmbeddingRepository):
                 "SELECT COUNT(*) FROM image_embeddings WHERE document_id = $1",
                 document_id
             )
+
+    async def get_by_figure_references(
+        self,
+        document_id: str,
+        figure_references: List[str],
+        include_data: bool = True
+    ) -> List[ImageEmbeddingEntity]:
+        """
+        Get images by their figure references (normalized).
+
+        Args:
+            document_id: Document ID to search within
+            figure_references: List of normalized references (e.g., ["fig_1_1", "fig_2"])
+            include_data: Whether to include binary image data
+
+        Returns:
+            List of matching ImageEmbeddingEntity objects
+        """
+        if not figure_references:
+            return []
+
+        async with self._pool.acquire() as conn:
+            # Build query with ANY for matching multiple references
+            if include_data:
+                query = """
+                    SELECT id, document_id, image_id, page_number,
+                           image_data, mime_type, width, height, file_size,
+                           position, description, alt_text, embedding,
+                           metadata, figure_reference, figure_caption,
+                           created_at, updated_at
+                    FROM image_embeddings
+                    WHERE document_id = $1
+                      AND figure_reference = ANY($2)
+                    ORDER BY page_number, figure_reference
+                """
+            else:
+                query = """
+                    SELECT id, document_id, image_id, page_number,
+                           mime_type, width, height, file_size,
+                           position, description, alt_text,
+                           metadata, figure_reference, figure_caption,
+                           created_at, updated_at
+                    FROM image_embeddings
+                    WHERE document_id = $1
+                      AND figure_reference = ANY($2)
+                    ORDER BY page_number, figure_reference
+                """
+
+            rows = await conn.fetch(query, document_id, figure_references)
+            return [self._row_to_entity(row, include_data=include_data) for row in rows]
+
+    async def update_figure_reference(
+        self,
+        image_id: str,
+        figure_reference: str,
+        figure_caption: Optional[str] = None
+    ) -> bool:
+        """Update the figure reference for an image."""
+        async with self._pool.acquire() as conn:
+            if figure_caption is not None:
+                result = await conn.execute(
+                    """
+                    UPDATE image_embeddings
+                    SET figure_reference = $1, figure_caption = $2,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE image_id = $3
+                    """,
+                    figure_reference,
+                    figure_caption,
+                    image_id
+                )
+            else:
+                result = await conn.execute(
+                    """
+                    UPDATE image_embeddings
+                    SET figure_reference = $1, updated_at = CURRENT_TIMESTAMP
+                    WHERE image_id = $2
+                    """,
+                    figure_reference,
+                    image_id
+                )
+            return result == "UPDATE 1"

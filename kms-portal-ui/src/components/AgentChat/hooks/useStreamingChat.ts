@@ -14,7 +14,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { streamAgent, type AgentType } from '../../../api/agent.api';
 import { conversationApi } from '../../../api/conversation.api';
-import type { ChatMessage, ToolCallInfo, AgentLocalState, AgentSource } from '../types';
+import type { ChatMessage, ToolCallInfo, AgentLocalState, AgentSource, ImageReference } from '../types';
 
 // ============================================================================
 // Types
@@ -297,6 +297,7 @@ export function useStreamingChat(
       let accumulatedContent = '';
       const toolCalls: ToolCallInfo[] = [];
       let sources: AgentSource[] = [];
+      const images: ImageReference[] = [];
       let receivedAnyChunk = false;
 
       console.log('[useStreamingChat] Starting stream for task:', userMessage.content, 'agent:', requestingAgent);
@@ -402,6 +403,33 @@ export function useStreamingChat(
               if (artifact) {
                 addArtifact(requestingAgent, artifact);
               }
+            }
+            break;
+
+          case 'image':
+            // Handle figure reference images from document
+            if (chunk.metadata) {
+              const imageRef: ImageReference = {
+                imageId: chunk.metadata.image_id || `img-${Date.now()}`,
+                documentId: chunk.metadata.document_id || '',
+                pageNumber: chunk.metadata.page_number,
+                description: chunk.metadata.figure_caption || chunk.metadata.description,
+                figureReference: chunk.metadata.figure_reference,
+                figureCaption: chunk.metadata.figure_caption,
+                imageBase64: chunk.metadata.data,  // Already in data:mime;base64,xxx format
+                mimeType: chunk.metadata.mime_type,
+                width: chunk.metadata.width,
+                height: chunk.metadata.height,
+              };
+              images.push(imageRef);
+              console.log('[useStreamingChat] Received image:', imageRef.figureReference);
+
+              // Update streaming message with new images array
+              updateAgentStreamingMessage(requestingAgent,
+                agentLocalStatesRef.current[requestingAgent].streamingMessage
+                  ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, images: [...images] }
+                  : null
+              );
             }
             break;
 
@@ -527,6 +555,7 @@ export function useStreamingChat(
         agentType: requestingAgent,
         toolCalls,
         sources,
+        images: images.length > 0 ? images : undefined,
         isStreaming: false,
       };
 

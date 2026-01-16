@@ -520,6 +520,16 @@ class AgentOrchestrator:
                     default_msg = "죄송합니다. 해당 질문에 대한 관련 정보를 지식 베이스에서 찾을 수 없습니다. 다른 키워드로 검색하거나 질문을 더 구체적으로 해주세요."
                     yield AgentStreamChunk(chunk_type="text", content=default_msg)
                     response_text_parts.append(default_msg)
+
+                # Stream figure reference images before done chunk
+                if chunk.chunk_type == "done":
+                    full_response_for_images = ''.join(response_text_parts)
+                    if full_response_for_images:
+                        async for img_chunk in self._stream_figure_images(
+                            full_response_for_images, context
+                        ):
+                            yield img_chunk
+
                 yield chunk
         except Exception as e:
             logger.error(f"[Orchestrator] ERROR: {e}")
@@ -1580,6 +1590,111 @@ List each suggestion on a new line, starting with "- ":"""
                     return para
 
         return cleaned.strip()
+
+    async def _stream_figure_images(
+        self,
+        response_text: str,
+        context: AgentContext
+    ) -> AsyncGenerator[AgentStreamChunk, None]:
+        """
+        Detect figure references in response and stream matching images.
+
+        Args:
+            response_text: Full response text to search for figure references
+            context: Agent context with session info
+
+        Yields:
+            AgentStreamChunk with image data for detected figure references
+        """
+        try:
+            from ..services.figure_reference_extractor import get_figure_detector
+            from ..services.figure_image_service import FigureImageService
+            from ..core.deps import get_image_repository
+
+            detector = get_figure_detector()
+
+            # Detect figure references in response
+            figure_refs = detector.detect_references(response_text)
+            if not figure_refs:
+                return
+
+            logger.info(f"[Orchestrator] Detected figure references: {figure_refs}")
+
+            # Get document IDs from context metadata
+            document_ids = []
+            if context.metadata:
+                doc_ids = context.metadata.get('document_ids', [])
+                if isinstance(doc_ids, list):
+                    document_ids = doc_ids
+                elif isinstance(doc_ids, str):
+                    document_ids = [doc_ids]
+
+            # Also check retrieved sources
+            sources = context.metadata.get('sources', []) if context.metadata else []
+            for source in sources:
+                if isinstance(source, dict) and source.get('document_id'):
+                    doc_id = source['document_id']
+                    if doc_id not in document_ids:
+                        document_ids.append(doc_id)
+
+            if not document_ids:
+                logger.debug("[Orchestrator] No document IDs for figure image lookup")
+                return
+
+            # Get image repository
+            try:
+                image_repo = await get_image_repository()
+            except Exception as e:
+                logger.warning(f"[Orchestrator] Could not get image repository: {e}")
+                return
+
+            # Fetch images for each document
+            all_images = []
+            for doc_id in document_ids:
+                try:
+                    images = await image_repo.get_by_figure_references(
+                        document_id=doc_id,
+                        figure_references=figure_refs,
+                        include_data=True
+                    )
+                    all_images.extend(images)
+                except Exception as e:
+                    logger.warning(f"[Orchestrator] Error fetching images for doc {doc_id}: {e}")
+
+            if not all_images:
+                logger.debug(f"[Orchestrator] No matching images found for refs: {figure_refs}")
+                return
+
+            # Format and yield image chunks
+            import base64
+            for img in all_images:
+                if img.image_data:
+                    try:
+                        b64_data = base64.b64encode(img.image_data).decode('utf-8')
+                        image_chunk = AgentStreamChunk(
+                            chunk_type="image",
+                            content="",
+                            metadata={
+                                "image_id": img.image_id,
+                                "document_id": img.document_id,
+                                "figure_reference": img.figure_reference,
+                                "figure_caption": img.figure_caption or img.description or "",
+                                "page_number": img.page_number,
+                                "width": img.width,
+                                "height": img.height,
+                                "mime_type": img.mime_type,
+                                "data": f"data:{img.mime_type};base64,{b64_data}"
+                            }
+                        )
+                        logger.info(f"[Orchestrator] Streaming image: {img.figure_reference}")
+                        yield image_chunk
+                    except Exception as e:
+                        logger.warning(f"[Orchestrator] Error encoding image {img.image_id}: {e}")
+
+        except ImportError as e:
+            logger.debug(f"[Orchestrator] Figure image service not available: {e}")
+        except Exception as e:
+            logger.error(f"[Orchestrator] Error streaming figure images: {e}")
 
     async def _fetch_url_content(self, url: str) -> tuple[Optional[str], Optional[str]]:
         """

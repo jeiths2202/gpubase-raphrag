@@ -154,39 +154,54 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         )}
 
-        {/* Images from Multimodal RAG */}
+        {/* Images from Multimodal RAG or Figure References */}
         {message.images && message.images.length > 0 && (
           <div className="agent-message-images">
             <span className="agent-images-label">
               <ImageIcon size={12} />
-              Related Images:
+              {message.images[0]?.figureReference ? 'Document Figures:' : 'Related Images:'}
             </span>
             <div className="agent-images-gallery">
-              {message.images.map((image, idx) => (
-                <div key={idx} className="agent-image-item">
-                  {image.imageBase64 ? (
-                    <img
-                      src={`data:${image.mimeType || 'image/png'};base64,${image.imageBase64}`}
-                      alt={image.altText || image.description || `Image ${idx + 1}`}
-                      className="agent-image-preview"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="agent-image-placeholder">
-                      <ImageIcon size={24} />
-                    </div>
-                  )}
-                  <div className="agent-image-info">
-                    <span className="agent-image-description">
-                      {image.description?.substring(0, 100) || `Page ${image.pageNumber || 'N/A'}`}
-                      {image.description && image.description.length > 100 && '...'}
-                    </span>
-                    {image.similarity && (
-                      <span className="agent-image-score">{Math.round(image.similarity * 100)}%</span>
+              {message.images.map((image, idx) => {
+                // Handle both data URL format and raw base64
+                const imageSrc = image.imageBase64?.startsWith('data:')
+                  ? image.imageBase64
+                  : image.imageBase64
+                    ? `data:${image.mimeType || 'image/png'};base64,${image.imageBase64}`
+                    : null;
+
+                return (
+                  <div key={idx} className="agent-image-item">
+                    {imageSrc ? (
+                      <img
+                        src={imageSrc}
+                        alt={image.altText || image.figureCaption || image.description || `Image ${idx + 1}`}
+                        className="agent-image-preview"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="agent-image-placeholder">
+                        <ImageIcon size={24} />
+                      </div>
                     )}
+                    <div className="agent-image-info">
+                      {/* Show figure reference if available */}
+                      {image.figureReference && (
+                        <span className="agent-image-figure-ref">
+                          {image.figureReference.replace('fig_', 'Figure ').replace(/_/g, '.')}
+                        </span>
+                      )}
+                      <span className="agent-image-description">
+                        {image.figureCaption || image.description?.substring(0, 100) || `Page ${image.pageNumber || 'N/A'}`}
+                        {!image.figureCaption && image.description && image.description.length > 100 && '...'}
+                      </span>
+                      {image.similarity && (
+                        <span className="agent-image-score">{Math.round(image.similarity * 100)}%</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

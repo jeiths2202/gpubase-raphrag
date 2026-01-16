@@ -48,6 +48,10 @@ class ImageEmbeddingEntity(Entity):
     # Embedding vector (4096 dimensions for bakllava)
     embedding: Optional[List[float]] = None
 
+    # Figure reference for matching images to text (e.g., "図1.1", "Figure 1-1")
+    figure_reference: Optional[str] = None
+    figure_caption: Optional[str] = None
+
     # Additional metadata
     metadata: Dict[str, Any] = field(default_factory=dict)
 
