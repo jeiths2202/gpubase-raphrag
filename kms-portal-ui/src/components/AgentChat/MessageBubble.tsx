@@ -147,7 +147,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {message.sources.map((source, idx) => (
               <div key={idx} className="agent-source-item">
                 <FileText size={12} />
-                <span>{source.source}</span>
+                <span>
+                  {source.source}
+                  {source.page_number && <span className="agent-source-page"> (p.{source.page_number})</span>}
+                </span>
                 <span className="agent-source-score">{Math.round(source.score * 100)}%</span>
               </div>
             ))}

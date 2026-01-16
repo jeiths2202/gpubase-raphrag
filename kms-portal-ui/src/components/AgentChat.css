@@ -615,6 +615,11 @@
   font-weight: 500;
 }
 
+.agent-source-page {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
 /* Images from Multimodal RAG */
 .agent-message-images {
   display: flex;

@@ -88,6 +88,8 @@ export interface AgentSource {
   content: string;
   source: string;
   score: number;
+  page_number?: number;
+  doc_id?: string;
 }
 
 /**
