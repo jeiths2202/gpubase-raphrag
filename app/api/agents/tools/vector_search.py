@@ -85,7 +85,7 @@ Returns the most relevant text chunks with their sources."""
                 formatted_sources.append({
                     "rank": i,
                     "content": source.get("content", "")[:500],  # Truncate
-                    "source": source.get("source", "Unknown"),
+                    "source": source.get("doc_name") or source.get("source", "Unknown"),
                     "score": source.get("score", 0.0),
                     "doc_id": source.get("doc_id", ""),
                     "document_id": source.get("doc_id", ""),
@@ -196,7 +196,7 @@ for exploring structured knowledge relationships."""
                     "content": source.get("content", "")[:500],
                     "entities": source.get("entities", []),
                     "relations": source.get("relations", []),
-                    "source": source.get("source", ""),
+                    "source": source.get("doc_name") or source.get("source", "Unknown"),
                     "doc_id": source.get("doc_id", ""),
                     "document_id": source.get("doc_id", ""),
                     "page_number": source.get("page_number")

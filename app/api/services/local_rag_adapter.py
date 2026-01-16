@@ -89,19 +89,26 @@ class LocalRAGAdapter:
             context_parts = []
             sources = []
 
+            # Fetch document names for all document IDs
+            doc_names = await self._get_document_names(
+                list(set(r.get("document_id", "") for r in results if r.get("document_id")))
+            )
+
             for i, result in enumerate(results):
                 content = result.get("content", "")
+                doc_id = result.get("document_id", "")
                 context_parts.append(f"[{i+1}] {content[:1000]}")
 
                 sources.append({
-                    "doc_id": result.get("document_id", ""),
-                    "doc_name": result.get("document_id", "Unknown"),
+                    "doc_id": doc_id,
+                    "doc_name": doc_names.get(doc_id, doc_id),  # Use actual doc name
                     "chunk_id": result.get("chunk_id", ""),
                     "chunk_index": result.get("chunk_index", 0),
                     "content": content[:500],
                     "score": result.get("similarity", 0.0),
                     "source_type": "local_postgres",
-                    "entities": []
+                    "entities": [],
+                    "page_number": result.get("page_number")  # Include page number
                 })
 
             context = "\n\n".join(context_parts)
@@ -191,6 +198,31 @@ Answer:"""
 
         # Fallback: return context summary
         return f"Based on the knowledge base:\n\n{context[:1500]}"
+
+    async def _get_document_names(self, document_ids: List[str]) -> Dict[str, str]:
+        """
+        Fetch document names from the documents table.
+
+        Args:
+            document_ids: List of document IDs to look up
+
+        Returns:
+            Dict mapping document_id to document name (original_name)
+        """
+        if not document_ids or not self._pool:
+            return {}
+
+        try:
+            async with self._pool.acquire() as conn:
+                rows = await conn.fetch("""
+                    SELECT id, original_name FROM documents
+                    WHERE id = ANY($1)
+                """, document_ids)
+
+                return {row['id']: row['original_name'] for row in rows}
+        except Exception as e:
+            logger.warning(f"Failed to fetch document names: {e}")
+            return {}
 
     async def classify_query(self, question: str) -> Dict[str, Any]:
         """Classify query type (simplified for local RAG)."""

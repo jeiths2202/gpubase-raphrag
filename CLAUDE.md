@@ -137,6 +137,20 @@ docs: Documentation only
 |------|------|
 | GitHub CLI | `"/c/Program Files/GitHub CLI/gh.exe"` |
 
+## Database Connection
+
+> **중요**: PostgreSQL 및 Neo4j 접속 정보는 항상 `/opt/kms/.env` 파일을 참조하세요.
+
+```bash
+# .env 파일에서 DB 접속정보 확인
+cat /opt/kms/.env | grep -E "POSTGRES|NEO4J"
+```
+
+| Database | 환경변수 |
+|----------|----------|
+| PostgreSQL | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` |
+| Neo4j | `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` |
+
 ## Notes for Claude
 
 - Use `Task` tool with `Explore` agent for broad searches
@@ -144,3 +158,4 @@ docs: Documentation only
 - Always run tests after modifications
 - Update translations in all 3 locales (en, ko, ja) for UI changes
 - Use full path for `gh.exe` on Windows (see Windows Tool Paths above)
+- **DB 접속 시 항상 `.env` 파일의 접속정보 사용**
