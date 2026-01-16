@@ -412,27 +412,16 @@ def get_ims_tools() -> List[Callable]:
     return tools
 
 
+def _load_ims_system_prompt() -> str:
+    """Load IMS system prompt from external file."""
+    from pathlib import Path
+    prompt_file = Path(__file__).parent.parent / "prompts" / "middleware" / "ims_system.txt"
+    if prompt_file.exists():
+        return prompt_file.read_text(encoding="utf-8")
+    # Fallback prompt
+    return """## IMS Search Guidelines
+Search IMS for issues, provide URLs, use filters when specified."""
+
+
 # IMS 시스템 프롬프트 (create_deep_agent의 system_prompt에 추가)
-IMS_SYSTEM_PROMPT = """
-## IMS (Issue Management System) Search Guidelines
-
-You have access to the IMS issue tracking system.
-
-### Available Tools:
-
-1. **ims_search**: Search for issues in IMS
-   - Use to find bug reports, feature requests, or technical issues
-   - Can filter by status (open, closed, in_progress), priority (critical, high, medium, low), and product
-   - Returns list of matching issues with ID, title, status, priority, URL
-
-2. **ims_get_detail**: Get detailed information for a specific issue
-   - Use when you need full details including description, action logs
-   - Requires the issue ID (e.g., "IMS-12345")
-
-### Important Rules:
-
-1. **Search First**: When user asks about IMS issues, ALWAYS use ims_search first.
-2. **Provide URLs**: Always include the IMS URL so users can access the issue directly.
-3. **Be Specific**: Use filters (status, priority, product) when the user provides specific criteria.
-4. **Get Details**: If user asks for detailed information about a specific issue, use ims_get_detail.
-"""
+IMS_SYSTEM_PROMPT = _load_ims_system_prompt()

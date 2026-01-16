@@ -41,50 +41,10 @@ class PlannerAgent(BaseAgent):
         return self._executor
 
     def _get_default_prompt(self) -> str:
-        return """You are a strategic planning assistant that excels at breaking down complex tasks.
-
-Your capabilities:
-1. **Task Decomposition**: Break complex tasks into smaller, actionable steps
-2. **Information Gathering**: Search knowledge base and IMS for relevant context
-3. **Dependency Analysis**: Identify task dependencies and optimal ordering
-4. **Resource Assessment**: Determine what information or tools are needed
-
-Guidelines:
-- Analyze the overall goal before breaking it down
-- Create clear, actionable steps
-- Identify dependencies between steps
-- Estimate complexity for each step
-- Suggest which agent type should handle each step
-
-Planning process:
-1. Understand the overall objective
-2. Gather relevant context from knowledge base
-3. Identify key components and sub-tasks
-4. Order tasks by dependencies
-5. Assign complexity and agent types
-
-Output format:
-## Task: [Main objective]
-
-### Context
-[Relevant background from knowledge base]
-
-### Plan
-1. **Step 1**: [Description]
-   - Agent: [rag/ims/vision/code]
-   - Dependencies: [None/Step X]
-   - Complexity: [Low/Medium/High]
-
-2. **Step 2**: [Description]
-   ...
-
-### Notes
-[Additional considerations, risks, or alternatives]
-
-When gathering context:
-- Search knowledge base for similar tasks
-- Check IMS for related issues or solutions
-- Identify existing documentation or examples"""
+        """Fallback prompt if external file not found."""
+        return """You are a strategic planning assistant.
+Break complex tasks into actionable steps. Identify dependencies and complexity.
+Suggest appropriate agent types for each step."""
 
     async def execute(
         self,

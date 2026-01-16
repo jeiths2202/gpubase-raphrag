@@ -62,10 +62,18 @@ class RAGToolsProvider:
         embedding_url: Optional[str] = None,
         index_name: str = "document_embeddings"
     ):
+        # Load embedding URL from config if available
+        default_embedding_url = "http://localhost:12801/v1"
+        try:
+            from ...core.config import get_api_settings
+            default_embedding_url = get_api_settings().EMBEDDING_URL
+        except Exception:
+            pass
+
         self.neo4j_uri = neo4j_uri or os.getenv("NEO4J_URI", "bolt://localhost:7687")
         self.neo4j_user = neo4j_user or os.getenv("NEO4J_USER", "neo4j")
         self.neo4j_password = neo4j_password or os.getenv("NEO4J_PASSWORD", "")
-        self.embedding_url = embedding_url or os.getenv("EMBEDDING_URL", "http://localhost:12801/v1")
+        self.embedding_url = embedding_url or os.getenv("EMBEDDING_URL", default_embedding_url)
         self.index_name = index_name
         self._vector_store = None
 
@@ -76,8 +84,16 @@ class RAGToolsProvider:
                 from langchain_community.vectorstores import Neo4jVector
                 from langchain_openai import OpenAIEmbeddings
 
+                # Load embedding model name from config
+                embedding_model = "nvidia/nv-embedqa-mistral-7b-v2"
+                try:
+                    from ...core.config import get_api_settings
+                    embedding_model = get_api_settings().EMBEDDING_MODEL_NAME
+                except Exception:
+                    pass
+
                 embeddings = OpenAIEmbeddings(
-                    model="nvidia/nv-embedqa-mistral-7b-v2",
+                    model=embedding_model,
                     openai_api_base=self.embedding_url,
                     openai_api_key="not-needed",
                 )
@@ -102,8 +118,19 @@ class RAGToolsProvider:
 
         provider = self
 
+        # Load vector search defaults from config
+        default_top_k = 5
+        max_top_k = 20
+        try:
+            from ...core.config import get_api_settings
+            _cfg = get_api_settings()
+            default_top_k = _cfg.VECTOR_SEARCH_TOP_K
+            max_top_k = _cfg.VECTOR_SEARCH_MAX_K
+        except Exception:
+            pass
+
         @tool
-        def vector_search(query: str, top_k: int = 5) -> str:
+        def vector_search(query: str, top_k: int = default_top_k) -> str:
             """Search the knowledge base for relevant documents using semantic similarity.
 
             Use this tool to find documents related to a question or topic.
@@ -111,13 +138,13 @@ class RAGToolsProvider:
 
             Args:
                 query: The search query or keywords
-                top_k: Number of results to return (default: 5, max: 20)
+                top_k: Number of results to return (default: configurable, max: configurable)
 
             Returns:
                 Relevant document contents with sources
             """
             try:
-                top_k = min(max(1, top_k), 20)
+                top_k = min(max(1, top_k), max_top_k)
                 store = provider._get_vector_store()
 
                 if store is None:
@@ -267,34 +294,16 @@ def get_rag_tools(
     return provider.get_tools()
 
 
+def _load_rag_system_prompt() -> str:
+    """Load RAG system prompt from external file."""
+    from pathlib import Path
+    prompt_file = Path(__file__).parent.parent / "prompts" / "middleware" / "rag_system.txt"
+    if prompt_file.exists():
+        return prompt_file.read_text(encoding="utf-8")
+    # Fallback prompt
+    return """## Knowledge Base Search Guidelines
+Search first, cite sources, admit limitations if no results found."""
+
+
 # RAG 시스템 프롬프트 (create_deep_agent의 system_prompt에 추가)
-RAG_SYSTEM_PROMPT = """
-## Knowledge Base Search Guidelines
-
-You have access to the HybridRAG KMS knowledge base.
-
-### Available Tools:
-
-1. **vector_search**: Semantic similarity search
-   - Use to find documents related to a question
-   - Returns relevant excerpts with sources
-
-2. **document_read**: Full document retrieval
-   - Use to read complete document content
-   - Requires document ID or source path
-
-### Important Rules:
-
-1. **Search First**: Before answering, ALWAYS use vector_search to find relevant information.
-
-2. **Cite Sources**: When using search results, mention the source.
-   Example: "According to document 'xyz.pdf'..."
-
-3. **Admit Limitations**: If no relevant results, say so honestly.
-   "I couldn't find relevant information in the knowledge base."
-
-4. **No General Knowledge**: Only use information from search results.
-   Don't answer from general knowledge if search returns nothing.
-
-5. **Multiple Searches**: For complex questions, perform multiple searches to gather comprehensive information.
-"""
+RAG_SYSTEM_PROMPT = _load_rag_system_prompt()

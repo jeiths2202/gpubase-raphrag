@@ -36,16 +36,53 @@ class EmbeddingPort(Protocol):
 
 # ==================== Configuration ====================
 
+def _get_embedding_defaults() -> dict:
+    """Get embedding defaults from config settings."""
+    try:
+        from ..core.config import get_api_settings
+        settings = get_api_settings()
+        return {
+            "model_name": settings.EMBEDDING_MODEL_NAME,
+            "dimension": settings.EMBEDDING_DIMENSION,
+            "batch_size": settings.EMBEDDING_BATCH_SIZE,
+            "max_text_length": settings.EMBEDDING_MAX_TEXT_LENGTH,
+            "timeout_seconds": settings.EMBEDDING_TIMEOUT_SECONDS,
+        }
+    except Exception:
+        # Fallback to hardcoded defaults if config not available
+        return {
+            "model_name": "nvidia/nv-embedqa-mistral-7b-v2",
+            "dimension": 4096,
+            "batch_size": 32,
+            "max_text_length": 8192,
+            "timeout_seconds": 30.0,
+        }
+
+
 @dataclass
 class EmbeddingConfig:
-    """Configuration for embedding stage"""
-    model_name: str = "nvidia/nv-embedqa-e5-v5"
-    dimension: int = 1024
-    batch_size: int = 32
-    max_text_length: int = 8192
+    """Configuration for embedding stage. Defaults loaded from environment variables."""
+    model_name: str = None
+    dimension: int = None
+    batch_size: int = None
+    max_text_length: int = None
     normalize: bool = True
     cache_enabled: bool = True
-    timeout_seconds: float = 30.0
+    timeout_seconds: float = None
+
+    def __post_init__(self):
+        """Load defaults from environment config."""
+        defaults = _get_embedding_defaults()
+        if self.model_name is None:
+            self.model_name = defaults["model_name"]
+        if self.dimension is None:
+            self.dimension = defaults["dimension"]
+        if self.batch_size is None:
+            self.batch_size = defaults["batch_size"]
+        if self.max_text_length is None:
+            self.max_text_length = defaults["max_text_length"]
+        if self.timeout_seconds is None:
+            self.timeout_seconds = defaults["timeout_seconds"]
 
 
 # ==================== Result ====================

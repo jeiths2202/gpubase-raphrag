@@ -119,6 +119,66 @@ class APISettings(BaseSettings):
             return "testing"
         return normalized
 
+    # LLM Settings
+    LLM_MAX_TOKENS: int = Field(
+        default=2048,
+        description="Maximum tokens for LLM responses (default: 2048, max context is 8192)"
+    )
+    LLM_TEMPERATURE: float = Field(
+        default=0.7,
+        description="Default temperature for LLM generation"
+    )
+    LLM_MAX_CONTEXT_LENGTH: int = Field(
+        default=6000,
+        description="Maximum context length for LLM inputs"
+    )
+
+    # Embedding Settings
+    EMBEDDING_MODEL_NAME: str = Field(
+        default="nvidia/nv-embedqa-mistral-7b-v2",
+        description="Embedding model name"
+    )
+    EMBEDDING_DIMENSION: int = Field(
+        default=4096,
+        description="Embedding vector dimension"
+    )
+    EMBEDDING_BATCH_SIZE: int = Field(
+        default=32,
+        description="Batch size for embedding operations"
+    )
+    EMBEDDING_MAX_TEXT_LENGTH: int = Field(
+        default=8192,
+        description="Maximum text length for embedding input"
+    )
+    EMBEDDING_TIMEOUT_SECONDS: float = Field(
+        default=30.0,
+        description="Timeout for embedding operations in seconds"
+    )
+    EMBEDDING_URL: str = Field(
+        default="http://localhost:12801/v1",
+        description="Embedding service URL"
+    )
+
+    # Code Agent Settings
+    CODE_AGENT_MODEL: str = Field(
+        default="mistral-nemo-12b",
+        description="Model ID for code generation agent"
+    )
+    CODE_EXECUTION_TIMEOUT: int = Field(
+        default=30,
+        description="Timeout for code execution in seconds"
+    )
+
+    # Vector Search Settings
+    VECTOR_SEARCH_TOP_K: int = Field(
+        default=5,
+        description="Default number of results for vector search"
+    )
+    VECTOR_SEARCH_MAX_K: int = Field(
+        default=20,
+        description="Maximum number of results for vector search"
+    )
+
     # Rate Limiting
     RATE_LIMIT_QUERY: int = 60  # requests per minute
     RATE_LIMIT_UPLOAD: int = 10  # requests per minute

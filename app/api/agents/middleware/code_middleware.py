@@ -92,12 +92,18 @@ class CodeToolsProvider:
                 if not cmd:
                     return f"Unsupported language: {language}"
 
-                # 타임아웃 30초로 실행
+                # 타임아웃 설정 (환경변수에서 로드)
+                try:
+                    from ...core.config import get_api_settings
+                    timeout = get_api_settings().CODE_EXECUTION_TIMEOUT
+                except Exception:
+                    timeout = 30  # Fallback
+
                 result = subprocess.run(
                     cmd,
                     capture_output=True,
                     text=True,
-                    timeout=30,
+                    timeout=timeout,
                     cwd=tempfile.gettempdir()
                 )
 
@@ -279,49 +285,16 @@ def get_code_tools() -> List[Callable]:
     return provider.get_tools()
 
 
+def _load_code_system_prompt() -> str:
+    """Load Code system prompt from external file."""
+    from pathlib import Path
+    prompt_file = Path(__file__).parent.parent / "prompts" / "middleware" / "code_system.txt"
+    if prompt_file.exists():
+        return prompt_file.read_text(encoding="utf-8")
+    # Fallback prompt
+    return """## Code Generation and Analysis Guidelines
+Write clean code, test before submit, follow best practices."""
+
+
 # Code 시스템 프롬프트
-CODE_SYSTEM_PROMPT = """
-## Code Generation and Analysis Guidelines
-
-You are an expert software developer with code execution capabilities.
-
-### Available Tools:
-
-1. **execute_code**: Run code snippets in a sandboxed environment
-   - Supported: Python, JavaScript, Go
-   - Use to verify code works correctly
-   - 30 second timeout limit
-
-2. **search_code_examples**: Search knowledge base for code examples
-   - Find relevant documentation, API examples, best practices
-   - Use to reference existing implementations
-
-3. **run_shell_command**: Execute safe shell commands
-   - Limited to safe commands only
-   - Dangerous commands are blocked
-
-### Important Rules:
-
-1. **Code Quality**: Write clean, readable, well-documented code
-2. **Security First**: Never execute potentially harmful code
-3. **Test Before Submit**: Use execute_code to verify code works
-4. **Follow Best Practices**: Adhere to language-specific conventions
-5. **Error Handling**: Include proper error handling in generated code
-
-### Response Format for Code Generation:
-
-```language
-// Description of what the code does
-// Author: AI Assistant
-
-// Your code here with inline comments
-```
-
-### Code Review Format:
-
-1. **Summary**: Brief overview of the code
-2. **Issues Found**: List of bugs or problems
-3. **Security**: Any security concerns
-4. **Suggestions**: Improvements and optimizations
-5. **Rating**: Overall code quality (1-10)
-"""
+CODE_SYSTEM_PROMPT = _load_code_system_prompt()
