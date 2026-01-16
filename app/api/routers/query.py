@@ -21,16 +21,20 @@ from ..models.query import (
     LanguageType,
     SourceInfo,
     QueryAnalysis,
+    EmbeddedImage,
 )
 from ..models.ui_context import (
     UIContext,
     filter_ui_context_by_role,
     build_context_prompt_section,
 )
-from ..core.deps import get_current_user, get_rag_service
+from ..core.deps import get_current_user, get_rag_service, get_figure_image_service
 from ..core.tracing import get_trace_context_from_request, detect_response_quality, should_sample_trace
 from ..core.app_mode import get_app_mode_manager
 from ..infrastructure.services.trace_writer import get_trace_writer
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/query", tags=["Query"])
 
@@ -94,6 +98,33 @@ async def execute_query(
             )
             sources.append(source_info)
 
+        # ==================== Fetch Images from Source Pages ====================
+        embedded_images = []
+        try:
+            figure_service = await get_figure_image_service()
+            # Get images for pages referenced in sources
+            raw_images = await figure_service.get_images_for_sources(
+                result.get("sources", []),
+                include_data=True
+            )
+            # Convert to EmbeddedImage models
+            for img in raw_images:
+                embedded_images.append(EmbeddedImage(
+                    id=img.get("id", ""),
+                    document_id=img.get("document_id", ""),
+                    page_number=img.get("page_number"),
+                    figure_reference=img.get("figure_reference"),
+                    figure_caption=img.get("figure_caption"),
+                    description=img.get("description"),
+                    width=img.get("width"),
+                    height=img.get("height"),
+                    mime_type=img.get("mime_type", "image/png"),
+                    data=img.get("data")
+                ))
+            logger.info(f"Fetched {len(embedded_images)} images for RAG response")
+        except Exception as e:
+            logger.warning(f"Failed to fetch images for response: {e}")
+
         # ==================== Trace Persistence ====================
         # Detect quality and persist trace data for E2E message tracing
         trace_ctx = get_trace_context_from_request()
@@ -118,7 +149,8 @@ async def execute_query(
                             language=LanguageType(result["language"]),
                             confidence=result.get("confidence", 0.85),
                             sources=sources,
-                            query_analysis=QueryAnalysis(**result["query_analysis"]) if result.get("query_analysis") else None
+                            query_analysis=QueryAnalysis(**result["query_analysis"]) if result.get("query_analysis") else None,
+                            embedded_images=embedded_images
                         ),
                         meta=MetaInfo(
                             request_id=request_id,
@@ -196,7 +228,8 @@ async def execute_query(
                 language=LanguageType(result["language"]),
                 confidence=result.get("confidence", 0.85),
                 sources=sources,
-                query_analysis=QueryAnalysis(**result["query_analysis"]) if result.get("query_analysis") else None
+                query_analysis=QueryAnalysis(**result["query_analysis"]) if result.get("query_analysis") else None,
+                embedded_images=embedded_images
             ),
             meta=MetaInfo(
                 request_id=request_id,

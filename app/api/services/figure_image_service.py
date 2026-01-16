@@ -146,6 +146,95 @@ class FigureImageService:
         """
         return self._detector.detect_references(text)
 
+    async def get_images_for_pages(
+        self,
+        document_id: str,
+        page_numbers: List[int],
+        include_data: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        Get images from specific pages of a document.
+
+        This is useful when sources reference specific pages and we want to
+        display images from those pages regardless of figure reference detection.
+
+        Args:
+            document_id: Document ID to fetch images from
+            page_numbers: List of page numbers to get images from
+            include_data: Whether to include base64 encoded image data
+
+        Returns:
+            List of image data dicts ready for frontend display
+        """
+        if not page_numbers or not document_id:
+            return []
+
+        try:
+            images = await self._repository.get_by_page_numbers(
+                document_id=document_id,
+                page_numbers=page_numbers,
+                include_data=include_data
+            )
+            logger.info(f"Found {len(images)} images for pages {page_numbers} in document {document_id}")
+
+            result = []
+            for img in images:
+                img_data = self._format_image_for_frontend(img, include_data)
+                if img_data:
+                    result.append(img_data)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error fetching images for pages {page_numbers}: {e}")
+            return []
+
+    async def get_images_for_sources(
+        self,
+        sources: List[Dict[str, Any]],
+        include_data: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        Get images based on RAG source documents.
+
+        Extracts document IDs and page numbers from sources and fetches
+        corresponding images.
+
+        Args:
+            sources: List of source dicts with doc_id and page_number fields
+            include_data: Whether to include base64 encoded image data
+
+        Returns:
+            List of image data dicts ready for frontend display
+        """
+        # Group page numbers by document ID
+        doc_pages: Dict[str, set] = {}
+        for source in sources:
+            doc_id = source.get("doc_id") or source.get("document_id")
+            page_num = source.get("page_number") or source.get("page")
+
+            if doc_id and page_num is not None:
+                if doc_id not in doc_pages:
+                    doc_pages[doc_id] = set()
+                doc_pages[doc_id].add(page_num)
+
+        if not doc_pages:
+            logger.debug("No valid document/page combinations found in sources")
+            return []
+
+        # Fetch images for each document
+        all_images = []
+        for doc_id, pages in doc_pages.items():
+            images = await self.get_images_for_pages(
+                document_id=doc_id,
+                page_numbers=list(pages),
+                include_data=include_data
+            )
+            all_images.extend(images)
+
+        logger.info(f"Retrieved {len(all_images)} images from {len(doc_pages)} documents")
+        return all_images
+
 
 # Singleton instance
 _service: Optional[FigureImageService] = None

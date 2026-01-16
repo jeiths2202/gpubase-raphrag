@@ -631,3 +631,53 @@ class PostgresImageEmbeddingRepository(ImageEmbeddingRepository):
                     image_id
                 )
             return result == "UPDATE 1"
+
+    async def get_by_page_numbers(
+        self,
+        document_id: str,
+        page_numbers: List[int],
+        include_data: bool = True
+    ) -> List[ImageEmbeddingEntity]:
+        """
+        Get images by document ID and page numbers.
+
+        Args:
+            document_id: Document ID to search within
+            page_numbers: List of page numbers to fetch images from
+            include_data: Whether to include binary image data
+
+        Returns:
+            List of ImageEmbeddingEntity objects for the specified pages
+        """
+        if not page_numbers:
+            return []
+
+        async with self._pool.acquire() as conn:
+            if include_data:
+                query = """
+                    SELECT id, document_id, image_id, page_number,
+                           image_data, mime_type, width, height, file_size,
+                           position, description, alt_text, embedding,
+                           metadata, figure_reference, figure_caption,
+                           created_at, updated_at
+                    FROM image_embeddings
+                    WHERE document_id = $1
+                      AND page_number = ANY($2)
+                    ORDER BY page_number
+                """
+            else:
+                query = """
+                    SELECT id, document_id, image_id, page_number,
+                           mime_type, width, height, file_size,
+                           position, description, alt_text,
+                           metadata, figure_reference, figure_caption,
+                           created_at, updated_at
+                    FROM image_embeddings
+                    WHERE document_id = $1
+                      AND page_number = ANY($2)
+                    ORDER BY page_number
+                """
+
+            rows = await conn.fetch(query, document_id, page_numbers)
+            logger.debug(f"Found {len(rows)} images for pages {page_numbers} in document {document_id}")
+            return [self._row_to_entity(row, include_data=include_data) for row in rows]

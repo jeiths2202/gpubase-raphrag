@@ -93,6 +93,20 @@ class QueryAnalysis(BaseModel):
     external_doc_count: int = Field(default=0, description="Number of external resource results")
 
 
+class EmbeddedImage(BaseModel):
+    """Embedded image information for RAG responses"""
+    id: str
+    document_id: str
+    page_number: Optional[int] = None
+    figure_reference: Optional[str] = None
+    figure_caption: Optional[str] = None
+    description: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    mime_type: str = "image/png"
+    data: Optional[str] = Field(default=None, description="Base64 encoded image data URI")
+
+
 class QueryResponse(BaseModel):
     """Query response model"""
     answer: str
@@ -101,6 +115,7 @@ class QueryResponse(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     sources: list[SourceInfo] = Field(default_factory=list)
     query_analysis: Optional[QueryAnalysis] = None
+    embedded_images: list[EmbeddedImage] = Field(default_factory=list, description="Images from source pages")
 
 
 class ClassificationResult(BaseModel):

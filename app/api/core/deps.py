@@ -3813,3 +3813,26 @@ def get_multimodal_rag_service_sync():
     Use get_multimodal_rag_service() for async contexts.
     """
     return _multimodal_rag_service
+
+
+# Singleton instance for figure image service
+_figure_image_service = None
+
+
+async def get_figure_image_service():
+    """
+    Get FigureImageService singleton instance.
+
+    Used for:
+    - Detecting figure references in LLM responses
+    - Fetching images by page numbers from source documents
+    - Including images in RAG responses
+    """
+    global _figure_image_service
+    if _figure_image_service is None:
+        from ..services.figure_image_service import FigureImageService
+
+        repository = await _get_image_embedding_repository()
+        _figure_image_service = FigureImageService(image_repository=repository)
+
+    return _figure_image_service
