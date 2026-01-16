@@ -1629,13 +1629,23 @@ List each suggestion on a new line, starting with "- ":"""
                 elif isinstance(doc_ids, str):
                     document_ids = [doc_ids]
 
-            # Also check retrieved sources
+            # Collect sources with page numbers for page-based image lookup
             sources = context.metadata.get('sources', []) if context.metadata else []
+            doc_pages: dict[str, set] = {}  # {doc_id: {page_numbers}}
+
             for source in sources:
-                if isinstance(source, dict) and source.get('document_id'):
-                    doc_id = source['document_id']
-                    if doc_id not in document_ids:
-                        document_ids.append(doc_id)
+                if isinstance(source, dict):
+                    doc_id = source.get('document_id') or source.get('doc_id')
+                    page_num = source.get('page_number') or source.get('page')
+
+                    if doc_id:
+                        if doc_id not in document_ids:
+                            document_ids.append(doc_id)
+                        # Collect page numbers for each document
+                        if page_num is not None:
+                            if doc_id not in doc_pages:
+                                doc_pages[doc_id] = set()
+                            doc_pages[doc_id].add(page_num)
 
             if not document_ids:
                 logger.debug("[Orchestrator] No document IDs for figure image lookup")
@@ -1648,16 +1658,28 @@ List each suggestion on a new line, starting with "- ":"""
                 logger.warning(f"[Orchestrator] Could not get image repository: {e}")
                 return
 
-            # Fetch images for each document
+            # Fetch images using page-based lookup (primary method)
             all_images = []
             for doc_id in document_ids:
                 try:
-                    images = await image_repo.get_by_figure_references(
-                        document_id=doc_id,
-                        figure_references=figure_refs,
-                        include_data=True
-                    )
-                    all_images.extend(images)
+                    page_nums = list(doc_pages.get(doc_id, set()))
+                    if page_nums:
+                        # Use page-based lookup
+                        images = await image_repo.get_by_page_numbers(
+                            document_id=doc_id,
+                            page_numbers=page_nums,
+                            include_data=True
+                        )
+                        all_images.extend(images)
+                        logger.info(f"[Orchestrator] Found {len(images)} images for doc {doc_id} pages {page_nums}")
+                    elif figure_refs:
+                        # Fallback to figure reference lookup
+                        images = await image_repo.get_by_figure_references(
+                            document_id=doc_id,
+                            figure_references=figure_refs,
+                            include_data=True
+                        )
+                        all_images.extend(images)
                 except Exception as e:
                     logger.warning(f"[Orchestrator] Error fetching images for doc {doc_id}: {e}")
 

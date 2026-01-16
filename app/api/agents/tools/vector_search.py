@@ -78,7 +78,7 @@ Returns the most relevant text chunks with their sources."""
                 user_id=context.user_id
             )
 
-            # Format results
+            # Format results with full source info for image lookup
             sources = result.get("sources", [])
             formatted_sources = []
             for i, source in enumerate(sources[:top_k], 1):
@@ -86,8 +86,18 @@ Returns the most relevant text chunks with their sources."""
                     "rank": i,
                     "content": source.get("content", "")[:500],  # Truncate
                     "source": source.get("source", "Unknown"),
-                    "score": source.get("score", 0.0)
+                    "score": source.get("score", 0.0),
+                    "doc_id": source.get("doc_id", ""),
+                    "document_id": source.get("doc_id", ""),
+                    "page_number": source.get("page_number")
                 })
+
+            # Store sources in context.metadata for image lookup
+            if context.metadata is None:
+                context.metadata = {}
+            if 'sources' not in context.metadata:
+                context.metadata['sources'] = []
+            context.metadata['sources'].extend(formatted_sources)
 
             output = {
                 "query": query,
@@ -100,7 +110,8 @@ Returns the most relevant text chunks with their sources."""
                 metadata={
                     "strategy": "vector",
                     "language": result.get("language", language),
-                    "confidence": result.get("confidence", 0.0)
+                    "confidence": result.get("confidence", 0.0),
+                    "sources": formatted_sources  # Also include in result metadata
                 }
             )
 
@@ -177,7 +188,7 @@ for exploring structured knowledge relationships."""
                 user_id=context.user_id
             )
 
-            # Format graph results
+            # Format graph results with full source info for image lookup
             sources = result.get("sources", [])
             formatted_results = []
             for source in sources[:top_k]:
@@ -185,8 +196,18 @@ for exploring structured knowledge relationships."""
                     "content": source.get("content", "")[:500],
                     "entities": source.get("entities", []),
                     "relations": source.get("relations", []),
-                    "source": source.get("source", "")
+                    "source": source.get("source", ""),
+                    "doc_id": source.get("doc_id", ""),
+                    "document_id": source.get("doc_id", ""),
+                    "page_number": source.get("page_number")
                 })
+
+            # Store sources in context.metadata for image lookup
+            if context.metadata is None:
+                context.metadata = {}
+            if 'sources' not in context.metadata:
+                context.metadata['sources'] = []
+            context.metadata['sources'].extend(formatted_results)
 
             output = {
                 "query": query,
@@ -197,7 +218,11 @@ for exploring structured knowledge relationships."""
 
             return self.create_success_result(
                 output,
-                metadata={"strategy": "graph", "query_type": query_type}
+                metadata={
+                    "strategy": "graph",
+                    "query_type": query_type,
+                    "sources": formatted_results
+                }
             )
 
         except Exception as e:
