@@ -3951,6 +3951,16 @@ async def _get_image_embedding_repository():
     return _image_embedding_repository
 
 
+async def get_image_repository():
+    """
+    Get image embedding repository for image lookup operations.
+
+    Public wrapper for _get_image_embedding_repository().
+    Used by orchestrator for fetching images by page numbers or figure references.
+    """
+    return await _get_image_embedding_repository()
+
+
 async def get_multimodal_rag_service():
     """
     Get MultimodalRAGService singleton instance.
