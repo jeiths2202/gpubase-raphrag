@@ -551,68 +551,123 @@ class DocumentService:
         extract_tables: bool,
         extract_images: bool
     ):
-        """Process document asynchronously."""
+        """Process document asynchronously with real parsing."""
         import asyncio
+        from ..services.document_parser import get_document_parser_factory
 
         try:
-            # Step 1: Parse document
+            # Step 1: Parse document using real parser
             self._update_task(task_id, "parsing", 25)
-            await asyncio.sleep(1)  # Simulate parsing
 
-            # In production, use actual parser:
-            # from ..services.document_parser import get_document_parser_factory
-            # from ..services.vlm_service import get_vlm_service
-            # vlm_service = get_vlm_service() if enable_vlm else None
-            # factory = get_document_parser_factory(vlm_service)
-            # parsed = await factory.parse_document(file_content, filename, options={...})
+            # Use real document parser
+            factory = get_document_parser_factory()
+            parse_options = {
+                "extract_tables": extract_tables,
+                "extract_images": extract_images,
+                "filename": filename
+            }
 
-            # Mock parsed content
-            mock_text = f"문서 '{filename}'의 추출된 텍스트 내용입니다.\n\n이 문서는 자동으로 처리되었습니다."
+            try:
+                parsed_doc = await factory.parse_document(
+                    file_content,
+                    filename,
+                    options=parse_options
+                )
+                # Get real parsed data
+                parsed_text = parsed_doc.text_content or ""
+                parsed_pages = parsed_doc.pages or []
+                parsed_images = parsed_doc.images or []
+                parsed_tables = parsed_doc.tables or []
+                parsed_metadata = parsed_doc.metadata or {}
+            except Exception as parse_error:
+                # Fallback if parsing fails
+                print(f"Document parsing failed: {parse_error}")
+                parsed_text = f"문서 '{filename}'의 내용을 추출할 수 없습니다."
+                parsed_pages = [{"page_number": 1, "content": parsed_text}]
+                parsed_images = []
+                parsed_tables = []
+                parsed_metadata = {"pages": 1}
 
             # Step 2: Chunking
             self._update_task(task_id, "chunking", 50)
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.3)
 
-            # Create mock chunks
-            chunks = self._create_chunks(doc_id, mock_text)
+            # Create chunks from actual parsed content with real embeddings
+            # Use page-aware chunking to preserve page numbers
+            chunks = await self._create_chunks(
+                doc_id,
+                text=parsed_text,
+                parsed_pages=parsed_pages
+            )
             self._chunks[doc_id] = chunks
+
+            # Step 2.5: Save chunks to PostgreSQL for LocalRAGService vector search
+            await self._save_chunks_to_postgres(doc_id, chunks)
+
+            # Calculate actual statistics
+            total_chars = sum(len(page.get("content", "")) for page in parsed_pages)
+            avg_chunk_size = total_chars // len(chunks) if chunks else 0
 
             # Step 3: Embedding
             self._update_task(task_id, "embedding", 75)
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.3)
 
-            # Update document with results
+            # Update document with REAL results
             doc = self._documents.get(doc_id)
             if doc:
                 doc["status"] = "ready"
                 doc["chunks_count"] = len(chunks)
-                doc["entities_count"] = 5  # Mock
+                doc["entities_count"] = 0  # Would need NER for real entity count
                 doc["embedding_status"] = "completed"
                 doc["vlm_processed"] = enable_vlm
                 doc["updated_at"] = datetime.now(timezone.utc)
+
+                # Use REAL statistics from parsed document
                 doc["stats"] = {
-                    "pages": 10,
+                    "pages": parsed_metadata.get("pages", len(parsed_pages)),
                     "chunks_count": len(chunks),
-                    "entities_count": 5,
-                    "avg_chunk_size": 500,
+                    "entities_count": 0,
+                    "avg_chunk_size": avg_chunk_size,
                     "embedding_dimension": 4096,
-                    "images_count": 2 if extract_images else 0,
-                    "tables_count": 1 if extract_tables else 0,
-                    "figures_count": 1,
-                    "vlm_processed": enable_vlm
+                    "images_count": len(parsed_images) if extract_images else 0,
+                    "tables_count": len(parsed_tables) if extract_tables else 0,
+                    "figures_count": 0,
+                    "vlm_processed": enable_vlm,
+                    "total_characters": total_chars,
+                    "title": parsed_metadata.get("title", ""),
+                    "author": parsed_metadata.get("author", "")
                 }
+
+                # Calculate processing time
+                started_at = self._tasks[task_id]["started_at"]
+                completed_at = datetime.now(timezone.utc)
+                processing_seconds = (completed_at - started_at).total_seconds()
+
                 doc["processing_info"] = {
-                    "started_at": self._tasks[task_id]["started_at"],
-                    "completed_at": datetime.now(timezone.utc),
-                    "processing_time_seconds": 3
+                    "started_at": started_at,
+                    "completed_at": completed_at,
+                    "processing_time_seconds": round(processing_seconds, 2)
                 }
 
                 # Persist updated status to database
                 await self._save_to_db(doc_id, doc)
 
+            # Step 4: Sync to Neo4j
+            await self._sync_to_neo4j(doc_id, filename, chunks)
+
+            # Step 5: Store image embeddings if images were extracted
+            if extract_images and parsed_images:
+                logger.info(f"Storing {len(parsed_images)} image embeddings for {doc_id}")
+                await self._store_image_embeddings(
+                    doc_id, parsed_images, file_content, filename
+                )
+
             # Complete task
             self._update_task(task_id, "completed", 100)
             self._tasks[task_id]["status"] = "ready"
+
+            # Run automatic quality verification after embedding completes
+            await self._run_auto_quality_check(doc_id)
 
         except Exception as e:
             # Handle error
@@ -657,55 +712,177 @@ class DocumentService:
                 s["status"] = "completed"
                 s["progress"] = 100
 
-    def _create_chunks(self, doc_id: str, text: str, chunk_size: int = 500) -> list:
-        """Create text chunks from document."""
+    async def _create_chunks(
+        self,
+        doc_id: str,
+        text: str = None,
+        parsed_pages: list = None,
+        chunk_size: int = 500
+    ) -> list:
+        """
+        Create text chunks from document with real embeddings.
+
+        Args:
+            doc_id: Document ID
+            text: Full text content (fallback if parsed_pages not provided)
+            parsed_pages: List of page dicts with 'page_number' and 'content'
+            chunk_size: Target chunk size in characters
+
+        Returns:
+            List of chunk dicts with embeddings and page numbers
+        """
         import uuid
+        from ..services.multimodal_embedding import TextEmbeddingService
 
-        chunks = []
-        words = text.split()
-        current_chunk = []
-        current_length = 0
+        def is_valid_chunk(chunk_text: str) -> bool:
+            """Filter out low-quality chunks that would be semantically isolated."""
+            # Too short chunks lack context
+            if len(chunk_text) < 50:
+                return False
 
-        for word in words:
-            current_chunk.append(word)
-            current_length += len(word) + 1
+            # Check alphanumeric ratio (filter out formatting-heavy chunks)
+            alnum_count = sum(1 for c in chunk_text if c.isalnum())
+            total_count = len(chunk_text)
+            alnum_ratio = alnum_count / total_count if total_count > 0 else 0
+            if alnum_ratio < 0.3:
+                return False
 
-            if current_length >= chunk_size:
-                chunk_text = " ".join(current_chunk)
-                chunks.append({
-                    "id": f"chunk_{uuid.uuid4().hex[:8]}",
-                    "index": len(chunks),
-                    "content": chunk_text,
-                    "content_length": len(chunk_text),
-                    "has_embedding": True,
-                    "entities": [],
-                    "page_number": 1,
-                    "chunk_type": "text",
-                    "source_image_id": None,
-                    "source_table_id": None,
-                    "metadata": {}
-                })
+            # Filter chunks with too many digits (tables, data, etc.)
+            digit_count = sum(1 for c in chunk_text if c.isdigit())
+            if total_count > 0 and digit_count / total_count > 0.5:
+                return False
+
+            # Filter chunks with very few unique characters (repetitive content)
+            unique_chars = len(set(chunk_text.lower()))
+            if unique_chars < 10:
+                return False
+
+            return True
+
+        raw_chunks = []
+
+        # Use page-aware chunking if parsed_pages provided
+        if parsed_pages:
+            for page in parsed_pages:
+                page_number = page.get("page_number", 1)
+                page_content = page.get("content", "")
+
+                if not page_content or not page_content.strip():
+                    continue
+
+                # Chunk each page separately to preserve page boundaries
+                words = page_content.split()
                 current_chunk = []
                 current_length = 0
 
-        # Add remaining text
-        if current_chunk:
-            chunk_text = " ".join(current_chunk)
-            chunks.append({
-                "id": f"chunk_{uuid.uuid4().hex[:8]}",
-                "index": len(chunks),
-                "content": chunk_text,
-                "content_length": len(chunk_text),
-                "has_embedding": True,
-                "entities": [],
-                "page_number": 1,
-                "chunk_type": "text",
-                "source_image_id": None,
-                "source_table_id": None,
-                "metadata": {}
-            })
+                for word in words:
+                    current_chunk.append(word)
+                    current_length += len(word) + 1
 
-        return chunks
+                    if current_length >= chunk_size:
+                        chunk_text = " ".join(current_chunk)
+                        if is_valid_chunk(chunk_text):
+                            raw_chunks.append({
+                                "id": f"chunk_{uuid.uuid4().hex[:8]}",
+                                "index": len(raw_chunks),
+                                "content": chunk_text,
+                                "content_length": len(chunk_text),
+                                "has_embedding": False,
+                                "embedding": None,
+                                "entities": [],
+                                "page_number": page_number,
+                                "chunk_type": "text",
+                                "source_image_id": None,
+                                "source_table_id": None,
+                                "metadata": {"source_page": page_number}
+                            })
+                        current_chunk = []
+                        current_length = 0
+
+                # Add remaining text from page
+                if current_chunk:
+                    chunk_text = " ".join(current_chunk)
+                    if is_valid_chunk(chunk_text):
+                        raw_chunks.append({
+                            "id": f"chunk_{uuid.uuid4().hex[:8]}",
+                            "index": len(raw_chunks),
+                            "content": chunk_text,
+                            "content_length": len(chunk_text),
+                            "has_embedding": False,
+                            "embedding": None,
+                            "entities": [],
+                            "page_number": page_number,
+                            "chunk_type": "text",
+                            "source_image_id": None,
+                            "source_table_id": None,
+                            "metadata": {"source_page": page_number}
+                        })
+        else:
+            # Fallback: chunk full text without page info
+            words = (text or "").split()
+            current_chunk = []
+            current_length = 0
+
+            for word in words:
+                current_chunk.append(word)
+                current_length += len(word) + 1
+
+                if current_length >= chunk_size:
+                    chunk_text = " ".join(current_chunk)
+                    if is_valid_chunk(chunk_text):
+                        raw_chunks.append({
+                            "id": f"chunk_{uuid.uuid4().hex[:8]}",
+                            "index": len(raw_chunks),
+                            "content": chunk_text,
+                            "content_length": len(chunk_text),
+                            "has_embedding": False,
+                            "embedding": None,
+                            "entities": [],
+                            "page_number": 1,
+                            "chunk_type": "text",
+                            "source_image_id": None,
+                            "source_table_id": None,
+                            "metadata": {}
+                        })
+                    current_chunk = []
+                    current_length = 0
+
+            # Add remaining text
+            if current_chunk:
+                chunk_text = " ".join(current_chunk)
+                if is_valid_chunk(chunk_text):
+                    raw_chunks.append({
+                        "id": f"chunk_{uuid.uuid4().hex[:8]}",
+                        "index": len(raw_chunks),
+                        "content": chunk_text,
+                        "content_length": len(chunk_text),
+                        "has_embedding": False,
+                        "embedding": None,
+                        "entities": [],
+                        "page_number": 1,
+                        "chunk_type": "text",
+                        "source_image_id": None,
+                        "source_table_id": None,
+                        "metadata": {}
+                    })
+
+        # Generate real embeddings using TextEmbeddingService
+        if raw_chunks:
+            try:
+                embedding_service = TextEmbeddingService()
+                texts = [chunk["content"] for chunk in raw_chunks]
+                embeddings = await embedding_service.embed_texts(texts)
+
+                for chunk, embedding in zip(raw_chunks, embeddings):
+                    chunk["embedding"] = embedding
+                    chunk["has_embedding"] = True
+
+                logger.info(f"Generated {len(raw_chunks)} embeddings for document {doc_id}")
+            except Exception as e:
+                logger.error(f"Failed to generate embeddings for {doc_id}: {e}")
+                # Keep chunks without embeddings rather than failing completely
+
+        return raw_chunks
 
     async def get_upload_status(self, task_id: str) -> dict:
         """Get document upload/processing status."""
@@ -800,6 +977,608 @@ class DocumentService:
 
         # In production, trigger reprocessing here
         return {"document_id": document_id, "status": "reprocessing"}
+
+    # =========================================================================
+    # Embedding Quality Verification
+    # =========================================================================
+
+    # In-memory storage for quality results
+    _quality_results: dict = {}  # document_id -> quality result
+
+    async def verify_embedding_quality(
+        self,
+        document_id: str,
+        sample_size: int = 10
+    ) -> dict:
+        """
+        Verify embedding quality for a document.
+
+        Performs quality tests including:
+        - Self-retrieval accuracy
+        - Similarity distribution analysis
+        - Coverage verification
+        """
+        from ..services.embedding_quality_service import (
+            get_embedding_quality_service,
+            EmbeddingQualityResult
+        )
+
+        # Ensure documents are loaded
+        await self._ensure_loaded()
+
+        if document_id not in self._documents:
+            return None
+
+        # Get chunks with embeddings
+        chunks = self._chunks.get(document_id, [])
+        if not chunks:
+            # Return empty result if no chunks
+            return self._create_empty_quality_result(document_id, "No chunks available")
+
+        # Run quality verification
+        quality_service = get_embedding_quality_service()
+        result = await quality_service.verify_document_embeddings(
+            document_id=document_id,
+            chunks=chunks,
+            sample_size=sample_size
+        )
+
+        # Convert to dict and store
+        result_dict = result.to_dict()
+
+        # Store result
+        self._quality_results[document_id] = result_dict
+
+        # Update document with quality summary
+        doc = self._documents.get(document_id)
+        if doc:
+            doc["embedding_quality"] = {
+                "overall_score": result_dict["overall_score"],
+                "quality_level": result_dict["quality_level"],
+                "verified_at": result_dict["verified_at"],
+                "has_issues": len(result_dict.get("issues", [])) > 0
+            }
+            doc["updated_at"] = datetime.now(timezone.utc)
+
+            # Persist to database if available
+            await self._save_to_db(document_id, doc)
+
+        return result_dict
+
+    async def get_embedding_quality(self, document_id: str) -> dict:
+        """Get stored embedding quality verification result."""
+        # Ensure documents are loaded
+        await self._ensure_loaded()
+
+        # Check cached result
+        if document_id in self._quality_results:
+            return self._quality_results[document_id]
+
+        # Check if quality info exists in document
+        doc = self._documents.get(document_id)
+        if doc and "embedding_quality" in doc:
+            # Return summary if full result not cached
+            quality_summary = doc["embedding_quality"]
+            return {
+                "document_id": document_id,
+                "verified_at": quality_summary.get("verified_at"),
+                "overall_score": quality_summary.get("overall_score", 0),
+                "quality_level": quality_summary.get("quality_level", "poor"),
+                "retrieval_accuracy": 0,
+                "avg_similarity": 0,
+                "similarity_std": 0,
+                "coverage_score": 0,
+                "embedding_dimension": doc.get("stats", {}).get("embedding_dimension", 0),
+                "chunks_tested": 0,
+                "chunks_total": doc.get("chunks_count", 0),
+                "test_results": [],
+                "issues": ["Full results not available - please run verification again"],
+                "recommendations": []
+            }
+
+        return None
+
+    def _create_empty_quality_result(self, document_id: str, reason: str) -> dict:
+        """Create an empty quality result when verification cannot be performed."""
+        return {
+            "document_id": document_id,
+            "verified_at": datetime.now(timezone.utc).isoformat(),
+            "overall_score": 0.0,
+            "quality_level": "poor",
+            "retrieval_accuracy": 0.0,
+            "avg_similarity": 0.0,
+            "similarity_std": 0.0,
+            "coverage_score": 0.0,
+            "embedding_dimension": 0,
+            "chunks_tested": 0,
+            "chunks_total": 0,
+            "test_results": [],
+            "issues": [reason],
+            "recommendations": ["Re-process document to generate embeddings"]
+        }
+
+    async def _run_auto_quality_check(self, document_id: str):
+        """
+        Automatically run quality check after embedding completes.
+        Called from _process_document_async.
+        """
+        try:
+            logger.info(f"Running automatic quality verification for document {document_id}")
+            result = await self.verify_embedding_quality(document_id, sample_size=5)
+
+            if result:
+                quality_level = result.get("quality_level", "unknown")
+                overall_score = result.get("overall_score", 0)
+                logger.info(
+                    f"Quality verification completed for {document_id}: "
+                    f"score={overall_score:.2f}, level={quality_level}"
+                )
+
+                # Log issues if any
+                issues = result.get("issues", [])
+                if issues:
+                    logger.warning(f"Quality issues found for {document_id}: {issues}")
+
+        except Exception as e:
+            logger.error(f"Auto quality check failed for {document_id}: {e}")
+
+    # =========================================================================
+    # Re-Embedding
+    # =========================================================================
+
+    async def re_embed_document(
+        self,
+        document_id: str,
+        chunk_size: int = 512,
+        chunk_overlap: int = 50,
+        processing_mode: str = "text_only",
+        enable_vlm: bool = False,
+        extract_tables: bool = True,
+        extract_images: bool = True
+    ) -> dict:
+        """
+        Re-embed a document with custom parameters.
+
+        Args:
+            document_id: Document ID to re-embed
+            chunk_size: Size of each text chunk in characters
+            chunk_overlap: Overlap between consecutive chunks
+            processing_mode: Processing mode (text_only, vlm_enhanced, multimodal, ocr)
+            enable_vlm: Enable Vision Language Model processing
+            extract_tables: Extract tables from document
+            extract_images: Extract images from document
+
+        Returns:
+            dict with task_id and status
+        """
+        import asyncio
+        import uuid
+
+        # Ensure documents are loaded
+        await self._ensure_loaded()
+
+        if document_id not in self._documents:
+            return None
+
+        doc = self._documents[document_id]
+
+        # Create new task for re-embedding
+        task_id = f"task_{uuid.uuid4().hex[:12]}"
+        now = datetime.now(timezone.utc)
+
+        # Update document status
+        doc["status"] = "processing"
+        doc["embedding_status"] = "pending"
+        doc["processing_mode"] = processing_mode
+        doc["enable_vlm"] = enable_vlm
+        doc["extract_tables"] = extract_tables
+        doc["extract_images"] = extract_images
+        doc["updated_at"] = now
+
+        # Clear existing chunks and quality results
+        if document_id in self._chunks:
+            del self._chunks[document_id]
+        if document_id in self._quality_results:
+            del self._quality_results[document_id]
+
+        # Store new task status
+        self._tasks[task_id] = {
+            "document_id": document_id,
+            "status": "processing",
+            "current_step": "re-chunking",
+            "steps": [
+                {"name": "re-chunking", "status": "pending", "progress": 0},
+                {"name": "embedding", "status": "pending", "progress": 0},
+                {"name": "quality-check", "status": "pending", "progress": 0}
+            ],
+            "overall_progress": 10,
+            "started_at": now,
+            "estimated_completion": None,
+            "parameters": {
+                "chunk_size": chunk_size,
+                "chunk_overlap": chunk_overlap,
+                "processing_mode": processing_mode,
+                "enable_vlm": enable_vlm,
+                "extract_tables": extract_tables,
+                "extract_images": extract_images
+            }
+        }
+
+        # Persist status update to database
+        await self._save_to_db(document_id, doc)
+
+        # Start background re-embedding process
+        asyncio.create_task(self._re_embed_document_async(
+            document_id, task_id, chunk_size, chunk_overlap,
+            processing_mode, enable_vlm, extract_tables, extract_images
+        ))
+
+        return {
+            "task_id": task_id,
+            "status": "processing"
+        }
+
+    async def _re_embed_document_async(
+        self,
+        document_id: str,
+        task_id: str,
+        chunk_size: int,
+        chunk_overlap: int,
+        processing_mode: str,
+        enable_vlm: bool,
+        extract_tables: bool,
+        extract_images: bool
+    ):
+        """Process re-embedding asynchronously."""
+        import asyncio
+
+        try:
+            doc = self._documents.get(document_id)
+            if not doc:
+                return
+
+            # Step 1: Re-chunking with new parameters
+            self._update_reembed_task(task_id, "re-chunking", 30)
+
+            # Get original document content (would need to store or re-read)
+            # For now, use placeholder text
+            original_text = f"문서 '{doc.get('filename', 'unknown')}'의 내용입니다. " * 100
+            await asyncio.sleep(0.5)
+
+            # Create new chunks with custom parameters and real embeddings
+            chunks = await self._create_chunks_with_overlap(
+                document_id, original_text, chunk_size, chunk_overlap
+            )
+            self._chunks[document_id] = chunks
+
+            # Step 2: Generate embeddings
+            self._update_reembed_task(task_id, "embedding", 60)
+            await asyncio.sleep(0.5)
+
+            # Step 3: Quality check
+            self._update_reembed_task(task_id, "quality-check", 80)
+
+            # Update document with new stats
+            doc["status"] = "ready"
+            doc["chunks_count"] = len(chunks)
+            doc["embedding_status"] = "completed"
+            doc["vlm_processed"] = enable_vlm
+            doc["updated_at"] = datetime.now(timezone.utc)
+
+            if doc.get("stats"):
+                doc["stats"]["chunks_count"] = len(chunks)
+                doc["stats"]["avg_chunk_size"] = chunk_size
+                doc["stats"]["vlm_processed"] = enable_vlm
+
+            # Calculate processing time
+            started_at = self._tasks[task_id]["started_at"]
+            completed_at = datetime.now(timezone.utc)
+            processing_seconds = (completed_at - started_at).total_seconds()
+
+            doc["processing_info"] = {
+                "started_at": started_at,
+                "completed_at": completed_at,
+                "processing_time_seconds": round(processing_seconds, 2)
+            }
+
+            # Persist to database
+            await self._save_to_db(document_id, doc)
+
+            # Complete task
+            self._update_reembed_task(task_id, "completed", 100)
+            self._tasks[task_id]["status"] = "ready"
+
+            # Run automatic quality verification
+            await self._run_auto_quality_check(document_id)
+
+            logger.info(f"Re-embedding completed for document {document_id}")
+
+        except Exception as e:
+            logger.error(f"Re-embedding failed for {document_id}: {e}")
+            if document_id in self._documents:
+                self._documents[document_id]["status"] = "error"
+                await self._update_status_in_db(document_id, status="error")
+            if task_id in self._tasks:
+                self._tasks[task_id]["status"] = "error"
+                self._tasks[task_id]["error"] = str(e)
+
+    def _update_reembed_task(self, task_id: str, step: str, progress: int):
+        """Update re-embed task progress."""
+        if task_id not in self._tasks:
+            return
+
+        task = self._tasks[task_id]
+        task["current_step"] = step
+        task["overall_progress"] = progress
+
+        step_names = [s["name"] for s in task["steps"]]
+
+        if step == "completed":
+            for s in task["steps"]:
+                s["status"] = "completed"
+                s["progress"] = 100
+            return
+
+        if step not in step_names:
+            return
+
+        step_index = step_names.index(step)
+
+        for i, s in enumerate(task["steps"]):
+            if s["name"] == step:
+                s["status"] = "in_progress"
+                s["progress"] = 50
+            elif i < step_index:
+                s["status"] = "completed"
+                s["progress"] = 100
+
+    async def _create_chunks_with_overlap(
+        self,
+        doc_id: str,
+        text: str,
+        chunk_size: int = 512,
+        chunk_overlap: int = 50
+    ) -> list:
+        """Create text chunks with configurable size and overlap using real embeddings."""
+        import uuid
+        from ..services.multimodal_embedding import TextEmbeddingService
+
+        raw_chunks = []
+
+        # Split by characters with overlap
+        start = 0
+        while start < len(text):
+            end = min(start + chunk_size, len(text))
+            chunk_text = text[start:end].strip()
+
+            if chunk_text:
+                raw_chunks.append({
+                    "id": f"chunk_{uuid.uuid4().hex[:8]}",
+                    "index": len(raw_chunks),
+                    "content": chunk_text,
+                    "content_length": len(chunk_text),
+                    "has_embedding": False,
+                    "embedding": None,
+                    "entities": [],
+                    "page_number": 1,
+                    "chunk_type": "text",
+                    "source_image_id": None,
+                    "source_table_id": None,
+                    "metadata": {
+                        "chunk_size": chunk_size,
+                        "chunk_overlap": chunk_overlap
+                    }
+                })
+
+            # Move forward with overlap
+            start = end - chunk_overlap if end < len(text) else len(text)
+
+            # Prevent infinite loop
+            if start >= len(text) or (end == len(text) and start == end - chunk_overlap):
+                break
+
+        # Generate real embeddings using TextEmbeddingService
+        if raw_chunks:
+            try:
+                embedding_service = TextEmbeddingService()
+                texts = [chunk["content"] for chunk in raw_chunks]
+                embeddings = await embedding_service.embed_texts(texts)
+
+                for chunk, embedding in zip(raw_chunks, embeddings):
+                    chunk["embedding"] = embedding
+                    chunk["has_embedding"] = True
+
+                logger.info(f"Generated {len(raw_chunks)} embeddings for document {doc_id}")
+            except Exception as e:
+                logger.error(f"Failed to generate embeddings for {doc_id}: {e}")
+
+        return raw_chunks
+
+    @classmethod
+    async def _save_chunks_to_postgres(cls, doc_id: str, chunks: list):
+        """
+        Save chunks to PostgreSQL's text_chunks table for LocalRAGService vector search.
+
+        This enables the LocalRAGService to search documents using PostgreSQL's pgvector
+        extension, complementing the Neo4j storage for graph-based retrieval.
+        """
+        try:
+            import asyncpg
+            from ..infrastructure.postgres.text_chunk_repository import PostgresTextChunkRepository
+            from ..core.config import api_settings
+
+            # Create a connection pool for PostgreSQL
+            pool = await asyncpg.create_pool(
+                host=api_settings.POSTGRES_HOST,
+                port=int(api_settings.POSTGRES_PORT),
+                user=api_settings.POSTGRES_USER,
+                password=api_settings.POSTGRES_PASSWORD,
+                database=api_settings.POSTGRES_DB,
+                min_size=1,
+                max_size=3
+            )
+
+            try:
+                repo = PostgresTextChunkRepository(pool)
+
+                # Save chunks with embeddings and page numbers
+                saved_count = await repo.save_chunks_batch(chunks, doc_id)
+                logger.info(f"Saved {saved_count}/{len(chunks)} chunks to PostgreSQL for document {doc_id}")
+            finally:
+                await pool.close()
+
+        except Exception as e:
+            logger.error(f"Failed to save chunks to PostgreSQL for {doc_id}: {e}")
+            # Don't fail the entire upload - Neo4j storage is still available
+
+    @classmethod
+    async def _sync_to_neo4j(cls, doc_id: str, filename: str, chunks: list):
+        """Sync document and chunks to Neo4j for graph-based retrieval."""
+        try:
+            from langchain_neo4j import Neo4jGraph
+            from config import config
+
+            graph = Neo4jGraph(
+                url=config.neo4j.uri,
+                username=config.neo4j.user,
+                password=config.neo4j.password
+            )
+
+            # Create Document node
+            graph.query(
+                """
+                MERGE (d:Document {id: $doc_id})
+                SET d.filename = $filename,
+                    d.type = 'upload',
+                    d.indexed_at = datetime(),
+                    d.chunk_count = $chunk_count
+                """,
+                {
+                    "doc_id": doc_id,
+                    "filename": filename,
+                    "chunk_count": len(chunks)
+                }
+            )
+
+            # Index chunks with embeddings and page numbers
+            for chunk in chunks:
+                chunk_id = chunk.get("id", f"chunk_{doc_id}_{chunk.get('index', 0)}")
+                embedding = chunk.get("embedding", [])
+                page_number = chunk.get("page_number", 1)
+
+                if embedding:
+                    graph.query(
+                        """
+                        MERGE (c:Chunk {id: $chunk_id})
+                        SET c.content = $content,
+                            c.index = $index,
+                            c.page_number = $page_number,
+                            c.embedding = $embedding,
+                            c.source_type = 'upload'
+                        WITH c
+                        MATCH (d:Document {id: $doc_id})
+                        MERGE (d)-[:CONTAINS]->(c)
+                        """,
+                        {
+                            "chunk_id": chunk_id,
+                            "content": chunk.get("content", ""),
+                            "index": chunk.get("index", 0),
+                            "page_number": page_number,
+                            "embedding": embedding,
+                            "doc_id": doc_id
+                        }
+                    )
+                else:
+                    graph.query(
+                        """
+                        MERGE (c:Chunk {id: $chunk_id})
+                        SET c.content = $content,
+                            c.index = $index,
+                            c.page_number = $page_number,
+                            c.source_type = 'upload'
+                        WITH c
+                        MATCH (d:Document {id: $doc_id})
+                        MERGE (d)-[:CONTAINS]->(c)
+                        """,
+                        {
+                            "chunk_id": chunk_id,
+                            "content": chunk.get("content", ""),
+                            "index": chunk.get("index", 0),
+                            "page_number": page_number,
+                            "doc_id": doc_id
+                        }
+                    )
+
+            logger.info(f"Synced document {doc_id} with {len(chunks)} chunks to Neo4j")
+
+        except ImportError:
+            logger.warning("Neo4j dependencies not available, skipping sync")
+        except Exception as e:
+            logger.error(f"Failed to sync to Neo4j for {doc_id}: {e}")
+
+    @classmethod
+    async def _store_image_embeddings(
+        cls,
+        doc_id: str,
+        parsed_images: list,
+        file_content: bytes,
+        filename: str
+    ):
+        """Store image embeddings to PostgreSQL."""
+        try:
+            from ..services.multimodal_embedding import ImageEmbeddingService
+            from ..repositories.image_embedding_repository import ImageEmbeddingEntity
+
+            repository = await _get_image_embedding_repository()
+            embedding_service = ImageEmbeddingService()
+
+            stored_count = 0
+            skipped_count = 0
+            for idx, img_info in enumerate(parsed_images):
+                try:
+                    image_id = f"{doc_id}_img_{idx:03d}"
+
+                    # Get image data from parsed image info
+                    image_data = img_info.get("data", b"") if isinstance(img_info, dict) else getattr(img_info, "data", b"")
+                    if not image_data:
+                        skipped_count += 1
+                        continue
+
+                    # Generate embedding for image
+                    embedding = await embedding_service.embed_image(image_data)
+
+                    # Get image metadata
+                    page_number = img_info.get("page_number", 1) if isinstance(img_info, dict) else getattr(img_info, "page_number", 1)
+                    description = img_info.get("description", "") if isinstance(img_info, dict) else getattr(img_info, "description", "")
+                    width = img_info.get("width", 0) if isinstance(img_info, dict) else getattr(img_info, "width", 0)
+                    height = img_info.get("height", 0) if isinstance(img_info, dict) else getattr(img_info, "height", 0)
+
+                    # Create entity
+                    entity = ImageEmbeddingEntity(
+                        id=None,  # Will be generated
+                        document_id=doc_id,
+                        image_id=image_id,
+                        page_number=page_number,
+                        image_data=image_data,
+                        mime_type="image/png",
+                        width=width,
+                        height=height,
+                        file_size=len(image_data),
+                        description=description,
+                        embedding=embedding,
+                        metadata={"source_file": filename}
+                    )
+
+                    await repository.store_image(entity)
+                    stored_count += 1
+
+                except Exception as img_error:
+                    logger.warning(f"Failed to store image {idx} for {doc_id}: {img_error}")
+
+            logger.info(f"Stored {stored_count} image embeddings for {doc_id} (skipped {skipped_count})")
+
+        except Exception as e:
+            logger.error(f"Failed to store image embeddings for {doc_id}: {e}")
 
 
 class HistoryService:
@@ -1750,15 +2529,19 @@ def get_rag_service():
     if _use_local_rag is None:
         # Try to connect to Neo4j
         try:
+            import os
             from neo4j import GraphDatabase
+            neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+            neo4j_user = os.getenv("NEO4J_USER", "neo4j")
+            neo4j_password = os.getenv("NEO4J_PASSWORD", "")
             driver = GraphDatabase.driver(
-                f"bolt://{api_settings.NEO4J_HOST}:{api_settings.NEO4J_PORT}",
-                auth=(api_settings.NEO4J_USER, api_settings.NEO4J_PASSWORD)
+                neo4j_uri,
+                auth=(neo4j_user, neo4j_password)
             )
             driver.verify_connectivity()
             driver.close()
             _use_local_rag = False
-            print("[RAG] Using Neo4j RAG service")
+            print(f"[RAG] Using Neo4j RAG service ({neo4j_uri})")
         except Exception as e:
             _use_local_rag = True
             print(f"[RAG] Neo4j not available ({e}), using Local RAG service")

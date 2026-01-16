@@ -2,6 +2,7 @@
 Hybrid RAG Module for GraphRAG System
 Orchestrates Vector RAG and Graph RAG based on query classification
 """
+import os
 import re
 from typing import List, Dict, Any, Optional
 from langchain_openai import ChatOpenAI
@@ -49,11 +50,13 @@ class HybridRAG:
         )
 
         # LLM (Nemotron for RAG)
+        llm_max_tokens = int(os.getenv("LLM_MAX_TOKENS", "1024"))
         self.llm = ChatOpenAI(
             base_url=(llm_url or config.llm.api_url).replace("/chat/completions", ""),
             model=llm_model or config.llm.model,
             api_key="not-needed",
-            temperature=0.1
+            temperature=0.1,
+            max_tokens=llm_max_tokens
         )
 
         # Code LLM (Mistral NeMo for code generation/analysis)
@@ -166,6 +169,18 @@ class HybridRAG:
 
     def _vector_search(self, query: str, k: int) -> List[Dict]:
         """Execute vector similarity search with topic density boosting"""
+        # Apply query expansion for better retrieval (Japanese/Korean/English)
+        search_query = query
+        try:
+            from app.api.services.query_expansion_service import get_query_expansion_service
+            expansion_service = get_query_expansion_service()
+            expanded = expansion_service.expand(query, "auto")
+            search_query = expanded.get_expanded_query()
+            if search_query != query:
+                print(f"    [Query Expansion] '{query}' -> '{search_query}'")
+        except Exception as e:
+            print(f"    [Query Expansion] Failed: {e}")
+
         # Extract key concept and search by topic density
         key_concept = self._extract_key_concept(query)
         topic_density_results = []
@@ -175,8 +190,8 @@ class HybridRAG:
             if topic_density_results:
                 print(f"    [Topic Density] Found {len(topic_density_results)} results from topic-central documents")
 
-        # Get vector search results
-        vector_results = self.vector_rag.search_similar(query, k=k)
+        # Get vector search results with expanded query
+        vector_results = self.vector_rag.search_similar(search_query, k=k)
 
         # Merge topic density and vector results
         if topic_density_results:
@@ -551,6 +566,11 @@ class HybridRAG:
                 context_parts.append(f"    Related entities: {', '.join(r['entities'])}")
 
         context = "\n\n".join(context_parts)
+
+        # Truncate context to prevent LLM token limit errors
+        max_context_len = int(os.getenv("LLM_MAX_CONTEXT_LENGTH", "3000"))
+        if len(context) > max_context_len:
+            context = context[:max_context_len] + "\n...[truncated]"
 
         # Language instruction
         lang_instruction = self._get_language_instruction(language)
