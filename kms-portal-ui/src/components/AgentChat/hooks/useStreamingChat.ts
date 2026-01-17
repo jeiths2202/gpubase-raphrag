@@ -354,12 +354,18 @@ export function useStreamingChat(
             if (chunk.tool_name) {
               const toolIndex = toolCalls.findIndex((tc) => tc.name === chunk.tool_name && tc.status === 'pending');
               if (toolIndex !== -1) {
+                // Extract query correction info from metadata
+                const metadata = chunk.metadata as { query_corrected?: boolean; original_llm_query?: string; corrected_query?: string } | undefined;
                 toolCalls[toolIndex] = {
                   ...toolCalls[toolIndex],
                   output: chunk.tool_output || '',
                   status: chunk.tool_output?.includes('error') || chunk.tool_output?.includes('Error')
                     ? 'error'
                     : 'success',
+                  // Add query correction info if present
+                  queryCorrected: metadata?.query_corrected,
+                  originalLlmQuery: metadata?.original_llm_query,
+                  correctedQuery: metadata?.corrected_query,
                 };
                 updateAgentStreamingMessage(requestingAgent,
                   agentLocalStatesRef.current[requestingAgent].streamingMessage
@@ -409,17 +415,18 @@ export function useStreamingChat(
           case 'image':
             // Handle figure reference images from document
             if (chunk.metadata) {
+              const meta = chunk.metadata as Record<string, string | number | undefined>;
               const imageRef: ImageReference = {
-                imageId: chunk.metadata.image_id || `img-${Date.now()}`,
-                documentId: chunk.metadata.document_id || '',
-                pageNumber: chunk.metadata.page_number,
-                description: chunk.metadata.figure_caption || chunk.metadata.description,
-                figureReference: chunk.metadata.figure_reference,
-                figureCaption: chunk.metadata.figure_caption,
-                imageBase64: chunk.metadata.data,  // Already in data:mime;base64,xxx format
-                mimeType: chunk.metadata.mime_type,
-                width: chunk.metadata.width,
-                height: chunk.metadata.height,
+                imageId: (meta.image_id as string) || `img-${Date.now()}`,
+                documentId: (meta.document_id as string) || '',
+                pageNumber: meta.page_number as number | undefined,
+                description: (meta.figure_caption as string) || (meta.description as string),
+                figureReference: meta.figure_reference as string | undefined,
+                figureCaption: meta.figure_caption as string | undefined,
+                imageBase64: meta.data as string | undefined,  // Already in data:mime;base64,xxx format
+                mimeType: meta.mime_type as string | undefined,
+                width: meta.width as number | undefined,
+                height: meta.height as number | undefined,
               };
               images.push(imageRef);
               console.log('[useStreamingChat] Received image:', imageRef.figureReference);

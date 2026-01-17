@@ -123,6 +123,7 @@ export type AgentStreamChunkType =
   | 'done'
   | 'status'
   | 'artifact'
+  | 'image'
   // Enterprise multi-agent orchestration chunk types
   | 'orchestration_start'
   | 'dag_created'

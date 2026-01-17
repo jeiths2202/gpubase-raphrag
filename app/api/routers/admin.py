@@ -743,3 +743,177 @@ async def update_user_full(
             )
     finally:
         await pool.close()
+
+
+# ============= Data Cleanup Endpoints =============
+
+class OrphanedDataResponse(BaseModel):
+    """Orphaned data cleanup response"""
+    orphaned_image_embeddings: int
+    orphaned_text_chunks: int
+    orphaned_document_ids: List[str]
+
+
+class CleanupResult(BaseModel):
+    """Cleanup operation result"""
+    deleted_image_embeddings: int
+    deleted_text_chunks: int
+    cleaned_document_ids: List[str]
+    message: str
+
+
+@router.get(
+    "/cleanup/orphaned-data",
+    response_model=SuccessResponse[OrphanedDataResponse],
+    summary="고아 데이터 확인",
+    description="documents 테이블에 없지만 image_embeddings, text_chunks에 남아있는 고아 데이터를 확인합니다."
+)
+async def check_orphaned_data(
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Check for orphaned data that needs cleanup"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    pool = await _get_db_pool()
+    try:
+        async with pool.acquire() as conn:
+            # Find orphaned image_embeddings (document_id not in documents table)
+            orphaned_images = await conn.fetch("""
+                SELECT DISTINCT ie.document_id, COUNT(*) as count
+                FROM image_embeddings ie
+                LEFT JOIN documents d ON ie.document_id = d.id
+                WHERE d.id IS NULL
+                GROUP BY ie.document_id
+            """)
+
+            # Find orphaned text_chunks
+            orphaned_chunks = await conn.fetch("""
+                SELECT DISTINCT tc.document_id, COUNT(*) as count
+                FROM text_chunks tc
+                LEFT JOIN documents d ON tc.document_id = d.id
+                WHERE d.id IS NULL
+                GROUP BY tc.document_id
+            """)
+
+            orphaned_doc_ids = list(set(
+                [row['document_id'] for row in orphaned_images] +
+                [row['document_id'] for row in orphaned_chunks]
+            ))
+
+            total_orphaned_images = sum(row['count'] for row in orphaned_images)
+            total_orphaned_chunks = sum(row['count'] for row in orphaned_chunks)
+
+            return SuccessResponse(
+                data=OrphanedDataResponse(
+                    orphaned_image_embeddings=total_orphaned_images,
+                    orphaned_text_chunks=total_orphaned_chunks,
+                    orphaned_document_ids=orphaned_doc_ids
+                ),
+                meta=MetaInfo(request_id=request_id)
+            )
+    finally:
+        await pool.close()
+
+
+@router.delete(
+    "/cleanup/orphaned-data",
+    response_model=SuccessResponse[CleanupResult],
+    summary="고아 데이터 삭제",
+    description="documents 테이블에 없는 고아 데이터(image_embeddings, text_chunks)를 삭제합니다."
+)
+async def cleanup_orphaned_data(
+    document_id: Optional[str] = Query(
+        default=None,
+        description="특정 document_id만 정리 (미지정시 모든 고아 데이터 삭제)"
+    ),
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Delete orphaned data from image_embeddings and text_chunks"""
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    pool = await _get_db_pool()
+    try:
+        async with pool.acquire() as conn:
+            deleted_images = 0
+            deleted_chunks = 0
+            cleaned_doc_ids = []
+
+            if document_id:
+                # Clean specific document_id
+                # First check if document exists
+                doc_exists = await conn.fetchval(
+                    "SELECT COUNT(*) FROM documents WHERE id = $1",
+                    document_id
+                )
+                if doc_exists > 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "code": "DOCUMENT_EXISTS",
+                            "message": f"문서 {document_id}가 존재합니다. 일반 삭제를 사용하세요."
+                        }
+                    )
+
+                # Delete image_embeddings
+                result = await conn.execute(
+                    "DELETE FROM image_embeddings WHERE document_id = $1",
+                    document_id
+                )
+                deleted_images = int(result.split()[-1]) if result else 0
+
+                # Delete text_chunks
+                result = await conn.execute(
+                    "DELETE FROM text_chunks WHERE document_id = $1",
+                    document_id
+                )
+                deleted_chunks = int(result.split()[-1]) if result else 0
+
+                if deleted_images > 0 or deleted_chunks > 0:
+                    cleaned_doc_ids.append(document_id)
+            else:
+                # Clean all orphaned data
+                # Get orphaned document_ids first
+                orphaned_doc_ids = await conn.fetch("""
+                    SELECT DISTINCT document_id FROM (
+                        SELECT ie.document_id FROM image_embeddings ie
+                        LEFT JOIN documents d ON ie.document_id = d.id
+                        WHERE d.id IS NULL
+                        UNION
+                        SELECT tc.document_id FROM text_chunks tc
+                        LEFT JOIN documents d ON tc.document_id = d.id
+                        WHERE d.id IS NULL
+                    ) AS orphans
+                """)
+
+                for row in orphaned_doc_ids:
+                    doc_id = row['document_id']
+
+                    # Delete image_embeddings
+                    result = await conn.execute(
+                        "DELETE FROM image_embeddings WHERE document_id = $1",
+                        doc_id
+                    )
+                    deleted_images += int(result.split()[-1]) if result else 0
+
+                    # Delete text_chunks
+                    result = await conn.execute(
+                        "DELETE FROM text_chunks WHERE document_id = $1",
+                        doc_id
+                    )
+                    deleted_chunks += int(result.split()[-1]) if result else 0
+
+                    cleaned_doc_ids.append(doc_id)
+
+            message = f"정리 완료: {deleted_images}개 이미지 임베딩, {deleted_chunks}개 텍스트 청크 삭제"
+
+            return SuccessResponse(
+                data=CleanupResult(
+                    deleted_image_embeddings=deleted_images,
+                    deleted_text_chunks=deleted_chunks,
+                    cleaned_document_ids=cleaned_doc_ids,
+                    message=message
+                ),
+                meta=MetaInfo(request_id=request_id)
+            )
+    finally:
+        await pool.close()

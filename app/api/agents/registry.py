@@ -37,7 +37,7 @@ class ToolRegistry:
         from .tools import (
             VectorSearchTool, GraphQueryTool, IMSSearchTool,
             DocumentReadTool, WebFetchTool, SafeBashTool,
-            ImageSearchTool
+            ImageSearchTool, AdaptiveSearchTool
         )
 
         default_tools = [
@@ -48,6 +48,7 @@ class ToolRegistry:
             WebFetchTool(),
             SafeBashTool(),
             ImageSearchTool(),
+            AdaptiveSearchTool(),
         ]
 
         for tool in default_tools:
@@ -94,14 +95,14 @@ class ToolRegistry:
         """Get tools available for a specific agent type"""
         # Default tool assignments per agent type
         agent_tools = {
-            AgentType.RAG: ["vector_search", "graph_query", "document_read"],
+            AgentType.RAG: ["adaptive_search", "vector_search", "graph_query", "document_read"],
             AgentType.IMS: ["ims_search", "web_fetch", "vector_search"],
             AgentType.VISION: ["document_read", "vector_search"],
             AgentType.CODE: ["document_read", "bash", "vector_search"],
-            AgentType.PLANNER: ["vector_search", "graph_query", "ims_search", "document_read"],
+            AgentType.PLANNER: ["vector_search", "graph_query", "ims_search", "document_read", "adaptive_search"],
             # Enhancement agents - need document_read and vector_search to analyze codebase
-            AgentType.ENHANCEMENT_ANALYST: ["vector_search", "document_read", "graph_query"],
-            AgentType.ENHANCEMENT_ARCHITECT: ["vector_search", "document_read", "graph_query", "bash"],
+            AgentType.ENHANCEMENT_ANALYST: ["vector_search", "document_read", "graph_query", "adaptive_search"],
+            AgentType.ENHANCEMENT_ARCHITECT: ["vector_search", "document_read", "graph_query", "bash", "adaptive_search"],
             AgentType.ENHANCEMENT_CODER: ["vector_search", "document_read", "bash"],
             AgentType.ENHANCEMENT_QA: ["vector_search", "document_read", "bash"],
         }

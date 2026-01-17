@@ -10,12 +10,77 @@ Features:
 PR #719 패치 버전 사용 (system_prompt KeyError 수정됨)
 """
 import os
+import re
 import time
 import asyncio
 import logging
 from typing import Optional, List, Dict, Any, AsyncGenerator
 
 logger = logging.getLogger(__name__)
+
+
+def strip_thinking_tags(text: str) -> str:
+    """
+    LLM 응답에서 thinking 관련 콘텐츠 제거
+    - <think>...</think> 태그
+    - 내부 추론 과정 전체
+    """
+    if not text:
+        return text
+
+    # <think>...</think> 태그와 그 내용 제거 (멀티라인 지원)
+    cleaned = re.sub(r'<think>.*?</think>\s*', '', text, flags=re.DOTALL)
+
+    # 내부 추론 패턴 (응답 전체가 이런 패턴이면 무시)
+    internal_reasoning_patterns = [
+        r'This will help me',
+        r'I (?:need to|should|will|\'ll) (?:search|check|look|find|use|try)',
+        r'(?:Let me|I\'m going to) (?:search|check|look|find|use|try)',
+        r'using the available tools',
+        r'(?:First|Next),? I (?:need to|should|will)',
+        r'The (?:user|question) (?:is asking|wants|asked)',
+        r'I don\'t have (?:enough|any) information',
+        r'(?:Maybe|Perhaps) (?:I should|using)',
+    ]
+
+    # 응답이 내부 추론인지 확인
+    is_internal_reasoning = any(
+        re.search(pattern, cleaned, re.IGNORECASE)
+        for pattern in internal_reasoning_patterns
+    )
+
+    if is_internal_reasoning:
+        # 전체 응답이 추론이면 기본 메시지 반환
+        return ""  # 빈 문자열 반환하면 호출자가 기본 메시지 사용
+
+    # 응답이 내부 추론으로 시작하는지 확인
+    thinking_start_patterns = [
+        r'^Okay,?\s+(?:so\s+)?(?:the user|I)',
+        r'^(?:First|Let me|I need to|I should|I\'ll|I will)\s+',
+        r'^(?:Hmm|Well|Alright|The user)',
+        r'^(?:Since|Looking at|Based on)\s+(?:the|this|my)',
+    ]
+
+    is_thinking_response = any(
+        re.match(pattern, cleaned, re.IGNORECASE)
+        for pattern in thinking_start_patterns
+    )
+
+    if is_thinking_response:
+        # 마지막 문단에서 실제 답변 찾기
+        paragraphs = cleaned.split('\n\n')
+        for para in reversed(paragraphs):
+            para = para.strip()
+            if para and not any(
+                re.match(p, para, re.IGNORECASE)
+                for p in thinking_start_patterns
+            ) and not any(
+                re.search(p, para, re.IGNORECASE)
+                for p in internal_reasoning_patterns
+            ):
+                return para
+
+    return cleaned.strip()
 
 # Deep Agents 의존성 체크
 try:
@@ -59,6 +124,9 @@ from ..types import (
     MessageRole
 )
 from ..base import BaseAgent
+from ...core.config import get_api_settings
+
+_settings = get_api_settings()
 
 
 class DeepAgentAdapter(BaseAgent):
@@ -89,8 +157,8 @@ class DeepAgentAdapter(BaseAgent):
         tools: Optional[List] = None,
         system_prompt: Optional[str] = None,
         model_id: Optional[str] = None,
-        temperature: float = 0.7,
-        max_tokens: int = 4096,
+        temperature: float = _settings.LLM_TEMPERATURE,
+        max_tokens: int = _settings.LLM_MAX_TOKENS,
         enable_long_term_memory: bool = True,
         memory_store: Optional[Any] = None,
         user_id: Optional[str] = None,
@@ -299,16 +367,20 @@ class DeepAgentAdapter(BaseAgent):
                 timeout=300.0  # 5분 타임아웃
             )
 
-            # 결과 추출
+            # 결과 추출 및 thinking 태그 제거
             answer = ""
             if "messages" in result:
                 for msg in reversed(result["messages"]):
                     if hasattr(msg, "content") and msg.content:
-                        answer = msg.content
+                        answer = strip_thinking_tags(msg.content)
                         break
 
+            # 빈 응답이면 기본 메시지 사용
+            if not answer:
+                answer = "죄송합니다. 해당 질문에 대한 관련 정보를 지식 베이스에서 찾을 수 없습니다. 다른 키워드로 검색하거나 질문을 더 구체적으로 해주세요."
+
             return AgentResult(
-                answer=answer or "No response",
+                answer=answer,
                 agent_type=self.agent_type,
                 steps=len(result.get("messages", [])),
                 execution_time=time.time() - start_time,
@@ -447,8 +519,10 @@ def create_rag_deep_agent(
     include_vector_search: bool = True,
     include_graph_query: bool = True,
     include_image_search: bool = True,
+    include_adaptive_search: bool = True,
     additional_tools: Optional[List] = None,
     multimodal_service=None,
+    adaptive_service=None,
     enable_long_term_memory: bool = True,
     memory_store: Optional[Any] = None,
     user_id: Optional[str] = None,
@@ -461,8 +535,10 @@ def create_rag_deep_agent(
         include_vector_search: 벡터 검색 도구 포함 여부
         include_graph_query: 그래프 쿼리 도구 포함 여부
         include_image_search: 이미지 검색 도구 포함 여부
+        include_adaptive_search: 적응형 PDF 검색 도구 포함 여부
         additional_tools: 추가 도구 목록
         multimodal_service: MultimodalRAGService 인스턴스
+        adaptive_service: PDFAdaptiveEmbeddingService 인스턴스
         enable_long_term_memory: Long-term Memory 활성화 여부
         memory_store: 영구 저장소 (None이면 InMemoryStore 사용)
         user_id: 사용자 ID (사용자별 메모리 분리)
@@ -489,14 +565,32 @@ def create_rag_deep_agent(
         except Exception:
             pass  # Will use lazy loading in the tool
 
+    # Get adaptive service for structure-preserving PDF search
+    if adaptive_service is None and include_adaptive_search:
+        try:
+            from ...core.deps import get_adaptive_embedding_service
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                pass  # Will lazy load in the tool
+            else:
+                adaptive_service = loop.run_until_complete(get_adaptive_embedding_service())
+        except Exception:
+            pass  # Will use lazy loading in the tool
+
     # RAG 도구 추가
-    rag_tools = get_rag_tools(multimodal_service=multimodal_service)
+    rag_tools = get_rag_tools(
+        multimodal_service=multimodal_service,
+        adaptive_service=adaptive_service
+    )
     for tool in rag_tools:
         if include_vector_search and tool.name == "vector_search":
             tools.append(tool)
         elif include_graph_query and tool.name == "graph_query":
             tools.append(tool)
         elif include_image_search and tool.name == "image_search":
+            tools.append(tool)
+        elif include_adaptive_search and tool.name == "adaptive_search":
             tools.append(tool)
 
     # 추가 도구
@@ -505,7 +599,26 @@ def create_rag_deep_agent(
 
     # 기본 시스템 프롬프트 (Long-term Memory 기능 설명 추가)
     default_prompt = """You are a RAG (Retrieval-Augmented Generation) assistant with long-term memory capabilities.
-You have access to a knowledge base through vector_search, graph_query, and image_search tools.
+You have access to a knowledge base through vector_search, graph_query, image_search, and adaptive_search tools.
+
+## Available Tools
+
+### vector_search
+Search the general knowledge base using semantic similarity. Best for quick lookups.
+
+### graph_query
+Query entity relationships in the knowledge graph. Use for exploring connections between concepts.
+
+### image_search
+Search for images, diagrams, and charts in documents. Use when questions involve visual content.
+
+### adaptive_search
+**Important**: Use this tool for PDF documents processed with adaptive embedding.
+- Preserves document structure (sections, tables, images)
+- Returns results with hierarchical context (parent sections, references)
+- Best for technical manuals, structured reports, and detailed document exploration
+- Can filter by PDF ID or section path
+- Expands related chunks automatically for fuller context
 
 ## Long-term Memory
 You can store and retrieve information across conversations using file paths:
@@ -516,15 +629,15 @@ You can store and retrieve information across conversations using file paths:
 - /research/: Research progress across sessions
 
 When answering questions:
-1. Use vector_search to find relevant documents
-2. Use graph_query to explore entity relationships
-3. Use image_search to find relevant images, diagrams, or charts
-4. Synthesize information from multiple sources
-5. Always cite your sources
-6. Store important insights in /knowledge/ for future reference
-7. Remember user preferences in /preferences/
+1. Use adaptive_search first for structured PDF documents with sections
+2. Use vector_search for general knowledge base queries
+3. Use graph_query to explore entity relationships
+4. Use image_search for diagrams, charts, or visual content
+5. Synthesize information from multiple sources
+6. Always cite your sources with page numbers when available
+7. Store important insights in /knowledge/ for future reference
+8. Remember user preferences in /preferences/
 
-If the user asks about diagrams, flowcharts, or images, use the image_search tool.
 Answer in the user's language."""
 
     return DeepAgentAdapter(

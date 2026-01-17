@@ -32,6 +32,10 @@ export interface ToolCallInfo {
   input: Record<string, unknown>;
   output?: string;
   status: 'pending' | 'success' | 'error';
+  // Query correction info (when LLM corrupts Japanese/Korean text)
+  queryCorrected?: boolean;
+  originalLlmQuery?: string;
+  correctedQuery?: string;
 }
 
 /**

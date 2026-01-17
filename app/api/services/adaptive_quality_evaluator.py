@@ -15,6 +15,7 @@ from ..models.adaptive_chunk import (
     QualityLevel,
 )
 from ..ports.adaptive_embedding_port import AdaptiveQualityEvaluatorPort
+from ..core.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -27,27 +28,58 @@ class AdaptiveQualityEvaluator(AdaptiveQualityEvaluatorPort):
 
     def __init__(
         self,
-        min_similarity_threshold: float = 0.3,
-        top_k_default: int = 5,
-        excellent_threshold: float = 0.9,
-        good_threshold: float = 0.7,
-        fair_threshold: float = 0.5
+        min_similarity_threshold: float = None,
+        top_k_default: int = None,
+        excellent_threshold: float = None,
+        good_threshold: float = None,
+        fair_threshold: float = None
     ):
         """
         Initialize evaluator.
 
         Args:
-            min_similarity_threshold: Minimum similarity for retrieval
-            top_k_default: Default K for top-k metrics
-            excellent_threshold: Score threshold for excellent quality
-            good_threshold: Score threshold for good quality
-            fair_threshold: Score threshold for fair quality
+            min_similarity_threshold: Minimum similarity for retrieval (uses settings if None)
+            top_k_default: Default K for top-k metrics (uses settings if None)
+            excellent_threshold: Score threshold for excellent quality (uses settings if None)
+            good_threshold: Score threshold for good quality (uses settings if None)
+            fair_threshold: Score threshold for fair quality (uses settings if None)
         """
-        self.min_similarity_threshold = min_similarity_threshold
-        self.top_k_default = top_k_default
-        self.excellent_threshold = excellent_threshold
-        self.good_threshold = good_threshold
-        self.fair_threshold = fair_threshold
+        # Only load settings if any parameter needs default value
+        needs_settings = any(p is None for p in [
+            min_similarity_threshold, top_k_default,
+            excellent_threshold, good_threshold, fair_threshold
+        ])
+
+        if needs_settings:
+            settings = get_settings()
+            adaptive = settings.adaptive_embedding
+            self.min_similarity_threshold = (
+                min_similarity_threshold
+                if min_similarity_threshold is not None
+                else adaptive.quality_min_similarity
+            )
+            self.top_k_default = top_k_default if top_k_default is not None else adaptive.quality_top_k
+            self.excellent_threshold = (
+                excellent_threshold
+                if excellent_threshold is not None
+                else adaptive.quality_excellent_threshold
+            )
+            self.good_threshold = (
+                good_threshold
+                if good_threshold is not None
+                else adaptive.quality_good_threshold
+            )
+            self.fair_threshold = (
+                fair_threshold
+                if fair_threshold is not None
+                else adaptive.quality_fair_threshold
+            )
+        else:
+            self.min_similarity_threshold = min_similarity_threshold
+            self.top_k_default = top_k_default
+            self.excellent_threshold = excellent_threshold
+            self.good_threshold = good_threshold
+            self.fair_threshold = fair_threshold
 
     async def evaluate_quality(
         self,
@@ -59,10 +91,23 @@ class AdaptiveQualityEvaluator(AdaptiveQualityEvaluatorPort):
         Evaluate embedding quality for a document.
         """
         if not chunks:
+            logger.warning(f"QUALITY_DEBUG: No chunks received for {pdf_id}")
             return self._create_empty_metrics()
+
+        # Debug: Check chunk status before filtering
+        logger.info(f"QUALITY_DEBUG: Received {len(chunks)} chunks for {pdf_id}")
+        has_embedding_count = sum(1 for c in chunks if c.has_embedding)
+        has_actual_embedding = sum(1 for c in chunks if c.embedding is not None and len(c.embedding) > 0)
+        logger.info(f"QUALITY_DEBUG: has_embedding={has_embedding_count}, actual_embedding={has_actual_embedding}")
+
+        # Sample first 3 chunks
+        for i, c in enumerate(chunks[:3]):
+            emb_len = len(c.embedding) if c.embedding else 0
+            logger.info(f"QUALITY_DEBUG: Chunk[{i}] has_embedding={c.has_embedding}, embedding_len={emb_len}, _db_has={c._db_has_embedding}")
 
         # Filter chunks with embeddings
         embedded_chunks = [c for c in chunks if c.has_embedding and c.embedding]
+        logger.info(f"QUALITY_DEBUG: After filter: {len(embedded_chunks)} embedded chunks")
         if not embedded_chunks:
             return self._create_empty_metrics()
 

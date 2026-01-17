@@ -313,16 +313,32 @@ async def analyze_document(
     and provides routing recommendations.
     """
     try:
-        from app.api.pipeline.vision_orchestrator import (
-            get_vision_pipeline_orchestrator,
-        )
+        from pathlib import Path
+        from app.api.services.document_analyzer import DocumentAnalyzer
 
-        orchestrator = get_vision_pipeline_orchestrator()
+        # Use DocumentAnalyzer directly for document profile analysis
+        analyzer = DocumentAnalyzer()
 
-        # Analyze document
-        profile = await orchestrator.analyze_document(
+        # Get document storage path from document service
+        from app.api.core.deps import get_document_service
+        doc_service = get_document_service()
+        document = await doc_service.get_document(request.document_id)
+
+        if not document:
+            raise HTTPException(status_code=404, detail=f"Document {request.document_id} not found")
+
+        # Get file path from document metadata or construct from storage
+        file_path = document.get("file_path") or document.get("storage_path")
+        if not file_path:
+            # Construct path from uploads directory
+            uploads_dir = Path("/opt/kms/uploads")
+            filename = document.get("filename") or document.get("original_name")
+            file_path = uploads_dir / request.document_id / filename
+
+        # Analyze document profile
+        profile = await analyzer.analyze(
+            file_path=Path(file_path),
             document_id=request.document_id,
-            include_images=request.include_images,
         )
 
         # Determine recommendation
@@ -342,7 +358,7 @@ async def analyze_document(
             visual_complexity_score=profile.visual_complexity_score,
             image_count=profile.image_count,
             has_charts=profile.has_charts,
-            has_tables=profile.has_tables,
+            has_tables=profile.table_count > 0,
             has_diagrams=profile.has_diagrams,
             requires_vision_llm=profile.requires_vision_llm,
             processing_recommendation=recommendation,

@@ -20,6 +20,7 @@ from ..models.adaptive_chunk import (
     SectionInfo,
 )
 from ..ports.adaptive_embedding_port import AdaptiveChunkPlannerPort
+from ..core.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -51,27 +52,42 @@ class AdaptiveChunkPlanner(AdaptiveChunkPlannerPort):
 
     def __init__(
         self,
-        max_chunk_size: int = 1500,
-        min_chunk_size: int = 100,
-        overlap_size: int = 100,
-        preserve_tables: bool = True,
-        preserve_sections: bool = True
+        max_chunk_size: int = None,
+        min_chunk_size: int = None,
+        overlap_size: int = None,
+        preserve_tables: bool = None,
+        preserve_sections: bool = None
     ):
         """
         Initialize planner.
 
         Args:
-            max_chunk_size: Maximum chunk size in characters
-            min_chunk_size: Minimum chunk size in characters
-            overlap_size: Overlap between adjacent chunks
-            preserve_tables: Keep tables as single chunks
-            preserve_sections: Respect section boundaries
+            max_chunk_size: Maximum chunk size in characters (uses settings if None)
+            min_chunk_size: Minimum chunk size in characters (uses settings if None)
+            overlap_size: Overlap between adjacent chunks (uses settings if None)
+            preserve_tables: Keep tables as single chunks (uses settings if None)
+            preserve_sections: Respect section boundaries (uses settings if None)
         """
-        self.max_chunk_size = max_chunk_size
-        self.min_chunk_size = min_chunk_size
-        self.overlap_size = overlap_size
-        self.preserve_tables = preserve_tables
-        self.preserve_sections = preserve_sections
+        # Only load settings if any parameter needs default value
+        needs_settings = any(p is None for p in [
+            max_chunk_size, min_chunk_size, overlap_size,
+            preserve_tables, preserve_sections
+        ])
+
+        if needs_settings:
+            settings = get_settings()
+            adaptive = settings.adaptive_embedding
+            self.max_chunk_size = max_chunk_size if max_chunk_size is not None else adaptive.max_chunk_size
+            self.min_chunk_size = min_chunk_size if min_chunk_size is not None else adaptive.min_chunk_size
+            self.overlap_size = overlap_size if overlap_size is not None else adaptive.overlap_size
+            self.preserve_tables = preserve_tables if preserve_tables is not None else adaptive.preserve_tables
+            self.preserve_sections = preserve_sections if preserve_sections is not None else adaptive.preserve_sections
+        else:
+            self.max_chunk_size = max_chunk_size
+            self.min_chunk_size = min_chunk_size
+            self.overlap_size = overlap_size
+            self.preserve_tables = preserve_tables
+            self.preserve_sections = preserve_sections
 
     async def create_chunk_plan(
         self,
@@ -508,9 +524,9 @@ _planner: Optional[AdaptiveChunkPlanner] = None
 
 
 def get_adaptive_chunk_planner(
-    max_chunk_size: int = 1500,
-    min_chunk_size: int = 100,
-    overlap_size: int = 100
+    max_chunk_size: int = None,
+    min_chunk_size: int = None,
+    overlap_size: int = None
 ) -> AdaptiveChunkPlanner:
     """Get or create adaptive chunk planner instance."""
     global _planner

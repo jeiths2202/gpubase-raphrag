@@ -4091,6 +4091,17 @@ _coverage_repository = None
 _adaptive_db_pool = None
 
 
+def reset_adaptive_embedding_service():
+    """Reset adaptive embedding service singleton to force re-initialization."""
+    global _adaptive_embedding_service, _adaptive_chunk_repository
+    global _pdf_structure_repository, _coverage_repository
+    _adaptive_embedding_service = None
+    _adaptive_chunk_repository = None
+    _pdf_structure_repository = None
+    _coverage_repository = None
+    logger.info("Adaptive embedding service singleton reset")
+
+
 async def _get_db_pool():
     """Get or create database pool for adaptive embedding service."""
     global _adaptive_db_pool
@@ -4113,6 +4124,18 @@ async def _get_db_pool():
     return _adaptive_db_pool
 
 
+async def get_postgres_pool():
+    """
+    Get the PostgreSQL connection pool for adaptive embedding service.
+    Public alias for _get_db_pool().
+
+    Used for:
+    - Image repository operations
+    - Direct database access for adaptive features
+    """
+    return await _get_db_pool()
+
+
 async def get_adaptive_embedding_service():
     """
     Get PDFAdaptiveEmbeddingService singleton instance.
@@ -4128,7 +4151,13 @@ async def get_adaptive_embedding_service():
     global _pdf_structure_repository
     global _coverage_repository
 
-    if _adaptive_embedding_service is None:
+    # 임베딩 executor가 없는 경우 재초기화 필요
+    needs_init = _adaptive_embedding_service is None
+    if _adaptive_embedding_service is not None and _adaptive_embedding_service.embedding_executor is None:
+        logger.warning("Adaptive embedding service exists but has no embedding_executor, reinitializing...")
+        needs_init = True
+
+    if needs_init:
         from ..services.pdf_adaptive_embedding_service import (
             create_pdf_adaptive_embedding_service
         )
@@ -4173,15 +4202,52 @@ async def get_adaptive_embedding_service():
         embedding_executor = ParallelEmbeddingExecutor(
             embedding_service=NIMEmbeddingAdapter(),
             default_concurrency=5,
-            default_retry_count=3
+            default_timeout=30.0,
+            default_retry_count=3,
+            retry_base_delay=1.0,
+            retry_max_delay=30.0
         )
 
-        # Create service with embedding executor
+        # Create all service dependencies explicitly with parameters
+        # to avoid calling get_settings() at initialization time
+        from ..services.pdf_structure_analyzer import PDFStructureAnalyzer
+        from ..services.adaptive_chunk_planner import AdaptiveChunkPlanner
+        from ..services.embedding_coverage_validator import EmbeddingCoverageValidator
+        from ..services.adaptive_quality_evaluator import AdaptiveQualityEvaluator
+
+        structure_analyzer = PDFStructureAnalyzer(min_section_length=50)
+
+        chunk_planner = AdaptiveChunkPlanner(
+            max_chunk_size=500,  # Reduced to fit within NIM 512 token limit
+            min_chunk_size=100,
+            overlap_size=50,
+            preserve_tables=True,
+            preserve_sections=True
+        )
+
+        coverage_validator = EmbeddingCoverageValidator(
+            min_coverage_threshold=0.8,
+            warn_on_low_coverage=True
+        )
+
+        quality_evaluator = AdaptiveQualityEvaluator(
+            min_similarity_threshold=0.3,
+            top_k_default=5,
+            excellent_threshold=0.9,
+            good_threshold=0.7,
+            fair_threshold=0.5
+        )
+
+        # Create service with all dependencies
         _adaptive_embedding_service = create_pdf_adaptive_embedding_service(
             chunk_repository=_adaptive_chunk_repository,
             structure_repository=_pdf_structure_repository,
             coverage_repository=_coverage_repository,
-            embedding_executor=embedding_executor
+            embedding_executor=embedding_executor,
+            structure_analyzer=structure_analyzer,
+            chunk_planner=chunk_planner,
+            coverage_validator=coverage_validator,
+            quality_evaluator=quality_evaluator
         )
 
         logger.info("Adaptive embedding service initialized")

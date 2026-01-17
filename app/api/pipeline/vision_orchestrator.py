@@ -43,8 +43,11 @@ from app.api.services.document_analyzer import DocumentAnalyzer
 from app.api.services.image_preprocessor import ImagePreprocessor
 from app.api.services.vision_cache import VisionCacheService, hash_content
 from app.api.services.vision_router import VisionAwareRouter
+from app.api.core.config import get_api_settings
 
 logger = logging.getLogger(__name__)
+
+_settings = get_api_settings()
 
 
 @dataclass
@@ -58,8 +61,8 @@ class VisionPipelineConfig:
 
     # Vision LLM
     default_task: VisionTask = VisionTask.DESCRIBE
-    max_tokens: int = 4096
-    temperature: float = 0.7
+    max_tokens: int = _settings.LLM_MAX_TOKENS
+    temperature: float = _settings.LLM_TEMPERATURE
 
     # Performance
     batch_size: int = 5
@@ -698,3 +701,48 @@ If you're uncertain about something, say so."""
                 "cache_enabled": self.config.enable_cache,
             },
         }
+
+
+# Singleton instance
+_vision_pipeline_orchestrator: Optional[VisionPipelineOrchestrator] = None
+
+
+def get_vision_pipeline_orchestrator() -> VisionPipelineOrchestrator:
+    """
+    Get or create singleton VisionPipelineOrchestrator instance.
+
+    Uses NIM Vision LLM (llama-3.1-nemotron-nano-vl-8b) via OpenAI-compatible API.
+
+    Returns:
+        VisionPipelineOrchestrator instance
+    """
+    global _vision_pipeline_orchestrator
+
+    if _vision_pipeline_orchestrator is None:
+        import os
+        from app.api.adapters.vision.openai_vision_adapter import OpenAIVisionAdapter
+
+        # NIM Vision LLM configuration
+        vision_base_url = os.getenv(
+            "NIM_VISION_BASE_URL",
+            "http://localhost:12803/v1"
+        )
+        vision_model = os.getenv(
+            "NIM_VISION_MODEL",
+            "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
+        )
+
+        # Create OpenAI-compatible adapter for NIM Vision LLM
+        vision_llm = OpenAIVisionAdapter(
+            api_key="nim-api-key",  # NIM doesn't require real API key
+            model=vision_model,
+            base_url=vision_base_url,
+        )
+
+        _vision_pipeline_orchestrator = VisionPipelineOrchestrator(
+            vision_llm=vision_llm,
+            config=VisionPipelineConfig(),
+        )
+        logger.info(f"VisionPipelineOrchestrator initialized with NIM VLM at {vision_base_url}")
+
+    return _vision_pipeline_orchestrator

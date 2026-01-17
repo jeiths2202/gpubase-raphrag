@@ -1,35 +1,40 @@
-# Backend Dockerfile - FastAPI Application
-FROM python:3.10-slim
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
 
-WORKDIR /app
+# Avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies and Python 3.11
+RUN apt-get update && apt-get install -y     software-properties-common     && add-apt-repository ppa:deadsnakes/ppa -y     && apt-get update && apt-get install -y     python3.11     python3.11-venv     python3.11-dev     python3-pip     openssh-server     git     curl     wget     vim     sudo     build-essential     nodejs     npm     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
-COPY requirements-api.txt .
+# Set Python 3.11 as default
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements-api.txt
+# Configure SSH
+RUN mkdir /var/run/sshd
+RUN echo 'root:kmsadmin123' | chpasswd
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-# Copy application code
-COPY app/ ./app/
-COPY migrations/ ./migrations/
+# Create kms user
+RUN useradd -m -s /bin/bash kmsuser &&     echo 'kmsuser:kmsuser123' | chpasswd &&     usermod -aG sudo kmsuser
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash appuser && \
-    chown -R appuser:appuser /app
-USER appuser
+# Set working directory
+WORKDIR /opt/kms
 
-# Expose port
-EXPOSE 9000
+# Copy source code
+COPY . /opt/kms/
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:9000/health || exit 1
+# Create virtual environment and install dependencies
+RUN python3.11 -m venv /opt/kms/venv
+RUN /opt/kms/venv/bin/pip install --upgrade pip
+RUN /opt/kms/venv/bin/pip install -r /opt/kms/requirements-api.txt || true
 
-# Run application
-CMD ["python", "-m", "app.api.main", "--mode", "product"]
+# Set environment
+ENV PATH="/opt/kms/venv/bin:$PATH"
+ENV CUDA_VISIBLE_DEVICES=4,5,6,7
+
+# Expose ports
+EXPOSE 22 3000 9000
+
+# Start SSH daemon
+CMD ["/usr/sbin/sshd", "-D"]

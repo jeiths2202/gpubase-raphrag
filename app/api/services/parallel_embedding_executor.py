@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from ..models.adaptive_chunk import AdaptiveChunk, ChunkType
 from ..ports.adaptive_embedding_port import ParallelEmbeddingExecutorPort
 from ..ports.embedding_port import EmbeddingPort
+from ..core.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -62,29 +63,45 @@ class ParallelEmbeddingExecutor(ParallelEmbeddingExecutorPort):
     def __init__(
         self,
         embedding_service: EmbeddingPort,
-        default_concurrency: int = 5,
-        default_timeout: float = 30.0,
-        default_retry_count: int = 3,
-        retry_base_delay: float = 1.0,
-        retry_max_delay: float = 30.0
+        default_concurrency: int = None,
+        default_timeout: float = None,
+        default_retry_count: int = None,
+        retry_base_delay: float = None,
+        retry_max_delay: float = None
     ):
         """
         Initialize executor.
 
         Args:
             embedding_service: Service for generating embeddings
-            default_concurrency: Default max concurrent requests
-            default_timeout: Default timeout per chunk in seconds
-            default_retry_count: Default retry attempts
-            retry_base_delay: Base delay for exponential backoff
-            retry_max_delay: Maximum delay between retries
+            default_concurrency: Default max concurrent requests (uses settings if None)
+            default_timeout: Default timeout per chunk in seconds (uses settings if None)
+            default_retry_count: Default retry attempts (uses settings if None)
+            retry_base_delay: Base delay for exponential backoff (uses settings if None)
+            retry_max_delay: Maximum delay between retries (uses settings if None)
         """
         self.embedding_service = embedding_service
-        self.default_concurrency = default_concurrency
-        self.default_timeout = default_timeout
-        self.default_retry_count = default_retry_count
-        self.retry_base_delay = retry_base_delay
-        self.retry_max_delay = retry_max_delay
+
+        # Only load settings if any parameter needs default value
+        needs_settings = any(p is None for p in [
+            default_concurrency, default_timeout, default_retry_count,
+            retry_base_delay, retry_max_delay
+        ])
+
+        if needs_settings:
+            settings = get_settings()
+            adaptive = settings.adaptive_embedding
+            self.default_concurrency = default_concurrency if default_concurrency is not None else adaptive.embedding_concurrency
+            self.default_timeout = default_timeout if default_timeout is not None else adaptive.embedding_timeout
+            self.default_retry_count = default_retry_count if default_retry_count is not None else adaptive.embedding_retry_count
+            self.retry_base_delay = retry_base_delay if retry_base_delay is not None else adaptive.retry_base_delay
+            self.retry_max_delay = retry_max_delay if retry_max_delay is not None else adaptive.retry_max_delay
+        else:
+            self.default_concurrency = default_concurrency
+            self.default_timeout = default_timeout
+            self.default_retry_count = default_retry_count
+            self.retry_base_delay = retry_base_delay
+            self.retry_max_delay = retry_max_delay
 
         # Track progress per PDF
         self._progress: Dict[str, EmbeddingProgress] = {}
@@ -170,10 +187,13 @@ class ParallelEmbeddingExecutor(ParallelEmbeddingExecutorPort):
             try:
                 # Skip if already has embedding
                 if chunk.has_embedding:
+                    logger.warning(f"EMBED_DEBUG: Skipping chunk {chunk.chunk_id} - already has embedding")
                     return chunk
 
+                logger.warning(f"EMBED_DEBUG: Embedding chunk {chunk.chunk_id}, content length={len(chunk.content)}")
                 # Generate embedding
                 result = await self.embedding_service.embed_text(chunk.content)
+                logger.warning(f"EMBED_DEBUG: Got result for chunk {chunk.chunk_id}, embedding length={len(result.embedding) if result.embedding else 0}")
 
                 # Update chunk with embedding
                 chunk.embedding = result.embedding
@@ -396,8 +416,8 @@ def get_parallel_embedding_executor(
 
 def create_parallel_embedding_executor(
     embedding_service: EmbeddingPort,
-    concurrency: int = 5,
-    timeout: float = 30.0
+    concurrency: int = None,
+    timeout: float = None
 ) -> ParallelEmbeddingExecutor:
     """Create a new parallel embedding executor."""
     return ParallelEmbeddingExecutor(

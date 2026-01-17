@@ -154,5 +154,156 @@
     "processDoc": "このドキュメントを処理",
     "selectAll": "すべて選択",
     "deselectAll": "すべて解除"
+  },
+  "embeddingQuality": {
+    "title": "エンベディング品質検証",
+    "verifyButton": "品質検証",
+    "reVerifyButton": "再検証",
+    "verifying": "検証中...",
+    "score": "スコア",
+    "verified": "検証完了",
+    "levels": {
+      "excellent": "優秀",
+      "good": "良好",
+      "fair": "普通",
+      "poor": "要改善"
+    },
+    "metrics": {
+      "retrievalAccuracy": "検索精度",
+      "avgSimilarity": "平均類似度",
+      "coverage": "カバレッジ",
+      "chunksTested": "テスト済みチャンク"
+    },
+    "issues": {
+      "title": "検出された問題",
+      "lowAccuracy": "検索精度が低いです",
+      "lowSimilarity": "平均類似度スコアが期待値を下回っています",
+      "highVariance": "類似度スコアの分散が高いです",
+      "lowCoverage": "一部のチャンクが他のチャンクから孤立しています"
+    },
+    "recommendations": {
+      "title": "推奨事項",
+      "adjustChunkSize": "より良いコンテキスト保持のため、チャンクサイズまたはオーバーラップを調整してください",
+      "reviewContent": "ドキュメント内容を確認してください - 非常に多様なトピックが含まれている可能性があります",
+      "reprocess": "一部のチャンクのエンベディング品質が低い可能性があります - 再処理を検討してください",
+      "checkChunks": "特殊文字を含むチャンクや非常に短いチャンクを確認してください",
+      "excellent": "エンベディング品質は優秀です - 改善は不要です",
+      "acceptable": "エンベディング品質は許容範囲内です"
+    },
+    "empty": {
+      "message": "「品質検証」ボタンをクリックして、このドキュメントのエンベディング品質を確認してください。"
+    },
+    "error": {
+      "notReady": "エンベディングがまだ準備されていません",
+      "failed": "品質検証に失敗しました"
+    }
+  },
+  "adaptive": {
+    "title": "適応型エンベディング",
+    "tabLabel": "適応型",
+    "description": "意味的境界に基づく構造保持PDFチャンキング",
+    "upload": {
+      "title": "PDFアップロード",
+      "dropzone": "PDFファイルをここにドロップまたはクリックしてアップロード",
+      "processing": "処理中...",
+      "success": "処理が開始されました",
+      "error": "アップロード失敗"
+    },
+    "options": {
+      "language": "言語",
+      "languageAuto": "自動検出",
+      "maxChunkSize": "最大チャンクサイズ",
+      "minChunkSize": "最小チャンクサイズ",
+      "preserveTables": "テーブル保持",
+      "preserveSections": "セクション保持",
+      "forceReprocess": "強制再処理"
+    },
+    "status": {
+      "pending": "待機中",
+      "analyzing": "構造分析中...",
+      "chunking": "チャンク作成中...",
+      "embedding": "エンベディング生成中...",
+      "validating": "カバレッジ検証中...",
+      "completed": "完了",
+      "failed": "失敗",
+      "partial": "部分完了"
+    },
+    "chunks": {
+      "title": "チャンク",
+      "noChunks": "チャンクがありません",
+      "types": {
+        "TEXT_CHUNK": "テキスト",
+        "TABLE_CHUNK": "テーブル",
+        "IMAGE_CHUNK": "画像",
+        "OCR_CHUNK": "OCR"
+      },
+      "pages": "ページ",
+      "section": "セクション",
+      "embedded": "エンベディング済み",
+      "notEmbedded": "未エンベディング"
+    },
+    "coverage": {
+      "title": "カバレッジレポート",
+      "overall": "全体カバレッジ",
+      "text": "テキストカバレッジ",
+      "table": "テーブルカバレッジ",
+      "image": "画像カバレッジ",
+      "ocr": "OCRカバレッジ",
+      "totalChunks": "全チャンク数",
+      "embeddedChunks": "エンベディング済みチャンク"
+    },
+    "quality": {
+      "title": "品質メトリクス",
+      "topKRecall": "Top-K再現率",
+      "sectionPrecision": "セクション精度",
+      "avgSimilarity": "平均類似度",
+      "hallucination": "ハルシネーション検出",
+      "issues": "問題点",
+      "recommendations": "推奨事項",
+      "levels": {
+        "excellent": "優秀",
+        "good": "良好",
+        "fair": "普通",
+        "poor": "改善必要"
+      }
+    },
+    "structure": {
+      "title": "ドキュメント構造",
+      "documentType": "ドキュメントタイプ",
+      "totalPages": "総ページ数",
+      "totalSections": "総セクション数",
+      "totalImages": "総画像数",
+      "totalTables": "総テーブル数",
+      "hierarchy": "セクション階層",
+      "types": {
+        "manual": "マニュアル",
+        "report": "レポート",
+        "paper": "論文",
+        "contract": "契約書",
+        "presentation": "プレゼンテーション",
+        "form": "フォーム",
+        "other": "その他"
+      }
+    },
+    "search": {
+      "title": "チャンク検索",
+      "placeholder": "検索キーワードを入力...",
+      "results": "結果",
+      "noResults": "結果がありません",
+      "similarity": "類似度"
+    },
+    "actions": {
+      "viewChunks": "チャンク表示",
+      "viewCoverage": "カバレッジ表示",
+      "viewQuality": "品質表示",
+      "viewStructure": "構造表示",
+      "delete": "削除",
+      "refresh": "更新"
+    },
+    "documents": {
+      "title": "適応型ドキュメント",
+      "empty": "適応型ドキュメントがありません",
+      "uploadFirst": "PDFをアップロードして開始してください"
+    }
   }
 }

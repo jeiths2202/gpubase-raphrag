@@ -31,8 +31,11 @@ from .generation import (
     PromptTemplatePort,
     StreamingLLMPort
 )
+from ..core.config import get_api_settings
 
 logger = logging.getLogger(__name__)
+
+_settings = get_api_settings()
 
 
 # ==================== Configuration ====================
@@ -40,9 +43,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PipelineConfig:
     """Configuration for complete RAG pipeline"""
-    # Embedding settings
-    embedding_model: str = "nvidia/nv-embedqa-e5-v5"
-    embedding_dimension: int = 1024
+    # Embedding settings - NIM uses nvidia/nv-embedqa-mistral-7b-v2 (4096 dims)
+    embedding_model: str = "nvidia/nv-embedqa-mistral-7b-v2"
+    embedding_dimension: int = 4096
     # Retrieval settings
     retrieval_strategy: RetrievalStrategy = RetrievalStrategy.VECTOR
     retrieval_top_k: int = 10
@@ -51,9 +54,9 @@ class PipelineConfig:
     keyword_weight: float = 0.3
     min_score: float = 0.0
     # Generation settings
-    temperature: float = 0.7
-    max_tokens: int = 2048
-    max_context_length: int = 8000
+    temperature: float = _settings.LLM_TEMPERATURE
+    max_tokens: int = _settings.LLM_MAX_TOKENS
+    max_context_length: int = _settings.LLM_MAX_CONTEXT_LENGTH
     language: str = "auto"
     # Pipeline settings
     include_sources: bool = True
@@ -472,11 +475,12 @@ class PipelineFactory:
         prompt_template: Optional[PromptTemplatePort] = None
     ) -> RAGPipeline:
         """Create pipeline optimized for analysis"""
+        settings = get_api_settings()
         config = PipelineConfig(
             retrieval_top_k=15,
             temperature=0.5,
-            max_tokens=4096,
-            max_context_length=12000
+            max_tokens=settings.LLM_MAX_TOKENS,
+            max_context_length=settings.LLM_MAX_CONTEXT_LENGTH
         )
         return RAGPipeline(
             self.embedder,
@@ -491,10 +495,11 @@ class PipelineFactory:
         prompt_template: Optional[PromptTemplatePort] = None
     ) -> RAGPipeline:
         """Create pipeline optimized for code"""
+        settings = get_api_settings()
         config = PipelineConfig(
             retrieval_top_k=20,
             temperature=0.3,
-            max_tokens=4096
+            max_tokens=settings.LLM_MAX_TOKENS
         )
         return RAGPipeline(
             self.embedder,

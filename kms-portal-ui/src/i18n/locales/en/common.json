@@ -154,5 +154,156 @@
     "processDoc": "Process this document",
     "selectAll": "Select All",
     "deselectAll": "Deselect All"
+  },
+  "embeddingQuality": {
+    "title": "Embedding Quality Verification",
+    "verifyButton": "Verify Quality",
+    "reVerifyButton": "Re-verify",
+    "verifying": "Verifying...",
+    "score": "Score",
+    "verified": "Verified",
+    "levels": {
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor"
+    },
+    "metrics": {
+      "retrievalAccuracy": "Retrieval Accuracy",
+      "avgSimilarity": "Avg Similarity",
+      "coverage": "Coverage",
+      "chunksTested": "Chunks Tested"
+    },
+    "issues": {
+      "title": "Issues Found",
+      "lowAccuracy": "Low retrieval accuracy detected",
+      "lowSimilarity": "Average similarity scores are below expected threshold",
+      "highVariance": "High variance in similarity scores",
+      "lowCoverage": "Some chunks appear isolated from others"
+    },
+    "recommendations": {
+      "title": "Recommendations",
+      "adjustChunkSize": "Consider adjusting chunk size or overlap for better context preservation",
+      "reviewContent": "Review document content - it may contain very diverse topics",
+      "reprocess": "Some chunks may have poor embedding quality - consider re-processing",
+      "checkChunks": "Check for chunks with special characters or very short content",
+      "excellent": "Excellent embedding quality - no improvements needed",
+      "acceptable": "Embedding quality is acceptable"
+    },
+    "empty": {
+      "message": "Click \"Verify Quality\" to check embedding quality for this document."
+    },
+    "error": {
+      "notReady": "Embeddings are not ready yet",
+      "failed": "Quality verification failed"
+    }
+  },
+  "adaptive": {
+    "title": "Adaptive Embedding",
+    "tabLabel": "Adaptive",
+    "description": "Structure-preserving PDF chunking with semantic boundaries",
+    "upload": {
+      "title": "Upload PDF",
+      "dropzone": "Drop PDF file here or click to upload",
+      "processing": "Processing...",
+      "success": "Processing started",
+      "error": "Upload failed"
+    },
+    "options": {
+      "language": "Language",
+      "languageAuto": "Auto-detect",
+      "maxChunkSize": "Max Chunk Size",
+      "minChunkSize": "Min Chunk Size",
+      "preserveTables": "Preserve Tables",
+      "preserveSections": "Preserve Sections",
+      "forceReprocess": "Force Reprocess"
+    },
+    "status": {
+      "pending": "Pending",
+      "analyzing": "Analyzing structure...",
+      "chunking": "Creating chunks...",
+      "embedding": "Generating embeddings...",
+      "validating": "Validating coverage...",
+      "completed": "Completed",
+      "failed": "Failed",
+      "partial": "Partially completed"
+    },
+    "chunks": {
+      "title": "Chunks",
+      "noChunks": "No chunks found",
+      "types": {
+        "TEXT_CHUNK": "Text",
+        "TABLE_CHUNK": "Table",
+        "IMAGE_CHUNK": "Image",
+        "OCR_CHUNK": "OCR"
+      },
+      "pages": "Pages",
+      "section": "Section",
+      "embedded": "Embedded",
+      "notEmbedded": "Not embedded"
+    },
+    "coverage": {
+      "title": "Coverage Report",
+      "overall": "Overall Coverage",
+      "text": "Text Coverage",
+      "table": "Table Coverage",
+      "image": "Image Coverage",
+      "ocr": "OCR Coverage",
+      "totalChunks": "Total Chunks",
+      "embeddedChunks": "Embedded Chunks"
+    },
+    "quality": {
+      "title": "Quality Metrics",
+      "topKRecall": "Top-K Recall",
+      "sectionPrecision": "Section Precision",
+      "avgSimilarity": "Avg Similarity",
+      "hallucination": "Hallucination Detected",
+      "issues": "Issues",
+      "recommendations": "Recommendations",
+      "levels": {
+        "excellent": "Excellent",
+        "good": "Good",
+        "fair": "Fair",
+        "poor": "Poor"
+      }
+    },
+    "structure": {
+      "title": "Document Structure",
+      "documentType": "Document Type",
+      "totalPages": "Total Pages",
+      "totalSections": "Total Sections",
+      "totalImages": "Total Images",
+      "totalTables": "Total Tables",
+      "hierarchy": "Section Hierarchy",
+      "types": {
+        "manual": "Manual",
+        "report": "Report",
+        "paper": "Paper",
+        "contract": "Contract",
+        "presentation": "Presentation",
+        "form": "Form",
+        "other": "Other"
+      }
+    },
+    "search": {
+      "title": "Search Chunks",
+      "placeholder": "Enter search query...",
+      "results": "Results",
+      "noResults": "No results found",
+      "similarity": "Similarity"
+    },
+    "actions": {
+      "viewChunks": "View Chunks",
+      "viewCoverage": "View Coverage",
+      "viewQuality": "View Quality",
+      "viewStructure": "View Structure",
+      "delete": "Delete",
+      "refresh": "Refresh"
+    },
+    "documents": {
+      "title": "Adaptive Documents",
+      "empty": "No adaptive documents yet",
+      "uploadFirst": "Upload a PDF to get started"
+    }
   }
 }

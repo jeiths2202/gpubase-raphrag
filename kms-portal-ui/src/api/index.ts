@@ -137,6 +137,38 @@ export type {
 
 export { AUTH_ERROR_CODES } from './types';
 
+// Adaptive Documents API
+export { default as adaptiveDocumentsApi } from './adaptiveDocuments.api';
+export {
+  processAdaptivePDF,
+  getAdaptiveChunks,
+  getChunkDetail,
+  getCoverage,
+  getQuality,
+  getStructure,
+  searchAdaptiveChunks,
+  getProcessingStatus,
+  deleteAdaptiveDocument,
+} from './adaptiveDocuments.api';
+export type {
+  ChunkType,
+  DocumentType,
+  ProcessingStatus,
+  QualityLevel,
+  AdaptiveProcessOptions,
+  AdaptiveProcessResponse,
+  ChunkListItem,
+  ChunkDetail,
+  CoverageResponse,
+  QualityResponse,
+  StructureAnalysisResponse,
+  SearchAdaptiveChunksRequest,
+  SearchResultItem,
+  SearchAdaptiveChunksResponse,
+  ProcessingStatusResponse,
+  DeleteResponse,
+} from './adaptiveDocuments.api';
+
 // External Connectors API
 export { default as externalConnectorsApi } from './externalConnectors.api';
 export {

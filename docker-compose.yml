@@ -42,7 +42,7 @@ services:
 
     # Extra hosts for NIM services on host machine
     extra_hosts:
-      - "nim-host:192.168.8.11"
+      - "nim-host:host-gateway"
       - "host.docker.internal:host-gateway"
 
     # Network

@@ -48,7 +48,7 @@ class EmbeddingConfig:
 
     # NIM token limit (default 512 for nvidia/nv-embedqa-mistral-7b-v2)
     NIM_MAX_TOKENS = int(os.getenv("EMBEDDING_MAX_TOKENS", "512"))
-    NIM_SAFE_TOKEN_LIMIT = int(os.getenv("EMBEDDING_SAFE_TOKEN_LIMIT", "500"))
+    NIM_SAFE_TOKEN_LIMIT = int(os.getenv("EMBEDDING_SAFE_TOKEN_LIMIT", "400"))
 
 class TextEmbeddingService:
     """
@@ -91,8 +91,11 @@ class TextEmbeddingService:
 
         other_count = len(text) - cjk_count
 
-        # CJK: ~1.5 tokens per character, Latin: ~0.25 tokens per character
-        estimated = int(cjk_count * 1.5) + int(other_count / 4)
+        # Very conservative estimates to ensure we stay under NIM limit:
+        # CJK: ~3 tokens per character (handles complex Japanese/Korean tokenization)
+        # Latin: ~0.5 tokens per character (handles multi-byte and special chars)
+        # This ensures truncation happens more aggressively
+        estimated = int(cjk_count * 3) + int(other_count / 2)
         return max(estimated, 1)
 
     def _truncate_to_token_limit(self, text: str, max_tokens: int = None) -> str:
@@ -163,10 +166,13 @@ class TextEmbeddingService:
             import aiohttp
 
             # Truncate text to stay within NIM token limit
+            original_len = len(text)
             truncated_text = self._truncate_to_token_limit(text)
-            if len(truncated_text) < len(text):
+            # Always log truncation info for debugging
+            logger.warning(f"EMBEDDING_DEBUG: input={original_len} chars, truncated={len(truncated_text)} chars, estimated={self._estimate_tokens(truncated_text)} tokens, limit={self.max_tokens}")
+            if len(truncated_text) < original_len:
                 logger.debug(
-                    f"Text truncated for NIM: {len(text)} -> {len(truncated_text)} chars "
+                    f"Text truncated for NIM: {original_len} -> {len(truncated_text)} chars "
                     f"(~{self._estimate_tokens(truncated_text)} tokens)"
                 )
 

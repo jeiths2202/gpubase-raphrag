@@ -14,6 +14,7 @@ from ..models.adaptive_chunk import (
     CoverageReport,
 )
 from ..ports.adaptive_embedding_port import EmbeddingCoverageValidatorPort
+from ..core.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -26,18 +27,35 @@ class EmbeddingCoverageValidator(EmbeddingCoverageValidatorPort):
 
     def __init__(
         self,
-        min_coverage_threshold: float = 0.95,
-        warn_on_low_coverage: bool = True
+        min_coverage_threshold: float = None,
+        warn_on_low_coverage: bool = None
     ):
         """
         Initialize validator.
 
         Args:
-            min_coverage_threshold: Minimum acceptable coverage (0-1)
-            warn_on_low_coverage: Log warning if coverage is below threshold
+            min_coverage_threshold: Minimum acceptable coverage 0-1 (uses settings if None)
+            warn_on_low_coverage: Log warning if coverage is below threshold (uses settings if None)
         """
-        self.min_coverage_threshold = min_coverage_threshold
-        self.warn_on_low_coverage = warn_on_low_coverage
+        # Only load settings if any parameter needs default value
+        needs_settings = min_coverage_threshold is None or warn_on_low_coverage is None
+
+        if needs_settings:
+            settings = get_settings()
+            adaptive = settings.adaptive_embedding
+            self.min_coverage_threshold = (
+                min_coverage_threshold
+                if min_coverage_threshold is not None
+                else adaptive.min_coverage_threshold
+            )
+            self.warn_on_low_coverage = (
+                warn_on_low_coverage
+                if warn_on_low_coverage is not None
+                else adaptive.warn_on_low_coverage
+            )
+        else:
+            self.min_coverage_threshold = min_coverage_threshold
+            self.warn_on_low_coverage = warn_on_low_coverage
 
     async def validate_coverage(
         self,
@@ -48,6 +66,7 @@ class EmbeddingCoverageValidator(EmbeddingCoverageValidatorPort):
         Validate embedding coverage for a document.
         """
         if not chunks:
+            logger.warning(f"VALIDATOR_DEBUG: Empty chunks list for {pdf_id}")
             return CoverageReport(
                 total_chunks=0,
                 embedded_chunks=0,
@@ -55,6 +74,9 @@ class EmbeddingCoverageValidator(EmbeddingCoverageValidatorPort):
                 skipped_chunks=[],
                 by_type={}
             )
+
+        # Debug log input
+        logger.info(f"VALIDATOR_DEBUG: Received {len(chunks)} chunks for {pdf_id}")
 
         # Count by type
         by_type: Dict[str, Dict[str, int]] = defaultdict(lambda: {"total": 0, "embedded": 0})
@@ -75,6 +97,12 @@ class EmbeddingCoverageValidator(EmbeddingCoverageValidatorPort):
         # Calculate totals
         total_chunks = len(chunks)
         embedded_chunks = sum(1 for c in chunks if c.has_embedding)
+
+        # Debug log counts
+        logger.info(f"VALIDATOR_DEBUG: Calculated total={total_chunks}, embedded={embedded_chunks}")
+        # Check first 3 chunks
+        for i, c in enumerate(chunks[:3]):
+            logger.info(f"VALIDATOR_DEBUG: Sample[{i}] has_embedding={c.has_embedding}, embedding={c.embedding is not None}, _db={c._db_has_embedding}")
 
         # Build report
         report = CoverageReport(
@@ -244,7 +272,7 @@ _validator: Optional[EmbeddingCoverageValidator] = None
 
 
 def get_embedding_coverage_validator(
-    min_coverage_threshold: float = 0.95
+    min_coverage_threshold: float = None
 ) -> EmbeddingCoverageValidator:
     """Get or create embedding coverage validator instance."""
     global _validator

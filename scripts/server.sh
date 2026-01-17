@@ -89,6 +89,24 @@ kill_process_by_port() {
     fi
 }
 
+wait_for_port() {
+    local port=$1
+    local timeout=${2:-30}
+    local elapsed=0
+
+    while [ $elapsed -lt $timeout ]; do
+        local pid=$(get_pid_by_port $port)
+        if [ -n "$pid" ]; then
+            echo "$pid"
+            return 0
+        fi
+        sleep 2
+        elapsed=$((elapsed + 2))
+        echo -ne "." >&2
+    done
+    return 1
+}
+
 start_frontend() {
     local pid=$(get_pid_by_port $FRONTEND_PORT)
     if [ -n "$pid" ]; then
@@ -104,16 +122,18 @@ start_frontend() {
 
     cd "$FRONTEND_DIR"
     nohup npm run dev -- --port $FRONTEND_PORT >> "$log_file" 2>&1 &
-    sleep 3
 
-    pid=$(get_pid_by_port $FRONTEND_PORT)
+    print_status "Waiting for frontend to start (timeout: 30s)..."
+    pid=$(wait_for_port $FRONTEND_PORT 30)
+    echo ""  # newline after dots
+
     if [ -n "$pid" ]; then
         print_status "Frontend started successfully (PID: $pid)"
-        print_status "URL: http://localhost:$FRONTEND_PORT"
+        print_status "URL: https://localhost:$FRONTEND_PORT"
         log_message "$log_file" "Frontend started successfully (PID: $pid)"
     else
-        print_error "Failed to start frontend"
-        log_message "$log_file" "ERROR: Failed to start frontend"
+        print_error "Failed to start frontend (timeout)"
+        log_message "$log_file" "ERROR: Failed to start frontend (timeout after 30s)"
         return 1
     fi
 }
@@ -141,17 +161,19 @@ start_backend() {
 
     cd "$PROJECT_ROOT"
     nohup "$VENV_PYTHON" -m app.api.main --mode develop --port $BACKEND_PORT >> "$log_file" 2>&1 &
-    sleep 8
 
-    pid=$(get_pid_by_port $BACKEND_PORT)
+    print_status "Waiting for backend to start (timeout: 30s)..."
+    pid=$(wait_for_port $BACKEND_PORT 30)
+    echo ""  # newline after dots
+
     if [ -n "$pid" ]; then
         print_status "Backend started successfully (PID: $pid)"
         print_status "URL: http://localhost:$BACKEND_PORT"
         print_status "Docs: http://localhost:$BACKEND_PORT/docs"
         log_message "$log_file" "Backend started successfully (PID: $pid)"
     else
-        print_error "Failed to start backend"
-        log_message "$log_file" "ERROR: Failed to start backend"
+        print_error "Failed to start backend (timeout)"
+        log_message "$log_file" "ERROR: Failed to start backend (timeout after 30s)"
         return 1
     fi
 }

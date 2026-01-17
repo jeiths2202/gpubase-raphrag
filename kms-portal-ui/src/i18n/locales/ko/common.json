@@ -154,5 +154,156 @@
     "processDoc": "이 문서 처리",
     "selectAll": "전체 선택",
     "deselectAll": "전체 해제"
+  },
+  "embeddingQuality": {
+    "title": "임베딩 품질 검증",
+    "verifyButton": "품질 검증",
+    "reVerifyButton": "재검증",
+    "verifying": "검증 중...",
+    "score": "점수",
+    "verified": "검증 완료",
+    "levels": {
+      "excellent": "우수",
+      "good": "양호",
+      "fair": "보통",
+      "poor": "개선필요"
+    },
+    "metrics": {
+      "retrievalAccuracy": "검색 정확도",
+      "avgSimilarity": "평균 유사도",
+      "coverage": "커버리지",
+      "chunksTested": "테스트된 청크"
+    },
+    "issues": {
+      "title": "발견된 문제",
+      "lowAccuracy": "검색 정확도가 낮습니다",
+      "lowSimilarity": "평균 유사도 점수가 기대치 이하입니다",
+      "highVariance": "유사도 점수의 분산이 높습니다",
+      "lowCoverage": "일부 청크가 다른 청크들과 격리되어 있습니다"
+    },
+    "recommendations": {
+      "title": "권장 사항",
+      "adjustChunkSize": "더 나은 컨텍스트 보존을 위해 청크 크기나 오버랩을 조정하세요",
+      "reviewContent": "문서 내용을 검토하세요 - 매우 다양한 주제가 포함되어 있을 수 있습니다",
+      "reprocess": "일부 청크의 임베딩 품질이 낮습니다 - 재처리를 고려하세요",
+      "checkChunks": "특수 문자가 있거나 매우 짧은 청크를 확인하세요",
+      "excellent": "임베딩 품질이 우수합니다 - 개선이 필요 없습니다",
+      "acceptable": "임베딩 품질이 수용 가능한 수준입니다"
+    },
+    "empty": {
+      "message": "\"품질 검증\" 버튼을 클릭하여 이 문서의 임베딩 품질을 확인하세요."
+    },
+    "error": {
+      "notReady": "임베딩이 아직 준비되지 않았습니다",
+      "failed": "품질 검증에 실패했습니다"
+    }
+  },
+  "adaptive": {
+    "title": "적응형 임베딩",
+    "tabLabel": "적응형",
+    "description": "의미적 경계 기반 구조 보존 PDF 청킹",
+    "upload": {
+      "title": "PDF 업로드",
+      "dropzone": "PDF 파일을 여기에 드롭하거나 클릭하여 업로드",
+      "processing": "처리 중...",
+      "success": "처리가 시작되었습니다",
+      "error": "업로드 실패"
+    },
+    "options": {
+      "language": "언어",
+      "languageAuto": "자동 감지",
+      "maxChunkSize": "최대 청크 크기",
+      "minChunkSize": "최소 청크 크기",
+      "preserveTables": "테이블 보존",
+      "preserveSections": "섹션 보존",
+      "forceReprocess": "강제 재처리"
+    },
+    "status": {
+      "pending": "대기 중",
+      "analyzing": "구조 분석 중...",
+      "chunking": "청크 생성 중...",
+      "embedding": "임베딩 생성 중...",
+      "validating": "커버리지 검증 중...",
+      "completed": "완료",
+      "failed": "실패",
+      "partial": "부분 완료"
+    },
+    "chunks": {
+      "title": "청크",
+      "noChunks": "청크가 없습니다",
+      "types": {
+        "TEXT_CHUNK": "텍스트",
+        "TABLE_CHUNK": "테이블",
+        "IMAGE_CHUNK": "이미지",
+        "OCR_CHUNK": "OCR"
+      },
+      "pages": "페이지",
+      "section": "섹션",
+      "embedded": "임베딩됨",
+      "notEmbedded": "임베딩 안됨"
+    },
+    "coverage": {
+      "title": "커버리지 리포트",
+      "overall": "전체 커버리지",
+      "text": "텍스트 커버리지",
+      "table": "테이블 커버리지",
+      "image": "이미지 커버리지",
+      "ocr": "OCR 커버리지",
+      "totalChunks": "전체 청크",
+      "embeddedChunks": "임베딩된 청크"
+    },
+    "quality": {
+      "title": "품질 메트릭",
+      "topKRecall": "Top-K 재현율",
+      "sectionPrecision": "섹션 정밀도",
+      "avgSimilarity": "평균 유사도",
+      "hallucination": "환각 감지됨",
+      "issues": "문제점",
+      "recommendations": "권장 사항",
+      "levels": {
+        "excellent": "우수",
+        "good": "양호",
+        "fair": "보통",
+        "poor": "개선필요"
+      }
+    },
+    "structure": {
+      "title": "문서 구조",
+      "documentType": "문서 유형",
+      "totalPages": "전체 페이지",
+      "totalSections": "전체 섹션",
+      "totalImages": "전체 이미지",
+      "totalTables": "전체 테이블",
+      "hierarchy": "섹션 계층 구조",
+      "types": {
+        "manual": "매뉴얼",
+        "report": "보고서",
+        "paper": "논문",
+        "contract": "계약서",
+        "presentation": "프레젠테이션",
+        "form": "양식",
+        "other": "기타"
+      }
+    },
+    "search": {
+      "title": "청크 검색",
+      "placeholder": "검색어를 입력하세요...",
+      "results": "결과",
+      "noResults": "결과가 없습니다",
+      "similarity": "유사도"
+    },
+    "actions": {
+      "viewChunks": "청크 보기",
+      "viewCoverage": "커버리지 보기",
+      "viewQuality": "품질 보기",
+      "viewStructure": "구조 보기",
+      "delete": "삭제",
+      "refresh": "새로고침"
+    },
+    "documents": {
+      "title": "적응형 문서",
+      "empty": "적응형 문서가 없습니다",
+      "uploadFirst": "PDF를 업로드하여 시작하세요"
+    }
   }
 }

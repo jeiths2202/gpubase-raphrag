@@ -11,8 +11,11 @@ import time
 
 from ..core.tracing import get_trace_context_from_request
 from ..core.trace_context import SpanType
+from ..core.config import get_api_settings
 
 logger = logging.getLogger(__name__)
+
+_settings = get_api_settings()
 
 
 # ==================== Ports (Interfaces) ====================
@@ -73,12 +76,12 @@ class ResponseFormat(str, Enum):
 class GenerationConfig:
     """Configuration for generation stage"""
     mode: GenerationMode = GenerationMode.STANDARD
-    temperature: float = 0.7
-    max_tokens: int = 2048
+    temperature: float = _settings.LLM_TEMPERATURE
+    max_tokens: int = _settings.LLM_MAX_TOKENS
     response_format: ResponseFormat = ResponseFormat.TEXT
     language: str = "auto"
     include_sources: bool = True
-    max_context_length: int = 8000
+    max_context_length: int = _settings.LLM_MAX_CONTEXT_LENGTH
     timeout_seconds: float = 60.0
 
 
@@ -398,8 +401,8 @@ class AnalysisGenerationStage(GenerationStage):
     ):
         config = GenerationConfig(
             temperature=0.5,
-            max_tokens=4096,
-            max_context_length=12000
+            max_tokens=2048,
+            max_context_length=6000
         )
         super().__init__(llm, prompt_template, config)
 
@@ -423,7 +426,7 @@ class CodeGenerationStage(GenerationStage):
     ):
         config = GenerationConfig(
             temperature=0.3,
-            max_tokens=4096,
+            max_tokens=2048,
             response_format=ResponseFormat.MARKDOWN
         )
         super().__init__(llm, prompt_template, config)

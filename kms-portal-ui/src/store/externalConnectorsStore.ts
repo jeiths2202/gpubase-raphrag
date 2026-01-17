@@ -160,7 +160,7 @@ interface ExternalConnectorsState {
   // Backend API integration
   loadConnections: () => Promise<void>;
   initiateSSO: (type: ConnectorType) => void;
-  handleSSOCallback: (type: ConnectorType, authCode: string) => Promise<void>;
+  handleSSOCallback: (type: ConnectorType, authCode: string, state: string) => Promise<void>;
   completeOAuthFlow: (connectionId: string, code: string, state: string) => Promise<void>;
   cancelSSO: () => void;
 
@@ -461,7 +461,8 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
       },
 
       // Handle SSO callback (from OAuth redirect)
-      handleSSOCallback: async (_type, authCode) => {
+      // SECURITY: state parameter is required for CSRF protection
+      handleSSOCallback: async (_type, authCode, state) => {
         const { pendingOAuthConnectionId } = get();
 
         if (!pendingOAuthConnectionId) {
@@ -474,7 +475,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
         }
 
         try {
-          await get().completeOAuthFlow(pendingOAuthConnectionId, authCode);
+          await get().completeOAuthFlow(pendingOAuthConnectionId, authCode, state);
         } catch (error) {
           set({
             ssoState: 'error',

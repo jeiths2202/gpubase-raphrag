@@ -27,6 +27,7 @@ class PostgresTextChunkRepository:
 
         async with self._pool.acquire() as conn:
             # Create table for text chunks
+            # NOTE: vector(4096) matches NIM embedding model (nvidia/nv-embedqa-mistral-7b-v2)
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS text_chunks (
                     id TEXT PRIMARY KEY,
@@ -36,7 +37,7 @@ class PostgresTextChunkRepository:
                     content_length INTEGER DEFAULT 0,
                     chunk_type TEXT DEFAULT 'text',
                     page_number INTEGER,
-                    embedding vector(768),
+                    embedding vector(4096),
                     has_embedding BOOLEAN DEFAULT FALSE,
                     metadata JSONB DEFAULT '{}',
                     created_at TIMESTAMPTZ DEFAULT NOW(),

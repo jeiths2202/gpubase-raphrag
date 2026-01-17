@@ -24,8 +24,11 @@ from .generation_chain import (
     LLMPort,
     PromptTemplatePort
 )
+from ..core.config import get_api_settings
 
 logger = logging.getLogger(__name__)
+
+_settings = get_api_settings()
 
 
 # ==================== Data Classes ====================
@@ -40,9 +43,9 @@ class RAGChainConfig(ChainConfig):
     keyword_weight: float = 0.3
     min_score: float = 0.0
     # Generation settings
-    temperature: float = 0.7
-    max_tokens: int = 2048
-    max_context_length: int = 8000
+    temperature: float = _settings.LLM_TEMPERATURE
+    max_tokens: int = _settings.LLM_MAX_TOKENS
+    max_context_length: int = _settings.LLM_MAX_CONTEXT_LENGTH
     # Pipeline settings
     include_sources: bool = True
     language: str = "auto"
@@ -481,11 +484,12 @@ class RAGChainFactory:
         prompt_template: Optional[PromptTemplatePort] = None
     ) -> RAGChain:
         """Create RAG chain optimized for analysis"""
+        settings = get_api_settings()
         config = RAGChainConfig(
             retrieval_top_k=15,
             temperature=0.5,
-            max_tokens=4096,
-            max_context_length=12000
+            max_tokens=settings.LLM_MAX_TOKENS,
+            max_context_length=settings.LLM_MAX_CONTEXT_LENGTH
         )
         return RAGChain(
             self.embedder,
@@ -500,10 +504,11 @@ class RAGChainFactory:
         prompt_template: Optional[PromptTemplatePort] = None
     ) -> RAGChain:
         """Create RAG chain optimized for code"""
+        settings = get_api_settings()
         config = RAGChainConfig(
             retrieval_top_k=20,
             temperature=0.3,
-            max_tokens=4096
+            max_tokens=settings.LLM_MAX_TOKENS
         )
         return RAGChain(
             self.embedder,

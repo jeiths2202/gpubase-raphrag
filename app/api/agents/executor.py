@@ -7,6 +7,7 @@ import asyncio
 import logging
 import time
 import json
+import base64
 
 from .types import (
     AgentContext, AgentResult, AgentMessage, ToolCall,
@@ -25,6 +26,102 @@ from .master_system_constraint import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Max characters per tool result to prevent context overflow (NIM limit: 8192 tokens ~ 24000 chars)
+# Conservative limit: 3000 chars (~1000 tokens) to leave room for system prompt + messages
+MAX_TOOL_RESULT_CHARS = 3000
+
+
+def _truncate_tool_result(content: str, max_chars: int = MAX_TOOL_RESULT_CHARS) -> str:
+    """
+    Truncate tool result content to prevent LLM context overflow.
+    Keeps the beginning and notes truncation.
+    """
+    if not content or len(content) <= max_chars:
+        return content
+
+    truncated = content[:max_chars]
+    # Try to cut at a natural boundary (newline or period)
+    last_newline = truncated.rfind('\n', max_chars - 500, max_chars)
+    last_period = truncated.rfind('. ', max_chars - 500, max_chars)
+    cut_point = max(last_newline, last_period)
+
+    if cut_point > max_chars - 500:
+        truncated = truncated[:cut_point + 1]
+
+    return truncated + f"\n\n[... truncated {len(content) - len(truncated)} characters]"
+
+
+async def _stream_images_from_metadata(
+    metadata: Dict[str, Any],
+    max_images: int = 5
+) -> AsyncGenerator[AgentStreamChunk, None]:
+    """
+    Yield image chunks from tool result metadata.
+
+    Checks for image_urls in metadata and fetches binary data from the repository.
+    Used by adaptive_search tool to stream related document images.
+    """
+    if not metadata:
+        return
+
+    image_urls = metadata.get("image_urls", [])
+    if not image_urls:
+        return
+
+    try:
+        from ..core.deps import get_postgres_pool
+        from ..infrastructure.postgres.image_repository import PostgresImageRepository
+
+        pool = await get_postgres_pool()
+        image_repo = PostgresImageRepository(pool)
+
+        for url in image_urls[:max_images]:
+            # Extract image_id from URL: /api/v1/documents/adaptive/images/{image_id}/raw
+            parts = url.strip('/').split('/')
+            if len(parts) >= 2 and parts[-1] == 'raw':
+                image_id = parts[-2]
+            else:
+                continue
+
+            try:
+                # Fetch image data
+                image_data = await image_repo.get_image(image_id)
+                if not image_data or not image_data.get("image_data"):
+                    continue
+
+                # Encode binary to base64
+                binary_data = image_data["image_data"]
+                if isinstance(binary_data, memoryview):
+                    binary_data = bytes(binary_data)
+                b64_data = base64.b64encode(binary_data).decode('utf-8')
+
+                mime_type = image_data.get("mime_type", "image/png")
+                data_url = f"data:{mime_type};base64,{b64_data}"
+
+                yield AgentStreamChunk(
+                    chunk_type="image",
+                    metadata={
+                        "image_id": image_id,
+                        "document_id": image_data.get("document_id", ""),
+                        "page_number": image_data.get("page_number"),
+                        "description": image_data.get("description", ""),
+                        "figure_caption": image_data.get("figure_caption", ""),
+                        "alt_text": image_data.get("alt_text", ""),
+                        "width": image_data.get("width"),
+                        "height": image_data.get("height"),
+                        "mime_type": mime_type,
+                        "data": data_url,
+                    }
+                )
+                logger.debug(f"[Executor] Streamed image: {image_id}")
+
+            except Exception as img_err:
+                logger.warning(f"[Executor] Failed to stream image {image_id}: {img_err}")
+                continue
+
+    except Exception as e:
+        logger.warning(f"[Executor] Failed to stream images: {e}")
 
 
 def _check_for_general_knowledge_violation(
@@ -441,10 +538,11 @@ User Query: {task}"""
 
                     tool_results.append(result)
 
-                    # Add tool result message
+                    # Add tool result message (truncate to prevent context overflow)
+                    tool_content = result["output"] if result["success"] else f"Error: {result['error']}"
                     messages.append(AgentMessage(
                         role=MessageRole.TOOL,
-                        content=result["output"] if result["success"] else f"Error: {result['error']}",
+                        content=_truncate_tool_result(tool_content),
                         tool_call_id=tool_call.call_id,
                         name=tool_call.tool_name
                     ))
@@ -645,8 +743,14 @@ User Query: {task}"""
 
         yield AgentStreamChunk(chunk_type="thinking", content="Analyzing your request...")
 
-        logger.debug(f"[Executor] Starting stream for task: {task[:50]}...")
-        logger.debug(f"[Executor] Agent: {agent.name}, Tools: {[t.name for t in available_tools]}")
+        # Store original task in context for query validation in tools
+        # This prevents LLM from corrupting Japanese/Korean queries in tool calls
+        context.metadata['original_query'] = task
+
+        print(f"[Executor] Starting stream for task: {task}", flush=True)
+        print(f"[Executor] Agent: {agent.name}, Tools: {[t.name for t in available_tools]}", flush=True)
+        logger.info(f"[Executor] Starting stream for task: {task[:50]}...")
+        logger.info(f"[Executor] Agent: {agent.name}, Tools: {[t.name for t in available_tools]}")
         logger.debug(f"[Executor] LLM adapter: {self.llm_adapter}")
 
         while step < context.max_steps:
@@ -671,6 +775,7 @@ User Query: {task}"""
                     )
 
                     # Execute tool (may emit status messages)
+                    print(f"[Executor] Calling tool: {tool_call.tool_name}", flush=True)
                     result = await self._execute_tool(tool_call, context)
                     tool_results.append(result)  # Collect for validation
 
@@ -685,11 +790,28 @@ User Query: {task}"""
                         except asyncio.QueueEmpty:
                             break
 
+                    # Extract query correction info for UI display
+                    tool_result_metadata = None
+                    if result.get("success") and result.get("metadata"):
+                        meta = result["metadata"]
+                        if meta.get("query_corrected"):
+                            tool_result_metadata = {
+                                "query_corrected": True,
+                                "original_llm_query": meta.get("original_llm_query"),
+                                "corrected_query": meta.get("corrected_query"),
+                            }
+
                     yield AgentStreamChunk(
                         chunk_type="tool_result",
                         tool_name=tool_call.tool_name,
-                        tool_output=result["output"][:500] if result["success"] else result["error"]
+                        tool_output=result["output"][:500] if result["success"] else result["error"],
+                        metadata=tool_result_metadata
                     )
+
+                    # Stream images if tool result contains image_urls (e.g., from adaptive_search)
+                    if result.get("success") and result.get("metadata"):
+                        async for image_chunk in _stream_images_from_metadata(result["metadata"]):
+                            yield image_chunk
 
                     # Check if tool result contains markdown_table - bypass LLM and output directly
                     if result["success"] and result.get("output"):
@@ -723,9 +845,11 @@ User Query: {task}"""
                         except (json.JSONDecodeError, TypeError):
                             pass  # Not JSON or no markdown_table, continue normal flow
 
+                    # Add tool result message (truncate to prevent context overflow)
+                    tool_content = result["output"] if result["success"] else f"Error: {result['error']}"
                     messages.append(AgentMessage(
                         role=MessageRole.TOOL,
-                        content=result["output"] if result["success"] else f"Error: {result['error']}",
+                        content=_truncate_tool_result(tool_content),
                         tool_call_id=tool_call.call_id,
                         name=tool_call.tool_name
                     ))
@@ -872,6 +996,7 @@ User Query: {task}"""
                     if isinstance(args, str):
                         args = json.loads(args)
 
+                    print(f"[Executor] LLM tool_call: {func.get('name')} args={args}", flush=True)
                     tool_calls.append(ToolCall(
                         tool_name=func.get("name", ""),
                         arguments=args,

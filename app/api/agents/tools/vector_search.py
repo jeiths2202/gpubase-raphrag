@@ -7,6 +7,7 @@ import logging
 
 from .base import BaseTool
 from ..types import ToolResult, AgentContext
+from .adaptive_search import _validate_query
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +21,9 @@ class VectorSearchTool(BaseTool):
     def __init__(self, rag_service=None):
         super().__init__(
             name="vector_search",
-            description="""Search the knowledge base using semantic similarity.
-Use this tool to find documents, articles, or information related to a query.
-Returns the most relevant text chunks with their sources."""
+            description="""FALLBACK TOOL - Use only if adaptive_search returns 0 results.
+Searches the Neo4j knowledge base. Note: If the database has no documents indexed in Neo4j,
+this will return empty results. Try adaptive_search first for PDF documents."""
         )
         self._rag_service = rag_service
 
@@ -64,6 +65,14 @@ Returns the most relevant text chunks with their sources."""
         query = kwargs.get("query", "")
         top_k = kwargs.get("top_k", 5)
         language = kwargs.get("language", context.language)
+
+        # Validate query against original to detect LLM corruption
+        original_query = context.metadata.get('original_query', '')
+        if original_query and query != original_query:
+            validated_query, was_corrupted = _validate_query(query, original_query)
+            if was_corrupted:
+                print(f"[VectorSearch] Query corruption fixed: '{query}' → '{validated_query}'", flush=True)
+                query = validated_query
 
         if not query:
             return self.create_error_result("Query parameter is required")

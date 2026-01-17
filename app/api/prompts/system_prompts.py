@@ -5,6 +5,10 @@ Reusable system prompts for different assistant roles.
 from dataclasses import dataclass
 from typing import Dict
 
+from ..core.config import get_api_settings
+
+_settings = get_api_settings()
+
 
 @dataclass
 class Persona:
@@ -12,8 +16,8 @@ class Persona:
     name: str
     description: str
     system_prompt: str
-    temperature: float = 0.7
-    max_tokens: int = 2048
+    temperature: float = _settings.LLM_TEMPERATURE
+    max_tokens: int = _settings.LLM_MAX_TOKENS
 
     def __str__(self) -> str:
         return self.system_prompt
@@ -53,7 +57,7 @@ Response style:
 - Mention edge cases and potential issues
 - Follow language-specific conventions""",
     temperature=0.3,
-    max_tokens=4096
+    max_tokens=_settings.LLM_MAX_TOKENS
 )
 
 ANALYST_PERSONA = Persona(

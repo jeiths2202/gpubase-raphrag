@@ -37,7 +37,9 @@ import {
   AlertCircle,
   Database,
   Shield,
+  Layers,
 } from 'lucide-react';
+import { AdaptiveDocuments } from '../components/AdaptiveDocuments';
 import {
   BarChart,
   Bar,
@@ -56,7 +58,7 @@ import { useAuthStore } from '../store/authStore';
 // Types
 // =============================================================================
 
-type TabId = 'documents' | 'profiles' | 'experiments' | 'metrics';
+type TabId = 'documents' | 'adaptive' | 'profiles' | 'experiments' | 'metrics';
 
 interface TabConfig {
   id: TabId;
@@ -143,6 +145,7 @@ interface CleanupResult {
 
 const TABS: TabConfig[] = [
   { id: 'documents', label: 'Documents', icon: <FileText size={18} /> },
+  { id: 'adaptive', label: 'Adaptive', icon: <Layers size={18} /> },
   { id: 'profiles', label: 'RAG Profiles', icon: <Settings size={18} /> },
   { id: 'experiments', label: 'A/B Tests', icon: <FlaskConical size={18} /> },
   { id: 'metrics', label: 'Metrics', icon: <TrendingUp size={18} /> },
@@ -170,7 +173,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 
 export const DocumentsPage: React.FC = () => {
   // Register page context for AI awareness
-  useSimplePageContext(['documents', 'rag-profiles', 'experiments', 'metrics']);
+  useSimplePageContext(['documents', 'adaptive-embedding', 'rag-profiles', 'experiments', 'metrics']);
 
   const [activeTab, setActiveTab] = useState<TabId>('profiles');
   const [loading, setLoading] = useState(true);
@@ -228,6 +231,8 @@ export const DocumentsPage: React.FC = () => {
     switch (activeTab) {
       case 'documents':
         return <DocumentsTab />;
+      case 'adaptive':
+        return <AdaptiveDocuments />;
       case 'profiles':
         return <ProfilesTab onRefresh={fetchOverview} />;
       case 'experiments':

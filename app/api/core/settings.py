@@ -182,9 +182,9 @@ class CacheSettings:
 @dataclass
 class RAGSettings:
     """RAG configuration"""
-    # Chunking
-    chunk_size: int = 512
-    chunk_overlap: int = 50
+    # Chunking (limited by embedding model's 512 token limit)
+    chunk_size: int = 800
+    chunk_overlap: int = 300
 
     # Retrieval
     default_top_k: int = 5
@@ -245,6 +245,43 @@ class VisionSettings:
 
 
 @dataclass
+class AdaptiveEmbeddingSettings:
+    """Adaptive PDF embedding configuration
+
+    Settings for structure-preserving PDF chunking and embedding.
+    """
+    # Chunking boundaries
+    max_chunk_size: int = 1500  # Maximum characters per chunk
+    min_chunk_size: int = 100   # Minimum characters per chunk
+    overlap_size: int = 100     # Overlap between adjacent chunks
+
+    # Structure analysis
+    min_section_length: int = 50  # Minimum chars for valid section
+
+    # Table/Section preservation
+    preserve_tables: bool = True
+    preserve_sections: bool = True
+
+    # Parallel embedding
+    embedding_concurrency: int = 5       # Max concurrent embedding requests
+    embedding_timeout: float = 30.0      # Timeout per chunk (seconds)
+    embedding_retry_count: int = 3       # Retry attempts on failure
+    retry_base_delay: float = 1.0        # Base delay for exponential backoff
+    retry_max_delay: float = 30.0        # Max delay between retries
+
+    # Coverage validation
+    min_coverage_threshold: float = 0.95  # Minimum acceptable coverage
+    warn_on_low_coverage: bool = True
+
+    # Quality evaluation
+    quality_min_similarity: float = 0.3   # Minimum similarity threshold
+    quality_top_k: int = 5                # Default K for top-k metrics
+    quality_excellent_threshold: float = 0.9
+    quality_good_threshold: float = 0.7
+    quality_fair_threshold: float = 0.5
+
+
+@dataclass
 class AppSettings:
     """Main application configuration"""
     # Basic settings
@@ -267,6 +304,7 @@ class AppSettings:
     cache: CacheSettings = field(default_factory=CacheSettings)
     rag: RAGSettings = field(default_factory=RAGSettings)
     vision: VisionSettings = field(default_factory=VisionSettings)
+    adaptive_embedding: AdaptiveEmbeddingSettings = field(default_factory=AdaptiveEmbeddingSettings)
 
     # Extra settings
     extra: Dict[str, Any] = field(default_factory=dict)
@@ -395,6 +433,30 @@ class SettingsLoader:
         if cache_ttl := os.getenv("VISION_CACHE_TTL_HOURS"):
             settings.vision.cache_ttl_hours = int(cache_ttl)
 
+        # Adaptive Embedding
+        if max_chunk := os.getenv("ADAPTIVE_MAX_CHUNK_SIZE"):
+            settings.adaptive_embedding.max_chunk_size = int(max_chunk)
+        if min_chunk := os.getenv("ADAPTIVE_MIN_CHUNK_SIZE"):
+            settings.adaptive_embedding.min_chunk_size = int(min_chunk)
+        if overlap := os.getenv("ADAPTIVE_OVERLAP_SIZE"):
+            settings.adaptive_embedding.overlap_size = int(overlap)
+        if min_section := os.getenv("ADAPTIVE_MIN_SECTION_LENGTH"):
+            settings.adaptive_embedding.min_section_length = int(min_section)
+        settings.adaptive_embedding.preserve_tables = os.getenv(
+            "ADAPTIVE_PRESERVE_TABLES", "true"
+        ).lower() == "true"
+        settings.adaptive_embedding.preserve_sections = os.getenv(
+            "ADAPTIVE_PRESERVE_SECTIONS", "true"
+        ).lower() == "true"
+        if concurrency := os.getenv("ADAPTIVE_EMBEDDING_CONCURRENCY"):
+            settings.adaptive_embedding.embedding_concurrency = int(concurrency)
+        if timeout := os.getenv("ADAPTIVE_EMBEDDING_TIMEOUT"):
+            settings.adaptive_embedding.embedding_timeout = float(timeout)
+        if retry := os.getenv("ADAPTIVE_EMBEDDING_RETRY_COUNT"):
+            settings.adaptive_embedding.embedding_retry_count = int(retry)
+        if coverage := os.getenv("ADAPTIVE_MIN_COVERAGE_THRESHOLD"):
+            settings.adaptive_embedding.min_coverage_threshold = float(coverage)
+
         return settings
 
     @classmethod
@@ -405,7 +467,7 @@ class SettingsLoader:
                 attr = getattr(settings, key)
                 if isinstance(attr, (DatabaseConfig, LLMSettings, VectorStoreSettings,
                                      SecuritySettings, LoggingSettings, CacheSettings,
-                                     RAGSettings, VisionSettings)):
+                                     RAGSettings, VisionSettings, AdaptiveEmbeddingSettings)):
                     # Nested config
                     if isinstance(value, dict):
                         for sub_key, sub_value in value.items():

@@ -359,7 +359,7 @@ class ProcessDocumentUseCase(UseCase[ProcessDocumentInput, ProcessDocumentOutput
         chunk_size: int,
         overlap: int
     ) -> List[Dict[str, Any]]:
-        """Split content into overlapping chunks"""
+        """Split content into overlapping chunks with quality filtering"""
         chunks = []
         start = 0
 
@@ -374,15 +374,49 @@ class ProcessDocumentUseCase(UseCase[ProcessDocumentInput, ProcessDocumentOutput
                     end = start + last_period + 1
                     chunk_content = content[start:end]
 
-            chunks.append({
-                "content": chunk_content.strip(),
-                "start": start,
-                "end": end
-            })
+            chunk_text = chunk_content.strip()
+
+            # Filter out low-quality chunks
+            if self._is_valid_chunk(chunk_text):
+                chunks.append({
+                    "content": chunk_text,
+                    "start": start,
+                    "end": end
+                })
 
             start = end - overlap
 
         return chunks
+
+    def _is_valid_chunk(self, chunk_text: str) -> bool:
+        """
+        Check if chunk has meaningful content.
+        Filters out chunks that would produce isolated embeddings.
+        """
+        # Skip empty or very short chunks
+        if len(chunk_text) < 50:
+            return False
+
+        # Calculate alphanumeric ratio
+        alnum_count = sum(1 for c in chunk_text if c.isalnum())
+        total_count = len(chunk_text)
+        alnum_ratio = alnum_count / total_count if total_count > 0 else 0
+
+        # Skip chunks with too few meaningful characters (e.g., page numbers, symbols)
+        if alnum_ratio < 0.3:
+            return False
+
+        # Skip chunks that are mostly numbers (e.g., tables, indices)
+        digit_count = sum(1 for c in chunk_text if c.isdigit())
+        if digit_count / total_count > 0.5:
+            return False
+
+        # Skip chunks with too many repeated characters
+        unique_chars = len(set(chunk_text.lower()))
+        if unique_chars < 10:
+            return False
+
+        return True
 
 
 class DeleteDocumentUseCase(UseCase[DeleteDocumentInput, DocumentOutput]):

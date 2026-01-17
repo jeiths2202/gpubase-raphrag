@@ -13,8 +13,11 @@ from .types import (
     ToolCall, ToolResult, ToolDefinition, MessageRole,
     AgentStreamChunk
 )
+from ..core.config import get_api_settings
 
 logger = logging.getLogger(__name__)
+
+_settings = get_api_settings()
 
 
 class BaseAgent(ABC):
@@ -36,8 +39,8 @@ class BaseAgent(ABC):
         tools: Optional[List[str]] = None,
         system_prompt: Optional[str] = None,
         model_id: Optional[str] = None,
-        temperature: float = 0.7,
-        max_tokens: int = 4096
+        temperature: float = _settings.LLM_TEMPERATURE,
+        max_tokens: int = _settings.LLM_MAX_TOKENS
     ):
         self.name = name
         self.agent_type = agent_type

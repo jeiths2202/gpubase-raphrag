@@ -7,8 +7,11 @@ from typing import Dict, Any, Optional, List, Protocol, Union
 import logging
 
 from .base import Chain, ChainStep, ChainConfig, ChainResult
+from ..core.config import get_api_settings
 
 logger = logging.getLogger(__name__)
+
+_settings = get_api_settings()
 
 
 # ==================== Protocols for Dependencies ====================
@@ -33,8 +36,8 @@ class PromptTemplatePort(Protocol):
 @dataclass
 class GenerationChainConfig(ChainConfig):
     """Configuration for generation chain"""
-    temperature: float = 0.7
-    max_tokens: int = 2048
+    temperature: float = _settings.LLM_TEMPERATURE
+    max_tokens: int = _settings.LLM_MAX_TOKENS
     stream: bool = False
     language: str = "auto"
     response_format: str = "text"  # text, json, markdown
@@ -294,7 +297,7 @@ class AnalysisChain(GenerationChain):
     ):
         config = GenerationChainConfig(
             temperature=0.5,  # Lower for analysis
-            max_tokens=4096   # Higher for detailed analysis
+            max_tokens=2048   # Balanced for 8k context models
         )
         super().__init__(
             llm,
@@ -320,7 +323,7 @@ class CodeGenerationChain(GenerationChain):
     ):
         config = GenerationChainConfig(
             temperature=0.3,  # Lower for code accuracy
-            max_tokens=4096,
+            max_tokens=2048,
             response_format="markdown"
         )
         super().__init__(

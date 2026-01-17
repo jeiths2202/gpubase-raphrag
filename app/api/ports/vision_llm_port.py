@@ -10,6 +10,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
+from ..core.config import get_api_settings
+
+_settings = get_api_settings()
+
 
 class VisionTask(str, Enum):
     """Vision LLM task types"""
@@ -82,8 +86,8 @@ class VisionStreamChunk:
 @dataclass
 class VisionLLMConfig:
     """Configuration for Vision LLM calls"""
-    max_tokens: int = 4096
-    temperature: float = 0.7
+    max_tokens: int = _settings.LLM_MAX_TOKENS
+    temperature: float = _settings.LLM_TEMPERATURE
     detail: str = "auto"  # "low", "high", "auto" - image detail level
     timeout: int = 60
 

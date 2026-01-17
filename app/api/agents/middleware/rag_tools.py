@@ -40,21 +40,38 @@ class ImageSearchInput(BaseModel):
     document_id: Optional[str] = Field(default=None, description="Optional document ID to filter images")
 
 
+class AdaptiveSearchInput(BaseModel):
+    """Adaptive chunk search input schema for structure-preserving PDF search"""
+    query: str = Field(description="The search query (natural language)")
+    top_k: int = Field(default=5, description="Number of results to return")
+    expand_relations: bool = Field(
+        default=True,
+        description="Whether to include related chunks (previous/next, parent/children)"
+    )
+    pdf_id: Optional[str] = Field(default=None, description="Optional PDF ID to filter results")
+    section_filter: Optional[str] = Field(
+        default=None,
+        description="Optional section path prefix to filter results (e.g., '1.2' for section 1.2.x)"
+    )
+
+
 class RAGToolsProvider:
     """
     RAG 도구 제공자
 
-    기존 VectorSearchTool, GraphQueryTool, ImageSearchTool을 LangChain tool로 래핑
+    기존 VectorSearchTool, GraphQueryTool, ImageSearchTool, AdaptiveSearchTool을 LangChain tool로 래핑
     """
 
-    def __init__(self, rag_service=None, multimodal_service=None):
+    def __init__(self, rag_service=None, multimodal_service=None, adaptive_service=None):
         """
         Args:
             rag_service: 기존 RAGService 인스턴스 (None이면 lazy load)
             multimodal_service: MultimodalRAGService 인스턴스 (None이면 lazy load)
+            adaptive_service: AdaptiveEmbeddingService 인스턴스 (None이면 lazy load)
         """
         self._rag_service = rag_service
         self._multimodal_service = multimodal_service
+        self._adaptive_service = adaptive_service
         self._context = None
 
     @property
@@ -86,6 +103,26 @@ class RAGToolsProvider:
         """Set multimodal service instance"""
         self._multimodal_service = service
 
+    @property
+    def adaptive_service(self):
+        """AdaptiveEmbeddingService lazy load"""
+        if self._adaptive_service is None:
+            try:
+                from ...services.pdf_adaptive_embedding_service import PDFAdaptiveEmbeddingService
+                from ...infrastructure.postgres.adaptive_chunk_repository import (
+                    PostgresAdaptiveChunkRepository,
+                    PostgresPDFStructureRepository,
+                    PostgresCoverageRepository,
+                )
+                logger.debug("Adaptive service will be initialized on first use")
+            except Exception as e:
+                logger.warning(f"Failed to import adaptive service: {e}")
+        return self._adaptive_service
+
+    def set_adaptive_service(self, service):
+        """Set adaptive embedding service instance"""
+        self._adaptive_service = service
+
     def set_context(self, context):
         """AgentContext 설정"""
         self._context = context
@@ -112,6 +149,11 @@ class RAGToolsProvider:
         image_tool = self._create_image_search_tool()
         if image_tool:
             tools.append(image_tool)
+
+        # Adaptive Search Tool (for structure-preserving PDF search)
+        adaptive_tool = self._create_adaptive_search_tool()
+        if adaptive_tool:
+            tools.append(adaptive_tool)
 
         return tools
 
@@ -273,6 +315,141 @@ class RAGToolsProvider:
             args_schema=ImageSearchInput,
         )
 
+    def _create_adaptive_search_tool(self):
+        """
+        Adaptive Search LangChain tool 생성
+
+        구조 보존 PDF 검색 도구: pgvector + 관계 확장
+        """
+        provider = self
+
+        def adaptive_search(
+            query: str,
+            top_k: int = 5,
+            expand_relations: bool = True,
+            pdf_id: Optional[str] = None,
+            section_filter: Optional[str] = None
+        ) -> str:
+            """
+            Search PDFs with structure-preserving adaptive embeddings.
+
+            Use this tool when searching through PDF documents that have been
+            processed with adaptive embedding. It preserves document structure
+            (sections, tables, images) and can expand results to include
+            related context (previous/next chunks, parent/child sections).
+
+            This is particularly useful for:
+            - Technical manuals with hierarchical sections
+            - Documents with tables and figures
+            - When you need context from surrounding content
+            """
+            if provider._adaptive_service is None:
+                return "Adaptive search is not available. Service not configured."
+
+            try:
+                # 1. Generate embedding for query
+                from ...services.multimodal_embedding import TextEmbeddingService
+                embedding_service = TextEmbeddingService()
+
+                loop = asyncio.get_event_loop()
+
+                async def do_search():
+                    # Get query embedding
+                    embeddings = await embedding_service.embed_texts([query])
+                    if not embeddings or not embeddings[0]:
+                        return "Failed to generate query embedding."
+
+                    query_embedding = embeddings[0]
+
+                    # Search adaptive chunks
+                    results = await provider._adaptive_service.search_chunks(
+                        query_embedding=query_embedding,
+                        limit=top_k,
+                        pdf_id=pdf_id,
+                        section_path_prefix=section_filter,
+                        min_similarity=0.3,
+                    )
+
+                    if not results:
+                        return "No relevant content found for the query."
+
+                    # Format results
+                    output_parts = [f"Found {len(results)} relevant chunk(s):\n"]
+
+                    for i, result in enumerate(results, 1):
+                        chunk_info = (
+                            f"{i}. [{result.get('chunk_type', 'TEXT')}] "
+                            f"Similarity: {result.get('similarity', 0):.2%}\n"
+                            f"   PDF: {result.get('pdf_id', 'Unknown')}\n"
+                            f"   Pages: {result.get('page_start', '?')}-{result.get('page_end', '?')}\n"
+                        )
+
+                        if result.get('section_title'):
+                            chunk_info += f"   Section: {result['section_title']}\n"
+                        if result.get('section_path'):
+                            chunk_info += f"   Path: {result['section_path']}\n"
+
+                        # Content preview (truncate if too long)
+                        content = result.get('content', '')
+                        if len(content) > 500:
+                            content = content[:500] + "..."
+                        chunk_info += f"   Content: {content}\n"
+
+                        # Related chunks info (if expand_relations)
+                        if expand_relations:
+                            relations = result.get('relations', {})
+                            if isinstance(relations, str):
+                                import json
+                                try:
+                                    relations = json.loads(relations)
+                                except:
+                                    relations = {}
+
+                            related = []
+                            if relations.get('previous'):
+                                related.append(f"prev: {relations['previous'][:16]}...")
+                            if relations.get('next'):
+                                related.append(f"next: {relations['next'][:16]}...")
+                            if relations.get('parent'):
+                                related.append(f"parent: {relations['parent'][:16]}...")
+                            if relations.get('children'):
+                                related.append(f"children: {len(relations['children'])} items")
+
+                            if related:
+                                chunk_info += f"   Related: {', '.join(related)}\n"
+
+                        output_parts.append(chunk_info)
+
+                    return "\n".join(output_parts)
+
+                # Execute async search
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(asyncio.run, do_search())
+                        result = future.result()
+                else:
+                    result = loop.run_until_complete(do_search())
+
+                return result
+
+            except Exception as e:
+                logger.error(f"Adaptive search error: {e}")
+                return f"Adaptive search error: {str(e)}"
+
+        return StructuredTool.from_function(
+            func=adaptive_search,
+            name="adaptive_search",
+            description=(
+                "Search PDFs with structure-preserving adaptive embeddings. "
+                "Use this for PDF documents processed with adaptive embedding. "
+                "Preserves document structure (sections, tables, images) and can "
+                "expand results to include related context. Best for technical "
+                "manuals, structured documents, and when you need surrounding context."
+            ),
+            args_schema=AdaptiveSearchInput,
+        )
+
 
 def create_vector_search_tool(rag_service=None) -> Optional[Any]:
     """Vector search tool 팩토리 함수"""
@@ -292,9 +469,31 @@ def create_image_search_tool(multimodal_service=None) -> Optional[Any]:
     return provider._create_image_search_tool()
 
 
-def get_rag_tools(rag_service=None, multimodal_service=None, context=None) -> List[Any]:
-    """모든 RAG 도구 반환 (이미지 검색 포함)"""
-    provider = RAGToolsProvider(rag_service, multimodal_service)
+def create_adaptive_search_tool(adaptive_service=None) -> Optional[Any]:
+    """Adaptive search tool 팩토리 함수 (구조 보존 PDF 검색)"""
+    provider = RAGToolsProvider(adaptive_service=adaptive_service)
+    return provider._create_adaptive_search_tool()
+
+
+def get_rag_tools(
+    rag_service=None,
+    multimodal_service=None,
+    adaptive_service=None,
+    context=None
+) -> List[Any]:
+    """
+    모든 RAG 도구 반환 (이미지 검색, 적응형 검색 포함)
+
+    Args:
+        rag_service: RAG service for vector/graph search
+        multimodal_service: Service for image search
+        adaptive_service: Service for adaptive PDF search
+        context: Agent context
+
+    Returns:
+        List of LangChain tools
+    """
+    provider = RAGToolsProvider(rag_service, multimodal_service, adaptive_service)
     if context:
         provider.set_context(context)
     return provider.get_tools()
