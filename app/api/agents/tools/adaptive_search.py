@@ -511,23 +511,29 @@ class AdaptiveSearchTool(BaseTool):
             ]
 
             # Build metadata with query correction info for UI display
-            # Extract unique sources from results
+            # Extract unique sources from results (matching frontend AgentSource interface)
             sources = []
             seen_sources = set()
             for r in results:
                 doc_name = r.get('document_name') or r.get('pdf_id', 'Unknown')
                 page_start = r.get('page_start')
                 page_end = r.get('page_end')
+                similarity = r.get('similarity', 0)
                 source_key = f"{doc_name}:{page_start}-{page_end}"
                 if source_key not in seen_sources:
                     seen_sources.add(source_key)
+                    # Format page display
+                    if page_start == page_end:
+                        page_display = f"p.{page_start}"
+                    else:
+                        page_display = f"p.{page_start}-{page_end}"
+                    # Match frontend AgentSource interface: source, score, page_number
                     sources.append({
-                        "document_name": doc_name,
-                        "pdf_id": r.get('pdf_id'),
-                        "page_start": page_start,
-                        "page_end": page_end,
-                        "section_title": r.get('section_title'),
-                        "section_path": r.get('section_path')
+                        "source": f"{doc_name} ({page_display})",  # 문서명 + 페이지
+                        "score": similarity,  # similarity -> score
+                        "page_number": page_start,  # 시작 페이지
+                        "content": r.get('content', '')[:200],  # 내용 미리보기
+                        "doc_id": r.get('pdf_id')
                     })
 
             result_metadata = {

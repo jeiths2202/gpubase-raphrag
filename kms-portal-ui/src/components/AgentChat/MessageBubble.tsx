@@ -114,7 +114,22 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </div>
                 {tool.input && Object.keys(tool.input).length > 0 && (
                   <div className="agent-tool-call-input">
-                    <code>{JSON.stringify(tool.input, null, 2)}</code>
+                    {/* If query was corrected, show corrected version with indicator */}
+                    {tool.queryCorrected ? (
+                      <code>
+                        {JSON.stringify(
+                          {
+                            ...tool.input,
+                            query: tool.correctedQuery,
+                            _corrected: `LLM sent "${tool.originalLlmQuery}" → fixed to original`
+                          },
+                          null,
+                          2
+                        )}
+                      </code>
+                    ) : (
+                      <code>{JSON.stringify(tool.input, null, 2)}</code>
+                    )}
                   </div>
                 )}
                 {tool.output && (
@@ -144,16 +159,26 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         {message.sources && message.sources.length > 0 && (
           <div className="agent-message-sources">
             <span className="agent-sources-label">Sources:</span>
-            {message.sources.map((source, idx) => (
-              <div key={idx} className="agent-source-item">
-                <FileText size={12} />
-                <span>
-                  {source.source}
-                  {source.page_number && <span className="agent-source-page"> (p.{source.page_number})</span>}
-                </span>
-                <span className="agent-source-score">{Math.round(source.score * 100)}%</span>
-              </div>
-            ))}
+            {message.sources.map((source, idx) => {
+              // Handle score safely to prevent NaN display
+              const scoreValue = typeof source.score === 'number' && !isNaN(source.score)
+                ? Math.round(source.score * 100)
+                : null;
+              return (
+                <div key={idx} className="agent-source-item">
+                  <FileText size={12} />
+                  <span>
+                    {source.source}
+                    {source.page_number && !source.source?.includes('p.') && (
+                      <span className="agent-source-page"> (p.{source.page_number})</span>
+                    )}
+                  </span>
+                  {scoreValue !== null && (
+                    <span className="agent-source-score">{scoreValue}%</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
