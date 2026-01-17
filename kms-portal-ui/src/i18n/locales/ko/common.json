@@ -201,7 +201,19 @@
   "adaptive": {
     "title": "적응형 임베딩",
     "tabLabel": "적응형",
+    "tabLabelFull": "적응형 (PDF전용)",
     "description": "의미적 경계 기반 구조 보존 PDF 청킹",
+    "table": {
+      "document": "문서",
+      "status": "상태",
+      "chunks": "청크",
+      "types": "유형",
+      "quality": "품질",
+      "created": "생성일",
+      "actions": "작업",
+      "allStatus": "전체 상태",
+      "uploadPdf": "PDF 업로드"
+    },
     "upload": {
       "title": "PDF 업로드",
       "dropzone": "PDF 파일을 여기에 드롭하거나 클릭하여 업로드",

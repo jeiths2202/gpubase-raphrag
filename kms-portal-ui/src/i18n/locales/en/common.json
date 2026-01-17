@@ -201,7 +201,19 @@
   "adaptive": {
     "title": "Adaptive Embedding",
     "tabLabel": "Adaptive",
+    "tabLabelFull": "Adaptive (PDF Only)",
     "description": "Structure-preserving PDF chunking with semantic boundaries",
+    "table": {
+      "document": "Document",
+      "status": "Status",
+      "chunks": "Chunks",
+      "types": "Types",
+      "quality": "Quality",
+      "created": "Created",
+      "actions": "Actions",
+      "allStatus": "All Status",
+      "uploadPdf": "Upload PDF"
+    },
     "upload": {
       "title": "Upload PDF",
       "dropzone": "Drop PDF file here or click to upload",

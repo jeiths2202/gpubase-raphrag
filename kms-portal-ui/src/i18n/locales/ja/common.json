@@ -201,7 +201,19 @@
   "adaptive": {
     "title": "適応型エンベディング",
     "tabLabel": "適応型",
+    "tabLabelFull": "適応型 (PDF専用)",
     "description": "意味的境界に基づく構造保持PDFチャンキング",
+    "table": {
+      "document": "ドキュメント",
+      "status": "ステータス",
+      "chunks": "チャンク",
+      "types": "タイプ",
+      "quality": "品質",
+      "created": "作成日",
+      "actions": "操作",
+      "allStatus": "全ステータス",
+      "uploadPdf": "PDFアップロード"
+    },
     "upload": {
       "title": "PDFアップロード",
       "dropzone": "PDFファイルをここにドロップまたはクリックしてアップロード",

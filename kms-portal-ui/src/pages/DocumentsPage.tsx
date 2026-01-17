@@ -53,18 +53,13 @@ import {
 import './DocumentsPage.css';
 import { useSimplePageContext } from '../hooks/usePageContext';
 import { useAuthStore } from '../store/authStore';
+import { useTranslation } from '../hooks/useTranslation';
 
 // =============================================================================
 // Types
 // =============================================================================
 
 type TabId = 'documents' | 'adaptive' | 'profiles' | 'experiments' | 'metrics';
-
-interface TabConfig {
-  id: TabId;
-  label: string;
-  icon: React.ReactNode;
-}
 
 interface RAGProfileSummary {
   id: string;
@@ -143,13 +138,16 @@ interface CleanupResult {
 // Constants
 // =============================================================================
 
-const TABS: TabConfig[] = [
-  { id: 'documents', label: 'Documents', icon: <FileText size={18} /> },
-  { id: 'adaptive', label: 'Adaptive', icon: <Layers size={18} /> },
-  { id: 'profiles', label: 'RAG Profiles', icon: <Settings size={18} /> },
-  { id: 'experiments', label: 'A/B Tests', icon: <FlaskConical size={18} /> },
-  { id: 'metrics', label: 'Metrics', icon: <TrendingUp size={18} /> },
-];
+// Tab icons only - labels are translated in component
+const TAB_ICONS: Record<TabId, React.ReactNode> = {
+  documents: <FileText size={18} />,
+  adaptive: <Layers size={18} />,
+  profiles: <Settings size={18} />,
+  experiments: <FlaskConical size={18} />,
+  metrics: <TrendingUp size={18} />,
+};
+
+const TAB_IDS: TabId[] = ['documents', 'adaptive', 'profiles', 'experiments', 'metrics'];
 
 const STRATEGY_COLORS: Record<string, string> = {
   vector: '#6366f1',
@@ -174,11 +172,24 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 export const DocumentsPage: React.FC = () => {
   // Register page context for AI awareness
   useSimplePageContext(['documents', 'adaptive-embedding', 'rag-profiles', 'experiments', 'metrics']);
+  const { t } = useTranslation();
 
   const [activeTab, setActiveTab] = useState<TabId>('profiles');
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState<RAGConfigOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Get translated tab labels
+  const getTabLabel = (tabId: TabId): string => {
+    switch (tabId) {
+      case 'documents': return 'Documents';
+      case 'adaptive': return t('common.adaptive.tabLabelFull');
+      case 'profiles': return 'RAG Profiles';
+      case 'experiments': return 'A/B Tests';
+      case 'metrics': return 'Metrics';
+      default: return tabId;
+    }
+  };
 
   // Fetch overview data
   const fetchOverview = useCallback(async () => {
@@ -308,14 +319,14 @@ export const DocumentsPage: React.FC = () => {
 
       {/* Tabs */}
       <div className="documents-tabs">
-        {TABS.map((tab) => (
+        {TAB_IDS.map((tabId) => (
           <button
-            key={tab.id}
-            className={`documents-tab ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
+            key={tabId}
+            className={`documents-tab ${activeTab === tabId ? 'active' : ''}`}
+            onClick={() => setActiveTab(tabId)}
           >
-            {tab.icon}
-            <span>{tab.label}</span>
+            {TAB_ICONS[tabId]}
+            <span>{getTabLabel(tabId)}</span>
           </button>
         ))}
       </div>
