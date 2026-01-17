@@ -561,51 +561,53 @@ export const AdaptiveDocuments = () => {
           </div>
         )}
 
-        {/* Search Section */}
-        <div className="adaptive-search-section">
-          <div className="adaptive-search-bar">
-            <Search size={16} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('common.adaptive.search.placeholder')}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
-            <button onClick={handleSearch} disabled={searching} className="btn btn--sm">
-              {searching ? <Loader2 size={14} className="spinning" /> : t('common.search')}
-            </button>
-          </div>
-          {searchResults.length > 0 && (
-            <div className="adaptive-search-results">
-              <div className="search-results-header">
-                <span>{t('common.adaptive.search.results')}: {searchResults.length}</span>
-                <button onClick={() => setSearchResults([])}><X size={14} /></button>
-              </div>
-              <ul>
-                {searchResults.map(result => (
-                  <li key={result.chunk_id} className="search-result-item">
-                    <div className="result-header">
-                      <span className={`chunk-type-badge ${getChunkTypeBadgeClass(result.chunk_type)}`}>
-                        {t(`common.adaptive.chunks.types.${result.chunk_type}`)}
-                      </span>
-                      <span className="similarity">
-                        {t('common.adaptive.search.similarity')}: {formatPercentage(result.similarity)}
-                      </span>
-                    </div>
-                    <p className="result-content">{result.content.slice(0, 200)}...</p>
-                    <div className="result-meta">
-                      <span>{t('common.adaptive.chunks.pages')}: {result.page_start}-{result.page_end}</span>
-                      {result.section_title && (
-                        <span>{t('common.adaptive.chunks.section')}: {result.section_title}</span>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+        {/* Semantic Search Section - only show when documents exist */}
+        {documents.length > 0 && (
+          <div className="adaptive-search-section">
+            <div className="adaptive-search-bar">
+              <Search size={16} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('common.adaptive.search.placeholder')}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              />
+              <button onClick={handleSearch} disabled={searching} className="btn btn--sm">
+                {searching ? <Loader2 size={14} className="spinning" /> : t('common.search')}
+              </button>
             </div>
-          )}
-        </div>
+            {searchResults.length > 0 && (
+              <div className="adaptive-search-results">
+                <div className="search-results-header">
+                  <span>{t('common.adaptive.search.results')}: {searchResults.length}</span>
+                  <button onClick={() => setSearchResults([])}><X size={14} /></button>
+                </div>
+                <ul>
+                  {searchResults.map(result => (
+                    <li key={result.chunk_id} className="search-result-item">
+                      <div className="result-header">
+                        <span className={`chunk-type-badge ${getChunkTypeBadgeClass(result.chunk_type)}`}>
+                          {t(`common.adaptive.chunks.types.${result.chunk_type}`)}
+                        </span>
+                        <span className="similarity">
+                          {t('common.adaptive.search.similarity')}: {formatPercentage(result.similarity)}
+                        </span>
+                      </div>
+                      <p className="result-content">{result.content.slice(0, 200)}...</p>
+                      <div className="result-meta">
+                        <span>{t('common.adaptive.chunks.pages')}: {result.page_start}-{result.page_end}</span>
+                        {result.section_title && (
+                          <span>{t('common.adaptive.chunks.section')}: {result.section_title}</span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Documents Table */}
         {loading ? (
