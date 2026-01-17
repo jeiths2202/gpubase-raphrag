@@ -102,7 +102,8 @@ class PDFAdaptiveEmbeddingService:
         pdf_content: bytes,
         pdf_id: str,
         options: AdaptiveProcessRequest,
-        on_progress: Optional[Callable[[str, float, str], None]] = None
+        on_progress: Optional[Callable[[str, float, str], None]] = None,
+        document_name: Optional[str] = None
     ) -> AdaptiveProcessResponse:
         """
         Process a PDF with adaptive embedding.
@@ -112,6 +113,7 @@ class PDFAdaptiveEmbeddingService:
             pdf_id: Unique document ID
             options: Processing options
             on_progress: Optional progress callback (stage, percentage, message)
+            document_name: Original filename for source reference display
 
         Returns:
             AdaptiveProcessResponse with status and details
@@ -144,7 +146,7 @@ class PDFAdaptiveEmbeddingService:
                 on_progress("analyzing", 10, "Analyzing document structure...")
 
             structure = await self.structure_analyzer.analyze(
-                pdf_content, pdf_id, options.language
+                pdf_content, pdf_id, options.language, document_name=document_name
             )
             await self.structure_repository.save_analysis(structure)
 
@@ -154,6 +156,53 @@ class PDFAdaptiveEmbeddingService:
                 f"pages={structure.total_pages}, "
                 f"sections={len(structure.hierarchy)}"
             )
+
+            # Step 1.5: Extract and store images
+            if structure.total_images > 0:
+                self._update_status(task_id, ProcessingStatus.ANALYZING, 0.2, "Extracting images...")
+                if on_progress:
+                    on_progress("extracting_images", 20, f"Extracting {structure.total_images} images...")
+
+                try:
+                    extracted_images = await self.structure_analyzer.extract_images(
+                        pdf_content, pdf_id, min_size=50, max_images=100
+                    )
+                    if extracted_images:
+                        from ..core.deps import get_postgres_pool
+                        from ..infrastructure.postgres.image_repository import PostgresImageRepository
+
+                        pool = await get_postgres_pool()
+                        image_repo = PostgresImageRepository(pool)
+                        saved_images = await image_repo.save_images(extracted_images)
+                        logger.info(f"Saved {saved_images} images for {pdf_id}")
+
+                        # Generate CLIP embeddings for saved images
+                        if on_progress:
+                            on_progress("clip_embedding", 22, f"Generating CLIP embeddings for {saved_images} images...")
+
+                        try:
+                            from .clip_embedding_service import get_clip_embedding_service
+                            clip_service = get_clip_embedding_service()
+
+                            clip_success = 0
+                            for img in extracted_images:
+                                try:
+                                    image_data = img.get("image_data")
+                                    if image_data:
+                                        clip_embedding = await clip_service.embed_image(image_data)
+                                        # Check if embedding is valid
+                                        if clip_embedding and sum(1 for v in clip_embedding if v != 0.0) > 0:
+                                            await image_repo.update_clip_embedding(img["image_id"], clip_embedding)
+                                            clip_success += 1
+                                except Exception as clip_img_err:
+                                    logger.debug(f"CLIP embedding failed for {img.get('image_id')}: {clip_img_err}")
+
+                            logger.info(f"Generated CLIP embeddings for {clip_success}/{len(extracted_images)} images")
+                        except Exception as clip_err:
+                            logger.warning(f"CLIP embedding generation failed, continuing: {clip_err}")
+
+                except Exception as img_error:
+                    logger.warning(f"Image extraction failed, continuing: {img_error}")
 
             # Step 2: Adaptive Chunking
             self._update_status(task_id, ProcessingStatus.CHUNKING, 0.3, "Creating adaptive chunks...")
@@ -188,6 +237,7 @@ class PDFAdaptiveEmbeddingService:
             if on_progress:
                 on_progress("embedding", 50, f"Generating embeddings for {len(chunks)} chunks...")
 
+            logger.info(f"EMBED_PIPELINE: embedding_executor={self.embedding_executor is not None}, chunks={len(chunks)}")
             if self.embedding_executor:
                 def embedding_progress_callback(progress: EmbeddingProgress):
                     pct = 50 + (progress.progress_percentage * 0.35)
@@ -202,6 +252,8 @@ class PDFAdaptiveEmbeddingService:
                     chunks,
                     on_progress=embedding_progress_callback
                 )
+                embedded_count = sum(1 for c in chunks if c.has_embedding)
+                logger.info(f"EMBED_PIPELINE: After embedding, {embedded_count}/{len(chunks)} chunks have embeddings")
             else:
                 logger.warning("No embedding executor provided, skipping embeddings")
 
@@ -214,7 +266,17 @@ class PDFAdaptiveEmbeddingService:
             if on_progress:
                 on_progress("validating", 90, "Validating embedding coverage...")
 
+            # Debug: Log chunk embedding status before validation
+            pre_validation_count = sum(1 for c in chunks if c.has_embedding)
+            logger.info(f"COVERAGE_DEBUG: Before validation - {pre_validation_count}/{len(chunks)} chunks have embeddings")
+            # Sample first few chunks
+            for i, chunk in enumerate(chunks[:3]):
+                logger.info(f"COVERAGE_DEBUG: Chunk[{i}] id={chunk.chunk_id}, has_embedding={chunk.has_embedding}, embedding_len={len(chunk.embedding) if chunk.embedding else 0}, _db_has={chunk._db_has_embedding}")
+
             coverage_data = await self.coverage_validator.validate_coverage_with_chunks(pdf_id, chunks)
+
+            # Debug: Log coverage data
+            logger.info(f"COVERAGE_DEBUG: After validation - total={coverage_data['total_chunks']}, embedded={coverage_data['embedded_chunks']}, overall={coverage_data['overall_coverage']:.2%}")
 
             # Step 5: Quality Evaluation
             quality_metrics = await self.quality_evaluator.evaluate_quality(pdf_id, chunks)
@@ -445,14 +507,25 @@ def create_pdf_adaptive_embedding_service(
     chunk_repository: AdaptiveChunkRepositoryPort,
     structure_repository: PDFStructureRepositoryPort,
     coverage_repository: CoverageRepositoryPort,
-    embedding_executor: ParallelEmbeddingExecutor = None
+    embedding_executor: ParallelEmbeddingExecutor = None,
+    structure_analyzer: PDFStructureAnalyzer = None,
+    chunk_planner: AdaptiveChunkPlanner = None,
+    coverage_validator: EmbeddingCoverageValidator = None,
+    quality_evaluator: AdaptiveQualityEvaluator = None
 ) -> PDFAdaptiveEmbeddingService:
     """
     Create a PDF Adaptive Embedding Service instance.
+
+    All service dependencies should be explicitly provided to avoid
+    calling get_settings() at initialization time.
     """
     return PDFAdaptiveEmbeddingService(
         chunk_repository=chunk_repository,
         structure_repository=structure_repository,
         coverage_repository=coverage_repository,
-        embedding_executor=embedding_executor
+        embedding_executor=embedding_executor,
+        structure_analyzer=structure_analyzer,
+        chunk_planner=chunk_planner,
+        coverage_validator=coverage_validator,
+        quality_evaluator=quality_evaluator
     )

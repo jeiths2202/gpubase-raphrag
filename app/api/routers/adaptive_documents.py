@@ -40,6 +40,41 @@ router = APIRouter(
 )
 
 
+@router.get("/list")
+async def list_adaptive_documents(
+    service=Depends(get_adaptive_embedding_service),
+):
+    """
+    List all adaptive documents with their status.
+    적응형 문서 목록 조회
+    """
+    try:
+        # Get all documents from structure repository
+        documents = await service.structure_repository.get_all_analyses()
+
+        result = []
+        for doc in documents:
+            # Get chunk count for this document
+            chunks = await service.chunk_repository.get_chunks_by_pdf(doc.pdf_id)
+
+            result.append({
+                "pdf_id": doc.pdf_id,
+                "document_name": doc.document_name,  # 문서명 추가
+                "document_type": doc.document_type.value if hasattr(doc.document_type, 'value') else str(doc.document_type),
+                "total_pages": doc.total_pages,
+                "total_sections": len(doc.hierarchy) if doc.hierarchy else 0,
+                "language": doc.language,
+                "chunks_count": len(chunks),
+                "status": "completed",
+                "created_at": doc.analyzed_at.isoformat() if doc.analyzed_at else None,
+            })
+
+        return result
+    except Exception as e:
+        logger.error(f"Error listing adaptive documents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/process", response_model=AdaptiveProcessResponse)
 async def process_pdf_adaptive(
     file: UploadFile = File(..., description="PDF file to process"),
@@ -80,8 +115,11 @@ async def process_pdf_adaptive(
     )
 
     try:
-        # Process PDF
-        result = await service.process_pdf(content, pdf_id, options)
+        # Process PDF with original filename
+        result = await service.process_pdf(
+            content, pdf_id, options,
+            document_name=file.filename  # 원본 파일명 전달
+        )
         return result
 
     except Exception as e:
@@ -278,6 +316,76 @@ async def get_quality_metrics(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/{pdf_id}/refresh-quality", response_model=QualityResponse)
+async def refresh_quality_metrics(
+    pdf_id: str,
+    service = Depends(get_adaptive_embedding_service)
+):
+    """
+    Recalculate and refresh quality metrics for a document.
+    Loads actual embeddings from DB for accurate quality evaluation.
+    """
+    try:
+        # Load chunks WITH embeddings for quality calculation
+        chunks = await service.chunk_repository.get_chunks_with_embeddings(pdf_id, limit=200)
+
+        if not chunks:
+            raise HTTPException(status_code=404, detail=f"No embedded chunks found for document {pdf_id}")
+
+        logger.info(f"REFRESH_QUALITY: Loaded {len(chunks)} chunks with embeddings for {pdf_id}")
+
+        # Verify embeddings are loaded
+        with_embeddings = sum(1 for c in chunks if c.embedding and len(c.embedding) > 0)
+        logger.info(f"REFRESH_QUALITY: {with_embeddings}/{len(chunks)} have actual embeddings")
+
+        # Recalculate quality metrics
+        quality_metrics = await service.quality_evaluator.evaluate_quality(pdf_id, chunks)
+        logger.info(f"REFRESH_QUALITY: Calculated metrics - recall={quality_metrics.top_k_recall:.2%}, precision={quality_metrics.section_precision:.2%}")
+
+        # Update coverage with new quality metrics
+        coverage = await service.coverage_repository.get_coverage(pdf_id)
+        if coverage:
+            coverage.quality_metrics = quality_metrics
+            await service.coverage_repository.save_coverage(coverage)
+            logger.info(f"Quality metrics refreshed for {pdf_id}")
+
+        # Generate recommendations
+        issues = []
+        recommendations = []
+
+        if quality_metrics.top_k_recall < 0.8:
+            issues.append("Low top-k recall")
+            recommendations.append("Consider adjusting chunk sizes")
+
+        if quality_metrics.section_precision < 0.8:
+            issues.append("Low section precision")
+            recommendations.append("Section boundaries may need refinement")
+
+        if quality_metrics.hallucination_detected:
+            issues.append("Potential hallucination detected")
+            recommendations.append("Review flagged chunks for accuracy")
+
+        if quality_metrics.quality_level in [QualityLevel.EXCELLENT, QualityLevel.GOOD]:
+            recommendations.append("Quality is acceptable")
+
+        return QualityResponse(
+            pdf_id=pdf_id,
+            top_k_recall=quality_metrics.top_k_recall,
+            section_precision=quality_metrics.section_precision,
+            avg_similarity=quality_metrics.avg_similarity,
+            quality_level=quality_metrics.quality_level,
+            hallucination_detected=quality_metrics.hallucination_detected,
+            issues=issues,
+            recommendations=recommendations
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to refresh quality metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{pdf_id}/structure", response_model=StructureAnalysisResponse)
 async def get_structure_analysis(
     pdf_id: str,
@@ -294,6 +402,7 @@ async def get_structure_analysis(
 
         return StructureAnalysisResponse(
             pdf_id=structure.pdf_id,
+            document_name=structure.document_name,  # 문서명 추가
             document_type=structure.document_type,
             total_pages=structure.total_pages,
             total_sections=len(structure.hierarchy),
@@ -411,4 +520,273 @@ async def get_processing_status(
 
     except Exception as e:
         logger.error(f"Failed to get status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/admin/reset-service")
+async def reset_service():
+    """
+    Reset adaptive embedding service singleton.
+    Forces re-initialization with current configuration.
+    Admin endpoint for troubleshooting.
+    """
+    try:
+        from ..core.deps import reset_adaptive_embedding_service
+        reset_adaptive_embedding_service()
+        return JSONResponse(content={
+            "status": "reset",
+            "message": "Adaptive embedding service will be re-initialized on next request"
+        })
+    except Exception as e:
+        logger.error(f"Failed to reset service: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{pdf_id}/refresh-coverage", response_model=CoverageResponse)
+async def refresh_coverage(
+    pdf_id: str,
+    service = Depends(get_adaptive_embedding_service)
+):
+    """
+    Recalculate and refresh coverage for a document.
+    Useful when coverage data is out of sync with actual chunks.
+    """
+    try:
+        from datetime import datetime, timezone
+        from ..models.adaptive_chunk import (
+            ChunkEmbeddingCoverage,
+            CoverageReport,
+            QualityMetrics,
+            QualityLevel,
+        )
+        from ..services.embedding_coverage_validator import get_embedding_coverage_validator
+        from ..services.adaptive_quality_evaluator import get_adaptive_quality_evaluator
+
+        # Get chunks from repository
+        chunks = await service.get_chunks(pdf_id)
+        if not chunks:
+            raise HTTPException(status_code=404, detail=f"No chunks found for document {pdf_id}")
+
+        # Log chunk status for debugging
+        total = len(chunks)
+        embedded = sum(1 for c in chunks if c.has_embedding)
+        logger.info(f"Refresh coverage for {pdf_id}: {embedded}/{total} chunks embedded")
+
+        # Calculate coverage by type
+        from collections import defaultdict
+        by_type = defaultdict(lambda: {"total": 0, "embedded": 0})
+        for chunk in chunks:
+            type_key = chunk.chunk_type.value
+            by_type[type_key]["total"] += 1
+            if chunk.has_embedding:
+                by_type[type_key]["embedded"] += 1
+
+        # Calculate type-specific coverages
+        def calc_type_coverage(chunks_list, chunk_type_value):
+            type_chunks = [c for c in chunks_list if c.chunk_type.value == chunk_type_value]
+            if not type_chunks:
+                return 1.0
+            return sum(1 for c in type_chunks if c.has_embedding) / len(type_chunks)
+
+        text_coverage = calc_type_coverage(chunks, "TEXT_CHUNK")
+        table_coverage = calc_type_coverage(chunks, "TABLE_CHUNK")
+        image_coverage = calc_type_coverage(chunks, "IMAGE_CHUNK")
+        ocr_coverage = calc_type_coverage(chunks, "OCR_CHUNK")
+        overall_coverage = embedded / total if total > 0 else 0.0
+
+        # Determine quality level
+        if overall_coverage >= 0.95:
+            quality_level = QualityLevel.EXCELLENT
+        elif overall_coverage >= 0.85:
+            quality_level = QualityLevel.GOOD
+        elif overall_coverage >= 0.70:
+            quality_level = QualityLevel.FAIR
+        else:
+            quality_level = QualityLevel.POOR
+
+        # Create and save updated coverage
+        coverage = ChunkEmbeddingCoverage(
+            pdf_id=pdf_id,
+            text_coverage=text_coverage,
+            table_coverage=table_coverage,
+            image_coverage=image_coverage,
+            ocr_coverage=ocr_coverage,
+            overall_coverage=overall_coverage,
+            coverage_report=CoverageReport(
+                total_chunks=total,
+                embedded_chunks=embedded,
+                failed_chunks=[],
+                skipped_chunks=[],
+                by_type=dict(by_type)
+            ),
+            quality_metrics=QualityMetrics(
+                top_k_recall=overall_coverage,
+                section_precision=1.0,
+                avg_similarity=0.0,
+                embedding_dimension=4096,
+                quality_level=quality_level,
+                hallucination_detected=False
+            ),
+            last_verified_at=datetime.now(timezone.utc)
+        )
+
+        await service.coverage_repository.save_coverage(coverage)
+        logger.info(f"Coverage refreshed for {pdf_id}: {embedded}/{total} ({overall_coverage*100:.1f}%)")
+
+        return CoverageResponse(
+            pdf_id=pdf_id,
+            text_coverage=text_coverage,
+            table_coverage=table_coverage,
+            image_coverage=image_coverage,
+            ocr_coverage=ocr_coverage,
+            overall_coverage=overall_coverage,
+            total_chunks=total,
+            embedded_chunks=embedded,
+            quality_level=quality_level,
+            last_verified_at=coverage.last_verified_at
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to refresh coverage: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Image Endpoints
+# =============================================================================
+
+@router.get("/{pdf_id}/images")
+async def get_document_images(
+    pdf_id: str,
+    page: Optional[int] = Query(default=None, description="Filter by page number"),
+):
+    """
+    Get all images extracted from a PDF document.
+    PDF 문서에서 추출된 모든 이미지 조회
+    """
+    try:
+        from ..core.deps import get_postgres_pool
+        from ..infrastructure.postgres.image_repository import PostgresImageRepository
+
+        pool = await get_postgres_pool()
+        repo = PostgresImageRepository(pool)
+
+        if page:
+            images = await repo.get_images_by_document(pdf_id, page_number=page)
+        else:
+            images = await repo.get_images_by_document(pdf_id)
+
+        # Remove binary data from response, only return metadata
+        return {
+            "pdf_id": pdf_id,
+            "total_images": len(images),
+            "images": [
+                {
+                    "image_id": img["image_id"],
+                    "page_number": img["page_number"],
+                    "width": img["width"],
+                    "height": img["height"],
+                    "mime_type": img["mime_type"],
+                    "file_size": img["file_size"],
+                    "description": img.get("description"),
+                    "figure_caption": img.get("figure_caption"),
+                    "url": f"/api/v1/documents/adaptive/images/{img['image_id']}/raw"
+                }
+                for img in images
+            ]
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get document images: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/images/{image_id}/raw")
+async def get_image_raw(image_id: str):
+    """
+    Get raw image binary data.
+    원본 이미지 바이너리 데이터 조회
+    """
+    try:
+        from fastapi.responses import Response
+        from ..core.deps import get_postgres_pool
+        from ..infrastructure.postgres.image_repository import PostgresImageRepository
+
+        pool = await get_postgres_pool()
+        repo = PostgresImageRepository(pool)
+
+        image = await repo.get_image(image_id)
+
+        if not image:
+            raise HTTPException(status_code=404, detail="Image not found")
+
+        return Response(
+            content=image["image_data"],
+            media_type=image["mime_type"],
+            headers={
+                "Content-Disposition": f'inline; filename="{image_id}.png"',
+                "Cache-Control": "public, max-age=86400",
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get image: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{pdf_id}/extract-images")
+async def extract_and_store_images(
+    pdf_id: str,
+    file: UploadFile = File(..., description="PDF file to extract images from"),
+):
+    """
+    Extract and store images from an uploaded PDF for an existing document.
+    기존 문서에 대해 업로드된 PDF에서 이미지를 추출하고 저장
+
+    This endpoint extracts images without re-processing chunks.
+    Use when you want to add images to an already processed PDF.
+    """
+    try:
+        from ..core.deps import get_postgres_pool
+        from ..infrastructure.postgres.image_repository import PostgresImageRepository
+        from ..services.pdf_structure_analyzer import get_pdf_structure_analyzer
+
+        # Read PDF content
+        content = await file.read()
+
+        # Get structure analyzer and extract images
+        analyzer = get_pdf_structure_analyzer()
+        extracted_images = await analyzer.extract_images(content, pdf_id, min_size=50, max_images=100)
+
+        if not extracted_images:
+            return JSONResponse(content={
+                "status": "no_images",
+                "pdf_id": pdf_id,
+                "message": "No images found in PDF or all images were too small",
+                "images_extracted": 0
+            })
+
+        # Store images
+        pool = await get_postgres_pool()
+        repo = PostgresImageRepository(pool)
+        saved_count = await repo.save_images(extracted_images)
+
+        logger.info(f"Extracted and saved {saved_count} images for {pdf_id}")
+
+        return JSONResponse(content={
+            "status": "success",
+            "pdf_id": pdf_id,
+            "images_extracted": len(extracted_images),
+            "images_saved": saved_count,
+            "image_ids": [img["image_id"] for img in extracted_images[:10]]
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to extract images: {e}")
         raise HTTPException(status_code=500, detail=str(e))

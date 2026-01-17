@@ -184,6 +184,74 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
 
             return [self._row_to_chunk(row) for row in rows]
 
+    async def get_chunks_with_embeddings(
+        self,
+        pdf_id: str,
+        limit: int = 100
+    ) -> List[AdaptiveChunk]:
+        """
+        Get chunks for a PDF WITH their embedding vectors loaded.
+        Use sparingly - embeddings are large (4096 floats each).
+
+        Args:
+            pdf_id: Document ID
+            limit: Maximum chunks to load (default 100 to prevent memory issues)
+        """
+        await self._ensure_table()
+
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT pdf_id, chunk_id, chunk_type, content, page_start, page_end,
+                       section_path, section_title, parent_section_id, relations,
+                       embedding::text as embedding_text, embedding_model_version,
+                       has_embedding, chunk_version, content_hash, acl, metadata,
+                       created_at, updated_at
+                FROM adaptive_pdf_chunks
+                WHERE pdf_id = $1 AND has_embedding = TRUE
+                ORDER BY page_start, section_path
+                LIMIT $2
+            """, pdf_id, limit)
+
+            return [self._row_to_chunk_with_embedding(row) for row in rows]
+
+    def _row_to_chunk_with_embedding(self, row) -> AdaptiveChunk:
+        """Convert database row to AdaptiveChunk WITH embedding loaded."""
+        relations_data = row["relations"] if isinstance(row["relations"], dict) else {}
+        acl_data = row["acl"] if isinstance(row["acl"], dict) else {}
+        metadata_data = row["metadata"] if isinstance(row["metadata"], dict) else {}
+
+        # Parse embedding from text format "[0.1,0.2,...]"
+        embedding = None
+        if row.get("embedding_text"):
+            try:
+                emb_str = row["embedding_text"].strip("[]")
+                if emb_str:
+                    embedding = [float(x) for x in emb_str.split(",")]
+            except Exception as e:
+                logger.warning(f"Failed to parse embedding for {row['chunk_id']}: {e}")
+
+        return AdaptiveChunk(
+            pdf_id=row["pdf_id"],
+            chunk_id=row["chunk_id"],
+            chunk_type=ChunkType(row["chunk_type"]),
+            content=row["content"],
+            page_start=row["page_start"],
+            page_end=row["page_end"],
+            section_path=row["section_path"],
+            section_title=row["section_title"],
+            parent_section_id=row["parent_section_id"],
+            relations=ChunkRelations.from_dict(relations_data),
+            embedding=embedding,
+            embedding_model_version=row["embedding_model_version"],
+            chunk_version=row["chunk_version"],
+            content_hash=row["content_hash"],
+            acl=acl_data,
+            metadata=metadata_data,
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            _db_has_embedding=row["has_embedding"]
+        )
+
     async def search_similar(
         self,
         query_embedding: List[float],
@@ -199,37 +267,39 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
         embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
 
         # Build query with filters
-        conditions = ["has_embedding = TRUE", f"1 - (embedding <=> $1::vector) >= {min_similarity}"]
+        conditions = ["ac.has_embedding = TRUE", f"1 - (ac.embedding <=> $1::vector) >= {min_similarity}"]
         params = [embedding_str]
         param_idx = 2
 
         if pdf_id:
-            conditions.append(f"pdf_id = ${param_idx}")
+            conditions.append(f"ac.pdf_id = ${param_idx}")
             params.append(pdf_id)
             param_idx += 1
 
         if chunk_types:
             type_values = [ct.value for ct in chunk_types]
-            conditions.append(f"chunk_type = ANY(${param_idx})")
+            conditions.append(f"ac.chunk_type = ANY(${param_idx})")
             params.append(type_values)
             param_idx += 1
 
         if section_path_prefix:
-            conditions.append(f"section_path LIKE ${param_idx}")
+            conditions.append(f"ac.section_path LIKE ${param_idx}")
             params.append(f"{section_path_prefix}%")
             param_idx += 1
 
-        conditions.append(f"1 - (embedding <=> $1::vector) >= {min_similarity}")
+        conditions.append(f"1 - (ac.embedding <=> $1::vector) >= {min_similarity}")
 
         where_clause = " AND ".join(conditions)
 
         query = f"""
-            SELECT chunk_id, pdf_id, chunk_type, content, section_path,
-                   section_title, page_start, page_end, relations,
-                   1 - (embedding <=> $1::vector) as similarity
-            FROM adaptive_pdf_chunks
+            SELECT ac.chunk_id, ac.pdf_id, ac.chunk_type, ac.content, ac.section_path,
+                   ac.section_title, ac.page_start, ac.page_end, ac.relations,
+                   1 - (ac.embedding <=> $1::vector) as similarity,
+                   psa.document_name
+            FROM adaptive_pdf_chunks ac
+            LEFT JOIN pdf_structure_analysis psa ON ac.pdf_id = psa.pdf_id
             WHERE {where_clause}
-            ORDER BY embedding <=> $1::vector
+            ORDER BY ac.embedding <=> $1::vector
             LIMIT {limit}
         """
 
@@ -248,7 +318,8 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                     "page_start": row["page_start"],
                     "page_end": row["page_end"],
                     "relations": row["relations"],
-                    "similarity": float(row["similarity"])
+                    "similarity": float(row["similarity"]),
+                    "document_name": row.get("document_name")
                 })
 
             return results
@@ -344,7 +415,8 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
             acl=acl_data,
             metadata=metadata_data,
             created_at=row["created_at"],
-            updated_at=row["updated_at"]
+            updated_at=row["updated_at"],
+            _db_has_embedding=row["has_embedding"]  # DB의 has_embedding 상태를 보존
         )
 
     async def get_stats(self) -> Dict[str, Any]:
@@ -401,8 +473,8 @@ class PostgresPDFStructureRepository(PDFStructureRepositoryPort):
             await conn.execute("""
                 INSERT INTO pdf_structure_analysis
                 (pdf_id, document_type, hierarchy, layout_info, page_hashes,
-                 total_pages, total_images, total_tables, language, analyzed_at)
-                VALUES ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6, $7, $8, $9, $10)
+                 total_pages, total_images, total_tables, language, analyzed_at, document_name)
+                VALUES ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6, $7, $8, $9, $10, $11)
                 ON CONFLICT (pdf_id) DO UPDATE SET
                     document_type = EXCLUDED.document_type,
                     hierarchy = EXCLUDED.hierarchy,
@@ -413,11 +485,13 @@ class PostgresPDFStructureRepository(PDFStructureRepositoryPort):
                     total_tables = EXCLUDED.total_tables,
                     language = EXCLUDED.language,
                     analyzed_at = EXCLUDED.analyzed_at,
+                    document_name = EXCLUDED.document_name,
                     updated_at = NOW()
             """, analysis.pdf_id, analysis.document_type.value, hierarchy_json,
                 layout_json, page_hashes_json, analysis.total_pages,
                 analysis.total_images, analysis.total_tables, analysis.language,
-                analysis.analyzed_at or datetime.now(timezone.utc))
+                analysis.analyzed_at or datetime.now(timezone.utc),
+                analysis.document_name)
 
         return analysis.pdf_id
 
@@ -428,7 +502,8 @@ class PostgresPDFStructureRepository(PDFStructureRepositoryPort):
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow("""
                 SELECT pdf_id, document_type, hierarchy, layout_info, page_hashes,
-                       total_pages, total_images, total_tables, language, analyzed_at
+                       total_pages, total_images, total_tables, language, analyzed_at,
+                       document_name
                 FROM pdf_structure_analysis
                 WHERE pdf_id = $1
             """, pdf_id)
@@ -447,6 +522,21 @@ class PostgresPDFStructureRepository(PDFStructureRepositoryPort):
                 DELETE FROM pdf_structure_analysis WHERE pdf_id = $1
             """, pdf_id)
             return "DELETE 1" in result
+
+    async def get_all_analyses(self) -> List[PDFStructureAnalysis]:
+        """Get all structure analyses."""
+        await self._ensure_table()
+
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT pdf_id, document_type, hierarchy, layout_info, page_hashes,
+                       total_pages, total_images, total_tables, language, analyzed_at,
+                       document_name
+                FROM pdf_structure_analysis
+                ORDER BY analyzed_at DESC
+            """)
+
+            return [self._row_to_analysis(row) for row in rows]
 
     async def get_changed_pages(
         self,
@@ -476,9 +566,39 @@ class PostgresPDFStructureRepository(PDFStructureRepositoryPort):
 
     def _row_to_analysis(self, row) -> PDFStructureAnalysis:
         """Convert database row to PDFStructureAnalysis."""
-        hierarchy_data = row["hierarchy"] if isinstance(row["hierarchy"], list) else []
-        layout_data = row["layout_info"] if isinstance(row["layout_info"], dict) else {}
-        page_hashes = row["page_hashes"] if isinstance(row["page_hashes"], dict) else {}
+        # Handle both list/dict and JSON string from DB (asyncpg may return str for JSONB)
+        hierarchy_raw = row["hierarchy"]
+        if isinstance(hierarchy_raw, str):
+            try:
+                hierarchy_data = json.loads(hierarchy_raw)
+            except (json.JSONDecodeError, TypeError):
+                hierarchy_data = []
+        elif isinstance(hierarchy_raw, list):
+            hierarchy_data = hierarchy_raw
+        else:
+            hierarchy_data = []
+
+        layout_raw = row["layout_info"]
+        if isinstance(layout_raw, str):
+            try:
+                layout_data = json.loads(layout_raw)
+            except (json.JSONDecodeError, TypeError):
+                layout_data = {}
+        elif isinstance(layout_raw, dict):
+            layout_data = layout_raw
+        else:
+            layout_data = {}
+
+        page_hashes_raw = row["page_hashes"]
+        if isinstance(page_hashes_raw, str):
+            try:
+                page_hashes = json.loads(page_hashes_raw)
+            except (json.JSONDecodeError, TypeError):
+                page_hashes = {}
+        elif isinstance(page_hashes_raw, dict):
+            page_hashes = page_hashes_raw
+        else:
+            page_hashes = {}
 
         sections = []
         for s in hierarchy_data:
@@ -510,7 +630,8 @@ class PostgresPDFStructureRepository(PDFStructureRepositoryPort):
             total_images=row["total_images"],
             total_tables=row["total_tables"],
             language=row["language"],
-            analyzed_at=row["analyzed_at"]
+            analyzed_at=row["analyzed_at"],
+            document_name=row.get("document_name")
         )
 
 
@@ -607,8 +728,28 @@ class PostgresCoverageRepository(CoverageRepositoryPort):
 
     def _row_to_coverage(self, row) -> ChunkEmbeddingCoverage:
         """Convert database row to ChunkEmbeddingCoverage."""
-        coverage_data = row["coverage_report"] if isinstance(row["coverage_report"], dict) else {}
-        metrics_data = row["quality_metrics"] if isinstance(row["quality_metrics"], dict) else {}
+        # Handle both dict and JSON string from DB (asyncpg may return str for JSONB)
+        coverage_raw = row["coverage_report"]
+        if isinstance(coverage_raw, str):
+            try:
+                coverage_data = json.loads(coverage_raw)
+            except (json.JSONDecodeError, TypeError):
+                coverage_data = {}
+        elif isinstance(coverage_raw, dict):
+            coverage_data = coverage_raw
+        else:
+            coverage_data = {}
+
+        metrics_raw = row["quality_metrics"]
+        if isinstance(metrics_raw, str):
+            try:
+                metrics_data = json.loads(metrics_raw)
+            except (json.JSONDecodeError, TypeError):
+                metrics_data = {}
+        elif isinstance(metrics_raw, dict):
+            metrics_data = metrics_raw
+        else:
+            metrics_data = {}
 
         coverage_report = CoverageReport(
             total_chunks=coverage_data.get("total_chunks", 0),

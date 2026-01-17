@@ -109,9 +109,14 @@ class AdaptiveChunk:
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    # DB에서 로드 시 임베딩 존재 여부를 별도로 저장 (큰 임베딩 벡터를 로드하지 않기 위함)
+    _db_has_embedding: Optional[bool] = field(default=None, repr=False)
 
     @property
     def has_embedding(self) -> bool:
+        # DB에서 로드된 값이 있으면 우선 사용 (임베딩 벡터를 로드하지 않아도 상태 확인 가능)
+        if self._db_has_embedding is not None:
+            return self._db_has_embedding
         return self.embedding is not None and len(self.embedding) > 0
 
     @property
@@ -197,6 +202,7 @@ class PDFStructureAnalysis:
     total_tables: int = 0
     language: str = "auto"
     analyzed_at: Optional[datetime] = None
+    document_name: Optional[str] = None  # Original filename for source reference
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -209,7 +215,8 @@ class PDFStructureAnalysis:
             "total_images": self.total_images,
             "total_tables": self.total_tables,
             "language": self.language,
-            "analyzed_at": self.analyzed_at.isoformat() if self.analyzed_at else None
+            "analyzed_at": self.analyzed_at.isoformat() if self.analyzed_at else None,
+            "document_name": self.document_name
         }
 
 
@@ -405,6 +412,7 @@ class ReprocessResponse(BaseModel):
 class StructureAnalysisResponse(BaseModel):
     """Structure analysis API response"""
     pdf_id: str
+    document_name: Optional[str] = None  # 원본 파일명
     document_type: DocumentType
     total_pages: int
     total_sections: int

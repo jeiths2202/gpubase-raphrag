@@ -18,6 +18,7 @@ from ..models.adaptive_chunk import (
     LayoutInfo,
 )
 from ..ports.adaptive_embedding_port import PDFStructureAnalyzerPort
+from ..core.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -73,23 +74,35 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
         ],
     }
 
-    def __init__(self, min_section_length: int = 50):
+    def __init__(self, min_section_length: int = None):
         """
         Initialize analyzer.
 
         Args:
-            min_section_length: Minimum characters for a valid section
+            min_section_length: Minimum characters for a valid section (uses settings if None)
         """
-        self.min_section_length = min_section_length
+        # Only load settings if parameter needs default value
+        if min_section_length is None:
+            settings = get_settings()
+            self.min_section_length = settings.adaptive_embedding.min_section_length
+        else:
+            self.min_section_length = min_section_length
 
     async def analyze(
         self,
         pdf_content: bytes,
         pdf_id: str,
-        language: str = "auto"
+        language: str = "auto",
+        document_name: Optional[str] = None
     ) -> PDFStructureAnalysis:
         """
         Analyze PDF structure and extract hierarchy.
+
+        Args:
+            pdf_content: Raw PDF bytes
+            pdf_id: Unique document ID
+            language: Document language (auto, en, ja, ko)
+            document_name: Original filename for source reference
         """
         try:
             import fitz  # PyMuPDF
@@ -147,12 +160,13 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
                 total_images=total_images,
                 total_tables=total_tables,
                 language=language,
-                analyzed_at=datetime.now(timezone.utc)
+                analyzed_at=datetime.now(timezone.utc),
+                document_name=document_name
             )
 
         except ImportError:
             logger.warning("PyMuPDF not available, using fallback analysis")
-            return await self._fallback_analyze(pdf_content, pdf_id, language)
+            return await self._fallback_analyze(pdf_content, pdf_id, language, document_name)
         except Exception as e:
             logger.error(f"PDF structure analysis failed: {e}")
             raise
@@ -434,7 +448,8 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
         self,
         pdf_content: bytes,
         pdf_id: str,
-        language: str
+        language: str,
+        document_name: Optional[str] = None
     ) -> PDFStructureAnalysis:
         """Fallback analysis when PyMuPDF is not available."""
         # Use pypdf as fallback
@@ -470,7 +485,8 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
                 total_images=0,
                 total_tables=0,
                 language=language,
-                analyzed_at=datetime.now(timezone.utc)
+                analyzed_at=datetime.now(timezone.utc),
+                document_name=document_name
             )
 
         except Exception as e:
@@ -483,17 +499,127 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
                 page_hashes={},
                 total_pages=0,
                 language=language,
-                analyzed_at=datetime.now(timezone.utc)
+                analyzed_at=datetime.now(timezone.utc),
+                document_name=document_name
             )
+
+
+    async def extract_images(
+        self,
+        pdf_content: bytes,
+        pdf_id: str,
+        min_size: int = 50,
+        max_images: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        Extract images from PDF.
+        PDF에서 이미지 추출
+
+        Args:
+            pdf_content: PDF file bytes
+            pdf_id: Document identifier
+            min_size: Minimum image dimension (width or height)
+            max_images: Maximum number of images to extract
+
+        Returns:
+            List of extracted image data dicts
+        """
+        try:
+            import fitz
+
+            doc = fitz.open(stream=pdf_content, filetype="pdf")
+            extracted_images = []
+
+            for page_num in range(len(doc)):
+                if len(extracted_images) >= max_images:
+                    break
+
+                page = doc[page_num]
+                image_list = page.get_images(full=True)
+
+                for img_index, img_info in enumerate(image_list):
+                    if len(extracted_images) >= max_images:
+                        break
+
+                    try:
+                        xref = img_info[0]
+                        base_image = doc.extract_image(xref)
+
+                        if not base_image:
+                            continue
+
+                        image_bytes = base_image["image"]
+                        image_ext = base_image.get("ext", "png")
+                        width = base_image.get("width", 0)
+                        height = base_image.get("height", 0)
+
+                        # Skip small images (likely icons/bullets)
+                        if width < min_size or height < min_size:
+                            continue
+
+                        # Create unique image ID
+                        image_id = f"img_{pdf_id}_{page_num + 1}_{img_index}"
+
+                        # Determine MIME type
+                        mime_map = {
+                            "png": "image/png",
+                            "jpeg": "image/jpeg",
+                            "jpg": "image/jpeg",
+                            "gif": "image/gif",
+                            "bmp": "image/bmp",
+                        }
+                        mime_type = mime_map.get(image_ext.lower(), f"image/{image_ext}")
+
+                        # Get image position on page
+                        position = None
+                        for img_rect in page.get_image_rects(xref):
+                            position = {
+                                "x": img_rect.x0,
+                                "y": img_rect.y0,
+                                "width": img_rect.width,
+                                "height": img_rect.height
+                            }
+                            break
+
+                        extracted_images.append({
+                            "image_id": image_id,
+                            "document_id": pdf_id,
+                            "page_number": page_num + 1,
+                            "image_data": image_bytes,
+                            "mime_type": mime_type,
+                            "width": width,
+                            "height": height,
+                            "file_size": len(image_bytes),
+                            "position": position,
+                        })
+
+                        logger.debug(f"Extracted image {image_id}: {width}x{height} {mime_type}")
+
+                    except Exception as img_error:
+                        logger.warning(f"Failed to extract image {img_index} from page {page_num + 1}: {img_error}")
+                        continue
+
+            doc.close()
+            logger.info(f"Extracted {len(extracted_images)} images from PDF {pdf_id}")
+            return extracted_images
+
+        except ImportError:
+            logger.warning("PyMuPDF not available for image extraction")
+            return []
+        except Exception as e:
+            logger.error(f"Image extraction failed: {e}")
+            return []
 
 
 # Singleton instance
 _analyzer: Optional[PDFStructureAnalyzer] = None
 
 
-def get_pdf_structure_analyzer() -> PDFStructureAnalyzer:
+def get_pdf_structure_analyzer(
+    min_section_length: int = None
+) -> PDFStructureAnalyzer:
     """Get or create PDF structure analyzer instance."""
     global _analyzer
     if _analyzer is None:
-        _analyzer = PDFStructureAnalyzer()
+        _analyzer = PDFStructureAnalyzer(min_section_length=min_section_length)
     return _analyzer
