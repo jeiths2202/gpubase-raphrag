@@ -162,12 +162,17 @@ export const AgentChat: React.FC = () => {
     fileInputRef,
     handleFileAttach,
     handleFileChange,
+    handleFileDrop,
     handleRemoveFile,
     handleClearAllFiles,
     getFileContext,
     clearFileError,
     syncAgentFileState,
   } = useFileAttachment(selectedAgentRef);
+
+  // Drag and drop state
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounterRef = useRef(0);
 
   // URL attachment (using custom hook with per-agent state)
   const {
@@ -318,6 +323,42 @@ export const AgentChat: React.FC = () => {
       }, 0);
     }
   }, [handleUrlDetect]);
+
+  // Drag and drop handlers
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      handleFileDrop(files);
+    }
+  }, [handleFileDrop]);
 
   // Handle send message (wrapper for streaming hook)
   const handleSend = useCallback(async () => {
@@ -601,8 +642,14 @@ export const AgentChat: React.FC = () => {
         )}
       </div>
 
-      {/* Input area */}
-      <div className="agent-chat-input-container">
+      {/* Input area with drag & drop support */}
+      <div
+        className={`agent-chat-input-container ${isDragging ? 'dragging' : ''}`}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
         {/* Attached files display */}
         {attachedFiles.length > 0 && (
           <div className="agent-attached-files">

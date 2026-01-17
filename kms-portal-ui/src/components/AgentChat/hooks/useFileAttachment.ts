@@ -35,6 +35,7 @@ export interface UseFileAttachmentReturn {
   // Actions
   handleFileAttach: () => void;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+  handleFileDrop: (files: FileList | File[]) => Promise<void>;
   handleRemoveFile: (fileName: string) => void;
   handleClearAllFiles: () => void;
   getFileContext: () => string | undefined;
@@ -89,9 +90,8 @@ export function useFileAttachment(
     fileInputRef.current?.click();
   }, []);
 
-  // Handle file selection
-  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+  // Core file processing function (shared by handleFileChange and handleFileDrop)
+  const processFiles = useCallback(async (files: FileList | File[]) => {
     if (!files || files.length === 0) return;
 
     const currentAgent = selectedAgentRef.current;
@@ -166,10 +166,23 @@ export function useFileAttachment(
         updateAgentFileError(currentAgent, `Failed to process file ${file.name}: ${errorMsg}`);
       }
     }
+  }, [selectedAgentRef, updateAgentFiles, updateAgentFileError]);
+
+  // Handle file selection from input
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    await processFiles(files);
 
     // Reset input to allow re-selecting the same file
     if (e.target) e.target.value = '';
-  }, [selectedAgentRef, updateAgentFiles, updateAgentFileError]);
+  }, [processFiles]);
+
+  // Handle file drop (drag & drop)
+  const handleFileDrop = useCallback(async (files: FileList | File[]) => {
+    await processFiles(files);
+  }, [processFiles]);
 
   // Remove a single file
   const handleRemoveFile = useCallback((fileName: string) => {
@@ -206,6 +219,7 @@ export function useFileAttachment(
     fileInputRef,
     handleFileAttach,
     handleFileChange,
+    handleFileDrop,
     handleRemoveFile,
     handleClearAllFiles,
     getFileContext,

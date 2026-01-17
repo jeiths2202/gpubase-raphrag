@@ -840,6 +840,52 @@
   padding: var(--space-4);
   border-top: 1px solid var(--border-primary);
   background: var(--surface-secondary);
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+/* Drag & Drop Visual Feedback */
+.agent-chat-input-container.dragging {
+  background: var(--surface-hover);
+  border-color: var(--brand-primary);
+}
+
+.agent-chat-input-container.dragging::before {
+  content: '';
+  position: absolute;
+  inset: var(--space-2);
+  border: 2px dashed var(--brand-primary);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--brand-primary-rgb, 99, 102, 241), 0.08);
+  pointer-events: none;
+  z-index: 10;
+  animation: pulse-border 1.5s ease-in-out infinite;
+}
+
+.agent-chat-input-container.dragging::after {
+  content: 'Drop files here';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: var(--space-2) var(--space-4);
+  background: var(--brand-primary);
+  color: white;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  z-index: 11;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(var(--brand-primary-rgb, 99, 102, 241), 0.3);
+}
+
+@keyframes pulse-border {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .agent-chat-input-wrapper {
