@@ -3,7 +3,7 @@
  * Renders individual chat messages with support for user, assistant, and status messages.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Bot,
   User,
@@ -18,11 +18,115 @@ import {
   Database,
   Loader2,
   Image as ImageIcon,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { MessageContent } from './MessageContent';
 import { AGENT_CONFIGS } from './constants';
-import type { ChatMessage } from './types';
+import type { ChatMessage, ImageReference } from './types';
+
+/**
+ * Collapsible Images Component
+ * Shows thumbnails in collapsed state, full gallery when expanded
+ */
+interface CollapsibleImagesProps {
+  images: ImageReference[];
+  label: string;
+}
+
+const CollapsibleImages: React.FC<CollapsibleImagesProps> = ({ images, label }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Generate image src from base64 data
+  const getImageSrc = (image: ImageReference): string | null => {
+    if (!image.imageBase64) return null;
+    return image.imageBase64.startsWith('data:')
+      ? image.imageBase64
+      : `data:${image.mimeType || 'image/png'};base64,${image.imageBase64}`;
+  };
+
+  return (
+    <div className="agent-message-images">
+      {/* Collapsed header - clickable to expand */}
+      <button
+        className="agent-images-header"
+        onClick={() => setIsExpanded(!isExpanded)}
+        type="button"
+      >
+        <span className="agent-images-toggle">
+          {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </span>
+        <ImageIcon size={12} />
+        <span className="agent-images-label">{label}:</span>
+        <span className="agent-images-count">{images.length}</span>
+
+        {/* Mini thumbnails preview when collapsed */}
+        {!isExpanded && (
+          <div className="agent-images-thumbnails">
+            {images.slice(0, 4).map((image, idx) => {
+              const src = getImageSrc(image);
+              return src ? (
+                <img
+                  key={idx}
+                  src={src}
+                  alt={`Thumbnail ${idx + 1}`}
+                  className="agent-image-thumbnail"
+                />
+              ) : (
+                <div key={idx} className="agent-image-thumbnail-placeholder">
+                  <ImageIcon size={10} />
+                </div>
+              );
+            })}
+            {images.length > 4 && (
+              <span className="agent-images-more">+{images.length - 4}</span>
+            )}
+          </div>
+        )}
+      </button>
+
+      {/* Expanded gallery */}
+      {isExpanded && (
+        <div className="agent-images-gallery">
+          {images.map((image, idx) => {
+            const imageSrc = getImageSrc(image);
+            return (
+              <div key={idx} className="agent-image-item">
+                {imageSrc ? (
+                  <img
+                    src={imageSrc}
+                    alt={image.altText || image.figureCaption || image.description || `Image ${idx + 1}`}
+                    className="agent-image-preview"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="agent-image-placeholder">
+                    <ImageIcon size={24} />
+                  </div>
+                )}
+                <div className="agent-image-info">
+                  {image.figureReference && (
+                    <span className="agent-image-figure-ref">
+                      {image.figureReference.replace('fig_', 'Figure ').replace(/_/g, '.')}
+                    </span>
+                  )}
+                  <span className="agent-image-description">
+                    {image.figureCaption || image.description?.substring(0, 100) || `Page ${image.pageNumber || 'N/A'}`}
+                    {!image.figureCaption && image.description && image.description.length > 100 && '...'}
+                  </span>
+                  {image.similarity && (
+                    <span className="agent-image-score">{Math.round(image.similarity * 100)}%</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -182,56 +286,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         )}
 
-        {/* Images from Multimodal RAG or Figure References */}
+        {/* Images from Multimodal RAG or Figure References - Collapsible */}
         {message.images && message.images.length > 0 && (
-          <div className="agent-message-images">
-            <span className="agent-images-label">
-              <ImageIcon size={12} />
-              {message.images[0]?.figureReference ? 'Document Figures:' : 'Related Images:'}
-            </span>
-            <div className="agent-images-gallery">
-              {message.images.map((image, idx) => {
-                // Handle both data URL format and raw base64
-                const imageSrc = image.imageBase64?.startsWith('data:')
-                  ? image.imageBase64
-                  : image.imageBase64
-                    ? `data:${image.mimeType || 'image/png'};base64,${image.imageBase64}`
-                    : null;
-
-                return (
-                  <div key={idx} className="agent-image-item">
-                    {imageSrc ? (
-                      <img
-                        src={imageSrc}
-                        alt={image.altText || image.figureCaption || image.description || `Image ${idx + 1}`}
-                        className="agent-image-preview"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="agent-image-placeholder">
-                        <ImageIcon size={24} />
-                      </div>
-                    )}
-                    <div className="agent-image-info">
-                      {/* Show figure reference if available */}
-                      {image.figureReference && (
-                        <span className="agent-image-figure-ref">
-                          {image.figureReference.replace('fig_', 'Figure ').replace(/_/g, '.')}
-                        </span>
-                      )}
-                      <span className="agent-image-description">
-                        {image.figureCaption || image.description?.substring(0, 100) || `Page ${image.pageNumber || 'N/A'}`}
-                        {!image.figureCaption && image.description && image.description.length > 100 && '...'}
-                      </span>
-                      {image.similarity && (
-                        <span className="agent-image-score">{Math.round(image.similarity * 100)}%</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <CollapsibleImages
+            images={message.images}
+            label={message.images[0]?.figureReference ? 'Document Figures' : 'Related Images'}
+          />
         )}
 
         {/* Actions */}
