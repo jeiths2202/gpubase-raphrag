@@ -146,11 +146,11 @@ export const useArtifactStore = create<ArtifactState>()(
                 selectedArtifactId: artifact.id,
               },
             },
-            // Auto-open panel if this is the current agent
+            // Update selectedArtifactId but don't auto-open panel (user must click)
             panel: state.currentAgentType === agentType
               ? {
                   ...state.panel,
-                  isOpen: true,
+                  // isOpen: keep current state (don't auto-open)
                   selectedArtifactId: artifact.id,
                 }
               : state.panel,
