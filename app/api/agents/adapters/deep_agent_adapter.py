@@ -356,7 +356,29 @@ class DeepAgentAdapter(BaseAgent):
                     messages.append(HumanMessage(content=hist["question"]))
                 if "answer" in hist:
                     messages.append(AIMessage(content=hist["answer"]))
-            messages.append(HumanMessage(content=task))
+
+            # 🚨 CRITICAL: Handle file_context (Session Context vs Database Separation)
+            # User-attached files/URLs must be answered from DIRECTLY without using search tools
+            # This is session-only context, NOT stored in database
+            if context.file_context:
+                enhanced_task = f"""[ATTACHED FILE CONTEXT - PRIMARY REFERENCE]
+The user has attached file(s) to this session. Answer from this context FIRST.
+Do NOT use vector_search, graph_query, or other database tools if the answer is in the attached context.
+
+{context.file_context}
+
+[END ATTACHED FILE CONTEXT]
+
+IMPORTANT:
+- Answer from the attached file context above if possible
+- Mention "첨부된 문서에 따르면" or "According to the attached document" when answering from attached files
+- Only use search tools if the information is NOT found in the attached context
+
+User Query: {task}"""
+                messages.append(HumanMessage(content=enhanced_task))
+                logger.info(f"[{self.name}] Processing with attached file context ({len(context.file_context)} chars)")
+            else:
+                messages.append(HumanMessage(content=task))
 
             # Deep Agent 실행 (recursion_limit으로 무한 루프 방지)
             result = await asyncio.wait_for(

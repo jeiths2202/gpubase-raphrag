@@ -160,6 +160,74 @@ cat /opt/kms/.env | grep -E "POSTGRES|NEO4J"
 - Use full path for `gh.exe` on Windows (see Windows Tool Paths above)
 - **DB 접속 시 항상 `.env` 파일의 접속정보 사용**
 
+---
+
+## 🚨 CRITICAL: Session Context vs Database Separation
+
+> **이 원칙은 KMS 시스템의 핵심 아키텍처입니다. 반드시 준수하세요!**
+
+### 두 가지 컨텍스트 소스
+
+| 구분 | Admin Database | User Session Context |
+|------|----------------|----------------------|
+| **소스** | Admin이 정식 업로드한 문서 | 사용자가 채팅에서 첨부한 파일/URL |
+| **저장소** | Neo4j Vector Index, PostgreSQL | 메모리 (세션 한정) |
+| **수명** | 영구 저장 | 해당 세션에서만 유효 |
+| **검색** | vector_search, graph_query 도구 | file_context 직접 참조 |
+| **공유** | 모든 사용자 접근 가능 | 해당 사용자만 접근 |
+
+### 처리 우선순위
+
+```
+사용자 질문: "첨부파일 요약해줘"
+
+1. file_context (첨부 파일) 있는지 확인
+   └─ 있음 → file_context에서 직접 답변 (도구 사용 X)
+   └─ 없음 → vector_search 등 DB 도구 사용
+
+2. "문서에서 찾아줘" 같은 일반 질문
+   └─ file_context 있으면 → 먼저 file_context 검색
+   └─ file_context 없거나 정보 부족 → DB 도구 사용
+```
+
+### 구현 위치
+
+| 파일 | 역할 |
+|------|------|
+| `app/api/agents/executor.py:396-446` | file_context/url_context를 프롬프트에 삽입 |
+| `app/api/agents/adapters/deep_agent_adapter.py` | Deep Agent에서 file_context 처리 |
+| `app/api/agents/prompts/rag_agent.txt` | 컨텍스트 우선순위 지시 |
+| `kms-portal-ui/.../useFileAttachment.ts` | 프론트엔드 파일 첨부 처리 |
+| `kms-portal-ui/.../useStreamingChat.ts:306-322` | file_context API 전송 |
+
+### 절대 금지 사항
+
+```python
+# ❌ NEVER: 사용자 첨부 파일을 DB에 저장
+await vector_store.add_document(user_attached_file)
+
+# ❌ NEVER: file_context를 무시하고 바로 DB 검색
+if user_query.contains("첨부"):
+    return await vector_search(query)  # Wrong!
+
+# ✅ CORRECT: file_context 우선 확인
+if context.file_context:
+    # 첨부 파일에서 직접 답변
+    return answer_from_file_context(context.file_context, query)
+else:
+    # DB 검색으로 폴백
+    return await vector_search(query)
+```
+
+### 코드 수정 시 체크리스트
+
+- [ ] 사용자 첨부 파일이 DB에 저장되지 않는지 확인
+- [ ] file_context가 있을 때 우선 처리되는지 확인
+- [ ] 세션 종료 시 첨부 컨텍스트가 정리되는지 확인
+- [ ] Deep Agent에서도 file_context를 올바르게 처리하는지 확인
+
+---
+
 # Code Review Rules for FastAPI
 
 ## 🔄 자동 리뷰 트리거
