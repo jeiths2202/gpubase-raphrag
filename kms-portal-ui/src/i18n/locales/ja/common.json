@@ -217,9 +217,11 @@
     "upload": {
       "title": "PDFアップロード",
       "dropzone": "PDFファイルをここにドロップまたはクリックしてアップロード",
+      "selectFolder": "PDFを含むフォルダを選択",
       "processing": "処理中...",
       "success": "処理が開始されました",
-      "error": "アップロード失敗"
+      "error": "アップロード失敗",
+      "noPdfInFolder": "選択したフォルダにPDFファイルがありません"
     },
     "options": {
       "language": "言語",
@@ -316,6 +318,19 @@
       "title": "適応型ドキュメント",
       "empty": "適応型ドキュメントがありません",
       "uploadFirst": "PDFをアップロードして開始してください"
+    },
+    "batchDelete": {
+      "title": "選択したドキュメントを削除",
+      "button": "選択を削除",
+      "confirmMessage": "{{count}}件のドキュメントを削除しますか？",
+      "confirm": "すべて削除",
+      "deleting": "削除中...",
+      "error": "一括削除に失敗しました",
+      "partialError": "件のドキュメントの削除に失敗しました"
+    },
+    "deleteConfirm": {
+      "single": "次のドキュメントを削除しますか：",
+      "warning": "この操作により、ドキュメントと関連するすべてのデータ（チャンク、エンベディング、メタデータ）がデータベースから完全に削除されます。"
     }
   }
 }

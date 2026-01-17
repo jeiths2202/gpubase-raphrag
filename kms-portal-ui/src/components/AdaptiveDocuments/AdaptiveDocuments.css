@@ -297,6 +297,42 @@
   background: var(--bg-hover);
 }
 
+.adaptive-table tbody tr.selected {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+[data-theme="dark"] .adaptive-table tbody tr.selected {
+  background: rgba(99, 102, 241, 0.2);
+}
+
+/* Checkbox Column */
+.checkbox-column {
+  width: 48px;
+  text-align: center !important;
+}
+
+.checkbox-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+}
+
+.checkbox-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.checkbox-btn svg.checked {
+  color: var(--color-primary);
+}
+
 /* Document Name Cell */
 .doc-name-cell {
   display: flex;
@@ -502,6 +538,17 @@
   height: 16px;
 }
 
+/* Upload Buttons */
+.upload-buttons {
+  margin-top: var(--spacing-md);
+}
+
+.upload-options-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+}
+
 /* Upload Dropzone */
 .upload-dropzone {
   display: flex;
@@ -514,6 +561,7 @@
   cursor: pointer;
   transition: all 0.2s;
   color: var(--text-muted);
+  min-height: 150px;
 }
 
 .upload-dropzone:hover {
@@ -521,9 +569,35 @@
   background: rgba(99, 102, 241, 0.05);
 }
 
+.upload-dropzone.folder {
+  border-color: var(--color-success, #10b981);
+}
+
+.upload-dropzone.folder:hover {
+  border-color: var(--color-success, #10b981);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.upload-dropzone.uploading {
+  cursor: default;
+  border-style: solid;
+}
+
 .upload-dropzone p {
   margin: var(--spacing-sm) 0 0 0;
   font-size: 0.875rem;
+  text-align: center;
+}
+
+/* Delete Warning */
+.delete-warning {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid #ef4444;
 }
 
 /* Modal Actions */

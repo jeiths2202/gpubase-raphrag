@@ -23,6 +23,9 @@ import {
   BarChart3,
   Layers,
   GitBranch,
+  FolderOpen,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import {
   adaptiveDocumentsApi,
@@ -95,8 +98,14 @@ export const AdaptiveDocuments = () => {
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<AdaptiveDocument | null>(null);
 
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
+  const [batchDeleting, setBatchDeleting] = useState(false);
+
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
   // =============================================================================
@@ -140,10 +149,15 @@ export const AdaptiveDocuments = () => {
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
+    // Filter PDF files only
+    const pdfFiles = Array.from(files).filter(file =>
+      file.name.toLowerCase().endsWith('.pdf')
+    );
+
+    if (pdfFiles.length === 0) {
       setError(t('common.adaptive.upload.error') + ' - PDF only');
       return;
     }
@@ -151,36 +165,96 @@ export const AdaptiveDocuments = () => {
     setUploading(true);
     setError(null);
 
-    try {
-      const response = await adaptiveDocumentsApi.process(file, {
-        language: uploadOptions.language,
-        maxChunkSize: uploadOptions.maxChunkSize,
-        preserveTables: uploadOptions.preserveTables,
-        preserveSections: uploadOptions.preserveSections,
-      });
+    // Process files sequentially
+    for (const file of pdfFiles) {
+      try {
+        const response = await adaptiveDocumentsApi.process(file, {
+          language: uploadOptions.language,
+          maxChunkSize: uploadOptions.maxChunkSize,
+          preserveTables: uploadOptions.preserveTables,
+          preserveSections: uploadOptions.preserveSections,
+        });
 
-      // Add to documents list
-      const newDoc: AdaptiveDocument = {
-        pdf_id: response.pdf_id,
-        name: file.name,
-        status: response.status,
-        chunks_count: response.estimated_chunks,
-        created_at: new Date().toISOString(),
-      };
-      setDocuments(prev => [newDoc, ...prev]);
+        // Add to documents list
+        const newDoc: AdaptiveDocument = {
+          pdf_id: response.pdf_id,
+          name: file.name,
+          status: response.status,
+          chunks_count: response.estimated_chunks,
+          created_at: new Date().toISOString(),
+        };
+        setDocuments(prev => [newDoc, ...prev]);
 
-      // Start polling for status
-      startPolling(response.task_id, response.pdf_id);
-      setShowUploadOptions(false);
+        // Start polling for status
+        startPolling(response.task_id, response.pdf_id);
 
-    } catch (err) {
-      setError(t('common.adaptive.upload.error'));
-      console.error('Upload error:', err);
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      } catch (err) {
+        console.error(`Upload error for ${file.name}:`, err);
       }
+    }
+
+    setUploading(false);
+    setShowUploadOptions(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    if (folderInputRef.current) {
+      folderInputRef.current.value = '';
+    }
+  };
+
+  const handleFolderSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    // Filter PDF files only from the folder
+    const pdfFiles = Array.from(files).filter(file =>
+      file.name.toLowerCase().endsWith('.pdf')
+    );
+
+    if (pdfFiles.length === 0) {
+      setError(t('common.adaptive.upload.noPdfInFolder'));
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+
+    // Process files sequentially
+    for (const file of pdfFiles) {
+      try {
+        const response = await adaptiveDocumentsApi.process(file, {
+          language: uploadOptions.language,
+          maxChunkSize: uploadOptions.maxChunkSize,
+          preserveTables: uploadOptions.preserveTables,
+          preserveSections: uploadOptions.preserveSections,
+        });
+
+        // Add to documents list
+        const newDoc: AdaptiveDocument = {
+          pdf_id: response.pdf_id,
+          name: file.name,
+          status: response.status,
+          chunks_count: response.estimated_chunks,
+          created_at: new Date().toISOString(),
+        };
+        setDocuments(prev => [newDoc, ...prev]);
+
+        // Start polling for status
+        startPolling(response.task_id, response.pdf_id);
+
+      } catch (err) {
+        console.error(`Upload error for ${file.name}:`, err);
+      }
+    }
+
+    setUploading(false);
+    setShowUploadOptions(false);
+    if (folderInputRef.current) {
+      folderInputRef.current.value = '';
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -222,6 +296,11 @@ export const AdaptiveDocuments = () => {
     try {
       await adaptiveDocumentsApi.delete(deleteTarget.pdf_id);
       setDocuments(prev => prev.filter(d => d.pdf_id !== deleteTarget.pdf_id));
+      setSelectedIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(deleteTarget.pdf_id);
+        return newSet;
+      });
       setDeleteTarget(null);
       if (selectedDoc?.pdf_id === deleteTarget.pdf_id) {
         setSelectedDoc(null);
@@ -230,6 +309,57 @@ export const AdaptiveDocuments = () => {
     } catch (err) {
       setError(t('common.adaptive.actions.delete') + ' failed');
       console.error(err);
+    }
+  };
+
+  // Multi-select handlers
+  const toggleSelect = (pdfId: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(pdfId)) {
+        newSet.delete(pdfId);
+      } else {
+        newSet.add(pdfId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredDocuments.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredDocuments.map(doc => doc.pdf_id)));
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+
+    setBatchDeleting(true);
+    try {
+      const result = await adaptiveDocumentsApi.batchDelete(Array.from(selectedIds));
+
+      // Remove successfully deleted documents from list
+      setDocuments(prev => prev.filter(d => !result.results.success.includes(d.pdf_id)));
+      setSelectedIds(new Set());
+      setShowBatchDeleteConfirm(false);
+
+      // Close detail view if selected doc was deleted
+      if (selectedDoc && result.results.success.includes(selectedDoc.pdf_id)) {
+        setSelectedDoc(null);
+        setDetailView(null);
+      }
+
+      // Show error if some deletions failed
+      if (result.failed > 0) {
+        setError(`${result.failed} ${t('common.adaptive.batchDelete.partialError')}`);
+      }
+    } catch (err) {
+      setError(t('common.adaptive.batchDelete.error'));
+      console.error('Batch delete error:', err);
+    } finally {
+      setBatchDeleting(false);
     }
   };
 
@@ -397,6 +527,16 @@ export const AdaptiveDocuments = () => {
             </select>
           </div>
           <div className="adaptive-header-actions">
+            {selectedIds.size > 0 && (
+              <button
+                className="btn btn--danger"
+                onClick={() => setShowBatchDeleteConfirm(true)}
+                disabled={batchDeleting}
+              >
+                <Trash2 size={16} />
+                {t('common.adaptive.batchDelete.button')} ({selectedIds.size})
+              </button>
+            )}
             <button className="btn btn--secondary" onClick={loadDocuments} disabled={loading}>
               <RefreshCw size={16} className={loading ? 'spinning' : ''} />
               {t('common.refresh')}
@@ -488,6 +628,19 @@ export const AdaptiveDocuments = () => {
             <table className="adaptive-table">
               <thead>
                 <tr>
+                  <th className="checkbox-column">
+                    <button
+                      className="checkbox-btn"
+                      onClick={toggleSelectAll}
+                      title={selectedIds.size === filteredDocuments.length ? t('common.externalConnectors.deselectAll') : t('common.externalConnectors.selectAll')}
+                    >
+                      {selectedIds.size === filteredDocuments.length && filteredDocuments.length > 0 ? (
+                        <CheckSquare size={18} />
+                      ) : (
+                        <Square size={18} />
+                      )}
+                    </button>
+                  </th>
                   <th>{t('common.adaptive.table.document')}</th>
                   <th>{t('common.adaptive.table.status')}</th>
                   <th>{t('common.adaptive.table.chunks')}</th>
@@ -497,7 +650,19 @@ export const AdaptiveDocuments = () => {
               </thead>
               <tbody>
                 {filteredDocuments.map((doc) => (
-                  <tr key={doc.pdf_id}>
+                  <tr key={doc.pdf_id} className={selectedIds.has(doc.pdf_id) ? 'selected' : ''}>
+                    <td className="checkbox-column">
+                      <button
+                        className="checkbox-btn"
+                        onClick={() => toggleSelect(doc.pdf_id)}
+                      >
+                        {selectedIds.has(doc.pdf_id) ? (
+                          <CheckSquare size={18} className="checked" />
+                        ) : (
+                          <Square size={18} />
+                        )}
+                      </button>
+                    </td>
                     <td>
                       <div className="doc-name-cell">
                         <FileText size={18} className="text-red-500" />
@@ -616,24 +781,39 @@ export const AdaptiveDocuments = () => {
                   </label>
                 </div>
               </div>
-              <div className="upload-dropzone" onClick={() => fileInputRef.current?.click()}>
+              <div className="upload-buttons">
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept=".pdf"
+                  multiple
                   onChange={handleFileSelect}
                   style={{ display: 'none' }}
                 />
+                <input
+                  ref={folderInputRef}
+                  type="file"
+                  {...{ webkitdirectory: "", directory: "" } as React.InputHTMLAttributes<HTMLInputElement>}
+                  multiple
+                  onChange={handleFolderSelect}
+                  style={{ display: 'none' }}
+                />
                 {uploading ? (
-                  <>
+                  <div className="upload-dropzone uploading">
                     <Loader2 size={32} className="spinning" />
                     <p>{t('common.adaptive.upload.processing')}</p>
-                  </>
+                  </div>
                 ) : (
-                  <>
-                    <Upload size={32} />
-                    <p>{t('common.adaptive.upload.dropzone')}</p>
-                  </>
+                  <div className="upload-options-row">
+                    <div className="upload-dropzone" onClick={() => fileInputRef.current?.click()}>
+                      <Upload size={32} />
+                      <p>{t('common.adaptive.upload.dropzone')}</p>
+                    </div>
+                    <div className="upload-dropzone folder" onClick={() => folderInputRef.current?.click()}>
+                      <FolderOpen size={32} />
+                      <p>{t('common.adaptive.upload.selectFolder')}</p>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -844,13 +1024,53 @@ export const AdaptiveDocuments = () => {
               <button onClick={() => setDeleteTarget(null)}><X size={20} /></button>
             </div>
             <div className="adaptive-modal-content">
-              <p>Are you sure you want to delete <strong>{deleteTarget.name}</strong>?</p>
+              <p>{t('common.adaptive.deleteConfirm.single')} <strong>{deleteTarget.name}</strong>?</p>
+              <p className="delete-warning">{t('common.adaptive.deleteConfirm.warning')}</p>
               <div className="modal-actions">
                 <button className="btn btn--secondary" onClick={() => setDeleteTarget(null)}>
                   {t('common.cancel')}
                 </button>
                 <button className="btn btn--danger" onClick={handleDelete}>
                   {t('common.delete')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Delete Confirm Modal */}
+      {showBatchDeleteConfirm && (
+        <div className="adaptive-modal-overlay" onClick={() => setShowBatchDeleteConfirm(false)}>
+          <div className="adaptive-modal adaptive-modal--confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="adaptive-modal-header">
+              <h3>{t('common.adaptive.batchDelete.title')}</h3>
+              <button onClick={() => setShowBatchDeleteConfirm(false)}><X size={20} /></button>
+            </div>
+            <div className="adaptive-modal-content">
+              <p>{t('common.adaptive.batchDelete.confirmMessage', { count: selectedIds.size })}</p>
+              <p className="delete-warning">{t('common.adaptive.deleteConfirm.warning')}</p>
+              <div className="modal-actions">
+                <button
+                  className="btn btn--secondary"
+                  onClick={() => setShowBatchDeleteConfirm(false)}
+                  disabled={batchDeleting}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  className="btn btn--danger"
+                  onClick={handleBatchDelete}
+                  disabled={batchDeleting}
+                >
+                  {batchDeleting ? (
+                    <>
+                      <Loader2 size={16} className="spinning" />
+                      {t('common.adaptive.batchDelete.deleting')}
+                    </>
+                  ) : (
+                    t('common.adaptive.batchDelete.confirm')
+                  )}
                 </button>
               </div>
             </div>

@@ -217,9 +217,11 @@
     "upload": {
       "title": "PDF 업로드",
       "dropzone": "PDF 파일을 여기에 드롭하거나 클릭하여 업로드",
+      "selectFolder": "PDF가 포함된 폴더 선택",
       "processing": "처리 중...",
       "success": "처리가 시작되었습니다",
-      "error": "업로드 실패"
+      "error": "업로드 실패",
+      "noPdfInFolder": "선택한 폴더에 PDF 파일이 없습니다"
     },
     "options": {
       "language": "언어",
@@ -316,6 +318,19 @@
       "title": "적응형 문서",
       "empty": "적응형 문서가 없습니다",
       "uploadFirst": "PDF를 업로드하여 시작하세요"
+    },
+    "batchDelete": {
+      "title": "선택한 문서 삭제",
+      "button": "선택 삭제",
+      "confirmMessage": "{{count}}개의 문서를 삭제하시겠습니까?",
+      "confirm": "모두 삭제",
+      "deleting": "삭제 중...",
+      "error": "일괄 삭제에 실패했습니다",
+      "partialError": "개의 문서 삭제에 실패했습니다"
+    },
+    "deleteConfirm": {
+      "single": "다음 문서를 삭제하시겠습니까:",
+      "warning": "이 작업은 문서와 관련된 모든 데이터(청크, 임베딩, 메타데이터)를 데이터베이스에서 영구적으로 삭제합니다."
     }
   }
 }

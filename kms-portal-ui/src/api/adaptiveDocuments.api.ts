@@ -363,6 +363,28 @@ export const deleteAdaptiveDocument = async (pdfId: string): Promise<DeleteRespo
   return response.data;
 };
 
+/**
+ * Batch delete response
+ */
+export interface BatchDeleteResponse {
+  status: string;
+  total_requested: number;
+  deleted: number;
+  failed: number;
+  results: {
+    success: string[];
+    failed: Array<{ pdf_id: string; error: string }>;
+  };
+}
+
+/**
+ * Delete multiple documents at once
+ */
+export const batchDeleteAdaptiveDocuments = async (pdfIds: string[]): Promise<BatchDeleteResponse> => {
+  const response = await apiClient.post<BatchDeleteResponse>(`${API_PREFIX}/batch-delete`, pdfIds);
+  return response.data;
+};
+
 // =============================================================================
 // Export default API object
 // =============================================================================
@@ -379,6 +401,7 @@ export const adaptiveDocumentsApi = {
   search: searchAdaptiveChunks,
   getStatus: getProcessingStatus,
   delete: deleteAdaptiveDocument,
+  batchDelete: batchDeleteAdaptiveDocuments,
 };
 
 export default adaptiveDocumentsApi;

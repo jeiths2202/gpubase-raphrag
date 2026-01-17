@@ -216,10 +216,12 @@
     },
     "upload": {
       "title": "Upload PDF",
-      "dropzone": "Drop PDF file here or click to upload",
+      "dropzone": "Drop PDF file(s) here or click to upload",
+      "selectFolder": "Select folder with PDFs",
       "processing": "Processing...",
       "success": "Processing started",
-      "error": "Upload failed"
+      "error": "Upload failed",
+      "noPdfInFolder": "No PDF files found in the selected folder"
     },
     "options": {
       "language": "Language",
@@ -316,6 +318,19 @@
       "title": "Adaptive Documents",
       "empty": "No adaptive documents yet",
       "uploadFirst": "Upload a PDF to get started"
+    },
+    "batchDelete": {
+      "title": "Delete Selected Documents",
+      "button": "Delete Selected",
+      "confirmMessage": "Are you sure you want to delete {{count}} document(s)?",
+      "confirm": "Delete All",
+      "deleting": "Deleting...",
+      "error": "Batch deletion failed",
+      "partialError": "document(s) failed to delete"
+    },
+    "deleteConfirm": {
+      "single": "Are you sure you want to delete",
+      "warning": "This will permanently delete the document and all associated data including chunks, embeddings, and metadata from the database."
     }
   }
 }

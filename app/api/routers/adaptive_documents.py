@@ -492,6 +492,7 @@ async def delete_document(
 ):
     """
     Delete all data for a document.
+    모든 문서 데이터 삭제 (청크, 구조, 커버리지, 임베딩)
     """
     try:
         result = await service.delete_document(pdf_id)
@@ -504,6 +505,38 @@ async def delete_document(
     except Exception as e:
         logger.error(f"Failed to delete document: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/batch-delete")
+async def batch_delete_documents(
+    pdf_ids: List[str],
+    service = Depends(get_adaptive_embedding_service)
+):
+    """
+    Delete multiple documents at once.
+    여러 문서 일괄 삭제 (청크, 구조, 커버리지, 임베딩 모두 삭제)
+    """
+    results = {
+        "success": [],
+        "failed": []
+    }
+
+    for pdf_id in pdf_ids:
+        try:
+            await service.delete_document(pdf_id)
+            results["success"].append(pdf_id)
+            logger.info(f"Deleted document {pdf_id}")
+        except Exception as e:
+            results["failed"].append({"pdf_id": pdf_id, "error": str(e)})
+            logger.error(f"Failed to delete document {pdf_id}: {e}")
+
+    return JSONResponse(content={
+        "status": "completed",
+        "total_requested": len(pdf_ids),
+        "deleted": len(results["success"]),
+        "failed": len(results["failed"]),
+        "results": results
+    })
 
 
 @router.get("/status/{task_id}")
