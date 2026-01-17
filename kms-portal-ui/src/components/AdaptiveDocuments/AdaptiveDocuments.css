@@ -431,23 +431,26 @@
 .adaptive-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--color-bg-overlay, rgba(0, 0, 0, 0.7));
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: var(--spacing-md);
+  padding: var(--space-4, 1rem);
+  backdrop-filter: blur(4px);
 }
 
 .adaptive-modal {
-  background: var(--bg-secondary);
-  border-radius: var(--radius-lg);
+  background: var(--color-bg-modal, var(--color-bg-secondary, #1e293b));
+  border-radius: var(--radius-xl, 1.5rem);
   width: 100%;
   max-width: 500px;
   max-height: 90vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-shadow: var(--shadow-2xl, 0 24px 48px rgba(0, 0, 0, 0.7));
+  border: 1px solid var(--color-border, #334155);
 }
 
 .adaptive-modal--large {
@@ -462,33 +465,41 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--spacing-md) var(--spacing-lg);
-  border-bottom: 1px solid var(--border-color);
+  padding: var(--space-4, 1rem) var(--space-6, 1.5rem);
+  border-bottom: 1px solid var(--color-border, #334155);
+  background: var(--color-bg-secondary, #1e293b);
 }
 
 .adaptive-modal-header h3 {
   margin: 0;
   font-size: 1.125rem;
   font-weight: 600;
+  color: var(--color-text-primary, #f1f5f9);
 }
 
 .modal-doc-name {
   font-weight: 400;
-  color: var(--text-muted);
+  color: var(--color-text-muted, #64748b);
 }
 
 .adaptive-modal-header button {
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: var(--color-text-muted, #64748b);
   cursor: pointer;
-  padding: var(--spacing-xs);
+  padding: var(--space-1, 0.25rem);
+  transition: color 0.2s;
+}
+
+.adaptive-modal-header button:hover {
+  color: var(--color-text-primary, #f1f5f9);
 }
 
 .adaptive-modal-content {
-  padding: var(--spacing-lg);
+  padding: var(--space-6, 1.5rem);
   overflow-y: auto;
   flex: 1;
+  background: var(--color-bg-modal, var(--color-bg-secondary, #1e293b));
 }
 
 /* Upload Options */
@@ -865,47 +876,48 @@
 .detail-structure {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
+  gap: var(--space-6, 1.5rem);
 }
 
 .structure-info {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--spacing-md);
+  gap: var(--space-4, 1rem);
 }
 
 .structure-info .info-item {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-md);
-  background: var(--bg-primary);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
+  gap: var(--space-1, 0.25rem);
+  padding: var(--space-4, 1rem);
+  background: var(--color-bg-tertiary, #334155);
+  border-radius: var(--radius-md, 0.75rem);
+  border: 1px solid var(--color-border, #334155);
 }
 
 .structure-info .label {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--color-text-muted, #64748b);
 }
 
 .structure-info .value {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--color-text-primary, #f1f5f9);
 }
 
 .hierarchy-section {
-  background: var(--bg-primary);
-  padding: var(--spacing-md);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
+  background: var(--color-bg-tertiary, #334155);
+  padding: var(--space-4, 1rem);
+  border-radius: var(--radius-md, 0.75rem);
+  border: 1px solid var(--color-border, #334155);
 }
 
 .hierarchy-section h4 {
-  margin: 0 0 var(--spacing-md) 0;
+  margin: 0 0 var(--space-4, 1rem) 0;
   font-size: 0.875rem;
   font-weight: 600;
+  color: var(--color-text-primary, #f1f5f9);
 }
 
 .hierarchy-tree {
@@ -916,10 +928,10 @@
 
 .hierarchy-item {
   display: flex;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-xs) 0;
+  gap: var(--space-2, 0.5rem);
+  padding: var(--space-1, 0.25rem) 0;
   font-size: 0.875rem;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--color-border-light, #1e293b);
 }
 
 .hierarchy-item:last-child {
@@ -927,17 +939,17 @@
 }
 
 .section-id {
-  color: var(--text-muted);
+  color: var(--color-text-muted, #64748b);
   min-width: 60px;
 }
 
 .section-title {
   flex: 1;
-  color: var(--text-primary);
+  color: var(--color-text-primary, #f1f5f9);
 }
 
 .section-pages {
-  color: var(--text-muted);
+  color: var(--color-text-muted, #64748b);
   font-size: 0.75rem;
 }
 
@@ -1025,4 +1037,190 @@
 [data-theme="dark"] .doc-action-btn--delete:hover:not(:disabled) {
   background: rgba(239, 68, 68, 0.15);
   color: #f87171;
+}
+
+/* Pending Uploads Section */
+.adaptive-pending-section {
+  background: var(--bg-primary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.pending-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.pending-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pending-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.pending-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-md);
+}
+
+.pending-table-container {
+  overflow-x: auto;
+}
+
+.pending-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.pending-table th,
+.pending-table td {
+  padding: var(--spacing-sm) var(--spacing-md);
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.pending-table th {
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  font-size: 0.8125rem;
+}
+
+.pending-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.pending-table tbody tr.selected {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+[data-theme="dark"] .pending-table tbody tr.selected {
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.pending-file-name {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.pending-file-name svg {
+  color: #ef4444;
+  flex-shrink: 0;
+}
+
+/* Embedding Progress Section */
+.adaptive-embedding-progress {
+  background: var(--bg-primary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-primary);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.embedding-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.embedding-progress-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.embedding-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.embedding-progress-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--border-color);
+}
+
+.embedding-progress-item--pending {
+  border-left-color: #f59e0b;
+}
+
+.embedding-progress-item--processing {
+  border-left-color: #3b82f6;
+}
+
+.embedding-progress-item--completed {
+  border-left-color: #10b981;
+}
+
+.embedding-progress-item--failed {
+  border-left-color: #ef4444;
+}
+
+.progress-file-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.progress-file-info svg {
+  color: #ef4444;
+}
+
+.progress-filename {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.progress-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.embedding-progress-item--pending .progress-status {
+  color: #f59e0b;
+}
+
+.embedding-progress-item--processing .progress-status {
+  color: #3b82f6;
+}
+
+.embedding-progress-item--completed .progress-status {
+  color: #10b981;
+}
+
+.embedding-progress-item--failed .progress-status {
+  color: #ef4444;
+}
+
+/* Embed Info */
+.embed-info {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-sm);
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
 }

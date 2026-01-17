@@ -24,8 +24,180 @@ from .master_system_constraint import (
     ComplianceViolationType,
     get_insufficient_info_response
 )
+from ..core.app_mode import is_develop_mode
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# DEVELOP MODE: All-Tools Execution for debugging and analysis
+# ============================================================================
+
+# Tools that can be executed with just a query (no required doc_id etc.)
+DEVELOP_MODE_SEARCHABLE_TOOLS = ["adaptive_search", "vector_search", "graph_query"]
+
+
+def _format_develop_mode_summary(
+    query: str,
+    tool_results: Dict[str, Dict[str, Any]]
+) -> str:
+    """
+    Format develop mode results summary.
+
+    Args:
+        query: Original search query
+        tool_results: Dict of tool_name -> {count, results, error}
+
+    Returns:
+        Formatted markdown summary
+    """
+    total_count = sum(r.get("count", 0) for r in tool_results.values())
+
+    lines = [
+        f"## 🔍 개발 모드 검색 결과",
+        f"",
+        f"검색키워드 **'{query}'**에 대해 총 **{total_count}건**을 찾았습니다.",
+        f"",
+    ]
+
+    for tool_name, result in tool_results.items():
+        count = result.get("count", 0)
+        error = result.get("error")
+
+        if error:
+            lines.append(f"- **{tool_name}**: ❌ 오류 - {error}")
+        elif count == 0:
+            lines.append(f"- **{tool_name}**: 0건")
+        else:
+            # Format similarity scores
+            scores = result.get("scores", [])
+            if scores:
+                score_str = ", ".join([f"{s*100:.1f}%" for s in scores[:5]])
+                if len(scores) > 5:
+                    score_str += f" ... 외 {len(scores)-5}건"
+                lines.append(f"- **{tool_name}**: {count}건 (유사도: {score_str})")
+            else:
+                lines.append(f"- **{tool_name}**: {count}건")
+
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+    lines.append("### 📋 각 Tool별 상세 검색 결과")
+    lines.append("")
+
+    for tool_name, result in tool_results.items():
+        lines.append(f"#### {tool_name}")
+
+        if result.get("error"):
+            lines.append(f"오류: {result['error']}")
+        elif result.get("count", 0) == 0:
+            lines.append("결과 없음")
+        else:
+            results_data = result.get("results", [])
+            for i, item in enumerate(results_data[:5], 1):
+                score = item.get("score") or item.get("similarity", 0)
+                content_preview = item.get("content", "")[:200]
+                source = item.get("source", "Unknown")
+
+                lines.append(f"**{i}. [{source}]** (유사도: {score*100:.1f}%)")
+                lines.append(f"> {content_preview}...")
+                lines.append("")
+
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+async def _execute_all_tools_develop_mode(
+    tools: List[Any],
+    query: str,
+    context: "AgentContext"
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Execute all searchable tools in parallel for develop mode.
+
+    Args:
+        tools: List of available tools
+        query: Search query
+        context: Agent context
+
+    Returns:
+        Dict of tool_name -> {count, scores, results, error}
+    """
+    results = {}
+
+    async def execute_tool(tool):
+        tool_name = tool.name
+        try:
+            if tool_name == "adaptive_search":
+                result = await tool.execute(context, query=query, top_k=10, include_images=True)
+            elif tool_name == "vector_search":
+                result = await tool.execute(context, query=query, top_k=10)
+            elif tool_name == "graph_query":
+                result = await tool.execute(context, query=query, query_type="entity", top_k=10)
+            else:
+                return tool_name, {"count": 0, "scores": [], "results": [], "error": "Not a searchable tool"}
+
+            if not result.get("success"):
+                return tool_name, {"count": 0, "scores": [], "results": [], "error": result.get("error", "Unknown error")}
+
+            # Extract data from metadata (preferred) or output
+            metadata = result.get("metadata", {})
+            output = result.get("output", "")
+
+            # Try to get structured data from metadata.sources first
+            sources = metadata.get("sources", [])
+            count = metadata.get("results_count", 0)
+
+            if sources:
+                # Use sources from metadata (adaptive_search, vector_search)
+                scores = [float(s.get("score", 0) or s.get("similarity", 0) or 0) for s in sources]
+                items = sources
+            else:
+                # Try to parse output JSON (for tools that return JSON output)
+                try:
+                    if isinstance(output, str):
+                        data = json.loads(output)
+                    else:
+                        data = output if isinstance(output, dict) else {}
+                except (json.JSONDecodeError, TypeError):
+                    data = {}
+
+                items = data.get("results", [])
+                count = data.get("results_count", len(items)) if not count else count
+
+                # Extract similarity scores from different formats
+                scores = []
+                for item in items:
+                    score = item.get("score") or item.get("similarity") or 0
+                    scores.append(float(score) if score else 0)
+
+            return tool_name, {
+                "count": count or len(items),
+                "scores": scores,
+                "results": items,
+                "error": None
+            }
+
+        except Exception as e:
+            logger.error(f"[DevelopMode] Error executing {tool_name}: {e}")
+            return tool_name, {"count": 0, "scores": [], "results": [], "error": str(e)}
+
+    # Filter to only searchable tools
+    searchable_tools = [t for t in tools if t.name in DEVELOP_MODE_SEARCHABLE_TOOLS]
+
+    # Execute in parallel
+    tasks = [execute_tool(tool) for tool in searchable_tools]
+    task_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for item in task_results:
+        if isinstance(item, Exception):
+            logger.error(f"[DevelopMode] Task exception: {item}")
+            continue
+        tool_name, result_data = item
+        results[tool_name] = result_data
+
+    return results
 
 # Max characters per tool result to prevent context overflow (NIM limit: 8192 tokens ~ 24000 chars)
 # Conservative limit: 3000 chars (~1000 tokens) to leave room for system prompt + messages
@@ -752,6 +924,69 @@ User Query: {task}"""
         logger.info(f"[Executor] Starting stream for task: {task[:50]}...")
         logger.info(f"[Executor] Agent: {agent.name}, Tools: {[t.name for t in available_tools]}")
         logger.debug(f"[Executor] LLM adapter: {self.llm_adapter}")
+
+        # ========================================================================
+        # DEVELOP MODE: Execute all tools and show aggregated results
+        # ========================================================================
+        if is_develop_mode():
+            print(f"[Executor] DEVELOP MODE: Executing all tools for analysis", flush=True)
+            logger.info("[Executor] DEVELOP MODE: Executing all tools for analysis")
+
+            yield AgentStreamChunk(chunk_type="status", content="[개발모드] 모든 검색 도구 실행 중...")
+
+            # Execute all searchable tools in parallel
+            develop_results = await _execute_all_tools_develop_mode(
+                available_tools, task, context
+            )
+
+            # Yield individual tool results for UI
+            for tool_name, result in develop_results.items():
+                yield AgentStreamChunk(
+                    chunk_type="tool_call",
+                    tool_name=tool_name,
+                    tool_input={"query": task, "top_k": 10}
+                )
+                count = result.get("count", 0)
+                scores = result.get("scores", [])
+                error = result.get("error")
+
+                if error:
+                    output_summary = f"오류: {error}"
+                else:
+                    score_preview = ", ".join([f"{s*100:.1f}%" for s in scores[:3]]) if scores else "N/A"
+                    output_summary = f"{count}건 발견 (유사도: {score_preview})"
+
+                yield AgentStreamChunk(
+                    chunk_type="tool_result",
+                    tool_name=tool_name,
+                    tool_output=output_summary
+                )
+
+            # Format and stream the summary
+            summary = _format_develop_mode_summary(task, develop_results)
+
+            # Stream the summary in chunks
+            chunk_size = 50
+            for i in range(0, len(summary), chunk_size):
+                chunk = summary[i:i + chunk_size]
+                yield AgentStreamChunk(chunk_type="text", content=chunk)
+                await asyncio.sleep(0.02)
+
+            # Cleanup and finish
+            for tool in available_tools:
+                if hasattr(tool, 'set_status_callback'):
+                    tool.set_status_callback(None)
+
+            yield AgentStreamChunk(
+                chunk_type="done",
+                metadata={
+                    "steps": 1,
+                    "execution_time": time.time() - start_time,
+                    "develop_mode": True,
+                    "tools_executed": list(develop_results.keys())
+                }
+            )
+            return
 
         while step < context.max_steps:
             step += 1
