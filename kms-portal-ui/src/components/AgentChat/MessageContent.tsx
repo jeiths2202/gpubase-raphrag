@@ -118,9 +118,26 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
             {children}
           </a>
         ),
+        // Paragraphs
         p: ({ children }) => <p className="agent-markdown-p">{children}</p>,
+        // Headers with hierarchy styling
+        h1: ({ children }) => <h1 className="agent-markdown-h1">{children}</h1>,
         h2: ({ children }) => <h2 className="agent-markdown-h2">{children}</h2>,
         h3: ({ children }) => <h3 className="agent-markdown-h3">{children}</h3>,
+        h4: ({ children }) => <h4 className="agent-markdown-h4">{children}</h4>,
+        // Lists
+        ul: ({ children }) => <ul className="agent-markdown-ul">{children}</ul>,
+        ol: ({ children }) => <ol className="agent-markdown-ol">{children}</ol>,
+        li: ({ children }) => <li className="agent-markdown-li">{children}</li>,
+        // Blockquote for important notes
+        blockquote: ({ children }) => (
+          <blockquote className="agent-markdown-blockquote">{children}</blockquote>
+        ),
+        // Horizontal rule for section dividers
+        hr: () => <hr className="agent-markdown-hr" />,
+        // Strong and emphasis
+        strong: ({ children }) => <strong className="agent-markdown-strong">{children}</strong>,
+        em: ({ children }) => <em className="agent-markdown-em">{children}</em>,
       }}
     >
       {content}
