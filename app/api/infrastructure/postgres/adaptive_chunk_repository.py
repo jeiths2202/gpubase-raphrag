@@ -447,6 +447,16 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
         RRF_K = 60  # Standard RRF constant (higher = more weight to lower ranks)
         candidate_limit = limit * 5  # Fetch more candidates for fusion
 
+        # Tokenize query for CJK languages (Japanese/Korean/Chinese don't have spaces)
+        # Split on common particles and delimiters
+        import re as re_module
+        tokens = re_module.split(r'[のをはがでにと、。\s]+', query_text)
+        tokens = [t for t in tokens if len(t) >= 2][:10]
+        # Build OR-joined tsquery: 'token1' | 'token2' | ...
+        ts_query_str = " | ".join(f"'{t}'" for t in tokens) if tokens else f"'{query_text}'"
+
+        print(f"[HybridSearch] Keyword tokens: {tokens}", flush=True)
+
         # Build WHERE clause
         conditions = ["ac.has_embedding = TRUE"]
         params = [embedding_str]
@@ -483,23 +493,23 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                 ORDER BY ac.embedding <=> $1::vector
                 LIMIT {candidate_limit}
             ),
-            -- Step 2: Keyword search results with ranking (using ts_rank)
+            -- Step 2: Keyword search results with ranking (using ts_rank with tokenized query)
             keyword_results AS (
                 SELECT
                     ac.chunk_id,
                     ts_rank(
                         to_tsvector('simple', ac.content),
-                        plainto_tsquery('simple', $2)
+                        to_tsquery('simple', $${ts_query_str}$$)
                     ) as keyword_score,
                     ROW_NUMBER() OVER (
                         ORDER BY ts_rank(
                             to_tsvector('simple', ac.content),
-                            plainto_tsquery('simple', $2)
+                            to_tsquery('simple', $${ts_query_str}$$)
                         ) DESC
                     ) as keyword_rank
                 FROM adaptive_pdf_chunks ac
                 WHERE {where_clause}
-                AND to_tsvector('simple', ac.content) @@ plainto_tsquery('simple', $2)
+                AND to_tsvector('simple', ac.content) @@ to_tsquery('simple', $${ts_query_str}$$)
                 ORDER BY keyword_score DESC
                 LIMIT {candidate_limit}
             ),
@@ -520,9 +530,6 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
             ORDER BY rrf_score DESC
             LIMIT {limit}
         """
-
-        # Add query_text as second parameter for keyword search
-        params.append(query_text)
 
         print(f"[HybridSearch] Using RRF fusion (k={RRF_K})", flush=True)
 
