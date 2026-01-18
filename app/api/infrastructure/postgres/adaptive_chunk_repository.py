@@ -432,6 +432,7 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
         # Import synonym dictionary
         from ...services.synonym_dictionary import get_synonym_dictionary
         synonym_dict = get_synonym_dictionary()
+        print(f"[HybridSearch] Synonym dictionary loaded", flush=True)
 
         embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
 
@@ -462,8 +463,8 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
         # Filter and deduplicate
         expanded_terms = list(set(t.lower() for t in expanded_terms if len(t) >= 2))
 
-        if len(expanded_terms) > 1:
-            logger.info(f"[HybridSearch] Synonym expansion: '{main_keyword}' -> {expanded_terms[:5]}{'...' if len(expanded_terms) > 5 else ''}")
+        print(f"[HybridSearch] Synonym expansion: '{main_keyword}' -> {expanded_terms}", flush=True)
+        logger.info(f"[HybridSearch] Synonym expansion: '{main_keyword}' -> {expanded_terms}")
 
         # Build base conditions
         conditions = ["ac.has_embedding = TRUE"]
