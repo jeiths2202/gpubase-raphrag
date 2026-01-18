@@ -272,6 +272,96 @@ class AdaptiveSearchTool(BaseTool):
                 logger.error(f"Failed to get CLIP service: {e}")
         return self._clip_service
 
+    async def _execute_query(self, query: str) -> list:
+        """Execute a raw SQL query and return results as list of dicts"""
+        try:
+            import asyncpg
+            from ...core.config import api_settings
+
+            dsn = f"postgresql://{api_settings.POSTGRES_USER}:{api_settings.POSTGRES_PASSWORD}@{api_settings.POSTGRES_HOST}:{api_settings.POSTGRES_PORT}/{api_settings.POSTGRES_DB}"
+            conn = await asyncpg.connect(dsn)
+            try:
+                rows = await conn.fetch(query)
+                return [dict(row) for row in rows]
+            finally:
+                await conn.close()
+        except Exception as e:
+            logger.error(f"Database query failed: {e}")
+            return []
+
+    def _fix_markdown_table_separators(self, content: str) -> str:
+        """
+        Fix markdown tables missing separator line and consolidate scattered rows.
+
+        Markdown tables require:
+        | Header 1 | Header 2 |
+        |----------|----------|   <- This line is required
+        | Data 1   | Data 2   |
+
+        VLM outputs may have:
+        1. Missing separator line
+        2. Empty lines between rows (making them appear as separate tables)
+
+        This function:
+        1. Removes empty lines within table groups
+        2. Adds separator after first row if missing
+        """
+        lines = content.split('\n')
+        result_lines = []
+        table_rows = []
+        in_table = False
+
+        for line in lines:
+            stripped = line.strip()
+
+            # Check if this line is a table row
+            is_table_row = stripped.startswith('|') and stripped.endswith('|') and stripped.count('|') >= 2
+
+            # Check if this line is a separator
+            is_separator = bool(re.match(r'^\|[\s\-:|]+\|$', stripped)) if stripped else False
+
+            if is_table_row or is_separator:
+                if not in_table:
+                    in_table = True
+                table_rows.append(stripped)
+            elif stripped == '' and in_table:
+                # Empty line while in table - skip it (consolidate rows)
+                continue
+            else:
+                # Non-table content
+                if table_rows:
+                    # Finalize current table
+                    result_lines.extend(self._finalize_table(table_rows))
+                    table_rows = []
+                    in_table = False
+                result_lines.append(line)
+
+        # Handle any remaining table rows
+        if table_rows:
+            result_lines.extend(self._finalize_table(table_rows))
+
+        return '\n'.join(result_lines)
+
+    def _finalize_table(self, rows: list) -> list:
+        """Add separator after first row if missing."""
+        if not rows:
+            return rows
+
+        result = [rows[0]]
+
+        # Check if second row is a separator
+        if len(rows) > 1:
+            is_separator = bool(re.match(r'^\|[\s\-:|]+\|$', rows[1]))
+            if not is_separator:
+                # Add separator after header
+                cols = len([c for c in rows[0].split('|') if c.strip()])
+                separator = '|' + '|'.join([' --- ' for _ in range(cols)]) + '|'
+                result.append(separator)
+
+        # Add remaining rows
+        result.extend(rows[1:])
+        return result
+
     def _extract_error_codes(self, query: str) -> list:
         """
         Extract error codes from query for keyword filtering.
@@ -623,6 +713,49 @@ class AdaptiveSearchTool(BaseTool):
                 context.metadata['sources'] = []
             context.metadata['sources'].extend(sources)
 
+            # Fetch related TABLE_CHUNKs for the same pages as search results
+            # This ensures tables are included even if they weren't directly matched
+            related_tables_by_page = {}
+            if results:
+                try:
+                    # Collect unique (pdf_id, page) combinations
+                    page_conditions = set()
+                    for r in results:
+                        pdf_id_r = r.get('pdf_id')
+                        page_start = r.get('page_start')
+                        page_end = r.get('page_end') or page_start
+                        if pdf_id_r and page_start:
+                            for p in range(page_start, (page_end or page_start) + 1):
+                                page_conditions.add((pdf_id_r, p))
+
+                    if page_conditions:
+                        # Build query to fetch TABLE_CHUNKs for these pages
+                        conditions = " OR ".join([
+                            f"(pdf_id = '{pid}' AND page_start = {page})"
+                            for pid, page in page_conditions
+                        ])
+                        table_query = f"""
+                            SELECT chunk_id, pdf_id, content, page_start, section_title
+                            FROM adaptive_pdf_chunks
+                            WHERE chunk_type = 'TABLE_CHUNK' AND ({conditions})
+                        """
+                        table_results = await self._execute_query(table_query)
+                        for tr in table_results:
+                            key = (tr['pdf_id'], tr['page_start'])
+                            if key not in related_tables_by_page:
+                                related_tables_by_page[key] = []
+                            # Fix markdown tables missing separator line
+                            fixed_markdown = self._fix_markdown_table_separators(tr['content'])
+                            related_tables_by_page[key].append({
+                                "markdown": fixed_markdown,
+                                "chunk_id": tr['chunk_id'],
+                                "section_title": tr.get('section_title')
+                            })
+                        if related_tables_by_page:
+                            print(f"[AdaptiveSearch] Found {sum(len(v) for v in related_tables_by_page.values())} related TABLE chunks", flush=True)
+                except Exception as e:
+                    print(f"[AdaptiveSearch] Error fetching related tables: {e}", flush=True)
+
             # Build individual search results for expandable card display
             # Each result includes: text, images, tables, source info
             individual_results = []
@@ -651,14 +784,38 @@ class AdaptiveSearchTool(BaseTool):
                                 "url": f"/api/v1/documents/adaptive/images/{img['image_id']}/raw"
                             })
 
-                # Extract tables from content (markdown table format)
+                # Extract tables from content
                 content = r.get('content', '')
                 tables = []
-                table_pattern = r'(\|[^\n]+\|\n(?:\|[-:]+\|[-:|\s]+\n)?(?:\|[^\n]+\|\n)+)'
-                import re
-                table_matches = re.findall(table_pattern, content)
-                for table_match in table_matches:
-                    tables.append({"markdown": table_match.strip()})
+                chunk_type = r.get('chunk_type', 'TEXT')
+                pdf_id_r = r.get('pdf_id')
+
+                # If chunk is TABLE type, the entire content is a table
+                if chunk_type in ('TABLE', 'TABLE_CHUNK'):
+                    # Fix markdown tables missing separator line
+                    fixed_content = self._fix_markdown_table_separators(content)
+                    tables.append({"markdown": fixed_content})
+                    print(f"[AdaptiveSearch] Found TABLE chunk: {len(content)} chars", flush=True)
+                else:
+                    # Extract markdown tables from text content
+                    import re
+                    table_pattern = r'(\|[^\n]+\|\n(?:\|[-:]+\|[-:|\s]+\n)?(?:\|[^\n]+\|\n)+)'
+                    table_matches = re.findall(table_pattern, content)
+                    for table_match in table_matches:
+                        tables.append({"markdown": table_match.strip()})
+                    if table_matches:
+                        print(f"[AdaptiveSearch] Found {len(table_matches)} markdown tables in TEXT chunk", flush=True)
+
+                    # Add related TABLE_CHUNKs from the same pages
+                    if related_tables_by_page and pdf_id_r and page_start:
+                        for p in range(page_start, (page_end or page_start) + 1):
+                            key = (pdf_id_r, p)
+                            if key in related_tables_by_page:
+                                for related_table in related_tables_by_page[key]:
+                                    # Avoid duplicate tables
+                                    if not any(t.get('markdown') == related_table['markdown'] for t in tables):
+                                        tables.append(related_table)
+                                        print(f"[AdaptiveSearch] Added related TABLE from page {p}", flush=True)
 
                 individual_results.append({
                     "index": i + 1,

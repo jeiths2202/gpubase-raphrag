@@ -10,6 +10,7 @@ Orchestrates the complete adaptive embedding pipeline:
 5. Quality Evaluation
 """
 import asyncio
+import hashlib
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -254,7 +255,8 @@ class PDFAdaptiveEmbeddingService:
             if vlm_table_chunks:
                 start_idx = len(chunks)
                 for i, table_chunk in enumerate(vlm_table_chunks):
-                    table_chunk.chunk_index = start_idx + i
+                    # Store chunk index in metadata (AdaptiveChunk doesn't have chunk_index attribute)
+                    table_chunk.metadata["chunk_index"] = start_idx + i
                     chunks.append(table_chunk)
                 logger.info(f"Added {len(vlm_table_chunks)} VLM table chunks (total: {len(chunks)})")
 
@@ -799,17 +801,23 @@ class PDFAdaptiveEmbeddingService:
                 # Heuristic: Detect table-like patterns
                 # - Multiple lines with similar spacing/alignment
                 # - Lines with tab or multiple space separators
-                # - Numeric data aligned in columns
+                # - Definition list patterns (JP/EN docs)
+                # - Aligned columns with double spacing
+                import re
                 has_table_pattern = (
                     text.count('\t') > 3 or  # Tab-separated
                     len([line for line in text.split('\n') if '  ' in line]) > 5 or  # Space-aligned
-                    len([line for line in text.split('\n') if line.count('.') > 3 and '..' in line]) > 2  # Dotted leaders (TOC/index)
+                    len([line for line in text.split('\n') if line.count('.') > 3 and '..' in line]) > 2 or  # Dotted leaders (TOC/index)
+                    re.search(r'(説明|Description)\s*\n\s*(用語|Term|項目|パラメータ|カタログ)', text, re.IGNORECASE) is not None or  # JP definition header
+                    re.search(r'(用語|Term|項目|パラメータ|カタログ)\s*\n\s*(説明|Description)', text, re.IGNORECASE) is not None or  # Reversed
+                    len([line for line in text.split('\n') if re.match(r'^[^\s]{2,20}\s{2,}[^\s]', line)]) > 3  # Aligned columns
                 )
 
                 if not has_table_pattern:
                     continue
 
                 logger.info(f"[VLM Table] Detected table pattern on page {page_num + 1}")
+                print(f"[VLM Table] Processing page {page_num + 1}/{len(doc)} for table extraction...", flush=True)
 
                 # Render page to image
                 zoom = 2.0  # Higher resolution for better table extraction
@@ -818,21 +826,31 @@ class PDFAdaptiveEmbeddingService:
                 image_bytes = pixmap.tobytes("png")
 
                 # Extract tables using VLM
-                result = await vlm_service.extract_tables_from_image(image_bytes)
+                try:
+                    result = await vlm_service.extract_tables_from_image(image_bytes)
+                    print(f"[VLM Table] Page {page_num + 1} VLM response received, has_tables={result.get('has_tables')}", flush=True)
+                except Exception as vlm_err:
+                    print(f"[VLM Table] Page {page_num + 1} VLM error: {vlm_err}", flush=True)
+                    continue
 
                 if result.get("has_tables") and result.get("tables_markdown"):
                     table_markdown = result["tables_markdown"]
 
+                    # Fix markdown tables missing separator line
+                    table_markdown = self._fix_markdown_table_separators(table_markdown)
+
+                    # Compute content hash
+                    content_hash = hashlib.sha256(table_markdown.encode()).hexdigest()[:16]
+
                     # Create chunk for extracted table
                     chunk = AdaptiveChunk(
+                        pdf_id=pdf_id,
                         chunk_id=f"{pdf_id}_vlm_table_p{page_num + 1}",
-                        document_id=pdf_id,
-                        chunk_index=0,  # Will be updated later
                         chunk_type=ChunkType.TABLE_CHUNK,
                         content=table_markdown,
-                        content_length=len(table_markdown),
                         page_start=page_num + 1,
                         page_end=page_num + 1,
+                        content_hash=content_hash,
                         section_title=f"Table (Page {page_num + 1})",
                         section_path=f"/tables/page_{page_num + 1}",
                         metadata={
@@ -850,6 +868,83 @@ class PDFAdaptiveEmbeddingService:
             logger.error(f"[VLM Table] Error extracting tables: {e}")
 
         return table_chunks
+
+    def _fix_markdown_table_separators(self, content: str) -> str:
+        """
+        Fix markdown tables missing separator line and consolidate scattered rows.
+
+        Markdown tables require:
+        | Header 1 | Header 2 |
+        |----------|----------|   <- This line is required
+        | Data 1   | Data 2   |
+
+        VLM outputs may have:
+        1. Missing separator line
+        2. Empty lines between rows (making them appear as separate tables)
+
+        This function:
+        1. Removes empty lines within table groups
+        2. Adds separator after first row if missing
+        """
+        import re
+
+        lines = content.split('\n')
+        result_lines = []
+        table_rows = []
+        in_table = False
+
+        for line in lines:
+            stripped = line.strip()
+
+            # Check if this line is a table row
+            is_table_row = stripped.startswith('|') and stripped.endswith('|') and stripped.count('|') >= 2
+
+            # Check if this line is a separator
+            is_separator = bool(re.match(r'^\|[\s\-:|]+\|$', stripped)) if stripped else False
+
+            if is_table_row or is_separator:
+                if not in_table:
+                    in_table = True
+                table_rows.append(stripped)
+            elif stripped == '' and in_table:
+                # Empty line while in table - skip it (consolidate rows)
+                continue
+            else:
+                # Non-table content
+                if table_rows:
+                    # Finalize current table
+                    result_lines.extend(self._finalize_table(table_rows))
+                    table_rows = []
+                    in_table = False
+                result_lines.append(line)
+
+        # Handle any remaining table rows
+        if table_rows:
+            result_lines.extend(self._finalize_table(table_rows))
+
+        return '\n'.join(result_lines)
+
+    def _finalize_table(self, rows: list) -> list:
+        """Add separator after first row if missing."""
+        import re
+
+        if not rows:
+            return rows
+
+        result = [rows[0]]
+
+        # Check if second row is a separator
+        if len(rows) > 1:
+            is_separator = bool(re.match(r'^\|[\s\-:|]+\|$', rows[1]))
+            if not is_separator:
+                # Add separator after header
+                cols = len([c for c in rows[0].split('|') if c.strip()])
+                separator = '|' + '|'.join([' --- ' for _ in range(cols)]) + '|'
+                result.append(separator)
+
+        # Add remaining rows
+        result.extend(rows[1:])
+        return result
 
     def _update_status(
         self,
