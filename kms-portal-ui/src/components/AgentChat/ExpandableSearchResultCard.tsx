@@ -85,8 +85,8 @@ export const ExpandableSearchResultCard: React.FC<ExpandableSearchResultCardProp
       {/* Card Body - Expandable */}
       {isExpanded && (
         <div className="search-result-card-body">
-          {/* Tabs for content/images/tables */}
-          {(hasImages || hasTables) && (
+          {/* Tab for images only (text+tables shown together by default) */}
+          {hasImages && (
             <div className="search-result-tabs">
               <button
                 className={`search-result-tab ${activeTab === 'content' ? 'active' : ''}`}
@@ -94,38 +94,43 @@ export const ExpandableSearchResultCard: React.FC<ExpandableSearchResultCardProp
                 type="button"
               >
                 <FileText size={12} />
-                텍스트
+                내용
               </button>
-              {hasImages && (
-                <button
-                  className={`search-result-tab ${activeTab === 'images' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('images')}
-                  type="button"
-                >
-                  <ImageIcon size={12} />
-                  이미지 ({result.images.length})
-                </button>
-              )}
-              {hasTables && (
-                <button
-                  className={`search-result-tab ${activeTab === 'tables' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('tables')}
-                  type="button"
-                >
-                  <Table2 size={12} />
-                  표 ({result.tables.length})
-                </button>
-              )}
+              <button
+                className={`search-result-tab ${activeTab === 'images' ? 'active' : ''}`}
+                onClick={() => setActiveTab('images')}
+                type="button"
+              >
+                <ImageIcon size={12} />
+                이미지 ({result.images.length})
+              </button>
             </div>
           )}
 
-          {/* Tab Content */}
+          {/* Content Area */}
           <div className="search-result-tab-content">
-            {/* Text Content */}
+            {/* Text Content + Tables (shown together) */}
             {activeTab === 'content' && (
-              <div className="search-result-text">
-                <MessageContent content={result.content} />
-              </div>
+              <>
+                <div className="search-result-text">
+                  <MessageContent content={result.content} />
+                </div>
+
+                {/* Tables inline with text */}
+                {hasTables && (
+                  <div className="search-result-tables-inline">
+                    <div className="search-result-tables-header">
+                      <Table2 size={14} />
+                      <span>표 ({result.tables.length})</span>
+                    </div>
+                    {result.tables.map((table, idx) => (
+                      <div key={idx} className="search-result-table-item">
+                        <MessageContent content={table.markdown} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
 
             {/* Images */}
@@ -147,17 +152,6 @@ export const ExpandableSearchResultCard: React.FC<ExpandableSearchResultCardProp
                         {Math.round(img.similarity * 100)}%
                       </span>
                     )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Tables */}
-            {activeTab === 'tables' && hasTables && (
-              <div className="search-result-tables">
-                {result.tables.map((table, idx) => (
-                  <div key={idx} className="search-result-table-item">
-                    <MessageContent content={table.markdown} />
                   </div>
                 ))}
               </div>

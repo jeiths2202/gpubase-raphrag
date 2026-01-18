@@ -5049,3 +5049,24 @@
 [data-theme="light"] .search-result-image-item {
   background: var(--color-bg-secondary, #f8fafc);
 }
+
+/* Inline tables (shown with text content) */
+.search-result-tables-inline {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-primary);
+}
+
+.search-result-tables-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.search-result-tables-header svg {
+  color: var(--color-success, #10b981);
+}
