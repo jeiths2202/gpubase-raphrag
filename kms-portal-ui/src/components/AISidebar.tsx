@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   MessageSquare,
   FileText,
@@ -286,8 +287,12 @@ const renderInlineMarkdown = (text: string): React.ReactNode => {
 
 export const AISidebar: React.FC = () => {
   const { t } = useTranslation();
+  const location = useLocation();
   const { rightSidebarOpen, toggleRightSidebar } = useUIStore();
   const { getUIContext } = useContextStore();
+
+  // Hide FAB on AI Studio page (it has its own AI generation UI)
+  const isAIStudioPage = location.pathname === '/ai-studio';
 
   // Floating panel state
   const [sidebarPosition, setSidebarPosition] = useState<SidebarPosition>(loadSidebarPosition);
@@ -966,8 +971,12 @@ export const AISidebar: React.FC = () => {
     { id: 'notes', icon: <StickyNote size={16} />, label: t('knowledge.sidebar.notes') },
   ];
 
-  // FAB button when sidebar is closed
+  // FAB button when sidebar is closed (hide on AI Studio page)
   if (!rightSidebarOpen) {
+    // Don't show FAB on AI Studio page - it has its own AI generation panel
+    if (isAIStudioPage) {
+      return null;
+    }
     return (
       <button
         className="ai-sidebar-fab"
