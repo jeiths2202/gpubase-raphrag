@@ -311,6 +311,9 @@ class AdaptiveChunkPlanner(AdaptiveChunkPlannerPort):
             full_text += text + "\n"
             current_pos = len(full_text)
 
+        # Track used page ranges to prevent duplicates
+        used_page_ranges = set()  # (page_start, page_end, content_hash)
+
         # Process each section
         for i, section in enumerate(structure.hierarchy):
             # Find section content
@@ -336,6 +339,18 @@ class AdaptiveChunkPlanner(AdaptiveChunkPlannerPort):
             # Determine page range
             page_start = self._get_page_at_position(page_positions, section_start)
             page_end = self._get_page_at_position(page_positions, section_end - 1)
+
+            # Generate content hash for deduplication (use first 500 chars of body)
+            body_for_hash = section_content[:500] if len(section_content) > 500 else section_content
+            content_hash = hashlib.md5(body_for_hash.encode()).hexdigest()[:16]
+            page_key = (page_start, page_end, content_hash)
+
+            # Skip if this page range with similar content already exists
+            if page_key in used_page_ranges:
+                logger.debug(f"Skipping duplicate chunk: section {section.id} pages {page_start}-{page_end}")
+                continue
+
+            used_page_ranges.add(page_key)
 
             # If section fits in one chunk
             if len(section_content) <= max_size:
@@ -505,19 +520,44 @@ class AdaptiveChunkPlanner(AdaptiveChunkPlannerPort):
         return plans
 
     def _find_section_start(self, text: str, section: SectionInfo) -> int:
-        """Find the start position of a section in text."""
+        """Find the start position of a section in text, skipping TOC entries."""
         # Try exact match first
         pattern = re.escape(f"{section.id}") + r'[\.\s]+' + re.escape(section.title[:20])
-        match = re.search(pattern, text)
-        if match:
-            return match.start()
 
-        # Try title only
-        title_match = re.search(re.escape(section.title[:30]), text)
-        if title_match:
-            return title_match.start()
+        # Find ALL occurrences and filter out TOC entries
+        for match in re.finditer(pattern, text):
+            if not self._is_toc_entry(text, match.start()):
+                return match.start()
+
+        # Try title only (skip TOC)
+        for match in re.finditer(re.escape(section.title[:30]), text):
+            if not self._is_toc_entry(text, match.start()):
+                return match.start()
 
         return -1
+
+    def _is_toc_entry(self, text: str, position: int) -> bool:
+        """Check if the position is within a TOC entry (has page reference like '... 44')."""
+        # Get the line containing this position
+        line_start = text.rfind('\n', 0, position) + 1
+        line_end = text.find('\n', position)
+        if line_end == -1:
+            line_end = len(text)
+        line = text[line_start:line_end]
+
+        # TOC patterns: dots followed by page number, or multiple section listings
+        toc_patterns = [
+            r'\.{3,}\s*\d+',           # ... 44
+            r'\.{2,}\s*\d+',           # .. 44
+            r'\s{3,}\d+$',             # spaces followed by page number at end
+            r'\d+\.\d+\.\s+.+\.{2,}',  # section.subsec. title ... pattern
+        ]
+
+        for pattern in toc_patterns:
+            if re.search(pattern, line):
+                return True
+
+        return False
 
     def _get_page_at_position(
         self,
