@@ -405,6 +405,148 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
 
             return results
 
+    async def search_hybrid(
+        self,
+        query_embedding: List[float],
+        query_text: str,
+        limit: int = 5,
+        min_similarity: float = 0.2,
+        pdf_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Hybrid search combining vector similarity with keyword boosting.
+
+        Improvements over basic search:
+        1. Lower initial similarity threshold (0.2) to get more candidates
+        2. Boost scores for keyword matches in title/content
+        3. Detect "what is" intent and boost introduction/overview sections
+        4. Re-rank results based on combined score
+        """
+        await self._ensure_table()
+
+        import re
+        import logging
+        logger = logging.getLogger(__name__)
+
+        embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
+
+        # Extract main keyword from query (remove intent suffixes)
+        # "OpenFrame이란" -> "OpenFrame"
+        # "VSAMとは" -> "VSAM"
+        # "What is OpenFrame" -> "OpenFrame"
+        main_keyword = query_text
+        is_what_is_query = False
+
+        # Detect "what is" intent patterns
+        what_is_patterns = [
+            r'(.+?)이란\??$',           # Korean: ~이란
+            r'(.+?)란\??$',             # Korean: ~란
+            r'(.+?)とは\??$',           # Japanese: ~とは
+            r'(.+?)って何\??$',         # Japanese: ~って何
+            r'^what\s+is\s+(.+?)\??$',  # English: what is ~
+            r'(.+?)\s*(?:是什么|是啥)\??$',  # Chinese
+        ]
+
+        for pattern in what_is_patterns:
+            match = re.match(pattern, query_text, re.IGNORECASE)
+            if match:
+                main_keyword = match.group(1).strip()
+                is_what_is_query = True
+                logger.info(f"[HybridSearch] Detected 'what is' query: '{query_text}' -> keyword: '{main_keyword}'")
+                break
+
+        # Build base conditions
+        conditions = ["ac.has_embedding = TRUE"]
+        params = [embedding_str]
+        param_idx = 2
+
+        if pdf_id:
+            conditions.append(f"ac.pdf_id = ${param_idx}")
+            params.append(pdf_id)
+            param_idx += 1
+
+        where_clause = " AND ".join(conditions)
+
+        # Fetch more candidates for re-ranking (3x limit)
+        candidate_limit = limit * 3
+
+        # Query with keyword boost scoring
+        # Score = vector_similarity * 0.6 + keyword_boost * 0.4
+        query = f"""
+            WITH scored_chunks AS (
+                SELECT
+                    ac.chunk_id, ac.pdf_id, ac.chunk_type, ac.content, ac.section_path,
+                    ac.section_title, ac.page_start, ac.page_end, ac.relations,
+                    1 - (ac.embedding <=> $1::vector) as vector_similarity,
+                    psa.document_name,
+                    -- Keyword boost: higher if keyword appears in title or content
+                    CASE
+                        WHEN LOWER(ac.section_title) LIKE LOWER('%' || ${param_idx} || '%') THEN 0.3
+                        ELSE 0.0
+                    END +
+                    CASE
+                        WHEN LOWER(ac.content) LIKE LOWER('%' || ${param_idx} || '%') THEN 0.2
+                        ELSE 0.0
+                    END +
+                    -- Introduction/Overview boost for "what is" queries
+                    CASE
+                        WHEN {str(is_what_is_query).lower()} AND (
+                            LOWER(ac.section_title) LIKE '%概要%' OR
+                            LOWER(ac.section_title) LIKE '%소개%' OR
+                            LOWER(ac.section_title) LIKE '%개요%' OR
+                            LOWER(ac.section_title) LIKE '%overview%' OR
+                            LOWER(ac.section_title) LIKE '%introduction%' OR
+                            LOWER(ac.section_title) LIKE '%about%' OR
+                            LOWER(ac.section_title) LIKE '%このガイドについて%' OR
+                            ac.section_path LIKE '1.%' OR
+                            ac.section_path LIKE '0.%'
+                        ) THEN 0.2
+                        ELSE 0.0
+                    END as keyword_boost
+                FROM adaptive_pdf_chunks ac
+                LEFT JOIN pdf_structure_analysis psa ON ac.pdf_id = psa.pdf_id
+                WHERE {where_clause}
+                ORDER BY ac.embedding <=> $1::vector
+                LIMIT {candidate_limit}
+            )
+            SELECT *,
+                   (vector_similarity * 0.6 + keyword_boost * 0.4) as combined_score
+            FROM scored_chunks
+            WHERE vector_similarity >= {min_similarity} OR keyword_boost > 0
+            ORDER BY combined_score DESC, vector_similarity DESC
+            LIMIT {limit}
+        """
+
+        params.append(main_keyword)
+
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(query, *params)
+
+            results = []
+            for row in rows:
+                results.append({
+                    "chunk_id": row["chunk_id"],
+                    "pdf_id": row["pdf_id"],
+                    "chunk_type": row["chunk_type"],
+                    "content": row["content"],
+                    "section_path": row["section_path"],
+                    "section_title": row["section_title"],
+                    "page_start": row["page_start"],
+                    "page_end": row["page_end"],
+                    "relations": row["relations"],
+                    "similarity": float(row["combined_score"]),  # Use combined score
+                    "vector_similarity": float(row["vector_similarity"]),
+                    "keyword_boost": float(row["keyword_boost"]),
+                    "document_name": row.get("document_name")
+                })
+
+            if results:
+                logger.info(f"[HybridSearch] Query: '{query_text}' -> {len(results)} results, "
+                           f"top: {results[0]['similarity']:.2%} (vec:{results[0]['vector_similarity']:.2%}, "
+                           f"kw:{results[0]['keyword_boost']:.2%})")
+
+            return results
+
     async def update_embedding(
         self,
         chunk_id: str,

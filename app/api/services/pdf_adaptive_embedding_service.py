@@ -564,6 +564,41 @@ class PDFAdaptiveEmbeddingService:
             keyword_filter=keyword_filter
         )
 
+    async def search_chunks_hybrid(
+        self,
+        query_embedding: List[float],
+        query_text: str,
+        limit: int = 5,
+        pdf_id: Optional[str] = None,
+        min_similarity: float = 0.2,
+    ) -> List[Dict[str, Any]]:
+        """
+        Hybrid search combining vector similarity with keyword boosting.
+
+        This method improves search accuracy by:
+        1. Detecting "what is" query intent (이란, とは, what is)
+        2. Boosting results with keyword matches in title/content
+        3. Prioritizing introduction/overview sections for definitional queries
+        4. Re-ranking with combined score (60% vector + 40% keyword)
+
+        Args:
+            query_embedding: Query vector for semantic similarity
+            query_text: Original query text for keyword matching and intent detection
+            limit: Maximum number of results
+            pdf_id: Optional PDF ID filter
+            min_similarity: Minimum vector similarity threshold
+
+        Returns:
+            List of matching chunks with combined similarity scores
+        """
+        return await self.chunk_repository.search_hybrid(
+            query_embedding=query_embedding,
+            query_text=query_text,
+            limit=limit,
+            min_similarity=min_similarity,
+            pdf_id=pdf_id,
+        )
+
     async def delete_document(self, pdf_id: str) -> Dict[str, int]:
         """Delete all data for a document."""
         chunks_deleted = await self.chunk_repository.delete_pdf_chunks(pdf_id)

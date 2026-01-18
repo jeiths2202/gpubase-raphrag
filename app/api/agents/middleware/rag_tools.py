@@ -354,20 +354,28 @@ class RAGToolsProvider:
                 loop = asyncio.get_event_loop()
 
                 async def do_search():
-                    # Get query embedding
-                    embeddings = await embedding_service.embed_texts([query])
+                    # Get query embedding with input_type="query" for asymmetric search
+                    # NV-EmbedQA uses different embedding spaces for queries vs passages
+                    embeddings = await embedding_service.embed_texts([query], input_type="query")
                     if not embeddings or not embeddings[0]:
                         return "Failed to generate query embedding."
 
                     query_embedding = embeddings[0]
 
-                    # Search adaptive chunks
-                    results = await provider._adaptive_service.search_chunks(
+                    # Use original query from context if available (for better intent detection)
+                    original_query = query
+                    if provider._context and provider._context.metadata:
+                        original_query = provider._context.metadata.get('original_query', query)
+
+                    # Use hybrid search for better accuracy
+                    # Combines vector similarity with keyword boosting and intent detection
+                    logger.info(f"[AdaptiveSearch] Using hybrid search for query: {original_query}")
+                    results = await provider._adaptive_service.search_chunks_hybrid(
                         query_embedding=query_embedding,
+                        query_text=original_query,
                         limit=top_k,
                         pdf_id=pdf_id,
-                        section_path_prefix=section_filter,
-                        min_similarity=0.3,
+                        min_similarity=0.2,  # Lower threshold, hybrid scoring will filter
                     )
 
                     if not results:
