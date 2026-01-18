@@ -663,16 +663,94 @@ class PDFAdaptiveEmbeddingService:
         return results[:limit]
 
     async def delete_document(self, pdf_id: str) -> Dict[str, int]:
-        """Delete all data for a document."""
+        """Delete all data for a document including image embeddings and Neo4j data."""
+        # 1. Delete from PostgreSQL tables (adaptive chunks)
         chunks_deleted = await self.chunk_repository.delete_pdf_chunks(pdf_id)
         structure_deleted = await self.structure_repository.delete_analysis(pdf_id)
         coverage_deleted = await self.coverage_repository.delete_coverage(pdf_id)
 
+        # 2. Delete from PostgreSQL image_embeddings table
+        images_deleted = 0
+        try:
+            images_deleted = await self._delete_image_embeddings(pdf_id)
+            logger.info(f"Deleted {images_deleted} images for document {pdf_id}")
+        except Exception as e:
+            logger.error(f"Failed to delete image embeddings for {pdf_id}: {e}")
+
+        # 3. Delete from Neo4j (Document and Chunk nodes)
+        neo4j_deleted = 0
+        try:
+            neo4j_deleted = await self._delete_from_neo4j(pdf_id)
+            logger.info(f"Deleted {neo4j_deleted} nodes from Neo4j for document {pdf_id}")
+        except Exception as e:
+            logger.error(f"Failed to delete from Neo4j for {pdf_id}: {e}")
+
         return {
             "chunks_deleted": chunks_deleted,
             "structure_deleted": 1 if structure_deleted else 0,
-            "coverage_deleted": 1 if coverage_deleted else 0
+            "coverage_deleted": 1 if coverage_deleted else 0,
+            "images_deleted": images_deleted,
+            "neo4j_deleted": neo4j_deleted
         }
+
+    async def _delete_image_embeddings(self, document_id: str) -> int:
+        """Delete image embeddings from PostgreSQL."""
+        import asyncpg
+        from ..core.config import api_settings
+
+        pool = await asyncpg.create_pool(
+            host=api_settings.POSTGRES_HOST,
+            port=int(api_settings.POSTGRES_PORT),
+            user=api_settings.POSTGRES_USER,
+            password=api_settings.POSTGRES_PASSWORD,
+            database=api_settings.POSTGRES_DB,
+            min_size=1,
+            max_size=3
+        )
+
+        try:
+            async with pool.acquire() as conn:
+                result = await conn.execute(
+                    "DELETE FROM image_embeddings WHERE document_id = $1",
+                    document_id
+                )
+                count = int(result.split()[-1]) if result else 0
+                return count
+        finally:
+            await pool.close()
+
+    async def _delete_from_neo4j(self, document_id: str) -> int:
+        """Delete document and related chunks from Neo4j."""
+        try:
+            from langchain_neo4j import Neo4jGraph
+            from app.src.config import config
+
+            graph = Neo4jGraph(
+                url=config.neo4j.uri,
+                username=config.neo4j.user,
+                password=config.neo4j.password
+            )
+
+            # Delete Chunk nodes linked to Document
+            chunk_result = graph.query("""
+                MATCH (d:Document {doc_id: $doc_id})-[:CONTAINS]->(c:Chunk)
+                DETACH DELETE c
+                RETURN count(*) as deleted_count
+            """, params={"doc_id": document_id})
+            chunk_count = chunk_result[0]["deleted_count"] if chunk_result else 0
+
+            # Delete the Document node
+            doc_result = graph.query("""
+                MATCH (d:Document {doc_id: $doc_id})
+                DETACH DELETE d
+                RETURN count(*) as deleted_count
+            """, params={"doc_id": document_id})
+            doc_count = doc_result[0]["deleted_count"] if doc_result else 0
+
+            return chunk_count + doc_count
+        except Exception as e:
+            logger.warning(f"Neo4j deletion failed (may not be configured): {e}")
+            return 0
 
     def get_processing_status(self, task_id: str) -> Dict[str, Any]:
         """Get processing status for a task."""
