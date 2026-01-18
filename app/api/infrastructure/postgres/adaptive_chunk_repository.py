@@ -545,11 +545,21 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
         #   - error code queries: 30/70 (keyword-heavy for exact matches)
         #   - general queries: 50/50 (balanced)
 
-        # Build tsquery for full-text search (using query_text)
+        # Build tsquery for full-text search
         # Use 'simple' config for CJK compatibility
-        ts_query_terms = [t for t in expanded_terms if len(t) >= 2][:5]
-        ts_query_parts = [f"'{t}'" for t in ts_query_terms]
+        # Include both original query terms AND synonyms for better matching
+
+        # Extract key terms from original query (split by common delimiters)
+        import re as re_module
+        query_tokens = re_module.split(r'[のをはがでにと、。\s]+', query_text)
+        query_tokens = [t for t in query_tokens if len(t) >= 2][:8]
+
+        # Combine with expanded synonyms
+        all_terms = list(set(query_tokens + [t for t in expanded_terms if len(t) >= 2]))[:10]
+        ts_query_parts = [f"'{t}'" for t in all_terms]
         ts_query_str = " | ".join(ts_query_parts) if ts_query_parts else "''"
+
+        logger.debug(f"[HybridSearch] ts_query terms: {all_terms}")
 
         query = f"""
             WITH scored_chunks AS (
