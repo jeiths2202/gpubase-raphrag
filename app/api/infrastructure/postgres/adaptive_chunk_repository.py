@@ -437,80 +437,17 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
         embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
 
         # =========================================================================
-        # QUERY TYPE DETECTION & DYNAMIC WEIGHT ADJUSTMENT
+        # RECIPROCAL RANK FUSION (RRF) HYBRID SEARCH
         # =========================================================================
-        query_type = "general"
-        vector_weight = 0.5
-        keyword_weight = 0.5
+        # RRF combines vector search and keyword search using rank-based fusion:
+        #   RRF_score(d) = 1/(k + vector_rank) + 1/(k + keyword_rank)
+        # This approach is more robust than weighted score combination.
+        # =========================================================================
 
-        # Extract main keyword from query (remove intent suffixes)
-        main_keyword = query_text
-        is_what_is_query = False
+        RRF_K = 60  # Standard RRF constant (higher = more weight to lower ranks)
+        candidate_limit = limit * 5  # Fetch more candidates for fusion
 
-        # 1. Detect error code queries (use keyword-heavy weights: 30/70)
-        error_patterns = [
-            r'[A-Z]+[-_]ERR[-_][A-Z_]+',  # DSALC_ERR_DATASET_NOT_FOUND
-            r'[A-Z]+-\d{3,5}',            # OFM-1234, TIBERO-5678
-            r'-\d{4,5}',                  # -5212 (numeric error codes)
-            r'에러|오류|error|エラー|코드|code|コード|해결|조치|fix|対処|원인|cause|原因',
-        ]
-        for pattern in error_patterns:
-            if re.search(pattern, query_text, re.IGNORECASE):
-                query_type = "error_code"
-                vector_weight = 0.3
-                keyword_weight = 0.7
-                logger.info(f"[HybridSearch] Detected error code query: weights={vector_weight}/{keyword_weight}")
-                print(f"[HybridSearch] Query type: error_code (vec:{vector_weight}, kw:{keyword_weight})", flush=True)
-                break
-
-        # 2. Detect "what is" definition queries (use vector-heavy weights: 70/30)
-        what_is_patterns = [
-            r'(.+?)이란\??$',           # Korean: ~이란
-            r'(.+?)란\??$',             # Korean: ~란
-            r'(.+?)とは\??$',           # Japanese: ~とは
-            r'(.+?)って何\??$',         # Japanese: ~って何
-            r'^what\s+is\s+(.+?)\??$',  # English: what is ~
-            r'(.+?)\s*(?:是什么|是啥)\??$',  # Chinese
-        ]
-
-        if query_type == "general":  # Only check if not already classified
-            for pattern in what_is_patterns:
-                match = re.match(pattern, query_text, re.IGNORECASE)
-                if match:
-                    main_keyword = match.group(1).strip()
-                    is_what_is_query = True
-                    query_type = "definition"
-                    vector_weight = 0.7
-                    keyword_weight = 0.3
-                    logger.info(f"[HybridSearch] Detected definition query: '{query_text}' -> keyword: '{main_keyword}', weights={vector_weight}/{keyword_weight}")
-                    print(f"[HybridSearch] Query type: definition (vec:{vector_weight}, kw:{keyword_weight})", flush=True)
-                    break
-
-        # 3. Detect how-to queries (balanced weights: 50/50)
-        howto_patterns = [
-            r'어떻게|방법|how\s+to|하는법|手順|やり方|使い方',
-        ]
-        if query_type == "general":
-            for pattern in howto_patterns:
-                if re.search(pattern, query_text, re.IGNORECASE):
-                    query_type = "howto"
-                    # Keep balanced weights for how-to queries
-                    logger.info(f"[HybridSearch] Detected how-to query: weights={vector_weight}/{keyword_weight}")
-                    print(f"[HybridSearch] Query type: howto (vec:{vector_weight}, kw:{keyword_weight})", flush=True)
-                    break
-
-        if query_type == "general":
-            print(f"[HybridSearch] Query type: general (vec:{vector_weight}, kw:{keyword_weight})", flush=True)
-
-        # Expand keywords with synonyms
-        _, expanded_terms = synonym_dict.expand_query(main_keyword)
-        # Filter and deduplicate
-        expanded_terms = list(set(t.lower() for t in expanded_terms if len(t) >= 2))
-
-        print(f"[HybridSearch] Synonym expansion: '{main_keyword}' -> {expanded_terms}", flush=True)
-        logger.info(f"[HybridSearch] Synonym expansion: '{main_keyword}' -> {expanded_terms}")
-
-        # Build base conditions
+        # Build WHERE clause
         conditions = ["ac.has_embedding = TRUE"]
         params = [embedding_str]
         param_idx = 2
@@ -522,107 +459,78 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
 
         where_clause = " AND ".join(conditions)
 
-        # Fetch more candidates for re-ranking (3x limit)
-        candidate_limit = limit * 3
-
-        # Build synonym matching clause for SQL
-        # Creates: (LOWER(content) LIKE '%term1%' OR LOWER(content) LIKE '%term2%' ...)
-        synonym_title_clauses = []
-        synonym_content_clauses = []
-        for term in expanded_terms[:10]:  # Limit to 10 synonyms to avoid too complex query
-            params.append(term)
-            synonym_title_clauses.append(f"LOWER(ac.section_title) LIKE '%' || ${param_idx} || '%'")
-            synonym_content_clauses.append(f"LOWER(ac.content) LIKE '%' || ${param_idx} || '%'")
-            param_idx += 1
-
-        title_match_sql = " OR ".join(synonym_title_clauses) if synonym_title_clauses else "FALSE"
-        content_match_sql = " OR ".join(synonym_content_clauses) if synonym_content_clauses else "FALSE"
-
-        # Query with hybrid scoring: vector similarity + full-text search (ts_rank)
-        # Score = vector_similarity * vector_weight + keyword_score * keyword_weight
-        # Weights are dynamically adjusted based on query type:
-        #   - definition queries: 70/30 (vector-heavy for semantic understanding)
-        #   - error code queries: 30/70 (keyword-heavy for exact matches)
-        #   - general queries: 50/50 (balanced)
-
-        # Build tsquery for full-text search
-        # Use 'simple' config for CJK compatibility
-        # Include both original query terms AND synonyms for better matching
-
-        # Extract key terms from original query (split by common delimiters)
-        import re as re_module
-        query_tokens = re_module.split(r'[のをはがでにと、。\s]+', query_text)
-        query_tokens = [t for t in query_tokens if len(t) >= 2][:8]
-
-        # Combine with expanded synonyms
-        all_terms = list(set(query_tokens + [t for t in expanded_terms if len(t) >= 2]))[:10]
-        ts_query_parts = [f"'{t}'" for t in all_terms]
-        ts_query_str = " | ".join(ts_query_parts) if ts_query_parts else "''"
-
-        logger.debug(f"[HybridSearch] ts_query terms: {all_terms}")
-
+        # RRF Query: Get both vector and keyword rankings, then fuse
         query = f"""
-            WITH scored_chunks AS (
+            WITH
+            -- Step 1: Vector search results with ranking
+            vector_results AS (
                 SELECT
-                    ac.chunk_id, ac.pdf_id, ac.chunk_type, ac.content, ac.section_path,
-                    ac.section_title, ac.page_start, ac.page_end, ac.relations,
-                    1 - (ac.embedding <=> $1::vector) as vector_similarity,
+                    ac.chunk_id,
+                    ac.pdf_id,
+                    ac.chunk_type,
+                    ac.content,
+                    ac.section_path,
+                    ac.section_title,
+                    ac.page_start,
+                    ac.page_end,
+                    ac.relations,
                     psa.document_name,
-                    -- Full-text search score using ts_rank (normalized 0-1)
-                    LEAST(1.0, ts_rank(
-                        to_tsvector('simple', ac.content),
-                        to_tsquery('simple', $${ts_query_str}$$),
-                        32  -- normalization: divide by doc length
-                    ) * 2) as ts_rank_score,
-                    -- Keyword boost: matches any synonym in title (0.35) or content (0.25)
-                    CASE WHEN ({title_match_sql}) THEN 0.35 ELSE 0.0 END +
-                    CASE WHEN ({content_match_sql}) THEN 0.25 ELSE 0.0 END +
-                    -- Introduction/Overview boost for "what is" queries
-                    CASE
-                        WHEN {str(is_what_is_query).lower()} AND (
-                            LOWER(ac.section_title) LIKE '%概要%' OR
-                            LOWER(ac.section_title) LIKE '%소개%' OR
-                            LOWER(ac.section_title) LIKE '%개요%' OR
-                            LOWER(ac.section_title) LIKE '%overview%' OR
-                            LOWER(ac.section_title) LIKE '%introduction%' OR
-                            LOWER(ac.section_title) LIKE '%about%' OR
-                            LOWER(ac.section_title) LIKE '%このガイドについて%' OR
-                            ac.section_path LIKE '1.%' OR
-                            ac.section_path LIKE '0.%'
-                        ) THEN 0.15
-                        ELSE 0.0
-                    END as keyword_boost,
-                    -- TOC penalty: detect table of contents entries and downweight them
-                    -- TOC typically has: page refs with dots (......44), multiple section listings
-                    CASE
-                        WHEN ac.content ~ E'\\.{{3,}}\\s*\\d+' THEN -0.35  -- dots followed by page number
-                        WHEN ac.content ~ E'\\d+\\.\\d+\\.\\s+.+\\.{{3,}}' THEN -0.30  -- section.subsec ... pattern
-                        WHEN LENGTH(ac.content) - LENGTH(REPLACE(ac.content, '....', '')) > 50 THEN -0.25  -- many dot sequences
-                        ELSE 0.0
-                    END as toc_penalty
+                    1 - (ac.embedding <=> $1::vector) as vector_similarity,
+                    ROW_NUMBER() OVER (ORDER BY ac.embedding <=> $1::vector) as vector_rank
                 FROM adaptive_pdf_chunks ac
                 LEFT JOIN pdf_structure_analysis psa ON ac.pdf_id = psa.pdf_id
                 WHERE {where_clause}
                 ORDER BY ac.embedding <=> $1::vector
                 LIMIT {candidate_limit}
+            ),
+            -- Step 2: Keyword search results with ranking (using ts_rank)
+            keyword_results AS (
+                SELECT
+                    ac.chunk_id,
+                    ts_rank(
+                        to_tsvector('simple', ac.content),
+                        plainto_tsquery('simple', $2)
+                    ) as keyword_score,
+                    ROW_NUMBER() OVER (
+                        ORDER BY ts_rank(
+                            to_tsvector('simple', ac.content),
+                            plainto_tsquery('simple', $2)
+                        ) DESC
+                    ) as keyword_rank
+                FROM adaptive_pdf_chunks ac
+                WHERE {where_clause}
+                AND to_tsvector('simple', ac.content) @@ plainto_tsquery('simple', $2)
+                ORDER BY keyword_score DESC
+                LIMIT {candidate_limit}
+            ),
+            -- Step 3: RRF Fusion
+            fused_results AS (
+                SELECT
+                    v.*,
+                    COALESCE(k.keyword_score, 0) as keyword_score,
+                    COALESCE(k.keyword_rank, {candidate_limit + 1}) as keyword_rank,
+                    -- RRF Score: 1/(k + vector_rank) + 1/(k + keyword_rank)
+                    (1.0 / ({RRF_K} + v.vector_rank)) +
+                    (1.0 / ({RRF_K} + COALESCE(k.keyword_rank, {candidate_limit + 1}))) as rrf_score
+                FROM vector_results v
+                LEFT JOIN keyword_results k ON v.chunk_id = k.chunk_id
             )
-            SELECT *,
-                   -- Combined score: vector + (ts_rank + keyword_boost) + toc_penalty
-                   -- ts_rank_score captures actual full-text relevance
-                   GREATEST(0, vector_similarity * {vector_weight} + (ts_rank_score + keyword_boost) * {keyword_weight} + toc_penalty) as combined_score
-            FROM scored_chunks
-            WHERE vector_similarity >= {min_similarity} OR keyword_boost > 0 OR ts_rank_score > 0.1
-            ORDER BY combined_score DESC, ts_rank_score DESC, vector_similarity DESC
+            SELECT *
+            FROM fused_results
+            ORDER BY rrf_score DESC
             LIMIT {limit}
         """
+
+        # Add query_text as second parameter for keyword search
+        params.append(query_text)
+
+        print(f"[HybridSearch] Using RRF fusion (k={RRF_K})", flush=True)
 
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(query, *params)
 
             results = []
             for row in rows:
-                toc_penalty = float(row.get("toc_penalty", 0))
-                ts_rank_score = float(row.get("ts_rank_score", 0))
                 results.append({
                     "chunk_id": row["chunk_id"],
                     "pdf_id": row["pdf_id"],
@@ -633,26 +541,23 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                     "page_start": row["page_start"],
                     "page_end": row["page_end"],
                     "relations": row["relations"],
-                    "similarity": float(row["combined_score"]),
+                    "similarity": float(row["rrf_score"]),
                     "vector_similarity": float(row["vector_similarity"]),
-                    "keyword_boost": float(row["keyword_boost"]),
-                    "ts_rank_score": ts_rank_score,
-                    "toc_penalty": toc_penalty,
+                    "vector_rank": int(row["vector_rank"]),
+                    "keyword_score": float(row["keyword_score"]),
+                    "keyword_rank": int(row["keyword_rank"]),
                     "document_name": row.get("document_name"),
-                    "matched_synonyms": expanded_terms[:5] if len(expanded_terms) > 1 else None
                 })
-                # Log TOC detection
-                if toc_penalty < 0:
-                    logger.debug(f"[HybridSearch] TOC detected (penalty={toc_penalty}): page {row['page_start']}-{row['page_end']}")
 
             if results:
-                logger.info(f"[HybridSearch] Query: '{query_text}' (type:{query_type}, weights:{vector_weight}/{keyword_weight}) -> {len(results)} results, "
-                           f"top: {results[0]['similarity']:.2%} (vec:{results[0]['vector_similarity']:.2%}, "
-                           f"ts_rank:{results[0]['ts_rank_score']:.2%}, kw_boost:{results[0]['keyword_boost']:.2%})")
-                print(f"[HybridSearch] Results: {len(results)}, top score: {results[0]['similarity']:.2%}", flush=True)
+                top = results[0]
+                logger.info(f"[HybridSearch-RRF] '{query_text[:50]}...' -> {len(results)} results, "
+                           f"top: rrf={top['similarity']:.4f} (vec_rank={top['vector_rank']}, kw_rank={top['keyword_rank']})")
+                print(f"[HybridSearch] RRF Results: {len(results)}, top: page {top['page_start']}-{top['page_end']} "
+                      f"(vec_rank={top['vector_rank']}, kw_rank={top['keyword_rank']}, rrf={top['similarity']:.4f})", flush=True)
             else:
-                logger.warning(f"[HybridSearch] No results for: '{query_text}' (type:{query_type}, synonyms: {expanded_terms[:3]})")
-                print(f"[HybridSearch] No results for query type: {query_type}", flush=True)
+                logger.warning(f"[HybridSearch-RRF] No results for: '{query_text[:50]}...'")
+                print(f"[HybridSearch] No RRF results", flush=True)
 
             return results
 
