@@ -422,6 +422,7 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
         3. Detect "what is" intent and boost introduction/overview sections
         4. Synonym expansion for better keyword matching
         5. Re-rank results based on combined score
+        6. Dynamic weight adjustment based on query type
         """
         await self._ensure_table()
 
@@ -432,15 +433,37 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
         # Import synonym dictionary
         from ...services.synonym_dictionary import get_synonym_dictionary
         synonym_dict = get_synonym_dictionary()
-        print(f"[HybridSearch] Synonym dictionary loaded", flush=True)
 
         embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
+
+        # =========================================================================
+        # QUERY TYPE DETECTION & DYNAMIC WEIGHT ADJUSTMENT
+        # =========================================================================
+        query_type = "general"
+        vector_weight = 0.5
+        keyword_weight = 0.5
 
         # Extract main keyword from query (remove intent suffixes)
         main_keyword = query_text
         is_what_is_query = False
 
-        # Detect "what is" intent patterns
+        # 1. Detect error code queries (use keyword-heavy weights: 30/70)
+        error_patterns = [
+            r'[A-Z]+[-_]ERR[-_][A-Z_]+',  # DSALC_ERR_DATASET_NOT_FOUND
+            r'[A-Z]+-\d{3,5}',            # OFM-1234, TIBERO-5678
+            r'-\d{4,5}',                  # -5212 (numeric error codes)
+            r'에러|오류|error|エラー|코드|code|コード|해결|조치|fix|対処|원인|cause|原因',
+        ]
+        for pattern in error_patterns:
+            if re.search(pattern, query_text, re.IGNORECASE):
+                query_type = "error_code"
+                vector_weight = 0.3
+                keyword_weight = 0.7
+                logger.info(f"[HybridSearch] Detected error code query: weights={vector_weight}/{keyword_weight}")
+                print(f"[HybridSearch] Query type: error_code (vec:{vector_weight}, kw:{keyword_weight})", flush=True)
+                break
+
+        # 2. Detect "what is" definition queries (use vector-heavy weights: 70/30)
         what_is_patterns = [
             r'(.+?)이란\??$',           # Korean: ~이란
             r'(.+?)란\??$',             # Korean: ~란
@@ -450,13 +473,34 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
             r'(.+?)\s*(?:是什么|是啥)\??$',  # Chinese
         ]
 
-        for pattern in what_is_patterns:
-            match = re.match(pattern, query_text, re.IGNORECASE)
-            if match:
-                main_keyword = match.group(1).strip()
-                is_what_is_query = True
-                logger.info(f"[HybridSearch] Detected 'what is' query: '{query_text}' -> keyword: '{main_keyword}'")
-                break
+        if query_type == "general":  # Only check if not already classified
+            for pattern in what_is_patterns:
+                match = re.match(pattern, query_text, re.IGNORECASE)
+                if match:
+                    main_keyword = match.group(1).strip()
+                    is_what_is_query = True
+                    query_type = "definition"
+                    vector_weight = 0.7
+                    keyword_weight = 0.3
+                    logger.info(f"[HybridSearch] Detected definition query: '{query_text}' -> keyword: '{main_keyword}', weights={vector_weight}/{keyword_weight}")
+                    print(f"[HybridSearch] Query type: definition (vec:{vector_weight}, kw:{keyword_weight})", flush=True)
+                    break
+
+        # 3. Detect how-to queries (balanced weights: 50/50)
+        howto_patterns = [
+            r'어떻게|방법|how\s+to|하는법|手順|やり方|使い方',
+        ]
+        if query_type == "general":
+            for pattern in howto_patterns:
+                if re.search(pattern, query_text, re.IGNORECASE):
+                    query_type = "howto"
+                    # Keep balanced weights for how-to queries
+                    logger.info(f"[HybridSearch] Detected how-to query: weights={vector_weight}/{keyword_weight}")
+                    print(f"[HybridSearch] Query type: howto (vec:{vector_weight}, kw:{keyword_weight})", flush=True)
+                    break
+
+        if query_type == "general":
+            print(f"[HybridSearch] Query type: general (vec:{vector_weight}, kw:{keyword_weight})", flush=True)
 
         # Expand keywords with synonyms
         _, expanded_terms = synonym_dict.expand_query(main_keyword)
@@ -495,7 +539,11 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
         content_match_sql = " OR ".join(synonym_content_clauses) if synonym_content_clauses else "FALSE"
 
         # Query with keyword boost scoring using synonym expansion
-        # Score = vector_similarity * 0.5 + keyword_boost * 0.5 (increased weight for keywords)
+        # Score = vector_similarity * vector_weight + keyword_boost * keyword_weight
+        # Weights are dynamically adjusted based on query type:
+        #   - definition queries: 70/30 (vector-heavy for semantic understanding)
+        #   - error code queries: 30/70 (keyword-heavy for exact matches)
+        #   - general queries: 50/50 (balanced)
         query = f"""
             WITH scored_chunks AS (
                 SELECT
@@ -528,7 +576,7 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                 LIMIT {candidate_limit}
             )
             SELECT *,
-                   (vector_similarity * 0.5 + keyword_boost * 0.5) as combined_score
+                   (vector_similarity * {vector_weight} + keyword_boost * {keyword_weight}) as combined_score
             FROM scored_chunks
             WHERE vector_similarity >= {min_similarity} OR keyword_boost > 0
             ORDER BY combined_score DESC, vector_similarity DESC
@@ -558,11 +606,13 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                 })
 
             if results:
-                logger.info(f"[HybridSearch] Query: '{query_text}' (synonyms: {len(expanded_terms)}) -> {len(results)} results, "
+                logger.info(f"[HybridSearch] Query: '{query_text}' (type:{query_type}, weights:{vector_weight}/{keyword_weight}) -> {len(results)} results, "
                            f"top: {results[0]['similarity']:.2%} (vec:{results[0]['vector_similarity']:.2%}, "
                            f"kw:{results[0]['keyword_boost']:.2%})")
+                print(f"[HybridSearch] Results: {len(results)}, top score: {results[0]['similarity']:.2%}", flush=True)
             else:
-                logger.warning(f"[HybridSearch] No results for: '{query_text}' (synonyms: {expanded_terms[:3]})")
+                logger.warning(f"[HybridSearch] No results for: '{query_text}' (type:{query_type}, synonyms: {expanded_terms[:3]})")
+                print(f"[HybridSearch] No results for query type: {query_type}", flush=True)
 
             return results
 

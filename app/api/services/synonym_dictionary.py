@@ -28,79 +28,208 @@ class SynonymDictionary:
         # Bidirectional synonym groups
         # Each group contains terms that should match each other
         self._synonym_groups: List[Set[str]] = [
-            # OpenFrame products
-            {"openframe", "오픈프레임", "オープンフレーム", "open frame"},
-            {"openframe base", "오픈프레임 베이스", "openframe-base"},
-            {"openframe batch", "오픈프레임 배치", "openframe-batch"},
-            {"openframe online", "오픈프레임 온라인", "openframe-online"},
+            # =================================================================
+            # OpenFrame Products & Components
+            # =================================================================
+            {"openframe", "오픈프레임", "オープンフレーム", "open frame", "of"},
+            {"openframe base", "오픈프레임 베이스", "openframe-base", "of base"},
+            {"openframe batch", "오픈프레임 배치", "openframe-batch", "of batch", "ofbatch"},
+            {"openframe online", "오픈프레임 온라인", "openframe-online", "of online"},
+            {"openframe manager", "오픈프레임 매니저", "ofmanager", "of manager"},
+            {"openframe miner", "오픈프레임 마이너", "ofminer", "of miner"},
+            {"tmax", "티맥스", "ティーマックス"},
+            {"tibero", "티베로", "ティベロ", "tb"},
+            {"prosort", "프로소트", "프로 소트"},
+            {"jeus", "제우스", "ジェウス"},
 
-            # VSAM related
-            {"vsam", "비샘", "비쌤", "v-sam"},
-            {"non-vsam", "nonvsam", "non vsam", "비vsam", "논vsam", "non-v-sam"},
-            {"ksds", "key sequenced data set", "키순차데이터셋"},
-            {"esds", "entry sequenced data set", "입력순차데이터셋"},
-            {"rrds", "relative record data set", "상대레코드데이터셋"},
+            # OpenFrame specific terms
+            {"ofsys", "of시스템", "openframe system"},
+            {"ofgw", "오픈프레임 게이트웨이", "openframe gateway"},
+            {"ofasm", "오픈프레임 어셈블러", "openframe assembler"},
+            {"ofcobol", "오픈프레임 코볼", "openframe cobol"},
+            {"tacf", "타크프", "tmax access control facility"},
+            {"textfld", "텍스트필드", "text field"},
+            {"tmadmin", "티엠어드민", "tmax admin"},
+            {"tmboot", "티엠부트", "tmax boot"},
+            {"tmdown", "티엠다운", "tmax down"},
 
-            # JCL related
+            # =================================================================
+            # VSAM Related (expanded)
+            # =================================================================
+            {"vsam", "비샘", "비쌤", "v-sam", "virtual storage access method"},
+            {"non-vsam", "nonvsam", "non vsam", "비vsam", "논vsam", "non-v-sam", "일반파일"},
+            {"ksds", "key sequenced data set", "키순차데이터셋", "key-sequenced"},
+            {"esds", "entry sequenced data set", "입력순차데이터셋", "entry-sequenced"},
+            {"rrds", "relative record data set", "상대레코드데이터셋", "relative-record"},
+            {"lds", "linear data set", "선형데이터셋"},
+            {"alternate index", "대체인덱스", "보조인덱스", "aix"},
+            {"cluster", "클러스터", "クラスター", "vsam cluster"},
+            {"base cluster", "기본클러스터", "베이스클러스터"},
+
+            # =================================================================
+            # JCL Related (expanded)
+            # =================================================================
             {"jcl", "job control language", "잡컨트롤랭귀지", "작업제어언어"},
             {"jcllib", "jcl library", "jcl 라이브러리"},
-            {"proclib", "procedure library", "프로시저 라이브러리"},
-            {"ddname", "dd name", "dd네임", "데이터정의명"},
+            {"proclib", "procedure library", "프로시저 라이브러리", "proc lib"},
+            {"ddname", "dd name", "dd네임", "데이터정의명", "dd명"},
             {"dsn", "dataset name", "dsname", "데이터셋명", "데이터셋이름"},
+            {"exec", "execute", "실행", "exec문"},
+            {"parm", "parameter", "파라미터", "매개변수"},
+            {"disp", "disposition", "처분", "디스포지션"},
+            {"sysout", "system output", "시스아웃", "시스템출력"},
+            {"sysin", "system input", "시스인", "시스템입력"},
+            {"sysprint", "시스프린트", "system print"},
+            {"sysudump", "시스유덤프", "system dump"},
+            {"cond", "condition", "조건", "콘드"},
+            {"region", "리전", "리젼", "영역"},
 
-            # COBOL related
-            {"cobol", "코볼", "コボル"},
-            {"copybook", "카피북", "copy book", "コピーブック"},
-            {"working-storage", "working storage", "워킹스토리지"},
-            {"procedure division", "프로시저 디비전", "절차부"},
+            # =================================================================
+            # COBOL Related (expanded)
+            # =================================================================
+            {"cobol", "코볼", "コボル", "common business oriented language"},
+            {"copybook", "카피북", "copy book", "コピーブック", "복사책"},
+            {"working-storage", "working storage", "워킹스토리지", "작업저장소"},
+            {"procedure division", "프로시저 디비전", "절차부", "절차부문"},
+            {"data division", "데이터 디비전", "자료부", "데이터부문"},
+            {"identification division", "식별부", "identification"},
+            {"environment division", "환경부", "environment"},
+            {"pic", "picture", "픽쳐", "그림절"},
+            {"comp", "computational", "컴프", "계산형"},
+            {"comp-3", "packed decimal", "팩드데시멀", "압축십진"},
+            {"perform", "퍼폼", "수행"},
+            {"call", "콜", "호출"},
 
-            # Database/Transaction
-            {"cics", "씨익스", "시익스", "customer information control system"},
+            # =================================================================
+            # IMS Related (expanded)
+            # =================================================================
             {"ims", "아이엠에스", "information management system"},
+            {"ims db", "ims database", "ims 데이터베이스", "ims-db"},
+            {"ims tm", "ims transaction manager", "ims 트랜잭션관리자"},
+            {"dbd", "database description", "데이터베이스정의", "db정의"},
+            {"psb", "program specification block", "프로그램스펙블록"},
+            {"pcb", "program communication block", "프로그램통신블록"},
+            {"mfs", "message format service", "메시지포맷서비스"},
+            {"mid", "message input descriptor", "메시지입력기술자"},
+            {"mod", "message output descriptor", "메시지출력기술자"},
+            {"dif", "device input format", "디바이스입력포맷"},
+            {"dof", "device output format", "디바이스출력포맷"},
+            {"bmp", "batch message processing", "배치메시지처리"},
+            {"dlibatch", "dli batch", "dli 배치"},
+
+            # =================================================================
+            # CICS Related (expanded)
+            # =================================================================
+            {"cics", "씨익스", "시익스", "customer information control system"},
+            {"cics transaction", "cics 트랜잭션", "cics트랜잭션"},
+            {"tct", "terminal control table", "터미널제어테이블"},
+            {"ppt", "processing program table", "프로그램처리테이블"},
+            {"pct", "program control table", "프로그램제어테이블"},
+            {"fct", "file control table", "파일제어테이블"},
+            {"eibtrnid", "트랜잭션id", "transaction id"},
+            {"commarea", "communication area", "통신영역"},
+
+            # =================================================================
+            # Database (Tibero/DB2)
+            # =================================================================
             {"db2", "디비투", "database 2"},
             {"sql", "에스큐엘", "structured query language"},
+            {"dsnzparm", "디에스엔지팜", "db2 system parameters"},
+            {"tablespace", "테이블스페이스", "테이블 공간"},
+            {"index", "인덱스", "索引"},
+            {"cursor", "커서", "カーソル"},
+            {"commit", "커밋", "コミット"},
+            {"rollback", "롤백", "ロールバック"},
 
-            # Batch processing
+            # =================================================================
+            # Batch Processing (expanded)
+            # =================================================================
             {"batch", "배치", "バッチ", "일괄처리"},
             {"job", "잡", "ジョブ", "작업"},
             {"step", "스텝", "ステップ", "단계"},
             {"abend", "에이벤드", "abnormal end", "비정상종료"},
+            {"restart", "재시작", "リスタート", "재기동"},
+            {"checkpoint", "체크포인트", "チェックポイント", "검사점"},
+            {"submission", "제출", "サブミット"},
 
-            # Utilities
+            # =================================================================
+            # Utilities (expanded)
+            # =================================================================
             {"sort", "소트", "ソート", "정렬"},
             {"merge", "머지", "マージ", "병합"},
-            {"idcams", "아이디캠스", "access method services"},
-            {"iebgener", "아이이비제너"},
-            {"iebcopy", "아이이비카피"},
+            {"idcams", "아이디캠스", "access method services", "ams"},
+            {"iebgener", "아이이비제너", "iebgener 유틸리티"},
+            {"iebcopy", "아이이비카피", "iebcopy 유틸리티"},
+            {"iefbr14", "아이이에프비알14", "dummy job"},
+            {"repro", "리프로", "reproduce", "복제"},
+            {"define", "디파인", "정의"},
+            {"delete", "딜리트", "삭제"},
+            {"listcat", "리스트캣", "list catalog"},
+            {"print", "프린트", "인쇄"},
 
-            # Error/Return codes
+            # =================================================================
+            # Error/Return Codes (expanded)
+            # =================================================================
             {"return code", "리턴코드", "반환코드", "rc"},
             {"condition code", "컨디션코드", "조건코드", "cc"},
             {"abend code", "에이벤드코드", "비정상종료코드"},
+            {"s0c4", "에스제로씨포", "storage protection exception"},
+            {"s0c7", "에스제로씨세븐", "data exception"},
+            {"s0cb", "에스제로씨비", "divide by zero"},
+            {"s806", "에스팔공육", "program not found"},
+            {"s913", "에스구일삼", "dataset not available"},
+            {"s322", "에스삼이이", "time out"},
 
-            # System components
+            # =================================================================
+            # System Components (expanded)
+            # =================================================================
             {"jes", "jes2", "jes3", "job entry subsystem"},
             {"spool", "스풀", "スプール"},
             {"catalog", "카탈로그", "カタログ"},
             {"vtoc", "volume table of contents", "볼륨목차"},
+            {"master catalog", "마스터카탈로그", "기본카탈로그"},
+            {"user catalog", "유저카탈로그", "사용자카탈로그"},
+            {"volume", "볼륨", "ボリューム"},
+            {"dasd", "다스드", "direct access storage device"},
 
-            # Common operations
+            # =================================================================
+            # Common Operations
+            # =================================================================
             {"install", "설치", "インストール", "installation"},
             {"configure", "설정", "구성", "configuration", "컨피그"},
             {"error", "에러", "오류", "エラー"},
             {"exception", "예외", "익셉션"},
+            {"migration", "마이그레이션", "이전", "이행"},
+            {"conversion", "변환", "컨버전"},
+            {"rehosting", "리호스팅", "재호스팅"},
+            {"compile", "컴파일", "コンパイル"},
+            {"link", "링크", "リンク", "연결"},
+            {"execute", "실행", "エグゼキュート"},
 
-            # File operations
+            # =================================================================
+            # File Operations (expanded)
+            # =================================================================
             {"dataset", "데이터셋", "데이터세트", "data set", "データセット"},
             {"file", "파일", "ファイル"},
             {"record", "레코드", "レコード"},
             {"member", "멤버", "メンバー"},
+            {"pds", "partitioned data set", "분할데이터셋"},
+            {"pdse", "partitioned data set extended", "확장분할데이터셋"},
+            {"sequential", "순차", "シーケンシャル"},
+            {"gds", "generation data set", "세대데이터셋"},
+            {"gdg", "generation data group", "세대데이터그룹"},
 
-            # Common terms
+            # =================================================================
+            # Common Terms
+            # =================================================================
             {"overview", "개요", "概要", "소개", "introduction"},
             {"guide", "가이드", "ガイド", "안내"},
             {"reference", "레퍼런스", "リファレンス", "참조"},
             {"manual", "매뉴얼", "マニュアル", "설명서"},
+            {"tutorial", "튜토리얼", "チュートリアル", "입문"},
+            {"example", "예제", "サンプル", "sample", "샘플"},
+            {"syntax", "구문", "シンタックス", "문법"},
+            {"parameter", "파라미터", "パラメータ", "매개변수"},
         ]
 
         # Build lookup index: term -> group index

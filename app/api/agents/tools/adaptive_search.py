@@ -393,12 +393,18 @@ class AdaptiveSearchTool(BaseTool):
             print(f"[AdaptiveSearch] Using hybrid search for query: {query}", flush=True)
             logger.info(f"[AdaptiveSearch] Using hybrid search for query: {query}")
 
+            # Check if cross-encoder re-ranking is enabled
+            use_reranker = os.getenv("ENABLE_CROSS_ENCODER_RERANKER", "false").lower() in ("true", "1", "yes")
+            if use_reranker:
+                print(f"[AdaptiveSearch] Cross-encoder re-ranking enabled", flush=True)
+
             results = await adaptive_service.search_chunks_hybrid(
                 query_embedding=query_embedding,
                 query_text=query,  # Pass query text for intent detection and keyword boosting
                 limit=top_k,
                 pdf_id=pdf_id,
                 min_similarity=0.10 if keyword_filter else 0.2,  # Lower threshold for hybrid scoring
+                use_reranker=use_reranker,
             )
 
             print(f"[AdaptiveSearch] Found {len(results) if results else 0} chunks", flush=True)
@@ -609,6 +615,13 @@ class AdaptiveSearchTool(BaseTool):
                         "content": r.get('content', '')[:200],  # 내용 미리보기
                         "doc_id": r.get('pdf_id')
                     })
+
+            # Store sources in context metadata for Deep Agent extraction
+            if context.metadata is None:
+                context.metadata = {}
+            if 'sources' not in context.metadata:
+                context.metadata['sources'] = []
+            context.metadata['sources'].extend(sources)
 
             result_metadata = {
                 "results_count": len(results),

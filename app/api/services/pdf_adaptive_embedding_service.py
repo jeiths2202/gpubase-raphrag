@@ -571,6 +571,7 @@ class PDFAdaptiveEmbeddingService:
         limit: int = 5,
         pdf_id: Optional[str] = None,
         min_similarity: float = 0.2,
+        use_reranker: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Hybrid search combining vector similarity with keyword boosting.
@@ -579,7 +580,8 @@ class PDFAdaptiveEmbeddingService:
         1. Detecting "what is" query intent (이란, とは, what is)
         2. Boosting results with keyword matches in title/content
         3. Prioritizing introduction/overview sections for definitional queries
-        4. Re-ranking with combined score (60% vector + 40% keyword)
+        4. Re-ranking with combined score (dynamic weights based on query type)
+        5. Optional cross-encoder re-ranking for higher precision
 
         Args:
             query_embedding: Query vector for semantic similarity
@@ -587,17 +589,51 @@ class PDFAdaptiveEmbeddingService:
             limit: Maximum number of results
             pdf_id: Optional PDF ID filter
             min_similarity: Minimum vector similarity threshold
+            use_reranker: Whether to apply cross-encoder re-ranking (default: False)
 
         Returns:
             List of matching chunks with combined similarity scores
         """
-        return await self.chunk_repository.search_hybrid(
+        # Get initial results (fetch more if re-ranking)
+        fetch_limit = limit * 2 if use_reranker else limit
+
+        results = await self.chunk_repository.search_hybrid(
             query_embedding=query_embedding,
             query_text=query_text,
-            limit=limit,
+            limit=fetch_limit,
             min_similarity=min_similarity,
             pdf_id=pdf_id,
         )
+
+        # Apply cross-encoder re-ranking if enabled
+        if use_reranker and results:
+            try:
+                from .cross_encoder_reranker import get_cross_encoder_reranker
+
+                reranker = get_cross_encoder_reranker()
+                reranked = await reranker.rerank(
+                    query=query_text,
+                    documents=results,
+                    top_k=limit,
+                    content_key="content",
+                )
+
+                # Convert RerankResult back to dict format
+                if reranked:
+                    logger.info(f"[PDFAdaptiveEmbedding] Re-ranked {len(results)} -> {len(reranked)} results")
+                    return [
+                        {
+                            **r.document,
+                            "similarity": r.score,
+                            "rerank_score": r.score,
+                            "original_rank": r.original_rank,
+                        }
+                        for r in reranked
+                    ]
+            except Exception as e:
+                logger.warning(f"[PDFAdaptiveEmbedding] Re-ranking failed: {e}, using original results")
+
+        return results[:limit]
 
     async def delete_document(self, pdf_id: str) -> Dict[str, int]:
         """Delete all data for a document."""

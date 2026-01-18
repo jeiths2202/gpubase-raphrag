@@ -14,9 +14,37 @@ import re
 import time
 import asyncio
 import logging
+from pathlib import Path
 from typing import Optional, List, Dict, Any, AsyncGenerator
 
 logger = logging.getLogger(__name__)
+
+
+def _load_agent_prompt(agent_type: str) -> Optional[str]:
+    """
+    에이전트 프롬프트 파일 로드
+
+    Args:
+        agent_type: 에이전트 타입 (rag, ims, code, vision, planner)
+
+    Returns:
+        프롬프트 텍스트 또는 None
+    """
+    # adapters/ 디렉토리에서 상위로 이동하여 prompts/ 디렉토리 접근
+    prompt_dir = Path(__file__).parent.parent / "prompts"
+    prompt_file = prompt_dir / f"{agent_type}_agent.txt"
+
+    if prompt_file.exists():
+        try:
+            content = prompt_file.read_text(encoding="utf-8")
+            logger.info(f"[DeepAgent] Loaded prompt from {prompt_file.name} ({len(content)} chars)")
+            return content
+        except Exception as e:
+            logger.warning(f"[DeepAgent] Failed to load {prompt_file}: {e}")
+    else:
+        logger.warning(f"[DeepAgent] Prompt file not found: {prompt_file}")
+
+    return None
 
 
 def strip_thinking_tags(text: str) -> str:
@@ -34,13 +62,21 @@ def strip_thinking_tags(text: str) -> str:
     # 내부 추론 패턴 (응답 전체가 이런 패턴이면 무시)
     internal_reasoning_patterns = [
         r'This will help me',
-        r'I (?:need to|should|will|\'ll) (?:search|check|look|find|use|try)',
-        r'(?:Let me|I\'m going to) (?:search|check|look|find|use|try)',
+        # 확장된 동사 목록: provide, answer, explain, give, respond, analyze 추가
+        r'I (?:need to|should|will|\'ll) (?:search|check|look|find|use|try|provide|answer|explain|give|respond|analyze)',
+        r'(?:Let me|I\'m going to) (?:search|check|look|find|use|try|provide|answer|explain|give|respond|analyze)',
         r'using the available tools',
         r'(?:First|Next),? I (?:need to|should|will)',
         r'The (?:user|question) (?:is asking|wants|asked)',
         r'I don\'t have (?:enough|any) information',
         r'(?:Maybe|Perhaps) (?:I should|using)',
+        # 새로 추가된 패턴들
+        r'Looking at the (?:tool|search) (?:response|results?|output)',
+        r'(?:Based on|According to) the (?:search|tool) results?',
+        r'to ".*?" in (?:Japanese|Korean|English|Chinese)',  # 언어 변환 추론
+        r'I can see (?:that|from)',
+        r'(?:There are|I found) (?:two|three|several|\d+) (?:main |relevant )?(?:chunks?|results?|documents?)',
+        r'I (?:can|will|should) (?:combine|synthesize|summarize)',
     ]
 
     # 응답이 내부 추론인지 확인
@@ -59,6 +95,11 @@ def strip_thinking_tags(text: str) -> str:
         r'^(?:First|Let me|I need to|I should|I\'ll|I will)\s+',
         r'^(?:Hmm|Well|Alright|The user)',
         r'^(?:Since|Looking at|Based on)\s+(?:the|this|my)',
+        # 새로 추가된 시작 패턴
+        r'^to\s+".*?"\s+in\s+(?:Japanese|Korean|English)',  # 'to "query" in Japanese' 형태
+        r'^(?:Now|So),?\s+(?:I|let me|the)',
+        r'^The\s+(?:first|second|main|relevant)\s+',
+        r'^(?:Looking|Analyzing|Examining)\s+',
     ]
 
     is_thinking_response = any(
@@ -180,6 +221,8 @@ class DeepAgentAdapter(BaseAgent):
         self._memory_store = memory_store
         self._user_id = user_id
         self._composite_backend = None
+        self._current_language = None  # 언어 변경 시 에이전트 재생성을 위한 추적
+        self._base_system_prompt = system_prompt  # 원본 system_prompt 보존
 
         if not DEEPAGENTS_AVAILABLE:
             logger.warning(f"[{self.name}] Deep Agents not available")
@@ -188,19 +231,35 @@ class DeepAgentAdapter(BaseAgent):
             logger.info(f"[{self.name}] Long-term memory backends not available, using ephemeral storage")
 
     def _get_llm(self):
-        """LLM instance - NIM first, Ollama fallback"""
+        """LLM instance - NIM first, Ollama fallback
+
+        Supports RAG_LLM_USE_LARGE_CONTEXT environment variable:
+        - When true: Uses Mistral NeMo 12B (128K context) for better RAG performance
+        - When false/unset: Uses Nemotron Nano 9B (8K context)
+        """
         if self._llm is not None:
             return self._llm
 
-        llm_api_url = os.getenv("LLM_API_URL")
-        llm_model = os.getenv("LLM_MODEL", "nvidia/nvidia-nemotron-nano-9b-v2")
+        # Check if large context mode is enabled for RAG
+        use_large_context = os.getenv("RAG_LLM_USE_LARGE_CONTEXT", "false").lower() == "true"
+
+        if use_large_context:
+            # Use Mistral NeMo 12B (128K context) for better RAG performance
+            llm_api_url = os.getenv("CODE_LLM_API_URL")
+            llm_model = os.getenv("CODE_LLM_MODEL", "mistralai/Mistral-Nemo-Instruct-2407")
+            context_info = "Large Context (128K)"
+        else:
+            # Default: Nemotron Nano 9B (8K context)
+            llm_api_url = os.getenv("LLM_API_URL")
+            llm_model = os.getenv("LLM_MODEL", "nvidia/nvidia-nemotron-nano-9b-v2")
+            context_info = "Standard (8K)"
 
         if llm_api_url and LANGCHAIN_OPENAI_AVAILABLE:
             base_url = llm_api_url.replace("/chat/completions", "")
             if not base_url.endswith("/v1"):
                 base_url = base_url.rstrip("/") + "/v1"
 
-            logger.info(f"[{self.name}] Using NIM: {llm_model}")
+            logger.info(f"[{self.name}] Using NIM {context_info}: {llm_model}")
             return ChatOpenAI(
                 api_key="not-needed",
                 base_url=base_url,
@@ -280,8 +339,20 @@ class DeepAgentAdapter(BaseAgent):
 
         return backend_factory
 
-    def _create_deep_agent(self):
-        """Deep Agent 인스턴스 생성 (Lazy initialization with Long-term Memory)"""
+    def _create_deep_agent(self, language: Optional[str] = None):
+        """
+        Deep Agent 인스턴스 생성 (Lazy initialization with Long-term Memory)
+
+        Args:
+            language: 사용자 설정 언어 (ko, en, ja). 언어가 변경되면 에이전트 재생성.
+        """
+        # 언어가 변경되면 에이전트 재생성
+        if language and language != self._current_language:
+            if self._deep_agent is not None:
+                logger.info(f"[{self.name}] Language changed ({self._current_language} -> {language}), recreating agent")
+                self._deep_agent = None
+            self._current_language = language
+
         if self._deep_agent is not None:
             return self._deep_agent
 
@@ -290,11 +361,39 @@ class DeepAgentAdapter(BaseAgent):
 
         llm = self._get_llm()
 
+        # 언어 지시가 포함된 system_prompt 빌드
+        final_system_prompt = self.system_prompt or ""
+
+        if language and language != "auto":
+            language_names = {"en": "English", "ko": "Korean", "ja": "Japanese"}
+            lang_native = {"en": "English", "ko": "한국어", "ja": "日本語"}
+            lang_name = language_names.get(language, language)
+            native_name = lang_native.get(language, lang_name)
+
+            # 언어 지시를 system_prompt 최상단에 PREPEND
+            language_instruction = f"""🔴 MANDATORY RESPONSE LANGUAGE: {lang_name} ({native_name})
+
+You MUST respond ONLY in {lang_name} ({native_name}).
+This is the user's configured UI language setting - NOT negotiable.
+The query language does NOT determine your response language.
+IGNORE the language of the user's question. ALWAYS respond in {lang_name}.
+
+Exception: ONLY switch language if user EXPLICITLY writes:
+- "Answer in English" / "영어로 답변해줘" / "英語で答えて"
+- "한국어로 답변해줘" / "Answer in Korean" / "韓国語で答えて"
+- "日本語で答えて" / "일본어로 답변해줘" / "Answer in Japanese"
+
+═══════════════════════════════════════════════════════════════
+
+"""
+            final_system_prompt = language_instruction + final_system_prompt
+            logger.info(f"[{self.name}] Language instruction PREPENDED to system_prompt: {lang_name}")
+
         # Create Deep Agent with optional long-term memory
         agent_kwargs = {
             "model": llm,
             "tools": self._custom_tools if self._custom_tools else None,
-            "system_prompt": self.system_prompt,
+            "system_prompt": final_system_prompt,
         }
 
         # Add LangGraph store for persistence
@@ -347,7 +446,9 @@ class DeepAgentAdapter(BaseAgent):
             )
 
         try:
-            agent = self._create_deep_agent()
+            # 🔴 언어 설정을 전달하여 에이전트 생성 (언어 변경 시 자동 재생성)
+            user_language = context.language if context.language and context.language != "auto" else None
+            agent = self._create_deep_agent(language=user_language)
 
             # 대화 히스토리 변환
             messages = []
@@ -356,6 +457,9 @@ class DeepAgentAdapter(BaseAgent):
                     messages.append(HumanMessage(content=hist["question"]))
                 if "answer" in hist:
                     messages.append(AIMessage(content=hist["answer"]))
+
+            # 언어 지시는 이제 _create_deep_agent()에서 system_prompt에 직접 포함됨
+            # (SystemMessage 방식보다 효과적)
 
             # 🚨 CRITICAL: Handle file_context (Session Context vs Database Separation)
             # User-attached files/URLs must be answered from DIRECTLY without using search tools
@@ -464,17 +568,30 @@ User Query: {task}"""
         task: str,
         context: AgentContext
     ) -> AsyncGenerator[AgentStreamChunk, None]:
-        """스트리밍 실행"""
+        """스트리밍 실행 with sources extraction"""
         yield AgentStreamChunk(chunk_type="thinking", content="Processing...")
 
         try:
+            # Execute and get result
             result = await self.execute(task, context)
+
+            # Extract sources from context metadata (set by tools during execution)
+            sources = context.metadata.get("sources", []) if context.metadata else []
 
             # 결과를 청크로 스트리밍
             chunk_size = 50
             for i in range(0, len(result.answer), chunk_size):
                 chunk = result.answer[i:i + chunk_size]
                 yield AgentStreamChunk(chunk_type="text", content=chunk)
+
+            # Yield sources before done (if available)
+            if sources:
+                logger.info(f"[{self.name}] Yielding {len(sources)} sources from Deep Agent")
+                print(f"[DeepAgentAdapter] Yielding {len(sources)} sources", flush=True)
+                yield AgentStreamChunk(
+                    chunk_type="sources",
+                    sources=sources[:10]  # Limit to 10 sources
+                )
 
             yield AgentStreamChunk(
                 chunk_type="done",
@@ -619,48 +736,65 @@ def create_rag_deep_agent(
     if additional_tools:
         tools.extend(additional_tools)
 
-    # 기본 시스템 프롬프트 (Long-term Memory 기능 설명 추가)
-    default_prompt = """You are a RAG (Retrieval-Augmented Generation) assistant with long-term memory capabilities.
-You have access to a knowledge base through vector_search, graph_query, image_search, and adaptive_search tools.
+    # =========================================================================
+    # 통합된 시스템 프롬프트: rag_agent.txt 로드 + Deep Agent 전용 보충
+    # =========================================================================
 
-## Available Tools
+    # 1. rag_agent.txt에서 기본 프롬프트 로드 (일반 RAG Agent와 동일)
+    base_prompt = _load_agent_prompt("rag")
 
-### vector_search
-Search the general knowledge base using semantic similarity. Best for quick lookups.
+    # 2. Deep Agent 전용 보충 (도구 상세 설명 + Long-term Memory)
+    deep_agent_supplement = """
 
-### graph_query
-Query entity relationships in the knowledge graph. Use for exploring connections between concepts.
+## Deep Agent Specific: Available Tools
 
-### image_search
-Search for images, diagrams, and charts in documents. Use when questions involve visual content.
-
-### adaptive_search
-**Important**: Use this tool for PDF documents processed with adaptive embedding.
+### adaptive_search (PRIORITY 1)
+**Use this tool FIRST** for PDF documents processed with adaptive embedding.
 - Preserves document structure (sections, tables, images)
 - Returns results with hierarchical context (parent sections, references)
 - Best for technical manuals, structured reports, and detailed document exploration
 - Can filter by PDF ID or section path
 - Expands related chunks automatically for fuller context
 
-## Long-term Memory
+### vector_search (PRIORITY 2)
+Search the general knowledge base using semantic similarity.
+- Use when adaptive_search returns no results
+- Best for quick lookups and general queries
+
+### graph_query (OPTIONAL)
+Query entity relationships in the knowledge graph.
+- Use for exploring connections between concepts
+
+### image_search (OPTIONAL)
+Search for images, diagrams, and charts in documents.
+- Use when questions involve visual content
+
+## Deep Agent Specific: Long-term Memory
 You can store and retrieve information across conversations using file paths:
 - /memories/: General long-term memory
 - /preferences/: User preferences that persist
 - /knowledge/: Accumulated knowledge from conversations
 - /instructions/: Self-improving instructions based on feedback
 - /research/: Research progress across sessions
+"""
 
-When answering questions:
-1. Use adaptive_search first for structured PDF documents with sections
-2. Use vector_search for general knowledge base queries
-3. Use graph_query to explore entity relationships
-4. Use image_search for diagrams, charts, or visual content
-5. Synthesize information from multiple sources
-6. Always cite your sources with page numbers when available
-7. Store important insights in /knowledge/ for future reference
-8. Remember user preferences in /preferences/
+    # 3. 최종 프롬프트 조합
+    if base_prompt:
+        default_prompt = base_prompt + deep_agent_supplement
+        logger.info("[DeepAgent] Using integrated prompt: rag_agent.txt + Deep Agent supplement")
+    else:
+        # Fallback: 기본 프롬프트 (rag_agent.txt 로드 실패 시)
+        default_prompt = """You are an intelligent knowledge assistant powered by a Hybrid RAG system.
 
-Answer in the user's language."""
+IMPORTANT: Do NOT show your internal reasoning or thinking process to the user.
+Do NOT start responses with phrases like "Okay, the user is asking...", "First, I need to...", "Let me think...", etc.
+Provide direct, helpful answers without exposing your thought process.
+
+Search the knowledge base using tools before answering.
+If no relevant information is found, clearly state that.
+Respond in the user's configured language preference.
+""" + deep_agent_supplement
+        logger.warning("[DeepAgent] Using fallback prompt (rag_agent.txt not found)")
 
     return DeepAgentAdapter(
         name=name,
