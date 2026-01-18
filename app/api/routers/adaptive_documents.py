@@ -6,9 +6,19 @@ Endpoints for adaptive PDF chunking and embedding.
 """
 import logging
 import uuid
+import os
+from pathlib import Path
+from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
+
+# Upload directory for pending PDFs
+UPLOAD_DIR = Path("/opt/kms/uploads/adaptive")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+# Background embedding status tracking (pdf_id -> status)
+_embedding_status: dict = {}
 
 from ..models.adaptive_chunk import (
     AdaptiveProcessRequest,
@@ -72,6 +82,279 @@ async def list_adaptive_documents(
         return result
     except Exception as e:
         logger.error(f"Error listing adaptive documents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/upload")
+async def upload_pdf_only(
+    file: UploadFile = File(..., description="PDF file to upload (without processing)")
+):
+    """
+    Upload a PDF file without processing.
+    PDF 파일만 업로드 (처리하지 않음)
+
+    Files are stored in the uploads directory for later embedding.
+    """
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+    # Read file content
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    # Use original filename (browser may include folder path, extract basename only)
+    base_filename = Path(file.filename).name
+    safe_filename = base_filename.replace(" ", "_")
+
+    # Check if file already exists, add numeric suffix if needed
+    file_path = UPLOAD_DIR / safe_filename
+    if file_path.exists():
+        # Add numeric suffix to avoid overwriting
+        stem = file_path.stem
+        suffix = file_path.suffix
+        counter = 1
+        while file_path.exists():
+            safe_filename = f"{stem}_{counter}{suffix}"
+            file_path = UPLOAD_DIR / safe_filename
+            counter += 1
+
+    try:
+        # Save file to uploads directory
+        with open(file_path, "wb") as f:
+            f.write(content)
+
+        logger.info(f"Uploaded PDF: {safe_filename} ({len(content)} bytes)")
+
+        return JSONResponse(content={
+            "status": "uploaded",
+            "filename": safe_filename,
+            "original_name": base_filename,
+            "size": len(content),
+            "path": str(file_path),
+            "uploaded_at": datetime.now(timezone.utc).isoformat()
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to upload PDF: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+
+@router.get("/pending")
+async def list_pending_uploads():
+    """
+    List all pending PDF uploads that haven't been embedded yet.
+    아직 임베딩되지 않은 대기 중인 PDF 목록 조회
+    """
+    try:
+        pending_files = []
+
+        if UPLOAD_DIR.exists():
+            for file_path in UPLOAD_DIR.glob("*.pdf"):
+                stat = file_path.stat()
+                pending_files.append({
+                    "filename": file_path.name,
+                    "size": stat.st_size,
+                    "uploaded_at": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+                    "path": str(file_path)
+                })
+
+        # Sort by upload time (newest first)
+        pending_files.sort(key=lambda x: x["uploaded_at"], reverse=True)
+
+        return JSONResponse(content={
+            "status": "ok",
+            "total": len(pending_files),
+            "files": pending_files
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to list pending uploads: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/embed-batch")
+async def embed_batch(
+    filenames: List[str],
+    background_tasks: BackgroundTasks,
+    language: str = Query(default="auto", description="Document language"),
+    max_chunk_size: int = Query(default=1500, ge=200, le=4000),
+    min_chunk_size: int = Query(default=100, ge=50, le=500),
+    preserve_tables: bool = Query(default=True),
+    preserve_sections: bool = Query(default=True),
+    service = Depends(get_adaptive_embedding_service)
+):
+    """
+    Start batch embedding for selected files.
+    선택한 파일들의 일괄 임베딩 시작
+
+    Returns task IDs for tracking progress of each file.
+    Processing happens in background - use /status/{task_id} to check progress.
+    """
+    if not filenames:
+        raise HTTPException(status_code=400, detail="No files selected")
+
+    results = []
+
+    for filename in filenames:
+        file_path = UPLOAD_DIR / filename
+
+        if not file_path.exists():
+            results.append({
+                "filename": filename,
+                "status": "error",
+                "error": "File not found"
+            })
+            continue
+
+        if not filename.lower().endswith('.pdf'):
+            results.append({
+                "filename": filename,
+                "status": "error",
+                "error": "Not a PDF file"
+            })
+            continue
+
+        try:
+            # Read file content
+            with open(file_path, "rb") as f:
+                content = f.read()
+
+            # Generate PDF ID (use as task_id for simplicity)
+            pdf_id = f"pdf_{uuid.uuid4().hex[:12]}"
+
+            # Create processing options
+            options = AdaptiveProcessRequest(
+                language=language,
+                max_chunk_size=max_chunk_size,
+                min_chunk_size=min_chunk_size,
+                preserve_tables=preserve_tables,
+                preserve_sections=preserve_sections,
+                force_reprocess=False
+            )
+
+            # Initialize status tracking
+            _embedding_status[pdf_id] = {
+                "status": "pending",
+                "progress": 0,
+                "message": "Queued for processing",
+                "filename": filename
+            }
+
+            # Start processing in background
+            background_tasks.add_task(
+                process_pdf_background,
+                service, content, pdf_id, options, filename, file_path
+            )
+
+            results.append({
+                "filename": filename,
+                "status": "processing",
+                "pdf_id": pdf_id,
+                "task_id": pdf_id,  # Use pdf_id as task_id for status tracking
+                "estimated_chunks": 0  # Will be updated during processing
+            })
+
+        except Exception as e:
+            logger.error(f"Failed to start embedding for {filename}: {e}")
+            results.append({
+                "filename": filename,
+                "status": "error",
+                "error": str(e)
+            })
+
+    return JSONResponse(content={
+        "status": "batch_started",
+        "total": len(filenames),
+        "results": results
+    })
+
+
+async def process_pdf_background(service, content: bytes, pdf_id: str, options, filename: str, file_path: Path):
+    """Background task to process PDF embedding."""
+    try:
+        logger.info(f"Starting background embedding for {filename} (pdf_id={pdf_id})")
+
+        # Update status
+        _embedding_status[pdf_id] = {
+            "status": "analyzing",
+            "progress": 10,
+            "message": "Analyzing document structure",
+            "filename": filename
+        }
+
+        # Define progress callback
+        def on_progress(stage: str, progress: float, message: str):
+            logger.warning(f"PROGRESS_CALLBACK: pdf_id={pdf_id}, stage={stage}, progress={progress}%")
+            _embedding_status[pdf_id] = {
+                "status": stage,
+                "progress": int(progress),
+                "message": message,
+                "filename": filename
+            }
+
+        # Process PDF with progress tracking
+        result = await service.process_pdf(
+            content, pdf_id, options,
+            document_name=filename,
+            on_progress=on_progress
+        )
+
+        # Update final status
+        if result.status.value == "completed":
+            _embedding_status[pdf_id] = {
+                "status": "completed",
+                "progress": 100,
+                "message": f"Completed with {result.estimated_chunks} chunks",
+                "filename": filename,
+                "chunks_processed": result.estimated_chunks
+            }
+        else:
+            _embedding_status[pdf_id] = {
+                "status": "failed",
+                "progress": 0,
+                "message": result.message,
+                "filename": filename
+            }
+
+        # Delete file after successful processing
+        try:
+            file_path.unlink()
+            logger.info(f"Deleted pending file after embedding: {filename}")
+        except Exception as del_err:
+            logger.warning(f"Failed to delete pending file {filename}: {del_err}")
+
+        logger.info(f"Completed background embedding for {filename} (pdf_id={pdf_id})")
+
+    except Exception as e:
+        logger.error(f"Background embedding failed for {filename}: {e}")
+        _embedding_status[pdf_id] = {
+            "status": "failed",
+            "progress": 0,
+            "message": str(e),
+            "filename": filename
+        }
+
+
+@router.delete("/pending/{filename}")
+async def delete_pending_upload(filename: str):
+    """
+    Delete a pending upload file.
+    대기 중인 업로드 파일 삭제
+    """
+    file_path = UPLOAD_DIR / filename
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    try:
+        file_path.unlink()
+        return JSONResponse(content={
+            "status": "deleted",
+            "filename": filename
+        })
+    except Exception as e:
+        logger.error(f"Failed to delete {filename}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -546,8 +829,23 @@ async def get_processing_status(
 ):
     """
     Get processing status for a task.
+    Checks both service status and background embedding status.
     """
     try:
+        # First check background embedding status (for batch embedding)
+        if task_id in _embedding_status:
+            status_data = _embedding_status[task_id]
+            return JSONResponse(content={
+                "task_id": task_id,
+                "pdf_id": task_id,  # In our case, task_id == pdf_id
+                "status": status_data.get("status", "unknown"),
+                "progress": status_data.get("progress", 0),
+                "message": status_data.get("message", ""),
+                "chunks_processed": status_data.get("chunks_processed", 0),
+                "chunks_total": status_data.get("chunks_total", 0)
+            })
+
+        # Fallback to service status
         status = service.get_processing_status(task_id)
         return JSONResponse(content=status)
 
@@ -683,6 +981,42 @@ async def refresh_coverage(
         raise
     except Exception as e:
         logger.error(f"Failed to refresh coverage: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{pdf_id}/evaluate-quality")
+async def evaluate_quality(
+    pdf_id: str,
+    service = Depends(get_adaptive_embedding_service)
+):
+    """
+    Run quality evaluation for a document on-demand.
+
+    Quality evaluation is a separate operation from embedding to allow faster
+    embedding completion. This endpoint evaluates embedding quality including:
+    - Top-K recall
+    - Section precision
+    - Average similarity
+    - Hallucination detection
+
+    Note: Quality evaluation can be slow for large documents (O(n²) complexity).
+    Documents with more than 10,000 chunks will be skipped.
+
+    품질 평가를 온디맨드로 실행합니다.
+    임베딩 완료 후 별도로 실행하여 임베딩 파이프라인 속도를 높입니다.
+    """
+    try:
+        result = await service.evaluate_quality_for_pdf(pdf_id)
+
+        if result["status"] == "error":
+            raise HTTPException(status_code=404, detail=result["message"])
+
+        return JSONResponse(content=result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to evaluate quality for {pdf_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

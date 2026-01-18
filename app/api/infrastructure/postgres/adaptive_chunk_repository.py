@@ -122,15 +122,90 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
 
         return chunk.chunk_id
 
-    async def save_chunks_batch(self, chunks: List[AdaptiveChunk]) -> int:
-        """Save multiple chunks at once."""
+    async def save_chunks_batch(self, chunks: List[AdaptiveChunk], batch_size: int = 50) -> int:
+        """
+        Save multiple chunks at once using batch processing.
+        Uses concurrent batch inserts for better performance.
+
+        Args:
+            chunks: List of chunks to save
+            batch_size: Number of chunks per batch (default 50)
+
+        Returns:
+            Number of successfully saved chunks
+        """
+        if not chunks:
+            return 0
+
+        await self._ensure_table()
         saved = 0
-        for chunk in chunks:
-            try:
-                await self.save_chunk(chunk)
-                saved += 1
-            except Exception as e:
-                logger.error(f"Failed to save chunk {chunk.chunk_id}: {e}")
+        total = len(chunks)
+
+        # Process in batches for better performance
+        for i in range(0, total, batch_size):
+            batch = chunks[i:i + batch_size]
+            batch_saved = 0
+
+            async with self._pool.acquire() as conn:
+                # Use transaction for batch
+                async with conn.transaction():
+                    for chunk in batch:
+                        try:
+                            has_embedding = chunk.has_embedding
+                            relations_json = json.dumps(chunk.relations.to_dict())
+                            acl_json = json.dumps(chunk.acl)
+                            metadata_json = json.dumps(chunk.metadata)
+
+                            if has_embedding and chunk.embedding:
+                                embedding_str = "[" + ",".join(str(v) for v in chunk.embedding) + "]"
+                                await conn.execute("""
+                                    INSERT INTO adaptive_pdf_chunks
+                                    (pdf_id, chunk_id, chunk_type, content, page_start, page_end,
+                                     section_path, section_title, parent_section_id, relations,
+                                     embedding, embedding_model_version, has_embedding,
+                                     chunk_version, content_hash, acl, metadata)
+                                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb,
+                                            $11::vector, $12, $13, $14, $15, $16::jsonb, $17::jsonb)
+                                    ON CONFLICT (chunk_id) DO UPDATE SET
+                                        content = EXCLUDED.content,
+                                        embedding = EXCLUDED.embedding,
+                                        has_embedding = EXCLUDED.has_embedding,
+                                        updated_at = NOW()
+                                """, chunk.pdf_id, chunk.chunk_id, chunk.chunk_type.value,
+                                    chunk.content, chunk.page_start, chunk.page_end,
+                                    chunk.section_path, chunk.section_title, chunk.parent_section_id,
+                                    relations_json, embedding_str, chunk.embedding_model_version,
+                                    has_embedding, chunk.chunk_version, chunk.content_hash,
+                                    acl_json, metadata_json)
+                            else:
+                                await conn.execute("""
+                                    INSERT INTO adaptive_pdf_chunks
+                                    (pdf_id, chunk_id, chunk_type, content, page_start, page_end,
+                                     section_path, section_title, parent_section_id, relations,
+                                     embedding_model_version, has_embedding,
+                                     chunk_version, content_hash, acl, metadata)
+                                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb,
+                                            $11, $12, $13, $14, $15::jsonb, $16::jsonb)
+                                    ON CONFLICT (chunk_id) DO UPDATE SET
+                                        content = EXCLUDED.content,
+                                        updated_at = NOW()
+                                """, chunk.pdf_id, chunk.chunk_id, chunk.chunk_type.value,
+                                    chunk.content, chunk.page_start, chunk.page_end,
+                                    chunk.section_path, chunk.section_title, chunk.parent_section_id,
+                                    relations_json, chunk.embedding_model_version,
+                                    has_embedding, chunk.chunk_version, chunk.content_hash,
+                                    acl_json, metadata_json)
+
+                            batch_saved += 1
+                        except Exception as e:
+                            logger.error(f"Failed to save chunk {chunk.chunk_id}: {e}")
+
+            saved += batch_saved
+
+            # Log progress every 500 chunks for large batches
+            if total > 100 and saved % 500 < batch_size:
+                logger.warning(f"SAVE_DEBUG: Saved {saved}/{total} chunks ({saved * 100 // total}%)")
+
         return saved
 
     async def get_chunk(self, chunk_id: str) -> Optional[AdaptiveChunk]:
@@ -259,9 +334,10 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
         min_similarity: float = 0.3,
         pdf_id: Optional[str] = None,
         chunk_types: Optional[List[ChunkType]] = None,
-        section_path_prefix: Optional[str] = None
+        section_path_prefix: Optional[str] = None,
+        keyword_filter: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Search for similar chunks by embedding."""
+        """Search for similar chunks by embedding with optional keyword filter."""
         await self._ensure_table()
 
         embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
@@ -287,7 +363,12 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
             params.append(f"{section_path_prefix}%")
             param_idx += 1
 
-        conditions.append(f"1 - (ac.embedding <=> $1::vector) >= {min_similarity}")
+        # Keyword filter for exact matches (e.g., error codes like -5212)
+        # Also search in section_title which often contains error code identifiers
+        if keyword_filter:
+            conditions.append(f"(ac.content ILIKE ${param_idx} OR ac.section_title ILIKE ${param_idx})")
+            params.append(f"%{keyword_filter}%")
+            param_idx += 1
 
         where_clause = " AND ".join(conditions)
 
@@ -652,7 +733,8 @@ class PostgresCoverageRepository(CoverageRepositoryPort):
         await self._ensure_table()
 
         coverage_report_json = json.dumps(coverage.coverage_report.to_dict())
-        quality_metrics_json = json.dumps(coverage.quality_metrics.to_dict())
+        # Handle None quality_metrics (quality evaluation is now on-demand)
+        quality_metrics_json = json.dumps(coverage.quality_metrics.to_dict()) if coverage.quality_metrics else None
 
         async with self._pool.acquire() as conn:
             await conn.execute("""

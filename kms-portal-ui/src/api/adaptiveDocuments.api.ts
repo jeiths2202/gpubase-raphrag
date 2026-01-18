@@ -232,6 +232,7 @@ const API_PREFIX = '/documents/adaptive';
  */
 export interface AdaptiveDocumentListItem {
   pdf_id: string;
+  document_name?: string;
   document_type: DocumentType;
   total_pages: number;
   total_sections: number;
@@ -272,12 +273,12 @@ export const processAdaptivePDF = async (
   const url = `${API_PREFIX}/process${queryString ? `?${queryString}` : ''}`;
 
   // PDF processing can take a long time (structure analysis, chunking, embedding)
-  // Use extended timeout of 5 minutes for large documents
+  // No timeout for large document processing
   const response = await apiClient.post<AdaptiveProcessResponse>(url, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
-    timeout: 300000, // 5 minutes timeout for PDF processing
+    timeout: 0, // No timeout
   });
   return response.data;
 };
@@ -326,6 +327,39 @@ export const getQuality = async (pdfId: string): Promise<QualityResponse> => {
  */
 export const refreshQuality = async (pdfId: string): Promise<QualityResponse> => {
   const response = await apiClient.post<QualityResponse>(`${API_PREFIX}/${pdfId}/refresh-quality`);
+  return response.data;
+};
+
+/**
+ * Evaluate quality response
+ */
+export interface EvaluateQualityResponse {
+  status: 'completed' | 'skipped' | 'error';
+  message: string;
+  pdf_id?: string;
+  chunks_evaluated?: number;
+  quality_metrics?: {
+    top_k_recall: number;
+    section_precision: number;
+    avg_similarity: number;
+    embedding_dimension: number;
+    quality_level: string;
+    hallucination_detected: boolean;
+    hallucination_details?: string[];
+  };
+}
+
+/**
+ * Evaluate quality for a document (on-demand)
+ * Quality evaluation is separate from embedding to allow faster embedding completion.
+ * 품질 평가를 온디맨드로 실행 (임베딩 완료 후 별도 실행)
+ */
+export const evaluateQuality = async (pdfId: string): Promise<EvaluateQualityResponse> => {
+  const response = await apiClient.post<EvaluateQualityResponse>(
+    `${API_PREFIX}/${pdfId}/evaluate-quality`,
+    {},
+    { timeout: 300000 } // 5 minutes timeout for large documents
+  );
   return response.data;
 };
 
@@ -386,6 +420,116 @@ export const batchDeleteAdaptiveDocuments = async (pdfIds: string[]): Promise<Ba
 };
 
 // =============================================================================
+// Pending Upload Types and Functions
+// =============================================================================
+
+/**
+ * Pending upload file item
+ */
+export interface PendingUploadItem {
+  filename: string;
+  size: number;
+  uploaded_at: string;
+  path: string;
+}
+
+/**
+ * Pending uploads response
+ */
+export interface PendingUploadsResponse {
+  status: string;
+  total: number;
+  files: PendingUploadItem[];
+}
+
+/**
+ * Upload response (without processing)
+ */
+export interface UploadOnlyResponse {
+  status: string;
+  filename: string;
+  original_name: string;
+  size: number;
+  path: string;
+  uploaded_at: string;
+}
+
+/**
+ * Batch embed result item
+ */
+export interface BatchEmbedResultItem {
+  filename: string;
+  status: 'processing' | 'error';
+  pdf_id?: string;
+  task_id?: string;
+  estimated_chunks?: number;
+  error?: string;
+}
+
+/**
+ * Batch embed response
+ */
+export interface BatchEmbedResponse {
+  status: string;
+  total: number;
+  results: BatchEmbedResultItem[];
+}
+
+/**
+ * Upload PDF without processing (store only)
+ */
+export const uploadPdfOnly = async (file: File): Promise<UploadOnlyResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await apiClient.post<UploadOnlyResponse>(`${API_PREFIX}/upload`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
+/**
+ * List pending uploads (not yet embedded)
+ */
+export const listPendingUploads = async (): Promise<PendingUploadsResponse> => {
+  const response = await apiClient.get<PendingUploadsResponse>(`${API_PREFIX}/pending`);
+  return response.data;
+};
+
+/**
+ * Start batch embedding for selected files
+ */
+export const startBatchEmbed = async (
+  filenames: string[],
+  options: AdaptiveProcessOptions = {}
+): Promise<BatchEmbedResponse> => {
+  const params = new URLSearchParams();
+  if (options.language) params.append('language', options.language);
+  if (options.maxChunkSize !== undefined) params.append('max_chunk_size', options.maxChunkSize.toString());
+  if (options.minChunkSize !== undefined) params.append('min_chunk_size', options.minChunkSize.toString());
+  if (options.preserveTables !== undefined) params.append('preserve_tables', options.preserveTables.toString());
+  if (options.preserveSections !== undefined) params.append('preserve_sections', options.preserveSections.toString());
+
+  const queryString = params.toString();
+  const url = `${API_PREFIX}/embed-batch${queryString ? `?${queryString}` : ''}`;
+
+  const response = await apiClient.post<BatchEmbedResponse>(url, filenames);
+  return response.data;
+};
+
+/**
+ * Delete a pending upload
+ */
+export const deletePendingUpload = async (filename: string): Promise<{ status: string; filename: string }> => {
+  const response = await apiClient.delete<{ status: string; filename: string }>(
+    `${API_PREFIX}/pending/${encodeURIComponent(filename)}`
+  );
+  return response.data;
+};
+
+// =============================================================================
 // Export default API object
 // =============================================================================
 
@@ -402,6 +546,11 @@ export const adaptiveDocumentsApi = {
   getStatus: getProcessingStatus,
   delete: deleteAdaptiveDocument,
   batchDelete: batchDeleteAdaptiveDocuments,
+  // Pending upload functions
+  uploadOnly: uploadPdfOnly,
+  listPending: listPendingUploads,
+  startBatchEmbed,
+  deletePending: deletePendingUpload,
 };
 
 export default adaptiveDocumentsApi;

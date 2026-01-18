@@ -311,8 +311,14 @@
       "viewCoverage": "커버리지 보기",
       "viewQuality": "품질 보기",
       "viewStructure": "구조 보기",
+      "evaluateQuality": "품질 평가 실행",
       "delete": "삭제",
       "refresh": "새로고침"
+    },
+    "qualityEvaluation": {
+      "completed": "품질 평가 완료",
+      "failed": "품질 평가 실패",
+      "running": "품질 평가 중..."
     },
     "documents": {
       "title": "적응형 문서",

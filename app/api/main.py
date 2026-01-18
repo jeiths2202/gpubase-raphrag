@@ -578,6 +578,20 @@ if __name__ == "__main__":
         "log_level": log_level,
     }
 
+    # Exclude directories from reload watching to prevent restart during file operations
+    # This fixes the issue where deleting uploaded files triggers unwanted server restart
+    if reload:
+        uvicorn_config["reload_excludes"] = [
+            "uploads/*",           # Pending upload files
+            "logs/*",              # Log files
+            "data/*",              # Data directories
+            "*.log",               # Any log files
+            "__pycache__/*",       # Python cache
+            ".git/*",              # Git directory
+            "*.pyc",               # Compiled Python files
+        ]
+        uvicorn_config["reload_dirs"] = ["app"]  # Only watch app directory
+
     # On Windows, use asyncio event loop to ensure ProactorEventLoop is used
     if sys.platform == 'win32':
         uvicorn_config["loop"] = "asyncio"

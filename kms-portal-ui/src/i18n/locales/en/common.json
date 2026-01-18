@@ -311,8 +311,14 @@
       "viewCoverage": "View Coverage",
       "viewQuality": "View Quality",
       "viewStructure": "View Structure",
+      "evaluateQuality": "Run Quality Evaluation",
       "delete": "Delete",
       "refresh": "Refresh"
+    },
+    "qualityEvaluation": {
+      "completed": "Quality Evaluation Complete",
+      "failed": "Quality evaluation failed",
+      "running": "Running quality evaluation..."
     },
     "documents": {
       "title": "Adaptive Documents",

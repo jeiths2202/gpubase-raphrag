@@ -311,8 +311,14 @@
       "viewCoverage": "カバレッジ表示",
       "viewQuality": "品質表示",
       "viewStructure": "構造表示",
+      "evaluateQuality": "品質評価を実行",
       "delete": "削除",
       "refresh": "更新"
+    },
+    "qualityEvaluation": {
+      "completed": "品質評価完了",
+      "failed": "品質評価に失敗しました",
+      "running": "品質評価中..."
     },
     "documents": {
       "title": "適応型ドキュメント",

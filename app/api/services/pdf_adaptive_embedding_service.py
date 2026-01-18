@@ -9,6 +9,7 @@ Orchestrates the complete adaptive embedding pipeline:
 4. Coverage Validation
 5. Quality Evaluation
 """
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -126,6 +127,8 @@ class PDFAdaptiveEmbeddingService:
             "message": "Starting processing..."
         }
 
+        logger.warning(f"SERVICE_DEBUG: process_pdf called, pdf_id={pdf_id}, on_progress={on_progress is not None}")
+
         try:
             # Check if already processed
             if not options.force_reprocess:
@@ -215,6 +218,7 @@ class PDFAdaptiveEmbeddingService:
                 "overlap_size": options.overlap_size,
                 "preserve_tables": options.preserve_tables,
                 "preserve_sections": options.preserve_sections,
+                "filename": document_name or pdf_id,  # Pass filename for error doc detection
             }
 
             plans = await self.chunk_planner.create_chunk_plan(
@@ -248,40 +252,60 @@ class PDFAdaptiveEmbeddingService:
                     if on_progress:
                         on_progress("embedding", pct, f"Embedding: {progress.completed_chunks}/{progress.total_chunks}")
 
+                logger.warning(f"EMBED_PIPELINE: Calling embedding_executor.embed_chunks for {len(chunks)} chunks...")
                 chunks = await self.embedding_executor.embed_chunks(
                     chunks,
                     on_progress=embedding_progress_callback
                 )
+                logger.warning(f"EMBED_PIPELINE: embed_chunks returned, yielding to event loop...")
+                # Yield control to event loop after long operation
+                await asyncio.sleep(0)
+                logger.warning(f"EMBED_PIPELINE: counting embedded chunks...")
                 embedded_count = sum(1 for c in chunks if c.has_embedding)
                 logger.info(f"EMBED_PIPELINE: After embedding, {embedded_count}/{len(chunks)} chunks have embeddings")
             else:
                 logger.warning("No embedding executor provided, skipping embeddings")
 
-            # Save chunks to repository
+            # Save chunks to repository (this can take a while for large documents)
+            self._update_status(task_id, ProcessingStatus.EMBEDDING, 0.87, "Saving chunks to database...")
+            if on_progress:
+                on_progress("saving", 87, f"Saving {len(chunks)} chunks to database...")
+
+            # Yield control before long save operation
+            await asyncio.sleep(0)
+            logger.warning(f"EMBED_PIPELINE: Starting save_chunks_batch for {len(chunks)} chunks...")
             saved_count = await self.chunk_repository.save_chunks_batch(chunks)
-            logger.info(f"Saved {saved_count} chunks for {pdf_id}")
+            logger.warning(f"EMBED_PIPELINE: Saved {saved_count} chunks for {pdf_id}")
+
+            # Yield control after long save operation
+            await asyncio.sleep(0)
 
             # Step 4: Coverage Validation
             self._update_status(task_id, ProcessingStatus.VALIDATING, 0.9, "Validating coverage...")
             if on_progress:
                 on_progress("validating", 90, "Validating embedding coverage...")
 
+            logger.warning(f"EMBED_PIPELINE: Starting coverage validation for {len(chunks)} chunks...")
             # Debug: Log chunk embedding status before validation
             pre_validation_count = sum(1 for c in chunks if c.has_embedding)
-            logger.info(f"COVERAGE_DEBUG: Before validation - {pre_validation_count}/{len(chunks)} chunks have embeddings")
-            # Sample first few chunks
-            for i, chunk in enumerate(chunks[:3]):
-                logger.info(f"COVERAGE_DEBUG: Chunk[{i}] id={chunk.chunk_id}, has_embedding={chunk.has_embedding}, embedding_len={len(chunk.embedding) if chunk.embedding else 0}, _db_has={chunk._db_has_embedding}")
+            logger.warning(f"COVERAGE_DEBUG: Before validation - {pre_validation_count}/{len(chunks)} chunks have embeddings")
+            # Sample first few chunks (skip for large docs)
+            if len(chunks) < 100:
+                for i, chunk in enumerate(chunks[:3]):
+                    logger.warning(f"COVERAGE_DEBUG: Chunk[{i}] id={chunk.chunk_id}, has_embedding={chunk.has_embedding}")
 
             coverage_data = await self.coverage_validator.validate_coverage_with_chunks(pdf_id, chunks)
 
             # Debug: Log coverage data
-            logger.info(f"COVERAGE_DEBUG: After validation - total={coverage_data['total_chunks']}, embedded={coverage_data['embedded_chunks']}, overall={coverage_data['overall_coverage']:.2%}")
+            logger.warning(f"COVERAGE_DEBUG: After validation - total={coverage_data['total_chunks']}, embedded={coverage_data['embedded_chunks']}, overall={coverage_data['overall_coverage']:.2%}")
 
-            # Step 5: Quality Evaluation
-            quality_metrics = await self.quality_evaluator.evaluate_quality(pdf_id, chunks)
+            # Note: Quality evaluation is now a separate on-demand operation
+            # Call evaluate_quality_for_pdf() separately when needed
+            # This speeds up the embedding pipeline significantly
+            quality_metrics = None
 
-            # Save coverage and quality
+            # Save coverage (quality_metrics will be updated later if user requests evaluation)
+            logger.warning(f"EMBED_PIPELINE: Saving coverage data to database...")
             coverage = ChunkEmbeddingCoverage(
                 pdf_id=pdf_id,
                 text_coverage=coverage_data["text_coverage"],
@@ -300,9 +324,11 @@ class PDFAdaptiveEmbeddingService:
                 last_verified_at=datetime.now(timezone.utc)
             )
             await self.coverage_repository.save_coverage(coverage)
+            logger.warning(f"EMBED_PIPELINE: Coverage saved to database")
 
             # Complete
             self._update_status(task_id, ProcessingStatus.COMPLETED, 1.0, "Processing complete")
+            logger.warning(f"EMBED_PIPELINE: ✓ Processing complete for {pdf_id}!")
             if on_progress:
                 on_progress("completed", 100, "Processing complete")
 
@@ -441,6 +467,64 @@ class PDFAdaptiveEmbeddingService:
             return coverage.quality_metrics
         return None
 
+    async def evaluate_quality_for_pdf(self, pdf_id: str) -> Dict[str, Any]:
+        """
+        Run quality evaluation for a document on-demand.
+
+        This is a separate operation from embedding to allow faster embedding completion.
+        Quality evaluation can be slow for large documents (O(n²) complexity).
+
+        Args:
+            pdf_id: Document ID to evaluate
+
+        Returns:
+            Dict with quality metrics or error
+        """
+        try:
+            # Get chunks from repository
+            chunks = await self.chunk_repository.get_chunks_by_pdf(pdf_id)
+
+            if not chunks:
+                return {
+                    "status": "error",
+                    "message": f"No chunks found for pdf_id={pdf_id}"
+                }
+
+            # Check if document is too large
+            if len(chunks) > 10000:
+                return {
+                    "status": "skipped",
+                    "message": f"Document too large for quality evaluation ({len(chunks)} chunks > 10000)",
+                    "chunks_count": len(chunks)
+                }
+
+            logger.info(f"Starting quality evaluation for {pdf_id} with {len(chunks)} chunks")
+
+            # Run quality evaluation
+            quality_metrics = await self.quality_evaluator.evaluate_quality(pdf_id, chunks)
+
+            # Update coverage record with quality metrics
+            coverage = await self.coverage_repository.get_coverage(pdf_id)
+            if coverage:
+                coverage.quality_metrics = quality_metrics
+                await self.coverage_repository.save_coverage(coverage)
+                logger.info(f"Quality evaluation complete for {pdf_id}")
+
+            return {
+                "status": "completed",
+                "message": "Quality evaluation complete",
+                "pdf_id": pdf_id,
+                "chunks_evaluated": len(chunks),
+                "quality_metrics": quality_metrics.to_dict() if quality_metrics else None
+            }
+
+        except Exception as e:
+            logger.error(f"Quality evaluation failed for {pdf_id}: {e}")
+            return {
+                "status": "error",
+                "message": str(e)
+            }
+
     async def get_structure(self, pdf_id: str) -> Optional[PDFStructureAnalysis]:
         """Get structure analysis for a document."""
         return await self.structure_repository.get_analysis(pdf_id)
@@ -452,16 +536,32 @@ class PDFAdaptiveEmbeddingService:
         pdf_id: Optional[str] = None,
         chunk_types: Optional[List[ChunkType]] = None,
         section_path_prefix: Optional[str] = None,
-        min_similarity: float = 0.3
+        min_similarity: float = 0.3,
+        keyword_filter: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Search for similar chunks."""
+        """
+        Search for similar chunks with optional keyword filtering.
+
+        Args:
+            query_embedding: Query vector for semantic similarity
+            limit: Maximum number of results
+            pdf_id: Optional PDF ID filter
+            chunk_types: Optional chunk type filter
+            section_path_prefix: Optional section path filter
+            min_similarity: Minimum similarity threshold
+            keyword_filter: Optional keyword for exact content matching (e.g., error codes)
+
+        Returns:
+            List of matching chunks with similarity scores
+        """
         return await self.chunk_repository.search_similar(
             query_embedding=query_embedding,
             limit=limit,
             min_similarity=min_similarity,
             pdf_id=pdf_id,
             chunk_types=chunk_types,
-            section_path_prefix=section_path_prefix
+            section_path_prefix=section_path_prefix,
+            keyword_filter=keyword_filter
         )
 
     async def delete_document(self, pdf_id: str) -> Dict[str, int]:

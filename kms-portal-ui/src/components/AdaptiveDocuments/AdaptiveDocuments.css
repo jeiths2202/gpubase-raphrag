@@ -427,6 +427,15 @@
   color: #ef4444;
 }
 
+.doc-action-btn--evaluate {
+  color: #059669;
+}
+
+.doc-action-btn--evaluate:hover:not(:disabled) {
+  background: #d1fae5;
+  color: #047857;
+}
+
 /* Modal */
 .adaptive-modal-overlay {
   position: fixed;
@@ -1037,6 +1046,15 @@
 [data-theme="dark"] .doc-action-btn--delete:hover:not(:disabled) {
   background: rgba(239, 68, 68, 0.15);
   color: #f87171;
+}
+
+[data-theme="dark"] .doc-action-btn--evaluate {
+  color: #34d399;
+}
+
+[data-theme="dark"] .doc-action-btn--evaluate:hover:not(:disabled) {
+  background: rgba(5, 150, 105, 0.15);
+  color: #6ee7b7;
 }
 
 /* Pending Uploads Section */

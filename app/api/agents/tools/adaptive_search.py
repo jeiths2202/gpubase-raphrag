@@ -8,10 +8,17 @@ Supports:
 - Page-based image association
 """
 import logging
+import os
 import re
 import unicodedata
 from typing import Dict, Any, Optional, List, Tuple
 import json
+
+# Dynamic top_k based on LLM context size
+# 8K context: top_k=3 to stay within token limits
+# 128K context: top_k=5 for better search coverage
+_USE_LARGE_CONTEXT = os.getenv("RAG_LLM_USE_LARGE_CONTEXT", "false").lower() == "true"
+DEFAULT_TOP_K = 5 if _USE_LARGE_CONTEXT else 3
 
 from .base import BaseTool
 from ..types import ToolResult, AgentContext
@@ -210,8 +217,8 @@ class AdaptiveSearchTool(BaseTool):
                 },
                 "top_k": {
                     "type": "integer",
-                    "description": "Number of results to return (default: 5)",
-                    "default": 5
+                    "description": "Number of results to return (default: 3 for 8K context, 5 for 128K context)",
+                    "default": 3
                 },
                 "pdf_id": {
                     "type": "string",
@@ -265,6 +272,45 @@ class AdaptiveSearchTool(BaseTool):
                 logger.error(f"Failed to get CLIP service: {e}")
         return self._clip_service
 
+    def _extract_error_codes(self, query: str) -> list:
+        """
+        Extract error codes from query for keyword filtering.
+
+        Detects patterns like:
+        - Numeric: -5212, -1234 (with error context)
+        - Named: DSALC_ERR_*, OFM-1234, TIBERO-5678
+        - System: NVSM_ERR_*, OSC_ERR_*
+
+        Returns:
+            List of detected error codes
+        """
+        error_codes = []
+
+        # Pattern 1: Named error codes (DSALC_ERR_DATASET_NOT_FOUND, etc.)
+        named_errors = re.findall(r'[A-Z]+[-_]ERR[-_][A-Z_]+', query, re.IGNORECASE)
+        error_codes.extend(named_errors)
+
+        # Pattern 2: Standard format (OFM-1234, TIBERO-5678)
+        standard_errors = re.findall(r'[A-Z]+-\d{3,5}', query)
+        error_codes.extend(standard_errors)
+
+        # Pattern 3: Numeric error codes with minus sign (-5212, -1234)
+        # Only if query contains error-related context
+        error_context = re.search(
+            r'(에러|오류|error|エラー|코드|code|コード|해결|조치|fix|対処|원인|cause|原因)',
+            query, re.IGNORECASE
+        )
+        if error_context:
+            numeric_errors = re.findall(r'-\d{4,5}', query)
+            error_codes.extend(numeric_errors)
+
+        # Pattern 4: Uppercase error keywords (ERROR_5212, etc.)
+        upper_errors = re.findall(r'[A-Z_]+_\d{4,5}', query)
+        error_codes.extend(upper_errors)
+
+        # Remove duplicates and return
+        return list(set(error_codes))
+
     async def execute(
         self,
         context: AgentContext,
@@ -276,7 +322,7 @@ class AdaptiveSearchTool(BaseTool):
         Args:
             context: Agent execution context
             query: Search query
-            top_k: Number of results (default: 5)
+            top_k: Number of results (default: 3 for 8K context)
             pdf_id: Optional PDF ID filter
             section_filter: Optional section path filter
 
@@ -284,7 +330,7 @@ class AdaptiveSearchTool(BaseTool):
             ToolResult with search results
         """
         query = kwargs.get("query", "")
-        top_k = kwargs.get("top_k", 5)
+        top_k = kwargs.get("top_k", DEFAULT_TOP_K)
         pdf_id = kwargs.get("pdf_id")
         section_filter = kwargs.get("section_filter")
         include_images = kwargs.get("include_images", True)
@@ -310,6 +356,14 @@ class AdaptiveSearchTool(BaseTool):
         if not query:
             return self.create_error_result("Query is required")
 
+        # Detect error codes for keyword filtering (HYBRID search strategy)
+        error_codes = self._extract_error_codes(query)
+        keyword_filter = error_codes[0] if error_codes else None
+
+        if error_codes:
+            print(f"[AdaptiveSearch] Detected error codes: {error_codes}", flush=True)
+            logger.info(f"[AdaptiveSearch] Detected error codes: {error_codes}, using keyword filter")
+
         try:
             # Get services
             adaptive_service = await self._get_adaptive_service()
@@ -324,20 +378,25 @@ class AdaptiveSearchTool(BaseTool):
             if embedding_service is None:
                 return self.create_error_result("Embedding service is not available")
 
-            # Generate query embedding
-            embeddings = await embedding_service.embed_texts([query])
+            # Generate query embedding with input_type="query" for asymmetric search
+            # NV-EmbedQA uses different embedding spaces for queries vs passages
+            embeddings = await embedding_service.embed_texts([query], input_type="query")
             if not embeddings or not embeddings[0]:
                 return self.create_error_result("Failed to generate query embedding")
 
             query_embedding = embeddings[0]
 
-            # Search adaptive chunks
+            # Search adaptive chunks with optional keyword filter for error codes
+            # This implements HYBRID search: keyword filter + semantic ranking
+            # For error code searches, use very low threshold (0.10) to handle cross-lingual queries
+            # e.g., Korean query for Japanese error documentation (similarity ~0.13)
             results = await adaptive_service.search_chunks(
                 query_embedding=query_embedding,
                 limit=top_k,
                 pdf_id=pdf_id,
                 section_path_prefix=section_filter,
-                min_similarity=0.3,
+                min_similarity=0.10 if keyword_filter else 0.3,  # Very low threshold for keyword filter (cross-lingual)
+                keyword_filter=keyword_filter,
             )
 
             print(f"[AdaptiveSearch] Found {len(results) if results else 0} chunks", flush=True)
@@ -460,15 +519,28 @@ class AdaptiveSearchTool(BaseTool):
                     f"   📄 Source: {source_display}\n"
                 )
 
-                if section_title:
-                    chunk_info += f"   📑 Section: {section_title}\n"
-                if section_path:
-                    chunk_info += f"   📍 Path: {section_path}\n"
-
-                # Content preview (truncate if too long)
-                if len(content) > 800:
-                    content = content[:800] + "..."
-                chunk_info += f"   Content:\n   {content}\n"
+                # Content preview - extract relevant portion
+                # If keyword filter is used, extract context around the keyword
+                if keyword_filter and keyword_filter in content:
+                    # Find keyword position and extract surrounding context
+                    kw_pos = content.find(keyword_filter)
+                    start = max(0, kw_pos - 200)  # 200 chars before
+                    end = min(len(content), kw_pos + len(keyword_filter) + 400)  # 400 chars after
+                    original_len = len(content)
+                    content = ("..." if start > 0 else "") + content[start:end] + ("..." if end < len(content) else "")
+                    print(f"[AdaptiveSearch] Extracted keyword context: {original_len} -> {len(content)} chars", flush=True)
+                    # Add keyword match indicator - THIS IS THE ANSWER!
+                    chunk_info += f"   🎯 **KEYWORD '{keyword_filter}' FOUND - ANSWER IS IN CONTENT BELOW:**\n"
+                    chunk_info += f"   Content:\n   {content}\n"
+                else:
+                    # Show section info only when no keyword match
+                    if section_title:
+                        chunk_info += f"   📑 Section: {section_title}\n"
+                    if section_path:
+                        chunk_info += f"   📍 Path: {section_path}\n"
+                    if len(content) > 800:
+                        content = content[:800] + "..."
+                    chunk_info += f"   Content:\n   {content}\n"
 
                 # Relations info
                 relations = result.get('relations', {})

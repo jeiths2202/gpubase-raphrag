@@ -26,15 +26,18 @@ import {
   FolderOpen,
   CheckSquare,
   Square,
+  PlayCircle,
 } from 'lucide-react';
 import {
   adaptiveDocumentsApi,
+  evaluateQuality,
   ChunkListItem,
   CoverageResponse,
   QualityResponse,
   StructureAnalysisResponse,
   SearchResultItem,
   ChunkType,
+  PendingUploadItem,
 } from '../../api';
 import './AdaptiveDocuments.css';
 
@@ -53,6 +56,15 @@ interface AdaptiveDocument {
 
 type DetailViewType = 'chunks' | 'coverage' | 'quality' | 'structure' | null;
 
+interface EmbeddingProgress {
+  filename: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  taskId?: string;
+  pdfId?: string;
+  progress?: number;
+  error?: string;
+}
+
 // =============================================================================
 // Main Component
 // =============================================================================
@@ -60,18 +72,30 @@ type DetailViewType = 'chunks' | 'coverage' | 'quality' | 'structure' | null;
 export const AdaptiveDocuments = () => {
   const { t } = useTranslation();
 
-  // State
+  // State - Embedded documents
   const [documents, setDocuments] = useState<AdaptiveDocument[]>([]);
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // State - Pending uploads
+  const [pendingFiles, setPendingFiles] = useState<PendingUploadItem[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [selectedPendingFiles, setSelectedPendingFiles] = useState<Set<string>>(new Set());
+
+  // State - Embedding process
+  const [embedding, setEmbedding] = useState(false);
+  const [embeddingProgress, setEmbeddingProgress] = useState<EmbeddingProgress[]>([]);
+  const [showEmbedOptions, setShowEmbedOptions] = useState(false);
 
   // Filter state
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
 
-  // Upload options
+  // Upload modal
   const [showUploadOptions, setShowUploadOptions] = useState(false);
+
+  // Upload/Embed options
   const [uploadOptions, setUploadOptions] = useState({
     language: 'auto',
     maxChunkSize: 1500,
@@ -90,6 +114,9 @@ export const AdaptiveDocuments = () => {
   const [quality, setQuality] = useState<QualityResponse | null>(null);
   const [structure, setStructure] = useState<StructureAnalysisResponse | null>(null);
 
+  // Quality evaluation state
+  const [evaluatingQuality, setEvaluatingQuality] = useState<Set<string>>(new Set());
+
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
@@ -97,6 +124,7 @@ export const AdaptiveDocuments = () => {
 
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<AdaptiveDocument | null>(null);
+  const [deletePendingTarget, setDeletePendingTarget] = useState<string | null>(null);
 
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -107,14 +135,16 @@ export const AdaptiveDocuments = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+  const pollingFailuresRef = useRef<Map<string, number>>(new Map());
 
   // =============================================================================
   // Effects
   // =============================================================================
 
-  // Load existing documents on mount
+  // Load existing documents and pending files on mount
   useEffect(() => {
     loadDocuments();
+    loadPendingFiles();
   }, []);
 
   // Cleanup polling on unmount
@@ -122,6 +152,7 @@ export const AdaptiveDocuments = () => {
     return () => {
       pollingRef.current.forEach((interval) => clearInterval(interval));
       pollingRef.current.clear();
+      pollingFailuresRef.current.clear();
     };
   }, []);
 
@@ -135,7 +166,7 @@ export const AdaptiveDocuments = () => {
       const docs = await adaptiveDocumentsApi.list();
       setDocuments(docs.map(doc => ({
         pdf_id: doc.pdf_id,
-        name: `${doc.document_type}_${doc.pdf_id.slice(-8)}`,
+        name: doc.document_name || `${doc.document_type}_${doc.pdf_id.slice(-8)}`,
         status: doc.status,
         chunks_count: doc.chunks_count,
         created_at: doc.created_at || new Date().toISOString(),
@@ -148,6 +179,19 @@ export const AdaptiveDocuments = () => {
     }
   };
 
+  const loadPendingFiles = async () => {
+    try {
+      setPendingLoading(true);
+      const response = await adaptiveDocumentsApi.listPending();
+      setPendingFiles(response.files);
+    } catch (err) {
+      console.error('Failed to load pending files:', err);
+    } finally {
+      setPendingLoading(false);
+    }
+  };
+
+  // Upload file to pending (without processing)
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -165,35 +209,18 @@ export const AdaptiveDocuments = () => {
     setUploading(true);
     setError(null);
 
-    // Process files sequentially
+    // Upload files to pending (without processing)
     for (const file of pdfFiles) {
       try {
-        const response = await adaptiveDocumentsApi.process(file, {
-          language: uploadOptions.language,
-          maxChunkSize: uploadOptions.maxChunkSize,
-          preserveTables: uploadOptions.preserveTables,
-          preserveSections: uploadOptions.preserveSections,
-        });
-
-        // Add to documents list
-        const newDoc: AdaptiveDocument = {
-          pdf_id: response.pdf_id,
-          name: file.name,
-          status: response.status,
-          chunks_count: response.estimated_chunks,
-          created_at: new Date().toISOString(),
-        };
-        setDocuments(prev => [newDoc, ...prev]);
-
-        // Start polling for status
-        startPolling(response.task_id, response.pdf_id);
-
+        await adaptiveDocumentsApi.uploadOnly(file);
       } catch (err) {
         console.error(`Upload error for ${file.name}:`, err);
       }
     }
 
     setUploading(false);
+    // Reload pending files and close upload modal
+    await loadPendingFiles();
     setShowUploadOptions(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -220,35 +247,18 @@ export const AdaptiveDocuments = () => {
     setUploading(true);
     setError(null);
 
-    // Process files sequentially
+    // Upload files to pending (without processing)
     for (const file of pdfFiles) {
       try {
-        const response = await adaptiveDocumentsApi.process(file, {
-          language: uploadOptions.language,
-          maxChunkSize: uploadOptions.maxChunkSize,
-          preserveTables: uploadOptions.preserveTables,
-          preserveSections: uploadOptions.preserveSections,
-        });
-
-        // Add to documents list
-        const newDoc: AdaptiveDocument = {
-          pdf_id: response.pdf_id,
-          name: file.name,
-          status: response.status,
-          chunks_count: response.estimated_chunks,
-          created_at: new Date().toISOString(),
-        };
-        setDocuments(prev => [newDoc, ...prev]);
-
-        // Start polling for status
-        startPolling(response.task_id, response.pdf_id);
-
+        await adaptiveDocumentsApi.uploadOnly(file);
       } catch (err) {
         console.error(`Upload error for ${file.name}:`, err);
       }
     }
 
     setUploading(false);
+    // Reload pending files and close upload modal
+    await loadPendingFiles();
     setShowUploadOptions(false);
     if (folderInputRef.current) {
       folderInputRef.current.value = '';
@@ -256,38 +266,6 @@ export const AdaptiveDocuments = () => {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  };
-
-  const startPolling = (taskId: string, pdfId: string) => {
-    // Clear existing polling for this PDF
-    if (pollingRef.current.has(pdfId)) {
-      clearInterval(pollingRef.current.get(pdfId));
-    }
-
-    const poll = async () => {
-      try {
-        const status = await adaptiveDocumentsApi.getStatus(taskId);
-
-        // Update document status
-        setDocuments(prev => prev.map(doc =>
-          doc.pdf_id === pdfId ? { ...doc, status: status.status, chunks_count: status.chunks_processed || doc.chunks_count } : doc
-        ));
-
-        if (status.status === 'completed' || status.status === 'failed') {
-          const interval = pollingRef.current.get(pdfId);
-          if (interval) {
-            clearInterval(interval);
-            pollingRef.current.delete(pdfId);
-          }
-        }
-      } catch (err) {
-        console.error('Polling error:', err);
-      }
-    };
-
-    const interval = setInterval(poll, 2000);
-    pollingRef.current.set(pdfId, interval);
-    poll(); // Initial poll
   };
 
   const handleDelete = async () => {
@@ -360,6 +338,248 @@ export const AdaptiveDocuments = () => {
       console.error('Batch delete error:', err);
     } finally {
       setBatchDeleting(false);
+    }
+  };
+
+  // Pending files handlers
+  const togglePendingSelect = (filename: string) => {
+    setSelectedPendingFiles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(filename)) {
+        newSet.delete(filename);
+      } else {
+        newSet.add(filename);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAllPending = () => {
+    if (selectedPendingFiles.size === pendingFiles.length) {
+      setSelectedPendingFiles(new Set());
+    } else {
+      setSelectedPendingFiles(new Set(pendingFiles.map(f => f.filename)));
+    }
+  };
+
+  const handleDeletePending = async () => {
+    if (!deletePendingTarget) return;
+
+    try {
+      await adaptiveDocumentsApi.deletePending(deletePendingTarget);
+      setPendingFiles(prev => prev.filter(f => f.filename !== deletePendingTarget));
+      setSelectedPendingFiles(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(deletePendingTarget);
+        return newSet;
+      });
+      setDeletePendingTarget(null);
+    } catch (err) {
+      setError(t('common.adaptive.actions.delete') + ' failed');
+      console.error(err);
+    }
+  };
+
+  // Start batch embedding
+  const handleStartEmbedding = async () => {
+    if (selectedPendingFiles.size === 0) return;
+
+    setEmbedding(true);
+    setShowEmbedOptions(false);
+
+    // Initialize progress tracking
+    const filenames = Array.from(selectedPendingFiles);
+    setEmbeddingProgress(filenames.map(filename => ({
+      filename,
+      status: 'pending',
+    })));
+
+    try {
+      const result = await adaptiveDocumentsApi.startBatchEmbed(filenames, {
+        language: uploadOptions.language,
+        maxChunkSize: uploadOptions.maxChunkSize,
+        preserveTables: uploadOptions.preserveTables,
+        preserveSections: uploadOptions.preserveSections,
+      });
+
+      // Update progress with task IDs
+      setEmbeddingProgress(prev => prev.map(item => {
+        const resultItem = result.results.find(r => r.filename === item.filename);
+        if (resultItem) {
+          return {
+            ...item,
+            status: resultItem.status === 'processing' ? 'processing' : 'failed',
+            taskId: resultItem.task_id,
+            pdfId: resultItem.pdf_id,
+            error: resultItem.error,
+          };
+        }
+        return item;
+      }));
+
+      // Start polling for each processing file
+      for (const item of result.results) {
+        if (item.status === 'processing' && item.task_id && item.pdf_id) {
+          startEmbeddingPolling(item.task_id, item.pdf_id, item.filename);
+        }
+      }
+
+      // Remove from pending list
+      const processingFilenames = result.results
+        .filter(r => r.status === 'processing')
+        .map(r => r.filename);
+      setPendingFiles(prev => prev.filter(f => !processingFilenames.includes(f.filename)));
+      setSelectedPendingFiles(new Set());
+
+    } catch (err) {
+      setError(t('common.adaptive.embed.error'));
+      console.error('Embedding error:', err);
+      setEmbeddingProgress([]);
+    }
+  };
+
+  const startEmbeddingPolling = (taskId: string, pdfId: string, filename: string) => {
+    const pollKey = `embed_${pdfId}`;
+    const MAX_FAILURES = 5; // Stop after 5 consecutive failures
+
+    if (pollingRef.current.has(pollKey)) {
+      clearInterval(pollingRef.current.get(pollKey));
+    }
+
+    // Reset failure counter
+    pollingFailuresRef.current.set(pollKey, 0);
+
+    const poll = async () => {
+      try {
+        const status = await adaptiveDocumentsApi.getStatus(taskId);
+
+        // Reset failure counter on success
+        pollingFailuresRef.current.set(pollKey, 0);
+
+        // Update embedding progress
+        setEmbeddingProgress(prev => prev.map(item =>
+          item.filename === filename
+            ? {
+                ...item,
+                status: status.status === 'completed' ? 'completed'
+                      : status.status === 'failed' ? 'failed'
+                      : 'processing',
+                progress: status.progress,
+              }
+            : item
+        ));
+
+        if (status.status === 'completed' || status.status === 'failed') {
+          const interval = pollingRef.current.get(pollKey);
+          if (interval) {
+            clearInterval(interval);
+            pollingRef.current.delete(pollKey);
+            pollingFailuresRef.current.delete(pollKey);
+          }
+
+          // If completed, add to documents list
+          if (status.status === 'completed') {
+            setDocuments(prev => [{
+              pdf_id: pdfId,
+              name: filename,
+              status: 'completed',
+              chunks_count: status.chunks_processed || 0,
+              created_at: new Date().toISOString(),
+            }, ...prev]);
+          }
+
+          // Check if all embedding tasks are done
+          setEmbeddingProgress(prev => {
+            const allDone = prev.every(item =>
+              item.status === 'completed' || item.status === 'failed'
+            );
+            if (allDone) {
+              setEmbedding(false);
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        // Track consecutive failures
+        const failures = (pollingFailuresRef.current.get(pollKey) || 0) + 1;
+        pollingFailuresRef.current.set(pollKey, failures);
+
+        console.warn(`Embedding polling error (${failures}/${MAX_FAILURES}):`, err);
+
+        // Stop polling after too many consecutive failures
+        if (failures >= MAX_FAILURES) {
+          console.error(`Stopping polling for ${filename} after ${MAX_FAILURES} failures`);
+          const interval = pollingRef.current.get(pollKey);
+          if (interval) {
+            clearInterval(interval);
+            pollingRef.current.delete(pollKey);
+            pollingFailuresRef.current.delete(pollKey);
+          }
+
+          // Mark as failed
+          setEmbeddingProgress(prev => prev.map(item =>
+            item.filename === filename
+              ? { ...item, status: 'failed', error: 'Connection timeout' }
+              : item
+          ));
+
+          // Check if all tasks done
+          setEmbeddingProgress(prev => {
+            const allDone = prev.every(item =>
+              item.status === 'completed' || item.status === 'failed'
+            );
+            if (allDone) {
+              setEmbedding(false);
+            }
+            return prev;
+          });
+        }
+        // Otherwise continue polling (transient error)
+      }
+    };
+
+    const interval = setInterval(poll, 2000);
+    pollingRef.current.set(pollKey, interval);
+    poll();
+  };
+
+  // Handle quality evaluation on-demand
+  const handleEvaluateQuality = async (doc: AdaptiveDocument) => {
+    const pdfId = doc.pdf_id;
+
+    // Mark as evaluating
+    setEvaluatingQuality(prev => new Set(prev).add(pdfId));
+
+    try {
+      const result = await evaluateQuality(pdfId);
+
+      if (result.status === 'completed') {
+        // Show success message or update UI
+        console.log(`Quality evaluation completed for ${pdfId}:`, result);
+        // Optionally refresh the document list or show quality metrics
+        if (result.quality_metrics) {
+          alert(
+            `${t('common.adaptive.qualityEvaluation.completed')}\n\n` +
+            `Quality Level: ${result.quality_metrics.quality_level}\n` +
+            `Top-K Recall: ${(result.quality_metrics.top_k_recall * 100).toFixed(1)}%\n` +
+            `Avg Similarity: ${(result.quality_metrics.avg_similarity * 100).toFixed(1)}%`
+          );
+        }
+      } else if (result.status === 'skipped') {
+        alert(result.message);
+      } else {
+        setError(result.message);
+      }
+    } catch (err) {
+      console.error('Quality evaluation failed:', err);
+      setError(t('common.adaptive.qualityEvaluation.failed'));
+    } finally {
+      // Remove from evaluating set
+      setEvaluatingQuality(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(pdfId);
+        return newSet;
+      });
     }
   };
 
@@ -609,6 +829,159 @@ export const AdaptiveDocuments = () => {
           </div>
         )}
 
+        {/* Embedding Progress */}
+        {embeddingProgress.length > 0 && (
+          <div className="adaptive-embedding-progress">
+            <div className="embedding-progress-header">
+              <h4>{t('common.adaptive.embed.progressTitle')}</h4>
+              {!embedding && (
+                <button
+                  className="btn btn--sm"
+                  onClick={() => setEmbeddingProgress([])}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <div className="embedding-progress-list">
+              {embeddingProgress.map(item => (
+                <div key={item.filename} className={`embedding-progress-item embedding-progress-item--${item.status}`}>
+                  <div className="progress-file-info">
+                    <FileText size={16} />
+                    <span className="progress-filename">{item.filename}</span>
+                  </div>
+                  <div className="progress-status">
+                    {item.status === 'pending' && (
+                      <><Clock size={14} /> {t('common.adaptive.embed.statusPending')}</>
+                    )}
+                    {item.status === 'processing' && (
+                      <><Loader2 size={14} className="spinning" /> {t('common.adaptive.embed.statusProcessing')} {item.progress !== undefined && `(${item.progress}%)`}</>
+                    )}
+                    {item.status === 'completed' && (
+                      <><CheckCircle size={14} /> {t('common.adaptive.embed.statusCompleted')}</>
+                    )}
+                    {item.status === 'failed' && (
+                      <><XCircle size={14} /> {t('common.adaptive.embed.statusFailed')}: {item.error}</>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Pending Uploads Section */}
+        {(pendingFiles.length > 0 || pendingLoading) && (
+          <div className="adaptive-pending-section">
+            <div className="pending-header">
+              <h4>{t('common.adaptive.pending.title')} ({pendingFiles.length})</h4>
+              <div className="pending-actions">
+                {selectedPendingFiles.size > 0 && (
+                  <>
+                    <button
+                      className="btn btn--primary"
+                      onClick={() => setShowEmbedOptions(true)}
+                      disabled={embedding}
+                    >
+                      <Layers size={16} />
+                      {t('common.adaptive.embed.button')} ({selectedPendingFiles.size})
+                    </button>
+                    <button
+                      className="btn btn--danger btn--sm"
+                      onClick={() => {
+                        // Delete all selected pending files
+                        selectedPendingFiles.forEach(async (filename) => {
+                          try {
+                            await adaptiveDocumentsApi.deletePending(filename);
+                          } catch (err) {
+                            console.error(`Failed to delete ${filename}:`, err);
+                          }
+                        });
+                        setPendingFiles(prev => prev.filter(f => !selectedPendingFiles.has(f.filename)));
+                        setSelectedPendingFiles(new Set());
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </>
+                )}
+                <button
+                  className="btn btn--secondary btn--sm"
+                  onClick={loadPendingFiles}
+                  disabled={pendingLoading}
+                >
+                  <RefreshCw size={14} className={pendingLoading ? 'spinning' : ''} />
+                </button>
+              </div>
+            </div>
+            {pendingLoading ? (
+              <div className="pending-loading">
+                <Loader2 size={20} className="spinning" />
+              </div>
+            ) : (
+              <div className="pending-table-container">
+                <table className="pending-table">
+                  <thead>
+                    <tr>
+                      <th className="checkbox-column">
+                        <button
+                          className="checkbox-btn"
+                          onClick={toggleSelectAllPending}
+                        >
+                          {selectedPendingFiles.size === pendingFiles.length && pendingFiles.length > 0 ? (
+                            <CheckSquare size={16} />
+                          ) : (
+                            <Square size={16} />
+                          )}
+                        </button>
+                      </th>
+                      <th>{t('common.adaptive.pending.filename')}</th>
+                      <th>{t('common.adaptive.pending.size')}</th>
+                      <th>{t('common.adaptive.pending.uploadedAt')}</th>
+                      <th>{t('common.adaptive.table.actions')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingFiles.map((file) => (
+                      <tr key={file.filename} className={selectedPendingFiles.has(file.filename) ? 'selected' : ''}>
+                        <td className="checkbox-column">
+                          <button
+                            className="checkbox-btn"
+                            onClick={() => togglePendingSelect(file.filename)}
+                          >
+                            {selectedPendingFiles.has(file.filename) ? (
+                              <CheckSquare size={16} className="checked" />
+                            ) : (
+                              <Square size={16} />
+                            )}
+                          </button>
+                        </td>
+                        <td>
+                          <div className="pending-file-name">
+                            <FileText size={16} className="text-red-500" />
+                            <span>{file.filename}</span>
+                          </div>
+                        </td>
+                        <td>{(file.size / 1024 / 1024).toFixed(2)} MB</td>
+                        <td>{formatDate(file.uploaded_at)}</td>
+                        <td>
+                          <button
+                            className="doc-action-btn doc-action-btn--delete"
+                            title={t('common.delete')}
+                            onClick={() => setDeletePendingTarget(file.filename)}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Documents Table */}
         {loading ? (
           <div className="adaptive-loading">
@@ -712,6 +1085,18 @@ export const AdaptiveDocuments = () => {
                           disabled={doc.status !== 'completed'}
                         >
                           <GitBranch size={16} />
+                        </button>
+                        <button
+                          className="doc-action-btn doc-action-btn--evaluate"
+                          title={t('common.adaptive.actions.evaluateQuality')}
+                          onClick={() => handleEvaluateQuality(doc)}
+                          disabled={doc.status !== 'completed' || evaluatingQuality.has(doc.pdf_id)}
+                        >
+                          {evaluatingQuality.has(doc.pdf_id) ? (
+                            <Loader2 size={16} className="spinning" />
+                          ) : (
+                            <PlayCircle size={16} />
+                          )}
                         </button>
                         <button
                           className="doc-action-btn doc-action-btn--delete"
@@ -1073,6 +1458,115 @@ export const AdaptiveDocuments = () => {
                   ) : (
                     t('common.adaptive.batchDelete.confirm')
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Embed Options Modal */}
+      {showEmbedOptions && (
+        <div className="adaptive-modal-overlay" onClick={() => setShowEmbedOptions(false)}>
+          <div className="adaptive-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="adaptive-modal-header">
+              <h3>{t('common.adaptive.embed.optionsTitle')}</h3>
+              <button onClick={() => setShowEmbedOptions(false)}><X size={20} /></button>
+            </div>
+            <div className="adaptive-modal-content">
+              <p className="embed-info">
+                {t('common.adaptive.embed.selectedFiles', { count: selectedPendingFiles.size })}
+              </p>
+              <div className="adaptive-options-grid">
+                <div className="option-group">
+                  <label>{t('common.adaptive.options.language')}</label>
+                  <select
+                    value={uploadOptions.language}
+                    onChange={(e) => setUploadOptions({ ...uploadOptions, language: e.target.value })}
+                  >
+                    <option value="auto">{t('common.adaptive.options.languageAuto')}</option>
+                    <option value="en">English</option>
+                    <option value="ko">Korean</option>
+                    <option value="ja">Japanese</option>
+                  </select>
+                </div>
+                <div className="option-group">
+                  <label>{t('common.adaptive.options.maxChunkSize')}</label>
+                  <input
+                    type="number"
+                    value={uploadOptions.maxChunkSize}
+                    onChange={(e) => setUploadOptions({ ...uploadOptions, maxChunkSize: parseInt(e.target.value) })}
+                    min={200}
+                    max={4000}
+                  />
+                </div>
+                <div className="option-group checkbox">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={uploadOptions.preserveTables}
+                      onChange={(e) => setUploadOptions({ ...uploadOptions, preserveTables: e.target.checked })}
+                    />
+                    {t('common.adaptive.options.preserveTables')}
+                  </label>
+                </div>
+                <div className="option-group checkbox">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={uploadOptions.preserveSections}
+                      onChange={(e) => setUploadOptions({ ...uploadOptions, preserveSections: e.target.checked })}
+                    />
+                    {t('common.adaptive.options.preserveSections')}
+                  </label>
+                </div>
+              </div>
+              <div className="modal-actions">
+                <button
+                  className="btn btn--secondary"
+                  onClick={() => setShowEmbedOptions(false)}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  className="btn btn--primary"
+                  onClick={handleStartEmbedding}
+                  disabled={embedding}
+                >
+                  {embedding ? (
+                    <>
+                      <Loader2 size={16} className="spinning" />
+                      {t('common.adaptive.embed.processing')}
+                    </>
+                  ) : (
+                    <>
+                      <Layers size={16} />
+                      {t('common.adaptive.embed.start')}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Pending Confirm Modal */}
+      {deletePendingTarget && (
+        <div className="adaptive-modal-overlay" onClick={() => setDeletePendingTarget(null)}>
+          <div className="adaptive-modal adaptive-modal--confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="adaptive-modal-header">
+              <h3>{t('common.delete')}</h3>
+              <button onClick={() => setDeletePendingTarget(null)}><X size={20} /></button>
+            </div>
+            <div className="adaptive-modal-content">
+              <p>{t('common.adaptive.pending.deleteConfirm')} <strong>{deletePendingTarget}</strong>?</p>
+              <div className="modal-actions">
+                <button className="btn btn--secondary" onClick={() => setDeletePendingTarget(null)}>
+                  {t('common.cancel')}
+                </button>
+                <button className="btn btn--danger" onClick={handleDeletePending}>
+                  {t('common.delete')}
                 </button>
               </div>
             </div>
