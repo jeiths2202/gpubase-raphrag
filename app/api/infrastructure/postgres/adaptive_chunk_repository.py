@@ -414,13 +414,14 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
         pdf_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Hybrid search combining vector similarity with keyword boosting.
+        Hybrid search combining vector similarity with keyword boosting and synonym expansion.
 
         Improvements over basic search:
         1. Lower initial similarity threshold (0.2) to get more candidates
         2. Boost scores for keyword matches in title/content
         3. Detect "what is" intent and boost introduction/overview sections
-        4. Re-rank results based on combined score
+        4. Synonym expansion for better keyword matching
+        5. Re-rank results based on combined score
         """
         await self._ensure_table()
 
@@ -428,12 +429,13 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
         import logging
         logger = logging.getLogger(__name__)
 
+        # Import synonym dictionary
+        from ...services.synonym_dictionary import get_synonym_dictionary
+        synonym_dict = get_synonym_dictionary()
+
         embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
 
         # Extract main keyword from query (remove intent suffixes)
-        # "OpenFrame이란" -> "OpenFrame"
-        # "VSAMとは" -> "VSAM"
-        # "What is OpenFrame" -> "OpenFrame"
         main_keyword = query_text
         is_what_is_query = False
 
@@ -455,6 +457,14 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                 logger.info(f"[HybridSearch] Detected 'what is' query: '{query_text}' -> keyword: '{main_keyword}'")
                 break
 
+        # Expand keywords with synonyms
+        _, expanded_terms = synonym_dict.expand_query(main_keyword)
+        # Filter and deduplicate
+        expanded_terms = list(set(t.lower() for t in expanded_terms if len(t) >= 2))
+
+        if len(expanded_terms) > 1:
+            logger.info(f"[HybridSearch] Synonym expansion: '{main_keyword}' -> {expanded_terms[:5]}{'...' if len(expanded_terms) > 5 else ''}")
+
         # Build base conditions
         conditions = ["ac.has_embedding = TRUE"]
         params = [embedding_str]
@@ -470,8 +480,21 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
         # Fetch more candidates for re-ranking (3x limit)
         candidate_limit = limit * 3
 
-        # Query with keyword boost scoring
-        # Score = vector_similarity * 0.6 + keyword_boost * 0.4
+        # Build synonym matching clause for SQL
+        # Creates: (LOWER(content) LIKE '%term1%' OR LOWER(content) LIKE '%term2%' ...)
+        synonym_title_clauses = []
+        synonym_content_clauses = []
+        for term in expanded_terms[:10]:  # Limit to 10 synonyms to avoid too complex query
+            params.append(term)
+            synonym_title_clauses.append(f"LOWER(ac.section_title) LIKE '%' || ${param_idx} || '%'")
+            synonym_content_clauses.append(f"LOWER(ac.content) LIKE '%' || ${param_idx} || '%'")
+            param_idx += 1
+
+        title_match_sql = " OR ".join(synonym_title_clauses) if synonym_title_clauses else "FALSE"
+        content_match_sql = " OR ".join(synonym_content_clauses) if synonym_content_clauses else "FALSE"
+
+        # Query with keyword boost scoring using synonym expansion
+        # Score = vector_similarity * 0.5 + keyword_boost * 0.5 (increased weight for keywords)
         query = f"""
             WITH scored_chunks AS (
                 SELECT
@@ -479,15 +502,9 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                     ac.section_title, ac.page_start, ac.page_end, ac.relations,
                     1 - (ac.embedding <=> $1::vector) as vector_similarity,
                     psa.document_name,
-                    -- Keyword boost: higher if keyword appears in title or content
-                    CASE
-                        WHEN LOWER(ac.section_title) LIKE LOWER('%' || ${param_idx} || '%') THEN 0.3
-                        ELSE 0.0
-                    END +
-                    CASE
-                        WHEN LOWER(ac.content) LIKE LOWER('%' || ${param_idx} || '%') THEN 0.2
-                        ELSE 0.0
-                    END +
+                    -- Keyword boost: matches any synonym in title (0.35) or content (0.25)
+                    CASE WHEN ({title_match_sql}) THEN 0.35 ELSE 0.0 END +
+                    CASE WHEN ({content_match_sql}) THEN 0.25 ELSE 0.0 END +
                     -- Introduction/Overview boost for "what is" queries
                     CASE
                         WHEN {str(is_what_is_query).lower()} AND (
@@ -500,7 +517,7 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                             LOWER(ac.section_title) LIKE '%このガイドについて%' OR
                             ac.section_path LIKE '1.%' OR
                             ac.section_path LIKE '0.%'
-                        ) THEN 0.2
+                        ) THEN 0.15
                         ELSE 0.0
                     END as keyword_boost
                 FROM adaptive_pdf_chunks ac
@@ -510,14 +527,12 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                 LIMIT {candidate_limit}
             )
             SELECT *,
-                   (vector_similarity * 0.6 + keyword_boost * 0.4) as combined_score
+                   (vector_similarity * 0.5 + keyword_boost * 0.5) as combined_score
             FROM scored_chunks
             WHERE vector_similarity >= {min_similarity} OR keyword_boost > 0
             ORDER BY combined_score DESC, vector_similarity DESC
             LIMIT {limit}
         """
-
-        params.append(main_keyword)
 
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(query, *params)
@@ -534,16 +549,19 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                     "page_start": row["page_start"],
                     "page_end": row["page_end"],
                     "relations": row["relations"],
-                    "similarity": float(row["combined_score"]),  # Use combined score
+                    "similarity": float(row["combined_score"]),
                     "vector_similarity": float(row["vector_similarity"]),
                     "keyword_boost": float(row["keyword_boost"]),
-                    "document_name": row.get("document_name")
+                    "document_name": row.get("document_name"),
+                    "matched_synonyms": expanded_terms[:5] if len(expanded_terms) > 1 else None
                 })
 
             if results:
-                logger.info(f"[HybridSearch] Query: '{query_text}' -> {len(results)} results, "
+                logger.info(f"[HybridSearch] Query: '{query_text}' (synonyms: {len(expanded_terms)}) -> {len(results)} results, "
                            f"top: {results[0]['similarity']:.2%} (vec:{results[0]['vector_similarity']:.2%}, "
                            f"kw:{results[0]['keyword_boost']:.2%})")
+            else:
+                logger.warning(f"[HybridSearch] No results for: '{query_text}' (synonyms: {expanded_terms[:3]})")
 
             return results
 
