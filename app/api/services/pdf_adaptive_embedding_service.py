@@ -50,8 +50,12 @@ from .adaptive_quality_evaluator import (
     AdaptiveQualityEvaluator,
     get_adaptive_quality_evaluator,
 )
+import os
 
 logger = logging.getLogger(__name__)
+
+# VLM Table Extraction Configuration
+ENABLE_VLM_TABLE_EXTRACTION = os.getenv("ENABLE_VLM_TABLE_EXTRACTION", "true").lower() in ("true", "1", "yes")
 
 
 class PDFAdaptiveEmbeddingService:
@@ -207,6 +211,21 @@ class PDFAdaptiveEmbeddingService:
                 except Exception as img_error:
                     logger.warning(f"Image extraction failed, continuing: {img_error}")
 
+            # Step 1.6: VLM Table Extraction (if enabled)
+            vlm_table_chunks = []
+            if ENABLE_VLM_TABLE_EXTRACTION and structure.total_tables > 0:
+                self._update_status(task_id, ProcessingStatus.ANALYZING, 0.25, "Extracting tables with VLM...")
+                if on_progress:
+                    on_progress("vlm_tables", 25, f"Extracting {structure.total_tables} tables with VLM...")
+
+                try:
+                    vlm_table_chunks = await self._extract_tables_with_vlm(
+                        pdf_content, pdf_id, structure
+                    )
+                    logger.info(f"VLM extracted {len(vlm_table_chunks)} table chunks for {pdf_id}")
+                except Exception as vlm_err:
+                    logger.warning(f"VLM table extraction failed, continuing: {vlm_err}")
+
             # Step 2: Adaptive Chunking
             self._update_status(task_id, ProcessingStatus.CHUNKING, 0.3, "Creating adaptive chunks...")
             if on_progress:
@@ -230,6 +249,14 @@ class PDFAdaptiveEmbeddingService:
             for i, plan in enumerate(plans):
                 chunk = create_chunk_from_plan(plan, pdf_id, i)
                 chunks.append(chunk)
+
+            # Add VLM-extracted table chunks (if any)
+            if vlm_table_chunks:
+                start_idx = len(chunks)
+                for i, table_chunk in enumerate(vlm_table_chunks):
+                    table_chunk.chunk_index = start_idx + i
+                    chunks.append(table_chunk)
+                logger.info(f"Added {len(vlm_table_chunks)} VLM table chunks (total: {len(chunks)})")
 
             # Build chunk relations
             chunks = await self.chunk_planner.build_chunk_relations(chunks)
@@ -656,6 +683,95 @@ class PDFAdaptiveEmbeddingService:
             "progress": 0.0,
             "message": "Task not found"
         }
+
+    async def _extract_tables_with_vlm(
+        self,
+        pdf_content: bytes,
+        pdf_id: str,
+        structure: PDFStructureAnalysis
+    ) -> List[AdaptiveChunk]:
+        """
+        Extract tables from PDF pages using VLM.
+
+        Renders PDF pages with tables to images and uses VLM to extract
+        table content in markdown format.
+
+        Args:
+            pdf_content: Raw PDF bytes
+            pdf_id: Document ID
+            structure: PDF structure analysis (contains table info)
+
+        Returns:
+            List of AdaptiveChunk with extracted table content
+        """
+        import fitz  # PyMuPDF
+        from .ollama_vlm_service import OllamaVLMService
+
+        vlm_service = OllamaVLMService()
+        table_chunks = []
+
+        try:
+            doc = fitz.open(stream=pdf_content, filetype="pdf")
+
+            # Find pages with tables (heuristic: sparse text with alignment patterns)
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                text = page.get_text()
+
+                # Heuristic: Detect table-like patterns
+                # - Multiple lines with similar spacing/alignment
+                # - Lines with tab or multiple space separators
+                # - Numeric data aligned in columns
+                has_table_pattern = (
+                    text.count('\t') > 3 or  # Tab-separated
+                    len([line for line in text.split('\n') if '  ' in line]) > 5 or  # Space-aligned
+                    len([line for line in text.split('\n') if line.count('.') > 3 and '..' in line]) > 2  # Dotted leaders (TOC/index)
+                )
+
+                if not has_table_pattern:
+                    continue
+
+                logger.info(f"[VLM Table] Detected table pattern on page {page_num + 1}")
+
+                # Render page to image
+                zoom = 2.0  # Higher resolution for better table extraction
+                mat = fitz.Matrix(zoom, zoom)
+                pixmap = page.get_pixmap(matrix=mat)
+                image_bytes = pixmap.tobytes("png")
+
+                # Extract tables using VLM
+                result = await vlm_service.extract_tables_from_image(image_bytes)
+
+                if result.get("has_tables") and result.get("tables_markdown"):
+                    table_markdown = result["tables_markdown"]
+
+                    # Create chunk for extracted table
+                    chunk = AdaptiveChunk(
+                        chunk_id=f"{pdf_id}_vlm_table_p{page_num + 1}",
+                        document_id=pdf_id,
+                        chunk_index=0,  # Will be updated later
+                        chunk_type=ChunkType.TABLE_CHUNK,
+                        content=table_markdown,
+                        content_length=len(table_markdown),
+                        page_start=page_num + 1,
+                        page_end=page_num + 1,
+                        section_title=f"Table (Page {page_num + 1})",
+                        section_path=f"/tables/page_{page_num + 1}",
+                        metadata={
+                            "extraction_method": "vlm",
+                            "vlm_confidence": result.get("confidence", 0.0),
+                            "vlm_model": result.get("model", "unknown")
+                        }
+                    )
+                    table_chunks.append(chunk)
+                    logger.info(f"[VLM Table] Extracted table from page {page_num + 1}: {len(table_markdown)} chars")
+
+            doc.close()
+
+        except Exception as e:
+            logger.error(f"[VLM Table] Error extracting tables: {e}")
+
+        return table_chunks
 
     def _update_status(
         self,
