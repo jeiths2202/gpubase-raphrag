@@ -568,7 +568,15 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                             ac.section_path LIKE '0.%'
                         ) THEN 0.15
                         ELSE 0.0
-                    END as keyword_boost
+                    END as keyword_boost,
+                    -- TOC penalty: detect table of contents entries and downweight them
+                    -- TOC typically has: page refs with dots (......44), multiple section listings
+                    CASE
+                        WHEN ac.content ~ E'\\.{{3,}}\\s*\\d+' THEN -0.35  -- dots followed by page number
+                        WHEN ac.content ~ E'\\d+\\.\\d+\\.\\s+.+\\.{{3,}}' THEN -0.30  -- section.subsec ... pattern
+                        WHEN LENGTH(ac.content) - LENGTH(REPLACE(ac.content, '....', '')) > 50 THEN -0.25  -- many dot sequences
+                        ELSE 0.0
+                    END as toc_penalty
                 FROM adaptive_pdf_chunks ac
                 LEFT JOIN pdf_structure_analysis psa ON ac.pdf_id = psa.pdf_id
                 WHERE {where_clause}
@@ -576,7 +584,7 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                 LIMIT {candidate_limit}
             )
             SELECT *,
-                   (vector_similarity * {vector_weight} + keyword_boost * {keyword_weight}) as combined_score
+                   GREATEST(0, vector_similarity * {vector_weight} + keyword_boost * {keyword_weight} + toc_penalty) as combined_score
             FROM scored_chunks
             WHERE vector_similarity >= {min_similarity} OR keyword_boost > 0
             ORDER BY combined_score DESC, vector_similarity DESC
@@ -588,6 +596,7 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
 
             results = []
             for row in rows:
+                toc_penalty = float(row.get("toc_penalty", 0))
                 results.append({
                     "chunk_id": row["chunk_id"],
                     "pdf_id": row["pdf_id"],
@@ -601,9 +610,13 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                     "similarity": float(row["combined_score"]),
                     "vector_similarity": float(row["vector_similarity"]),
                     "keyword_boost": float(row["keyword_boost"]),
+                    "toc_penalty": toc_penalty,
                     "document_name": row.get("document_name"),
                     "matched_synonyms": expanded_terms[:5] if len(expanded_terms) > 1 else None
                 })
+                # Log TOC detection
+                if toc_penalty < 0:
+                    logger.debug(f"[HybridSearch] TOC detected (penalty={toc_penalty}): page {row['page_start']}-{row['page_end']}")
 
             if results:
                 logger.info(f"[HybridSearch] Query: '{query_text}' (type:{query_type}, weights:{vector_weight}/{keyword_weight}) -> {len(results)} results, "

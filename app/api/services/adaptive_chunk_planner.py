@@ -50,6 +50,32 @@ class AdaptiveChunkPlanner(AdaptiveChunkPlannerPort):
         r'┏.*┓',        # Heavy box table
     ]
 
+    # Error code patterns for error reference documents
+    # 에러 참조 문서의 에러 코드 패턴
+    ERROR_CODE_PATTERNS = [
+        # Product-specific error codes
+        r'(?:JEUS|TIBERO|TMAX|OFM|OFCOBOL|OFASM|TLIC|DSALC|OSALC|CDSAL|TDSAL)[-_]?(?:ERR[-_])?[A-Z_]*\s*\(?-?\d+\)?',
+        # Standard error codes
+        r'(?:ORA|SQL|ERR|ERROR)[-_]\d{4,5}',
+        # Negative numeric error codes like (-5212)
+        r'\(-\d{4,5}\)',
+        # Error code with name pattern: NAME (-1234)
+        r'[A-Z][A-Z0-9_]+\s*\(-\d+\)',
+    ]
+
+    # Error reference document detection keywords
+    ERROR_DOC_KEYWORDS = [
+        'Error Reference',
+        'エラーリファレンス',
+        '에러 참조',
+        'Error Code',
+        'エラーコード',
+        '에러 코드',
+        'Error Messages',
+        'エラーメッセージ',
+        '에러 메시지',
+    ]
+
     def __init__(
         self,
         max_chunk_size: int = None,
@@ -108,10 +134,17 @@ class AdaptiveChunkPlanner(AdaptiveChunkPlannerPort):
         min_size = options.get('min_chunk_size', self.min_chunk_size)
         preserve_tables = options.get('preserve_tables', self.preserve_tables)
         preserve_sections = options.get('preserve_sections', self.preserve_sections)
+        filename = options.get('filename', '')
 
         plans = []
 
-        if preserve_sections and structure.hierarchy:
+        # 🔴 PRIORITY 1: Try error code-specific chunking for error reference documents
+        # 에러 참조 문서인 경우 에러 코드별 독립 청킹 우선 적용
+        error_plans = await self._create_error_code_plan(pages_text, structure, filename)
+        if error_plans:
+            logger.info(f"Using error-specific chunking: {len(error_plans)} error chunks")
+            plans = error_plans
+        elif preserve_sections and structure.hierarchy:
             # Section-aware chunking
             plans = await self._create_section_based_plan(
                 pages_text, structure, max_size, min_size
@@ -318,9 +351,11 @@ class AdaptiveChunkPlanner(AdaptiveChunkPlannerPort):
                     parent_section_id=section.parent_id
                 ))
             else:
-                # Split large section
+                # Split large section with page position tracking
                 sub_plans = self._split_section(
-                    section_content, section, page_start, page_end, max_size
+                    section_content, section, page_start, page_end, max_size,
+                    page_positions=page_positions,
+                    section_start_offset=section_start
                 )
                 plans.extend(sub_plans)
 
@@ -402,9 +437,11 @@ class AdaptiveChunkPlanner(AdaptiveChunkPlannerPort):
         section: SectionInfo,
         page_start: int,
         page_end: int,
-        max_size: int
+        max_size: int,
+        page_positions: Dict[int, int] = None,
+        section_start_offset: int = 0
     ) -> List[ChunkPlan]:
-        """Split a large section into multiple chunks."""
+        """Split a large section into multiple chunks with accurate page tracking."""
         plans = []
         header = f"[{section.id}. {section.title}]\n\n"
         header_len = len(header)
@@ -433,11 +470,28 @@ class AdaptiveChunkPlanner(AdaptiveChunkPlannerPort):
 
             chunk_content = content[start:end].strip()
             if chunk_content:
+                # Calculate accurate page range for this sub-chunk
+                if page_positions:
+                    chunk_page_start = self._get_page_at_position(
+                        page_positions, section_start_offset + start
+                    )
+                    chunk_page_end = self._get_page_at_position(
+                        page_positions, section_start_offset + end - 1
+                    )
+                else:
+                    # Fallback: estimate page based on position ratio
+                    total_chars = len(content)
+                    total_pages = page_end - page_start + 1
+                    chunk_page_start = page_start + int((start / total_chars) * total_pages)
+                    chunk_page_end = page_start + int((end / total_chars) * total_pages)
+                    chunk_page_start = max(page_start, min(chunk_page_start, page_end))
+                    chunk_page_end = max(page_start, min(chunk_page_end, page_end))
+
                 plans.append(ChunkPlan(
                     chunk_type=ChunkType.TEXT_CHUNK,
                     content=header + chunk_content,
-                    page_start=page_start,
-                    page_end=page_end,
+                    page_start=chunk_page_start,
+                    page_end=chunk_page_end,
                     section_path=section.id,
                     section_title=section.title,
                     parent_section_id=section.parent_id,
@@ -485,6 +539,176 @@ class AdaptiveChunkPlanner(AdaptiveChunkPlannerPort):
         if len(parts) > 1:
             return '.'.join(parts[:-1])
         return None
+
+    def _is_error_reference_document(self, full_text: str, filename: str = "") -> bool:
+        """
+        Check if document is an Error Reference Guide.
+        에러 참조 가이드 문서인지 확인
+
+        Args:
+            full_text: Full document text
+            filename: Optional filename for detection
+
+        Returns:
+            True if document appears to be an error reference
+        """
+        # Check filename
+        filename_lower = filename.lower()
+        if any(kw.lower() in filename_lower for kw in ['error', 'エラー', '에러']):
+            return True
+
+        # Check document content for keywords
+        text_sample = full_text[:5000]  # Check first 5000 chars
+        for keyword in self.ERROR_DOC_KEYWORDS:
+            if keyword.lower() in text_sample.lower():
+                return True
+
+        # Check for high density of error code patterns
+        error_count = 0
+        combined_pattern = '|'.join(self.ERROR_CODE_PATTERNS)
+        matches = re.findall(combined_pattern, full_text[:20000], re.IGNORECASE)
+        error_count = len(matches)
+
+        # If more than 10 error codes in first 20K chars, likely error reference
+        if error_count >= 10:
+            logger.info(f"Detected error reference document: {error_count} error codes found")
+            return True
+
+        return False
+
+    def _extract_error_code_from_text(self, text: str) -> Optional[str]:
+        """
+        Extract primary error code from text block.
+        텍스트 블록에서 주요 에러 코드 추출
+
+        Returns:
+            Error code string like "DSALC_ERR_DATASET_NOT_FOUND (-5212)" or None
+        """
+        # Pattern: ERROR_NAME (negative_number)
+        match = re.search(r'([A-Z][A-Z0-9_]+)\s*\((-\d+)\)', text)
+        if match:
+            name, code = match.groups()
+            return f"{name} ({code})"
+
+        # Pattern: PRODUCT_ERROR_NAME
+        match = re.search(
+            r'((?:JEUS|TIBERO|TMAX|OFM|OFCOBOL|OFASM|TLIC|DSALC|OSALC|CDSAL|TDSAL)[-_]?(?:ERR[-_])?[A-Z_]+)',
+            text
+        )
+        if match:
+            error_name = match.group(1)
+            # Try to find associated number
+            num_match = re.search(r'\((-?\d+)\)', text)
+            if num_match:
+                return f"{error_name} ({num_match.group(1)})"
+            return error_name
+
+        # Pattern: just (-XXXXX)
+        match = re.search(r'\((-\d{4,5})\)', text)
+        if match:
+            return f"Error {match.group(1)}"
+
+        return None
+
+    async def _create_error_code_plan(
+        self,
+        pages_text: List[Tuple[int, str]],
+        structure: PDFStructureAnalysis,
+        filename: str = ""
+    ) -> List[ChunkPlan]:
+        """
+        Create chunk plan specifically for error reference documents.
+        에러 참조 문서용 청크 계획 생성 (에러 코드별 독립 청크)
+
+        Each error code becomes an independent chunk with:
+        - section_title: "Error: ERROR_NAME (-CODE)"
+        - chunk size: 500-800 characters
+        """
+        plans = []
+
+        # Build full text with page tracking
+        full_text = ""
+        page_positions = {}
+        current_pos = 0
+
+        for page_num, text in pages_text:
+            page_positions[current_pos] = page_num
+            full_text += text + "\n"
+            current_pos = len(full_text)
+
+        # Check if this is an error reference document
+        if not self._is_error_reference_document(full_text, filename):
+            return []  # Return empty to use default chunking
+
+        logger.info(f"Processing as Error Reference document: {filename}")
+
+        # Pattern to find error entry boundaries
+        # Look for patterns like: ERROR_NAME (-XXXX) or section headers with error codes
+        error_entry_pattern = r'(?:^|\n)([A-Z][A-Z0-9_]+\s*\(-?\d+\)|[•●■]\s*[A-Z][A-Z0-9_]+)'
+
+        # Split by error entries
+        error_matches = list(re.finditer(error_entry_pattern, full_text))
+
+        if len(error_matches) < 5:
+            # Not enough error entries found, try alternative pattern
+            # Pattern for lines starting with error-like content
+            alt_pattern = r'\n([A-Z][A-Z0-9_]{3,}[^a-z\n]{0,50}(?:\(-?\d+\))?)'
+            error_matches = list(re.finditer(alt_pattern, full_text))
+
+        if len(error_matches) < 5:
+            logger.info("Not enough error entries for error-specific chunking, using default")
+            return []
+
+        logger.info(f"Found {len(error_matches)} potential error entries")
+
+        # Process each error entry
+        for i, match in enumerate(error_matches):
+            start = match.start()
+
+            # Find end (next error entry or +800 chars max)
+            if i + 1 < len(error_matches):
+                end = min(error_matches[i + 1].start(), start + 800)
+            else:
+                end = min(start + 800, len(full_text))
+
+            # Ensure minimum content (at least 100 chars)
+            content = full_text[start:end].strip()
+            if len(content) < 100:
+                # Try to extend to next paragraph
+                extended_end = full_text.find('\n\n', end)
+                if extended_end > 0 and extended_end < start + 1000:
+                    content = full_text[start:extended_end].strip()
+
+            if len(content) < 50:
+                continue
+
+            # Extract error code for section title
+            error_code = self._extract_error_code_from_text(content)
+            if not error_code:
+                # Use first line as fallback
+                first_line = content.split('\n')[0][:60]
+                error_code = first_line
+
+            section_title = f"Error: {error_code}"
+
+            # Get page number
+            page_num = self._get_page_at_position(page_positions, start)
+
+            plans.append(ChunkPlan(
+                chunk_type=ChunkType.TEXT_CHUNK,
+                content=content,
+                page_start=page_num,
+                page_end=page_num,
+                section_path=f"error_{i:04d}",
+                section_title=section_title,
+                metadata={
+                    "error_code": error_code,
+                    "chunk_strategy": "error_code_independent"
+                }
+            ))
+
+        logger.info(f"Created {len(plans)} error-specific chunks")
+        return plans
 
 
 def create_chunk_from_plan(
