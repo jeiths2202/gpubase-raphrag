@@ -62,6 +62,7 @@ interface EmbeddingProgress {
   taskId?: string;
   pdfId?: string;
   progress?: number;
+  message?: string;  // Detailed progress message (e.g., "Extracting tables with VLM...")
   error?: string;
 }
 
@@ -476,6 +477,7 @@ export const AdaptiveDocuments = () => {
                       : status.status === 'failed' ? 'failed'
                       : 'processing',
                 progress: status.progress,
+                message: status.message,  // Include detailed progress message
               }
             : item
         ));
@@ -867,7 +869,15 @@ export const AdaptiveDocuments = () => {
                       <><Clock size={14} /> {t('common.adaptive.embed.statusPending')}</>
                     )}
                     {item.status === 'processing' && (
-                      <><Loader2 size={14} className="spinning" /> {t('common.adaptive.embed.statusProcessing')} {item.progress !== undefined && `(${item.progress}%)`}</>
+                      <div className="progress-processing">
+                        <div className="progress-main">
+                          <Loader2 size={14} className="spinning" />
+                          <span>{t('common.adaptive.embed.statusProcessing')} {item.progress !== undefined && `(${Math.round(item.progress)}%)`}</span>
+                        </div>
+                        {item.message && (
+                          <div className="progress-message">{item.message}</div>
+                        )}
+                      </div>
                     )}
                     {item.status === 'completed' && (
                       <><CheckCircle size={14} /> {t('common.adaptive.embed.statusCompleted')}</>

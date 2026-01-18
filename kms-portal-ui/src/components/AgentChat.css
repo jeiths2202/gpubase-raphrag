@@ -1609,6 +1609,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left; /* Default left alignment for VLM table data */
 }
 
 /* Allow title column to wrap */
