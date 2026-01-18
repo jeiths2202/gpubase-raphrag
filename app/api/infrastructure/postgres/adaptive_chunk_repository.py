@@ -538,12 +538,19 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
         title_match_sql = " OR ".join(synonym_title_clauses) if synonym_title_clauses else "FALSE"
         content_match_sql = " OR ".join(synonym_content_clauses) if synonym_content_clauses else "FALSE"
 
-        # Query with keyword boost scoring using synonym expansion
-        # Score = vector_similarity * vector_weight + keyword_boost * keyword_weight
+        # Query with hybrid scoring: vector similarity + full-text search (ts_rank)
+        # Score = vector_similarity * vector_weight + keyword_score * keyword_weight
         # Weights are dynamically adjusted based on query type:
         #   - definition queries: 70/30 (vector-heavy for semantic understanding)
         #   - error code queries: 30/70 (keyword-heavy for exact matches)
         #   - general queries: 50/50 (balanced)
+
+        # Build tsquery for full-text search (using query_text)
+        # Use 'simple' config for CJK compatibility
+        ts_query_terms = [t for t in expanded_terms if len(t) >= 2][:5]
+        ts_query_parts = [f"'{t}'" for t in ts_query_terms]
+        ts_query_str = " | ".join(ts_query_parts) if ts_query_parts else "''"
+
         query = f"""
             WITH scored_chunks AS (
                 SELECT
@@ -551,6 +558,12 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                     ac.section_title, ac.page_start, ac.page_end, ac.relations,
                     1 - (ac.embedding <=> $1::vector) as vector_similarity,
                     psa.document_name,
+                    -- Full-text search score using ts_rank (normalized 0-1)
+                    LEAST(1.0, ts_rank(
+                        to_tsvector('simple', ac.content),
+                        to_tsquery('simple', $${ts_query_str}$$),
+                        32  -- normalization: divide by doc length
+                    ) * 2) as ts_rank_score,
                     -- Keyword boost: matches any synonym in title (0.35) or content (0.25)
                     CASE WHEN ({title_match_sql}) THEN 0.35 ELSE 0.0 END +
                     CASE WHEN ({content_match_sql}) THEN 0.25 ELSE 0.0 END +
@@ -584,10 +597,12 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                 LIMIT {candidate_limit}
             )
             SELECT *,
-                   GREATEST(0, vector_similarity * {vector_weight} + keyword_boost * {keyword_weight} + toc_penalty) as combined_score
+                   -- Combined score: vector + (ts_rank + keyword_boost) + toc_penalty
+                   -- ts_rank_score captures actual full-text relevance
+                   GREATEST(0, vector_similarity * {vector_weight} + (ts_rank_score + keyword_boost) * {keyword_weight} + toc_penalty) as combined_score
             FROM scored_chunks
-            WHERE vector_similarity >= {min_similarity} OR keyword_boost > 0
-            ORDER BY combined_score DESC, vector_similarity DESC
+            WHERE vector_similarity >= {min_similarity} OR keyword_boost > 0 OR ts_rank_score > 0.1
+            ORDER BY combined_score DESC, ts_rank_score DESC, vector_similarity DESC
             LIMIT {limit}
         """
 
@@ -597,6 +612,7 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
             results = []
             for row in rows:
                 toc_penalty = float(row.get("toc_penalty", 0))
+                ts_rank_score = float(row.get("ts_rank_score", 0))
                 results.append({
                     "chunk_id": row["chunk_id"],
                     "pdf_id": row["pdf_id"],
@@ -610,6 +626,7 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                     "similarity": float(row["combined_score"]),
                     "vector_similarity": float(row["vector_similarity"]),
                     "keyword_boost": float(row["keyword_boost"]),
+                    "ts_rank_score": ts_rank_score,
                     "toc_penalty": toc_penalty,
                     "document_name": row.get("document_name"),
                     "matched_synonyms": expanded_terms[:5] if len(expanded_terms) > 1 else None
@@ -621,7 +638,7 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
             if results:
                 logger.info(f"[HybridSearch] Query: '{query_text}' (type:{query_type}, weights:{vector_weight}/{keyword_weight}) -> {len(results)} results, "
                            f"top: {results[0]['similarity']:.2%} (vec:{results[0]['vector_similarity']:.2%}, "
-                           f"kw:{results[0]['keyword_boost']:.2%})")
+                           f"ts_rank:{results[0]['ts_rank_score']:.2%}, kw_boost:{results[0]['keyword_boost']:.2%})")
                 print(f"[HybridSearch] Results: {len(results)}, top score: {results[0]['similarity']:.2%}", flush=True)
             else:
                 logger.warning(f"[HybridSearch] No results for: '{query_text}' (type:{query_type}, synonyms: {expanded_terms[:3]})")
