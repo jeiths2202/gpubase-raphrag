@@ -156,6 +156,17 @@ export const AdaptiveDocuments = () => {
     };
   }, []);
 
+  // Auto-dismiss embedding progress after all items completed
+  useEffect(() => {
+    if (embeddingProgress.length > 0 &&
+        embeddingProgress.every(item => item.status === 'completed')) {
+      const timer = setTimeout(() => {
+        setEmbeddingProgress([]);
+      }, 3000); // 3초 후 자동 숨김
+      return () => clearTimeout(timer);
+    }
+  }, [embeddingProgress]);
+
   // =============================================================================
   // Handlers
   // =============================================================================
@@ -834,7 +845,8 @@ export const AdaptiveDocuments = () => {
           <div className="adaptive-embedding-progress">
             <div className="embedding-progress-header">
               <h4>{t('common.adaptive.embed.progressTitle')}</h4>
-              {!embedding && (
+              {/* Hide X button when embedding in progress OR all items completed */}
+              {!embedding && !embeddingProgress.every(item => item.status === 'completed') && (
                 <button
                   className="btn btn--sm"
                   onClick={() => setEmbeddingProgress([])}
