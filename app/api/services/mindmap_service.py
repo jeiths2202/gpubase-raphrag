@@ -1149,7 +1149,7 @@ JSON:"""
             RETURN c.content AS content, c.id AS chunk_id, d.id AS doc_id
             LIMIT 3
             """,
-            {"mindmap_id": mindmap_id, "concept": node["label"]}
+            {"mindmap_id": mindmap_id, "concept": node.label}
         )
 
         sources = [
