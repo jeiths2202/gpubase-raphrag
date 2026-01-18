@@ -5,6 +5,7 @@ Implements the ReAct (Reasoning + Acting) loop for agent execution.
 from typing import Dict, List, Any, Optional, AsyncGenerator
 import asyncio
 import logging
+import os
 import time
 import json
 import base64
@@ -25,8 +26,98 @@ from .master_system_constraint import (
     get_insufficient_info_response
 )
 from ..core.app_mode import is_develop_mode
+import re
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# STRIP THINKING TAGS: Remove internal LLM reasoning from responses
+# ============================================================================
+
+def strip_thinking_tags(text: str) -> str:
+    """
+    LLM 응답에서 thinking 관련 콘텐츠 제거.
+
+    Strategy:
+    1. Remove <think>...</think> tags
+    2. Find actual content by looking for answer markers (###, bullets, CJK text blocks)
+    3. Remove English internal reasoning sentences before actual content
+    4. Preserve actual answer content
+    """
+    if not text:
+        return text
+
+    # Step 1: <think>...</think> 태그와 그 내용 제거
+    cleaned = re.sub(r'<think>.*?</think>\s*', '', text, flags=re.DOTALL)
+
+    # Step 2: Find the start of actual content
+    # Look for markers that indicate actual answer content:
+    # - Markdown headers (###, ##, #)
+    # - Japanese/Korean/Chinese content blocks
+    # - Numbered lists (1., 2.)
+    # - Bullet points (-, *, •)
+
+    # Pattern to find actual content start
+    actual_content_markers = [
+        r'#{1,3}\s+',                           # Markdown headers
+        r'(?:^|\n)(?:\d+\.|\-|\*|•)\s+',        # Lists
+        r'(?:^|\n)[^\x00-\x7F]{5,}',            # CJK text (5+ non-ASCII chars at line start)
+        r'(?:^|\n)(?:原因|解決|関連|出典|エラー|概要|説明|参考|注意|결과|원인|해결|관련|오류|개요|설명)',  # JP/KR section headers
+    ]
+
+    # Find earliest match of actual content
+    earliest_pos = len(cleaned)
+    for marker in actual_content_markers:
+        match = re.search(marker, cleaned)
+        if match:
+            earliest_pos = min(earliest_pos, match.start())
+
+    # If we found actual content marker, check if there's thinking before it
+    if earliest_pos > 0 and earliest_pos < len(cleaned):
+        before_content = cleaned[:earliest_pos]
+        after_content = cleaned[earliest_pos:]
+
+        # Check if the part before actual content is mostly English thinking
+        english_thinking_patterns = [
+            r'(?:let\'?s|I\'?ll|I\'?m going to) (?:tackle|check|look|analyze|extract|provide|explain)',
+            r'I (?:see|need|should|must|will|can) (?:that|to|)',
+            r'(?:The|This) (?:user|query|question|content|tool|search|response)',
+            r'(?:From|Based on|Looking at|According to) (?:the|this|my)',
+            r'(?:keyword|information|document|chunk|result)s? (?:is|are|found|present)',
+            r'(?:present|structure|mention|cite|format|extract)',
+            r'(?:clearly|properly|carefully|correctly|concise)',
+        ]
+
+        is_thinking_section = any(
+            re.search(p, before_content, re.IGNORECASE)
+            for p in english_thinking_patterns
+        )
+
+        if is_thinking_section:
+            cleaned = after_content.lstrip()
+
+    # Step 3: Remove any remaining English thinking sentences at the beginning
+    thinking_sentence_patterns = [
+        r'^(?:Okay|Ok|Alright|Well|So|Now|Let\'?s)[,.]?\s*[^#\n]*?(?:query|user|question|search|tool|response|document|content)[^#\n]*?\.\s*',
+        r'^(?:I (?:see|need|should|must|will|can|\'ll|\'m)[^#\n]*?\.\s*)+',
+        r'^(?:The (?:user|query|question|content|keyword)[^#\n]*?\.\s*)+',
+        r'^(?:From|Based on|Looking at|According to)[^#\n]*?\.\s*',
+        r'^(?:Since|Because|As)[^#\n]*?(?:Japanese|Korean|language|respond)[^#\n]*?\.\s*',
+    ]
+
+    for pattern in thinking_sentence_patterns:
+        cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
+
+    # Step 4: Remove JSON tool outputs
+    cleaned = re.sub(r'{\s*"query"[^}]+}\s*', '', cleaned)
+    cleaned = re.sub(r'{\s*"results[^}]+}\s*', '', cleaned)
+
+    # Step 5: Clean up multiple newlines and whitespace
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+    cleaned = cleaned.strip()
+
+    return cleaned
 
 
 # ============================================================================
@@ -204,51 +295,77 @@ async def _execute_all_tools_develop_mode(
 # RAG Analysis: Extract and format detailed RAG processing information
 # ============================================================================
 
-def _analyze_query_keywords(query: str) -> Dict[str, Any]:
+def _analyze_query_keywords(query: str, language: str = "ko") -> Dict[str, Any]:
     """
     분석 프롬프트에서 키워드와 의도를 추출합니다.
+    Extracts keywords and intent from the query prompt.
+
+    Args:
+        query: User query string
+        language: User's configured language (ko, en, ja)
 
     Returns:
-        Dict with keywords, intent, search_strategy
+        Dict with keywords, intent, search_strategy (localized)
     """
     import re
+
+    # Localized labels for intent and search strategy
+    INTENT_LABELS = {
+        "info_search": {"ko": "정보 검색", "en": "Information Search", "ja": "情報検索"},
+        "error_fix": {"ko": "오류 해결", "en": "Error Resolution", "ja": "エラー解決"},
+        "howto": {"ko": "방법/절차 안내", "en": "How-to Guide", "ja": "手順ガイド"},
+        "compare": {"ko": "비교 분석", "en": "Comparison Analysis", "ja": "比較分析"},
+        "concept": {"ko": "개념 설명", "en": "Concept Explanation", "ja": "概念説明"},
+    }
+    STRATEGY_LABELS = {
+        "simple_vector": {"ko": "단순 벡터 검색", "en": "Simple Vector Search", "ja": "単純ベクター検索"},
+        "complex_query": {"ko": "복합 쿼리 검색", "en": "Complex Query Search", "ja": "複合クエリ検索"},
+        "include_image": {"ko": "이미지/테이블 포함", "en": "Include Images/Tables", "ja": "画像/テーブル含む"},
+    }
+
+    def get_label(labels: Dict, key: str) -> str:
+        """Get localized label, fallback to English then Korean"""
+        lang_labels = labels.get(key, {})
+        return lang_labels.get(language, lang_labels.get("en", lang_labels.get("ko", key)))
 
     # 간단한 키워드 추출 (stopwords 제외)
     stopwords_ko = {'이', '가', '은', '는', '을', '를', '의', '에', '에서', '로', '으로', '와', '과', '도', '만', '까지', '부터', '처럼', '같이', '대해', '대한', '관한', '있는', '있다', '없다', '하는', '하다', '되는', '되다', '한', '할', '된', '될', '합니다', '입니다', '습니다', '있습니다', '어떻게', '무엇', '언제', '어디', '왜', '누가'}
     stopwords_en = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare', 'ought', 'used', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'between', 'under', 'again', 'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just', 'and', 'but', 'if', 'or', 'because', 'until', 'while', 'about', 'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 'am', 'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 'themselves', 'you', 'your', 'yours', 'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 'hers', 'herself', 'we', 'us', 'our', 'ours', 'ourselves', 'i', 'me', 'my', 'mine', 'myself'}
+    stopwords_ja = {'の', 'に', 'は', 'を', 'た', 'が', 'で', 'て', 'と', 'し', 'れ', 'さ', 'ある', 'いる', 'も', 'する', 'から', 'な', 'こと', 'として', 'い', 'や', 'など', 'なっ', 'ない', 'この', 'ため', 'その', 'あっ', 'よう', 'また', 'もの', 'という', 'あり', 'まで', 'られ', 'なる', 'へ', 'か', 'だ', 'これ', 'によって', 'により', 'おり', 'より', 'による', 'ず', 'なり', 'られる', 'において', 'ば', 'なかっ', 'なく', 'しかし', 'について', 'せ', 'だっ', 'でき', 'それ', 'お', 'ほど', 'ものの', 'に対して', 'ほとんど', 'と共に', 'といった', 'です', 'ます', 'でした'}
 
-    # 토큰화 (알파벳, 숫자, 한글)
-    tokens = re.findall(r'[a-zA-Z0-9가-힣]+', query.lower())
+    # 토큰화 (알파벳, 숫자, 한글, 일본어 히라가나/카타카나/한자)
+    tokens = re.findall(r'[a-zA-Z0-9가-힣ぁ-んァ-ン一-龥]+', query.lower())
 
     # 키워드 추출 (stopwords 제외, 2글자 이상)
-    keywords = [t for t in tokens if t not in stopwords_ko and t not in stopwords_en and len(t) >= 2]
+    all_stopwords = stopwords_ko | stopwords_en | stopwords_ja
+    keywords = [t for t in tokens if t not in all_stopwords and len(t) >= 2]
 
-    # 의도 분류 (간단한 규칙 기반)
-    intent = "정보 검색"
-    if any(kw in query.lower() for kw in ['오류', 'error', '에러', '버그', 'bug', '문제', 'problem', 'issue']):
-        intent = "오류 해결"
-    elif any(kw in query.lower() for kw in ['방법', 'how', '어떻게', '설정', 'config', 'setup', 'install']):
-        intent = "방법/절차 안내"
-    elif any(kw in query.lower() for kw in ['비교', 'compare', '차이', 'difference', 'vs']):
-        intent = "비교 분석"
-    elif any(kw in query.lower() for kw in ['정의', 'what', '무엇', 'definition', '개념']):
-        intent = "개념 설명"
+    # 의도 분류 (간단한 규칙 기반) - multilingual keywords
+    intent_key = "info_search"
+    if any(kw in query.lower() for kw in ['오류', 'error', '에러', '버그', 'bug', '문제', 'problem', 'issue', 'エラー', 'バグ', '問題']):
+        intent_key = "error_fix"
+    elif any(kw in query.lower() for kw in ['방법', 'how', '어떻게', '설정', 'config', 'setup', 'install', '方法', 'やり方', '設定', 'インストール']):
+        intent_key = "howto"
+    elif any(kw in query.lower() for kw in ['비교', 'compare', '차이', 'difference', 'vs', '比較', '違い']):
+        intent_key = "compare"
+    elif any(kw in query.lower() for kw in ['정의', 'what', '무엇', 'definition', '개념', '何', '定義', '概念', 'とは']):
+        intent_key = "concept"
 
     # 검색 전략 결정
-    strategy = []
+    strategy_keys = []
     if len(keywords) <= 2:
-        strategy.append("단순 벡터 검색")
+        strategy_keys.append("simple_vector")
     else:
-        strategy.append("복합 쿼리 검색")
+        strategy_keys.append("complex_query")
 
-    if any(kw in query.lower() for kw in ['표', 'table', '그림', 'figure', '이미지', 'image', '차트', 'chart']):
-        strategy.append("이미지/테이블 포함")
+    if any(kw in query.lower() for kw in ['표', 'table', '그림', 'figure', '이미지', 'image', '차트', 'chart', '図', '画像', 'テーブル', 'チャート']):
+        strategy_keys.append("include_image")
 
     return {
         "original_query": query,
         "keywords": keywords[:10],  # 상위 10개 키워드
-        "intent": intent,
-        "search_strategy": strategy,
+        "intent": get_label(INTENT_LABELS, intent_key),
+        "search_strategy": [get_label(STRATEGY_LABELS, sk) for sk in strategy_keys],
         "token_count": len(tokens)
     }
 
@@ -376,16 +493,37 @@ def _extract_embedding_info(tool_result: Dict[str, Any], tool_name: str) -> Dict
     return info
 
 
-# Max characters per tool result to prevent context overflow (NIM limit: 8192 tokens ~ 24000 chars)
-# Conservative limit: 3000 chars (~1000 tokens) to leave room for system prompt + messages
-MAX_TOOL_RESULT_CHARS = 3000
+# Max characters per tool result to prevent context overflow
+# - Standard mode (8K context): 2000 chars (~700 tokens) - conservative for CJK
+# - Large context mode (128K context): 15000 chars (~5000 tokens)
+def _get_max_tool_result_chars() -> int:
+    """
+    Get maximum tool result characters based on LLM context mode.
+
+    When RAG_LLM_USE_LARGE_CONTEXT=true, uses Mistral NeMo 12B (128K context),
+    allowing much larger tool results for better RAG accuracy.
+
+    For standard 8K context with CJK text (Korean/Japanese), we use 2000 chars
+    because CJK characters tokenize to ~2 tokens per character on average.
+    """
+    use_large_context = os.getenv("RAG_LLM_USE_LARGE_CONTEXT", "false").lower() == "true"
+    if use_large_context:
+        return 15000  # 128K context allows ~5000 tokens for tool results
+    return 1500  # 8K context with CJK needs very conservative limit (~500 tokens)
 
 
-def _truncate_tool_result(content: str, max_chars: int = MAX_TOOL_RESULT_CHARS) -> str:
+def _truncate_tool_result(content: str, max_chars: int = None) -> str:
     """
     Truncate tool result content to prevent LLM context overflow.
     Keeps the beginning and notes truncation.
+
+    Args:
+        content: The content to truncate
+        max_chars: Maximum characters. If None, determined by RAG_LLM_USE_LARGE_CONTEXT setting.
     """
+    if max_chars is None:
+        max_chars = _get_max_tool_result_chars()
+
     if not content or len(content) <= max_chars:
         return content
 
@@ -718,17 +856,32 @@ class AgentExecutor:
                 details={"error": str(e)}
             )
 
-        # Build system prompt with language preference
+        # Build system prompt with language preference - INJECT AT BEGINNING for stronger effect
         if context.language and context.language != "auto":
             language_names = {"en": "English", "ko": "Korean", "ja": "Japanese"}
             lang_name = language_names.get(context.language, context.language)
-            system_prompt += f"""
+            # Language names in their own language for stronger emphasis
+            lang_native = {"en": "English", "ko": "한국어", "ja": "日本語"}
+            native_name = lang_native.get(context.language, lang_name)
 
-LANGUAGE REQUIREMENT:
-- You MUST respond in {lang_name} by default
-- This is the user's configured language preference
-- ONLY switch to a different language if the user EXPLICITLY requests it in their message (e.g., "Answer in English", "日本語で答えて", "영어로 대답해줘")
-- If the user's message is in a different language but they don't explicitly request a response in that language, still respond in {lang_name}"""
+            # PREPEND language instruction at the BEGINNING of system prompt for maximum effect
+            language_instruction = f"""🔴 MANDATORY RESPONSE LANGUAGE: {lang_name} ({native_name})
+
+You MUST respond ONLY in {lang_name} ({native_name}).
+This is the user's configured UI language setting - NOT negotiable.
+The query language does NOT determine your response language.
+IGNORE the language of the user's question. ALWAYS respond in {lang_name}.
+
+Exception: ONLY switch language if user EXPLICITLY writes:
+- "Answer in English" / "영어로 답변해줘" / "英語で答えて"
+- "한국어로 답변해줘" / "Answer in Korean" / "韓国語で答えて"
+- "日本語で答えて" / "일본어로 답변해줘" / "Answer in Japanese"
+
+═══════════════════════════════════════════════════════════════
+
+"""
+            system_prompt = language_instruction + system_prompt
+            logger.info(f"[Executor.run] Language instruction PREPENDED: {lang_name}")
 
         # Add UI context if available (context-aware AI)
         if context.metadata.get('ui_context_prompt'):
@@ -985,19 +1138,33 @@ User Query: {task}"""
                 details={"error": str(e)}
             )
 
-        # Build system prompt with language preference
+        # Build system prompt with language preference - INJECT AT BEGINNING for stronger effect
         logger.debug(f"[Executor.stream] context.language = '{context.language}'")
         if context.language and context.language != "auto":
             language_names = {"en": "English", "ko": "Korean", "ja": "Japanese"}
             lang_name = language_names.get(context.language, context.language)
-            system_prompt += f"""
+            # Language names in their own language for stronger emphasis
+            lang_native = {"en": "English", "ko": "한국어", "ja": "日本語"}
+            native_name = lang_native.get(context.language, lang_name)
 
-LANGUAGE REQUIREMENT:
-- You MUST respond in {lang_name} by default
-- This is the user's configured language preference
-- ONLY switch to a different language if the user EXPLICITLY requests it in their message (e.g., "Answer in English", "日本語で答えて", "영어로 대답해줘")
-- If the user's message is in a different language but they don't explicitly request a response in that language, still respond in {lang_name}"""
-            logger.debug(f"[Executor.stream] Added language instruction for {lang_name}")
+            # PREPEND language instruction at the BEGINNING of system prompt for maximum effect
+            language_instruction = f"""🔴 MANDATORY RESPONSE LANGUAGE: {lang_name} ({native_name})
+
+You MUST respond ONLY in {lang_name} ({native_name}).
+This is the user's configured UI language setting - NOT negotiable.
+The query language does NOT determine your response language.
+IGNORE the language of the user's question. ALWAYS respond in {lang_name}.
+
+Exception: ONLY switch language if user EXPLICITLY writes:
+- "Answer in English" / "영어로 답변해줘" / "英語で答えて"
+- "한국어로 답변해줘" / "Answer in Korean" / "韓国語で答えて"
+- "日本語で答えて" / "일본어로 답변해줘" / "Answer in Japanese"
+
+═══════════════════════════════════════════════════════════════
+
+"""
+            system_prompt = language_instruction + system_prompt
+            logger.info(f"[Executor.stream] Language instruction PREPENDED: {lang_name}")
 
         # Add UI context if available (context-aware AI)
         if context.metadata.get('ui_context_prompt'):
@@ -1095,7 +1262,8 @@ User Query: {task}"""
         # ========================================================================
         # RAG Analysis: Send query analysis info for UI progress modal
         # ========================================================================
-        query_analysis = _analyze_query_keywords(task)
+        user_language = context.language if context.language and context.language != "auto" else "ko"
+        query_analysis = _analyze_query_keywords(task, language=user_language)
         yield AgentStreamChunk(
             chunk_type="rag_analysis",
             content=json.dumps(query_analysis, ensure_ascii=False),
@@ -1304,6 +1472,24 @@ User Query: {task}"""
             else:
                 # Stream final answer
                 answer = response.content or ""
+
+                # ========================================================================
+                # STRIP THINKING TAGS: Remove internal reasoning from response
+                # ========================================================================
+                original_answer = answer
+                # DEBUG: Log original LLM response
+                print(f"[Executor.stream] DEBUG Original LLM response ({len(original_answer)} chars):", flush=True)
+                print(f"[Executor.stream] DEBUG >>> {original_answer[:500]}{'...' if len(original_answer) > 500 else ''}", flush=True)
+
+                answer = strip_thinking_tags(answer)
+                if answer != original_answer:
+                    logger.info(f"[Executor.stream] Stripped thinking tags from answer. Original: {len(original_answer)} chars, Cleaned: {len(answer)} chars")
+                    print(f"[Executor.stream] DEBUG Cleaned answer: {answer[:200] if answer else '(empty)'}", flush=True)
+                    if not answer:
+                        # If all content was thinking, request a new response
+                        logger.warning("[Executor.stream] All content was internal reasoning - returning generic message")
+                        print(f"[Executor.stream] DEBUG All content stripped! Returning fallback message.", flush=True)
+                        answer = get_insufficient_info_response(context.language or "en")
 
                 # ========================================================================
                 # RAG Analysis: Send generation start for UI progress modal

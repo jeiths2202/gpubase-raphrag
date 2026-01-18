@@ -1,11 +1,52 @@
 version: '3.8'
 
 # GraphRAG Docker Services
+# GPU Allocation: 4=Text, 5=Embedding, 6=Vision, 7=Code
 # Neo4j data persists in bind-mounted directory
-# NIM/vLLM caches use named volumes for container compatibility
 
 services:
+  # ============================================================
+  # PostgreSQL with pgvector (port 5432)
+  # ============================================================
+  postgres-kms:
+    container_name: postgres-kms
+    image: pgvector/pgvector:pg15
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-raguser}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ragpassword123}
+      - POSTGRES_DB=${POSTGRES_DB:-ragdb}
+    volumes:
+      - postgres_kms_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raguser} -d ${POSTGRES_DB:-ragdb}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ============================================================
+  # pgAdmin - PostgreSQL Web UI (port 5050)
+  # ============================================================
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@example.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD:-admin123}
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres-kms
+
+  # ============================================================
   # Neo4j Graph Database (port 7474, 7687)
+  # ============================================================
   neo4j:
     container_name: neo4j-graphrag
     image: neo4j:latest
@@ -30,7 +71,9 @@ services:
       retries: 5
       start_period: 30s
 
-  # Nemotron LLM NIM (port 12800, GPU 7)
+  # ============================================================
+  # Text LLM - Nemotron (GPU 4, port 12800)
+  # ============================================================
   nemotron-llm:
     container_name: nemotron-graphrag
     image: nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2:latest
@@ -40,9 +83,9 @@ services:
       - "12800:8000"
     environment:
       - NGC_API_KEY=${NGC_API_KEY}
-      - NVIDIA_VISIBLE_DEVICES=6,7
-      - CUDA_VISIBLE_DEVICES=0,1
-      - NIM_MAX_NUM_SEQS=64
+      - NVIDIA_VISIBLE_DEVICES=4
+      - CUDA_VISIBLE_DEVICES=0
+      - NIM_MAX_NUM_SEQS=32
       - NIM_MAX_MODEL_LEN=8192
     volumes:
       - nim_llm_cache:/opt/nim/.cache
@@ -54,9 +97,11 @@ services:
       retries: 10
       start_period: 180s
 
-  # NeMo Embedding NIM (port 12801, GPU 4,5)
+  # ============================================================
+  # Embedding - NeMo (GPU 5, port 12801)
+  # ============================================================
   nemo-embedding:
-    container_name: docker-nemo-embedding-1
+    container_name: nemo-embedding-graphrag
     image: nvcr.io/nim/nvidia/nv-embedqa-mistral-7b-v2:1.0.1
     restart: unless-stopped
     runtime: nvidia
@@ -65,8 +110,8 @@ services:
     environment:
       - NGC_API_KEY=${NGC_API_KEY}
       - NIM_TRITON_PERFORMANCE_MODE=latency
-      - NVIDIA_VISIBLE_DEVICES=4,5
-      - CUDA_VISIBLE_DEVICES=0,1
+      - NVIDIA_VISIBLE_DEVICES=5
+      - CUDA_VISIBLE_DEVICES=0
     volumes:
       - nim_embed_cache:/opt/nim/.cache
     shm_size: '16gb'
@@ -77,9 +122,36 @@ services:
       retries: 10
       start_period: 180s
 
-  # Mistral NeMo Code LLM (vLLM, port 12802, GPU 0)
+  # ============================================================
+  # Vision - LLaVA or similar (GPU 6, port 12803)
+  # ============================================================
+  vision-llm:
+    container_name: vision-graphrag
+    image: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-vl-8b-v1:1.3.0
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "12803:8000"
+    environment:
+      - NGC_API_KEY=${NGC_API_KEY}
+      - NVIDIA_VISIBLE_DEVICES=6
+      - CUDA_VISIBLE_DEVICES=0
+      - NIM_MAX_MODEL_LEN=4096
+    volumes:
+      - nim_vision_cache:/opt/nim/.cache
+    shm_size: '16gb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+
+  # ============================================================
+  # Code LLM - Mistral NeMo (GPU 7, port 12802)
+  # ============================================================
   mistral-nemo-coder:
-    container_name: docker-mistral-nemo-coder-1
+    container_name: mistral-coder-graphrag
     image: vllm/vllm-openai:latest
     restart: unless-stopped
     runtime: nvidia
@@ -87,7 +159,7 @@ services:
       - "12802:8000"
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
-      - NVIDIA_VISIBLE_DEVICES=0
+      - NVIDIA_VISIBLE_DEVICES=7
       - CUDA_VISIBLE_DEVICES=0
     volumes:
       - huggingface_cache:/root/.cache/huggingface
@@ -103,11 +175,18 @@ services:
       retries: 10
       start_period: 180s
 
-# Named volumes for model caches (persist across container restarts)
+# Named volumes for model caches and data persistence
 volumes:
+  postgres_kms_data:
+    name: graphrag_postgres_kms_data
+  pgadmin_data:
+    name: graphrag_pgadmin_data
   nim_llm_cache:
     name: graphrag_nim_llm_cache
   nim_embed_cache:
     name: graphrag_nim_embed_cache
+  nim_vision_cache:
+    name: graphrag_nim_vision_cache
   huggingface_cache:
     name: graphrag_huggingface_cache
+
