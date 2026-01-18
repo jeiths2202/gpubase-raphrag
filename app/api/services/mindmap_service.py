@@ -136,24 +136,32 @@ class MindmapService:
         chunks = self._get_document_chunks(request.document_ids)
 
         if not chunks:
-            # 빈 마인드맵 반환
-            mindmap_id = self._generate_id("mm", "empty")
-            return MindmapFull(
-                id=mindmap_id,
-                title=request.title or "Empty Mindmap",
-                document_ids=request.document_ids,
-                node_count=0,
-                edge_count=0,
-                data=MindmapData(nodes=[], edges=[], root_id=None)
+            # 문서가 없지만 focus_topic이 있으면 LLM 지식으로 마인드맵 생성
+            if request.focus_topic:
+                concepts_data = self._generate_concepts_from_topic(
+                    request.focus_topic,
+                    max_nodes=request.max_nodes,
+                    language=request.language
+                )
+            else:
+                # focus_topic도 없으면 빈 마인드맵 반환
+                mindmap_id = self._generate_id("mm", "empty")
+                return MindmapFull(
+                    id=mindmap_id,
+                    title=request.title or "Empty Mindmap",
+                    document_ids=request.document_ids,
+                    node_count=0,
+                    edge_count=0,
+                    data=MindmapData(nodes=[], edges=[], root_id=None)
+                )
+        else:
+            # 2. LLM을 사용하여 문서에서 개념과 관계 추출
+            concepts_data = self._extract_concepts_and_relations(
+                chunks,
+                max_nodes=request.max_nodes,
+                focus_topic=request.focus_topic,
+                language=request.language
             )
-
-        # 2. LLM을 사용하여 개념과 관계 추출
-        concepts_data = self._extract_concepts_and_relations(
-            chunks,
-            max_nodes=request.max_nodes,
-            focus_topic=request.focus_topic,
-            language=request.language
-        )
 
         # 3. 마인드맵 데이터 구조 생성
         nodes, edges, root_id = self._build_mindmap_structure(
@@ -162,16 +170,33 @@ class MindmapService:
         )
 
         # 4. 마인드맵 정보 생성
-        mindmap_id = self._generate_id("mm", request.title or chunks[0].get("content", "")[:50])
+        if request.title:
+            id_seed = request.title
+        elif request.focus_topic:
+            id_seed = request.focus_topic
+        elif chunks:
+            id_seed = chunks[0].get("content", "mindmap")[:50]
+        else:
+            id_seed = "mindmap"
+
+        mindmap_id = self._generate_id("mm", id_seed)
         title = request.title or self._generate_title(concepts_data, request.language)
 
         # 5. Neo4j에 저장
         self._save_mindmap_to_neo4j(mindmap_id, title, nodes, edges, request.document_ids)
 
+        # 설명 생성
+        if chunks:
+            description = f"Generated from {len(request.document_ids)} document(s)"
+        elif request.focus_topic:
+            description = f"Generated from topic: {request.focus_topic}"
+        else:
+            description = "Generated mindmap"
+
         return MindmapFull(
             id=mindmap_id,
             title=title,
-            description=f"Generated from {len(request.document_ids)} document(s)",
+            description=description,
             document_ids=request.document_ids,
             node_count=len(nodes),
             edge_count=len(edges),
@@ -339,6 +364,85 @@ JSON 응답:"""
             "main_topic": entity_list[0] if entity_list else "Document",
             "concepts": concepts,
             "relations": relations
+        }
+
+    def _generate_concepts_from_topic(
+        self,
+        topic: str,
+        max_nodes: int = 30,
+        language: str = "auto"
+    ) -> Dict[str, Any]:
+        """주제만으로 LLM 지식을 사용해 개념과 관계 생성 (문서 없이)"""
+
+        # 언어별 프롬프트
+        if language == "ko":
+            lang_instruction = "한국어로 개념을 생성하세요."
+        elif language == "ja":
+            lang_instruction = "日本語で概念を生成してください。"
+        else:
+            lang_instruction = "Generate concepts in the appropriate language for the topic."
+
+        prompt = f"""주제 "{topic}"에 대한 핵심 개념(concepts)과 관계(relations)를 생성하세요.
+{lang_instruction}
+
+다음 JSON 형식으로 응답하세요:
+{{
+    "main_topic": "{topic}",
+    "concepts": [
+        {{"name": "개념명", "type": "concept|entity|topic|keyword", "importance": 0.0-1.0, "description": "간단한 설명"}}
+    ],
+    "relations": [
+        {{"source": "개념1", "target": "개념2", "relation": "relates_to|contains|causes|depends_on|similar_to|part_of", "label": "관계 설명"}}
+    ]
+}}
+
+규칙:
+1. 최대 {max_nodes}개의 개념을 생성하세요
+2. 가장 중요한 개념의 importance는 1.0에 가깝게, 덜 중요한 개념은 낮게 설정하세요
+3. 관계는 명확한 연결이 있는 경우에만 생성하세요
+4. 각 개념에 대해 간단하지만 유용한 설명을 포함하세요
+5. 개념들이 서로 잘 연결되도록 관계를 생성하세요
+
+JSON 응답:"""
+
+        try:
+            response = self._llm.invoke(prompt)
+            response_text = response.content.strip()
+
+            # JSON 추출
+            json_match = re.search(r'\{[\s\S]*\}', response_text)
+            if json_match:
+                concepts_data = json.loads(json_match.group())
+                # main_topic이 없으면 추가
+                if "main_topic" not in concepts_data:
+                    concepts_data["main_topic"] = topic
+                return concepts_data
+            else:
+                # JSON 파싱 실패 시 기본 구조 반환
+                return self._fallback_topic_concepts(topic)
+
+        except json.JSONDecodeError as e:
+            print(f"JSON parsing error in topic generation: {e}")
+            return self._fallback_topic_concepts(topic)
+        except Exception as e:
+            print(f"Topic concept generation error: {e}")
+            return self._fallback_topic_concepts(topic)
+
+    def _fallback_topic_concepts(self, topic: str) -> Dict[str, Any]:
+        """주제 개념 생성 실패 시 기본 구조 반환"""
+        return {
+            "main_topic": topic,
+            "concepts": [
+                {"name": topic, "type": "topic", "importance": 1.0, "description": f"Main topic: {topic}"},
+                {"name": f"{topic} 개요", "type": "concept", "importance": 0.8, "description": "Overview"},
+                {"name": f"{topic} 응용", "type": "concept", "importance": 0.7, "description": "Applications"},
+                {"name": f"{topic} 역사", "type": "concept", "importance": 0.6, "description": "History"},
+            ],
+            "relations": [
+                {"source": topic, "target": f"{topic} 개요", "relation": "contains", "label": "포함"},
+                {"source": topic, "target": f"{topic} 응용", "relation": "contains", "label": "포함"},
+                {"source": topic, "target": f"{topic} 역사", "relation": "contains", "label": "포함"},
+            ]
         }
 
     def _build_mindmap_structure(
