@@ -386,17 +386,19 @@ class AdaptiveSearchTool(BaseTool):
 
             query_embedding = embeddings[0]
 
-            # Search adaptive chunks with optional keyword filter for error codes
-            # This implements HYBRID search: keyword filter + semantic ranking
-            # For error code searches, use very low threshold (0.10) to handle cross-lingual queries
-            # e.g., Korean query for Japanese error documentation (similarity ~0.13)
-            results = await adaptive_service.search_chunks(
+            # Use Hybrid Search combining vector similarity with keyword boosting
+            # - Detects "what is" intent (이란, とは, what is patterns)
+            # - Boosts introduction/overview sections for definitional queries
+            # - Combines vector similarity (60%) with keyword boost (40%)
+            print(f"[AdaptiveSearch] Using hybrid search for query: {query}", flush=True)
+            logger.info(f"[AdaptiveSearch] Using hybrid search for query: {query}")
+
+            results = await adaptive_service.search_chunks_hybrid(
                 query_embedding=query_embedding,
+                query_text=query,  # Pass query text for intent detection and keyword boosting
                 limit=top_k,
                 pdf_id=pdf_id,
-                section_path_prefix=section_filter,
-                min_similarity=0.10 if keyword_filter else 0.3,  # Very low threshold for keyword filter (cross-lingual)
-                keyword_filter=keyword_filter,
+                min_similarity=0.10 if keyword_filter else 0.2,  # Lower threshold for hybrid scoring
             )
 
             print(f"[AdaptiveSearch] Found {len(results) if results else 0} chunks", flush=True)
