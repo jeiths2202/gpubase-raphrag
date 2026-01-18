@@ -23,5 +23,20 @@
   "nodes": "ノード",
   "selected": "選択中",
   "none": "なし",
-  "lastSaved": "最終保存"
+  "lastSaved": "最終保存",
+  "emptyTitle": "マインドマップがありません",
+  "emptyDescription": "ナレッジベースから新しいマインドマップを作成するか、特定のトピックに集中してください。",
+  "createNew": "新しいマインドマップを作成",
+  "orLoad": "または保存されたマインドマップを読み込む",
+  "generateFromAll": "すべてのドキュメントから生成",
+  "noMindmap": "マインドマップが読み込まれていません",
+  "description": "説明",
+  "relatedConcepts": "関連する概念",
+  "expandNode": "このノードを展開",
+  "expand": "展開",
+  "askAboutNode": "この概念について質問する",
+  "queryPlaceholder": "質問を入力...",
+  "answer": "回答",
+  "relatedTopics": "関連トピック",
+  "sources": "ソース"
 }

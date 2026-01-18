@@ -23,5 +23,20 @@
   "nodes": "Nodes",
   "selected": "Selected",
   "none": "None",
-  "lastSaved": "Last saved"
+  "lastSaved": "Last saved",
+  "emptyTitle": "No Mindmap Yet",
+  "emptyDescription": "Create a new mindmap from your knowledge base or focus on a specific topic.",
+  "createNew": "Create New Mindmap",
+  "orLoad": "Or load saved mindmap",
+  "generateFromAll": "Generate from All Documents",
+  "noMindmap": "No mindmap loaded",
+  "description": "Description",
+  "relatedConcepts": "Related Concepts",
+  "expandNode": "Expand this node",
+  "expand": "Expand",
+  "askAboutNode": "Ask about this concept",
+  "queryPlaceholder": "Enter your question...",
+  "answer": "Answer",
+  "relatedTopics": "Related topics",
+  "sources": "Sources"
 }

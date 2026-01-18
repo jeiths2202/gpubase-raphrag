@@ -23,5 +23,20 @@
   "nodes": "노드",
   "selected": "선택됨",
   "none": "없음",
-  "lastSaved": "마지막 저장"
+  "lastSaved": "마지막 저장",
+  "emptyTitle": "마인드맵 없음",
+  "emptyDescription": "지식 베이스에서 새 마인드맵을 생성하거나 특정 주제에 집중하세요.",
+  "createNew": "새 마인드맵 생성",
+  "orLoad": "또는 저장된 마인드맵 불러오기",
+  "generateFromAll": "전체 문서에서 생성",
+  "noMindmap": "마인드맵이 로드되지 않음",
+  "description": "설명",
+  "relatedConcepts": "관련 개념",
+  "expandNode": "이 노드 확장",
+  "expand": "확장",
+  "askAboutNode": "이 개념에 대해 질문하기",
+  "queryPlaceholder": "질문을 입력하세요...",
+  "answer": "답변",
+  "relatedTopics": "관련 주제",
+  "sources": "출처"
 }
