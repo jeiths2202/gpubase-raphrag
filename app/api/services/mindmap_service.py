@@ -18,9 +18,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from langchain_openai import ChatOpenAI
 from langchain_neo4j import Neo4jGraph
 
-# Import config from src
+# Import config and embedding service from src
 try:
     from config import config
+    from embeddings import NeMoEmbeddingService
 except ImportError:
     # Fallback config
     # SECURITY: No default values for sensitive credentials
@@ -32,7 +33,12 @@ except ImportError:
         class llm:
             api_url = os.getenv("LLM_API_URL", "http://localhost:12800/v1")
             model = os.getenv("LLM_MODEL", "nvidia/nvidia-nemotron-nano-9b-v2")
+        class embedding:
+            api_url = os.getenv("EMBEDDING_API_URL", "http://localhost:12801/v1")
+        class vector:
+            index_name = "chunk_embedding"
     config = FallbackConfig()
+    NeMoEmbeddingService = None  # Will be handled in service init
 
 from ..models.mindmap import (
     MindmapNode, MindmapEdge, MindmapData, MindmapInfo, MindmapFull,
@@ -57,6 +63,7 @@ class MindmapService:
         """Initialize mindmap service"""
         self._graph: Optional[Neo4jGraph] = None
         self._llm: Optional[ChatOpenAI] = None
+        self._embedding_service = None
         self._initialized: bool = False
 
     @classmethod
@@ -84,6 +91,18 @@ class MindmapService:
                 api_key="not-needed",
                 temperature=0.3
             )
+
+            # Initialize embedding service for vector search
+            if NeMoEmbeddingService is not None:
+                try:
+                    embedding_url = getattr(config, 'embedding', None)
+                    if embedding_url and hasattr(embedding_url, 'api_url'):
+                        self._embedding_service = NeMoEmbeddingService(base_url=embedding_url.api_url)
+                    else:
+                        self._embedding_service = NeMoEmbeddingService()
+                except Exception as e:
+                    print(f"Warning: Failed to initialize embedding service: {e}")
+                    self._embedding_service = None
 
             # Initialize schema
             self._init_mindmap_schema()
@@ -132,11 +151,31 @@ class MindmapService:
         """Synchronous mindmap generation"""
         self._ensure_initialized()
 
-        # 1. 문서에서 청크 가져오기
-        chunks = self._get_document_chunks(request.document_ids)
+        chunks = []
+        search_method = "graph"
+
+        # 1. 먼저 그래프 검색 시도 (Document → Chunk 관계)
+        if request.document_ids:
+            # 특정 문서 지정된 경우
+            chunks = self._get_document_chunks(request.document_ids)
+        else:
+            # 문서 미지정: focus_topic이 있으면 Vector 검색 우선
+            if request.focus_topic:
+                chunks = self._vector_search_chunks(
+                    query=request.focus_topic,
+                    k=30,  # 더 많은 청크 검색
+                    min_score=0.3
+                )
+                if chunks:
+                    search_method = "vector"
+                    print(f"Vector search found {len(chunks)} chunks for topic: {request.focus_topic}")
+
+            # Vector 검색 결과 없으면 그래프 검색으로 폴백
+            if not chunks:
+                chunks = self._get_document_chunks([])
 
         if not chunks:
-            # 문서가 없으면 마인드맵 생성 불가 (할루시네이션 방지)
+            # 어떤 방법으로도 청크를 찾지 못함
             raise ValueError(
                 "No documents found in the knowledge base. "
                 "Please upload documents first before generating a mindmap."
@@ -168,11 +207,12 @@ class MindmapService:
         title = request.title or self._generate_title(concepts_data, request.language)
 
         # 5. Neo4j에 저장
-        self._save_mindmap_to_neo4j(mindmap_id, title, nodes, edges, request.document_ids)
+        doc_ids = request.document_ids or list(set(c.get("doc_id", "unknown") for c in chunks if c.get("doc_id")))
+        self._save_mindmap_to_neo4j(mindmap_id, title, nodes, edges, doc_ids)
 
         # 설명 생성
-        doc_count = len(request.document_ids) if request.document_ids else len(set(c["doc_id"] for c in chunks))
-        description = f"Generated from {doc_count} document(s)"
+        doc_count = len(doc_ids) if doc_ids else len(set(c["doc_id"] for c in chunks))
+        description = f"Generated from {doc_count} document(s) via {search_method} search"
         if request.focus_topic:
             description += f" (focus: {request.focus_topic})"
 
@@ -236,6 +276,67 @@ class MindmapService:
             }
             for r in results
         ]
+
+    def _vector_search_chunks(self, query: str, k: int = 20, min_score: float = 0.3) -> List[Dict]:
+        """
+        Vector 유사도 검색으로 관련 청크 가져오기
+
+        Args:
+            query: 검색 쿼리 (focus_topic)
+            k: 반환할 결과 수
+            min_score: 최소 유사도 점수
+
+        Returns:
+            관련 청크 목록
+        """
+        if self._embedding_service is None:
+            print("Warning: Embedding service not available, falling back to graph search")
+            return []
+
+        try:
+            # Generate query embedding
+            query_embedding = self._embedding_service.embed_text(query, input_type="query")
+
+            # Get vector index name from config
+            vector_index_name = getattr(getattr(config, 'vector', None), 'index_name', 'chunk_embedding')
+
+            # Search using Neo4j vector index
+            results = self._graph.query(
+                f"""
+                CALL db.index.vector.queryNodes('{vector_index_name}', $k, $embedding)
+                YIELD node, score
+                WHERE score >= $min_score
+                OPTIONAL MATCH (d:Document)-[:CONTAINS]->(node)
+                OPTIONAL MATCH (node)-[:MENTIONS]->(e:Entity)
+                RETURN
+                    node.id AS chunk_id,
+                    node.content AS content,
+                    node.index AS chunk_index,
+                    score,
+                    d.id AS doc_id,
+                    collect(DISTINCT e.name)[..5] AS entities
+                ORDER BY score DESC
+                """,
+                {"k": k, "embedding": query_embedding, "min_score": min_score}
+            )
+
+            return [
+                {
+                    "doc_id": r["doc_id"] or "unknown",
+                    "chunk_id": r["chunk_id"],
+                    "content": r["content"],
+                    "chunk_index": r["chunk_index"] or 0,
+                    "entities": r["entities"] or [],
+                    "score": r["score"],
+                    "source": "vector_search"
+                }
+                for r in results
+                if r["content"]  # Only include chunks with content
+            ]
+
+        except Exception as e:
+            print(f"Vector search error: {e}")
+            return []
 
     def _extract_concepts_and_relations(
         self,
