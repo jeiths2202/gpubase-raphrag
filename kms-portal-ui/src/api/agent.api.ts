@@ -124,6 +124,12 @@ export type AgentStreamChunkType =
   | 'status'
   | 'artifact'
   | 'image'
+  // RAG analysis chunk types for detailed progress visualization
+  | 'rag_analysis'
+  | 'chunk_structure'
+  | 'embedding_info'
+  | 'generation_start'
+  | 'generation_progress'
   // Enterprise multi-agent orchestration chunk types
   | 'orchestration_start'
   | 'dag_created'

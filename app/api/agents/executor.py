@@ -199,6 +199,183 @@ async def _execute_all_tools_develop_mode(
 
     return results
 
+
+# ============================================================================
+# RAG Analysis: Extract and format detailed RAG processing information
+# ============================================================================
+
+def _analyze_query_keywords(query: str) -> Dict[str, Any]:
+    """
+    분석 프롬프트에서 키워드와 의도를 추출합니다.
+
+    Returns:
+        Dict with keywords, intent, search_strategy
+    """
+    import re
+
+    # 간단한 키워드 추출 (stopwords 제외)
+    stopwords_ko = {'이', '가', '은', '는', '을', '를', '의', '에', '에서', '로', '으로', '와', '과', '도', '만', '까지', '부터', '처럼', '같이', '대해', '대한', '관한', '있는', '있다', '없다', '하는', '하다', '되는', '되다', '한', '할', '된', '될', '합니다', '입니다', '습니다', '있습니다', '어떻게', '무엇', '언제', '어디', '왜', '누가'}
+    stopwords_en = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare', 'ought', 'used', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'between', 'under', 'again', 'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just', 'and', 'but', 'if', 'or', 'because', 'until', 'while', 'about', 'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 'am', 'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 'themselves', 'you', 'your', 'yours', 'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 'hers', 'herself', 'we', 'us', 'our', 'ours', 'ourselves', 'i', 'me', 'my', 'mine', 'myself'}
+
+    # 토큰화 (알파벳, 숫자, 한글)
+    tokens = re.findall(r'[a-zA-Z0-9가-힣]+', query.lower())
+
+    # 키워드 추출 (stopwords 제외, 2글자 이상)
+    keywords = [t for t in tokens if t not in stopwords_ko and t not in stopwords_en and len(t) >= 2]
+
+    # 의도 분류 (간단한 규칙 기반)
+    intent = "정보 검색"
+    if any(kw in query.lower() for kw in ['오류', 'error', '에러', '버그', 'bug', '문제', 'problem', 'issue']):
+        intent = "오류 해결"
+    elif any(kw in query.lower() for kw in ['방법', 'how', '어떻게', '설정', 'config', 'setup', 'install']):
+        intent = "방법/절차 안내"
+    elif any(kw in query.lower() for kw in ['비교', 'compare', '차이', 'difference', 'vs']):
+        intent = "비교 분석"
+    elif any(kw in query.lower() for kw in ['정의', 'what', '무엇', 'definition', '개념']):
+        intent = "개념 설명"
+
+    # 검색 전략 결정
+    strategy = []
+    if len(keywords) <= 2:
+        strategy.append("단순 벡터 검색")
+    else:
+        strategy.append("복합 쿼리 검색")
+
+    if any(kw in query.lower() for kw in ['표', 'table', '그림', 'figure', '이미지', 'image', '차트', 'chart']):
+        strategy.append("이미지/테이블 포함")
+
+    return {
+        "original_query": query,
+        "keywords": keywords[:10],  # 상위 10개 키워드
+        "intent": intent,
+        "search_strategy": strategy,
+        "token_count": len(tokens)
+    }
+
+
+def _extract_chunk_structure(tool_result: Dict[str, Any], tool_name: str) -> Dict[str, Any]:
+    """
+    도구 결과에서 청킹 구조 정보를 추출합니다.
+    """
+    structure = {
+        "tool_name": tool_name,
+        "total_chunks": 0,
+        "chunk_types": {},
+        "page_distribution": {},
+        "avg_chunk_size": 0,
+        "chunks_preview": []
+    }
+
+    metadata = tool_result.get("metadata", {})
+    sources = metadata.get("sources", [])
+
+    if not sources:
+        # Try parsing output
+        try:
+            output = tool_result.get("output", "")
+            if isinstance(output, str):
+                data = json.loads(output)
+                sources = data.get("results", [])
+        except:
+            pass
+
+    if sources:
+        structure["total_chunks"] = len(sources)
+
+        chunk_types = {}
+        pages = {}
+        total_size = 0
+
+        for i, src in enumerate(sources[:20]):  # 상위 20개만 분석
+            # 청크 타입
+            chunk_type = src.get("chunk_type", src.get("type", "TEXT"))
+            chunk_types[chunk_type] = chunk_types.get(chunk_type, 0) + 1
+
+            # 페이지 분포
+            page = src.get("page_number", src.get("page", 0))
+            if page:
+                pages[page] = pages.get(page, 0) + 1
+
+            # 청크 크기
+            content = src.get("content", src.get("text", ""))
+            total_size += len(content)
+
+            # 미리보기
+            if i < 5:
+                structure["chunks_preview"].append({
+                    "index": i + 1,
+                    "type": chunk_type,
+                    "page": page,
+                    "size": len(content),
+                    "preview": content[:100] + "..." if len(content) > 100 else content,
+                    "similarity": src.get("score", src.get("similarity", 0))
+                })
+
+        structure["chunk_types"] = chunk_types
+        structure["page_distribution"] = dict(sorted(pages.items())[:10])  # 상위 10페이지
+        structure["avg_chunk_size"] = total_size // len(sources) if sources else 0
+
+    return structure
+
+
+def _extract_embedding_info(tool_result: Dict[str, Any], tool_name: str) -> Dict[str, Any]:
+    """
+    도구 결과에서 임베딩 정보를 추출합니다.
+    """
+    info = {
+        "tool_name": tool_name,
+        "model": "NV-EmbedQA-Mistral-7B-v2",  # 기본 임베딩 모델
+        "dimension": 4096,
+        "similarity_scores": [],
+        "score_distribution": {
+            "excellent": 0,  # >= 0.8
+            "good": 0,       # >= 0.6
+            "fair": 0,       # >= 0.4
+            "low": 0         # < 0.4
+        },
+        "top_matches": []
+    }
+
+    metadata = tool_result.get("metadata", {})
+    sources = metadata.get("sources", [])
+
+    if not sources:
+        try:
+            output = tool_result.get("output", "")
+            if isinstance(output, str):
+                data = json.loads(output)
+                sources = data.get("results", [])
+        except:
+            pass
+
+    if sources:
+        for src in sources[:20]:
+            score = float(src.get("score", src.get("similarity", 0)) or 0)
+            info["similarity_scores"].append(score)
+
+            # 점수 분포
+            if score >= 0.8:
+                info["score_distribution"]["excellent"] += 1
+            elif score >= 0.6:
+                info["score_distribution"]["good"] += 1
+            elif score >= 0.4:
+                info["score_distribution"]["fair"] += 1
+            else:
+                info["score_distribution"]["low"] += 1
+
+        # 상위 매치
+        for i, src in enumerate(sources[:5]):
+            score = float(src.get("score", src.get("similarity", 0)) or 0)
+            info["top_matches"].append({
+                "rank": i + 1,
+                "source": src.get("source", src.get("document_name", "Unknown")),
+                "score": score,
+                "score_pct": f"{score * 100:.1f}%"
+            })
+
+    return info
+
+
 # Max characters per tool result to prevent context overflow (NIM limit: 8192 tokens ~ 24000 chars)
 # Conservative limit: 3000 chars (~1000 tokens) to leave room for system prompt + messages
 MAX_TOOL_RESULT_CHARS = 3000
@@ -915,6 +1092,16 @@ User Query: {task}"""
 
         yield AgentStreamChunk(chunk_type="thinking", content="Analyzing your request...")
 
+        # ========================================================================
+        # RAG Analysis: Send query analysis info for UI progress modal
+        # ========================================================================
+        query_analysis = _analyze_query_keywords(task)
+        yield AgentStreamChunk(
+            chunk_type="rag_analysis",
+            content=json.dumps(query_analysis, ensure_ascii=False),
+            metadata=query_analysis
+        )
+
         # Store original task in context for query validation in tools
         # This prevents LLM from corrupting Japanese/Korean queries in tool calls
         context.metadata['original_query'] = task
@@ -1043,6 +1230,28 @@ User Query: {task}"""
                         metadata=tool_result_metadata
                     )
 
+                    # ========================================================================
+                    # RAG Analysis: Send chunk structure and embedding info for search tools
+                    # ========================================================================
+                    if result.get("success") and tool_call.tool_name in ["adaptive_search", "vector_search", "graph_query"]:
+                        # Chunk structure info
+                        chunk_structure = _extract_chunk_structure(result, tool_call.tool_name)
+                        yield AgentStreamChunk(
+                            chunk_type="chunk_structure",
+                            tool_name=tool_call.tool_name,
+                            content=json.dumps(chunk_structure, ensure_ascii=False),
+                            metadata=chunk_structure
+                        )
+
+                        # Embedding info
+                        embedding_info = _extract_embedding_info(result, tool_call.tool_name)
+                        yield AgentStreamChunk(
+                            chunk_type="embedding_info",
+                            tool_name=tool_call.tool_name,
+                            content=json.dumps(embedding_info, ensure_ascii=False),
+                            metadata=embedding_info
+                        )
+
                     # Stream images if tool result contains image_urls (e.g., from adaptive_search)
                     if result.get("success") and result.get("metadata"):
                         async for image_chunk in _stream_images_from_metadata(result["metadata"]):
@@ -1097,6 +1306,19 @@ User Query: {task}"""
                 answer = response.content or ""
 
                 # ========================================================================
+                # RAG Analysis: Send generation start for UI progress modal
+                # ========================================================================
+                yield AgentStreamChunk(
+                    chunk_type="generation_start",
+                    content="답변 생성을 시작합니다...",
+                    metadata={
+                        "total_sources": len(sources),
+                        "tools_used": [tr.get("tool_name", "unknown") for tr in tool_results if tr.get("success")],
+                        "answer_length": len(answer)
+                    }
+                )
+
+                # ========================================================================
                 # POST-EXECUTION VALIDATION: Check for general knowledge violations
                 # ========================================================================
                 is_violation, validated_answer = _check_for_general_knowledge_violation(
@@ -1134,10 +1356,25 @@ User Query: {task}"""
                         }
                     )
 
-                # Stream text content
+                # Stream text content with progress tracking
                 chunk_size = 50
+                total_chunks = (len(answer) + chunk_size - 1) // chunk_size
                 for i in range(0, len(answer), chunk_size):
                     chunk = answer[i:i + chunk_size]
+                    current_chunk = (i // chunk_size) + 1
+
+                    # Send generation progress every 10 chunks
+                    if current_chunk % 10 == 1 or current_chunk == total_chunks:
+                        yield AgentStreamChunk(
+                            chunk_type="generation_progress",
+                            content=f"답변 생성 중... ({current_chunk}/{total_chunks})",
+                            metadata={
+                                "current_chunk": current_chunk,
+                                "total_chunks": total_chunks,
+                                "progress_pct": round((current_chunk / total_chunks) * 100, 1)
+                            }
+                        )
+
                     yield AgentStreamChunk(chunk_type="text", content=chunk)
                     await asyncio.sleep(0.02)
 

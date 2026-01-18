@@ -10,6 +10,11 @@ export {
   ExternalConnectorsModal,
   type ExternalConnectorsModalProps,
 } from './ExternalConnectorsModal';
+export {
+  SearchProgressModal,
+  type SearchToolResult,
+  type SearchResultItem,
+} from './SearchProgressModal';
 
 // Hooks
 export { useFileAttachment, type UseFileAttachmentReturn } from './hooks';

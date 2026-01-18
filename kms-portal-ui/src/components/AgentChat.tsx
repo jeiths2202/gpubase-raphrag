@@ -30,6 +30,7 @@ import {
   ExternalLink,
   GitBranch,
   Link2,
+  Search,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import './AgentChat.css';
@@ -47,6 +48,7 @@ import {
   MessageBubble,
   IMSCredentialsModal,
   ExternalConnectorsModal,
+  SearchProgressModal,
   useFileAttachment,
   useUrlAttachment,
   useStreamingChat,
@@ -210,6 +212,9 @@ export const AgentChat: React.FC = () => {
     handleCancelStreaming,
     handleClearChat: streamingClearChat,
     syncAgentState,
+    searchProgress,
+    setSearchProgressOpen,
+    ragProgress,
   } = useStreamingChat(selectedAgentRef, {
     t,
     userLanguage,
@@ -558,6 +563,20 @@ export const AgentChat: React.FC = () => {
             )}
           </button>
 
+          {/* Search progress toggle button - show when there are search results */}
+          {searchProgress.toolResults.length > 0 && (
+            <button
+              className={`agent-chat-search-toggle ${searchProgress.isOpen ? 'active' : ''}`}
+              onClick={() => setSearchProgressOpen(!searchProgress.isOpen)}
+              title={t('searchProgress.title') || 'Search Progress'}
+            >
+              <Search size={16} />
+              <span className="search-results-count">
+                {searchProgress.toolResults.reduce((sum, t) => sum + (t.resultCount || 0), 0)}
+              </span>
+            </button>
+          )}
+
           {/* Trace panel toggle button - Planner only */}
           {selectedAgent === 'planner' && currentTrace.dag && (
             <button
@@ -894,6 +913,17 @@ export const AgentChat: React.FC = () => {
       <ExternalConnectorsModal
         isOpen={showConnectorsModal}
         onClose={closeConnectorsModal}
+        t={t}
+      />
+
+      {/* Search Progress Modal */}
+      <SearchProgressModal
+        isOpen={searchProgress.isOpen}
+        onClose={() => setSearchProgressOpen(false)}
+        query={searchProgress.currentQuery}
+        toolResults={searchProgress.toolResults}
+        isSearching={searchProgress.toolResults.some(t => t.status === 'running') || ragProgress.isGenerating}
+        ragProgress={ragProgress}
         t={t}
       />
     </div>

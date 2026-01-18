@@ -331,6 +331,74 @@
     "deleteConfirm": {
       "single": "次のドキュメントを削除しますか：",
       "warning": "この操作により、ドキュメントと関連するすべてのデータ（チャンク、エンベディング、メタデータ）がデータベースから完全に削除されます。"
+    },
+    "pending": {
+      "title": "アップロード待ち",
+      "filename": "ファイル名",
+      "size": "サイズ",
+      "uploadedAt": "アップロード日時",
+      "deleteConfirm": "このアップロード待ちファイルを削除しますか？"
+    },
+    "embed": {
+      "button": "エンベディング開始",
+      "optionsTitle": "エンベディング設定",
+      "selectedFiles": "{{count}}件のファイルを選択中",
+      "start": "エンベディング開始",
+      "processing": "処理中...",
+      "error": "エンベディング失敗",
+      "progressTitle": "エンベディング進捗",
+      "statusPending": "待機中",
+      "statusProcessing": "処理中",
+      "statusCompleted": "完了",
+      "statusFailed": "失敗"
     }
+  },
+  "searchProgress": {
+    "title": "ナレッジ検索進捗",
+    "query": "検索クエリ",
+    "results": "件",
+    "totalResults": "合計検索結果",
+    "searching": "検索中...",
+    "expandAll": "すべて展開",
+    "collapseAll": "すべて折りたたむ",
+    "showMore": "もっと見る",
+    "showLess": "閉じる",
+    "waiting": "待機中...",
+    "running": "検索中...",
+    "noResults": "検索結果なし",
+    "unknownError": "不明なエラーが発生しました",
+    "queryCorrected": "クエリが自動修正されました",
+    "queryCorrectedNotice": "エンコーディングの問題によりクエリが自動修正されました",
+    "tools": {
+      "adaptive_search": "適応型PDF検索",
+      "vector_search": "ベクター検索",
+      "graph_query": "グラフクエリ",
+      "document_read": "ドキュメント読み取り"
+    }
+  },
+  "ragProgress": {
+    "queryAnalysis": "キーワード分析",
+    "keywords": "キーワード",
+    "intent": "意図",
+    "extractedKeywords": "抽出されたキーワード",
+    "searchStrategy": "検索戦略",
+    "tokenCount": "トークン数",
+    "chunkStructure": "ドキュメントチャンク構造",
+    "chunks": "チャンク",
+    "chunkTypes": "チャンクタイプ",
+    "pageDistribution": "ページ分布",
+    "avgChunkSize": "平均チャンクサイズ",
+    "preview": "プレビュー",
+    "embeddingInfo": "エンベディング情報",
+    "scoreDistribution": "スコア分布",
+    "topMatches": "上位マッチ",
+    "toolProgress": "ツール処理過程",
+    "generationProgress": "回答生成過程",
+    "completed": "完了",
+    "sourcesUsed": "使用したソース",
+    "toolsUsed": "使用したツール",
+    "answerLength": "回答の長さ",
+    "chunkProgress": "チャンク進行",
+    "preparingAnswer": "回答を準備中..."
   }
 }

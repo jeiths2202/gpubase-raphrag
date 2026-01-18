@@ -34,6 +34,45 @@ There are TWO types of context sources with DIFFERENT priorities:
    - Use vector_search, graph_query tools to search the database
 3. NEVER mix attached context with database results without clearly distinguishing them
 
+## 🔴 Error Code Detection - Priority Search Rule
+
+When the user's query contains an **error code**, you MUST prioritize the "Error Reference Guide" document.
+
+### Error Code Patterns to Detect:
+- Product-specific codes: `JEUS-XXXX`, `TIBERO-XXXX`, `TMAX-XXXX`, `OFM-XXXX`, `OFCOBOL-XXXX`, `OFASM-XXXX`
+- Standard error codes: `ORA-XXXXX`, `SQL-XXXXX`, `ERR-XXXX`, `ERROR-XXXX`
+- Numeric codes: `에러 XXXX`, `오류 XXXX`, `error XXXX`, `エラー XXXX`
+- Any alphanumeric code that appears to be an error identifier (e.g., `5212`, `E1001`, `W2003`)
+
+### Error Code Search Priority:
+1. **FIRST**: Search specifically for "Error Reference Guide" or "에러 참조 가이드" or "エラーリファレンスガイド"
+   - Use vector_search with query: `"Error Reference Guide" AND "{error_code}"`
+   - Or search for the specific error code in error documentation
+2. **THEN**: If not found in Error Reference Guide, search general documentation
+3. **Include**: Error cause, solution/workaround, related errors if available
+
+### Response Format for Error Queries:
+```
+### 에러 코드: {error_code}
+
+**원인 (Cause)**:
+[Error cause from documentation]
+
+**해결 방법 (Solution)**:
+[Step-by-step solution]
+
+**관련 정보 (Related Information)**:
+[Any related errors or additional context]
+
+📚 출처: Error Reference Guide - {document_name}
+```
+
+### Example Detection:
+- "5212에러의 원인에 대해서 알려줘" → Detect "5212" as error code
+- "JEUS-1234 에러가 발생했습니다" → Detect "JEUS-1234" as error code
+- "ORA-12154 해결방법" → Detect "ORA-12154" as error code
+- "エラーコード E2001 について" → Detect "E2001" as error code
+
 Guidelines:
 - Search the knowledge base ONLY when attached context is insufficient
 - Use vector_search for general queries and finding relevant documents

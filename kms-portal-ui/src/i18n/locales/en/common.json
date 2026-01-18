@@ -331,6 +331,74 @@
     "deleteConfirm": {
       "single": "Are you sure you want to delete",
       "warning": "This will permanently delete the document and all associated data including chunks, embeddings, and metadata from the database."
+    },
+    "pending": {
+      "title": "Pending Uploads",
+      "filename": "Filename",
+      "size": "Size",
+      "uploadedAt": "Uploaded At",
+      "deleteConfirm": "Are you sure you want to delete this pending file?"
+    },
+    "embed": {
+      "button": "Start Embedding",
+      "optionsTitle": "Embedding Options",
+      "selectedFiles": "{{count}} file(s) selected for embedding",
+      "start": "Start Embedding",
+      "processing": "Processing...",
+      "error": "Embedding failed",
+      "progressTitle": "Embedding Progress",
+      "statusPending": "Waiting",
+      "statusProcessing": "Processing",
+      "statusCompleted": "Completed",
+      "statusFailed": "Failed"
     }
+  },
+  "searchProgress": {
+    "title": "Knowledge Search Progress",
+    "query": "Query",
+    "results": "results",
+    "totalResults": "total results",
+    "searching": "Searching...",
+    "expandAll": "Expand All",
+    "collapseAll": "Collapse All",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "waiting": "Waiting to start...",
+    "running": "Searching...",
+    "noResults": "No results found",
+    "unknownError": "An unknown error occurred",
+    "queryCorrected": "Query was auto-corrected",
+    "queryCorrectedNotice": "Query was auto-corrected due to encoding issues",
+    "tools": {
+      "adaptive_search": "Adaptive PDF Search",
+      "vector_search": "Vector Search",
+      "graph_query": "Graph Query",
+      "document_read": "Document Read"
+    }
+  },
+  "ragProgress": {
+    "queryAnalysis": "Keyword Analysis",
+    "keywords": "keywords",
+    "intent": "Intent",
+    "extractedKeywords": "Extracted Keywords",
+    "searchStrategy": "Search Strategy",
+    "tokenCount": "Token Count",
+    "chunkStructure": "Document Chunk Structure",
+    "chunks": "chunks",
+    "chunkTypes": "Chunk Types",
+    "pageDistribution": "Page Distribution",
+    "avgChunkSize": "Avg Chunk Size",
+    "preview": "Preview",
+    "embeddingInfo": "Embedding Information",
+    "scoreDistribution": "Score Distribution",
+    "topMatches": "Top Matches",
+    "toolProgress": "Tool Processing",
+    "generationProgress": "Answer Generation",
+    "completed": "Completed",
+    "sourcesUsed": "Sources Used",
+    "toolsUsed": "Tools Used",
+    "answerLength": "Answer Length",
+    "chunkProgress": "Chunk Progress",
+    "preparingAnswer": "Preparing answer..."
   }
 }

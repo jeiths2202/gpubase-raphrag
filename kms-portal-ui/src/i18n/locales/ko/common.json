@@ -331,6 +331,74 @@
     "deleteConfirm": {
       "single": "다음 문서를 삭제하시겠습니까:",
       "warning": "이 작업은 문서와 관련된 모든 데이터(청크, 임베딩, 메타데이터)를 데이터베이스에서 영구적으로 삭제합니다."
+    },
+    "pending": {
+      "title": "대기 중 업로드",
+      "filename": "파일명",
+      "size": "크기",
+      "uploadedAt": "업로드 시간",
+      "deleteConfirm": "이 대기 중인 파일을 삭제하시겠습니까?"
+    },
+    "embed": {
+      "button": "임베딩 시작",
+      "optionsTitle": "임베딩 옵션",
+      "selectedFiles": "{{count}}개 파일 선택됨",
+      "start": "임베딩 시작",
+      "processing": "처리 중...",
+      "error": "임베딩 실패",
+      "progressTitle": "임베딩 진행 상황",
+      "statusPending": "대기 중",
+      "statusProcessing": "처리 중",
+      "statusCompleted": "완료",
+      "statusFailed": "실패"
     }
+  },
+  "searchProgress": {
+    "title": "지식 검색 진행 상황",
+    "query": "검색어",
+    "results": "건",
+    "totalResults": "총 검색 결과",
+    "searching": "검색 중...",
+    "expandAll": "모두 펼치기",
+    "collapseAll": "모두 접기",
+    "showMore": "더 보기",
+    "showLess": "접기",
+    "waiting": "대기 중...",
+    "running": "검색 중...",
+    "noResults": "검색 결과 없음",
+    "unknownError": "알 수 없는 오류가 발생했습니다",
+    "queryCorrected": "검색어가 자동 수정됨",
+    "queryCorrectedNotice": "인코딩 문제로 검색어가 자동 수정되었습니다",
+    "tools": {
+      "adaptive_search": "적응형 PDF 검색",
+      "vector_search": "벡터 검색",
+      "graph_query": "그래프 쿼리",
+      "document_read": "문서 읽기"
+    }
+  },
+  "ragProgress": {
+    "queryAnalysis": "키워드 분석",
+    "keywords": "키워드",
+    "intent": "의도",
+    "extractedKeywords": "추출된 키워드",
+    "searchStrategy": "검색 전략",
+    "tokenCount": "토큰 수",
+    "chunkStructure": "문서 청킹 구조",
+    "chunks": "청크",
+    "chunkTypes": "청크 타입",
+    "pageDistribution": "페이지 분포",
+    "avgChunkSize": "평균 청크 크기",
+    "preview": "미리보기",
+    "embeddingInfo": "임베딩 정보",
+    "scoreDistribution": "점수 분포",
+    "topMatches": "상위 매치",
+    "toolProgress": "Tool 처리과정",
+    "generationProgress": "답변 생성 과정",
+    "completed": "완료",
+    "sourcesUsed": "사용된 소스",
+    "toolsUsed": "사용된 도구",
+    "answerLength": "답변 길이",
+    "chunkProgress": "청크 진행",
+    "preparingAnswer": "답변 준비 중..."
   }
 }

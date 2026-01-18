@@ -14,7 +14,19 @@
 import { useState, useRef, useCallback } from 'react';
 import { streamAgent, type AgentType } from '../../../api/agent.api';
 import { conversationApi } from '../../../api/conversation.api';
-import type { ChatMessage, ToolCallInfo, AgentLocalState, AgentSource, ImageReference } from '../types';
+import type {
+  ChatMessage,
+  ToolCallInfo,
+  AgentLocalState,
+  AgentSource,
+  ImageReference,
+  SearchToolResult,
+  SearchResultItem,
+  RagAnalysis,
+  ChunkStructure,
+  EmbeddingInfo,
+  GenerationProgress
+} from '../types';
 
 // ============================================================================
 // Types
@@ -90,6 +102,23 @@ export interface UseStreamingChatReturn {
 
   // Sync function (call when selectedAgent changes)
   syncAgentState: (selectedAgent: AgentType) => void;
+
+  // Search progress state for RAG knowledge search visualization
+  searchProgress: {
+    isOpen: boolean;
+    currentQuery: string;
+    toolResults: SearchToolResult[];
+  };
+  setSearchProgressOpen: (open: boolean) => void;
+
+  // RAG detailed progress state (5 sections)
+  ragProgress: {
+    ragAnalysis: RagAnalysis | null;
+    chunkStructures: ChunkStructure[];
+    embeddingInfos: EmbeddingInfo[];
+    generationProgress: GenerationProgress | null;
+    isGenerating: boolean;
+  };
 }
 
 // Initial state for each agent
@@ -99,6 +128,54 @@ const createInitialAgentState = (): AgentLocalState => ({
   isLoading: false,
   abortController: null,
 });
+
+// Search tools to track for progress visualization
+const SEARCH_TOOLS = ['adaptive_search', 'vector_search', 'graph_query', 'document_read'];
+
+// Parse tool output to extract result items
+const parseToolOutput = (toolName: string, output: string): { resultCount: number; results: SearchResultItem[] } => {
+  const results: SearchResultItem[] = [];
+  let resultCount = 0;
+
+  try {
+    // Try to parse as JSON first
+    const parsed = JSON.parse(output);
+    if (Array.isArray(parsed)) {
+      resultCount = parsed.length;
+      results.push(...parsed.slice(0, 10).map((item: Record<string, unknown>) => ({
+        title: (item.title as string) || (item.chunk_type as string) || toolName,
+        content: (item.content as string) || (item.text as string) || '',
+        similarity: item.similarity as number | undefined,
+        source: (item.source as string) || (item.document_name as string),
+        page: item.page_number as number | undefined,
+        chunkType: item.chunk_type as string | undefined,
+      })));
+    } else if (parsed.results && Array.isArray(parsed.results)) {
+      resultCount = parsed.results.length;
+      results.push(...parsed.results.slice(0, 10).map((item: Record<string, unknown>) => ({
+        title: (item.title as string) || (item.chunk_type as string) || toolName,
+        content: (item.content as string) || (item.text as string) || '',
+        similarity: item.similarity as number | undefined,
+        source: (item.source as string) || (item.document_name as string),
+        page: item.page_number as number | undefined,
+        chunkType: item.chunk_type as string | undefined,
+      })));
+    }
+  } catch {
+    // If not JSON, try to count results from text
+    const matches = output.match(/found\s+(\d+)\s+results?/i);
+    if (matches) {
+      resultCount = parseInt(matches[1], 10);
+    }
+    // Also check for "N건" Korean format or "N results" pattern
+    const countMatches = output.match(/(\d+)\s*(건|results?|개)/i);
+    if (countMatches) {
+      resultCount = parseInt(countMatches[1], 10);
+    }
+  }
+
+  return { resultCount, results };
+};
 
 // ============================================================================
 // Hook
@@ -141,6 +218,19 @@ export function useStreamingChat(
   const [streamingMessage, setStreamingMessageState] = useState<ChatMessage | null>(null);
   const [isLoading, setIsLoadingState] = useState(false);
   const [abortController, setAbortControllerState] = useState<AbortController | null>(null);
+
+  // Search progress state for RAG knowledge search visualization
+  const [searchProgressOpen, setSearchProgressOpen] = useState(false);
+  const [searchCurrentQuery, setSearchCurrentQuery] = useState('');
+  const [searchToolResults, setSearchToolResults] = useState<SearchToolResult[]>([]);
+  const searchToolResultsRef = useRef<SearchToolResult[]>([]);
+
+  // RAG detailed progress state (5 sections)
+  const [ragAnalysis, setRagAnalysis] = useState<RagAnalysis | null>(null);
+  const [chunkStructures, setChunkStructures] = useState<ChunkStructure[]>([]);
+  const [embeddingInfos, setEmbeddingInfos] = useState<EmbeddingInfo[]>([]);
+  const [generationProgress, setGenerationProgress] = useState<GenerationProgress | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // ============================================================================
   // State Updaters (update specific agent's state)
@@ -293,6 +383,19 @@ export function useStreamingChat(
     const controller = new AbortController();
     updateAgentAbortController(requestingAgent, controller);
 
+    // Reset search progress state for new request
+    searchToolResultsRef.current = [];
+    setSearchToolResults([]);
+    setSearchCurrentQuery(userMessage.content);
+    // Don't auto-open yet, will open when first search tool is called
+
+    // Reset RAG detailed progress state
+    setRagAnalysis(null);
+    setChunkStructures([]);
+    setEmbeddingInfos([]);
+    setGenerationProgress(null);
+    setIsGenerating(false);
+
     try {
       let accumulatedContent = '';
       const toolCalls: ToolCallInfo[] = [];
@@ -347,15 +450,32 @@ export function useStreamingChat(
                   ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, toolCalls: [...toolCalls] }
                   : null
               );
+
+              // Track search tool progress
+              if (SEARCH_TOOLS.includes(chunk.tool_name)) {
+                const newToolResult: SearchToolResult = {
+                  toolName: chunk.tool_name,
+                  status: 'running',
+                  startTime: Date.now(),
+                  input: chunk.tool_input || {},
+                };
+                searchToolResultsRef.current = [...searchToolResultsRef.current, newToolResult];
+                setSearchToolResults([...searchToolResultsRef.current]);
+                // Auto-open progress modal when search starts
+                if (!searchProgressOpen) {
+                  setSearchProgressOpen(true);
+                }
+              }
             }
             break;
 
           case 'tool_result':
             if (chunk.tool_name) {
+              // Extract query correction info from metadata (shared by both blocks)
+              const metadata = chunk.metadata as { query_corrected?: boolean; original_llm_query?: string; corrected_query?: string } | undefined;
+
               const toolIndex = toolCalls.findIndex((tc) => tc.name === chunk.tool_name && tc.status === 'pending');
               if (toolIndex !== -1) {
-                // Extract query correction info from metadata
-                const metadata = chunk.metadata as { query_corrected?: boolean; original_llm_query?: string; corrected_query?: string } | undefined;
                 toolCalls[toolIndex] = {
                   ...toolCalls[toolIndex],
                   output: chunk.tool_output || '',
@@ -372,6 +492,32 @@ export function useStreamingChat(
                     ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, toolCalls: [...toolCalls] }
                     : null
                 );
+              }
+
+              // Update search tool progress
+              if (SEARCH_TOOLS.includes(chunk.tool_name)) {
+                const searchToolIndex = searchToolResultsRef.current.findIndex(
+                  (st) => st.toolName === chunk.tool_name && st.status === 'running'
+                );
+                if (searchToolIndex !== -1) {
+                  const output = chunk.tool_output || '';
+                  const hasError = output.includes('error') || output.includes('Error');
+                  const { resultCount, results } = parseToolOutput(chunk.tool_name, output);
+
+                  searchToolResultsRef.current[searchToolIndex] = {
+                    ...searchToolResultsRef.current[searchToolIndex],
+                    status: hasError ? 'error' : 'success',
+                    endTime: Date.now(),
+                    output: output,
+                    resultCount,
+                    results,
+                    error: hasError ? output : undefined,
+                    queryCorrected: metadata?.query_corrected,
+                    originalQuery: metadata?.original_llm_query,
+                    correctedQuery: metadata?.corrected_query,
+                  };
+                  setSearchToolResults([...searchToolResultsRef.current]);
+                }
               }
             }
             break;
@@ -480,6 +626,61 @@ export function useStreamingChat(
               !(msg.role === 'status' &&
                 (msg.content === 'processing' || msg.content === 'crawling' || msg.content === 'searching'))
             ));
+            // Mark generation as complete
+            setIsGenerating(false);
+            break;
+
+          // RAG Analysis chunk types (for detailed progress modal)
+          case 'rag_analysis':
+            // Query analysis with keywords, intent, strategy
+            if (chunk.metadata) {
+              const analysis = chunk.metadata as unknown as RagAnalysis;
+              setRagAnalysis(analysis);
+              console.log('[useStreamingChat] RAG analysis received:', analysis);
+              // Auto-open progress modal when analysis starts
+              if (!searchProgressOpen) {
+                setSearchProgressOpen(true);
+              }
+            }
+            break;
+
+          case 'chunk_structure':
+            // Document chunk structure info
+            if (chunk.metadata && chunk.tool_name) {
+              const structure = chunk.metadata as unknown as ChunkStructure;
+              setChunkStructures(prev => [...prev.filter(s => s.tool_name !== chunk.tool_name), structure]);
+              console.log('[useStreamingChat] Chunk structure received:', structure);
+            }
+            break;
+
+          case 'embedding_info':
+            // Embedding/similarity info
+            if (chunk.metadata && chunk.tool_name) {
+              const embedding = chunk.metadata as unknown as EmbeddingInfo;
+              setEmbeddingInfos(prev => [...prev.filter(e => e.tool_name !== chunk.tool_name), embedding]);
+              console.log('[useStreamingChat] Embedding info received:', embedding);
+            }
+            break;
+
+          case 'generation_start':
+            // Answer generation started
+            setIsGenerating(true);
+            if (chunk.metadata) {
+              setGenerationProgress({
+                current_chunk: 0,
+                total_chunks: 0,
+                progress_pct: 0,
+                ...(chunk.metadata as unknown as Partial<GenerationProgress>)
+              });
+            }
+            console.log('[useStreamingChat] Generation started:', chunk.metadata);
+            break;
+
+          case 'generation_progress':
+            // Answer generation progress update
+            if (chunk.metadata) {
+              setGenerationProgress(chunk.metadata as unknown as GenerationProgress);
+            }
             break;
 
           // Enterprise multi-agent chunk types
@@ -686,6 +887,23 @@ export function useStreamingChat(
 
     // Sync function
     syncAgentState,
+
+    // Search progress state for RAG knowledge search visualization
+    searchProgress: {
+      isOpen: searchProgressOpen,
+      currentQuery: searchCurrentQuery,
+      toolResults: searchToolResults,
+    },
+    setSearchProgressOpen,
+
+    // RAG detailed progress state (5 sections)
+    ragProgress: {
+      ragAnalysis,
+      chunkStructures,
+      embeddingInfos,
+      generationProgress,
+      isGenerating,
+    },
   };
 }
 

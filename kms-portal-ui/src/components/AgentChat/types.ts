@@ -88,3 +88,121 @@ export interface AgentLocalState {
   isLoading: boolean;
   abortController: AbortController | null;
 }
+
+/**
+ * Individual search result item
+ */
+export interface SearchResultItem {
+  rank?: number;
+  title?: string;
+  content: string;
+  similarity?: number;
+  score?: number;
+  source?: string;
+  page?: number;
+  pageNumber?: number;
+  docId?: string;
+  chunkType?: string;
+}
+
+/**
+ * Search tool result for progress tracking
+ */
+export interface SearchToolResult {
+  toolName: string;
+  status: 'pending' | 'running' | 'success' | 'error';
+  startTime?: number;
+  endTime?: number;
+  input?: Record<string, unknown>;
+  output?: string;
+  resultCount?: number;
+  results?: SearchResultItem[];
+  error?: string;
+  queryCorrected?: boolean;
+  originalQuery?: string;
+  correctedQuery?: string;
+}
+
+/**
+ * Search progress state for tracking RAG search operations
+ */
+export interface SearchProgressState {
+  isOpen: boolean;
+  currentQuery: string;
+  toolResults: SearchToolResult[];
+}
+
+/**
+ * RAG Analysis data from query analysis
+ */
+export interface RagAnalysis {
+  original_query: string;
+  keywords: string[];
+  intent: string;
+  search_strategy: string[];
+  token_count: number;
+}
+
+/**
+ * Chunk structure information
+ */
+export interface ChunkStructure {
+  tool_name: string;
+  total_chunks: number;
+  chunk_types: Record<string, number>;
+  page_distribution: Record<number, number>;
+  avg_chunk_size: number;
+  chunks_preview: Array<{
+    index: number;
+    type: string;
+    page: number;
+    size: number;
+    preview: string;
+    similarity: number;
+  }>;
+}
+
+/**
+ * Embedding information
+ */
+export interface EmbeddingInfo {
+  tool_name: string;
+  model: string;
+  dimension: number;
+  similarity_scores: number[];
+  score_distribution: {
+    excellent: number;
+    good: number;
+    fair: number;
+    low: number;
+  };
+  top_matches: Array<{
+    rank: number;
+    source: string;
+    score: number;
+    score_pct: string;
+  }>;
+}
+
+/**
+ * Generation progress information
+ */
+export interface GenerationProgress {
+  current_chunk: number;
+  total_chunks: number;
+  progress_pct: number;
+  total_sources?: number;
+  tools_used?: string[];
+  answer_length?: number;
+}
+
+/**
+ * Complete RAG progress state for detailed tracking
+ */
+export interface RagProgressState {
+  ragAnalysis: RagAnalysis | null;
+  chunkStructures: ChunkStructure[];
+  embeddingInfos: EmbeddingInfo[];
+  generationProgress: GenerationProgress | null;
+  isGenerating: boolean;
+}

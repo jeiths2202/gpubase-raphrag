@@ -205,7 +205,15 @@ class ArtifactType(str, Enum):
 
 class AgentStreamChunk(BaseModel):
     """Streaming chunk from agent execution"""
-    chunk_type: Literal["thinking", "tool_call", "tool_result", "text", "sources", "done", "error", "status", "artifact", "image"]
+    chunk_type: Literal[
+        "thinking", "tool_call", "tool_result", "text", "sources", "done", "error", "status", "artifact", "image",
+        # RAG analysis chunk types for detailed progress visualization
+        "rag_analysis",      # 프롬프트 분석 결과 (키워드, 의도, 검색 전략)
+        "chunk_structure",   # 문서의 청킹 구조
+        "embedding_info",    # 임베딩된 구조 정보
+        "generation_start",  # 답변 생성 시작
+        "generation_progress"  # 답변 생성 과정
+    ]
     content: Optional[str] = None
     tool_name: Optional[str] = None
     tool_input: Optional[Dict[str, Any]] = None
