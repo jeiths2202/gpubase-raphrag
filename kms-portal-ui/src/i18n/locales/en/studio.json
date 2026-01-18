@@ -38,5 +38,6 @@
   "queryPlaceholder": "Enter your question...",
   "answer": "Answer",
   "relatedTopics": "Related topics",
-  "sources": "Sources"
+  "sources": "Sources",
+  "noDocumentsError": "No documents found in the knowledge base. Please upload documents first before generating a mindmap."
 }

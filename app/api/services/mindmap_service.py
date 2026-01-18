@@ -136,32 +136,19 @@ class MindmapService:
         chunks = self._get_document_chunks(request.document_ids)
 
         if not chunks:
-            # 문서가 없지만 focus_topic이 있으면 LLM 지식으로 마인드맵 생성
-            if request.focus_topic:
-                concepts_data = self._generate_concepts_from_topic(
-                    request.focus_topic,
-                    max_nodes=request.max_nodes,
-                    language=request.language
-                )
-            else:
-                # focus_topic도 없으면 빈 마인드맵 반환
-                mindmap_id = self._generate_id("mm", "empty")
-                return MindmapFull(
-                    id=mindmap_id,
-                    title=request.title or "Empty Mindmap",
-                    document_ids=request.document_ids,
-                    node_count=0,
-                    edge_count=0,
-                    data=MindmapData(nodes=[], edges=[], root_id=None)
-                )
-        else:
-            # 2. LLM을 사용하여 문서에서 개념과 관계 추출
-            concepts_data = self._extract_concepts_and_relations(
-                chunks,
-                max_nodes=request.max_nodes,
-                focus_topic=request.focus_topic,
-                language=request.language
+            # 문서가 없으면 마인드맵 생성 불가 (할루시네이션 방지)
+            raise ValueError(
+                "No documents found in the knowledge base. "
+                "Please upload documents first before generating a mindmap."
             )
+
+        # 2. LLM을 사용하여 문서에서 개념과 관계 추출
+        concepts_data = self._extract_concepts_and_relations(
+            chunks,
+            max_nodes=request.max_nodes,
+            focus_topic=request.focus_topic,
+            language=request.language
+        )
 
         # 3. 마인드맵 데이터 구조 생성
         nodes, edges, root_id = self._build_mindmap_structure(
@@ -174,10 +161,8 @@ class MindmapService:
             id_seed = request.title
         elif request.focus_topic:
             id_seed = request.focus_topic
-        elif chunks:
-            id_seed = chunks[0].get("content", "mindmap")[:50]
         else:
-            id_seed = "mindmap"
+            id_seed = chunks[0].get("content", "mindmap")[:50]
 
         mindmap_id = self._generate_id("mm", id_seed)
         title = request.title or self._generate_title(concepts_data, request.language)
@@ -186,12 +171,10 @@ class MindmapService:
         self._save_mindmap_to_neo4j(mindmap_id, title, nodes, edges, request.document_ids)
 
         # 설명 생성
-        if chunks:
-            description = f"Generated from {len(request.document_ids)} document(s)"
-        elif request.focus_topic:
-            description = f"Generated from topic: {request.focus_topic}"
-        else:
-            description = "Generated mindmap"
+        doc_count = len(request.document_ids) if request.document_ids else len(set(c["doc_id"] for c in chunks))
+        description = f"Generated from {doc_count} document(s)"
+        if request.focus_topic:
+            description += f" (focus: {request.focus_topic})"
 
         return MindmapFull(
             id=mindmap_id,

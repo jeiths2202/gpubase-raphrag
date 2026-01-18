@@ -38,5 +38,6 @@
   "queryPlaceholder": "질문을 입력하세요...",
   "answer": "답변",
   "relatedTopics": "관련 주제",
-  "sources": "출처"
+  "sources": "출처",
+  "noDocumentsError": "지식베이스에 문서가 없습니다. 먼저 문서를 업로드한 후 마인드맵을 생성해주세요."
 }

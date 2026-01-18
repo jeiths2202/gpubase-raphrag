@@ -269,7 +269,7 @@ const convertToVisualization = (data: MindmapFull): VisualizationMindmap => {
 };
 
 export const AIStudioPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
 
   // API data state
   const [currentMindmapData, setCurrentMindmapData] = useState<MindmapFull | null>(null);
@@ -294,6 +294,9 @@ export const AIStudioPage: React.FC = () => {
   const [isExpanding, setIsExpanding] = useState(false);
   const [isQuerying, setIsQuerying] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
+  // Error state
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   // Query input
   const [nodeQuery, setNodeQuery] = useState('');
@@ -554,13 +557,14 @@ export const AIStudioPage: React.FC = () => {
     if (!aiPrompt.trim()) return;
 
     setIsGenerating(true);
+    setGenerateError(null);
 
     try {
       const response = await mindmapApi.generate({
         focus_topic: aiPrompt.trim(),
         max_nodes: 30,
         depth: 3,
-        language: 'auto',
+        language: language,  // Use user's current language setting
       });
 
       setCurrentMindmapData(response.mindmap);
@@ -570,12 +574,24 @@ export const AIStudioPage: React.FC = () => {
       // Refresh saved mindmaps list
       const result = await mindmapApi.list(1, 50);
       setSavedMindmaps(result.mindmaps);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to generate mindmap:', error);
+      // Extract error message from axios error response
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { detail?: string }, status?: number } };
+        if (axiosError.response?.status === 400) {
+          // No documents error - show user-friendly message
+          setGenerateError(t('studio.noDocumentsError') || 'No documents found. Please upload documents to the knowledge base first.');
+        } else {
+          setGenerateError(axiosError.response?.data?.detail || 'Failed to generate mindmap');
+        }
+      } else {
+        setGenerateError('Failed to generate mindmap');
+      }
     } finally {
       setIsGenerating(false);
     }
-  }, [aiPrompt]);
+  }, [aiPrompt, language, t]);
 
   // Expand node (real API call)
   const handleExpandNode = useCallback(async () => {
@@ -1097,6 +1113,12 @@ export const AIStudioPage: React.FC = () => {
                     </>
                   )}
                 </button>
+
+                {generateError && (
+                  <div className="studio-error-message">
+                    {generateError}
+                  </div>
+                )}
 
                 <div className="studio-ai-divider">
                   <span>{t('common.or') || 'or'}</span>

@@ -38,5 +38,6 @@
   "queryPlaceholder": "質問を入力...",
   "answer": "回答",
   "relatedTopics": "関連トピック",
-  "sources": "ソース"
+  "sources": "ソース",
+  "noDocumentsError": "ナレッジベースにドキュメントがありません。マインドマップを生成する前にドキュメントをアップロードしてください。"
 }

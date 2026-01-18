@@ -65,6 +65,9 @@ async def generate_mindmap(
                 processing_time_ms=processing_time
             )
         )
+    except ValueError as e:
+        # 문서가 없는 경우 등 입력 오류
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate mindmap: {str(e)}")
 
