@@ -17,13 +17,28 @@ import aiohttp
 
 logger = logging.getLogger(__name__)
 
+# RAG Large Context Mode
+# When true: Uses Mistral NeMo 12B (128K context) for better RAG accuracy
+# When false: Uses Nemotron Nano 9B (8K context) - faster but may truncate results
+USE_LARGE_CONTEXT = os.getenv("RAG_LLM_USE_LARGE_CONTEXT", "false").lower() == "true"
+
 # NIM LLM settings (primary)
-NIM_API_URL = os.getenv("LLM_API_URL")  # http://localhost:12800/v1/chat/completions
-NIM_MODEL = os.getenv("LLM_MODEL", "nvidia/nvidia-nemotron-nano-9b-v2")
+if USE_LARGE_CONTEXT:
+    # Large context mode: Mistral NeMo 12B (128K context)
+    NIM_API_URL = os.getenv("CODE_LLM_API_URL")
+    NIM_MODEL = os.getenv("CODE_LLM_MODEL", "mistralai/Mistral-Nemo-Instruct-2407")
+    logger.info(f"RAG LLM: Large Context Mode (128K) - Model: {NIM_MODEL}")
+else:
+    # Standard mode: Nemotron Nano 9B (8K context)
+    NIM_API_URL = os.getenv("LLM_API_URL")
+    NIM_MODEL = os.getenv("LLM_MODEL", "nvidia/nvidia-nemotron-nano-9b-v2")
 
 # Ollama settings (fallback)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+
+# Disable Ollama fallback if not available
+DISABLE_OLLAMA_FALLBACK = os.getenv("DISABLE_OLLAMA_FALLBACK", "false").lower() == "true"
 
 
 class LLMAgentAdapter:
@@ -93,7 +108,8 @@ class LLMAgentAdapter:
         self,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
-        temperature: Optional[float] = None
+        temperature: Optional[float] = None,
+        tool_choice: Optional[str] = "auto"
     ) -> Dict[str, Any]:
         """
         Generate a response using LLM with tool calling support.
@@ -102,6 +118,7 @@ class LLMAgentAdapter:
             messages: List of messages in OpenAI format
             tools: Optional list of tools for function calling
             temperature: Optional temperature override
+            tool_choice: Tool selection mode - "auto", "required", or "none"
 
         Returns:
             Dict with 'content' and optionally 'tool_calls'
@@ -113,20 +130,28 @@ class LLMAgentAdapter:
             messages=messages,
             tools=tools,
             temperature=temperature,
-            backend_name=self.backend
+            backend_name=self.backend,
+            tool_choice=tool_choice
         )
 
-        # Check if we need fallback
-        if self._is_error_response(result) and self.use_nim:
-            logger.warning(f"NIM request failed, falling back to Ollama")
-            result = await self._generate_internal(
-                base_url=self._fallback_base_url,
-                model=self._fallback_model,
-                messages=messages,
-                tools=tools,
-                temperature=temperature,
-                backend_name="ollama"
-            )
+        # Check if we need fallback (only for connection/timeout errors, not 400 errors)
+        if self._is_error_response(result) and self.use_nim and not DISABLE_OLLAMA_FALLBACK:
+            error_content = result.get("content", "")
+            # Only fallback on connection/timeout errors, not on context length errors
+            if "Connection error:" in error_content or "Timeout error:" in error_content:
+                logger.warning(f"NIM request failed, falling back to Ollama")
+                result = await self._generate_internal(
+                    base_url=self._fallback_base_url,
+                    model=self._fallback_model,
+                    messages=messages,
+                    tools=tools,
+                    temperature=temperature,
+                    backend_name="ollama",
+                    tool_choice=tool_choice
+                )
+            else:
+                # Don't fallback for 400/context errors - return the error directly
+                logger.warning(f"NIM request failed with non-recoverable error: {error_content[:100]}")
 
         return result
 
@@ -147,7 +172,8 @@ class LLMAgentAdapter:
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
         temperature: Optional[float] = None,
-        backend_name: str = "unknown"
+        backend_name: str = "unknown",
+        tool_choice: Optional[str] = "auto"
     ) -> Dict[str, Any]:
         """
         Internal generation method for a specific backend.
@@ -165,7 +191,7 @@ class LLMAgentAdapter:
 
         if tools:
             payload["tools"] = tools
-            payload["tool_choice"] = "auto"
+            payload["tool_choice"] = tool_choice or "auto"
 
         try:
             async with aiohttp.ClientSession() as session:

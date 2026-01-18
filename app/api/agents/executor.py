@@ -983,7 +983,13 @@ User Query: {task}"""
             logger.debug(f"Step {step}/{context.max_steps}")
 
             # Think: Get LLM response
-            response = await self._call_llm(messages, tool_definitions)
+            # For RAG agents on step 1, force tool usage to prevent hallucination
+            current_tool_choice = "auto"
+            if step == 1 and agent.agent_type.value == "rag":
+                current_tool_choice = "required"
+                logger.info(f"[Executor] Forcing tool_choice=required for RAG agent step 1")
+
+            response = await self._call_llm(messages, tool_definitions, tool_choice=current_tool_choice)
 
             if response is None:
                 final_answer = "I encountered an error while processing your request."
@@ -1362,7 +1368,13 @@ User Query: {task}"""
             step += 1
 
             # Think
-            response = await self._call_llm(messages, tool_definitions)
+            # For RAG agents on step 1, force tool usage to prevent hallucination
+            current_tool_choice = "auto"
+            if step == 1 and agent.agent_type.value == "rag":
+                current_tool_choice = "required"
+                logger.info(f"[Executor.stream] Forcing tool_choice=required for RAG agent step 1")
+
+            response = await self._call_llm(messages, tool_definitions, tool_choice=current_tool_choice)
 
             if response is None:
                 yield AgentStreamChunk(chunk_type="error", content="LLM call failed")
@@ -1619,9 +1631,14 @@ User Query: {task}"""
     async def _call_llm(
         self,
         messages: List[AgentMessage],
-        tools: List[ToolDefinition]
+        tools: List[ToolDefinition],
+        tool_choice: str = "auto"
     ) -> Optional[AgentMessage]:
-        """Call the LLM with messages and tools"""
+        """Call the LLM with messages and tools
+
+        Args:
+            tool_choice: "auto" (default), "required" (force tool use), or "none"
+        """
         try:
             logger.debug(f"[Executor] _call_llm called, adapter={self.llm_adapter}, tools={len(tools)}")
 
@@ -1669,10 +1686,11 @@ User Query: {task}"""
             ]
 
             # Call LLM
-            logger.info(f"[Executor] Calling LLM with {len(formatted_messages)} messages, {len(formatted_tools)} tools")
+            logger.info(f"[Executor] Calling LLM with {len(formatted_messages)} messages, {len(formatted_tools)} tools, tool_choice={tool_choice}")
             response = await self.llm_adapter.generate(
                 messages=formatted_messages,
-                tools=formatted_tools if formatted_tools else None
+                tools=formatted_tools if formatted_tools else None,
+                tool_choice=tool_choice
             )
             logger.info(f"[Executor] LLM response: content_len={len(response.get('content', ''))}, tool_calls={len(response.get('tool_calls', []))}")
 
