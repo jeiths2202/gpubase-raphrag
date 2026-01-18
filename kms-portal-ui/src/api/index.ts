@@ -149,6 +149,11 @@ export {
   searchAdaptiveChunks,
   getProcessingStatus,
   deleteAdaptiveDocument,
+  uploadPdfOnly,
+  listPendingUploads,
+  startBatchEmbed,
+  deletePendingUpload,
+  evaluateQuality,
 } from './adaptiveDocuments.api';
 export type {
   ChunkType,
@@ -167,6 +172,13 @@ export type {
   SearchAdaptiveChunksResponse,
   ProcessingStatusResponse,
   DeleteResponse,
+  AdaptiveDocumentListItem,
+  PendingUploadItem,
+  PendingUploadsResponse,
+  UploadOnlyResponse,
+  BatchEmbedResultItem,
+  BatchEmbedResponse,
+  EvaluateQualityResponse,
 } from './adaptiveDocuments.api';
 
 // External Connectors API
@@ -204,3 +216,33 @@ export type {
   DocumentListResponse,
   SearchResponse,
 } from './externalConnectors.api';
+
+// Mindmap API
+export { default as mindmapApi } from './mindmap.api';
+export {
+  generateMindmap,
+  listMindmaps,
+  getMindmap,
+  deleteMindmap,
+  expandNode,
+  queryNode,
+  getNodeDetail,
+  generateFromAllDocuments,
+} from './mindmap.api';
+export type {
+  NodeType,
+  RelationType,
+  MindmapNode,
+  MindmapEdge,
+  MindmapData,
+  MindmapInfo,
+  MindmapFull,
+  GenerateMindmapRequest,
+  ExpandNodeRequest,
+  QueryNodeRequest,
+  GenerateMindmapResponse,
+  ExpandNodeResponse,
+  QueryNodeResponse,
+  NodeDetailResponse,
+  MindmapListResponse,
+} from './mindmap.api';

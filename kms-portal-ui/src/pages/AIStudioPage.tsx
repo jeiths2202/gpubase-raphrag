@@ -2,6 +2,7 @@
  * AI Studio Page
  *
  * ReactFlow-based mindmap visualization with AI concept extraction
+ * Integrated with backend mindmap API for knowledge graph exploration
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -21,8 +22,21 @@ import {
   Wand2,
   Minimize2,
   GripHorizontal,
+  FileText,
+  Expand,
+  Search,
+  Loader2,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
+import {
+  mindmapApi,
+  MindmapFull,
+  MindmapInfo,
+  NodeDetailResponse,
+  QueryNodeResponse,
+  MindmapNode as ApiMindmapNode,
+  NodeType as ApiNodeType,
+} from '../api';
 import './AIStudioPage.css';
 
 // Storage key for AI panel position
@@ -58,12 +72,12 @@ const savePanelPosition = (position: PanelPosition) => {
   }
 };
 
-// Node types
-type NodeType = 'concept' | 'topic' | 'detail' | 'question' | 'insight';
+// Node types for visualization
+type VisualNodeType = 'concept' | 'topic' | 'detail' | 'question' | 'insight' | 'root' | 'entity' | 'keyword';
 
-interface MindmapNode {
+interface VisualizationNode {
   id: string;
-  type: NodeType;
+  type: VisualNodeType;
   label: string;
   x: number;
   y: number;
@@ -71,155 +85,200 @@ interface MindmapNode {
   parent: string | null;
   expanded: boolean;
   color?: string;
+  description?: string;
+  importance?: number;
 }
 
-interface Mindmap {
+interface VisualizationMindmap {
   id: string;
   title: string;
-  nodes: Record<string, MindmapNode>;
+  nodes: Record<string, VisualizationNode>;
   rootId: string;
   createdAt: string;
   updatedAt: string;
 }
 
-// Mock data for initial mindmap
-const createInitialMindmap = (): Mindmap => ({
-  id: 'mindmap-1',
-  title: 'Knowledge Management',
-  rootId: 'node-1',
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  nodes: {
-    'node-1': {
-      id: 'node-1',
-      type: 'concept',
-      label: 'Knowledge Management',
-      x: 400,
-      y: 300,
-      children: ['node-2', 'node-3', 'node-4', 'node-5'],
-      parent: null,
-      expanded: true,
-      color: '#6366F1'
-    },
-    'node-2': {
-      id: 'node-2',
-      type: 'topic',
-      label: 'Document Processing',
-      x: 200,
-      y: 150,
-      children: ['node-6', 'node-7'],
-      parent: 'node-1',
-      expanded: true,
-      color: '#8B5CF6'
-    },
-    'node-3': {
-      id: 'node-3',
-      type: 'topic',
-      label: 'Search & Retrieval',
-      x: 600,
-      y: 150,
-      children: ['node-8', 'node-9'],
-      parent: 'node-1',
-      expanded: true,
-      color: '#EC4899'
-    },
-    'node-4': {
-      id: 'node-4',
-      type: 'topic',
-      label: 'AI Integration',
-      x: 200,
-      y: 450,
-      children: ['node-10'],
-      parent: 'node-1',
-      expanded: true,
-      color: '#10B981'
-    },
-    'node-5': {
-      id: 'node-5',
-      type: 'topic',
-      label: 'User Experience',
-      x: 600,
-      y: 450,
-      children: ['node-11'],
-      parent: 'node-1',
-      expanded: true,
-      color: '#F59E0B'
-    },
-    'node-6': {
-      id: 'node-6',
-      type: 'detail',
-      label: 'PDF Extraction',
-      x: 80,
-      y: 80,
-      children: [],
-      parent: 'node-2',
-      expanded: true
-    },
-    'node-7': {
-      id: 'node-7',
-      type: 'detail',
-      label: 'Text Analysis',
-      x: 320,
-      y: 80,
-      children: [],
-      parent: 'node-2',
-      expanded: true
-    },
-    'node-8': {
-      id: 'node-8',
-      type: 'detail',
-      label: 'Vector Search',
-      x: 480,
-      y: 80,
-      children: [],
-      parent: 'node-3',
-      expanded: true
-    },
-    'node-9': {
-      id: 'node-9',
-      type: 'detail',
-      label: 'Graph Query',
-      x: 720,
-      y: 80,
-      children: [],
-      parent: 'node-3',
-      expanded: true
-    },
-    'node-10': {
-      id: 'node-10',
-      type: 'insight',
-      label: 'RAG Pipeline',
-      x: 200,
-      y: 530,
-      children: [],
-      parent: 'node-4',
-      expanded: true
-    },
-    'node-11': {
-      id: 'node-11',
-      type: 'question',
-      label: 'How to improve UX?',
-      x: 600,
-      y: 530,
-      children: [],
-      parent: 'node-5',
-      expanded: true
-    }
-  }
-});
-
 // Node color mapping
-const nodeColors: Record<NodeType, string> = {
+const nodeColors: Record<VisualNodeType, string> = {
+  root: '#6366F1',
   concept: '#6366F1',
   topic: '#8B5CF6',
   detail: '#64748B',
   question: '#F59E0B',
-  insight: '#10B981'
+  insight: '#10B981',
+  entity: '#EC4899',
+  keyword: '#06B6D4',
+};
+
+// Map API node type to visual type
+const mapNodeType = (apiType: ApiNodeType): VisualNodeType => {
+  const typeMap: Record<ApiNodeType, VisualNodeType> = {
+    root: 'root',
+    concept: 'concept',
+    entity: 'entity',
+    topic: 'topic',
+    keyword: 'keyword',
+  };
+  return typeMap[apiType] || 'concept';
+};
+
+// Get color for node type
+const getColorForType = (type: VisualNodeType): string => {
+  return nodeColors[type] || nodeColors.concept;
+};
+
+// Calculate radial layout positions for nodes
+const calculateNodePositions = (
+  nodes: ApiMindmapNode[],
+  edges: { source: string; target: string }[],
+  rootId: string | undefined,
+  canvasWidth: number = 800,
+  canvasHeight: number = 600
+): Map<string, { x: number; y: number }> => {
+  const positions = new Map<string, { x: number; y: number }>();
+
+  if (nodes.length === 0) return positions;
+
+  // Build adjacency list
+  const adjacency = new Map<string, string[]>();
+  nodes.forEach(n => adjacency.set(n.id, []));
+  edges.forEach(e => {
+    adjacency.get(e.source)?.push(e.target);
+  });
+
+  // Find root node (use provided rootId or first node)
+  const root = rootId || nodes[0]?.id;
+  if (!root) return positions;
+
+  // BFS to assign levels
+  const levels = new Map<string, number>();
+  const queue: string[] = [root];
+  levels.set(root, 0);
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const currentLevel = levels.get(current)!;
+    const children = adjacency.get(current) || [];
+
+    children.forEach(child => {
+      if (!levels.has(child)) {
+        levels.set(child, currentLevel + 1);
+        queue.push(child);
+      }
+    });
+  }
+
+  // Group nodes by level
+  const nodesByLevel = new Map<number, string[]>();
+  levels.forEach((level, nodeId) => {
+    if (!nodesByLevel.has(level)) {
+      nodesByLevel.set(level, []);
+    }
+    nodesByLevel.get(level)!.push(nodeId);
+  });
+
+  // Position nodes radially
+  const centerX = canvasWidth / 2;
+  const centerY = canvasHeight / 2;
+  const levelRadius = 150;
+
+  nodesByLevel.forEach((nodeIds, level) => {
+    if (level === 0) {
+      // Root at center
+      positions.set(nodeIds[0], { x: centerX, y: centerY });
+    } else {
+      const radius = level * levelRadius;
+      const angleStep = (2 * Math.PI) / nodeIds.length;
+      const startAngle = -Math.PI / 2; // Start from top
+
+      nodeIds.forEach((nodeId, index) => {
+        const angle = startAngle + index * angleStep;
+        positions.set(nodeId, {
+          x: centerX + radius * Math.cos(angle),
+          y: centerY + radius * Math.sin(angle),
+        });
+      });
+    }
+  });
+
+  // Handle any nodes not reached by BFS (disconnected nodes)
+  nodes.forEach((node, index) => {
+    if (!positions.has(node.id)) {
+      positions.set(node.id, {
+        x: 100 + (index % 5) * 150,
+        y: 100 + Math.floor(index / 5) * 100,
+      });
+    }
+  });
+
+  return positions;
+};
+
+// Convert API mindmap data to visualization format
+const convertToVisualization = (data: MindmapFull): VisualizationMindmap => {
+  const { nodes: apiNodes, edges: apiEdges, root_id } = data.data;
+
+  // Calculate positions
+  const positions = calculateNodePositions(
+    apiNodes,
+    apiEdges.map(e => ({ source: e.source, target: e.target })),
+    root_id
+  );
+
+  // Build parent-child relationships
+  const childrenMap = new Map<string, string[]>();
+  const parentMap = new Map<string, string>();
+
+  apiNodes.forEach(n => childrenMap.set(n.id, []));
+  apiEdges.forEach(e => {
+    childrenMap.get(e.source)?.push(e.target);
+    if (!parentMap.has(e.target)) {
+      parentMap.set(e.target, e.source);
+    }
+  });
+
+  // Convert nodes
+  const nodes: Record<string, VisualizationNode> = {};
+  apiNodes.forEach(apiNode => {
+    const pos = positions.get(apiNode.id) || { x: 400, y: 300 };
+    const visualType = mapNodeType(apiNode.type);
+
+    nodes[apiNode.id] = {
+      id: apiNode.id,
+      type: visualType,
+      label: apiNode.label,
+      x: apiNode.x ?? pos.x,
+      y: apiNode.y ?? pos.y,
+      children: childrenMap.get(apiNode.id) || [],
+      parent: parentMap.get(apiNode.id) || null,
+      expanded: true,
+      color: apiNode.color || getColorForType(visualType),
+      description: apiNode.description,
+      importance: apiNode.importance,
+    };
+  });
+
+  return {
+    id: data.id,
+    title: data.title,
+    nodes,
+    rootId: root_id || apiNodes[0]?.id || '',
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+  };
 };
 
 export const AIStudioPage: React.FC = () => {
   const { t } = useTranslation();
-  const [mindmap, setMindmap] = useState<Mindmap>(createInitialMindmap);
+
+  // API data state
+  const [currentMindmapData, setCurrentMindmapData] = useState<MindmapFull | null>(null);
+  const [savedMindmaps, setSavedMindmaps] = useState<MindmapInfo[]>([]);
+  const [selectedNodeDetail, setSelectedNodeDetail] = useState<NodeDetailResponse | null>(null);
+  const [queryAnswer, setQueryAnswer] = useState<QueryNodeResponse | null>(null);
+
+  // Visualization state (derived from API data)
+  const [mindmap, setMindmap] = useState<VisualizationMindmap | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -227,9 +286,17 @@ export const AIStudioPage: React.FC = () => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
   const [showNodeEditor, setShowNodeEditor] = useState(false);
   const [editingLabel, setEditingLabel] = useState('');
+
+  // Loading states
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isExpanding, setIsExpanding] = useState(false);
+  const [isQuerying, setIsQuerying] = useState(false);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
+  // Query input
+  const [nodeQuery, setNodeQuery] = useState('');
 
   // AI Panel floating state
   const [aiPanelPosition, setAiPanelPosition] = useState<PanelPosition>(loadPanelPosition);
@@ -237,12 +304,38 @@ export const AIStudioPage: React.FC = () => {
   const [isAiPanelDragging, setIsAiPanelDragging] = useState(false);
   const [aiPanelDragStart, setAiPanelDragStart] = useState({ x: 0, y: 0 });
 
+  // Update visualization when API data changes
+  useEffect(() => {
+    if (currentMindmapData) {
+      const visualization = convertToVisualization(currentMindmapData);
+      setMindmap(visualization);
+    } else {
+      setMindmap(null);
+    }
+  }, [currentMindmapData]);
+
+  // Load saved mindmaps on mount
+  useEffect(() => {
+    const loadMindmaps = async () => {
+      try {
+        const result = await mindmapApi.list(1, 50);
+        setSavedMindmaps(result.mindmaps);
+      } catch (error) {
+        console.error('Failed to load mindmaps:', error);
+      }
+    };
+    loadMindmaps();
+  }, []);
+
   // Handle canvas mouse events for panning
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       setIsDragging(true);
       setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
       setSelectedNode(null);
+      setShowNodeEditor(false);
+      setSelectedNodeDetail(null);
+      setQueryAnswer(null);
     }
   }, [pan]);
 
@@ -259,27 +352,48 @@ export const AIStudioPage: React.FC = () => {
     setIsDragging(false);
   }, []);
 
-  // Handle node selection
-  const handleNodeClick = useCallback((nodeId: string, e: React.MouseEvent) => {
+  // Handle node selection with detail fetch
+  const handleNodeClick = useCallback(async (nodeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedNode(nodeId);
-    setEditingLabel(mindmap.nodes[nodeId].label);
     setShowNodeEditor(true);
-  }, [mindmap]);
+    setQueryAnswer(null);
+
+    if (mindmap) {
+      setEditingLabel(mindmap.nodes[nodeId]?.label || '');
+    }
+
+    // Fetch node detail from API
+    if (currentMindmapData) {
+      setIsLoadingDetail(true);
+      try {
+        const detail = await mindmapApi.getNodeDetail(currentMindmapData.id, nodeId);
+        setSelectedNodeDetail(detail);
+      } catch (error) {
+        console.error('Failed to fetch node detail:', error);
+        setSelectedNodeDetail(null);
+      } finally {
+        setIsLoadingDetail(false);
+      }
+    }
+  }, [mindmap, currentMindmapData]);
 
   // Handle node drag
   const handleNodeDrag = useCallback((nodeId: string, deltaX: number, deltaY: number) => {
-    setMindmap(prev => ({
-      ...prev,
-      nodes: {
-        ...prev.nodes,
-        [nodeId]: {
-          ...prev.nodes[nodeId],
-          x: prev.nodes[nodeId].x + deltaX / zoom,
-          y: prev.nodes[nodeId].y + deltaY / zoom
+    setMindmap(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        nodes: {
+          ...prev.nodes,
+          [nodeId]: {
+            ...prev.nodes[nodeId],
+            x: prev.nodes[nodeId].x + deltaX / zoom,
+            y: prev.nodes[nodeId].y + deltaY / zoom
+          }
         }
-      }
-    }));
+      };
+    });
   }, [zoom]);
 
   // Zoom controls
@@ -338,13 +452,17 @@ export const AIStudioPage: React.FC = () => {
     setIsAiPanelMinimized(prev => !prev);
   }, []);
 
-  // Add new node
-  const handleAddNode = useCallback((type: NodeType) => {
+  // Add new node (local only - not saved to API)
+  const handleAddNode = useCallback((type: VisualNodeType) => {
+    if (!mindmap) return;
+
     const parentId = selectedNode || mindmap.rootId;
     const parent = mindmap.nodes[parentId];
-    const newId = `node-${Date.now()}`;
+    if (!parent) return;
 
-    const newNode: MindmapNode = {
+    const newId = `node-local-${Date.now()}`;
+
+    const newNode: VisualizationNode = {
       id: newId,
       type,
       label: t('studio.newNode'),
@@ -356,17 +474,20 @@ export const AIStudioPage: React.FC = () => {
       color: nodeColors[type]
     };
 
-    setMindmap(prev => ({
-      ...prev,
-      nodes: {
-        ...prev.nodes,
-        [newId]: newNode,
-        [parentId]: {
-          ...prev.nodes[parentId],
-          children: [...prev.nodes[parentId].children, newId]
+    setMindmap(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        nodes: {
+          ...prev.nodes,
+          [newId]: newNode,
+          [parentId]: {
+            ...prev.nodes[parentId],
+            children: [...prev.nodes[parentId].children, newId]
+          }
         }
-      }
-    }));
+      };
+    });
 
     setSelectedNode(newId);
     setEditingLabel(t('studio.newNode'));
@@ -375,7 +496,7 @@ export const AIStudioPage: React.FC = () => {
 
   // Delete node
   const handleDeleteNode = useCallback(() => {
-    if (!selectedNode || selectedNode === mindmap.rootId) return;
+    if (!mindmap || !selectedNode || selectedNode === mindmap.rootId) return;
 
     const node = mindmap.nodes[selectedNode];
     const parentId = node.parent;
@@ -383,16 +504,18 @@ export const AIStudioPage: React.FC = () => {
     // Recursively collect all descendant IDs
     const collectDescendants = (nodeId: string): string[] => {
       const n = mindmap.nodes[nodeId];
+      if (!n) return [nodeId];
       return [nodeId, ...n.children.flatMap(collectDescendants)];
     };
 
     const toDelete = collectDescendants(selectedNode);
 
     setMindmap(prev => {
+      if (!prev) return prev;
       const newNodes = { ...prev.nodes };
       toDelete.forEach(id => delete newNodes[id]);
 
-      if (parentId) {
+      if (parentId && newNodes[parentId]) {
         newNodes[parentId] = {
           ...newNodes[parentId],
           children: newNodes[parentId].children.filter(id => id !== selectedNode)
@@ -404,84 +527,137 @@ export const AIStudioPage: React.FC = () => {
 
     setSelectedNode(null);
     setShowNodeEditor(false);
+    setSelectedNodeDetail(null);
   }, [selectedNode, mindmap]);
 
   // Update node label
   const handleUpdateLabel = useCallback(() => {
-    if (!selectedNode) return;
+    if (!selectedNode || !mindmap) return;
 
-    setMindmap(prev => ({
-      ...prev,
-      nodes: {
-        ...prev.nodes,
-        [selectedNode]: {
-          ...prev.nodes[selectedNode],
-          label: editingLabel
+    setMindmap(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        nodes: {
+          ...prev.nodes,
+          [selectedNode]: {
+            ...prev.nodes[selectedNode],
+            label: editingLabel
+          }
         }
-      }
-    }));
-  }, [selectedNode, editingLabel]);
+      };
+    });
+  }, [selectedNode, editingLabel, mindmap]);
 
-  // AI Generate concepts
+  // AI Generate mindmap (real API call)
   const handleAIGenerate = useCallback(async () => {
     if (!aiPrompt.trim()) return;
 
     setIsGenerating(true);
 
-    // Simulate AI generation
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    try {
+      const response = await mindmapApi.generate({
+        focus_topic: aiPrompt.trim(),
+        max_nodes: 30,
+        depth: 3,
+        language: 'auto',
+      });
 
-    // Generate mock concepts based on prompt
-    const concepts = [
-      `${aiPrompt} - Overview`,
-      `${aiPrompt} - Implementation`,
-      `${aiPrompt} - Best Practices`,
-      `${aiPrompt} - Challenges`
-    ];
+      setCurrentMindmapData(response.mindmap);
+      setAiPrompt('');
+      setShowAIPanel(false);
 
-    const parentId = selectedNode || mindmap.rootId;
-    const parent = mindmap.nodes[parentId];
-    const baseX = parent.x;
-    const baseY = parent.y + 120;
+      // Refresh saved mindmaps list
+      const result = await mindmapApi.list(1, 50);
+      setSavedMindmaps(result.mindmaps);
+    } catch (error) {
+      console.error('Failed to generate mindmap:', error);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [aiPrompt]);
 
-    const newNodes: Record<string, MindmapNode> = {};
-    const newChildIds: string[] = [];
+  // Expand node (real API call)
+  const handleExpandNode = useCallback(async () => {
+    if (!selectedNode || !currentMindmapData) return;
 
-    concepts.forEach((concept, index) => {
-      const newId = `node-ai-${Date.now()}-${index}`;
-      newChildIds.push(newId);
-      newNodes[newId] = {
-        id: newId,
-        type: 'insight',
-        label: concept,
-        x: baseX + (index - 1.5) * 150,
-        y: baseY + Math.abs(index - 1.5) * 50,
-        children: [],
-        parent: parentId,
-        expanded: true,
-        color: nodeColors.insight
-      };
-    });
+    setIsExpanding(true);
 
-    setMindmap(prev => ({
-      ...prev,
-      nodes: {
-        ...prev.nodes,
-        ...newNodes,
-        [parentId]: {
-          ...prev.nodes[parentId],
-          children: [...prev.nodes[parentId].children, ...newChildIds]
-        }
-      }
-    }));
+    try {
+      await mindmapApi.expandNode(currentMindmapData.id, {
+        node_id: selectedNode,
+        depth: 1,
+        max_children: 5,
+      });
 
-    setIsGenerating(false);
-    setAiPrompt('');
-    setShowAIPanel(false);
-  }, [aiPrompt, selectedNode, mindmap]);
+      // Refresh the mindmap data
+      const updated = await mindmapApi.get(currentMindmapData.id);
+      setCurrentMindmapData(updated);
+    } catch (error) {
+      console.error('Failed to expand node:', error);
+    } finally {
+      setIsExpanding(false);
+    }
+  }, [selectedNode, currentMindmapData]);
+
+  // Query node (real API call)
+  const handleQueryNode = useCallback(async () => {
+    if (!selectedNode || !currentMindmapData) return;
+
+    setIsQuerying(true);
+
+    try {
+      const response = await mindmapApi.queryNode(currentMindmapData.id, {
+        node_id: selectedNode,
+        question: nodeQuery.trim() || undefined,
+      });
+
+      setQueryAnswer(response);
+      setNodeQuery('');
+    } catch (error) {
+      console.error('Failed to query node:', error);
+    } finally {
+      setIsQuerying(false);
+    }
+  }, [selectedNode, currentMindmapData, nodeQuery]);
+
+  // Load a saved mindmap
+  const handleLoadMindmap = useCallback(async (mindmapId: string) => {
+    try {
+      const data = await mindmapApi.get(mindmapId);
+      setCurrentMindmapData(data);
+    } catch (error) {
+      console.error('Failed to load mindmap:', error);
+    }
+  }, []);
+
+  // Generate from all documents
+  const handleGenerateFromAll = useCallback(async () => {
+    setIsGenerating(true);
+
+    try {
+      const response = await mindmapApi.generateFromAllDocuments({
+        max_nodes: 50,
+        language: 'auto',
+      });
+
+      setCurrentMindmapData(response.mindmap);
+      setShowAIPanel(false);
+
+      // Refresh saved mindmaps list
+      const result = await mindmapApi.list(1, 50);
+      setSavedMindmaps(result.mindmaps);
+    } catch (error) {
+      console.error('Failed to generate mindmap from all documents:', error);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, []);
 
   // Render connections
   const renderConnections = () => {
+    if (!mindmap) return null;
+
     const connections: JSX.Element[] = [];
 
     Object.values(mindmap.nodes).forEach(node => {
@@ -508,6 +684,8 @@ export const AIStudioPage: React.FC = () => {
 
   // Render nodes
   const renderNodes = () => {
+    if (!mindmap) return null;
+
     return Object.values(mindmap.nodes).map(node => (
       <MindmapNodeComponent
         key={node.id}
@@ -520,6 +698,42 @@ export const AIStudioPage: React.FC = () => {
     ));
   };
 
+  // Render empty state
+  const renderEmptyState = () => (
+    <div className="studio-empty-state">
+      <div className="studio-empty-icon">
+        <Brain size={64} />
+      </div>
+      <h2>{t('studio.emptyTitle') || 'No Mindmap Yet'}</h2>
+      <p>{t('studio.emptyDescription') || 'Create a new mindmap from your knowledge base or focus on a specific topic.'}</p>
+      <div className="studio-empty-actions">
+        <button
+          className="btn btn-primary btn-lg"
+          onClick={() => setShowAIPanel(true)}
+        >
+          <Sparkles size={20} />
+          {t('studio.createNew') || 'Create New Mindmap'}
+        </button>
+        {savedMindmaps.length > 0 && (
+          <div className="studio-saved-mindmaps">
+            <span className="studio-saved-label">{t('studio.orLoad') || 'Or load saved mindmap'}:</span>
+            <div className="studio-saved-list">
+              {savedMindmaps.slice(0, 5).map(mm => (
+                <button
+                  key={mm.id}
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => handleLoadMindmap(mm.id)}
+                >
+                  {mm.title}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="studio-page">
       {/* Header */}
@@ -528,7 +742,9 @@ export const AIStudioPage: React.FC = () => {
           <Brain className="studio-icon" />
           <div className="studio-title-group">
             <h1 className="studio-title">{t('studio.title')}</h1>
-            <span className="studio-subtitle">{mindmap.title}</span>
+            <span className="studio-subtitle">
+              {mindmap?.title || t('studio.noMindmap') || 'No mindmap loaded'}
+            </span>
           </div>
         </div>
 
@@ -540,11 +756,11 @@ export const AIStudioPage: React.FC = () => {
             <Sparkles size={16} />
             {t('studio.aiGenerate')}
           </button>
-          <button className="btn btn-ghost btn-sm">
+          <button className="btn btn-ghost btn-sm" disabled={!mindmap}>
             <Save size={16} />
             {t('common.save')}
           </button>
-          <button className="btn btn-ghost btn-sm">
+          <button className="btn btn-ghost btn-sm" disabled={!mindmap}>
             <Download size={16} />
             {t('studio.export')}
           </button>
@@ -563,6 +779,7 @@ export const AIStudioPage: React.FC = () => {
             className="studio-tool-btn"
             onClick={() => handleAddNode('topic')}
             title={t('studio.nodeTypes.topic')}
+            disabled={!mindmap}
           >
             <Circle size={14} fill="#8B5CF6" stroke="#8B5CF6" />
             <span>{t('studio.nodeTypes.topic')}</span>
@@ -571,6 +788,7 @@ export const AIStudioPage: React.FC = () => {
             className="studio-tool-btn"
             onClick={() => handleAddNode('detail')}
             title={t('studio.nodeTypes.detail')}
+            disabled={!mindmap}
           >
             <Circle size={14} fill="#64748B" stroke="#64748B" />
             <span>{t('studio.nodeTypes.detail')}</span>
@@ -579,6 +797,7 @@ export const AIStudioPage: React.FC = () => {
             className="studio-tool-btn"
             onClick={() => handleAddNode('question')}
             title={t('studio.nodeTypes.question')}
+            disabled={!mindmap}
           >
             <Circle size={14} fill="#F59E0B" stroke="#F59E0B" />
             <span>{t('studio.nodeTypes.question')}</span>
@@ -587,6 +806,7 @@ export const AIStudioPage: React.FC = () => {
             className="studio-tool-btn"
             onClick={() => handleAddNode('insight')}
             title={t('studio.nodeTypes.insight')}
+            disabled={!mindmap}
           >
             <Circle size={14} fill="#10B981" stroke="#10B981" />
             <span>{t('studio.nodeTypes.insight')}</span>
@@ -597,7 +817,7 @@ export const AIStudioPage: React.FC = () => {
           <button
             className="studio-tool-btn"
             onClick={handleDeleteNode}
-            disabled={!selectedNode || selectedNode === mindmap.rootId}
+            disabled={!mindmap || !selectedNode || selectedNode === mindmap?.rootId}
             title={t('common.delete')}
           >
             <Trash2 size={16} />
@@ -628,33 +848,42 @@ export const AIStudioPage: React.FC = () => {
         onMouseUp={handleCanvasMouseUp}
         onMouseLeave={handleCanvasMouseUp}
       >
-        <svg
-          className="studio-svg"
-          style={{
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`
-          }}
-        >
-          <g className="mindmap-connections">
-            {renderConnections()}
-          </g>
-          <g className="mindmap-nodes">
-            {renderNodes()}
-          </g>
-        </svg>
+        {!mindmap ? (
+          renderEmptyState()
+        ) : (
+          <svg
+            className="studio-svg"
+            style={{
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`
+            }}
+          >
+            <g className="mindmap-connections">
+              {renderConnections()}
+            </g>
+            <g className="mindmap-nodes">
+              {renderNodes()}
+            </g>
+          </svg>
+        )}
 
         {/* Node Editor Panel */}
-        {showNodeEditor && selectedNode && (
+        {showNodeEditor && selectedNode && mindmap && (
           <div className="studio-node-editor">
             <div className="studio-node-editor-header">
               <h3>{t('studio.editNode')}</h3>
               <button
                 className="btn btn-ghost btn-sm"
-                onClick={() => setShowNodeEditor(false)}
+                onClick={() => {
+                  setShowNodeEditor(false);
+                  setSelectedNodeDetail(null);
+                  setQueryAnswer(null);
+                }}
               >
                 <X size={16} />
               </button>
             </div>
             <div className="studio-node-editor-body">
+              {/* Node Label */}
               <label className="studio-editor-label">{t('studio.nodeLabel')}</label>
               <input
                 type="text"
@@ -664,9 +893,137 @@ export const AIStudioPage: React.FC = () => {
                 onBlur={handleUpdateLabel}
                 onKeyDown={(e) => e.key === 'Enter' && handleUpdateLabel()}
               />
+
+              {/* Node Info */}
               <div className="studio-node-info">
-                <span>{t('studio.nodeType')}: {mindmap.nodes[selectedNode].type}</span>
+                <span>{t('studio.nodeType')}: {mindmap.nodes[selectedNode]?.type}</span>
               </div>
+
+              {/* Description (from API) */}
+              {selectedNodeDetail?.node?.description && (
+                <div className="studio-node-description">
+                  <label className="studio-editor-label">{t('studio.description') || 'Description'}</label>
+                  <p>{selectedNodeDetail.node.description}</p>
+                </div>
+              )}
+
+              {/* Loading indicator for node detail */}
+              {isLoadingDetail && (
+                <div className="studio-loading">
+                  <Loader2 size={16} className="spin" />
+                  <span>{t('common.loading') || 'Loading...'}</span>
+                </div>
+              )}
+
+              {/* Related Concepts */}
+              {selectedNodeDetail && selectedNodeDetail.connected_nodes.length > 0 && (
+                <div className="studio-related-concepts">
+                  <label className="studio-editor-label">
+                    {t('studio.relatedConcepts') || 'Related Concepts'}
+                  </label>
+                  <div className="concept-tags">
+                    {selectedNodeDetail.connected_nodes.slice(0, 8).map(node => (
+                      <span
+                        key={node.id}
+                        className="concept-tag"
+                        onClick={() => handleNodeClick(node.id, { stopPropagation: () => {} } as React.MouseEvent)}
+                      >
+                        {node.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Node Actions */}
+              <div className="studio-node-actions">
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleExpandNode}
+                  disabled={isExpanding || !currentMindmapData}
+                  title={t('studio.expandNode') || 'Expand this node'}
+                >
+                  {isExpanding ? (
+                    <Loader2 size={14} className="spin" />
+                  ) : (
+                    <Expand size={14} />
+                  )}
+                  {t('studio.expand') || 'Expand'}
+                </button>
+              </div>
+
+              {/* Query Section */}
+              <div className="studio-query-section">
+                <label className="studio-editor-label">
+                  {t('studio.askAboutNode') || 'Ask about this concept'}
+                </label>
+                <div className="studio-query-input">
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder={t('studio.queryPlaceholder') || 'Enter your question...'}
+                    value={nodeQuery}
+                    onChange={(e) => setNodeQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleQueryNode()}
+                  />
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={handleQueryNode}
+                    disabled={isQuerying || !currentMindmapData}
+                  >
+                    {isQuerying ? (
+                      <Loader2 size={14} className="spin" />
+                    ) : (
+                      <Search size={14} />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Query Answer */}
+              {queryAnswer && (
+                <div className="studio-answer-section">
+                  <label className="studio-editor-label">
+                    {t('studio.answer') || 'Answer'}
+                  </label>
+                  <div className="studio-answer-content">
+                    {queryAnswer.answer}
+                  </div>
+
+                  {/* Related Concepts from Query */}
+                  {queryAnswer.related_concepts.length > 0 && (
+                    <div className="studio-query-related">
+                      <span className="studio-related-label">
+                        {t('studio.relatedTopics') || 'Related topics'}:
+                      </span>
+                      <div className="concept-tags">
+                        {queryAnswer.related_concepts.map((concept, idx) => (
+                          <span key={idx} className="concept-tag small">
+                            {concept}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sources */}
+                  {queryAnswer.sources.length > 0 && (
+                    <div className="studio-sources">
+                      <span className="studio-sources-label">
+                        <FileText size={12} />
+                        {t('studio.sources') || 'Sources'}
+                      </span>
+                      <ul className="studio-sources-list">
+                        {queryAnswer.sources.slice(0, 3).map((source, idx) => (
+                          <li key={idx}>
+                            {source.title || `Source ${idx + 1}`}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -740,6 +1097,28 @@ export const AIStudioPage: React.FC = () => {
                     </>
                   )}
                 </button>
+
+                <div className="studio-ai-divider">
+                  <span>{t('common.or') || 'or'}</span>
+                </div>
+
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleGenerateFromAll}
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? (
+                    <>
+                      <RefreshCw size={16} className="spin" />
+                      {t('studio.generating')}
+                    </>
+                  ) : (
+                    <>
+                      <Brain size={16} />
+                      {t('studio.generateFromAll') || 'Generate from All Documents'}
+                    </>
+                  )}
+                </button>
               </div>
             )}
           </div>
@@ -749,9 +1128,15 @@ export const AIStudioPage: React.FC = () => {
 
       {/* Status Bar */}
       <div className="studio-status">
-        <span>{t('studio.nodes')}: {Object.keys(mindmap.nodes).length}</span>
-        <span>{t('studio.selected')}: {selectedNode ? mindmap.nodes[selectedNode].label : t('studio.none')}</span>
-        <span>{t('studio.lastSaved')}: {new Date(mindmap.updatedAt).toLocaleTimeString()}</span>
+        <span>
+          {t('studio.nodes')}: {mindmap ? Object.keys(mindmap.nodes).length : 0}
+        </span>
+        <span>
+          {t('studio.selected')}: {selectedNode && mindmap ? mindmap.nodes[selectedNode]?.label : t('studio.none')}
+        </span>
+        <span>
+          {t('studio.lastSaved')}: {mindmap ? new Date(mindmap.updatedAt).toLocaleTimeString() : '-'}
+        </span>
       </div>
     </div>
   );
@@ -759,7 +1144,7 @@ export const AIStudioPage: React.FC = () => {
 
 // Mindmap Node Component
 interface MindmapNodeProps {
-  node: MindmapNode;
+  node: VisualizationNode;
   isSelected: boolean;
   isRoot: boolean;
   onClick: (e: React.MouseEvent) => void;

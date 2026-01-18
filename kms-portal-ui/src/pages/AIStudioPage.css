@@ -399,6 +399,273 @@
   gap: var(--space-1);
 }
 
+/* Empty State */
+.studio-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-8);
+  text-align: center;
+}
+
+.studio-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 120px;
+  margin-bottom: var(--space-6);
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+  color: var(--color-primary);
+}
+
+.studio-empty-state h2 {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-3) 0;
+}
+
+.studio-empty-state p {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-6) 0;
+  max-width: 400px;
+}
+
+.studio-empty-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.studio-saved-mindmaps {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.studio-saved-label {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.studio-saved-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+/* Node Description */
+.studio-node-description {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.studio-node-description p {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+  margin: 0;
+}
+
+/* Loading State */
+.studio-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Related Concepts */
+.studio-related-concepts {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.concept-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.concept-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: var(--transition-colors);
+}
+
+.concept-tag:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.concept-tag.small {
+  padding: 2px var(--space-2);
+  font-size: 10px;
+}
+
+/* Node Actions */
+.studio-node-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.studio-node-actions .btn {
+  flex: 1;
+}
+
+/* Query Section */
+.studio-query-section {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.studio-query-input {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.studio-query-input .input {
+  flex: 1;
+}
+
+/* Answer Section */
+.studio-answer-section {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-base);
+}
+
+.studio-answer-content {
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-relaxed);
+  margin-top: var(--space-2);
+}
+
+.studio-query-related {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.studio-related-label {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+  display: block;
+}
+
+/* Sources */
+.studio-sources {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.studio-sources-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.studio-sources-list {
+  margin: 0;
+  padding: 0 0 0 var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.studio-sources-list li {
+  margin-bottom: var(--space-1);
+}
+
+/* AI Panel Divider */
+.studio-ai-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.studio-ai-divider::before,
+.studio-ai-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+/* Enhanced Node Editor Panel */
+.studio-node-editor {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  width: 320px;
+  max-height: calc(100% - var(--space-8));
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+.studio-node-editor-body {
+  padding: var(--space-4);
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Spin Animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .studio-header {
@@ -420,6 +687,24 @@
   .studio-ai-panel {
     width: calc(100% - var(--space-4));
     bottom: var(--space-2);
+  }
+
+  .studio-node-editor {
+    width: calc(100% - var(--space-4));
+    max-height: 50%;
+    bottom: var(--space-2);
+    top: auto;
+    left: var(--space-2);
+    right: var(--space-2);
+  }
+
+  .studio-empty-state {
+    padding: var(--space-4);
+  }
+
+  .studio-empty-icon {
+    width: 80px;
+    height: 80px;
   }
 
   .studio-status {
