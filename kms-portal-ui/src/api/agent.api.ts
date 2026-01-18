@@ -130,6 +130,8 @@ export type AgentStreamChunkType =
   | 'embedding_info'
   | 'generation_start'
   | 'generation_progress'
+  // Individual search result for expandable card display
+  | 'search_result'
   // Enterprise multi-agent orchestration chunk types
   | 'orchestration_start'
   | 'dag_created'
@@ -207,6 +209,16 @@ export interface AgentStreamChunk {
   artifact_type?: ArtifactType;
   artifact_title?: string;
   artifact_language?: ArtifactLanguage;
+
+  // Search result fields (for search_result chunk type)
+  result_index?: number;          // 결과 순서 (1, 2, 3...)
+  result_total?: number;          // 전체 결과 수
+  result_title?: string;          // 문서/섹션 제목
+  result_content?: string;        // 텍스트 내용
+  result_images?: Array<Record<string, unknown>>;   // 관련 이미지들
+  result_tables?: Array<Record<string, unknown>>;   // 관련 테이블들
+  result_source?: Record<string, unknown>;          // 참조 문서 정보
+  result_score?: number;          // 관련도 점수
 
   // Enterprise multi-agent trace data
   trace_data?: StreamTraceData;

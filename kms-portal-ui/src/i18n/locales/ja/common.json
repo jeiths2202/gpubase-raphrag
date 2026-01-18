@@ -78,7 +78,13 @@
       "saving": "保存中...",
       "emptyFields": "すべてのフィールドに入力してください",
       "saveError": "認証情報の保存に失敗しました"
-    }
+    },
+    "searchResults": "検索結果",
+    "expandAll": "すべて展開",
+    "collapseAll": "すべて折りたたむ",
+    "textTab": "テキスト",
+    "imagesTab": "画像",
+    "tablesTab": "表"
   },
   "externalConnectors": {
     "title": "外部コネクタ",

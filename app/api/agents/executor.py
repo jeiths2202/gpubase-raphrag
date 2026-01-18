@@ -1452,6 +1452,33 @@ User Query: {task}"""
                         async for image_chunk in _stream_images_from_metadata(result["metadata"]):
                             yield image_chunk
 
+                    # ========================================================================
+                    # Stream individual search results for expandable card display
+                    # Each result is sent as a separate search_result chunk
+                    # ========================================================================
+                    if result.get("success") and result.get("metadata"):
+                        individual_results = result["metadata"].get("individual_results", [])
+                        if individual_results:
+                            total = len(individual_results)
+                            print(f"[Executor] Streaming {total} individual search results", flush=True)
+                            for idx, ind_result in enumerate(individual_results):
+                                yield AgentStreamChunk(
+                                    chunk_type="search_result",
+                                    result_index=idx + 1,
+                                    result_total=total,
+                                    result_title=ind_result.get("title", ""),
+                                    result_content=ind_result.get("content", ""),
+                                    result_images=ind_result.get("images", []),
+                                    result_tables=ind_result.get("tables", []),
+                                    result_source=ind_result.get("source", {}),
+                                    result_score=ind_result.get("similarity", 0),
+                                    metadata={
+                                        "chunk_id": ind_result.get("chunk_id"),
+                                        "chunk_type": ind_result.get("chunk_type"),
+                                        "relations": ind_result.get("relations", {})
+                                    }
+                                )
+
                     # Check if tool result contains markdown_table - bypass LLM and output directly
                     if result["success"] and result.get("output"):
                         try:
@@ -1495,7 +1522,10 @@ User Query: {task}"""
 
                     # Collect sources
                     if result.get("metadata") and "sources" in result["metadata"]:
-                        sources.extend(result["metadata"]["sources"])
+                        result_sources = result["metadata"]["sources"]
+                        print(f"[Executor] Collected {len(result_sources)} sources from {tool_call.tool_name}", flush=True)
+                        logger.info(f"[Executor] Collected {len(result_sources)} sources from {tool_call.tool_name}")
+                        sources.extend(result_sources)
             else:
                 # Stream final answer
                 answer = response.content or ""
@@ -1618,7 +1648,11 @@ User Query: {task}"""
 
         # Yield sources and done
         if sources:
+            print(f"[Executor] Yielding {len(sources)} sources to client", flush=True)
+            logger.info(f"[Executor] Yielding {len(sources)} sources to client: {[s.get('source', 'unknown') for s in sources[:5]]}")
             yield AgentStreamChunk(chunk_type="sources", sources=sources[:10])
+        else:
+            print(f"[Executor] No sources to yield", flush=True)
 
         yield AgentStreamChunk(
             chunk_type="done",

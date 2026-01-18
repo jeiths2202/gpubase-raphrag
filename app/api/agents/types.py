@@ -212,7 +212,9 @@ class AgentStreamChunk(BaseModel):
         "chunk_structure",   # 문서의 청킹 구조
         "embedding_info",    # 임베딩된 구조 정보
         "generation_start",  # 답변 생성 시작
-        "generation_progress"  # 답변 생성 과정
+        "generation_progress",  # 답변 생성 과정
+        # Individual search result for expandable card display
+        "search_result"      # 개별 검색 결과 (텍스트, 이미지, 테이블 포함)
     ]
     content: Optional[str] = None
     tool_name: Optional[str] = None
@@ -226,6 +228,16 @@ class AgentStreamChunk(BaseModel):
     artifact_type: Optional[str] = None  # code, text, markdown, html, json, diff, log
     artifact_title: Optional[str] = None
     artifact_language: Optional[str] = None  # python, javascript, typescript, etc.
+
+    # Search result fields (for search_result chunk type)
+    result_index: Optional[int] = None          # 결과 순서 (1, 2, 3...)
+    result_total: Optional[int] = None          # 전체 결과 수
+    result_title: Optional[str] = None          # 문서/섹션 제목
+    result_content: Optional[str] = None        # 텍스트 내용
+    result_images: Optional[List[Dict[str, Any]]] = None   # 관련 이미지들
+    result_tables: Optional[List[Dict[str, Any]]] = None   # 관련 테이블들
+    result_source: Optional[Dict[str, Any]] = None         # 참조 문서 정보
+    result_score: Optional[float] = None        # 관련도 점수
 
 
 # Permission Models

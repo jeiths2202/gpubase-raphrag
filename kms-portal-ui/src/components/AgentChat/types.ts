@@ -19,6 +19,7 @@ export interface ChatMessage {
   toolCalls?: ToolCallInfo[];
   sources?: AgentSource[];
   images?: ImageReference[];  // Multimodal RAG images
+  searchResults?: ExpandableSearchResult[];  // Individual expandable search results
   isStreaming?: boolean;
   error?: string;
   statusType?: 'crawling' | 'ready' | 'credentials_required';
@@ -205,4 +206,52 @@ export interface RagProgressState {
   embeddingInfos: EmbeddingInfo[];
   generationProgress: GenerationProgress | null;
   isGenerating: boolean;
+}
+
+/**
+ * Individual expandable search result for card display
+ * Each result contains text, images, tables, and source info
+ */
+export interface ExpandableSearchResult {
+  index: number;           // 결과 순서 (1, 2, 3...)
+  total: number;           // 전체 결과 수
+  title: string;           // 문서/섹션 제목
+  content: string;         // 텍스트 내용
+  images: SearchResultImage[];   // 관련 이미지들
+  tables: SearchResultTable[];   // 관련 테이블들
+  source: SearchResultSource;    // 참조 문서 정보
+  score: number;           // 관련도 점수
+  chunkId?: string;        // 청크 ID
+  chunkType?: string;      // 청크 타입 (TEXT, TABLE, IMAGE 등)
+  relations?: Record<string, unknown>;  // 관련 청크 정보
+}
+
+/**
+ * Image in search result
+ */
+export interface SearchResultImage {
+  imageId: string;
+  documentId?: string;
+  pageNumber?: number;
+  similarity?: number;
+  url: string;
+}
+
+/**
+ * Table in search result
+ */
+export interface SearchResultTable {
+  markdown: string;        // 마크다운 형식의 테이블
+}
+
+/**
+ * Source information for search result
+ */
+export interface SearchResultSource {
+  documentName: string;
+  pageStart?: number;
+  pageEnd?: number;
+  sectionPath?: string;
+  sectionTitle?: string;
+  docId?: string;
 }

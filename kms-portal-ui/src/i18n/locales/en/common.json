@@ -78,7 +78,13 @@
       "saving": "Saving...",
       "emptyFields": "Please fill in all fields",
       "saveError": "Failed to save credentials"
-    }
+    },
+    "searchResults": "Search Results",
+    "expandAll": "Expand All",
+    "collapseAll": "Collapse All",
+    "textTab": "Text",
+    "imagesTab": "Images",
+    "tablesTab": "Tables"
   },
   "externalConnectors": {
     "title": "External Connectors",

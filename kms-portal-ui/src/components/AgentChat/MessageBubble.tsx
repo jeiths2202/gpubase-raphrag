@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { MessageContent } from './MessageContent';
+import { SearchResultCards } from './ExpandableSearchResultCard';
 import { AGENT_CONFIGS } from './constants';
 import type { ChatMessage, ImageReference } from './types';
 
@@ -259,8 +260,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {message.isStreaming && <span className="agent-typing-cursor" />}
         </div>
 
-        {/* Sources */}
-        {message.sources && message.sources.length > 0 && (
+        {/* Expandable Search Results - Individual cards with text, images, tables */}
+        {message.searchResults && message.searchResults.length > 0 && (
+          <SearchResultCards
+            results={message.searchResults}
+            title={t('common.agent.searchResults') || '검색 결과'}
+          />
+        )}
+
+        {/* Sources - Legacy display (shown only if no searchResults) */}
+        {message.sources && message.sources.length > 0 && (!message.searchResults || message.searchResults.length === 0) && (
           <div className="agent-message-sources">
             <span className="agent-sources-label">Sources:</span>
             {message.sources.map((source, idx) => {

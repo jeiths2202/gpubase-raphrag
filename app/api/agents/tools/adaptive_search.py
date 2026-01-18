@@ -623,6 +623,63 @@ class AdaptiveSearchTool(BaseTool):
                 context.metadata['sources'] = []
             context.metadata['sources'].extend(sources)
 
+            # Build individual search results for expandable card display
+            # Each result includes: text, images, tables, source info
+            individual_results = []
+            for i, r in enumerate(results):
+                doc_name = r.get('document_name') or r.get('pdf_id', 'Unknown')
+                page_start = r.get('page_start')
+                page_end = r.get('page_end')
+
+                # Format page display
+                if page_start == page_end:
+                    page_display = f"p.{page_start}"
+                else:
+                    page_display = f"p.{page_start}-{page_end}"
+
+                # Find images related to this chunk (same page range)
+                chunk_images = []
+                for img in clip_images:
+                    img_page = img.get('page_number')
+                    if img_page and page_start and page_end:
+                        if page_start <= img_page <= page_end:
+                            chunk_images.append({
+                                "image_id": img.get("image_id"),
+                                "document_id": img.get("document_id"),
+                                "page_number": img_page,
+                                "similarity": img.get("similarity"),
+                                "url": f"/api/v1/documents/adaptive/images/{img['image_id']}/raw"
+                            })
+
+                # Extract tables from content (markdown table format)
+                content = r.get('content', '')
+                tables = []
+                table_pattern = r'(\|[^\n]+\|\n(?:\|[-:]+\|[-:|\s]+\n)?(?:\|[^\n]+\|\n)+)'
+                import re
+                table_matches = re.findall(table_pattern, content)
+                for table_match in table_matches:
+                    tables.append({"markdown": table_match.strip()})
+
+                individual_results.append({
+                    "index": i + 1,
+                    "chunk_id": r.get('chunk_id'),
+                    "chunk_type": r.get('chunk_type', 'TEXT'),
+                    "title": r.get('section_title') or f"{doc_name} ({page_display})",
+                    "content": content,
+                    "similarity": r.get('similarity', 0),
+                    "source": {
+                        "document_name": doc_name,
+                        "page_start": page_start,
+                        "page_end": page_end,
+                        "section_path": r.get('section_path'),
+                        "section_title": r.get('section_title'),
+                        "doc_id": r.get('pdf_id')
+                    },
+                    "images": chunk_images,
+                    "tables": tables,
+                    "relations": r.get('relations', {})
+                })
+
             result_metadata = {
                 "results_count": len(results),
                 "query": query,
@@ -641,6 +698,8 @@ class AdaptiveSearchTool(BaseTool):
                     }
                     for img in clip_images[:image_limit]
                 ],
+                # Individual results for expandable card display in WebUI
+                "individual_results": individual_results,
             }
 
             # Add query correction info if query was fixed

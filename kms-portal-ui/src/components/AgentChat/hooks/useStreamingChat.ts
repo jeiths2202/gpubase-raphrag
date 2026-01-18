@@ -25,7 +25,8 @@ import type {
   RagAnalysis,
   ChunkStructure,
   EmbeddingInfo,
-  GenerationProgress
+  GenerationProgress,
+  ExpandableSearchResult
 } from '../types';
 
 // ============================================================================
@@ -401,6 +402,7 @@ export function useStreamingChat(
       const toolCalls: ToolCallInfo[] = [];
       let sources: AgentSource[] = [];
       const images: ImageReference[] = [];
+      const searchResults: ExpandableSearchResult[] = [];
       let receivedAnyChunk = false;
 
       console.log('[useStreamingChat] Starting stream for task:', userMessage.content, 'agent:', requestingAgent);
@@ -532,7 +534,10 @@ export function useStreamingChat(
             break;
 
           case 'sources':
+            console.log('[useStreamingChat] Sources chunk received:', chunk);
+            console.log('[useStreamingChat] Sources data:', chunk.sources);
             sources = chunk.sources || [];
+            console.log('[useStreamingChat] Sources assigned:', sources.length, 'items');
             updateAgentStreamingMessage(requestingAgent,
               agentLocalStatesRef.current[requestingAgent].streamingMessage
                 ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, sources }
@@ -562,8 +567,16 @@ export function useStreamingChat(
             // Handle figure reference images from document
             if (chunk.metadata) {
               const meta = chunk.metadata as Record<string, string | number | undefined>;
+              const imageId = (meta.image_id as string) || `img-${Date.now()}`;
+
+              // Skip duplicate images (check by imageId)
+              if (images.some(img => img.imageId === imageId)) {
+                console.log('[useStreamingChat] Skipping duplicate image:', imageId);
+                break;
+              }
+
               const imageRef: ImageReference = {
-                imageId: (meta.image_id as string) || `img-${Date.now()}`,
+                imageId,
                 documentId: (meta.document_id as string) || '',
                 pageNumber: meta.page_number as number | undefined,
                 description: (meta.figure_caption as string) || (meta.description as string),
@@ -581,6 +594,52 @@ export function useStreamingChat(
               updateAgentStreamingMessage(requestingAgent,
                 agentLocalStatesRef.current[requestingAgent].streamingMessage
                   ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, images: [...images] }
+                  : null
+              );
+            }
+            break;
+
+          case 'search_result':
+            // Individual search result for expandable card display
+            {
+              // Parse source data from snake_case to camelCase
+              const sourceData = chunk.result_source as Record<string, unknown> | undefined;
+              const searchResult: ExpandableSearchResult = {
+                index: chunk.result_index || searchResults.length + 1,
+                total: chunk.result_total || 0,
+                title: chunk.result_title || '',
+                content: chunk.result_content || '',
+                images: (chunk.result_images || []).map((img: Record<string, unknown>) => ({
+                  imageId: img.image_id as string,
+                  documentId: img.document_id as string | undefined,
+                  pageNumber: img.page_number as number | undefined,
+                  similarity: img.similarity as number | undefined,
+                  url: img.url as string,
+                })),
+                tables: (chunk.result_tables || []).map((tbl: Record<string, unknown>) => ({
+                  markdown: tbl.markdown as string,
+                })),
+                source: {
+                  documentName: (sourceData?.document_name as string) || '',
+                  pageStart: sourceData?.page_start as number | undefined,
+                  pageEnd: sourceData?.page_end as number | undefined,
+                  sectionPath: sourceData?.section_path as string | undefined,
+                  sectionTitle: sourceData?.section_title as string | undefined,
+                  docId: sourceData?.doc_id as string | undefined,
+                },
+                score: chunk.result_score || 0,
+                chunkId: (chunk.metadata as Record<string, unknown>)?.chunk_id as string | undefined,
+                chunkType: (chunk.metadata as Record<string, unknown>)?.chunk_type as string | undefined,
+                relations: (chunk.metadata as Record<string, unknown>)?.relations as Record<string, unknown> | undefined,
+              };
+
+              searchResults.push(searchResult);
+              console.log('[useStreamingChat] Received search result:', searchResult.index, '/', searchResult.total);
+
+              // Update streaming message with search results
+              updateAgentStreamingMessage(requestingAgent,
+                agentLocalStatesRef.current[requestingAgent].streamingMessage
+                  ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, searchResults: [...searchResults] }
                   : null
               );
             }
@@ -764,6 +823,7 @@ export function useStreamingChat(
         toolCalls,
         sources,
         images: images.length > 0 ? images : undefined,
+        searchResults: searchResults.length > 0 ? searchResults : undefined,
         isStreaming: false,
       };
 

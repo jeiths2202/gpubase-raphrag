@@ -78,7 +78,13 @@
       "saving": "저장 중...",
       "emptyFields": "모든 필드를 입력해주세요",
       "saveError": "계정 정보 저장에 실패했습니다"
-    }
+    },
+    "searchResults": "검색 결과",
+    "expandAll": "모두 펼치기",
+    "collapseAll": "모두 접기",
+    "textTab": "텍스트",
+    "imagesTab": "이미지",
+    "tablesTab": "표"
   },
   "externalConnectors": {
     "title": "외부 커넥터",
