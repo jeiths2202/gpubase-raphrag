@@ -1054,7 +1054,22 @@ User Query: {task}"""
                     break
             else:
                 # No tool calls - agent has finished reasoning
-                final_answer = response.content or "I couldn't generate a response."
+                # ================================================================
+                # ANTI-HALLUCINATION: RAG agents MUST use search tools
+                # If step 1 has no tool calls, the LLM is hallucinating
+                # ================================================================
+                if step == 1 and agent.agent_type.value == "rag" and len(tool_calls_made) == 0:
+                    logger.warning(f"[Executor] HALLUCINATION DETECTED: RAG agent responded without using search tools")
+                    # Force "not found" response based on language
+                    lang = context.language or "en"
+                    if lang == "ja":
+                        final_answer = f"申し訳ございませんが、「{task}」に関する情報はナレッジベースに見つかりませんでした。"
+                    elif lang == "ko":
+                        final_answer = f"죄송합니다. 「{task}」에 대한 정보를 지식 베이스에서 찾을 수 없습니다."
+                    else:
+                        final_answer = f"I'm sorry, but I couldn't find information about \"{task}\" in the knowledge base."
+                else:
+                    final_answer = response.content or "I couldn't generate a response."
                 break
 
         execution_time = time.time() - start_time
@@ -1472,6 +1487,24 @@ User Query: {task}"""
             else:
                 # Stream final answer
                 answer = response.content or ""
+
+                # ========================================================================
+                # ANTI-HALLUCINATION: RAG agents MUST use search tools
+                # If step 1 has no tool calls, the LLM is hallucinating
+                # ========================================================================
+                if step == 1 and agent.agent_type.value == "rag" and len(tool_results) == 0:
+                    logger.warning(f"[Executor.stream] HALLUCINATION DETECTED: RAG agent responded without using search tools")
+                    lang = context.language or "en"
+                    if lang == "ja":
+                        answer = f"申し訳ございませんが、「{task}」に関する情報はナレッジベースに見つかりませんでした。"
+                    elif lang == "ko":
+                        answer = f"죄송합니다. 「{task}」에 대한 정보를 지식 베이스에서 찾을 수 없습니다."
+                    else:
+                        answer = f"I'm sorry, but I couldn't find information about \"{task}\" in the knowledge base."
+                    # Skip strip_thinking_tags and validation for hallucination response
+                    yield AgentStreamChunk(chunk_type="text", content=answer)
+                    yield AgentStreamChunk(chunk_type="done", metadata={"hallucination_blocked": True})
+                    return
 
                 # ========================================================================
                 # STRIP THINKING TAGS: Remove internal reasoning from response
