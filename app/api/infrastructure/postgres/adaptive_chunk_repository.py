@@ -493,23 +493,32 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
                 ORDER BY ac.embedding <=> $1::vector
                 LIMIT {candidate_limit}
             ),
-            -- Step 2: Keyword search results with ranking (using ts_rank with tokenized query)
+            -- Step 2: Keyword search results with ranking
+            -- Uses ts_rank + exact substring match bonus
             keyword_results AS (
                 SELECT
                     ac.chunk_id,
                     ts_rank(
                         to_tsvector('simple', ac.content),
                         to_tsquery('simple', $${ts_query_str}$$)
-                    ) as keyword_score,
+                    ) +
+                    -- Exact substring match bonus: if content contains significant part of query
+                    CASE WHEN ac.content LIKE '%' || $2 || '%' THEN 0.5 ELSE 0.0 END as keyword_score,
                     ROW_NUMBER() OVER (
-                        ORDER BY ts_rank(
-                            to_tsvector('simple', ac.content),
-                            to_tsquery('simple', $${ts_query_str}$$)
+                        ORDER BY (
+                            ts_rank(
+                                to_tsvector('simple', ac.content),
+                                to_tsquery('simple', $${ts_query_str}$$)
+                            ) +
+                            CASE WHEN ac.content LIKE '%' || $2 || '%' THEN 0.5 ELSE 0.0 END
                         ) DESC
                     ) as keyword_rank
                 FROM adaptive_pdf_chunks ac
                 WHERE {where_clause}
-                AND to_tsvector('simple', ac.content) @@ to_tsquery('simple', $${ts_query_str}$$)
+                AND (
+                    to_tsvector('simple', ac.content) @@ to_tsquery('simple', $${ts_query_str}$$)
+                    OR ac.content LIKE '%' || $2 || '%'
+                )
                 ORDER BY keyword_score DESC
                 LIMIT {candidate_limit}
             ),
@@ -530,6 +539,9 @@ class PostgresAdaptiveChunkRepository(AdaptiveChunkRepositoryPort):
             ORDER BY rrf_score DESC
             LIMIT {limit}
         """
+
+        # Add query_text for exact substring matching ($2)
+        params.append(query_text)
 
         print(f"[HybridSearch] Using RRF fusion (k={RRF_K})", flush=True)
 
