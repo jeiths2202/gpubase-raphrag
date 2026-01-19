@@ -494,7 +494,7 @@ def _extract_embedding_info(tool_result: Dict[str, Any], tool_name: str) -> Dict
 
 
 # Max characters per tool result to prevent context overflow
-# - Standard mode (8K context): 2000 chars (~700 tokens) - conservative for CJK
+# - Standard mode: 6000 chars (~2000 tokens) - adequate for RAG with CJK
 # - Large context mode (128K context): 15000 chars (~5000 tokens)
 def _get_max_tool_result_chars() -> int:
     """
@@ -503,13 +503,14 @@ def _get_max_tool_result_chars() -> int:
     When RAG_LLM_USE_LARGE_CONTEXT=true, uses Mistral NeMo 12B (128K context),
     allowing much larger tool results for better RAG accuracy.
 
-    For standard 8K context with CJK text (Korean/Japanese), we use 2000 chars
-    because CJK characters tokenize to ~2 tokens per character on average.
+    For standard mode, we use 6000 chars to ensure full search results
+    are passed to the LLM, preventing hallucination from truncated context.
+    Qwen 2.5 7B has 32K context which can handle this comfortably.
     """
     use_large_context = os.getenv("RAG_LLM_USE_LARGE_CONTEXT", "false").lower() == "true"
     if use_large_context:
         return 15000  # 128K context allows ~5000 tokens for tool results
-    return 1500  # 8K context with CJK needs very conservative limit (~500 tokens)
+    return 6000  # Standard mode - enough for full RAG results with CJK text
 
 
 def _truncate_tool_result(content: str, max_chars: int = None) -> str:

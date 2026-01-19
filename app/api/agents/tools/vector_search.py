@@ -21,9 +21,10 @@ class VectorSearchTool(BaseTool):
     def __init__(self, rag_service=None):
         super().__init__(
             name="vector_search",
-            description="""FALLBACK TOOL - Use only if adaptive_search returns 0 results.
-Searches the Neo4j knowledge base. Note: If the database has no documents indexed in Neo4j,
-this will return empty results. Try adaptive_search first for PDF documents."""
+            description="""PRIMARY search tool for the knowledge base.
+Searches Neo4j vector index using semantic similarity.
+Returns relevant document chunks with content and source information.
+Use this tool FIRST for any knowledge base queries."""
         )
         self._rag_service = rag_service
 
@@ -93,7 +94,7 @@ this will return empty results. Try adaptive_search first for PDF documents."""
             for i, source in enumerate(sources[:top_k], 1):
                 formatted_sources.append({
                     "rank": i,
-                    "content": source.get("content", "")[:500],  # Truncate
+                    "content": source.get("content", "")[:2000],  # Extended for detailed content
                     "source": source.get("doc_name") or source.get("source", "Unknown"),
                     "score": source.get("score", 0.0),
                     "doc_id": source.get("doc_id", ""),
@@ -202,7 +203,7 @@ for exploring structured knowledge relationships."""
             formatted_results = []
             for source in sources[:top_k]:
                 formatted_results.append({
-                    "content": source.get("content", "")[:500],
+                    "content": source.get("content", "")[:2000],  # Extended for detailed content
                     "entities": source.get("entities", []),
                     "relations": source.get("relations", []),
                     "source": source.get("doc_name") or source.get("source", "Unknown"),
