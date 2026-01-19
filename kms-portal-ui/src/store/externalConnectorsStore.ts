@@ -150,12 +150,16 @@ interface ExternalConnectorsState {
   // Current user ID (needed for API calls)
   currentUserId: string | null;
 
+  // Currently selected/viewed document (auto-included in context)
+  selectedDocument: ConnectedResource | null;
+
   // Actions
   openModal: () => void;
   closeModal: () => void;
   selectConnectorType: (type: ConnectorType | null) => void;
   setCurrentUserId: (userId: string | null) => void;
   setCurrentAgentType: (agentType: AgentType) => void;
+  setSelectedDocument: (doc: ConnectedResource | null) => void;
 
   // Backend API integration
   loadConnections: () => Promise<void>;
@@ -345,6 +349,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
       activeResourcesByAgent: {},
       currentAgentType: 'rag' as AgentType,
       currentUserId: null,
+      selectedDocument: null,
 
       // Modal actions
       openModal: () => set({ isModalOpen: true }),
@@ -359,6 +364,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
         set({ selectedConnectorType: type, ssoState: 'idle', ssoError: null }),
       setCurrentUserId: (userId) => set({ currentUserId: userId }),
       setCurrentAgentType: (agentType) => set({ currentAgentType: agentType }),
+      setSelectedDocument: (doc) => set({ selectedDocument: doc }),
 
       // Load connections from backend
       loadConnections: async () => {
@@ -796,7 +802,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
               );
 
               if (contentResponse.content) {
-                // Update both connectedResources and activeResourcesByAgent with the content
+                // Update connectedResources, activeResourcesByAgent, and selectedDocument with the content
                 const fetchedContent = contentResponse.content; // Capture for closure
                 set((state) => {
                   const updatedResource = state.connectors
@@ -817,6 +823,12 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
                       );
                     }
 
+                    // Also update selectedDocument if it's the same document
+                    const updatedSelectedDocument =
+                      state.selectedDocument?.id === resourceId
+                        ? resourceWithContent
+                        : state.selectedDocument;
+
                     return {
                       connectors: state.connectors.map((c) =>
                         c.type === type
@@ -829,6 +841,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
                           : c
                       ),
                       activeResourcesByAgent: updatedActiveResourcesByAgent,
+                      selectedDocument: updatedSelectedDocument,
                     };
                   }
                   return state;
@@ -1037,13 +1050,14 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
 
       // Toggle resource active with content fetch (for RAG context)
       // This version fetches document content if not already loaded
+      // Also sets the selected document as the "currently viewing" document
       toggleResourceActiveWithContent: async (resource: ConnectedResource, type: ConnectorType) => {
         const { activeResourcesByAgent, currentAgentType, connectors } = get();
         const currentResources = activeResourcesByAgent[currentAgentType] || [];
         const isActive = currentResources.some((r) => r.id === resource.id);
 
         if (isActive) {
-          // Deselecting - just remove from active
+          // Deselecting - remove from active and clear selectedDocument if it was this one
           set((state) => {
             const resources = state.activeResourcesByAgent[state.currentAgentType] || [];
             return {
@@ -1051,6 +1065,8 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
                 ...state.activeResourcesByAgent,
                 [state.currentAgentType]: resources.filter((r) => r.id !== resource.id),
               },
+              // Clear selectedDocument if it was the deselected document
+              selectedDocument: state.selectedDocument?.id === resource.id ? null : state.selectedDocument,
             };
           });
           return;
@@ -1064,7 +1080,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
 
         // Selecting - check if content is already loaded
         if (resource.content) {
-          // Content already loaded, just add to active
+          // Content already loaded, just add to active and set as selected document
           set((state) => {
             const resources = state.activeResourcesByAgent[state.currentAgentType] || [];
             return {
@@ -1072,6 +1088,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
                 ...state.activeResourcesByAgent,
                 [state.currentAgentType]: [...resources, resource],
               },
+              selectedDocument: resource, // Set as currently viewing document
             };
           });
           return;
@@ -1081,7 +1098,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
         const connector = connectors.find((c) => c.type === type);
         if (!connector?.connectionId) {
           console.error('[ExternalConnectors] No connection found for type:', type);
-          // Add without content
+          // Add without content but still set as selected
           set((state) => {
             const resources = state.activeResourcesByAgent[state.currentAgentType] || [];
             return {
@@ -1089,6 +1106,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
                 ...state.activeResourcesByAgent,
                 [state.currentAgentType]: [...resources, resource],
               },
+              selectedDocument: resource, // Set as currently viewing document
             };
           });
           return;
@@ -1113,7 +1131,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
               content: contentResponse.content,
             };
 
-            // Update in connectedResources and activeResourcesByAgent
+            // Update in connectedResources, activeResourcesByAgent, and set as selectedDocument
             set((state) => {
               const resources = state.activeResourcesByAgent[state.currentAgentType] || [];
               return {
@@ -1131,12 +1149,13 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
                   ...state.activeResourcesByAgent,
                   [state.currentAgentType]: [...resources, updatedResource],
                 },
+                selectedDocument: updatedResource, // Set as currently viewing document
               };
             });
 
             console.log(`[ExternalConnectors] Loaded content for ${resource.title}: ${contentResponse.content.length} chars`);
           } else {
-            // No content available, add resource without content
+            // No content available, add resource without content but still set as selected
             console.warn(`[ExternalConnectors] No content available for document: ${documentId}`);
             set((state) => {
               const resources = state.activeResourcesByAgent[state.currentAgentType] || [];
@@ -1145,12 +1164,13 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
                   ...state.activeResourcesByAgent,
                   [state.currentAgentType]: [...resources, resource],
                 },
+                selectedDocument: resource, // Set as currently viewing document
               };
             });
           }
         } catch (error) {
           console.error('[ExternalConnectors] Failed to fetch document content:', error);
-          // Add resource without content
+          // Add resource without content but still set as selected
           set((state) => {
             const resources = state.activeResourcesByAgent[state.currentAgentType] || [];
             return {
@@ -1158,6 +1178,7 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
                 ...state.activeResourcesByAgent,
                 [state.currentAgentType]: [...resources, resource],
               },
+              selectedDocument: resource, // Set as currently viewing document
             };
           });
         }
@@ -1170,19 +1191,33 @@ export const useExternalConnectorsStore = create<ExternalConnectorsState>()(
             ...state.activeResourcesByAgent,
             [state.currentAgentType]: [],
           },
+          selectedDocument: null, // Also clear selected document
         }));
       },
 
       // Get context string from active resources for chat
+      // Includes both explicitly selected resources AND the currently viewed document
       getActiveResourcesContext: () => {
-        const { activeResourcesByAgent, currentAgentType } = get();
+        const { activeResourcesByAgent, currentAgentType, selectedDocument } = get();
         const activeResources = activeResourcesByAgent[currentAgentType] || [];
-        if (activeResources.length === 0) {
+
+        // Combine active resources with selectedDocument (avoid duplicates)
+        const allResources = [...activeResources];
+        if (selectedDocument && !activeResources.some((r) => r.id === selectedDocument.id)) {
+          allResources.push(selectedDocument);
+        }
+
+        if (allResources.length === 0) {
           return '';
         }
 
-        const contextParts = activeResources.map((resource) => {
-          return `--- ${resource.title} (${resource.type}) ---\nSource: ${resource.url}\n\n${resource.content || 'No content available'}\n`;
+        const contextParts = allResources.map((resource) => {
+          // selectedDocument가 현재 조회 중인 문서임을 표시
+          const isCurrentlyViewing = selectedDocument?.id === resource.id;
+          const header = isCurrentlyViewing
+            ? `--- ${resource.title} (${resource.type}) [현재 조회 중] ---`
+            : `--- ${resource.title} (${resource.type}) ---`;
+          return `${header}\nSource: ${resource.url}\n\n${resource.content || 'No content available'}\n`;
         });
 
         return `[External Resources Context]\n\n${contextParts.join('\n')}`;

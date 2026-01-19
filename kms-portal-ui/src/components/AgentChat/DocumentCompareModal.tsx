@@ -104,7 +104,7 @@ export const DocumentCompareModal: React.FC<DocumentCompareModalProps> = ({
               선택된 문서 ({selectedDocuments.length})
             </div>
             <div className="document-compare-selected-list">
-              {selectedDocuments.map((doc, idx) => (
+              {selectedDocuments.map((doc) => (
                 <div key={doc.docId} className="document-compare-selected-item">
                   <FileText size={14} />
                   <span>{doc.docName}</span>
