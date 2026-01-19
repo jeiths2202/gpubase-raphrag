@@ -67,7 +67,7 @@ class AutoPlannerAgent(BaseAgent):
     def llm_adapter(self):
         """Lazy load LLM adapter"""
         if self._llm_adapter is None:
-            from ..registry import get_llm_adapter
+            from ..adapters.ollama_adapter import get_llm_adapter
             self._llm_adapter = get_llm_adapter()
         return self._llm_adapter
 

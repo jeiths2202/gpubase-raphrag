@@ -59,7 +59,7 @@ class AnswerComposer(BaseAgent):
     def llm_adapter(self):
         """Lazy load LLM adapter"""
         if self._llm_adapter is None:
-            from ..registry import get_llm_adapter
+            from ..adapters.ollama_adapter import get_llm_adapter
             self._llm_adapter = get_llm_adapter()
         return self._llm_adapter
 
@@ -240,7 +240,7 @@ Return JSON with: content, language, sources, next_actions
         """Parse LLM composition response"""
         content = content.strip()
 
-        # Remove markdown code blocks
+        # Remove outer markdown code blocks
         if content.startswith("```"):
             content = re.sub(r'^```(?:json)?\s*', '', content)
             content = re.sub(r'\s*```$', '', content)
@@ -248,18 +248,138 @@ Return JSON with: content, language, sources, next_actions
         # Try to find JSON
         json_match = re.search(r'\{.*\}', content, re.DOTALL)
         if json_match:
+            json_str = json_match.group()
             try:
-                return json.loads(json_match.group())
+                return json.loads(json_str)
             except json.JSONDecodeError:
-                pass
+                # LLM may return JSON with unescaped newlines in string values
+                # Try to fix by escaping newlines within quoted strings
+                try:
+                    fixed_json = self._fix_json_newlines(json_str)
+                    return json.loads(fixed_json)
+                except json.JSONDecodeError:
+                    pass
+
+                # Try to extract content field directly using regex
+                content_extract = self._extract_json_field(json_str, "content")
+                if content_extract:
+                    lang_extract = self._extract_json_field(json_str, "language") or "auto"
+                    return {
+                        "content": content_extract,
+                        "language": lang_extract,
+                        "sources": [],
+                        "next_actions": []
+                    }
 
         # If no valid JSON, treat as plain text response
+        # Clean up nested markdown blocks
+        cleaned = self._clean_raw_content(content)
         return {
-            "content": content,
+            "content": cleaned,
             "language": "auto",
             "sources": [],
             "next_actions": []
         }
+
+    def _extract_json_field(self, json_str: str, field_name: str) -> Optional[str]:
+        """Extract a specific field from malformed JSON using regex"""
+        # Match "field_name": "value" pattern
+        pattern = rf'"{field_name}"\s*:\s*"((?:[^"\\]|\\.)*)"|"{field_name}"\s*:\s*"([^"]*(?:\n[^"]*)*)"'
+        match = re.search(pattern, json_str, re.DOTALL)
+        if match:
+            value = match.group(1) or match.group(2)
+            if value:
+                # Unescape common escape sequences
+                value = value.replace('\\n', '\n').replace('\\t', '\t')
+                return value.strip()
+        return None
+
+    def _clean_raw_content(self, content: str) -> str:
+        """Clean raw content from LLM response when JSON parsing fails"""
+        # Remove nested markdown code blocks
+        content = re.sub(r'```(?:json)?\s*', '', content)
+        content = re.sub(r'\s*```', '', content)
+
+        # Try to extract content value from JSON-like structure
+        # Handle escaped quotes within the value
+        content_match = re.search(
+            r'"content"\s*:\s*"((?:[^"\\]|\\.)*)"',
+            content,
+            re.DOTALL
+        )
+        if content_match:
+            extracted = content_match.group(1)
+            # Unescape JSON escape sequences
+            extracted = extracted.replace('\\n', '\n')
+            extracted = extracted.replace('\\t', '\t')
+            extracted = extracted.replace('\\"', '"')
+            return self._clean_content(extracted)
+
+        # Alternative: look for the longest quoted string after "content":
+        alt_match = re.search(r'"content"\s*:\s*"', content)
+        if alt_match:
+            start = alt_match.end()
+            # Find the end by counting quotes
+            in_escape = False
+            end = start
+            for i in range(start, len(content)):
+                if in_escape:
+                    in_escape = False
+                    continue
+                if content[i] == '\\':
+                    in_escape = True
+                    continue
+                if content[i] == '"':
+                    end = i
+                    break
+            if end > start:
+                extracted = content[start:end]
+                extracted = extracted.replace('\\n', '\n')
+                extracted = extracted.replace('\\"', '"')
+                return self._clean_content(extracted)
+
+        # Remove JSON structural elements if present
+        content = re.sub(r'^\s*\{\s*', '', content)
+        content = re.sub(r'\s*\}\s*$', '', content)
+        content = re.sub(r'"[a-z_]+"\s*:\s*', '', content)
+
+        return content.strip()
+
+    def _fix_json_newlines(self, json_str: str) -> str:
+        """
+        Fix unescaped newlines in JSON string values.
+        LLMs sometimes return JSON with literal newlines inside quoted strings.
+        """
+        result = []
+        in_string = False
+        escape_next = False
+        i = 0
+
+        while i < len(json_str):
+            char = json_str[i]
+
+            if escape_next:
+                result.append(char)
+                escape_next = False
+            elif char == '\\':
+                result.append(char)
+                escape_next = True
+            elif char == '"':
+                result.append(char)
+                in_string = not in_string
+            elif char == '\n' and in_string:
+                # Escape the newline inside a string
+                result.append('\\n')
+            elif char == '\r' and in_string:
+                result.append('\\r')
+            elif char == '\t' and in_string:
+                result.append('\\t')
+            else:
+                result.append(char)
+
+            i += 1
+
+        return ''.join(result)
 
     def _clean_content(self, content: str) -> str:
         """Clean the composed content, removing any internal reasoning"""
