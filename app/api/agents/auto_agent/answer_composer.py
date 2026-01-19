@@ -101,6 +101,15 @@ Always cite sources. Match user's language."""
         # Determine target language
         language = self._determine_language(plan, context)
 
+        # CRITICAL: Check grounding score to prevent hallucination
+        # If grounding is 0% or very low and no sources, return "not found" message
+        if verification.grounding_score < 0.1 and len(all_sources) == 0:
+            logger.warning(
+                f"[AnswerComposer] Grounding score {verification.grounding_score:.2%} "
+                "with no sources - returning 'not found' to prevent hallucination"
+            )
+            return self._create_not_found_response(plan.original_task, language)
+
         # Build composition prompt
         composition_prompt = self._build_composition_prompt(
             plan, task_results, verification, language
@@ -116,13 +125,13 @@ Always cite sources. Match user's language."""
             response = await self.llm_adapter.generate(messages)
             composed_json = self._parse_composition_response(response.get("content", ""))
 
-            # Build ComposedAnswer
+            # Build ComposedAnswer - ONLY use validated sources, not LLM-generated ones
             answer = ComposedAnswer(
                 content=self._clean_content(composed_json.get("content", "")),
                 language=composed_json.get("language", language),
                 sources=self._format_sources(
-                    composed_json.get("sources", []),
-                    all_sources
+                    [],  # Don't use LLM sources - they may be hallucinated
+                    all_sources  # Only use actual sources from task results
                 ),
                 confidence=verification.overall_score,
                 next_actions=composed_json.get("next_actions", [])
@@ -139,6 +148,53 @@ Always cite sources. Match user's language."""
             logger.error(f"[AnswerComposer] Composition failed: {e}")
             # Fall back to simple aggregation
             return self._fallback_composition(task_results, all_sources, language)
+
+    def _create_not_found_response(
+        self,
+        original_task: str,
+        language: str
+    ) -> ComposedAnswer:
+        """Create a 'not found' response to prevent hallucination"""
+        messages = {
+            "ko": (
+                "죄송합니다. 요청하신 내용에 대한 정보를 지식 베이스에서 찾을 수 없습니다.\n\n"
+                f"**검색 쿼리**: {original_task}\n\n"
+                "다음을 시도해 보세요:\n"
+                "- 다른 키워드로 검색\n"
+                "- 더 구체적인 질문으로 다시 시도\n"
+                "- 관련 문서가 업로드되어 있는지 확인"
+            ),
+            "ja": (
+                "申し訳ありません。ご要望の情報がナレッジベースに見つかりませんでした。\n\n"
+                f"**検索クエリ**: {original_task}\n\n"
+                "以下をお試しください：\n"
+                "- 別のキーワードで検索\n"
+                "- より具体的な質問で再試行\n"
+                "- 関連ドキュメントがアップロードされているか確認"
+            ),
+            "en": (
+                "Sorry, no information was found in the knowledge base for your request.\n\n"
+                f"**Search query**: {original_task}\n\n"
+                "Please try:\n"
+                "- Searching with different keywords\n"
+                "- Asking a more specific question\n"
+                "- Checking if relevant documents have been uploaded"
+            )
+        }
+
+        content = messages.get(language, messages["en"])
+
+        return ComposedAnswer(
+            content=content,
+            language=language,
+            sources=[],  # No sources - honest about it
+            confidence=0.0,
+            next_actions=[
+                "다른 키워드로 검색" if language == "ko" else
+                "別のキーワードで検索" if language == "ja" else
+                "Search with different keywords"
+            ]
+        )
 
     def _collect_sources(
         self,
