@@ -83,11 +83,11 @@ class ExternalVectorService:
         """Get Neo4j graph, lazy-loading if needed"""
         if self._graph is None:
             from langchain_neo4j import Neo4jGraph
-            from ..core.config import api_settings
+            from config import config
             self._graph = Neo4jGraph(
-                url=api_settings.NEO4J_URI,
-                username=api_settings.NEO4J_USER,
-                password=api_settings.NEO4J_PASSWORD
+                url=config.neo4j.uri,
+                username=config.neo4j.user,
+                password=config.neo4j.password
             )
         return self._graph
 
