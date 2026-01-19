@@ -36,7 +36,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 from .admin_dashboard.router import router as admin_dashboard_router
 
@@ -479,6 +479,7 @@ app.include_router(rag_config.router, prefix=API_PREFIX)  # RAG Configuration & 
 app.include_router(enhancements.router, prefix=API_PREFIX)  # AI-Driven Enhancement & Improvement Management
 app.include_router(images.router, prefix=API_PREFIX)  # Multimodal RAG image search and retrieval
 app.include_router(adaptive_documents.router)  # Adaptive PDF embedding (structure-preserving chunking)
+app.include_router(auto_agent.router, prefix=API_PREFIX)  # Auto Agent meta-orchestration (Planner + Verifier)
 
 
 # Root endpoint
