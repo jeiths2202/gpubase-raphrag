@@ -228,7 +228,7 @@ class HybridRAG:
 
                 # Add small boost if also found by topic density
                 if chunk_id in topic_density_lookup:
-                    topic_boost = topic_density_lookup[chunk_id] * 0.1  # Max 10% boost
+                    topic_boost = topic_density_lookup[chunk_id] * config.rag.topic_density_boost
                     result["combined_score"] = base_score + topic_boost
                     result["source"] = "vector_topic"
                 else:
@@ -244,7 +244,10 @@ class HybridRAG:
             if chunk_id not in seen_chunks:
                 topic_score = result.get("topic_density", 0.5)
                 # Topic-only results get lower scores than vector results
-                result["combined_score"] = 0.3 + (topic_score * 0.2)  # 0.3 ~ 0.5 range
+                result["combined_score"] = (
+                    config.rag.topic_only_base_score +
+                    (topic_score * config.rag.topic_only_weight)
+                )
                 result["source"] = "topic_density"
                 merged.append(result)
                 seen_chunks.add(chunk_id)

@@ -71,6 +71,15 @@ class RAGConfig:
     vector_weight: float = float(os.getenv("VECTOR_WEIGHT", "0.5"))
     top_k: int = int(os.getenv("TOP_K_RESULTS", "5"))
 
+    # Content truncation settings
+    content_max_chars: int = int(os.getenv("RAG_CONTENT_MAX_CHARS", "2000"))
+    content_preview_chars: int = int(os.getenv("RAG_CONTENT_PREVIEW_CHARS", "500"))
+
+    # Score weight settings for result merging
+    topic_density_boost: float = float(os.getenv("RAG_TOPIC_DENSITY_BOOST", "0.1"))
+    topic_only_base_score: float = float(os.getenv("RAG_TOPIC_ONLY_BASE_SCORE", "0.3"))
+    topic_only_weight: float = float(os.getenv("RAG_TOPIC_ONLY_WEIGHT", "0.2"))
+
 
 class Config:
     """Central configuration manager"""

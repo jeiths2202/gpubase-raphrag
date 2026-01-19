@@ -8,6 +8,7 @@ import logging
 from .base import BaseTool
 from ..types import ToolResult, AgentContext
 from .adaptive_search import _validate_query
+from ...core.config import api_settings
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +95,7 @@ Use this tool FIRST for any knowledge base queries."""
             for i, source in enumerate(sources[:top_k], 1):
                 formatted_sources.append({
                     "rank": i,
-                    "content": source.get("content", "")[:2000],  # Extended for detailed content
+                    "content": source.get("content", "")[:api_settings.RAG_CONTENT_MAX_CHARS],
                     "source": source.get("doc_name") or source.get("source", "Unknown"),
                     "score": source.get("score", 0.0),
                     "doc_id": source.get("doc_id", ""),
@@ -203,7 +204,7 @@ for exploring structured knowledge relationships."""
             formatted_results = []
             for source in sources[:top_k]:
                 formatted_results.append({
-                    "content": source.get("content", "")[:2000],  # Extended for detailed content
+                    "content": source.get("content", "")[:api_settings.RAG_CONTENT_MAX_CHARS],
                     "entities": source.get("entities", []),
                     "relations": source.get("relations", []),
                     "source": source.get("doc_name") or source.get("source", "Unknown"),

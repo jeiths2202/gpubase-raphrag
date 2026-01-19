@@ -179,6 +179,38 @@ class APISettings(BaseSettings):
         description="Maximum number of results for vector search"
     )
 
+    # RAG Content Settings
+    RAG_CONTENT_MAX_CHARS: int = Field(
+        default=2000,
+        description="Maximum characters for content truncation in RAG results"
+    )
+    RAG_CONTENT_PREVIEW_CHARS: int = Field(
+        default=500,
+        description="Characters for content preview/summary"
+    )
+    RAG_TOOL_RESULT_CHARS: int = Field(
+        default=6000,
+        description="Maximum characters for tool results in standard mode"
+    )
+    RAG_TOOL_RESULT_CHARS_LARGE: int = Field(
+        default=15000,
+        description="Maximum characters for tool results in large context mode"
+    )
+
+    # RAG Score Weights
+    RAG_TOPIC_DENSITY_BOOST: float = Field(
+        default=0.1,
+        description="Maximum boost factor for topic density matches (0.0-1.0)"
+    )
+    RAG_TOPIC_ONLY_BASE_SCORE: float = Field(
+        default=0.3,
+        description="Base score for topic-density-only results"
+    )
+    RAG_TOPIC_ONLY_WEIGHT: float = Field(
+        default=0.2,
+        description="Weight for topic density in topic-only results"
+    )
+
     # Rate Limiting
     RATE_LIMIT_QUERY: int = 60  # requests per minute
     RATE_LIMIT_UPLOAD: int = 10  # requests per minute
