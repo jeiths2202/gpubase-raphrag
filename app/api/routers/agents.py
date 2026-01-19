@@ -156,6 +156,12 @@ async def stream_agent(
 
     user_id = auth_context.get("id") or auth_context.get("sub")
 
+    # Debug: log file_context presence
+    file_context_len = len(request.file_context) if request.file_context else 0
+    print(f"[AgentsRouter] Request: task={request.task[:50]}..., file_context={file_context_len} chars", flush=True)
+    if file_context_len > 0:
+        print(f"[AgentsRouter] file_context preview: {request.file_context[:200]}...", flush=True)
+
     async def generate():
         try:
             async for chunk in orchestrator.stream(request, user_id=user_id):
