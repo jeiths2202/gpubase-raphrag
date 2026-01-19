@@ -244,6 +244,23 @@ async def lifespan(app: FastAPI):
             category=LogCategory.BUSINESS
         )
 
+        # ==================== External Document Service Initialization ====================
+        # Initialize external document service for connector persistence (if postgres mode)
+        from .services.external_document_service import get_external_document_service, STORAGE_MODE
+        try:
+            external_service = get_external_document_service()
+            await external_service._ensure_persistence()
+            logger.info(
+                f"[OK] External document service initialized (storage: {STORAGE_MODE})",
+                category=LogCategory.BUSINESS,
+                extra_data={"storage_mode": STORAGE_MODE}
+            )
+        except Exception as ext_e:
+            logger.warning(
+                f"External document service initialization failed (non-fatal): {ext_e}",
+                category=LogCategory.BUSINESS
+            )
+
     except Exception as e:
         logger.error(
             f"FATAL: PostgreSQL pool initialization failed: {e}",

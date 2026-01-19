@@ -1,6 +1,12 @@
 """
 External Document Service
 Manages external resource connections, document sync, and user-scoped vector store.
+
+Supports two storage modes:
+- 'memory': In-memory storage (legacy, no persistence)
+- 'postgres': PostgreSQL + Neo4j storage (default, persistent)
+
+Set via EXTERNAL_DOCUMENT_STORAGE environment variable.
 """
 import asyncio
 import uuid
@@ -29,6 +35,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Storage mode configuration
+STORAGE_MODE = os.environ.get("EXTERNAL_DOCUMENT_STORAGE", "postgres")
+
 # Add src directory for embeddings
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
@@ -45,6 +54,22 @@ from ..models.external_connection import (
 )
 from ..connectors import ConnectorManager, get_connector_manager
 from ..connectors.base import ConnectorStatus
+
+# Import persistence layer (lazy-loaded for memory mode)
+try:
+    from ..infrastructure.postgres import (
+        get_external_connection_repository,
+        get_external_document_repository,
+        get_external_chunk_repository
+    )
+    from .external_vector_service import (
+        get_external_vector_service,
+        ExternalChunkData
+    )
+    PERSISTENCE_AVAILABLE = True
+except ImportError as e:
+    PERSISTENCE_AVAILABLE = False
+    logger.warning(f"Persistence layer not available: {e}")
 
 
 class UserVectorStore:
@@ -193,9 +218,15 @@ class ExternalDocumentService:
     """
     Service for managing external resource connections and documents.
     Handles OAuth, sync, chunking, and embedding.
+
+    Supports two storage modes:
+    - 'memory': In-memory storage (UserVectorStore, dict caches)
+    - 'postgres': PostgreSQL + Neo4j (persistent)
+
+    Storage mode is controlled by EXTERNAL_DOCUMENT_STORAGE env var.
     """
 
-    # Singleton stores
+    # Singleton stores (for memory mode or as cache in postgres mode)
     _vector_store: UserVectorStore = UserVectorStore()
     _connections: Dict[str, ExternalConnection] = {}
     _documents: Dict[str, ExternalDocument] = {}
@@ -210,6 +241,13 @@ class ExternalDocumentService:
     # Uses ENCRYPTION_MASTER_KEY from centralized secrets management
     _ENCRYPTION_KEY = os.environ.get("ENCRYPTION_MASTER_KEY")
 
+    # Persistence layer (initialized lazily)
+    _connection_repo = None
+    _document_repo = None
+    _chunk_repo = None
+    _external_vector_service = None
+    _persistence_initialized = False
+
     @classmethod
     def _get_encryption_key(cls) -> str:
         """Get encryption key with validation"""
@@ -220,6 +258,13 @@ class ExternalDocumentService:
             )
         return cls._ENCRYPTION_KEY
 
+    @classmethod
+    def get_storage_mode(cls) -> str:
+        """Get current storage mode"""
+        if STORAGE_MODE == "postgres" and PERSISTENCE_AVAILABLE:
+            return "postgres"
+        return "memory"
+
     def __init__(self):
         self._connector_manager = get_connector_manager()
         self._embedding_service = None
@@ -229,17 +274,131 @@ class ExternalDocumentService:
             except Exception as e:
                 print(f"[ExternalDocumentService] Embedding service unavailable: {e}")
 
+        # Log storage mode
+        mode = self.get_storage_mode()
+        logger.info(f"[ExternalDocumentService] Storage mode: {mode}")
+
+    async def _ensure_persistence(self):
+        """Initialize persistence layer if using postgres mode"""
+        if self._persistence_initialized:
+            return
+
+        if self.get_storage_mode() != "postgres":
+            return
+
+        try:
+            # Initialize repositories
+            self._connection_repo = await get_external_connection_repository()
+            self._document_repo = await get_external_document_repository()
+            self._chunk_repo = await get_external_chunk_repository()
+
+            # Initialize Neo4j vector service
+            self._external_vector_service = get_external_vector_service()
+            await self._external_vector_service.init_vector_index()
+
+            # Load existing data into memory cache for fast access
+            await self._load_from_persistence()
+
+            self._persistence_initialized = True
+            logger.info("[ExternalDocumentService] Persistence layer initialized")
+        except Exception as e:
+            logger.error(f"[ExternalDocumentService] Failed to initialize persistence: {e}")
+            # Fall back to memory mode
+            self._persistence_initialized = True
+
+    async def _load_from_persistence(self):
+        """Load existing data from database into memory cache"""
+        if not self._connection_repo:
+            return
+
+        try:
+            # Load connections
+            connections_dict = await self._connection_repo.get_all_dict()
+            for conn_id, conn_data in connections_dict.items():
+                self._connections[conn_id] = self._dict_to_connection(conn_data)
+
+            # Load documents
+            documents_dict = await self._document_repo.get_all_dict()
+            for doc_id, doc_data in documents_dict.items():
+                self._documents[doc_id] = self._dict_to_document(doc_data)
+
+            logger.info(f"[ExternalDocumentService] Loaded {len(self._connections)} connections, {len(self._documents)} documents from DB")
+        except Exception as e:
+            logger.error(f"[ExternalDocumentService] Error loading from persistence: {e}")
+
+    def _dict_to_connection(self, data: Dict[str, Any]) -> ExternalConnection:
+        """Convert dictionary to ExternalConnection model"""
+        return ExternalConnection(
+            id=data["id"],
+            user_id=data["user_id"],
+            resource_type=ExternalResourceType(data["resource_type"]),
+            status=ConnectionStatus(data["status"]),
+            auth_type=AuthType(data["auth_type"]),
+            access_token=data.get("access_token"),
+            refresh_token=data.get("refresh_token"),
+            api_token=data.get("api_token"),
+            token_expires_at=data.get("token_expires_at"),
+            sync_status=SyncStatus(data.get("sync_status", "pending")),
+            sync_error=data.get("sync_error"),
+            last_sync_at=data.get("last_sync_at"),
+            next_sync_at=data.get("next_sync_at"),
+            document_count=data.get("document_count", 0),
+            chunk_count=data.get("chunk_count", 0),
+            resource_config=data.get("resource_config", {}),
+            created_at=data.get("created_at", datetime.now(timezone.utc)),
+            updated_at=data.get("updated_at", datetime.now(timezone.utc))
+        )
+
+    def _dict_to_document(self, data: Dict[str, Any]) -> ExternalDocument:
+        """Convert dictionary to ExternalDocument model"""
+        return ExternalDocument(
+            id=data["id"],
+            user_id=data["user_id"],
+            connection_id=data["connection_id"],
+            source=ExternalResourceType(data["source"]),
+            external_id=data.get("external_id", ""),
+            external_url=data.get("external_url"),
+            title=data.get("title", "Untitled"),
+            path=data.get("path"),
+            mime_type=data.get("mime_type"),
+            file_size=data.get("file_size"),
+            sections=data.get("sections", []),
+            text_content=data.get("text_content"),
+            content_hash=data.get("content_hash"),
+            metadata=data.get("metadata", {}),
+            status=ExternalDocumentStatus(data.get("status", "discovered")),
+            error_message=data.get("error_message"),
+            external_modified_at=data.get("external_modified_at"),
+            last_synced_at=data.get("last_synced_at"),
+            chunk_count=data.get("chunk_count", 0),
+            created_at=data.get("created_at", datetime.now(timezone.utc)),
+            updated_at=data.get("updated_at", datetime.now(timezone.utc))
+        )
+
     # ================== Connection Management ==================
 
-    def get_user_connections(self, user_id: str) -> List[ExternalConnection]:
-        """Get all connections for a user"""
+    async def get_user_connections_async(self, user_id: str) -> List[ExternalConnection]:
+        """Get all connections for a user (async version)"""
+        await self._ensure_persistence()
         return [
             conn for conn in self._connections.values()
             if conn.user_id == user_id
         ]
 
+    def get_user_connections(self, user_id: str) -> List[ExternalConnection]:
+        """Get all connections for a user (sync version for backward compatibility)"""
+        return [
+            conn for conn in self._connections.values()
+            if conn.user_id == user_id
+        ]
+
+    async def get_connection_async(self, connection_id: str) -> Optional[ExternalConnection]:
+        """Get a specific connection (async version)"""
+        await self._ensure_persistence()
+        return self._connections.get(connection_id)
+
     def get_connection(self, connection_id: str) -> Optional[ExternalConnection]:
-        """Get a specific connection"""
+        """Get a specific connection (sync version for backward compatibility)"""
         return self._connections.get(connection_id)
 
     def get_connection_by_type(
@@ -265,6 +424,8 @@ class ExternalDocumentService:
         For OAuth resources, this initializes the connection (tokens added after OAuth flow).
         For API token resources, this completes the connection.
         """
+        await self._ensure_persistence()
+
         connection_id = f"conn_{uuid.uuid4().hex[:12]}"
 
         # Determine auth type
@@ -282,8 +443,10 @@ class ExternalDocumentService:
         )
 
         # For API token auth, store token and validate
+        encrypted_api_token = None
         if auth_type == AuthType.API_TOKEN and api_token:
-            connection.api_token = self._encrypt_token(api_token)
+            encrypted_api_token = self._encrypt_token(api_token)
+            connection.api_token = encrypted_api_token
             connection.status = ConnectionStatus.CONNECTING
 
             # Validate connection
@@ -299,6 +462,22 @@ class ExternalDocumentService:
             else:
                 connection.status = ConnectionStatus.ERROR
                 connection.sync_error = result.error
+
+        # Persist to database if using postgres mode
+        if self._connection_repo:
+            try:
+                await self._connection_repo.create(
+                    id=connection_id,
+                    user_id=user_id,
+                    resource_type=resource_type.value if hasattr(resource_type, 'value') else str(resource_type),
+                    auth_type=auth_type.value if hasattr(auth_type, 'value') else str(auth_type),
+                    status=connection.status.value if hasattr(connection.status, 'value') else str(connection.status),
+                    api_token=encrypted_api_token,
+                    resource_config=config or {}
+                )
+                logger.info(f"[ExternalDocumentService] Connection {connection_id} persisted to database")
+            except Exception as e:
+                logger.error(f"[ExternalDocumentService] Failed to persist connection: {e}")
 
         self._connections[connection_id] = connection
         return connection
@@ -385,6 +564,8 @@ class ExternalDocumentService:
         redirect_uri: str
     ) -> ExternalConnection:
         """Complete OAuth flow and store tokens"""
+        await self._ensure_persistence()
+
         connection = self._connections.get(connection_id)
         if not connection:
             raise ValueError(f"Connection not found: {connection_id}")
@@ -396,11 +577,16 @@ class ExternalDocumentService:
 
         result = await connector.exchange_code(code, redirect_uri)
 
+        encrypted_access = None
+        encrypted_refresh = None
+
         if result.status.value == "success":
             tokens = result.data
-            connection.access_token = self._encrypt_token(tokens.get("access_token"))
+            encrypted_access = self._encrypt_token(tokens.get("access_token"))
+            connection.access_token = encrypted_access
             if tokens.get("refresh_token"):
-                connection.refresh_token = self._encrypt_token(tokens.get("refresh_token"))
+                encrypted_refresh = self._encrypt_token(tokens.get("refresh_token"))
+                connection.refresh_token = encrypted_refresh
             if tokens.get("expires_in"):
                 connection.token_expires_at = datetime.now(timezone.utc) + timedelta(
                     seconds=tokens["expires_in"]
@@ -425,22 +611,39 @@ class ExternalDocumentService:
             connection.status = ConnectionStatus.ERROR
             connection.sync_error = result.error
 
+        # Persist to database if using postgres mode
+        if self._connection_repo:
+            try:
+                await self._connection_repo.update_tokens(
+                    connection_id=connection_id,
+                    access_token=encrypted_access,
+                    refresh_token=encrypted_refresh,
+                    token_expires_at=connection.token_expires_at,
+                    status=connection.status.value if hasattr(connection.status, 'value') else str(connection.status),
+                    resource_config=connection.resource_config
+                )
+                logger.info(f"[ExternalDocumentService] OAuth tokens persisted for {connection_id}")
+            except Exception as e:
+                logger.error(f"[ExternalDocumentService] Failed to persist OAuth tokens: {e}")
+
         self._connections[connection_id] = connection
         return connection
 
     async def disconnect(self, connection_id: str) -> bool:
         """Disconnect and remove an external resource connection"""
+        await self._ensure_persistence()
+
         connection = self._connections.get(connection_id)
         if not connection:
             return False
 
-        # Remove all documents and chunks
+        # Remove all documents and chunks from memory
         self._vector_store.remove_connection_chunks(
             connection.user_id,
             connection_id
         )
 
-        # Remove documents
+        # Remove documents from memory
         to_remove = [
             doc_id for doc_id, doc in self._documents.items()
             if doc.connection_id == connection_id
@@ -448,8 +651,22 @@ class ExternalDocumentService:
         for doc_id in to_remove:
             del self._documents[doc_id]
 
-        # Remove connection
+        # Remove connection from memory
         del self._connections[connection_id]
+
+        # Remove from database if using postgres mode
+        if self._connection_repo:
+            try:
+                # Remove Neo4j vector chunks
+                if self._external_vector_service:
+                    await self._external_vector_service.remove_connection_chunks(connection_id)
+
+                # Remove PostgreSQL records (cascade deletes documents and chunks)
+                await self._connection_repo.delete(connection_id)
+                logger.info(f"[ExternalDocumentService] Connection {connection_id} removed from database")
+            except Exception as e:
+                logger.error(f"[ExternalDocumentService] Failed to remove connection from DB: {e}")
+
         return True
 
     # ================== Sync Operations ==================
@@ -565,12 +782,37 @@ class ExternalDocumentService:
             self._connections[connection_id] = connection
             print(f"[ExternalDocumentService] Sync completed: {stats}, document_count={connection.document_count}")
 
+            # Persist sync status to database
+            if self._connection_repo:
+                try:
+                    await self._connection_repo.update_sync_status(
+                        connection_id=connection_id,
+                        sync_status=SyncStatus.COMPLETED.value,
+                        sync_error=None,
+                        last_sync_at=connection.last_sync_at,
+                        document_count=connection.document_count,
+                        chunk_count=connection.chunk_count
+                    )
+                except Exception as persist_error:
+                    logger.error(f"[ExternalDocumentService] Failed to persist sync status: {persist_error}")
+
         except Exception as e:
             connection.status = ConnectionStatus.ERROR
             connection.sync_status = SyncStatus.FAILED
             connection.sync_error = str(e)
             self._connections[connection_id] = connection
             stats["errors"].append(str(e))
+
+            # Persist error status to database
+            if self._connection_repo:
+                try:
+                    await self._connection_repo.update_sync_status(
+                        connection_id=connection_id,
+                        sync_status=SyncStatus.FAILED.value,
+                        sync_error=str(e)
+                    )
+                except Exception as persist_error:
+                    logger.error(f"[ExternalDocumentService] Failed to persist error status: {persist_error}")
 
         return stats
 
@@ -619,6 +861,26 @@ class ExternalDocumentService:
 
         self._documents[doc_id] = doc
         print(f"[ExternalDocumentService] Document metadata stored: {doc_id}, total: {len(self._documents)}")
+
+        # Persist to database if using postgres mode
+        if self._document_repo:
+            try:
+                await self._document_repo.create(
+                    id=doc_id,
+                    user_id=user_id,
+                    connection_id=connection_id,
+                    source=source.value if hasattr(source, 'value') else str(source),
+                    external_id=doc_meta.get("external_id", ""),
+                    title=doc_meta.get("title", "Untitled"),
+                    external_url=doc_meta.get("url"),
+                    path=doc_meta.get("path", ""),
+                    mime_type=doc_meta.get("mime_type", "text/html"),
+                    metadata=doc_meta.get("metadata", {}),
+                    status=ExternalDocumentStatus.DISCOVERED.value,
+                    external_modified_at=doc_meta.get("modified_at")
+                )
+            except Exception as e:
+                logger.error(f"[ExternalDocumentService] Failed to persist document metadata: {e}")
 
         return doc
 
@@ -878,8 +1140,62 @@ class ExternalDocumentService:
             if self._embedding_service:
                 await self._generate_embeddings(chunks)
 
-            # Store in vector store
+            # Store in memory vector store (for backward compatibility)
             self._vector_store.add_chunks(doc.user_id, chunks)
+
+            # Store in persistent storage if using postgres mode
+            if self._chunk_repo and self._external_vector_service:
+                try:
+                    # Persist chunk metadata to PostgreSQL
+                    chunk_dicts = [
+                        {
+                            "id": chunk.id,
+                            "user_id": doc.user_id,
+                            "document_id": doc_id,
+                            "connection_id": doc.connection_id,
+                            "content": chunk.content,
+                            "chunk_index": chunk.index,
+                            "source": doc.source.value if hasattr(doc.source, 'value') else str(doc.source),
+                            "source_name": chunk.source_name,
+                            "source_url": chunk.source_url,
+                            "section_title": chunk.section_title,
+                            "is_code": chunk.is_code,
+                            "is_table": chunk.is_table,
+                            "metadata": chunk.metadata
+                        }
+                        for chunk in chunks
+                    ]
+                    await self._chunk_repo.create_batch(chunk_dicts)
+
+                    # Store embeddings in Neo4j ExternalChunk nodes
+                    chunks_with_embeddings = [
+                        ExternalChunkData(
+                            id=chunk.id,
+                            user_id=doc.user_id,
+                            document_id=doc_id,
+                            connection_id=doc.connection_id,
+                            content=chunk.content,
+                            embedding=chunk.embedding,
+                            source=doc.source.value if hasattr(doc.source, 'value') else str(doc.source),
+                            source_name=chunk.source_name,
+                            source_url=chunk.source_url,
+                            section_title=chunk.section_title,
+                            chunk_index=chunk.index,
+                            is_code=chunk.is_code,
+                            is_table=chunk.is_table
+                        )
+                        for chunk in chunks if chunk.embedding
+                    ]
+                    if chunks_with_embeddings:
+                        added = await self._external_vector_service.add_chunks_batch(chunks_with_embeddings)
+                        logger.info(f"[ExternalDocumentService] Persisted {added} chunks to Neo4j for doc {doc_id}")
+
+                        # Mark embeddings as stored in PostgreSQL
+                        chunk_ids = [c.id for c in chunks_with_embeddings]
+                        await self._chunk_repo.mark_embeddings_stored_batch(chunk_ids)
+
+                except Exception as persist_error:
+                    logger.error(f"[ExternalDocumentService] Failed to persist chunks: {persist_error}")
 
             # Update document
             doc.chunk_count = len(chunks)
@@ -887,11 +1203,33 @@ class ExternalDocumentService:
             doc.last_synced_at = datetime.now(timezone.utc)
             self._documents[doc_id] = doc
 
+            # Persist document update to database
+            if self._document_repo:
+                try:
+                    await self._document_repo.update_content(
+                        document_id=doc_id,
+                        sections=doc.sections,
+                        text_content=doc.text_content,
+                        content_hash=doc.content_hash,
+                        status=ExternalDocumentStatus.READY.value,
+                        chunk_count=doc.chunk_count,
+                        last_synced_at=doc.last_synced_at
+                    )
+                except Exception as persist_error:
+                    logger.error(f"[ExternalDocumentService] Failed to persist document update: {persist_error}")
+
         except Exception as e:
             doc.status = ExternalDocumentStatus.ERROR
             doc.error_message = str(e)
             self._documents[doc_id] = doc
             print(f"[ExternalDocumentService] Processing error: {e}")
+
+            # Persist error status
+            if self._document_repo:
+                try:
+                    await self._document_repo.update_status(doc_id, ExternalDocumentStatus.ERROR.value, str(e))
+                except Exception:
+                    pass
 
     def _chunk_document(self, doc: ExternalDocument) -> List[ExternalChunk]:
         """Chunk document content"""
@@ -1039,6 +1377,8 @@ class ExternalDocumentService:
         connection_ids: Optional[List[str]] = None
     ) -> List[ExternalSearchResult]:
         """Search user's external resources"""
+        await self._ensure_persistence()
+
         if not self._embedding_service:
             return []
 
@@ -1057,7 +1397,39 @@ class ExternalDocumentService:
                 "query"
             )
 
-            # Search vector store
+            # Try Neo4j persistent storage first (if available)
+            if self._external_vector_service:
+                try:
+                    neo4j_results = await self._external_vector_service.search(
+                        user_id=user_id,
+                        query_embedding=query_embedding,
+                        top_k=top_k,
+                        min_score=min_score,
+                        connection_ids=connection_ids
+                    )
+
+                    if neo4j_results:
+                        # Convert Neo4j results to ExternalSearchResult
+                        return [
+                            ExternalSearchResult(
+                                chunk_id=r.chunk_id,
+                                document_id=r.document_id,
+                                user_id=r.user_id,
+                                connection_id=r.connection_id,
+                                source=ExternalResourceType(r.source) if r.source else None,
+                                content=r.content,
+                                score=r.score,
+                                source_name=r.source_name,
+                                source_url=r.source_url,
+                                section_title=r.section_title,
+                                metadata=r.metadata
+                            )
+                            for r in neo4j_results
+                        ]
+                except Exception as neo4j_error:
+                    logger.warning(f"[ExternalDocumentService] Neo4j search failed, falling back to memory: {neo4j_error}")
+
+            # Fallback to in-memory vector store
             results = self._vector_store.search(
                 user_id,
                 query_embedding,
