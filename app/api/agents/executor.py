@@ -541,6 +541,80 @@ def _truncate_tool_result(content: str, max_chars: int = None) -> str:
     return truncated + f"\n\n[... truncated {len(content) - len(truncated)} characters]"
 
 
+def _get_max_file_context_chars() -> int:
+    """
+    Get maximum file context characters based on LLM context mode.
+
+    File context is more critical than tool results, so we allow slightly more
+    but still need to leave room for system prompt, user query, and response.
+
+    Default: 5000 chars (standard mode), 12000 chars (large context mode)
+    """
+    from ..core.config import api_settings
+
+    use_large_context = os.getenv("RAG_LLM_USE_LARGE_CONTEXT", "false").lower() == "true"
+    if use_large_context:
+        # Large context mode: use about 80% of tool result limit
+        return int(api_settings.RAG_TOOL_RESULT_CHARS_LARGE * 0.8)
+    # Standard mode: 5000 chars to leave room for prompt overhead
+    # 8192 tokens ≈ 32K chars, but with Korean text ~16K chars
+    # System prompt ~2K chars, user query ~500 chars, response reserve ~3K chars
+    return 5000
+
+
+def _truncate_file_context(content: str, max_chars: int = None) -> str:
+    """
+    Truncate file context content to prevent LLM context overflow.
+
+    Keeps the beginning and notes truncation. For file context, we also
+    try to preserve section boundaries where possible.
+
+    Args:
+        content: The file context content to truncate
+        max_chars: Maximum characters. If None, determined by _get_max_file_context_chars().
+
+    Returns:
+        Truncated content with truncation note if applicable
+    """
+    if max_chars is None:
+        max_chars = _get_max_file_context_chars()
+
+    if not content or len(content) <= max_chars:
+        return content
+
+    truncated = content[:max_chars]
+
+    # Try to cut at a natural boundary (section header, paragraph, or sentence)
+    # Look for markdown headers first (##, ###)
+    last_header = truncated.rfind('\n##', max_chars - 1000, max_chars)
+    last_double_newline = truncated.rfind('\n\n', max_chars - 800, max_chars)
+    last_newline = truncated.rfind('\n', max_chars - 500, max_chars)
+    last_period = truncated.rfind('. ', max_chars - 300, max_chars)
+
+    # Prefer section boundaries over sentence boundaries
+    cut_point = max_chars
+    if last_header > max_chars - 1000:
+        cut_point = last_header
+    elif last_double_newline > max_chars - 800:
+        cut_point = last_double_newline
+    elif last_newline > max_chars - 500:
+        cut_point = last_newline + 1
+    elif last_period > max_chars - 300:
+        cut_point = last_period + 1
+
+    truncated = truncated[:cut_point]
+    original_len = len(content)
+    truncated_len = len(truncated)
+    remaining = original_len - truncated_len
+
+    logger.warning(
+        f"[Executor] File context truncated: {original_len} -> {truncated_len} chars "
+        f"(removed {remaining} chars, {remaining * 100 // original_len}%)"
+    )
+
+    return truncated + f"\n\n[... 문서가 너무 길어 {remaining:,} 문자가 생략되었습니다. 전체 내용은 원본 문서를 참조하세요.]"
+
+
 async def _stream_images_from_metadata(
     metadata: Dict[str, Any],
     max_images: int = 5
@@ -898,6 +972,9 @@ Use this context to provide more relevant and context-aware responses. If the us
         # Build user message with optional file context
         user_message = task
         if context.file_context:
+            # Truncate file context to prevent LLM context overflow
+            truncated_file_context = _truncate_file_context(context.file_context)
+
             # Add strong instruction to system prompt for file context priority
             system_prompt += """
 
@@ -909,13 +986,13 @@ The user has attached file(s) for reference. You MUST:
 4. When answering from attached context, mention "첨부된 문서에 따르면" or "According to the attached document"
 """
             user_message = f"""[ATTACHED FILE CONTEXT - PRIMARY REFERENCE]
-{context.file_context}
+{truncated_file_context}
 [END ATTACHED FILE CONTEXT]
 
 IMPORTANT: Answer from the attached file context above if possible. Only use tools if the answer is not in the attached context.
 
 User Query: {task}"""
-            logger.info(f"[Executor] File context attached ({len(context.file_context)} chars)")
+            logger.info(f"[Executor] File context attached (original: {len(context.file_context)} chars, truncated: {len(truncated_file_context)} chars)")
 
         # Handle URL context (fetched web content)
         if context.url_context:
@@ -929,6 +1006,9 @@ The user has provided a URL and its content has been fetched for reference. You 
 4. When answering from URL content, mention the source URL
 """
             url_source = context.url_source or "provided URL"
+            # Truncate URL context to prevent LLM context overflow
+            truncated_url_context = _truncate_file_context(context.url_context)
+
             if context.file_context:
                 # Both file and URL context
                 user_message = user_message.replace(
@@ -936,19 +1016,19 @@ The user has provided a URL and its content has been fetched for reference. You 
                     f"""[END ATTACHED FILE CONTEXT]
 
 [URL CONTENT FROM: {url_source}]
-{context.url_context}
+{truncated_url_context}
 [END URL CONTENT]"""
                 )
             else:
                 # Only URL context
                 user_message = f"""[URL CONTENT FROM: {url_source}]
-{context.url_context}
+{truncated_url_context}
 [END URL CONTENT]
 
 IMPORTANT: Answer from the URL content above if possible. Only use tools if the answer is not in the URL content.
 
 User Query: {task}"""
-            logger.info(f"[Executor] URL context attached ({len(context.url_context)} chars) from {url_source}")
+            logger.info(f"[Executor] URL context attached (original: {len(context.url_context)} chars, truncated: {len(truncated_url_context)} chars) from {url_source}")
 
         # Initialize messages with system prompt and user task
         messages: List[AgentMessage] = [
@@ -1203,6 +1283,9 @@ Use this context to provide more relevant and context-aware responses. If the us
         # Build user message with optional file context
         user_message = task
         if context.file_context:
+            # Truncate file context to prevent LLM context overflow
+            truncated_file_context = _truncate_file_context(context.file_context)
+
             # Add strong instruction to system prompt for file context priority
             system_prompt += """
 
@@ -1214,13 +1297,13 @@ The user has attached file(s) for reference. You MUST:
 4. When answering from attached context, mention "첨부된 문서에 따르면" or "According to the attached document"
 """
             user_message = f"""[ATTACHED FILE CONTEXT - PRIMARY REFERENCE]
-{context.file_context}
+{truncated_file_context}
 [END ATTACHED FILE CONTEXT]
 
 IMPORTANT: Answer from the attached file context above if possible. Only use tools if the answer is not in the attached context.
 
 User Query: {task}"""
-            logger.info(f"[Executor.stream] File context attached ({len(context.file_context)} chars)")
+            logger.info(f"[Executor.stream] File context attached (original: {len(context.file_context)} chars, truncated: {len(truncated_file_context)} chars)")
 
         # Handle URL context (fetched web content)
         if context.url_context:
@@ -1234,6 +1317,9 @@ The user has provided a URL and its content has been fetched for reference. You 
 4. When answering from URL content, mention the source URL
 """
             url_source = context.url_source or "provided URL"
+            # Truncate URL context to prevent LLM context overflow
+            truncated_url_context = _truncate_file_context(context.url_context)
+
             if context.file_context:
                 # Both file and URL context
                 user_message = user_message.replace(
@@ -1241,19 +1327,19 @@ The user has provided a URL and its content has been fetched for reference. You 
                     f"""[END ATTACHED FILE CONTEXT]
 
 [URL CONTENT FROM: {url_source}]
-{context.url_context}
+{truncated_url_context}
 [END URL CONTENT]"""
                 )
             else:
                 # Only URL context
                 user_message = f"""[URL CONTENT FROM: {url_source}]
-{context.url_context}
+{truncated_url_context}
 [END URL CONTENT]
 
 IMPORTANT: Answer from the URL content above if possible. Only use tools if the answer is not in the URL content.
 
 User Query: {task}"""
-            logger.info(f"[Executor.stream] URL context attached ({len(context.url_context)} chars) from {url_source}")
+            logger.info(f"[Executor.stream] URL context attached (original: {len(context.url_context)} chars, truncated: {len(truncated_url_context)} chars) from {url_source}")
 
         # Initialize messages
         messages: List[AgentMessage] = [
