@@ -6,7 +6,7 @@ SECURITY: All endpoints require authentication and verify connection ownership.
 """
 from typing import Optional, List
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Query, Request, Depends
+from fastapi import APIRouter, HTTPException, Query, Request, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
 
 from ..core.deps import get_current_user
@@ -591,3 +591,153 @@ async def search_external_resources(
         total=len(results),
         query=request.query
     )
+
+
+# ================== Background Batch Processing ==================
+
+class BackgroundProcessBatchRequest(BaseModel):
+    """Request for background batch document processing"""
+    document_ids: List[str] = Field(..., min_length=1, max_length=500)
+
+
+class BackgroundProcessBatchResponse(BaseModel):
+    """Response for background batch processing initiation"""
+    task_id: str
+    status: str
+    message: str
+    total_documents: int
+
+
+class EmbeddingStatusResponse(BaseModel):
+    """Response for embedding progress status"""
+    task_id: str
+    status: str
+    progress: int
+    message: str
+    total_docs: int = 0
+    current_doc: int = 0
+    current_doc_title: Optional[str] = None
+    processed: int = 0
+    failed: int = 0
+    skipped: int = 0
+    total_chunks: int = 0
+    chunks_total: Optional[int] = None
+    errors: Optional[List[str]] = None
+    updated_at: Optional[str] = None
+
+
+async def _background_process_batch(
+    service,
+    document_ids: List[str],
+    task_id: str
+):
+    """Background task to process documents batch"""
+    try:
+        await service.process_documents_batch(document_ids, task_id=task_id)
+    except Exception as e:
+        # Update status to failed
+        service._update_embedding_status(
+            task_id=task_id,
+            status="failed",
+            progress=0,
+            message=f"Batch processing failed: {str(e)}"
+        )
+
+
+@router.post("/{connection_id}/documents/process-batch-background", response_model=BackgroundProcessBatchResponse)
+async def process_documents_batch_background(
+    connection_id: str,
+    request: BackgroundProcessBatchRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Start batch document processing in background.
+
+    Returns immediately with a task_id that can be used to check progress.
+    Use GET /embedding-status/{task_id} to check processing progress.
+
+    외부 리소스 문서의 일괄 임베딩을 백그라운드에서 시작합니다.
+    task_id를 사용하여 진행 상태를 확인할 수 있습니다.
+    """
+    service = get_external_document_service()
+
+    # Verify connection exists
+    connection = service.get_connection(connection_id)
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    # Create task and initialize status
+    task_id = await service.process_documents_batch_background(
+        document_ids=request.document_ids,
+        connection_id=connection_id
+    )
+
+    # Start background processing
+    background_tasks.add_task(
+        _background_process_batch,
+        service,
+        request.document_ids,
+        task_id
+    )
+
+    return BackgroundProcessBatchResponse(
+        task_id=task_id,
+        status="processing",
+        message=f"Started background processing for {len(request.document_ids)} documents",
+        total_documents=len(request.document_ids)
+    )
+
+
+@router.get("/embedding-status/{task_id}", response_model=EmbeddingStatusResponse)
+async def get_embedding_status(task_id: str):
+    """
+    Get embedding progress status for a task.
+
+    Returns current progress including:
+    - status: pending, fetching, chunking, embedding, storing, completed, failed
+    - progress: 0-100 percentage
+    - current document being processed
+    - total documents and chunks processed
+
+    외부 리소스 임베딩 진행 상태를 조회합니다.
+    """
+    service = get_external_document_service()
+    status = service.get_embedding_status(task_id)
+
+    if not status:
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+
+    return EmbeddingStatusResponse(
+        task_id=task_id,
+        status=status.get("status", "unknown"),
+        progress=status.get("progress", 0),
+        message=status.get("message", ""),
+        total_docs=status.get("total_docs", 0),
+        current_doc=status.get("current_doc", 0),
+        current_doc_title=status.get("current_doc_title"),
+        processed=status.get("processed", 0),
+        failed=status.get("failed", 0),
+        skipped=status.get("skipped", 0),
+        total_chunks=status.get("total_chunks", 0),
+        chunks_total=status.get("chunks_total"),
+        errors=status.get("errors"),
+        updated_at=status.get("updated_at")
+    )
+
+
+@router.delete("/embedding-status/{task_id}")
+async def clear_embedding_status(task_id: str):
+    """
+    Clear embedding status for a completed/failed task.
+
+    완료되거나 실패한 작업의 상태를 삭제합니다.
+    """
+    service = get_external_document_service()
+    status = service.get_embedding_status(task_id)
+
+    if not status:
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+
+    service.clear_embedding_status(task_id)
+
+    return {"success": True, "message": f"Status cleared for task {task_id}"}

@@ -231,6 +231,10 @@ class ExternalDocumentService:
     _connections: Dict[str, ExternalConnection] = {}
     _documents: Dict[str, ExternalDocument] = {}
 
+    # Embedding progress tracking (task_id -> status)
+    # Similar to adaptive_documents.py pattern
+    _embedding_status: Dict[str, Dict[str, Any]] = {}
+
     # SECURITY: OAuth state token storage for CSRF protection
     # Maps state_token -> (connection_id, created_at, user_id)
     # State tokens expire after 10 minutes
@@ -264,6 +268,51 @@ class ExternalDocumentService:
         if STORAGE_MODE == "postgres" and PERSISTENCE_AVAILABLE:
             return "postgres"
         return "memory"
+
+    @classmethod
+    def _update_embedding_status(
+        cls,
+        task_id: str,
+        status: str,
+        progress: int,
+        message: str,
+        **kwargs
+    ):
+        """Update embedding progress status for a task
+
+        Args:
+            task_id: Task ID to update
+            status: Current status (pending, fetching, chunking, embedding, storing, completed, failed)
+            progress: Progress percentage (0-100)
+            message: Human-readable status message
+            **kwargs: Additional status fields (current_doc, total_docs, chunks_total, etc.)
+        """
+        cls._embedding_status[task_id] = {
+            "status": status,
+            "progress": min(100, max(0, progress)),
+            "message": message,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            **kwargs
+        }
+        logger.debug(f"[ExternalDocumentService] Progress: task={task_id}, status={status}, progress={progress}%")
+
+    @classmethod
+    def get_embedding_status(cls, task_id: str) -> Optional[Dict[str, Any]]:
+        """Get embedding progress status for a task
+
+        Args:
+            task_id: Task ID to get status for
+
+        Returns:
+            Status dict or None if not found
+        """
+        return cls._embedding_status.get(task_id)
+
+    @classmethod
+    def clear_embedding_status(cls, task_id: str):
+        """Clear embedding status for a completed/failed task"""
+        if task_id in cls._embedding_status:
+            del cls._embedding_status[task_id]
 
     def __init__(self):
         self._connector_manager = get_connector_manager()
@@ -962,13 +1011,22 @@ class ExternalDocumentService:
 
     # ================== On-Demand Document Processing ==================
 
-    async def process_document(self, document_id: str) -> ExternalDocument:
+    async def process_document(
+        self,
+        document_id: str,
+        task_id: Optional[str] = None,
+        doc_index: int = 0,
+        total_docs: int = 1
+    ) -> ExternalDocument:
         """
         Process a document on-demand: fetch content, chunk, and embed.
         Called when user selects a document for processing.
 
         Args:
             document_id: The document ID to process
+            task_id: Optional task ID for progress tracking
+            doc_index: Current document index (for batch progress)
+            total_docs: Total documents in batch
 
         Returns:
             Updated document with status READY or ERROR
@@ -997,6 +1055,19 @@ class ExternalDocumentService:
             doc.status = ExternalDocumentStatus.CHUNKING
             self._documents[document_id] = doc
             print(f"[ExternalDocumentService] Processing document: {document_id}, title: {doc.title}")
+
+            # Update progress: fetching stage
+            if task_id:
+                base_progress = int((doc_index / total_docs) * 100)
+                self._update_embedding_status(
+                    task_id=task_id,
+                    status="fetching",
+                    progress=base_progress,
+                    message=f"Fetching content: {doc.title}",
+                    current_doc=doc_index + 1,
+                    total_docs=total_docs,
+                    current_doc_title=doc.title
+                )
 
             # Get connector
             connector = self._connector_manager.get_connector(
@@ -1028,7 +1099,7 @@ class ExternalDocumentService:
             doc.external_modified_at = doc_data.modified_at
 
             # Process (chunk and embed)
-            await self._process_document(document_id)
+            await self._process_document(document_id, task_id=task_id, doc_index=doc_index, total_docs=total_docs)
 
             # Update connection stats
             connection.chunk_count = self._vector_store.get_user_stats(
@@ -1048,13 +1119,15 @@ class ExternalDocumentService:
 
     async def process_documents_batch(
         self,
-        document_ids: List[str]
+        document_ids: List[str],
+        task_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Process multiple documents in batch.
 
         Args:
             document_ids: List of document IDs to process
+            task_id: Optional task ID for progress tracking
 
         Returns:
             Stats about processed documents
@@ -1063,28 +1136,119 @@ class ExternalDocumentService:
             "processed": 0,
             "failed": 0,
             "skipped": 0,
-            "errors": []
+            "errors": [],
+            "total_chunks": 0
         }
 
+        total_docs = len(document_ids)
+        valid_doc_index = 0  # Track actual processing index (excluding skipped)
+
+        # Count valid documents first
+        valid_doc_ids = []
         for doc_id in document_ids:
+            doc = self._documents.get(doc_id)
+            if not doc:
+                stats["skipped"] += 1
+                continue
+            if doc.status == ExternalDocumentStatus.READY:
+                stats["skipped"] += 1
+                continue
+            valid_doc_ids.append(doc_id)
+
+        total_valid = len(valid_doc_ids)
+
+        # Initialize progress tracking
+        if task_id:
+            self._update_embedding_status(
+                task_id=task_id,
+                status="pending",
+                progress=0,
+                message=f"Starting batch processing: {total_valid} documents",
+                total_docs=total_valid,
+                current_doc=0,
+                processed=0,
+                failed=0
+            )
+
+        for idx, doc_id in enumerate(valid_doc_ids):
             try:
-                doc = self._documents.get(doc_id)
-                if not doc:
-                    stats["skipped"] += 1
-                    continue
-
-                if doc.status == ExternalDocumentStatus.READY:
-                    stats["skipped"] += 1
-                    continue
-
-                await self.process_document(doc_id)
+                doc = await self.process_document(
+                    doc_id,
+                    task_id=task_id,
+                    doc_index=idx,
+                    total_docs=total_valid
+                )
                 stats["processed"] += 1
+                stats["total_chunks"] += doc.chunk_count if doc else 0
 
             except Exception as e:
                 stats["failed"] += 1
                 stats["errors"].append(f"{doc_id}: {str(e)}")
 
+        # Update final progress
+        if task_id:
+            if stats["failed"] == 0:
+                self._update_embedding_status(
+                    task_id=task_id,
+                    status="completed",
+                    progress=100,
+                    message=f"Completed: {stats['processed']} documents, {stats['total_chunks']} chunks",
+                    total_docs=total_valid,
+                    current_doc=total_valid,
+                    processed=stats["processed"],
+                    failed=stats["failed"],
+                    skipped=stats["skipped"],
+                    total_chunks=stats["total_chunks"]
+                )
+            else:
+                self._update_embedding_status(
+                    task_id=task_id,
+                    status="completed_with_errors",
+                    progress=100,
+                    message=f"Completed with errors: {stats['processed']}/{total_valid} succeeded, {stats['failed']} failed",
+                    total_docs=total_valid,
+                    current_doc=total_valid,
+                    processed=stats["processed"],
+                    failed=stats["failed"],
+                    skipped=stats["skipped"],
+                    total_chunks=stats["total_chunks"],
+                    errors=stats["errors"]
+                )
+
         return stats
+
+    async def process_documents_batch_background(
+        self,
+        document_ids: List[str],
+        connection_id: str
+    ) -> str:
+        """
+        Start background batch processing and return task ID immediately.
+
+        Args:
+            document_ids: List of document IDs to process
+            connection_id: Connection ID for the documents
+
+        Returns:
+            task_id for tracking progress
+        """
+        # Generate unique task ID
+        task_id = f"extask_{uuid.uuid4().hex[:12]}"
+
+        # Initialize progress tracking
+        self._update_embedding_status(
+            task_id=task_id,
+            status="pending",
+            progress=0,
+            message="Queued for processing",
+            connection_id=connection_id,
+            total_docs=len(document_ids),
+            current_doc=0,
+            processed=0,
+            failed=0
+        )
+
+        return task_id
 
     def get_connection_documents(
         self,
@@ -1114,8 +1278,15 @@ class ExternalDocumentService:
 
     # ================== Document Processing ==================
 
-    async def _process_document(self, doc_id: str):
-        """Process document: chunk and embed"""
+    async def _process_document(self, doc_id: str, task_id: Optional[str] = None, doc_index: int = 0, total_docs: int = 1):
+        """Process document: chunk and embed
+
+        Args:
+            doc_id: Document ID to process
+            task_id: Optional task ID for progress tracking (batch processing)
+            doc_index: Current document index in batch (0-based)
+            total_docs: Total documents in batch
+        """
         doc = self._documents.get(doc_id)
         if not doc or not doc.text_content:
             return
@@ -1124,6 +1295,19 @@ class ExternalDocumentService:
             # Chunking
             doc.status = ExternalDocumentStatus.CHUNKING
             self._documents[doc_id] = doc
+
+            # Update progress: chunking stage
+            if task_id:
+                base_progress = int((doc_index / total_docs) * 100)
+                self._update_embedding_status(
+                    task_id=task_id,
+                    status="chunking",
+                    progress=base_progress + 5,
+                    message=f"Chunking document: {doc.title}",
+                    current_doc=doc_index + 1,
+                    total_docs=total_docs,
+                    current_doc_title=doc.title
+                )
 
             chunks = self._chunk_document(doc)
 
@@ -1137,6 +1321,20 @@ class ExternalDocumentService:
             doc.status = ExternalDocumentStatus.EMBEDDING
             self._documents[doc_id] = doc
 
+            # Update progress: embedding stage
+            if task_id:
+                base_progress = int((doc_index / total_docs) * 100)
+                self._update_embedding_status(
+                    task_id=task_id,
+                    status="embedding",
+                    progress=base_progress + 10,
+                    message=f"Generating embeddings: {doc.title} ({len(chunks)} chunks)",
+                    current_doc=doc_index + 1,
+                    total_docs=total_docs,
+                    current_doc_title=doc.title,
+                    chunks_total=len(chunks)
+                )
+
             if self._embedding_service:
                 await self._generate_embeddings(chunks)
 
@@ -1145,6 +1343,20 @@ class ExternalDocumentService:
 
             # Store in persistent storage if using postgres mode
             if self._chunk_repo and self._external_vector_service:
+                # Update progress: storing stage
+                if task_id:
+                    base_progress = int((doc_index / total_docs) * 100)
+                    self._update_embedding_status(
+                        task_id=task_id,
+                        status="storing",
+                        progress=base_progress + 15,
+                        message=f"Storing to database: {doc.title}",
+                        current_doc=doc_index + 1,
+                        total_docs=total_docs,
+                        current_doc_title=doc.title,
+                        chunks_total=len(chunks)
+                    )
+
                 try:
                     # Persist chunk metadata to PostgreSQL
                     chunk_dicts = [
