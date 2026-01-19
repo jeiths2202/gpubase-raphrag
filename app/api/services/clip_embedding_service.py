@@ -169,11 +169,15 @@ class CLIPEmbeddingService:
                 # Preprocess image
                 image = self._preprocess_image(image_data)
 
-                # Generate embedding
-                embedding = self._model.encode(
-                    image,
-                    convert_to_numpy=True,
-                    normalize_embeddings=True
+                # Generate embedding in thread pool to avoid blocking event loop
+                loop = asyncio.get_event_loop()
+                embedding = await loop.run_in_executor(
+                    None,
+                    lambda: self._model.encode(
+                        image,
+                        convert_to_numpy=True,
+                        normalize_embeddings=True
+                    )
                 )
 
                 self._stats["image_embeddings"] += 1
@@ -199,11 +203,15 @@ class CLIPEmbeddingService:
             try:
                 self._ensure_loaded()
 
-                # Generate embedding
-                embedding = self._model.encode(
-                    text,
-                    convert_to_numpy=True,
-                    normalize_embeddings=True
+                # Generate embedding in thread pool to avoid blocking event loop
+                loop = asyncio.get_event_loop()
+                embedding = await loop.run_in_executor(
+                    None,
+                    lambda: self._model.encode(
+                        text,
+                        convert_to_numpy=True,
+                        normalize_embeddings=True
+                    )
                 )
 
                 self._stats["text_embeddings"] += 1
@@ -250,6 +258,7 @@ class CLIPEmbeddingService:
                         pil_images.append(None)
 
                 # Process in batches
+                loop = asyncio.get_event_loop()
                 for i in range(0, len(pil_images), batch_size):
                     batch = pil_images[i:i + batch_size]
 
@@ -258,11 +267,15 @@ class CLIPEmbeddingService:
                     valid_indices = [j for j, img in enumerate(batch) if img is not None]
 
                     if valid_batch:
-                        batch_embeddings = self._model.encode(
-                            valid_batch,
-                            convert_to_numpy=True,
-                            normalize_embeddings=True,
-                            batch_size=batch_size
+                        # Run in thread pool to avoid blocking event loop
+                        batch_embeddings = await loop.run_in_executor(
+                            None,
+                            lambda vb=valid_batch: self._model.encode(
+                                vb,
+                                convert_to_numpy=True,
+                                normalize_embeddings=True,
+                                batch_size=batch_size
+                            )
                         )
 
                         # Reconstruct results with zeros for failed images
@@ -306,11 +319,16 @@ class CLIPEmbeddingService:
             try:
                 self._ensure_loaded()
 
-                embeddings = self._model.encode(
-                    texts,
-                    convert_to_numpy=True,
-                    normalize_embeddings=True,
-                    batch_size=batch_size
+                # Run in thread pool to avoid blocking event loop
+                loop = asyncio.get_event_loop()
+                embeddings = await loop.run_in_executor(
+                    None,
+                    lambda: self._model.encode(
+                        texts,
+                        convert_to_numpy=True,
+                        normalize_embeddings=True,
+                        batch_size=batch_size
+                    )
                 )
 
                 self._stats["text_embeddings"] += len(texts)

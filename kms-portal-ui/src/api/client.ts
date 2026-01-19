@@ -101,8 +101,8 @@ const apiClient: AxiosInstance = axios.create({
   // SECURITY: Enable HttpOnly cookie authentication
   // Cookies are automatically included in requests and responses
   withCredentials: true,
-  // Reasonable timeout for API requests
-  timeout: 30000,
+  // No timeout for long-running operations
+  timeout: 0,
 });
 
 // =============================================================================

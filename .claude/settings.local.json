@@ -116,7 +116,29 @@
       "Bash(PGPASSWORD=$POSTGRES_PASSWORD psql:*)",
       "Bash(psql:*)",
       "Bash(export:*)",
-      "Bash(/usr/bin/python3:*)"
+      "Bash(/usr/bin/python3:*)",
+      "Bash(for id in pdf_a653bc83ce73 pdf_009b8b3807d4 pdf_bc32aab38ada)",
+      "Bash(pstree:*)",
+      "Bash(# Try without auth - the pending API might not require auth curl -s http://localhost:9000/api/v1/documents/adaptive/pending | python3 -m json.tool)",
+      "Bash(# Start batch embed for smallest file curl -s -X POST \"\"http://localhost:9000/api/v1/documents/adaptive/embed-batch\"\" \\\\ -H \"\"Content-Type: application/json\"\" \\\\ -d ''[\"\"OF_Batch_MVS_7.1_Installation-Guide_v3.1.3_jp.pdf\"\"]'')",
+      "Bash(# Check current status of this document curl -s \"\"http://localhost:9000/api/v1/documents/adaptive/list\"\")",
+      "Bash(ps aux:*)",
+      "Bash(py-spy dump:*)",
+      "Bash(timeout 3 strace:*)",
+      "Bash(timeout 5 strace:*)",
+      "Bash(ps:*)",
+      "Bash(top:*)",
+      "Bash(APP_MODE=develop python3:*)",
+      "Bash(./scripts/restart_services.sh:*)",
+      "Bash(# Get more info about the multiprocessing process echo \"\"=== Multiprocessing Process Details ===\"\" ps -p 642116 -o pid,ppid,cmd,lstart echo -e \"\"\\\\n=== Parent Process ===\"\" ps -p 635602 -o pid,cmd echo -e \"\"\\\\n=== /proc info ===\"\" cat /proc/642116/cmdline)",
+      "Bash(timeout 5s head:*)",
+      "Bash(# Check if there''s any exception after completion in logs echo \"\"=== Checking for exceptions after completion ===\"\" grep -A 20 \"\"Processing complete for pdf_760122344b08\"\" /opt/kms/logs/backend_20260118.log echo -e \"\"\\\\n=== Check if there are multiple API processes ===\"\" ps aux)",
+      "Bash(timeout 10s head:*)",
+      "Bash(__NEW_LINE_6fd7409af1ca6357__ echo -e \"\\\\n=== Process Status ===\")",
+      "Bash(__NEW_LINE_b9ab8fe5fc0819d1__ echo -e \"\\\\n=== API Status Check ===\")",
+      "Bash(cypher-shell:*)",
+      "Bash(/opt/kms/venv/bin/python3:*)",
+      "Bash(git show:*)"
     ]
   }
 }

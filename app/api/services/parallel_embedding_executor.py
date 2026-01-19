@@ -150,10 +150,15 @@ class ParallelEmbeddingExecutor(ParallelEmbeddingExecutorPort):
                 tasks.append(task)
 
             # Execute all tasks
+            logger.warning(f"GATHER_DEBUG: Starting asyncio.gather for {len(tasks)} tasks")
             embedded_chunks = await asyncio.gather(*tasks, return_exceptions=True)
+            logger.warning(f"GATHER_DEBUG: asyncio.gather returned, processing {len(embedded_chunks)} results")
 
             # Process results
             for i, result in enumerate(embedded_chunks):
+                # Log progress every 500 items
+                if i > 0 and i % 500 == 0:
+                    logger.warning(f"GATHER_DEBUG: Processed {i}/{len(embedded_chunks)} results")
                 if isinstance(result, Exception):
                     logger.error(f"Chunk embedding failed: {result}")
                     # Keep original chunk without embedding
@@ -165,12 +170,14 @@ class ParallelEmbeddingExecutor(ParallelEmbeddingExecutorPort):
 
             # Log completion
             progress = self._progress[pdf_id]
+            logger.warning(f"GATHER_DEBUG: All results processed, result_chunks length={len(result_chunks)}")
             logger.info(
                 f"Embedding completed for {pdf_id}: "
                 f"{progress.completed_chunks}/{progress.total_chunks} succeeded, "
                 f"{progress.failed_chunks} failed"
             )
 
+        logger.warning(f"GATHER_DEBUG: Returning {len(result_chunks)} chunks from embed_chunks")
         return result_chunks
 
     async def embed_single(
@@ -270,6 +277,11 @@ class ParallelEmbeddingExecutor(ParallelEmbeddingExecutorPort):
                 else:
                     progress.failed_chunks += 1
                     progress.failed_chunk_ids.append(chunk.chunk_id)
+
+                # Log progress every 500 completions
+                total_done = progress.completed_chunks + progress.failed_chunks
+                if total_done > 0 and total_done % 500 == 0:
+                    logger.warning(f"SEMAPHORE_DEBUG: {total_done}/{progress.total_chunks} tasks completed")
 
                 return result
 

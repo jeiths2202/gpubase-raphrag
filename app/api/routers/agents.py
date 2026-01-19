@@ -160,6 +160,10 @@ async def stream_agent(
         try:
             async for chunk in orchestrator.stream(request, user_id=user_id):
                 data = chunk.model_dump()
+                # Debug: log sources chunk
+                if chunk.chunk_type == "sources":
+                    print(f"[AgentsRouter] Sending sources chunk: {len(chunk.sources or [])} sources", flush=True)
+                    print(f"[AgentsRouter] Sources data: {data.get('sources', [])[:2]}", flush=True)
                 yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
         except Exception as e:
             logger.error(f"Agent streaming failed: {e}")

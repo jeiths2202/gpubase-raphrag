@@ -126,8 +126,9 @@ class LocalRAGService:
             except Exception as e:
                 logger.warning(f"Query expansion failed, using original: {e}")
 
-        # Generate query embedding with expanded terms
-        query_embedding = await self._text_embedder.embed_text(search_query)
+        # Generate query embedding with input_type="query" for asymmetric search
+        # NV-EmbedQA uses different embedding spaces for queries vs passages
+        query_embedding = await self._text_embedder.embed_text(search_query, input_type="query")
 
         # Search for similar chunks
         results = await self._chunk_repo.search_similar(

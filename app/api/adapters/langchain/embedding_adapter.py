@@ -40,6 +40,7 @@ class LangChainEmbeddingAdapter(EmbeddingPort):
             dimensions=dimensions
         )
         self._client = None
+        self._client_cache: dict = {}  # Cache clients by config hash
 
     @property
     def dimensions(self) -> int:
@@ -47,11 +48,17 @@ class LangChainEmbeddingAdapter(EmbeddingPort):
         return self._dimensions
 
     def _get_client(self, config: EmbeddingConfig):
-        """Get or create LangChain OpenAI Embeddings client"""
+        """Get or create LangChain OpenAI Embeddings client with caching"""
+        # Create a cache key from config
+        cache_key = (config.model, config.dimensions, config.timeout)
+
+        if cache_key in self._client_cache:
+            return self._client_cache[cache_key]
+
         try:
             from langchain_openai import OpenAIEmbeddings
 
-            return OpenAIEmbeddings(
+            client = OpenAIEmbeddings(
                 api_key=self.api_key,
                 model=config.model,
                 dimensions=config.dimensions,
@@ -59,6 +66,12 @@ class LangChainEmbeddingAdapter(EmbeddingPort):
                 timeout=config.timeout,
                 **config.extra_params
             )
+
+            # Cache the client
+            self._client_cache[cache_key] = client
+            logger.info(f"Created and cached new OpenAIEmbeddings client for model={config.model}")
+
+            return client
         except ImportError:
             raise ImportError("langchain_openai is required for LangChainEmbeddingAdapter")
 

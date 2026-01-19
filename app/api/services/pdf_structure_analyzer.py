@@ -128,8 +128,18 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
                 image_list = page.get_images(full=False)
                 total_images += len(image_list)
 
-                # Detect tables (heuristic: lines with multiple | or tabs)
-                if re.search(r'(\|.*\|)|(\t.*\t.*\t)', text):
+                # Detect tables (heuristic: multiple patterns)
+                # 1. Markdown table: |...|
+                # 2. Tab-separated: multiple tabs
+                # 3. Definition list: 用語/説明, Term/Description patterns (JP/EN docs)
+                # 4. Aligned columns: repeated "  " spacing patterns
+                has_table = (
+                    re.search(r'(\|.*\|)|(\t.*\t.*\t)', text) or  # Markdown or tabs
+                    re.search(r'(説明|Description)\s*\n\s*(用語|Term|項目|パラメータ)', text, re.IGNORECASE) or  # JP/EN definition header
+                    re.search(r'(用語|Term|項目|パラメータ)\s*\n\s*(説明|Description)', text, re.IGNORECASE) or  # Reversed header
+                    len([line for line in text.split('\n') if re.match(r'^[^\s]{2,20}\s{2,}[^\s]', line)]) > 3  # Aligned columns
+                )
+                if has_table:
                     total_tables += 1
 
             # Combine all text
