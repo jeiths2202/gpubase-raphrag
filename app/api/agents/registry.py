@@ -94,15 +94,17 @@ class ToolRegistry:
     def get_tools_for_agent(self, agent_type: AgentType) -> List[BaseTool]:
         """Get tools available for a specific agent type"""
         # Default tool assignments per agent type
+        # NOTE: adaptive_search removed due to PostgreSQL embedding asymmetry issue
+        # vector_search (Neo4j) is the primary and most accurate search tool
         agent_tools = {
-            AgentType.RAG: ["adaptive_search", "vector_search", "graph_query", "document_read"],
+            AgentType.RAG: ["vector_search", "graph_query", "document_read"],
             AgentType.IMS: ["ims_search", "web_fetch", "vector_search"],
             AgentType.VISION: ["document_read", "vector_search"],
             AgentType.CODE: ["document_read", "bash", "vector_search"],
-            AgentType.PLANNER: ["vector_search", "graph_query", "ims_search", "document_read", "adaptive_search"],
+            AgentType.PLANNER: ["vector_search", "graph_query", "ims_search", "document_read"],
             # Enhancement agents - need document_read and vector_search to analyze codebase
-            AgentType.ENHANCEMENT_ANALYST: ["vector_search", "document_read", "graph_query", "adaptive_search"],
-            AgentType.ENHANCEMENT_ARCHITECT: ["vector_search", "document_read", "graph_query", "bash", "adaptive_search"],
+            AgentType.ENHANCEMENT_ANALYST: ["vector_search", "document_read", "graph_query"],
+            AgentType.ENHANCEMENT_ARCHITECT: ["vector_search", "document_read", "graph_query", "bash"],
             AgentType.ENHANCEMENT_CODER: ["vector_search", "document_read", "bash"],
             AgentType.ENHANCEMENT_QA: ["vector_search", "document_read", "bash"],
         }

@@ -108,15 +108,28 @@ class RAGToolsProvider:
         """AdaptiveEmbeddingService lazy load"""
         if self._adaptive_service is None:
             try:
-                from ...services.pdf_adaptive_embedding_service import PDFAdaptiveEmbeddingService
-                from ...infrastructure.postgres.adaptive_chunk_repository import (
-                    PostgresAdaptiveChunkRepository,
-                    PostgresPDFStructureRepository,
-                    PostgresCoverageRepository,
-                )
-                logger.debug("Adaptive service will be initialized on first use")
+                # Use the centralized service from deps.py
+                from ...core.deps import get_adaptive_embedding_service
+
+                # Run async initialization in sync context
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Already in async context - schedule and get result
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            get_adaptive_embedding_service()
+                        )
+                        self._adaptive_service = future.result(timeout=30)
+                else:
+                    self._adaptive_service = loop.run_until_complete(
+                        get_adaptive_embedding_service()
+                    )
+                logger.info("[RAGToolsProvider] Adaptive service initialized successfully")
             except Exception as e:
-                logger.warning(f"Failed to import adaptive service: {e}")
+                logger.warning(f"Failed to initialize adaptive service: {e}")
+                self._adaptive_service = None
         return self._adaptive_service
 
     def set_adaptive_service(self, service):
@@ -343,7 +356,7 @@ class RAGToolsProvider:
             - Documents with tables and figures
             - When you need context from surrounding content
             """
-            if provider._adaptive_service is None:
+            if provider.adaptive_service is None:
                 return "Adaptive search is not available. Service not configured."
 
             try:
@@ -370,7 +383,7 @@ class RAGToolsProvider:
                     # Use hybrid search for better accuracy
                     # Combines vector similarity with keyword boosting and intent detection
                     logger.info(f"[AdaptiveSearch] Using hybrid search for query: {original_query}")
-                    results = await provider._adaptive_service.search_chunks_hybrid(
+                    results = await provider.adaptive_service.search_chunks_hybrid(
                         query_embedding=query_embedding,
                         query_text=original_query,
                         limit=top_k,

@@ -29,8 +29,8 @@ class RAGAgent(BaseAgent):
         super().__init__(
             name="RAG Agent",
             agent_type=AgentType.RAG,
-            description="Knowledge base query agent using Hybrid RAG (vector + graph + adaptive retrieval)",
-            tools=["adaptive_search", "vector_search", "graph_query", "document_read"],
+            description="Knowledge base query agent using Hybrid RAG (vector + graph retrieval)",
+            tools=["vector_search", "graph_query", "document_read"],
             **kwargs
         )
         self._executor = executor
@@ -45,22 +45,17 @@ class RAGAgent(BaseAgent):
         return """You are a CLOSED-DOMAIN knowledge assistant. You have NO general world knowledge.
 
 ═══════════════════════════════════════════════════════════════
-MANDATORY TOOL EXECUTION ORDER - ALWAYS FOLLOW THIS SEQUENCE:
+MANDATORY TOOL EXECUTION - ALWAYS USE vector_search
 ═══════════════════════════════════════════════════════════════
 
-1. **ALWAYS call adaptive_search FIRST** - This searches PDF documents with structure preservation
+1. **ALWAYS call vector_search** - Primary knowledge base search (Neo4j)
    - MUST be your first tool call for ANY query
-   - Returns hierarchical context (sections, page numbers)
-   - Best for technical manuals, reports, contracts
+   - Uses semantic similarity for accurate retrieval
    - **CRITICAL: Use the EXACT user query text as the "query" parameter - DO NOT modify, translate, or summarize it**
 
-2. **ONLY IF adaptive_search returns 0 results**, then try vector_search
-   - Searches the general knowledge base (Neo4j)
-   - Use as fallback when no PDFs contain the answer
+2. **graph_query** - For exploring entity relationships (optional)
 
-3. **graph_query** - For exploring entity relationships (optional)
-
-4. **document_read** - For reading specific uploaded documents (optional)
+3. **document_read** - For reading specific uploaded documents (optional)
 
 ═══════════════════════════════════════════════════════════════
 CRITICAL RULE: YOU MUST NEVER USE GENERAL KNOWLEDGE

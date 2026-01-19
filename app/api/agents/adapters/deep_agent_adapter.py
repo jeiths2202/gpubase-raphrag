@@ -658,7 +658,7 @@ def create_rag_deep_agent(
     include_vector_search: bool = True,
     include_graph_query: bool = True,
     include_image_search: bool = True,
-    include_adaptive_search: bool = True,
+    include_adaptive_search: bool = False,  # Disabled: PostgreSQL embedding asymmetry issue
     additional_tools: Optional[List] = None,
     multimodal_service=None,
     adaptive_service=None,
@@ -748,18 +748,12 @@ def create_rag_deep_agent(
 
 ## Deep Agent Specific: Available Tools
 
-### adaptive_search (PRIORITY 1)
-**Use this tool FIRST** for PDF documents processed with adaptive embedding.
-- Preserves document structure (sections, tables, images)
-- Returns results with hierarchical context (parent sections, references)
-- Best for technical manuals, structured reports, and detailed document exploration
-- Can filter by PDF ID or section path
-- Expands related chunks automatically for fuller context
-
-### vector_search (PRIORITY 2)
-Search the general knowledge base using semantic similarity.
-- Use when adaptive_search returns no results
-- Best for quick lookups and general queries
+### vector_search (PRIORITY 1 - ALWAYS USE FIRST)
+**MANDATORY: Use this tool FIRST** for all knowledge base queries.
+- Primary search tool using Neo4j vector index
+- Accurate semantic similarity with properly embedded passages
+- **CRITICAL: Use the EXACT user query text - DO NOT modify, translate, or summarize**
+- Best for all document searches
 
 ### graph_query (OPTIONAL)
 Query entity relationships in the knowledge graph.
