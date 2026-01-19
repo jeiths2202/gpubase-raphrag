@@ -380,7 +380,7 @@ class RAGService:
                 "doc_name": sr.source_name,
                 "chunk_id": sr.chunk_id,
                 "chunk_index": sr.metadata.get("index", 0),
-                "content": sr.content[:500],
+                "content": sr.content[:2000],
                 "score": min(sr.score * session_weight, 1.0),  # Boost but cap at 1.0
                 "source_type": "session",
                 "entities": [],
@@ -429,7 +429,7 @@ class RAGService:
                 "doc_name": sr.source_name,
                 "chunk_id": sr.chunk_id,
                 "chunk_index": sr.metadata.get("index", 0),
-                "content": sr.content[:500],
+                "content": sr.content[:2000],
                 "score": min(sr.score * session_weight, 1.0),
                 "source_type": "session",
                 "entities": [],
@@ -446,7 +446,7 @@ class RAGService:
                 "doc_name": er.source_name,
                 "chunk_id": er.chunk_id,
                 "chunk_index": er.metadata.get("index", 0),
-                "content": er.content[:500],
+                "content": er.content[:2000],
                 "score": min(er.score * external_weight, 1.0),
                 "source_type": f"external_{er.source}" if hasattr(er, 'source') else "external",
                 "entities": [],
@@ -585,7 +585,7 @@ class RAGService:
                     if hasattr(sr, 'page_number') and sr.page_number:
                         source_info += f" (페이지 {sr.page_number})"
                     context_parts.append(f"[업로드{i}] {source_info}")
-                    context_parts.append(sr.content[:500])
+                    context_parts.append(sr.content[:2000])
                 context_parts.append("")
 
             # External resource context (second priority)
@@ -599,7 +599,7 @@ class RAGService:
                     if hasattr(er, 'section_title') and er.section_title:
                         source_info += f"\n   섹션: {er.section_title}"
                     context_parts.append(f"[외부{i}] {source_info}")
-                    context_parts.append(er.content[:500])
+                    context_parts.append(er.content[:2000])
                 context_parts.append("")
 
             # Global context (base knowledge)
@@ -698,7 +698,7 @@ class RAGService:
                 "doc_name": doc_names.get(doc_id, doc_id),  # Use actual name or fallback to ID
                 "chunk_id": chunk_id,
                 "chunk_index": r.get("chunk_index", 0),
-                "content": r.get("content", "")[:500],
+                "content": r.get("content", "")[:2000],  # Extended for detailed RAG content
                 "score": r.get("score", 0.0) if isinstance(r.get("score"), (int, float)) else 0.0,
                 "source_type": r.get("source", "unknown"),
                 "entities": r.get("entities", []),

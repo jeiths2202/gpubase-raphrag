@@ -164,7 +164,7 @@ class HybridRAG:
             "strategy": strategy,
             "language": language,
             "sources": len(results),
-            "results": results[:3]  # Top 3 for reference
+            "results": results  # Return all results for agent use
         }
 
     def _vector_search(self, query: str, k: int) -> List[Dict]:
@@ -205,34 +205,49 @@ class HybridRAG:
         topic_density_results: List[Dict],
         vector_results: List[Dict]
     ) -> List[Dict]:
-        """Merge topic density results with vector results for VECTOR strategy"""
+        """Merge topic density results with vector results for VECTOR strategy.
+
+        IMPORTANT: Vector similarity scores are the primary ranking factor.
+        Topic density only provides a small boost when chunks also match.
+        This prevents table-of-contents chunks from outranking actual content.
+        """
         seen_chunks = set()
         merged = []
 
-        # Topic density results first (concept-central documents)
+        # Build a lookup for topic density scores
+        topic_density_lookup = {}
+        for result in topic_density_results:
+            topic_density_lookup[result["chunk_id"]] = result.get("topic_density", 0.0)
+
+        # Vector results first (semantic similarity is the primary signal)
+        for result in vector_results:
+            chunk_id = result["chunk_id"]
+            if chunk_id not in seen_chunks:
+                # Start with vector score as base
+                base_score = result["score"]
+
+                # Add small boost if also found by topic density
+                if chunk_id in topic_density_lookup:
+                    topic_boost = topic_density_lookup[chunk_id] * 0.1  # Max 10% boost
+                    result["combined_score"] = base_score + topic_boost
+                    result["source"] = "vector_topic"
+                else:
+                    result["combined_score"] = base_score
+                    result["source"] = "vector"
+
+                merged.append(result)
+                seen_chunks.add(chunk_id)
+
+        # Add topic density results that weren't in vector results (lower priority)
         for result in topic_density_results:
             chunk_id = result["chunk_id"]
             if chunk_id not in seen_chunks:
                 topic_score = result.get("topic_density", 0.5)
-                result["combined_score"] = 0.85 + (topic_score * 0.15)  # 0.85 ~ 1.0 range
+                # Topic-only results get lower scores than vector results
+                result["combined_score"] = 0.3 + (topic_score * 0.2)  # 0.3 ~ 0.5 range
                 result["source"] = "topic_density"
                 merged.append(result)
                 seen_chunks.add(chunk_id)
-
-        # Vector results (with similarity scores)
-        for result in vector_results:
-            chunk_id = result["chunk_id"]
-            if chunk_id not in seen_chunks:
-                result["combined_score"] = result["score"] * 0.8  # Slightly lower priority
-                merged.append(result)
-                seen_chunks.add(chunk_id)
-            else:
-                # Boost if also found by vector
-                for m in merged:
-                    if m["chunk_id"] == chunk_id:
-                        m["combined_score"] += result["score"] * 0.15
-                        m["source"] = "topic_density_vector"
-                        break
 
         # Sort by combined score
         return sorted(merged, key=lambda x: x.get("combined_score", 0), reverse=True)
