@@ -214,7 +214,9 @@ class AgentStreamChunk(BaseModel):
         "generation_start",  # 답변 생성 시작
         "generation_progress",  # 답변 생성 과정
         # Individual search result for expandable card display
-        "search_result"      # 개별 검색 결과 (텍스트, 이미지, 테이블 포함)
+        "search_result",     # 개별 검색 결과 (텍스트, 이미지, 테이블 포함)
+        # Source reliability for search result credibility
+        "source_reliability" # 출처 신뢰도 정보
     ]
     content: Optional[str] = None
     tool_name: Optional[str] = None

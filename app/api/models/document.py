@@ -388,3 +388,126 @@ class ReEmbedResponse(BaseModel):
         default_factory=dict,
         description="Applied re-embedding parameters"
     )
+
+
+# =============================================================================
+# Document Comparison Models
+# =============================================================================
+
+class DocumentCompareRequest(BaseModel):
+    """Request to compare multiple documents on a topic
+    문서 비교 요청
+    """
+    document_ids: List[str] = Field(
+        ...,
+        min_length=2,
+        max_length=5,
+        description="List of document IDs to compare (2-5 documents)"
+    )
+    topic: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="Topic/question to compare documents on"
+    )
+    language: str = Field(
+        default="auto",
+        description="Response language (auto, ko, en, ja)"
+    )
+
+
+class DocumentSection(BaseModel):
+    """Relevant section from a document
+    문서에서 추출된 관련 섹션
+    """
+    section_path: Optional[str] = Field(
+        default=None,
+        description="Section path (e.g., '1.2.3 Installation')"
+    )
+    section_title: Optional[str] = Field(
+        default=None,
+        description="Section title"
+    )
+    content: str = Field(
+        ...,
+        description="Section content text"
+    )
+    page_number: Optional[int] = Field(
+        default=None,
+        description="Page number if available"
+    )
+    score: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Relevance score"
+    )
+    chunk_id: Optional[str] = Field(
+        default=None,
+        description="Source chunk ID"
+    )
+
+
+class DocumentCompareResult(BaseModel):
+    """Comparison result for a single document
+    단일 문서의 비교 결과
+    """
+    doc_id: str = Field(
+        ...,
+        description="Document ID"
+    )
+    doc_name: str = Field(
+        ...,
+        description="Document name"
+    )
+    relevant_sections: List[DocumentSection] = Field(
+        default_factory=list,
+        description="Relevant sections found in this document"
+    )
+    has_content: bool = Field(
+        default=False,
+        description="Whether the document has relevant content"
+    )
+
+
+class ComparisonDifference(BaseModel):
+    """A specific difference between documents
+    문서 간 차이점
+    """
+    aspect: str = Field(
+        ...,
+        description="Aspect or dimension of comparison"
+    )
+    documents: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Document ID to content mapping for this difference"
+    )
+
+
+class ComparisonSummary(BaseModel):
+    """Summary of document comparison
+    문서 비교 요약
+    """
+    topic: str = Field(
+        ...,
+        description="Comparison topic"
+    )
+    documents: List[DocumentCompareResult] = Field(
+        default_factory=list,
+        description="Results for each document"
+    )
+    summary: str = Field(
+        default="",
+        description="LLM-generated comparison summary"
+    )
+    commonalities: List[str] = Field(
+        default_factory=list,
+        description="Common points across documents"
+    )
+    differences: List[ComparisonDifference] = Field(
+        default_factory=list,
+        description="Differences between documents"
+    )
+    language: str = Field(
+        default="ko",
+        description="Response language"
+    )

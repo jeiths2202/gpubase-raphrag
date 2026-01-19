@@ -84,7 +84,37 @@
     "collapseAll": "Collapse All",
     "textTab": "Text",
     "imagesTab": "Images",
-    "tablesTab": "Tables"
+    "tablesTab": "Tables",
+    "reliability": {
+      "title": "Source Reliability",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "factors": {
+        "sourceCount": "Source Count",
+        "similarity": "Similarity",
+        "diversity": "Diversity",
+        "quality": "Quality"
+      }
+    },
+    "compare": {
+      "title": "Compare Documents",
+      "button": "Compare",
+      "topic": "Comparison Topic",
+      "topicPlaceholder": "Enter a topic or question to compare...",
+      "selectedDocs": "Selected Documents",
+      "comparing": "Comparing...",
+      "summary": "Comparison Summary",
+      "commonalities": "Commonalities",
+      "differences": "Differences",
+      "docContent": "Document Content",
+      "noContent": "No relevant content found for this topic.",
+      "sections": "sections",
+      "minDocs": "At least 2 documents are required.",
+      "maxDocs": "Maximum {{count}} documents can be compared.",
+      "selectMode": "Compare Mode",
+      "exitMode": "Exit Compare Mode"
+    }
   },
   "externalConnectors": {
     "title": "External Connectors",

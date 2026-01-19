@@ -132,6 +132,8 @@ export type AgentStreamChunkType =
   | 'generation_progress'
   // Individual search result for expandable card display
   | 'search_result'
+  // Source reliability for search result credibility
+  | 'source_reliability'
   // Enterprise multi-agent orchestration chunk types
   | 'orchestration_start'
   | 'dag_created'

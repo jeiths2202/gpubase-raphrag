@@ -26,6 +26,7 @@ from .master_system_constraint import (
     get_insufficient_info_response
 )
 from ..core.app_mode import is_develop_mode
+from ..services.reliability_service import calculate_reliability
 import re
 
 logger = logging.getLogger(__name__)
@@ -1652,6 +1653,20 @@ User Query: {task}"""
             print(f"[Executor] Yielding {len(sources)} sources to client", flush=True)
             logger.info(f"[Executor] Yielding {len(sources)} sources to client: {[s.get('source', 'unknown') for s in sources[:5]]}")
             yield AgentStreamChunk(chunk_type="sources", sources=sources[:10])
+
+            # Calculate and yield source reliability
+            language = context.language if context.language != "auto" else "ko"
+            reliability = calculate_reliability(sources, language)
+            yield AgentStreamChunk(
+                chunk_type="source_reliability",
+                metadata={
+                    "score": reliability.score,
+                    "level": reliability.level.value,
+                    "factors": reliability.factors,
+                    "explanation": reliability.explanation
+                }
+            )
+            logger.info(f"[Executor] Yielded reliability: score={reliability.score}, level={reliability.level.value}")
         else:
             print(f"[Executor] No sources to yield", flush=True)
 

@@ -211,6 +211,30 @@ class APISettings(BaseSettings):
         description="Weight for topic density in topic-only results"
     )
 
+    # Source Reliability Settings
+    RELIABILITY_HIGH_THRESHOLD: float = Field(
+        default=0.7,
+        description="Threshold for high reliability (0.7+)"
+    )
+    RELIABILITY_MEDIUM_THRESHOLD: float = Field(
+        default=0.4,
+        description="Threshold for medium reliability (0.4-0.7)"
+    )
+
+    # Document Compare Settings
+    COMPARE_MAX_DOCUMENTS: int = Field(
+        default=5,
+        description="Maximum documents that can be compared at once"
+    )
+    COMPARE_SECTIONS_PER_DOC: int = Field(
+        default=3,
+        description="Number of relevant sections to retrieve per document"
+    )
+    COMPARE_SUMMARY_MAX_TOKENS: int = Field(
+        default=500,
+        description="Maximum tokens for comparison summary"
+    )
+
     # Rate Limiting
     RATE_LIMIT_QUERY: int = 60  # requests per minute
     RATE_LIMIT_UPLOAD: int = 10  # requests per minute

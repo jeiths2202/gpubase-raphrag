@@ -8,6 +8,26 @@ import type { AgentType, AgentSource } from '../../api/agent.api';
 export type { AgentSource };
 
 /**
+ * Source reliability level
+ */
+export type ReliabilityLevel = 'high' | 'medium' | 'low';
+
+/**
+ * Source reliability information
+ */
+export interface SourceReliability {
+  score: number;
+  level: ReliabilityLevel;
+  factors: {
+    source_count: number;
+    avg_similarity: number;
+    source_diversity: number;
+    source_quality: number;
+  };
+  explanation: string;
+}
+
+/**
  * Chat message structure
  */
 export interface ChatMessage {
@@ -20,6 +40,7 @@ export interface ChatMessage {
   sources?: AgentSource[];
   images?: ImageReference[];  // Multimodal RAG images
   searchResults?: ExpandableSearchResult[];  // Individual expandable search results
+  sourceReliability?: SourceReliability;  // Source reliability information
   isStreaming?: boolean;
   error?: string;
   statusType?: 'crawling' | 'ready' | 'credentials_required';

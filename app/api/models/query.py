@@ -2,7 +2,7 @@
 Query-related Pydantic models
 """
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -138,3 +138,39 @@ class ClassifyResponse(BaseModel):
     question: str
     classification: ClassificationResult
     features: ClassificationFeatures
+
+
+# =============================================================================
+# Source Reliability Models
+# =============================================================================
+
+class ReliabilityLevel(str, Enum):
+    """
+    Reliability level for source citations
+    신뢰도 레벨: 검색 결과의 신뢰도를 나타냅니다.
+    """
+    HIGH = "high"      # 0.7 이상: 다수의 고품질 출처, 높은 일관성
+    MEDIUM = "medium"  # 0.4-0.7: 적당한 출처, 보통 일관성
+    LOW = "low"        # 0.4 미만: 소수의 출처, 낮은 일관성
+
+
+class SourceReliability(BaseModel):
+    """
+    Source reliability information for search results
+    검색 결과의 출처 신뢰도 정보
+    """
+    score: float = Field(
+        ge=0.0, le=1.0,
+        description="Overall reliability score (0.0-1.0)"
+    )
+    level: ReliabilityLevel = Field(
+        description="Reliability level classification"
+    )
+    factors: Dict[str, float] = Field(
+        default_factory=dict,
+        description="Individual factor scores (source_count, avg_similarity, source_diversity, source_quality)"
+    )
+    explanation: str = Field(
+        default="",
+        description="User-friendly explanation of the reliability assessment"
+    )

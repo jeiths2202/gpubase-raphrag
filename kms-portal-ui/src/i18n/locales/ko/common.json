@@ -84,7 +84,37 @@
     "collapseAll": "모두 접기",
     "textTab": "텍스트",
     "imagesTab": "이미지",
-    "tablesTab": "표"
+    "tablesTab": "표",
+    "reliability": {
+      "title": "출처 신뢰도",
+      "high": "높음",
+      "medium": "보통",
+      "low": "낮음",
+      "factors": {
+        "sourceCount": "출처 수",
+        "similarity": "유사도",
+        "diversity": "다양성",
+        "quality": "품질"
+      }
+    },
+    "compare": {
+      "title": "문서 비교",
+      "button": "비교하기",
+      "topic": "비교 주제",
+      "topicPlaceholder": "비교할 주제나 질문을 입력하세요...",
+      "selectedDocs": "선택된 문서",
+      "comparing": "비교 중...",
+      "summary": "비교 요약",
+      "commonalities": "공통점",
+      "differences": "차이점",
+      "docContent": "문서별 내용",
+      "noContent": "이 주제에 대한 관련 내용이 없습니다.",
+      "sections": "개 섹션",
+      "minDocs": "최소 2개의 문서가 필요합니다.",
+      "maxDocs": "최대 {{count}}개의 문서만 비교할 수 있습니다.",
+      "selectMode": "비교 모드",
+      "exitMode": "비교 모드 종료"
+    }
   },
   "externalConnectors": {
     "title": "외부 커넥터",

@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, status
+from fastapi.responses import StreamingResponse
 
 from ..models.base import SuccessResponse, PaginatedResponse, PaginationMeta, MetaInfo
 from ..models.document import (
@@ -29,10 +30,12 @@ from ..models.document import (
     SimilarityTestResult,
     ReEmbedRequest,
     ReEmbedResponse,
+    DocumentCompareRequest,
+    ComparisonSummary,
     EXTENSION_TO_MIME,
     SUPPORTED_MIME_TYPES,
 )
-from ..core.deps import get_current_user, get_document_service
+from ..core.deps import get_current_user, get_document_service, get_rag_service
 from ..core.config import api_settings
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -648,4 +651,117 @@ async def re_embed_document(
             }
         ),
         meta=MetaInfo(request_id=request_id)
+    )
+
+
+# =============================================================================
+# Document Comparison Endpoints
+# =============================================================================
+
+@router.post(
+    "/compare",
+    response_model=SuccessResponse[ComparisonSummary],
+    summary="문서 비교",
+    description="여러 문서를 특정 주제에 대해 비교 분석합니다."
+)
+async def compare_documents(
+    request: DocumentCompareRequest,
+    current_user: dict = Depends(get_current_user),
+    rag_service = Depends(get_rag_service)
+):
+    """
+    Compare multiple documents on a specific topic
+
+    Retrieves relevant sections from each document and generates
+    a comparison summary with commonalities and differences.
+    """
+    from ..services.document_compare_service import DocumentCompareService
+
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    # Validate document count
+    if len(request.document_ids) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_DOCUMENT_COUNT", "message": "최소 2개의 문서가 필요합니다."}
+        )
+
+    if len(request.document_ids) > api_settings.COMPARE_MAX_DOCUMENTS:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "TOO_MANY_DOCUMENTS",
+                "message": f"최대 {api_settings.COMPARE_MAX_DOCUMENTS}개의 문서만 비교할 수 있습니다."
+            }
+        )
+
+    # Get HybridRAG instance from RAG service
+    hybrid_rag = rag_service._ensure_initialized()
+
+    # Create compare service
+    compare_service = DocumentCompareService(hybrid_rag)
+
+    # Perform comparison
+    result = await compare_service.compare(request)
+
+    return SuccessResponse(
+        data=result,
+        meta=MetaInfo(request_id=request_id)
+    )
+
+
+@router.post(
+    "/compare/stream",
+    summary="문서 비교 (스트리밍)",
+    description="여러 문서를 비교하고 결과를 스트리밍합니다."
+)
+async def stream_compare_documents(
+    request: DocumentCompareRequest,
+    current_user: dict = Depends(get_current_user),
+    rag_service = Depends(get_rag_service)
+):
+    """
+    Stream document comparison results
+
+    Same as /compare but streams results progressively.
+    """
+    from ..services.document_compare_service import DocumentCompareService
+
+    # Validate document count
+    if len(request.document_ids) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_DOCUMENT_COUNT", "message": "최소 2개의 문서가 필요합니다."}
+        )
+
+    if len(request.document_ids) > api_settings.COMPARE_MAX_DOCUMENTS:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "TOO_MANY_DOCUMENTS",
+                "message": f"최대 {api_settings.COMPARE_MAX_DOCUMENTS}개의 문서만 비교할 수 있습니다."
+            }
+        )
+
+    # Get HybridRAG instance from RAG service
+    hybrid_rag = rag_service._ensure_initialized()
+
+    # Create compare service
+    compare_service = DocumentCompareService(hybrid_rag)
+
+    async def generate_stream():
+        """Generate SSE stream"""
+        try:
+            async for chunk in compare_service.stream_compare(request):
+                yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'data': {'message': str(e)}})}\n\n"
+
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
     )

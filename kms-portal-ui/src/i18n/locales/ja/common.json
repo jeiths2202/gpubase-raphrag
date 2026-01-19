@@ -84,7 +84,37 @@
     "collapseAll": "すべて折りたたむ",
     "textTab": "テキスト",
     "imagesTab": "画像",
-    "tablesTab": "表"
+    "tablesTab": "表",
+    "reliability": {
+      "title": "出典の信頼性",
+      "high": "高",
+      "medium": "中",
+      "low": "低",
+      "factors": {
+        "sourceCount": "出典数",
+        "similarity": "類似度",
+        "diversity": "多様性",
+        "quality": "品質"
+      }
+    },
+    "compare": {
+      "title": "文書比較",
+      "button": "比較する",
+      "topic": "比較トピック",
+      "topicPlaceholder": "比較するトピックや質問を入力してください...",
+      "selectedDocs": "選択した文書",
+      "comparing": "比較中...",
+      "summary": "比較要約",
+      "commonalities": "共通点",
+      "differences": "相違点",
+      "docContent": "文書別内容",
+      "noContent": "このトピックに関連するコンテンツが見つかりませんでした。",
+      "sections": "セクション",
+      "minDocs": "少なくとも2つの文書が必要です。",
+      "maxDocs": "最大{{count}}個の文書まで比較できます。",
+      "selectMode": "比較モード",
+      "exitMode": "比較モードを終了"
+    }
   },
   "externalConnectors": {
     "title": "外部コネクタ",

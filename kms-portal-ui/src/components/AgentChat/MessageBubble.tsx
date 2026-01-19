@@ -265,6 +265,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <SearchResultCards
             results={message.searchResults}
             title={t('common.agent.searchResults') || '검색 결과'}
+            reliability={message.sourceReliability}
           />
         )}
 

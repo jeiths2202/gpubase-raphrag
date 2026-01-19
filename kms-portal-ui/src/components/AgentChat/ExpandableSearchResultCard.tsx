@@ -11,9 +11,13 @@ import {
   FileText,
   Image as ImageIcon,
   Table2,
+  ShieldCheck,
+  ShieldAlert,
+  Shield,
+  Info,
 } from 'lucide-react';
 import { MessageContent } from './MessageContent';
-import type { ExpandableSearchResult } from './types';
+import type { ExpandableSearchResult, SourceReliability, ReliabilityLevel } from './types';
 
 interface ExpandableSearchResultCardProps {
   result: ExpandableSearchResult;
@@ -182,16 +186,97 @@ export const ExpandableSearchResultCard: React.FC<ExpandableSearchResultCardProp
 };
 
 /**
+ * Reliability badge component
+ */
+interface ReliabilityBadgeProps {
+  reliability: SourceReliability;
+}
+
+const getReliabilityConfig = (level: ReliabilityLevel) => {
+  switch (level) {
+    case 'high':
+      return {
+        icon: ShieldCheck,
+        className: 'reliability-badge-high',
+        label: '높음',
+      };
+    case 'medium':
+      return {
+        icon: Shield,
+        className: 'reliability-badge-medium',
+        label: '보통',
+      };
+    case 'low':
+    default:
+      return {
+        icon: ShieldAlert,
+        className: 'reliability-badge-low',
+        label: '낮음',
+      };
+  }
+};
+
+export const ReliabilityBadge: React.FC<ReliabilityBadgeProps> = ({ reliability }) => {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const config = getReliabilityConfig(reliability.level);
+  const IconComponent = config.icon;
+  const scorePercent = Math.round(reliability.score * 100);
+
+  return (
+    <div
+      className={`reliability-badge ${config.className}`}
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      <IconComponent size={14} />
+      <span className="reliability-badge-label">{config.label}</span>
+      <span className="reliability-badge-score">({scorePercent}%)</span>
+
+      {/* Tooltip */}
+      {showTooltip && (
+        <div className="reliability-tooltip">
+          <div className="reliability-tooltip-header">
+            <Info size={12} />
+            <span>출처 신뢰도</span>
+          </div>
+          <p className="reliability-tooltip-explanation">{reliability.explanation}</p>
+          <div className="reliability-tooltip-factors">
+            <div className="reliability-factor">
+              <span>출처 수</span>
+              <span>{Math.round(reliability.factors.source_count * 100)}%</span>
+            </div>
+            <div className="reliability-factor">
+              <span>유사도</span>
+              <span>{Math.round(reliability.factors.avg_similarity * 100)}%</span>
+            </div>
+            <div className="reliability-factor">
+              <span>다양성</span>
+              <span>{Math.round(reliability.factors.source_diversity * 100)}%</span>
+            </div>
+            <div className="reliability-factor">
+              <span>품질</span>
+              <span>{Math.round(reliability.factors.source_quality * 100)}%</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
  * Container for multiple search result cards
  */
 interface SearchResultCardsProps {
   results: ExpandableSearchResult[];
   title?: string;
+  reliability?: SourceReliability;
 }
 
 export const SearchResultCards: React.FC<SearchResultCardsProps> = ({
   results,
   title = '검색 결과',
+  reliability,
 }) => {
   const [allExpanded, setAllExpanded] = useState(false);
 
@@ -203,6 +288,7 @@ export const SearchResultCards: React.FC<SearchResultCardsProps> = ({
         <span className="search-result-cards-title">
           {title} ({results.length})
         </span>
+        {reliability && <ReliabilityBadge reliability={reliability} />}
         <button
           className="search-result-expand-all"
           onClick={() => setAllExpanded(!allExpanded)}

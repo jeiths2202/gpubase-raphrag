@@ -26,7 +26,8 @@ import type {
   ChunkStructure,
   EmbeddingInfo,
   GenerationProgress,
-  ExpandableSearchResult
+  ExpandableSearchResult,
+  SourceReliability
 } from '../types';
 
 // ============================================================================
@@ -403,6 +404,7 @@ export function useStreamingChat(
       let sources: AgentSource[] = [];
       const images: ImageReference[] = [];
       const searchResults: ExpandableSearchResult[] = [];
+      let sourceReliability: SourceReliability | undefined;
       let receivedAnyChunk = false;
 
       console.log('[useStreamingChat] Starting stream for task:', userMessage.content, 'agent:', requestingAgent);
@@ -543,6 +545,36 @@ export function useStreamingChat(
                 ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, sources }
                 : null
             );
+            break;
+
+          case 'source_reliability':
+            // Source reliability information for search results
+            if (chunk.metadata) {
+              const meta = chunk.metadata as {
+                score?: number;
+                level?: string;
+                factors?: Record<string, number>;
+                explanation?: string;
+              };
+              const reliability: SourceReliability = {
+                score: meta.score ?? 0,
+                level: (meta.level as 'high' | 'medium' | 'low') ?? 'low',
+                factors: {
+                  source_count: meta.factors?.source_count ?? 0,
+                  avg_similarity: meta.factors?.avg_similarity ?? 0,
+                  source_diversity: meta.factors?.source_diversity ?? 0,
+                  source_quality: meta.factors?.source_quality ?? 0,
+                },
+                explanation: meta.explanation ?? '',
+              };
+              sourceReliability = reliability;
+              console.log('[useStreamingChat] Source reliability received:', reliability);
+              updateAgentStreamingMessage(requestingAgent,
+                agentLocalStatesRef.current[requestingAgent].streamingMessage
+                  ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, sourceReliability: reliability }
+                  : null
+              );
+            }
             break;
 
           case 'artifact':
@@ -824,6 +856,7 @@ export function useStreamingChat(
         sources,
         images: images.length > 0 ? images : undefined,
         searchResults: searchResults.length > 0 ? searchResults : undefined,
+        sourceReliability,
         isStreaming: false,
       };
 
