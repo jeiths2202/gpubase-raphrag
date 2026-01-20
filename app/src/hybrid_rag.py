@@ -214,8 +214,16 @@ class HybridRAG:
             if topic_density_results:
                 print(f"    [Topic Density] Found {len(topic_density_results)} results from topic-central documents")
 
-        # Get vector search results with expanded query
-        vector_results = self.vector_rag.search_similar(search_query, k=k)
+        # For comparison queries with multiple concepts, do separate searches
+        # to ensure balanced representation from each concept
+        if len(key_concepts) >= 2:
+            print(f"    [Comparison Query] Performing separate searches for: {key_concepts}")
+            vector_results = self._separate_searches_for_comparison(
+                key_concepts, search_query, k
+            )
+        else:
+            # Single concept or no concepts - use combined query
+            vector_results = self.vector_rag.search_similar(search_query, k=k)
 
         # Merge topic density and vector results
         if topic_density_results:
@@ -223,6 +231,115 @@ class HybridRAG:
             return merged[:k]
 
         return vector_results
+
+    def _separate_searches_for_comparison(
+        self,
+        concepts: List[str],
+        original_query: str,
+        k: int
+    ) -> List[Dict]:
+        """
+        Perform separate vector searches for each concept in a comparison query.
+
+        For a query like "OSC와 OSI 비교", this searches for OSC and OSI separately
+        to ensure balanced representation in results.
+
+        Args:
+            concepts: List of concepts to search (e.g., ['OSC', 'OSI'])
+            original_query: The original/expanded query for context
+            k: Total number of results to return
+
+        Returns:
+            Merged list of results with balanced representation
+        """
+        # Calculate how many results to get from each concept
+        per_concept_k = max(k, 5)  # At least 5 per concept
+
+        all_results = []
+        seen_chunks = set()
+        concept_counts = {c: 0 for c in concepts}
+
+        # Search for each concept separately
+        for concept in concepts:
+            # Create a concept-focused query
+            concept_query = f"{concept} 제품 기능 설명"
+
+            try:
+                results = self.vector_rag.search_similar(concept_query, k=per_concept_k)
+
+                # Tag results with their source concept
+                for r in results:
+                    chunk_id = r.get("chunk_id")
+                    if chunk_id and chunk_id not in seen_chunks:
+                        r["source_concept"] = concept
+                        all_results.append(r)
+                        seen_chunks.add(chunk_id)
+                        concept_counts[concept] += 1
+
+                print(f"    [Comparison] '{concept}': found {concept_counts[concept]} unique chunks")
+
+            except Exception as e:
+                print(f"    [Comparison] Search for '{concept}' failed: {e}")
+
+        # Sort by score but ensure balanced representation
+        # Interleave results from different concepts
+        balanced_results = self._interleave_concept_results(all_results, concepts, k)
+
+        return balanced_results
+
+    def _interleave_concept_results(
+        self,
+        results: List[Dict],
+        concepts: List[str],
+        k: int
+    ) -> List[Dict]:
+        """
+        Interleave results from different concepts to ensure balanced representation.
+
+        Args:
+            results: All search results with 'source_concept' tag
+            concepts: List of concepts
+            k: Number of results to return
+
+        Returns:
+            Interleaved list of results
+        """
+        # Group results by concept
+        by_concept = {c: [] for c in concepts}
+        for r in results:
+            concept = r.get("source_concept")
+            if concept in by_concept:
+                by_concept[concept].append(r)
+
+        # Sort each group by score
+        for concept in concepts:
+            by_concept[concept].sort(key=lambda x: x.get("score", 0), reverse=True)
+
+        # Interleave: take top from each concept in round-robin
+        interleaved = []
+        indices = {c: 0 for c in concepts}
+        target_per_concept = k // len(concepts)
+
+        while len(interleaved) < k:
+            added_any = False
+            for concept in concepts:
+                idx = indices[concept]
+                if idx < len(by_concept[concept]) and idx < target_per_concept + 2:
+                    interleaved.append(by_concept[concept][idx])
+                    indices[concept] += 1
+                    added_any = True
+                    if len(interleaved) >= k:
+                        break
+            if not added_any:
+                break
+
+        # If we haven't filled k results, add remaining by score
+        if len(interleaved) < k:
+            remaining = [r for r in results if r not in interleaved]
+            remaining.sort(key=lambda x: x.get("score", 0), reverse=True)
+            interleaved.extend(remaining[:k - len(interleaved)])
+
+        return interleaved[:k]
 
     def _merge_topic_density_with_vector(
         self,
