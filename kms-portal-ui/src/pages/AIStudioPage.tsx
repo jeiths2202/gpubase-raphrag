@@ -128,6 +128,7 @@ const getColorForType = (type: VisualNodeType): string => {
 };
 
 // Calculate radial layout positions for nodes
+// Adds padding to ensure nodes don't get clipped at canvas edges
 const calculateNodePositions = (
   nodes: ApiMindmapNode[],
   edges: { source: string; target: string }[],
@@ -138,6 +139,9 @@ const calculateNodePositions = (
   const positions = new Map<string, { x: number; y: number }>();
 
   if (nodes.length === 0) return positions;
+
+  // Padding to prevent nodes from being clipped at edges
+  const padding = 150;
 
   // Build adjacency list
   const adjacency = new Map<string, string[]>();
@@ -177,10 +181,14 @@ const calculateNodePositions = (
     nodesByLevel.get(level)!.push(nodeId);
   });
 
-  // Position nodes radially
-  const centerX = canvasWidth / 2;
-  const centerY = canvasHeight / 2;
+  // Calculate the maximum level to determine required space
+  const maxLevel = Math.max(...Array.from(levels.values()), 0);
   const levelRadius = 150;
+  const requiredRadius = maxLevel * levelRadius + padding;
+
+  // Position nodes radially with center adjusted for padding
+  const centerX = Math.max(canvasWidth / 2, requiredRadius + padding);
+  const centerY = Math.max(canvasHeight / 2, requiredRadius + padding);
 
   nodesByLevel.forEach((nodeIds, level) => {
     if (level === 0) {
@@ -205,8 +213,8 @@ const calculateNodePositions = (
   nodes.forEach((node, index) => {
     if (!positions.has(node.id)) {
       positions.set(node.id, {
-        x: 100 + (index % 5) * 150,
-        y: 100 + Math.floor(index / 5) * 100,
+        x: padding + 100 + (index % 5) * 150,
+        y: padding + 100 + Math.floor(index / 5) * 100,
       });
     }
   });
@@ -867,19 +875,68 @@ export const AIStudioPage: React.FC = () => {
         {!mindmap ? (
           renderEmptyState()
         ) : (
-          <svg
-            className="studio-svg"
-            style={{
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`
-            }}
-          >
-            <g className="mindmap-connections">
-              {renderConnections()}
-            </g>
-            <g className="mindmap-nodes">
-              {renderNodes()}
-            </g>
-          </svg>
+          (() => {
+            // Calculate bounds of all nodes to create appropriate viewBox
+            const nodeList = Object.values(mindmap.nodes);
+            const viewBoxPadding = 120; // Extra padding around content
+            const nodeHalfWidth = 80; // Half of max node width
+            const nodeHalfHeight = 30; // Half of max node height
+
+            // Default viewBox for empty or single node mindmaps
+            if (nodeList.length === 0) {
+              return (
+                <svg
+                  className="studio-svg"
+                  viewBox="0 0 800 600"
+                  preserveAspectRatio="xMidYMid meet"
+                  style={{
+                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`
+                  }}
+                >
+                  <g className="mindmap-connections">
+                    {renderConnections()}
+                  </g>
+                  <g className="mindmap-nodes">
+                    {renderNodes()}
+                  </g>
+                </svg>
+              );
+            }
+
+            let minX = Infinity, maxX = -Infinity;
+            let minY = Infinity, maxY = -Infinity;
+
+            nodeList.forEach(node => {
+              minX = Math.min(minX, node.x - nodeHalfWidth);
+              maxX = Math.max(maxX, node.x + nodeHalfWidth);
+              minY = Math.min(minY, node.y - nodeHalfHeight);
+              maxY = Math.max(maxY, node.y + nodeHalfHeight);
+            });
+
+            // Ensure minimum dimensions and add padding
+            const viewBoxX = minX - viewBoxPadding;
+            const viewBoxY = minY - viewBoxPadding;
+            const viewBoxWidth = Math.max(400, (maxX - minX) + viewBoxPadding * 2);
+            const viewBoxHeight = Math.max(300, (maxY - minY) + viewBoxPadding * 2);
+
+            return (
+              <svg
+                className="studio-svg"
+                viewBox={`${viewBoxX} ${viewBoxY} ${viewBoxWidth} ${viewBoxHeight}`}
+                preserveAspectRatio="xMidYMid meet"
+                style={{
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`
+                }}
+              >
+                <g className="mindmap-connections">
+                  {renderConnections()}
+                </g>
+                <g className="mindmap-nodes">
+                  {renderNodes()}
+                </g>
+              </svg>
+            );
+          })()
         )}
 
         {/* Node Editor Panel */}

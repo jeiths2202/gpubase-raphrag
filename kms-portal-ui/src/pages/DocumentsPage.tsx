@@ -5,7 +5,7 @@
  * Follows AdminDashboardPage tab pattern.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FileText,
   Settings,
@@ -38,6 +38,7 @@ import {
   Database,
   Shield,
   Layers,
+  FolderOpen,
 } from 'lucide-react';
 import { AdaptiveDocuments } from '../components/AdaptiveDocuments';
 import {
@@ -1904,9 +1905,11 @@ interface UploadStatus {
   estimated_completion?: string;
 }
 
+// Supported file extensions for document upload
+const SUPPORTED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.md', '.csv', '.json', '.png', '.jpg', '.jpeg', '.gif', '.html'];
+
 const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess }) => {
-  const [file, setFile] = useState<File | null>(null);
-  const [displayName, setDisplayName] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
   const [language, setLanguage] = useState('auto');
   const [processingMode, setProcessingMode] = useState('text_only');
   const [enableVlm, setEnableVlm] = useState(false);
@@ -1916,133 +1919,239 @@ const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess })
   const [dragOver, setDragOver] = useState(false);
 
   // Progress tracking state
-  const [taskId, setTaskId] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Batch upload progress
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [uploadResults, setUploadResults] = useState<{success: number; failed: number}>({success: 0, failed: 0});
+
+  // Refs for file inputs
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+
+  const isValidFile = (file: File): boolean => {
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+    return SUPPORTED_EXTENSIONS.includes(ext);
+  };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) {
-      setFile(droppedFile);
-      if (!displayName) {
-        setDisplayName(droppedFile.name.replace(/\.[^/.]+$/, ''));
-      }
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    const validFiles = droppedFiles.filter(isValidFile);
+
+    if (validFiles.length === 0) {
+      setError('No valid files found. Supported formats: PDF, Word, Excel, PowerPoint, Text, Images');
+      return;
     }
+
+    setFiles(prev => {
+      const existingNames = new Set(prev.map(f => f.name));
+      const newFiles = validFiles.filter(f => !existingNames.has(f.name));
+      return [...prev, ...newFiles];
+    });
+    setError(null);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      if (!displayName) {
-        setDisplayName(selectedFile.name.replace(/\.[^/.]+$/, ''));
-      }
+    const selectedFiles = e.target.files;
+    if (!selectedFiles || selectedFiles.length === 0) return;
+
+    const validFiles = Array.from(selectedFiles).filter(isValidFile);
+
+    if (validFiles.length === 0) {
+      setError('No valid files found. Supported formats: PDF, Word, Excel, PowerPoint, Text, Images');
+      return;
+    }
+
+    setFiles(prev => {
+      const existingNames = new Set(prev.map(f => f.name));
+      const newFiles = validFiles.filter(f => !existingNames.has(f.name));
+      return [...prev, ...newFiles];
+    });
+    setError(null);
+
+    // Reset input value to allow selecting same files again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
-  // Poll for upload status
-  useEffect(() => {
-    if (!taskId || !isProcessing) return;
+  const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = e.target.files;
+    if (!selectedFiles || selectedFiles.length === 0) return;
 
-    const pollStatus = async () => {
-      try {
-        const response = await fetch(`/api/v1/documents/upload-status/${taskId}`, {
-          credentials: 'include',
-        });
+    const validFiles = Array.from(selectedFiles).filter(isValidFile);
 
-        if (!response.ok) {
-          console.error('Failed to fetch upload status');
-          return;
+    if (validFiles.length === 0) {
+      setError('No valid files found in folder. Supported formats: PDF, Word, Excel, PowerPoint, Text, Images');
+      return;
+    }
+
+    setFiles(prev => {
+      const existingNames = new Set(prev.map(f => f.name));
+      const newFiles = validFiles.filter(f => !existingNames.has(f.name));
+      return [...prev, ...newFiles];
+    });
+    setError(null);
+
+    // Reset input value
+    if (folderInputRef.current) {
+      folderInputRef.current.value = '';
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const clearAllFiles = () => {
+    setFiles([]);
+  };
+
+  // Upload a single file and return task_id
+  const uploadSingleFile = async (file: File): Promise<string | null> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', file.name.replace(/\.[^/.]+$/, ''));
+    formData.append('language', language);
+    formData.append('processing_mode', processingMode);
+    formData.append('enable_vlm', enableVlm.toString());
+    if (tags) formData.append('tags', tags);
+
+    const response = await fetch('/api/v1/documents', {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const result = await response.json();
+      throw new Error(result.error?.message || `Upload failed: HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data?.task_id || null;
+  };
+
+  // Wait for task to complete
+  const waitForTaskCompletion = async (taskId: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const poll = async () => {
+        try {
+          const response = await fetch(`/api/v1/documents/upload-status/${taskId}`, {
+            credentials: 'include',
+          });
+
+          if (!response.ok) {
+            resolve(false);
+            return;
+          }
+
+          const result = await response.json();
+          const status = result.data as UploadStatus;
+          setUploadStatus(status);
+
+          if (status.status === 'ready' || status.progress.overall_progress >= 100) {
+            resolve(true);
+          } else if (status.status === 'error') {
+            resolve(false);
+          } else {
+            setTimeout(poll, 800);
+          }
+        } catch (err) {
+          console.error('Error polling status:', err);
+          resolve(false);
         }
-
-        const result = await response.json();
-        const status = result.data as UploadStatus;
-        setUploadStatus(status);
-
-        // Check if processing is complete
-        if (status.status === 'ready' || status.progress.overall_progress >= 100) {
-          setIsProcessing(false);
-          setTimeout(() => {
-            onSuccess();
-          }, 500);
-        } else if (status.status === 'error') {
-          setIsProcessing(false);
-          setError('Document processing failed');
-        }
-      } catch (err) {
-        console.error('Error polling status:', err);
-      }
-    };
-
-    // Poll every 800ms
-    const interval = setInterval(pollStatus, 800);
-    // Initial poll
-    pollStatus();
-
-    return () => clearInterval(interval);
-  }, [taskId, isProcessing, onSuccess]);
+      };
+      poll();
+    });
+  };
 
   const handleUpload = async () => {
-    if (!file) {
-      setError('Please select a file to upload');
+    if (files.length === 0) {
+      setError('Please select files to upload');
       return;
     }
 
     setUploading(true);
+    setIsProcessing(true);
     setError(null);
+    setTotalFiles(files.length);
+    setCurrentFileIndex(0);
+    setUploadResults({ success: 0, failed: 0 });
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      if (displayName) formData.append('name', displayName);
-      formData.append('language', language);
-      formData.append('processing_mode', processingMode);
-      formData.append('enable_vlm', enableVlm.toString());
-      if (tags) formData.append('tags', tags);
+    let successCount = 0;
+    let failCount = 0;
 
-      const response = await fetch('/api/v1/documents', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setCurrentFileIndex(i);
+
+      // Initialize progress display for current file
+      setUploadStatus({
+        task_id: '',
+        document_id: '',
+        status: 'processing',
+        progress: {
+          current_step: 'uploading',
+          steps: [
+            { name: 'uploading', status: 'in_progress', progress: 0 },
+            { name: 'parsing', status: 'pending', progress: 0 },
+            { name: 'chunking', status: 'pending', progress: 0 },
+            { name: 'embedding', status: 'pending', progress: 0 },
+          ],
+          overall_progress: 0,
+        },
+        started_at: new Date().toISOString(),
       });
 
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error?.message || `Upload failed: HTTP ${response.status}`);
+      try {
+        const taskId = await uploadSingleFile(file);
+
+        if (taskId) {
+          // Update upload step as completed
+          setUploadStatus(prev => prev ? {
+            ...prev,
+            task_id: taskId,
+            progress: {
+              ...prev.progress,
+              steps: prev.progress.steps.map(s =>
+                s.name === 'uploading' ? { ...s, status: 'completed', progress: 100 } : s
+              ),
+              overall_progress: 10,
+            }
+          } : prev);
+
+          const success = await waitForTaskCompletion(taskId);
+          if (success) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } else {
+          successCount++;
+        }
+      } catch (err) {
+        console.error(`Failed to upload ${file.name}:`, err);
+        failCount++;
       }
 
-      const result = await response.json();
-      const uploadedTaskId = result.data?.task_id;
+      setUploadResults({ success: successCount, failed: failCount });
+    }
 
-      if (uploadedTaskId) {
-        setTaskId(uploadedTaskId);
-        setIsProcessing(true);
-        setUploading(false);
-        // Initialize progress display
-        setUploadStatus({
-          task_id: uploadedTaskId,
-          document_id: result.data?.document_id || '',
-          status: 'processing',
-          progress: {
-            current_step: 'uploading',
-            steps: [
-              { name: 'uploading', status: 'completed', progress: 100 },
-              { name: 'parsing', status: 'pending', progress: 0 },
-              { name: 'chunking', status: 'pending', progress: 0 },
-              { name: 'embedding', status: 'pending', progress: 0 },
-            ],
-            overall_progress: 10,
-          },
-          started_at: new Date().toISOString(),
-        });
-      } else {
-        // No task_id returned, just call success
+    setUploading(false);
+    setIsProcessing(false);
+
+    // Show completion message briefly then close
+    if (successCount > 0) {
+      setTimeout(() => {
         onSuccess();
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      }, 1000);
+    } else {
+      setError(`All ${failCount} file(s) failed to upload`);
       setUploading(false);
     }
   };
@@ -2072,9 +2181,9 @@ const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess })
 
   return (
     <div className="modal-overlay" onClick={isProcessing ? undefined : onClose}>
-      <div className="modal-content modal-content--medium" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content modal-content--large" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>{isProcessing ? 'Processing Document' : 'Upload Document'}</h2>
+          <h2>{isProcessing ? `Processing Documents (${currentFileIndex + 1}/${totalFiles})` : 'Upload Documents'}</h2>
           {!isProcessing && (
             <button className="modal-close" onClick={onClose}>
               <X size={20} />
@@ -2087,18 +2196,39 @@ const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess })
           {/* Progress View - shown during processing */}
           {isProcessing && uploadStatus && (
             <div className="upload-progress-container">
-              {/* File info */}
+              {/* Batch progress header */}
+              {totalFiles > 1 && (
+                <div className="upload-batch-progress">
+                  <div className="upload-batch-progress-header">
+                    <span>Overall Progress: {currentFileIndex + 1} of {totalFiles} files</span>
+                    <span className="upload-batch-stats">
+                      <CheckCircle size={14} className="text-success" /> {uploadResults.success} succeeded
+                      {uploadResults.failed > 0 && (
+                        <> | <XCircle size={14} className="text-error" /> {uploadResults.failed} failed</>
+                      )}
+                    </span>
+                  </div>
+                  <div className="upload-progress-bar">
+                    <div
+                      className="upload-progress-bar-fill"
+                      style={{ width: `${((currentFileIndex) / totalFiles) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Current file info */}
               <div className="upload-progress-file">
                 <FileText size={24} />
                 <div className="upload-progress-file-info">
-                  <span className="upload-progress-filename">{file?.name}</span>
+                  <span className="upload-progress-filename">{files[currentFileIndex]?.name || 'Processing...'}</span>
                   <span className="upload-progress-status">
                     {uploadStatus.status === 'ready' ? 'Completed' : 'Processing...'}
                   </span>
                 </div>
               </div>
 
-              {/* Overall progress bar */}
+              {/* Current file progress bar */}
               <div className="upload-progress-bar-container">
                 <div className="upload-progress-bar">
                   <div
@@ -2149,56 +2279,102 @@ const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess })
             <>
               {/* Drop Zone */}
               <div
-                className={`upload-dropzone ${dragOver ? 'upload-dropzone--active' : ''} ${file ? 'upload-dropzone--has-file' : ''}`}
+                className={`upload-dropzone ${dragOver ? 'upload-dropzone--active' : ''} ${files.length > 0 ? 'upload-dropzone--has-file' : ''}`}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleDrop}
-                onClick={() => document.getElementById('file-input')?.click()}
               >
                 <input
+                  ref={fileInputRef}
                   id="file-input"
                   type="file"
+                  multiple
                   onChange={handleFileSelect}
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.gif,.html"
                   style={{ display: 'none' }}
                 />
-                {file ? (
-                  <div className="upload-file-preview">
-                    <FileText size={32} />
-                    <div className="upload-file-info">
-                      <span className="upload-file-name">{file.name}</span>
-                      <span className="upload-file-size">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                    </div>
-                    <button
-                      className="upload-file-remove"
-                      onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                ) : (
+                <input
+                  ref={folderInputRef}
+                  id="folder-input"
+                  type="file"
+                  {...{ webkitdirectory: "", directory: "" } as React.InputHTMLAttributes<HTMLInputElement>}
+                  multiple
+                  onChange={handleFolderSelect}
+                  style={{ display: 'none' }}
+                />
+                {files.length === 0 ? (
                   <>
                     <Upload size={40} strokeWidth={1} />
-                    <p>Drag & drop a file here, or click to browse</p>
+                    <p>Drag & drop files here</p>
                     <span className="upload-hint">
                       Supports: PDF, Word, Excel, PowerPoint, Text, Images
                     </span>
+                    <div className="upload-buttons">
+                      <button
+                        className="btn btn--secondary btn--sm"
+                        onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                      >
+                        <Upload size={14} />
+                        Select Files
+                      </button>
+                      <button
+                        className="btn btn--secondary btn--sm"
+                        onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click(); }}
+                      >
+                        <FolderOpen size={14} />
+                        Select Folder
+                      </button>
+                    </div>
                   </>
+                ) : (
+                  <div className="upload-file-list-container" onClick={(e) => e.stopPropagation()}>
+                    <div className="upload-file-list-header">
+                      <span>{files.length} file(s) selected</span>
+                      <div className="upload-file-list-actions">
+                        <button
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <Plus size={14} />
+                          Add Files
+                        </button>
+                        <button
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => folderInputRef.current?.click()}
+                        >
+                          <FolderOpen size={14} />
+                          Add Folder
+                        </button>
+                        <button
+                          className="btn btn--ghost btn--sm text-error"
+                          onClick={clearAllFiles}
+                        >
+                          <Trash2 size={14} />
+                          Clear All
+                        </button>
+                      </div>
+                    </div>
+                    <div className="upload-file-list">
+                      {files.map((file, index) => (
+                        <div key={`${file.name}-${index}`} className="upload-file-item">
+                          <FileText size={16} />
+                          <span className="upload-file-item-name" title={file.name}>{file.name}</span>
+                          <span className="upload-file-item-size">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                          <button
+                            className="upload-file-item-remove"
+                            onClick={() => removeFile(index)}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
 
               {/* Upload Options */}
               <div className="upload-options">
-                <div className="form-group">
-                  <label>Display Name</label>
-                  <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Optional display name"
-                  />
-                </div>
-
                 <div className="form-row">
                   <div className="form-group">
                     <label>Language</label>
@@ -2248,7 +2424,7 @@ const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess })
           {isProcessing ? (
             <div className="upload-progress-footer">
               <span className="upload-progress-footer-text">
-                Please wait while the document is being processed...
+                Processing {currentFileIndex + 1} of {totalFiles} documents...
               </span>
             </div>
           ) : (
@@ -2256,7 +2432,7 @@ const DocumentUploadModal: React.FC<UploadModalProps> = ({ onClose, onSuccess })
               <button className="btn btn--secondary" onClick={onClose} disabled={uploading}>
                 Cancel
               </button>
-              <button className="btn btn--primary" onClick={handleUpload} disabled={uploading || !file}>
+              <button className="btn btn--primary" onClick={handleUpload} disabled={uploading || files.length === 0}>
                 {uploading ? (
                   <>
                     <Loader2 size={16} className="spinning" />
