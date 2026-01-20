@@ -36,7 +36,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 from .admin_dashboard.router import router as admin_dashboard_router
 
@@ -241,6 +241,53 @@ async def lifespan(app: FastAPI):
         init_rag_config_service(db_pool)
         logger.info(
             "[OK] RAG Config service initialized",
+            category=LogCategory.BUSINESS
+        )
+
+        # ==================== RAG Evaluation Service Initialization ====================
+        from .repositories.rag_evaluation_repository import (
+            RAGEvaluationRepository,
+            set_rag_evaluation_repository
+        )
+        from .services.rag_evaluation_service import (
+            RAGEvaluationService,
+            set_rag_evaluation_service
+        )
+
+        rag_eval_repo = RAGEvaluationRepository.from_pool(db_pool)
+        await rag_eval_repo._ensure_table_exists()
+        set_rag_evaluation_repository(rag_eval_repo)
+
+        # Initialize service with repository
+        rag_eval_service = RAGEvaluationService(repository=rag_eval_repo)
+        set_rag_evaluation_service(rag_eval_service)
+
+        container.register_singleton("rag_evaluation_repository", rag_eval_repo)
+        container.register_singleton("rag_evaluation_service", rag_eval_service)
+
+        logger.info(
+            "[OK] RAG Evaluation service initialized (RAGAS-style metrics)",
+            category=LogCategory.BUSINESS
+        )
+
+        # ==================== User Feedback Service Initialization ====================
+        from .repositories.user_feedback_repository import (
+            initialize_user_feedback_repository
+        )
+        from .services.user_feedback_service import (
+            initialize_user_feedback_service
+        )
+
+        user_feedback_repo = initialize_user_feedback_repository(db_pool=db_pool)
+        user_feedback_service = initialize_user_feedback_service(
+            repository=user_feedback_repo,
+        )
+
+        container.register_singleton("user_feedback_repository", user_feedback_repo)
+        container.register_singleton("user_feedback_service", user_feedback_service)
+
+        logger.info(
+            "[OK] User Feedback service initialized (👍/👎, HITL, consistency)",
             category=LogCategory.BUSINESS
         )
 
@@ -497,6 +544,10 @@ app.include_router(enhancements.router, prefix=API_PREFIX)  # AI-Driven Enhancem
 app.include_router(images.router, prefix=API_PREFIX)  # Multimodal RAG image search and retrieval
 app.include_router(adaptive_documents.router)  # Adaptive PDF embedding (structure-preserving chunking)
 app.include_router(auto_agent.router, prefix=API_PREFIX)  # Auto Agent meta-orchestration (Planner + Verifier)
+app.include_router(rag_evaluation.router, prefix=API_PREFIX)  # RAG Evaluation (RAGAS-style quality metrics)
+app.include_router(user_feedback.router, prefix=API_PREFIX)  # User Feedback (👍/👎, HITL, consistency)
+app.include_router(analytics_dashboard.router, prefix=API_PREFIX)  # Real-time Analytics Dashboard
+app.include_router(context_management.router, prefix=API_PREFIX)  # Long Context Management (32K+ tokens)
 
 
 # Root endpoint

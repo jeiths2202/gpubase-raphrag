@@ -140,6 +140,22 @@ class ConversationRepository(BaseRepository[ConversationEntity]):
         pass
 
     @abstractmethod
+    async def get_by_session(
+        self,
+        session_id: str
+    ) -> Optional[ConversationEntity]:
+        """
+        Get conversation by session ID.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Conversation entity or None if not found
+        """
+        pass
+
+    @abstractmethod
     async def search(
         self,
         user_id: str,

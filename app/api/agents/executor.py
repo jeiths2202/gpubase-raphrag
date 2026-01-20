@@ -1753,8 +1753,108 @@ User Query: {task}"""
                 }
             )
             logger.info(f"[Executor] Yielded reliability: score={reliability.score}, level={reliability.level.value}")
+
+            # RAG Evaluation: 자동 평가 (설정 활성화 시)
+            from ..core.config import api_settings
+            if getattr(api_settings, 'RAG_EVALUATION_AUTO_EVALUATE', False):
+                try:
+                    from ..services.rag_evaluation_service import get_rag_evaluation_service
+                    from ..models.rag_evaluation import SourceInput
+
+                    eval_service = get_rag_evaluation_service()
+                    if eval_service and answer and sources:
+                        # 소스 변환
+                        source_inputs = [
+                            SourceInput(
+                                content=s.get("content", "")[:2000],  # 2000자 제한
+                                score=s.get("score") or s.get("similarity"),
+                                source=s.get("source"),
+                                doc_id=s.get("doc_id"),
+                            )
+                            for s in sources[:5]  # 상위 5개만 평가
+                            if s.get("content")
+                        ]
+
+                        if source_inputs:
+                            # 진행 상태 알림
+                            yield AgentStreamChunk(
+                                chunk_type="rag_evaluation_progress",
+                                content="RAG 응답 품질 평가 중...",
+                                metadata={"status": "evaluating"}
+                            )
+
+                            # 평가 수행
+                            evaluation = await eval_service.evaluate(
+                                query=task,
+                                answer=answer[:3000],  # 3000자 제한
+                                sources=source_inputs,
+                                language=language,
+                                user_id=context.user_id or "anonymous",
+                            )
+
+                            # 평가 결과 전송
+                            yield AgentStreamChunk(
+                                chunk_type="rag_evaluation",
+                                metadata={
+                                    "evaluation_id": evaluation.evaluation_id,
+                                    "overall_score": evaluation.overall_score,
+                                    "overall_level": evaluation.overall_level.value,
+                                    "metrics": {
+                                        k.value: {
+                                            "score": v.score,
+                                            "explanation": v.explanation
+                                        }
+                                        for k, v in evaluation.metrics.items()
+                                    },
+                                    "issues": evaluation.issues[:3],  # 상위 3개 이슈
+                                    "evaluation_time_ms": evaluation.evaluation_time_ms,
+                                }
+                            )
+                            logger.info(
+                                f"[Executor] RAG evaluation: score={evaluation.overall_score}, "
+                                f"level={evaluation.overall_level.value}"
+                            )
+                except Exception as eval_error:
+                    logger.warning(f"[Executor] RAG evaluation failed (non-fatal): {eval_error}")
         else:
             print(f"[Executor] No sources to yield", flush=True)
+
+        # User Feedback Prompt: message_id와 함께 피드백 UI 표시 요청
+        # 프론트엔드에서 이 chunk를 받으면 👍/👎 버튼을 표시
+        if answer:
+            import uuid
+            response_message_id = str(uuid.uuid4())  # 메시지 고유 ID 생성
+            yield AgentStreamChunk(
+                chunk_type="feedback_prompt",
+                metadata={
+                    "message_id": response_message_id,
+                    "query": task[:500] if task else "",
+                    "answer_preview": answer[:200] if answer else "",
+                    "sources_count": len(sources) if sources else 0,
+                    "enable_quick_feedback": True,  # 👍/👎 버튼 활성화
+                    "enable_detailed_feedback": True,  # 상세 피드백 옵션 활성화
+                    "enable_citation_feedback": bool(sources),  # 출처 피드백 활성화
+                }
+            )
+            logger.info(f"[Executor] Yielded feedback prompt: message_id={response_message_id}")
+
+        # Enhanced Citations: 출처 정보에 표시 포맷 추가
+        if sources:
+            try:
+                from ..services.user_feedback_service import get_user_feedback_service
+                feedback_service = get_user_feedback_service()
+                if feedback_service:
+                    enhanced = feedback_service.enhance_citations(sources[:10])
+                    yield AgentStreamChunk(
+                        chunk_type="enhanced_citations",
+                        metadata={
+                            "citations": [c.model_dump() for c in enhanced],
+                            "total_sources": len(sources),
+                        }
+                    )
+                    logger.info(f"[Executor] Yielded {len(enhanced)} enhanced citations")
+            except Exception as cite_err:
+                logger.warning(f"[Executor] Enhanced citations failed (non-fatal): {cite_err}")
 
         yield AgentStreamChunk(
             chunk_type="done",

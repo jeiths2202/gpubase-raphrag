@@ -61,16 +61,16 @@ class ConversationService:
     - Audit logging for compliance
     """
 
-    # Summarization thresholds
-    SUMMARIZE_THRESHOLD_TOKENS = 6000
-    SUMMARY_TARGET_TOKENS = 500
-    KEEP_RECENT_TURNS = 6  # Keep last N user-assistant turn pairs
+    # Summarization thresholds (optimized for 32K context)
+    SUMMARIZE_THRESHOLD_TOKENS = 24000  # Start summarizing at 75% of 32K
+    SUMMARY_TARGET_TOKENS = 1000        # Allow more detailed summaries
+    KEEP_RECENT_TURNS = 10              # Keep more recent turns
 
-    # Context window defaults
-    DEFAULT_MAX_TOKENS = 8000
-    RESERVED_FOR_RESPONSE = 2000
-    SYSTEM_PROMPT_TOKENS = 500
-    RAG_CONTEXT_TOKENS = 2000
+    # Context window defaults (32K support)
+    DEFAULT_MAX_TOKENS = 32000          # 32K context window
+    RESERVED_FOR_RESPONSE = 4096        # Reserve for response generation
+    SYSTEM_PROMPT_TOKENS = 1000         # System prompt budget
+    RAG_CONTEXT_TOKENS = 8000           # RAG context budget
 
     def __init__(
         self,
@@ -884,6 +884,114 @@ Always cite sources when available."""
             (self._entity_to_list_item(conv), score)
             for conv, score in results
         ]
+
+    # ==================== Session-based Methods (for Memory Manager) ====================
+
+    async def get_recent_messages(
+        self,
+        session_id: str,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Get recent messages for a session (for AutoAgentMemoryManager).
+
+        Args:
+            session_id: Session identifier
+            limit: Maximum number of messages to return
+
+        Returns:
+            List of message dicts with 'role' and 'content' keys
+        """
+        try:
+            # Find conversation by session_id
+            conversation = await self._repository.get_by_session(session_id)
+            if not conversation:
+                logger.debug(f"No conversation found for session_id: {session_id}")
+                return []
+
+            # Get active branch messages
+            message_entities = await self._repository.get_active_branch_messages(
+                conversation.id,
+                limit=limit
+            )
+
+            # Convert to simple dict format expected by memory manager
+            return [
+                {
+                    "role": entity.role,
+                    "content": entity.content,
+                    "question": entity.content if entity.role == "user" else None,
+                    "answer": entity.content if entity.role == "assistant" else None,
+                }
+                for entity in message_entities
+            ]
+        except Exception as e:
+            logger.error(f"Failed to get recent messages for session {session_id}: {e}")
+            return []
+
+    async def get_conversation_summary(
+        self,
+        session_id: str
+    ) -> Optional[str]:
+        """
+        Get conversation summary for a session (for AutoAgentMemoryManager).
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Summary text or None if not found
+        """
+        try:
+            # Find conversation by session_id
+            conversation = await self._repository.get_by_session(session_id)
+            if not conversation:
+                return None
+
+            # Get latest summary
+            summary = await self._repository.get_latest_summary(conversation.id)
+            return summary.summary_text if summary else None
+        except Exception as e:
+            logger.error(f"Failed to get conversation summary for session {session_id}: {e}")
+            return None
+
+    async def add_message(
+        self,
+        session_id: str,
+        role: str,
+        content: str
+    ) -> bool:
+        """
+        Add a message to a session conversation (for AutoAgentMemoryManager).
+
+        Args:
+            session_id: Session identifier
+            role: Message role ('user' or 'assistant')
+            content: Message content
+
+        Returns:
+            True if successful
+        """
+        try:
+            # Find conversation by session_id
+            conversation = await self._repository.get_by_session(session_id)
+            if not conversation:
+                logger.warning(f"No conversation found for session_id: {session_id}")
+                return False
+
+            # Add message using repository
+            await self._repository.add_message(
+                conversation_id=conversation.id,
+                role=role,
+                content=content,
+                input_tokens=self.count_tokens(content) if role == "user" else 0,
+                output_tokens=self.count_tokens(content) if role == "assistant" else 0,
+                total_tokens=self.count_tokens(content)
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add message for session {session_id}: {e}")
+            return False
 
     # ==================== Statistics ====================
 

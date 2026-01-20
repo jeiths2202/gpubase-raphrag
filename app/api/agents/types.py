@@ -216,7 +216,14 @@ class AgentStreamChunk(BaseModel):
         # Individual search result for expandable card display
         "search_result",     # 개별 검색 결과 (텍스트, 이미지, 테이블 포함)
         # Source reliability for search result credibility
-        "source_reliability" # 출처 신뢰도 정보
+        "source_reliability", # 출처 신뢰도 정보
+        # RAG Evaluation chunk types (RAGAS-style quality metrics)
+        "rag_evaluation",     # RAG 평가 결과 (종합 점수, 메트릭별 점수, 이슈)
+        "rag_evaluation_progress",  # RAG 평가 진행 중 (메트릭별 진행 상태)
+        # User feedback prompt
+        "feedback_prompt",    # 피드백 요청 (message_id와 함께 UI에 👍/👎 버튼 표시)
+        # Enhanced citation display
+        "enhanced_citations"  # 강화된 출처 정보 (피드백 점수, 표시 포맷 포함)
     ]
     content: Optional[str] = None
     tool_name: Optional[str] = None

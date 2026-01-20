@@ -36,6 +36,14 @@ except ImportError:
     DEEPAGENTS_BACKENDS_AVAILABLE = False
     logger.warning("Deep Agents backends not available.")
 
+# Check for Neo4j availability (using langchain_neo4j pattern)
+try:
+    from langchain_neo4j import Neo4jGraph
+    NEO4J_AVAILABLE = True
+except ImportError:
+    NEO4J_AVAILABLE = False
+    logger.info("langchain_neo4j not available, will use file-based storage")
+
 
 class Neo4jMemoryStore:
     """
@@ -43,6 +51,9 @@ class Neo4jMemoryStore:
 
     Stores memory items in Neo4j graph database for durability
     and enables cross-session persistence.
+
+    Auto-connects to Neo4j using environment variables (NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD).
+    Falls back to file-based storage if Neo4j is unavailable.
     """
 
     def __init__(
@@ -54,34 +65,66 @@ class Neo4jMemoryStore:
         Initialize Neo4j memory store.
 
         Args:
-            driver: Neo4j driver instance
+            driver: Neo4j driver instance (optional, will auto-connect if not provided)
             database: Database name to use
         """
         self._driver = driver
+        self._graph: Optional[Any] = None  # Neo4jGraph instance
         self._database = database
         self._initialized = False
+        self._use_neo4j = False
+
+    def _get_neo4j_graph(self) -> Optional[Any]:
+        """Get or create Neo4jGraph instance using environment variables."""
+        if self._graph is not None:
+            return self._graph
+
+        if not NEO4J_AVAILABLE:
+            return None
+
+        try:
+            neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+            neo4j_user = os.getenv("NEO4J_USER", "neo4j")
+            neo4j_password = os.getenv("NEO4J_PASSWORD", "")
+
+            if not neo4j_password:
+                logger.info("NEO4J_PASSWORD not set, using file-based storage")
+                return None
+
+            self._graph = Neo4jGraph(
+                url=neo4j_uri,
+                username=neo4j_user,
+                password=neo4j_password
+            )
+            logger.info(f"Connected to Neo4j at {neo4j_uri} for memory storage")
+            return self._graph
+        except Exception as e:
+            logger.warning(f"Failed to connect to Neo4j: {e}, using file-based storage")
+            return None
 
     async def initialize(self):
         """Initialize the store and create necessary indexes."""
         if self._initialized:
             return
 
-        if self._driver is None:
-            logger.warning("Neo4j driver not provided, using file-based fallback")
+        graph = self._get_neo4j_graph()
+        if graph is None:
+            logger.info("Using file-based storage for agent memory")
             return
 
         try:
-            # Create memory node index
-            async with self._driver.session(database=self._database) as session:
-                await session.run("""
-                    CREATE INDEX memory_namespace_key IF NOT EXISTS
-                    FOR (m:AgentMemory)
-                    ON (m.namespace, m.key)
-                """)
+            # Create memory node index using Neo4jGraph
+            graph.query("""
+                CREATE INDEX memory_namespace_key IF NOT EXISTS
+                FOR (m:AgentMemory)
+                ON (m.namespace, m.key)
+            """)
+            self._use_neo4j = True
             self._initialized = True
             logger.info("Neo4j memory store initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize Neo4j memory store: {e}")
+            logger.warning(f"Failed to initialize Neo4j memory store: {e}, using file fallback")
+            self._use_neo4j = False
 
     async def put(
         self,
@@ -99,25 +142,25 @@ class Neo4jMemoryStore:
             value: Value to store (dict)
             user_id: Optional user ID for user-specific memories
         """
-        if self._driver is None:
+        graph = self._get_neo4j_graph()
+        if graph is None or not self._use_neo4j:
             await self._put_file_fallback(namespace, key, value, user_id)
             return
 
         try:
-            async with self._driver.session(database=self._database) as session:
-                await session.run("""
-                    MERGE (m:AgentMemory {namespace: $namespace, key: $key})
-                    SET m.value = $value,
-                        m.user_id = $user_id,
-                        m.updated_at = datetime()
-                """, {
-                    "namespace": namespace,
-                    "key": key,
-                    "value": json.dumps(value),
-                    "user_id": user_id
-                })
+            graph.query("""
+                MERGE (m:AgentMemory {namespace: $namespace, key: $key})
+                SET m.value = $value,
+                    m.user_id = $user_id,
+                    m.updated_at = datetime()
+            """, {
+                "namespace": namespace,
+                "key": key,
+                "value": json.dumps(value),
+                "user_id": user_id
+            })
         except Exception as e:
-            logger.error(f"Failed to store memory: {e}")
+            logger.error(f"Failed to store memory in Neo4j: {e}")
             # Fallback to file storage
             await self._put_file_fallback(namespace, key, value, user_id)
 
@@ -138,25 +181,24 @@ class Neo4jMemoryStore:
         Returns:
             Stored value or None if not found
         """
-        if self._driver is None:
+        graph = self._get_neo4j_graph()
+        if graph is None or not self._use_neo4j:
             return await self._get_file_fallback(namespace, key, user_id)
 
         try:
-            async with self._driver.session(database=self._database) as session:
-                result = await session.run("""
-                    MATCH (m:AgentMemory {namespace: $namespace, key: $key})
-                    WHERE m.user_id IS NULL OR m.user_id = $user_id
-                    RETURN m.value as value
-                """, {
-                    "namespace": namespace,
-                    "key": key,
-                    "user_id": user_id
-                })
-                record = await result.single()
-                if record and record["value"]:
-                    return json.loads(record["value"])
+            result = graph.query("""
+                MATCH (m:AgentMemory {namespace: $namespace, key: $key})
+                WHERE m.user_id IS NULL OR m.user_id = $user_id
+                RETURN m.value as value
+            """, {
+                "namespace": namespace,
+                "key": key,
+                "user_id": user_id
+            })
+            if result and len(result) > 0 and result[0].get("value"):
+                return json.loads(result[0]["value"])
         except Exception as e:
-            logger.error(f"Failed to retrieve memory: {e}")
+            logger.error(f"Failed to retrieve memory from Neo4j: {e}")
             return await self._get_file_fallback(namespace, key, user_id)
 
         return None
@@ -168,23 +210,23 @@ class Neo4jMemoryStore:
         user_id: Optional[str] = None
     ) -> None:
         """Delete a memory item."""
-        if self._driver is None:
+        graph = self._get_neo4j_graph()
+        if graph is None or not self._use_neo4j:
             await self._delete_file_fallback(namespace, key, user_id)
             return
 
         try:
-            async with self._driver.session(database=self._database) as session:
-                await session.run("""
-                    MATCH (m:AgentMemory {namespace: $namespace, key: $key})
-                    WHERE m.user_id IS NULL OR m.user_id = $user_id
-                    DELETE m
-                """, {
-                    "namespace": namespace,
-                    "key": key,
-                    "user_id": user_id
-                })
+            graph.query("""
+                MATCH (m:AgentMemory {namespace: $namespace, key: $key})
+                WHERE m.user_id IS NULL OR m.user_id = $user_id
+                DELETE m
+            """, {
+                "namespace": namespace,
+                "key": key,
+                "user_id": user_id
+            })
         except Exception as e:
-            logger.error(f"Failed to delete memory: {e}")
+            logger.error(f"Failed to delete memory from Neo4j: {e}")
 
     async def list_keys(
         self,
@@ -192,23 +234,23 @@ class Neo4jMemoryStore:
         user_id: Optional[str] = None
     ) -> List[str]:
         """List all keys in a namespace."""
-        if self._driver is None:
+        graph = self._get_neo4j_graph()
+        if graph is None or not self._use_neo4j:
             return await self._list_keys_file_fallback(namespace, user_id)
 
         try:
-            async with self._driver.session(database=self._database) as session:
-                result = await session.run("""
-                    MATCH (m:AgentMemory)
-                    WHERE m.namespace STARTS WITH $namespace
-                    AND (m.user_id IS NULL OR m.user_id = $user_id)
-                    RETURN m.key as key
-                """, {
-                    "namespace": namespace,
-                    "user_id": user_id
-                })
-                return [record["key"] async for record in result]
+            result = graph.query("""
+                MATCH (m:AgentMemory)
+                WHERE m.namespace STARTS WITH $namespace
+                AND (m.user_id IS NULL OR m.user_id = $user_id)
+                RETURN m.key as key
+            """, {
+                "namespace": namespace,
+                "user_id": user_id
+            })
+            return [record["key"] for record in result]
         except Exception as e:
-            logger.error(f"Failed to list memory keys: {e}")
+            logger.error(f"Failed to list memory keys from Neo4j: {e}")
             return []
 
     # File-based fallback methods
@@ -570,6 +612,64 @@ class MemoryStoreService:
         except Exception as e:
             logger.error(f"Failed to list memories: {e}")
             return []
+
+    # ============================================
+    # Compatibility methods for AutoAgentMemoryManager
+    # These proxy to Neo4jMemoryStore methods for interface compatibility
+    # ============================================
+
+    async def get(
+        self,
+        namespace: str,
+        key: str,
+        user_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get a memory item (compatibility method for AutoAgentMemoryManager).
+
+        Args:
+            namespace: Memory namespace
+            key: Key to retrieve
+            user_id: Optional user ID
+
+        Returns:
+            Stored value or None
+        """
+        return await self._neo4j_store.get(namespace, key, user_id)
+
+    async def put(
+        self,
+        namespace: str,
+        key: str,
+        value: Dict[str, Any],
+        user_id: Optional[str] = None
+    ) -> None:
+        """
+        Store a memory item (compatibility method for AutoAgentMemoryManager).
+
+        Args:
+            namespace: Memory namespace
+            key: Key to store
+            value: Value to store
+            user_id: Optional user ID
+        """
+        await self._neo4j_store.put(namespace, key, value, user_id)
+
+    async def delete(
+        self,
+        namespace: str,
+        key: str,
+        user_id: Optional[str] = None
+    ) -> None:
+        """
+        Delete a memory item (compatibility method for AutoAgentMemoryManager).
+
+        Args:
+            namespace: Memory namespace
+            key: Key to delete
+            user_id: Optional user ID
+        """
+        await self._neo4j_store.delete(namespace, key, user_id)
 
     async def store_user_preference(
         self,

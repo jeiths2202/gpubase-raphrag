@@ -347,6 +347,24 @@ class APISettings(BaseSettings):
         description="Microsoft OAuth client secret"
     )
 
+    # RAG Evaluation Settings
+    RAG_EVALUATION_ENABLED: bool = Field(
+        default=True,
+        description="Enable RAG response quality evaluation"
+    )
+    RAG_EVALUATION_TIMEOUT: float = Field(
+        default=30.0,
+        description="Timeout for evaluation operations in seconds"
+    )
+    RAG_EVALUATION_MIN_SOURCES: int = Field(
+        default=1,
+        description="Minimum sources required for evaluation"
+    )
+    RAG_EVALUATION_AUTO_EVALUATE: bool = Field(
+        default=False,
+        description="Automatically evaluate RAG responses in agent stream"
+    )
+
     # Corporate SSO
     CORP_EMAIL_DOMAINS: str = Field(
         default="*",

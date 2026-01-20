@@ -271,13 +271,13 @@ class SummaryResponse(BaseModel):
 # ============================================
 
 class ContextWindowConfig(BaseModel):
-    """Configuration for context window management"""
-    max_tokens: int = Field(default=8000, ge=1000, le=128000)
-    reserved_for_response: int = Field(default=2000, ge=500)
-    system_prompt_tokens: int = Field(default=500)
-    rag_context_tokens: int = Field(default=2000)
-    summary_tokens: int = Field(default=1000)
-    recent_turns_count: int = Field(default=6, ge=1, le=50)
+    """Configuration for context window management (32K+ support)"""
+    max_tokens: int = Field(default=32000, ge=1000, le=200000)
+    reserved_for_response: int = Field(default=4096, ge=500)
+    system_prompt_tokens: int = Field(default=1000)
+    rag_context_tokens: int = Field(default=8000)
+    summary_tokens: int = Field(default=1500)
+    recent_turns_count: int = Field(default=10, ge=1, le=100)
 
 
 class ReconstructedContext(BaseModel):

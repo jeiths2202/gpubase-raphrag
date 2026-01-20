@@ -438,6 +438,23 @@ class PostgresConversationRepository(ConversationRepository):
             )
             return [self._row_to_conversation(row) for row in rows]
 
+    async def get_by_session(
+        self,
+        session_id: str
+    ) -> Optional[ConversationEntity]:
+        """Get conversation by session ID."""
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT * FROM conversations
+                WHERE session_id = $1 AND is_deleted = FALSE
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                session_id
+            )
+            return self._row_to_conversation(row) if row else None
+
     async def search(
         self,
         user_id: str,

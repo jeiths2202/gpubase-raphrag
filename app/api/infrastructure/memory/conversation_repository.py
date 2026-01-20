@@ -186,6 +186,16 @@ class MemoryConversationRepository(ConversationRepository):
         conversations.sort(key=lambda x: x.updated_at, reverse=True)
         return conversations[skip:skip + limit]
 
+    async def get_by_session(
+        self,
+        session_id: str
+    ) -> Optional[ConversationEntity]:
+        """Get conversation by session ID."""
+        for conv in self._conversations.values():
+            if conv.session_id == session_id and not conv.is_deleted:
+                return conv
+        return None
+
     async def search(
         self,
         user_id: str,

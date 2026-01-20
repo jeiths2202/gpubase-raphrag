@@ -4264,3 +4264,101 @@ async def get_embedding_service():
     from ..services.multimodal_embedding import TextEmbeddingService
 
     return TextEmbeddingService()
+
+
+# ============================================================================
+# RAG Evaluation Dependencies
+# ============================================================================
+
+def get_rag_evaluation_service_dep():
+    """
+    Get RAG evaluation service for dependency injection.
+
+    The service is initialized at startup and stored as singleton.
+    """
+    from ..services.rag_evaluation_service import get_rag_evaluation_service
+
+    service = get_rag_evaluation_service()
+    if service is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="RAG evaluation service not available"
+        )
+    return service
+
+
+def get_rag_evaluation_repository_dep():
+    """
+    Get RAG evaluation repository for dependency injection.
+
+    The repository is initialized at startup and stored as singleton.
+    """
+    from ..repositories.rag_evaluation_repository import get_rag_evaluation_repository
+
+    repository = get_rag_evaluation_repository()
+    if repository is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="RAG evaluation repository not available"
+        )
+    return repository
+
+
+# ============================================================================
+# Analytics Dashboard Dependencies
+# ============================================================================
+
+# Global singleton for analytics service
+_analytics_dashboard_service = None
+_analytics_dashboard_repository = None
+
+
+async def initialize_analytics_dashboard_service(db_pool=None):
+    """
+    Initialize analytics dashboard service at startup.
+
+    Args:
+        db_pool: PostgreSQL connection pool
+    """
+    global _analytics_dashboard_service, _analytics_dashboard_repository
+
+    from ..repositories.analytics_dashboard_repository import AnalyticsDashboardRepository
+    from ..services.analytics_dashboard_service import AnalyticsDashboardService
+
+    _analytics_dashboard_repository = AnalyticsDashboardRepository(db_pool)
+    _analytics_dashboard_service = AnalyticsDashboardService(_analytics_dashboard_repository)
+
+    return _analytics_dashboard_service
+
+
+def get_analytics_dashboard_service():
+    """
+    Get analytics dashboard service for dependency injection.
+
+    Returns:
+        AnalyticsDashboardService: The singleton service instance
+    """
+    global _analytics_dashboard_service
+
+    if _analytics_dashboard_service is None:
+        # Lazy initialization without repository (limited functionality)
+        from ..services.analytics_dashboard_service import AnalyticsDashboardService
+        _analytics_dashboard_service = AnalyticsDashboardService()
+
+    return _analytics_dashboard_service
+
+
+def get_analytics_dashboard_repository():
+    """
+    Get analytics dashboard repository for dependency injection.
+
+    Returns:
+        AnalyticsDashboardRepository: The singleton repository instance
+    """
+    global _analytics_dashboard_repository
+
+    if _analytics_dashboard_repository is None:
+        from ..repositories.analytics_dashboard_repository import AnalyticsDashboardRepository
+        _analytics_dashboard_repository = AnalyticsDashboardRepository()
+
+    return _analytics_dashboard_repository
