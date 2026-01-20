@@ -29,6 +29,14 @@ try:
 except ImportError:
     OPENPYXL_AVAILABLE = False
 
+# Word parsing
+try:
+    from docx import Document as DocxDocument
+    from docx.oxml.ns import qn
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+
 from ..models.document import (
     DocumentType,
     ProcessingMode,
@@ -697,12 +705,24 @@ class PDFParser(BaseDocumentParser):
 
 
 class WordParser(BaseDocumentParser):
-    """Parser for Microsoft Word documents."""
+    """Parser for Microsoft Word documents using python-docx."""
 
     SUPPORTED_TYPES = [
         "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     ]
+
+    # Heading style patterns (English and Korean)
+    HEADING_STYLES = {
+        "Heading 1": 1, "Heading 2": 2, "Heading 3": 3,
+        "Heading 4": 4, "Heading 5": 5, "Heading 6": 6,
+        "제목 1": 1, "제목 2": 2, "제목 3": 3,
+        "제목 4": 4, "제목 5": 5, "제목 6": 6,
+        "Title": 0, "Subtitle": 1,
+    }
+
+    # Chunking configuration
+    MAX_SECTION_CHARS = 2000
 
     def supports(self, mime_type: str) -> bool:
         return mime_type in self.SUPPORTED_TYPES
@@ -714,12 +734,13 @@ class WordParser(BaseDocumentParser):
         options: Dict[str, Any] = None
     ) -> ParsedDocument:
         """
-        Parse Word document.
+        Parse Word document using python-docx.
 
-        In production, this would use libraries like:
-        - python-docx
-        - mammoth
-        - antiword
+        Extracts:
+        - Paragraphs with heading hierarchy
+        - Tables with markdown conversion
+        - Embedded images (base64 for VLM)
+        - Document metadata (author, title, dates)
         """
         options = options or {}
         mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -728,70 +749,292 @@ class WordParser(BaseDocumentParser):
 
         doc = ParsedDocument(DocumentType.WORD, filename, mime_type)
 
-        # Mock Word parsing
-        doc.text_content = await self._mock_word_extraction(file_content, filename)
-
-        doc.metadata = {
-            "title": filename.replace(".docx", "").replace(".doc", ""),
-            "author": "Unknown",
-            "created_date": datetime.now(timezone.utc).isoformat(),
-            "word_count": len(doc.text_content.split()),
-            "paragraph_count": doc.text_content.count("\n\n") + 1
-        }
-
-        doc.pages = [{"page_number": 1, "content": doc.text_content}]
-
-        # Extract tables if present
-        if options.get("extract_tables", True):
-            doc.tables = await self._mock_table_extraction()
-
-        # Extract images if present
-        if options.get("extract_images", True):
-            doc.images = await self._mock_image_extraction()
+        if not DOCX_AVAILABLE:
+            doc.text_content = await self._fallback_extraction(file_content, filename)
+            doc.metadata = {"title": filename, "error": "python-docx not available"}
+        else:
+            # Real extraction using python-docx
+            extracted = await self._extract_document(file_content, filename, options)
+            doc.text_content = extracted["text_content"]
+            doc.metadata = extracted["metadata"]
+            doc.tables = extracted["tables"]
+            doc.images = extracted["images"]
+            doc.pages = extracted["sections"]
 
         doc.processing_info = {
             "parser": "WordParser",
             "parsed_at": datetime.now(timezone.utc).isoformat(),
-            "is_docx": filename.endswith(".docx")
+            "is_docx": filename.endswith(".docx"),
+            "docx_available": DOCX_AVAILABLE
         }
 
         return doc
 
-    async def _mock_word_extraction(self, content: bytes, filename: str) -> str:
-        """Mock Word document text extraction."""
-        await asyncio.sleep(0.3)
-        return f"""Microsoft Word 문서: {filename}
+    async def _extract_document(
+        self,
+        content: bytes,
+        filename: str,
+        options: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Extract content from Word document."""
+        try:
+            docx = DocxDocument(io.BytesIO(content))
 
-1. 서론
-이 문서는 Word 형식으로 작성된 문서입니다.
+            # Extract metadata
+            metadata = self._extract_metadata(docx, filename)
 
-2. 본문
-- 다양한 서식을 지원합니다
-- 표와 이미지를 포함할 수 있습니다
-- 머리글/바닥글 기능을 제공합니다
+            # Extract paragraphs with structure
+            sections = self._extract_sections(docx)
 
-3. 결론
-Word 문서가 성공적으로 파싱되었습니다."""
+            # Build text content with hierarchy
+            text_content = self._build_text_content(sections)
 
-    async def _mock_table_extraction(self) -> List[TableInfo]:
-        """Mock table extraction from Word."""
-        return [
-            TableInfo(
+            # Extract tables
+            tables = []
+            if options.get("extract_tables", True):
+                tables = self._extract_tables(docx)
+
+            # Extract images
+            images = []
+            if options.get("extract_images", True):
+                images = self._extract_images(docx)
+
+            # Update metadata with counts
+            metadata["section_count"] = len([s for s in sections if s.get("is_heading")])
+            metadata["table_count"] = len(tables)
+            metadata["image_count"] = len(images)
+
+            return {
+                "text_content": text_content,
+                "metadata": metadata,
+                "tables": tables,
+                "images": images,
+                "sections": sections
+            }
+
+        except Exception as e:
+            import logging
+            logging.error(f"Error parsing Word document {filename}: {e}")
+            return {
+                "text_content": f"문서 파싱 오류: {str(e)}",
+                "metadata": {"title": filename, "error": str(e)},
+                "tables": [],
+                "images": [],
+                "sections": []
+            }
+
+    def _extract_metadata(self, docx: 'DocxDocument', filename: str) -> Dict[str, Any]:
+        """Extract document metadata from core properties."""
+        props = docx.core_properties
+
+        metadata = {
+            "title": props.title or filename.replace(".docx", "").replace(".doc", ""),
+            "author": props.author or "Unknown",
+            "created_date": props.created.isoformat() if props.created else None,
+            "modified_date": props.modified.isoformat() if props.modified else None,
+            "subject": props.subject or "",
+            "keywords": props.keywords or "",
+            "category": props.category or "",
+            "comments": props.comments or "",
+        }
+
+        # Count words and paragraphs
+        total_text = ""
+        para_count = 0
+        for para in docx.paragraphs:
+            if para.text.strip():
+                total_text += para.text + " "
+                para_count += 1
+
+        metadata["word_count"] = len(total_text.split())
+        metadata["paragraph_count"] = para_count
+
+        return metadata
+
+    def _extract_sections(self, docx: 'DocxDocument') -> List[Dict[str, Any]]:
+        """Extract paragraphs organized by sections/headings."""
+        sections = []
+        current_headings = [""] * 6  # Track heading hierarchy (H1-H6)
+        section_idx = 0
+
+        for para in docx.paragraphs:
+            text = para.text.strip()
+            if not text:
+                continue
+
+            style_name = para.style.name if para.style else "Normal"
+            heading_level = self.HEADING_STYLES.get(style_name)
+
+            if heading_level is not None and heading_level > 0:
+                # Update heading hierarchy
+                current_headings[heading_level - 1] = text
+                # Clear lower level headings
+                for i in range(heading_level, 6):
+                    current_headings[i] = ""
+
+                section_idx += 1
+                sections.append({
+                    "page_number": section_idx,
+                    "content": text,
+                    "is_heading": True,
+                    "heading_level": heading_level,
+                    "heading_path": " > ".join(h for h in current_headings[:heading_level] if h),
+                    "text_length": len(text)
+                })
+            else:
+                # Regular paragraph
+                # Detect list items
+                is_list = self._is_list_paragraph(para, style_name)
+                prefix = ""
+                if is_list:
+                    prefix = self._get_list_prefix(para)
+
+                sections.append({
+                    "page_number": section_idx if section_idx > 0 else 1,
+                    "content": prefix + text,
+                    "is_heading": False,
+                    "heading_level": None,
+                    "heading_path": " > ".join(h for h in current_headings if h),
+                    "is_list": is_list,
+                    "text_length": len(text)
+                })
+
+        return sections
+
+    def _is_list_paragraph(self, para, style_name: str) -> bool:
+        """Check if paragraph is a list item."""
+        if "List" in style_name or "Bullet" in style_name or "목록" in style_name:
+            return True
+        # Check for numbering in XML
+        try:
+            numPr = para._p.pPr.numPr if para._p.pPr is not None else None
+            return numPr is not None
+        except Exception:
+            return False
+
+    def _get_list_prefix(self, para) -> str:
+        """Get appropriate list prefix (bullet or number)."""
+        style_name = para.style.name if para.style else ""
+        if "Bullet" in style_name or "bullet" in style_name.lower():
+            return "• "
+        # For numbered lists, we can't easily get the number without complex XML parsing
+        # So we use a generic bullet for now
+        return "• "
+
+    def _build_text_content(self, sections: List[Dict[str, Any]]) -> str:
+        """Build formatted text content from sections."""
+        text_parts = []
+        current_heading_path = ""
+
+        for section in sections:
+            if section.get("is_heading"):
+                level = section.get("heading_level", 1)
+                prefix = "#" * level
+                text_parts.append(f"\n{prefix} {section['content']}\n")
+                current_heading_path = section.get("heading_path", "")
+            else:
+                content = section["content"]
+                if section.get("is_list"):
+                    text_parts.append(content)
+                else:
+                    text_parts.append(content)
+
+        return "\n".join(text_parts)
+
+    def _extract_tables(self, docx: 'DocxDocument') -> List[TableInfo]:
+        """Extract tables and convert to markdown."""
+        tables = []
+
+        for table_idx, table in enumerate(docx.tables):
+            rows_data = []
+
+            for row in table.rows:
+                row_cells = []
+                for cell in row.cells:
+                    # Handle merged cells by checking for duplicate text
+                    cell_text = cell.text.strip().replace("\n", " ")
+                    row_cells.append(cell_text)
+                rows_data.append(row_cells)
+
+            if not rows_data:
+                continue
+
+            # First row as headers
+            headers = rows_data[0] if rows_data else []
+            data_rows = rows_data[1:] if len(rows_data) > 1 else []
+
+            # Build markdown
+            markdown = self._rows_to_markdown(headers, data_rows)
+
+            tables.append(TableInfo(
                 id=f"table_{uuid.uuid4().hex[:8]}",
-                headers=["항목", "설명"],
-                rows=[
-                    ["제목", "Word 문서 예시"],
-                    ["형식", "DOCX"],
-                    ["상태", "정상"]
-                ],
-                caption="문서 정보",
-                markdown=""
-            )
-        ]
+                page_number=table_idx + 1,
+                headers=headers,
+                rows=data_rows,
+                caption=f"테이블 {table_idx + 1}",
+                markdown=markdown
+            ))
 
-    async def _mock_image_extraction(self) -> List[ImageInfo]:
-        """Mock image extraction from Word."""
-        return []
+        return tables
+
+    def _rows_to_markdown(self, headers: List[str], rows: List[List[str]]) -> str:
+        """Convert table to markdown format."""
+        if not headers:
+            return ""
+
+        def escape_pipe(s: str) -> str:
+            return s.replace("|", "\\|")
+
+        md_lines = []
+
+        # Header
+        md_lines.append("| " + " | ".join(escape_pipe(h) for h in headers) + " |")
+        md_lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
+
+        # Rows
+        for row in rows:
+            padded = row + [""] * (len(headers) - len(row)) if len(row) < len(headers) else row[:len(headers)]
+            md_lines.append("| " + " | ".join(escape_pipe(str(c)) for c in padded) + " |")
+
+        return "\n".join(md_lines)
+
+    def _extract_images(self, docx: 'DocxDocument') -> List[ImageInfo]:
+        """Extract embedded images from document."""
+        images = []
+        image_idx = 0
+
+        for rel in docx.part.rels.values():
+            if "image" in rel.reltype:
+                try:
+                    image_part = rel.target_part
+                    image_bytes = image_part.blob
+                    content_type = image_part.content_type
+
+                    # Get filename/extension
+                    filename = getattr(image_part, 'partname', f'image_{image_idx}')
+                    if hasattr(filename, 'split'):
+                        filename = filename.split('/')[-1]
+
+                    image_idx += 1
+
+                    images.append(ImageInfo(
+                        id=f"img_{uuid.uuid4().hex[:8]}",
+                        page_number=image_idx,
+                        position={},
+                        description=f"문서 이미지 {image_idx}",
+                        alt_text=str(filename),
+                        data=image_bytes,
+                        mime_type=content_type or "image/png"
+                    ))
+
+                except Exception as e:
+                    continue
+
+        return images
+
+    async def _fallback_extraction(self, content: bytes, filename: str) -> str:
+        """Fallback when python-docx is not available."""
+        return f"Word 문서 '{filename}'을 파싱할 수 없습니다. python-docx 라이브러리가 필요합니다."
 
 
 class ExcelParser(BaseDocumentParser):
