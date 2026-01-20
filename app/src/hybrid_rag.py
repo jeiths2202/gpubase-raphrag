@@ -229,6 +229,12 @@ class HybridRAG:
             vector_results = self._document_scoped_search(
                 analysis, search_query, k
             )
+        elif hints.get("search_glossary"):
+            # Definition query: search both product docs AND glossary
+            print(f"    [Glossary Search] Searching product docs and common glossary")
+            vector_results = self._glossary_enhanced_search(
+                analysis, search_query, k
+            )
         else:
             # Standard search
             vector_results = self.vector_rag.search_similar(search_query, k=k)
@@ -414,6 +420,76 @@ class HybridRAG:
         print(f"    [Interleave] Final balanced distribution: {final_counts}")
 
         return interleaved[:k]
+
+    def _glossary_enhanced_search(
+        self,
+        analysis: 'QueryAnalysisResult',
+        search_query: str,
+        k: int
+    ) -> List[Dict]:
+        """
+        Enhanced search for definition queries that includes glossary lookup.
+
+        For definition/abbreviation queries:
+        1. Search product-specific documents
+        2. Search common glossary (OF_Common/Getting-Started guides)
+        3. Merge results prioritizing glossary definitions
+        """
+        all_results = []
+        seen_chunks = set()
+
+        product_entities = [e for e in analysis.entities if e.type.value == "product"]
+
+        # Step 1: Search glossary in Common documents with enhanced query
+        glossary_query = search_query
+        if product_entities:
+            entity_names = " ".join([e.name for e in product_entities])
+            glossary_query = f"{entity_names} 用語集 略語 定義 {search_query}"
+
+        print(f"    [Glossary] Query: '{glossary_query[:60]}...'")
+        glossary_results = self.vector_rag.search_similar(
+            glossary_query,
+            k=k,
+            doc_filter="OF_Common"
+        )
+
+        for r in glossary_results:
+            chunk_id = r.get("chunk_id")
+            if chunk_id and chunk_id not in seen_chunks:
+                r["source_type"] = "glossary"
+                all_results.append(r)
+                seen_chunks.add(chunk_id)
+
+        # Step 2: Search product-specific documents
+        for entity in product_entities:
+            doc_filter = entity.doc_filter
+            if not doc_filter:
+                continue
+
+            product_results = self.vector_rag.search_similar(
+                search_query,
+                k=k // 2,
+                doc_filter=doc_filter
+            )
+
+            for r in product_results:
+                chunk_id = r.get("chunk_id")
+                if chunk_id and chunk_id not in seen_chunks:
+                    r["source_type"] = "product"
+                    all_results.append(r)
+                    seen_chunks.add(chunk_id)
+
+        # Sort by score, but prioritize glossary results slightly
+        def sort_key(r):
+            score = r.get("score", 0)
+            if r.get("source_type") == "glossary":
+                score *= 1.1  # 10% boost for glossary
+            return score
+
+        all_results.sort(key=sort_key, reverse=True)
+        print(f"    [Glossary Search] Found {len(all_results)} total results")
+
+        return all_results[:k]
 
     def _merge_topic_density_with_vector(
         self,

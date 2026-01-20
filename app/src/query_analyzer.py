@@ -93,6 +93,7 @@ class QueryAnalyzer:
         QueryIntent.DEFINITION: [
             r'(이?란|무엇|뭐|개요|소개|정의|とは|概要|紹介|what\s+is)',
             r'(설명해|알려|説明|教えて|explain|describe)',
+            r'(약자|略語|略称|略|abbreviation|stands?\s+for|meaning\s+of)',  # Abbreviation queries
         ],
         QueryIntent.TROUBLESHOOTING: [
             r'(에러|오류|문제|해결|안\s*됨|실패|エラー|失敗|error|fail|issue)',
@@ -311,8 +312,11 @@ class QueryAnalyzer:
         # For definition queries
         elif intent == QueryIntent.DEFINITION and product_entities:
             hints["use_doc_filter"] = True
+            # Include both product-specific docs AND common glossary
             hints["doc_filters"] = [e.doc_filter for e in product_entities if e.doc_filter]
+            hints["doc_filters"].append("OF_Common")  # Glossary is in Common docs
             hints["prioritize_intro_sections"] = True
+            hints["search_glossary"] = True  # Signal to search for glossary terms
 
         # For troubleshooting
         elif intent == QueryIntent.TROUBLESHOOTING:
