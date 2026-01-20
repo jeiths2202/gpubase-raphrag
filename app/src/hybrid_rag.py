@@ -171,15 +171,28 @@ class HybridRAG:
         """Execute vector similarity search with topic density boosting"""
         # Apply query expansion for better retrieval (Japanese/Korean/English)
         search_query = query
+
+        # Try LLM-based expansion first (dynamic, covers all terms)
         try:
-            from app.api.services.query_expansion_service import get_query_expansion_service
-            expansion_service = get_query_expansion_service()
-            expanded = expansion_service.expand(query, "auto")
+            from app.api.services.llm_query_expansion_service import get_llm_query_expansion_service
+            llm_expansion = get_llm_query_expansion_service()
+            expanded = llm_expansion.expand_sync(query)
             search_query = expanded.get_expanded_query()
             if search_query != query:
-                print(f"    [Query Expansion] '{query}' -> '{search_query}'")
+                cache_info = " (cached)" if expanded.cached else ""
+                print(f"    [LLM Query Expansion]{cache_info} '{query}' -> '{search_query[:100]}...'")
         except Exception as e:
-            print(f"    [Query Expansion] Failed: {e}")
+            print(f"    [LLM Query Expansion] Failed: {e}, falling back to static expansion")
+            # Fallback to static expansion
+            try:
+                from app.api.services.query_expansion_service import get_query_expansion_service
+                expansion_service = get_query_expansion_service()
+                expanded = expansion_service.expand(query, "auto")
+                search_query = expanded.get_expanded_query()
+                if search_query != query:
+                    print(f"    [Static Query Expansion] '{query}' -> '{search_query}'")
+            except Exception as e2:
+                print(f"    [Query Expansion] All methods failed: {e2}")
 
         # Extract key concept and search by topic density
         key_concept = self._extract_key_concept(query)
