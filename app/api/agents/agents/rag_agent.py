@@ -30,7 +30,7 @@ class RAGAgent(BaseAgent):
             name="RAG Agent",
             agent_type=AgentType.RAG,
             description="Knowledge base query agent using Hybrid RAG (vector + graph retrieval)",
-            tools=["vector_search", "graph_query", "document_read"],
+            tools=["vector_search", "graph_query"],  # document_read removed to prevent hallucination
             **kwargs
         )
         self._executor = executor

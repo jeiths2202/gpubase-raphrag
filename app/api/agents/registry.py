@@ -97,7 +97,7 @@ class ToolRegistry:
         # NOTE: adaptive_search removed due to PostgreSQL embedding asymmetry issue
         # vector_search (Neo4j) is the primary and most accurate search tool
         agent_tools = {
-            AgentType.RAG: ["vector_search", "graph_query", "document_read"],
+            AgentType.RAG: ["vector_search", "graph_query"],  # document_read removed to prevent hallucination
             AgentType.IMS: ["ims_search", "web_fetch", "vector_search"],
             AgentType.VISION: ["document_read", "vector_search"],
             AgentType.CODE: ["document_read", "bash", "vector_search"],
