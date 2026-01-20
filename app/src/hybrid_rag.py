@@ -561,6 +561,26 @@ class HybridRAG:
 
     def _graph_search(self, query: str, k: int) -> List[Dict]:
         """Execute graph-based search with entity traversal"""
+        # Step 0: Check for product entities and fetch glossary definitions first
+        analyzer = get_query_analyzer()
+        analysis = analyzer.analyze(query)
+        product_entities = [e for e in analysis.entities if e.type.value == "product"]
+
+        glossary_results = []
+        if product_entities:
+            # For any query with product entities, fetch glossary definitions
+            entity_names = " ".join([e.name for e in product_entities])
+            glossary_query = f"{entity_names} 用語集 略語 定義 概要"
+            print(f"    [Graph+Glossary] Fetching definitions for: {[e.name for e in product_entities]}")
+
+            glossary_results = self.vector_rag.search_similar(
+                glossary_query,
+                k=min(k, len(product_entities) * 2),
+                doc_filter="OF_Common"
+            )
+            for r in glossary_results:
+                r["source"] = "glossary"
+
         # Extract keywords for search
         keywords = self._extract_keywords(query)
 
@@ -630,7 +650,7 @@ class HybridRAG:
                     {"keyword": keyword, "k": k}
                 )
 
-        return [
+        graph_results = [
             {
                 "chunk_id": r["chunk_id"],
                 "content": r["content"],
@@ -642,6 +662,17 @@ class HybridRAG:
             }
             for r in results
         ]
+
+        # Merge glossary definitions with graph results (glossary first)
+        if glossary_results:
+            seen_chunks = set(r.get("chunk_id") for r in glossary_results)
+            # Filter out duplicates from graph results
+            unique_graph = [r for r in graph_results if r.get("chunk_id") not in seen_chunks]
+            merged = glossary_results + unique_graph
+            print(f"    [Graph+Glossary] Merged {len(glossary_results)} glossary + {len(unique_graph)} graph results")
+            return merged[:k]
+
+        return graph_results
 
     def _hybrid_search(self, query: str, k: int) -> List[Dict]:
         """Execute both vector and graph search, merge results"""
