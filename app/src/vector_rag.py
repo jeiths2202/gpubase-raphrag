@@ -134,7 +134,8 @@ class VectorRAG:
         self,
         query: str,
         k: int = 5,
-        min_score: float = 0.0
+        min_score: float = 0.0,
+        doc_filter: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Search for similar chunks using vector similarity
@@ -143,6 +144,8 @@ class VectorRAG:
             query: The search query
             k: Number of results to return
             min_score: Minimum similarity score threshold
+            doc_filter: Optional filter for document filename (e.g., "OSC" to match OF_OSC_*.pdf)
+                       Uses case-insensitive CONTAINS match on filename
 
         Returns:
             List of matching chunks with scores
@@ -150,9 +153,38 @@ class VectorRAG:
         # Generate query embedding
         query_embedding = self.embedding_service.embed_text(query, input_type="query")
 
-        # Search using Neo4j vector index
-        results = self.graph.query(
-            f"""
+        # Build query with optional document filter
+        # When doc_filter is provided, only search within documents matching the filter
+        if doc_filter:
+            # Search with document filename filter - get more results to allow for filtering
+            cypher_query = f"""
+            CALL db.index.vector.queryNodes('{self.vector_index_name}', $k_expanded, $embedding)
+            YIELD node, score
+            WHERE score >= $min_score
+            MATCH (d:Document)-[:CONTAINS]->(node)
+            WHERE toLower(d.filename) CONTAINS toLower($doc_filter)
+            OPTIONAL MATCH (node)-[:MENTIONS]->(e:Entity)
+            RETURN
+                node.id AS chunk_id,
+                node.content AS content,
+                node.index AS chunk_index,
+                score,
+                d.id AS doc_id,
+                d.filename AS doc_filename,
+                collect(DISTINCT e.name)[..5] AS entities
+            ORDER BY score DESC
+            LIMIT $k
+            """
+            params = {
+                "k_expanded": k * 5,  # Get more results before filtering
+                "k": k,
+                "embedding": query_embedding,
+                "min_score": min_score,
+                "doc_filter": doc_filter
+            }
+        else:
+            # Standard search without document filter
+            cypher_query = f"""
             CALL db.index.vector.queryNodes('{self.vector_index_name}', $k, $embedding)
             YIELD node, score
             WHERE score >= $min_score
@@ -164,11 +196,13 @@ class VectorRAG:
                 node.index AS chunk_index,
                 score,
                 d.id AS doc_id,
+                d.filename AS doc_filename,
                 collect(DISTINCT e.name)[..5] AS entities
             ORDER BY score DESC
-            """,
-            {"k": k, "embedding": query_embedding, "min_score": min_score}
-        )
+            """
+            params = {"k": k, "embedding": query_embedding, "min_score": min_score}
+
+        results = self.graph.query(cypher_query, params)
 
         return [
             {
@@ -177,6 +211,7 @@ class VectorRAG:
                 "chunk_index": r["chunk_index"],
                 "score": r["score"],
                 "doc_id": r["doc_id"],
+                "doc_filename": r.get("doc_filename", "").split("/")[-1] if r.get("doc_filename") else "",
                 "entities": r["entities"] or [],
                 "source": "vector"
             }

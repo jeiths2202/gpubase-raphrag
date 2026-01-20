@@ -80,9 +80,13 @@ async def execute_query(
         # Build sources list with session document and external resource info
         sources = []
         for s in result.get("sources", []):
+            # Extract filename only, removing directory path
+            raw_doc_name = s.get("doc_name", "")
+            doc_name = raw_doc_name.split("/")[-1] if "/" in raw_doc_name else raw_doc_name
+
             source_info = SourceInfo(
                 doc_id=s.get("doc_id", ""),
-                doc_name=s.get("doc_name", ""),
+                doc_name=doc_name,
                 chunk_id=s.get("chunk_id", ""),
                 chunk_index=s.get("chunk_index", 0),
                 content=s.get("content", ""),
@@ -217,8 +221,7 @@ async def execute_query(
 
             except Exception as e:
                 # Log trace persistence failure but don't fail the request
-                import logging
-                logger = logging.getLogger(__name__)
+                # Use module-level logger (don't reassign to avoid scope issues)
                 logger.error(f"Trace persistence failed: {e}", exc_info=True)
 
         return SuccessResponse(

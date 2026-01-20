@@ -222,7 +222,9 @@ class ChatRAG:
                 cid = r.get("chunk_id")
                 if cid in doc_lookup:
                     info = doc_lookup[cid]
-                    r["doc_name"] = info.get("doc_filename") or info.get("doc_id", "unknown")
+                    raw_name = info.get("doc_filename") or info.get("doc_id", "unknown")
+                    # Extract filename only, removing directory path
+                    r["doc_name"] = raw_name.split('/')[-1] if '/' in raw_name else raw_name
 
         except Exception:
             pass

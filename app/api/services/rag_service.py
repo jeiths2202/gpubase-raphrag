@@ -102,7 +102,13 @@ class RAGService:
                         SELECT id, original_name FROM documents
                         WHERE id = ANY($1)
                     """, document_ids)
-                    return {row['id']: row['original_name'] for row in rows}
+                    # Extract filename only, removing directory path
+                    return {
+                        row['id']: row['original_name'].split('/')[-1]
+                        if row['original_name'] and '/' in row['original_name']
+                        else row['original_name']
+                        for row in rows
+                    }
             finally:
                 await pool.close()
         except Exception as e:

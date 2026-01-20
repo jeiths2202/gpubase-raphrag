@@ -11,6 +11,7 @@ from config import config
 from embeddings import NeMoEmbeddingService
 from query_router import QueryRouter, QueryType
 from vector_rag import VectorRAG
+from query_analyzer import get_query_analyzer, QueryIntent
 
 
 class HybridRAG:
@@ -168,11 +169,24 @@ class HybridRAG:
         }
 
     def _vector_search(self, query: str, k: int) -> List[Dict]:
-        """Execute vector similarity search with topic density boosting"""
-        # Apply query expansion for better retrieval (Japanese/Korean/English)
-        search_query = query
+        """
+        Execute vector similarity search with deep query analysis.
 
-        # Try LLM-based expansion first (dynamic, covers all terms)
+        Uses QueryAnalyzer for:
+        - Intent classification (comparison, definition, troubleshooting, etc.)
+        - Entity extraction (products, error codes)
+        - Document-scoped search based on extracted entities
+        """
+        # Step 1: Deep query analysis
+        analyzer = get_query_analyzer()
+        analysis = analyzer.analyze(query)
+
+        print(f"    [QueryAnalyzer] Intent: {analysis.intent.value}, "
+              f"Entities: {[e.name for e in analysis.entities]}, "
+              f"Confidence: {analysis.confidence:.2f}")
+
+        # Step 2: Apply query expansion for better retrieval
+        search_query = query
         try:
             from app.api.services.llm_query_expansion_service import get_llm_query_expansion_service
             llm_expansion = get_llm_query_expansion_service()
@@ -180,112 +194,164 @@ class HybridRAG:
             search_query = expanded.get_expanded_query()
             if search_query != query:
                 cache_info = " (cached)" if expanded.cached else ""
-                print(f"    [LLM Query Expansion]{cache_info} '{query}' -> '{search_query[:100]}...'")
+                print(f"    [LLM Query Expansion]{cache_info} '{query[:50]}' -> '{search_query[:80]}...'")
         except Exception as e:
-            print(f"    [LLM Query Expansion] Failed: {e}, falling back to static expansion")
-            # Fallback to static expansion
-            try:
-                from app.api.services.query_expansion_service import get_query_expansion_service
-                expansion_service = get_query_expansion_service()
-                expanded = expansion_service.expand(query, "auto")
-                search_query = expanded.get_expanded_query()
-                if search_query != query:
-                    print(f"    [Static Query Expansion] '{query}' -> '{search_query}'")
-            except Exception as e2:
-                print(f"    [Query Expansion] All methods failed: {e2}")
+            print(f"    [LLM Query Expansion] Failed: {e}")
 
-        # Extract key concepts and search by topic density
-        # For comparison queries, extract multiple concepts
-        key_concepts = self._extract_key_concepts_for_comparison(query)
+        # Step 3: Topic density search for key concepts
         topic_density_results = []
+        product_entities = [e for e in analysis.entities if e.type.value == "product"]
 
-        if key_concepts:
-            print(f"    [Topic Density] Key concepts: {key_concepts}")
+        if product_entities:
+            concepts = [e.name for e in product_entities]
+            print(f"    [Topic Density] Key concepts: {concepts}")
             seen_chunks = set()
-            # Use larger k for topic density to increase overlap with vector results
             topic_k = k * 3
-            for concept in key_concepts:
+
+            for concept in concepts:
                 results = self._search_by_topic_density(concept, topic_k)
                 for r in results:
                     chunk_id = r.get("chunk_id")
                     if chunk_id and chunk_id not in seen_chunks:
                         topic_density_results.append(r)
                         seen_chunks.add(chunk_id)
-            if topic_density_results:
-                print(f"    [Topic Density] Found {len(topic_density_results)} results from topic-central documents")
 
-        # For comparison queries with multiple concepts, do separate searches
-        # to ensure balanced representation from each concept
-        if len(key_concepts) >= 2:
-            print(f"    [Comparison Query] Performing separate searches for: {key_concepts}")
-            vector_results = self._separate_searches_for_comparison(
-                key_concepts, search_query, k
+            if topic_density_results:
+                print(f"    [Topic Density] Found {len(topic_density_results)} results")
+
+        # Step 4: Execute search based on intent
+        hints = analysis.retrieval_hints
+        is_multi_entity = analysis.is_multi_entity()
+
+        if hints.get("use_doc_filter") and is_multi_entity:
+            # Comparison/multi-entity query: search each entity's docs separately
+            print(f"    [Doc-Scoped Search] Filters: {hints.get('doc_filters', [])}")
+            vector_results = self._document_scoped_search(
+                analysis, search_query, k
             )
         else:
-            # Single concept or no concepts - use combined query
+            # Standard search
             vector_results = self.vector_rag.search_similar(search_query, k=k)
 
-        # Merge topic density and vector results
+        # Step 5: Merge results
+        merge_strategy = hints.get("merge_strategy", "score")
         if topic_density_results:
-            merged = self._merge_topic_density_with_vector(topic_density_results, vector_results)
+            merged = self._merge_topic_density_with_vector(
+                topic_density_results, vector_results,
+                preserve_order=(merge_strategy == "interleave")
+            )
             return merged[:k]
 
         return vector_results
 
+    def _document_scoped_search(
+        self,
+        analysis: 'QueryAnalysisResult',
+        search_query: str,
+        k: int
+    ) -> List[Dict]:
+        """
+        Perform document-scoped searches based on query analysis.
+
+        This is the fundamental solution for multi-entity queries:
+        - For each entity (product), search only within that entity's documentation
+        - Uses doc_filter to scope search (e.g., "OF_OSC" for OSC documents)
+        - No hardcoded query patterns - uses analyzer-generated sub-queries
+
+        Args:
+            analysis: Query analysis result with entities and sub-queries
+            search_query: Expanded search query
+            k: Total number of results to return
+
+        Returns:
+            Balanced results from each entity's documentation
+        """
+        from query_analyzer import QueryAnalysisResult, EntityType
+
+        product_entities = [e for e in analysis.entities if e.type == EntityType.PRODUCT]
+
+        if not product_entities:
+            # No product entities - fall back to standard search
+            return self.vector_rag.search_similar(search_query, k=k)
+
+        per_entity_k = max(k, 5)
+        all_results = []
+        seen_chunks = set()
+        entity_counts = {e.name: 0 for e in product_entities}
+
+        # Content filter - skip document listing sections
+        SKIP_PREFIXES = ["関連文書", "目次", "Copyright", "文書情報"]
+
+        for entity in product_entities:
+            doc_filter = entity.doc_filter  # e.g., "OF_OSC" for OSC
+
+            # Use analyzer-generated sub-queries, or fall back to basic pattern
+            sub_queries = [sq for sq in analysis.sub_queries if entity.name in sq.upper()]
+            if not sub_queries:
+                # Generate basic sub-queries for this entity
+                sub_queries = [
+                    f"{entity.name} 概要 特徴 紹介",
+                    f"OpenFrame/{entity.name} システム 構成"
+                ]
+
+            entity_results = []
+            for sub_query in sub_queries:
+                try:
+                    # Document-scoped search using doc_filter
+                    results = self.vector_rag.search_similar(
+                        sub_query,
+                        k=per_entity_k,
+                        doc_filter=doc_filter
+                    )
+
+                    for r in results:
+                        chunk_id = r.get("chunk_id")
+                        content = r.get("content", "")
+
+                        # Skip non-content sections
+                        if any(content.strip().startswith(prefix) for prefix in SKIP_PREFIXES):
+                            continue
+
+                        if chunk_id and chunk_id not in seen_chunks:
+                            r["source_concept"] = entity.name
+                            entity_results.append(r)
+                            seen_chunks.add(chunk_id)
+                            entity_counts[entity.name] += 1
+
+                except Exception as e:
+                    print(f"    [Doc-Scoped] Search for '{entity.name}' failed: {e}")
+
+            all_results.extend(entity_results)
+            print(f"    [Doc-Scoped] '{entity.name}' (filter={doc_filter}): "
+                  f"found {entity_counts[entity.name]} chunks")
+
+        # Interleave results for balanced representation
+        concepts = [e.name for e in product_entities]
+        balanced_results = self._interleave_concept_results(all_results, concepts, k)
+
+        return balanced_results
+
+    # Keep old method as alias for backward compatibility
     def _separate_searches_for_comparison(
         self,
         concepts: List[str],
         original_query: str,
         k: int
     ) -> List[Dict]:
-        """
-        Perform separate vector searches for each concept in a comparison query.
+        """Legacy method - redirects to _document_scoped_search"""
+        from query_analyzer import ExtractedEntity, EntityType, QueryAnalysisResult, QueryIntent
 
-        For a query like "OSC와 OSI 비교", this searches for OSC and OSI separately
-        to ensure balanced representation in results.
-
-        Args:
-            concepts: List of concepts to search (e.g., ['OSC', 'OSI'])
-            original_query: The original/expanded query for context
-            k: Total number of results to return
-
-        Returns:
-            Merged list of results with balanced representation
-        """
-        # Calculate how many results to get from each concept
-        per_concept_k = max(k, 5)  # At least 5 per concept
-
-        all_results = []
-        seen_chunks = set()
-        concept_counts = {c: 0 for c in concepts}
-
-        # Search for each concept separately
-        for concept in concepts:
-            # Create a concept-focused query
-            concept_query = f"{concept} 제품 기능 설명"
-
-            try:
-                results = self.vector_rag.search_similar(concept_query, k=per_concept_k)
-
-                # Tag results with their source concept
-                for r in results:
-                    chunk_id = r.get("chunk_id")
-                    if chunk_id and chunk_id not in seen_chunks:
-                        r["source_concept"] = concept
-                        all_results.append(r)
-                        seen_chunks.add(chunk_id)
-                        concept_counts[concept] += 1
-
-                print(f"    [Comparison] '{concept}': found {concept_counts[concept]} unique chunks")
-
-            except Exception as e:
-                print(f"    [Comparison] Search for '{concept}' failed: {e}")
-
-        # Sort by score but ensure balanced representation
-        # Interleave results from different concepts
-        balanced_results = self._interleave_concept_results(all_results, concepts, k)
-
-        return balanced_results
+        # Create a minimal analysis result for backward compatibility
+        entities = [ExtractedEntity(name=c, type=EntityType.PRODUCT) for c in concepts]
+        analysis = QueryAnalysisResult(
+            original_query=original_query,
+            intent=QueryIntent.COMPARISON,
+            confidence=0.8,
+            entities=entities,
+            sub_queries=[],
+            retrieval_hints={"use_doc_filter": True}
+        )
+        return self._document_scoped_search(analysis, original_query, k)
 
     def _interleave_concept_results(
         self,
@@ -339,18 +405,33 @@ class HybridRAG:
             remaining.sort(key=lambda x: x.get("score", 0), reverse=True)
             interleaved.extend(remaining[:k - len(interleaved)])
 
+        # Log the balanced distribution
+        final_counts = {c: 0 for c in concepts}
+        for r in interleaved[:k]:
+            concept = r.get("source_concept")
+            if concept in final_counts:
+                final_counts[concept] += 1
+        print(f"    [Interleave] Final balanced distribution: {final_counts}")
+
         return interleaved[:k]
 
     def _merge_topic_density_with_vector(
         self,
         topic_density_results: List[Dict],
-        vector_results: List[Dict]
+        vector_results: List[Dict],
+        preserve_order: bool = False
     ) -> List[Dict]:
         """Merge topic density results with vector results for VECTOR strategy.
 
         IMPORTANT: Vector similarity scores are the primary ranking factor.
         Topic density only provides a small boost when chunks also match.
         This prevents table-of-contents chunks from outranking actual content.
+
+        Args:
+            topic_density_results: Results from topic density search
+            vector_results: Results from vector search (may be balanced for comparison queries)
+            preserve_order: If True, preserve the order of vector_results (for comparison queries
+                          where balanced interleaving is important)
         """
         seen_chunks = set()
         merged = []
@@ -393,8 +474,14 @@ class HybridRAG:
                 merged.append(result)
                 seen_chunks.add(chunk_id)
 
-        # Sort by combined score
-        return sorted(merged, key=lambda x: x.get("combined_score", 0), reverse=True)
+        # For comparison queries, preserve the balanced order from interleaving
+        # Only re-sort for non-comparison queries
+        if preserve_order:
+            print(f"    [Merge] Preserving balanced order for comparison query ({len(merged)} results)")
+            return merged
+        else:
+            # Sort by combined score for regular queries
+            return sorted(merged, key=lambda x: x.get("combined_score", 0), reverse=True)
 
     def _graph_search(self, query: str, k: int) -> List[Dict]:
         """Execute graph-based search with entity traversal"""
