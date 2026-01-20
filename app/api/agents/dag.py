@@ -25,12 +25,21 @@ PARALLEL_PATTERNS = {
         r"both\s+.+\s+and\s+",
         r"(?:search|find|get|retrieve)\s+.+\s+(?:and\s+also|as\s+well\s+as)\s+",
         r"analyze\s+.+\s+and\s+.+\s+(?:separately|independently)",
-        # Korean
-        r"(.+)\s*(?:와|과|랑)\s*(.+)\s*(?:비교|대조)",
+        r".+\s+(?:and|vs\.?|versus)\s+.+\s+(?:difference|comparison|compare)",
+        # Korean - Comparison patterns (expanded)
+        r"(.+)\s*(?:와|과|랑)\s*(.+)\s*(?:비교|대조)",  # A와 B 비교
+        r"(.+)\s*(?:와|과|랑)\s*(.+)\s*(?:의\s*)?(?:차이|다른\s*점|구분)",  # A와 B의 차이
+        r"(.+)\s*(?:와|과|랑)\s*(.+)\s*(?:을|를)?\s*(?:비교|대조)",  # A와 B를 비교
+        r"(.+)\s*(?:와|과|랑)\s*(.+)\s*.+(?:설명|알려)",  # A와 B ... 설명해줘 (when about difference/comparison)
         r"각각\s*.+\s*(?:대해|관해)",
         r"(.+)\s*(?:도|또한)\s*.+\s*(?:찾아|검색)",
-        # Japanese
+        # Korean - Product/concept comparison (A제품과 B제품)
+        r"(.+)제품\s*(?:와|과|랑)\s*(.+)제품",  # A제품과 B제품
+        r"(.+)\s*(?:와|과|랑)\s*(.+)\s*제품",  # A와 B 제품
+        # Japanese - Comparison patterns (expanded)
         r"(.+)と(.+)を(?:比較|対比)",
+        r"(.+)と(.+)の(?:違い|差|比較|相違)",  # AとBの違い
+        r"(.+)と(.+)(?:について|に関して).+(?:説明|比較)",  # AとBについて説明
         r"それぞれ.+について",
         r"(.+)も(.+)も",
     ],
@@ -120,6 +129,13 @@ class DAGBuilder:
     def _is_single_agent_task(self, task: str) -> bool:
         """Check if task is simple enough for single agent"""
         task_clean = task.strip()
+
+        # First check if this matches any parallel patterns - if so, NOT single agent
+        for patterns in self._parallel_patterns.values():
+            for pattern in patterns:
+                if pattern.search(task_clean.lower()):
+                    return False  # Parallel pattern detected, needs multi-agent
+
         for pattern in self._single_agent_patterns:
             if pattern.match(task_clean):
                 return True
@@ -183,6 +199,22 @@ class DAGBuilder:
                  'agent1': self._detect_agent_type_from_content(m.group(1) + m.group(2)),
                  'agent2': self._detect_agent_type_from_content(m.group(3)),
              }),
+            # "A 리스트업하고 이 중에서/이것들 중 B 리스트업해줘" - filter after list
+            (r"(.+?)\s*(?:리스트업|검색|조회|찾아)\s*하고\s*(?:이|이것들?|그|그것들?|이들?)\s*(?:중에서|중)\s*(.+?)\s*(?:리스트업|검색|조회|찾아|해줘|해주세요|하세요)",
+             lambda m: {
+                 'task1': f"{m.group(1)} 리스트업",
+                 'task2': f"위 결과 중에서 {m.group(2)} 필터링하여 리스트업",
+                 'agent1': self._detect_agent_type_from_content(m.group(1)),
+                 'agent2': self._detect_agent_type_from_content(m.group(2)),
+             }),
+            # "A에 대해서 리스트업하고 이 이슈들 중에서 B만 별도로 리스트업" - alternative filtering pattern
+            (r"(.+?)\s*(?:에\s*대해서?|을|를)\s*(?:리스트업|검색|조회|찾아)\s*하고\s*(?:이\s*이슈들?|이것들?|결과들?)\s*(?:중에서|중)\s*(.+?)\s*(?:만\s*)?(?:별도로\s*)?(?:리스트업|검색|조회|찾아)?(?:해줘|해주세요|하세요)?",
+             lambda m: {
+                 'task1': f"{m.group(1)} 리스트업",
+                 'task2': f"위 결과 중에서 {m.group(2)}만 필터링",
+                 'agent1': self._detect_agent_type_from_content(m.group(1)),
+                 'agent2': self._detect_agent_type_from_content(m.group(2)),
+             }),
             # "A를 B하고 C해줘"
             (r"(.+?)(?:을|를)\s*(.+?)\s*하고\s*(.+?)\s*(?:해줘|해주세요|하세요)",
              lambda m: {
@@ -198,6 +230,14 @@ class DAGBuilder:
                  'task2': f"Based on the results, generate: {m.group(2)}",
                  'agent1': self._detect_agent_type_from_content(m.group(1)),
                  'agent2': AgentType.CODE,
+             }),
+            # English: "list X and then filter/list only Y"
+            (r"(?:list|find|search|get)\s+(.+?)\s+(?:and\s+then|then)\s+(?:filter|list only|show only|find only)\s+(.+)",
+             lambda m: {
+                 'task1': f"Search and list: {m.group(1)}",
+                 'task2': f"Filter from results: {m.group(2)}",
+                 'agent1': self._detect_agent_type_from_content(m.group(1)),
+                 'agent2': self._detect_agent_type_from_content(m.group(2)),
              }),
         ]
 
@@ -372,17 +412,70 @@ class DAGBuilder:
         # Default to single task
         return self._create_single_task_dag(task, agent_type)
 
+    def _extract_comparison_subjects(self, task: str) -> Optional[Tuple[str, str]]:
+        """
+        Extract two subjects being compared from the task.
+        Handles patterns like "OSC와 OSI제품의 차이", "A vs B", "AとBの違い"
+
+        Returns:
+            Tuple of (subject1, subject2) or None if not found
+        """
+        # Korean patterns: "A와/과 B" followed by comparison words
+        ko_patterns = [
+            # "A와 B제품" or "A와 B의"
+            r'([A-Z][A-Za-z0-9]*(?:제품)?)\s*(?:와|과|랑)\s*([A-Z][A-Za-z0-9]*(?:제품)?)',
+            # Korean nouns with particles
+            r'([가-힣A-Za-z0-9]+)\s*(?:와|과|랑)\s*([가-힣A-Za-z0-9]+?)(?:의|을|를|에|제품)',
+        ]
+
+        # English patterns
+        en_patterns = [
+            r'([A-Za-z0-9]+)\s+(?:and|vs\.?|versus)\s+([A-Za-z0-9]+)',
+            r'(?:compare|between)\s+([A-Za-z0-9]+)\s+(?:and|with)\s+([A-Za-z0-9]+)',
+        ]
+
+        # Japanese patterns
+        ja_patterns = [
+            r'([A-Za-z0-9\u30A0-\u30FF\u4E00-\u9FFF]+)と([A-Za-z0-9\u30A0-\u30FF\u4E00-\u9FFF]+?)(?:の|を|について)',
+        ]
+
+        all_patterns = ko_patterns + en_patterns + ja_patterns
+
+        for pattern in all_patterns:
+            match = re.search(pattern, task, re.IGNORECASE)
+            if match:
+                subj1 = match.group(1).strip()
+                subj2 = match.group(2).strip()
+                # Clean up trailing particles
+                subj2 = re.sub(r'(?:제품|의|을|를)$', '', subj2).strip()
+                if subj1 and subj2:
+                    logger.info(f"[DAGBuilder] Extracted comparison subjects: '{subj1}' vs '{subj2}'")
+                    return (subj1, subj2)
+
+        return None
+
     def _create_basic_parallel_dag(
         self,
         task: str,
         agent_type: Optional[AgentType]
     ) -> TaskDAG:
         """Create basic 2-task parallel DAG for compare-style tasks"""
-        # Extract parts from task using simple heuristics
-        parts = re.split(r'\s+(?:and|vs\.?|versus|와|과|と)\s+', task, maxsplit=1, flags=re.IGNORECASE)
+        # Try to extract comparison subjects using intelligent patterns
+        subjects = self._extract_comparison_subjects(task)
 
-        if len(parts) < 2:
-            return self._create_single_task_dag(task, agent_type)
+        if subjects:
+            subj1, subj2 = subjects
+            search_task1 = f"{subj1}에 대한 정보 검색"  # Search info about subject 1
+            search_task2 = f"{subj2}에 대한 정보 검색"  # Search info about subject 2
+        else:
+            # Fallback: Extract parts using simple split
+            parts = re.split(r'\s+(?:and|vs\.?|versus|와|과|と)\s+', task, maxsplit=1, flags=re.IGNORECASE)
+
+            if len(parts) < 2:
+                return self._create_single_task_dag(task, agent_type)
+
+            search_task1 = parts[0].strip()
+            search_task2 = parts[1].strip()
 
         task1_id = f"task_{uuid.uuid4().hex[:8]}"
         task2_id = f"task_{uuid.uuid4().hex[:8]}"
@@ -390,24 +483,31 @@ class DAGBuilder:
 
         subtask1 = SubTask(
             task_id=task1_id,
-            description=parts[0].strip(),
+            description=search_task1,
             agent_type=agent_type or AgentType.RAG,
             dependencies=[],
-            status=TaskStatus.PENDING
+            status=TaskStatus.PENDING,
+            metadata={"comparison_subject": subjects[0] if subjects else None}
         )
 
         subtask2 = SubTask(
             task_id=task2_id,
-            description=parts[1].strip(),
+            description=search_task2,
             agent_type=agent_type or AgentType.RAG,
             dependencies=[],
-            status=TaskStatus.PENDING
+            status=TaskStatus.PENDING,
+            metadata={"comparison_subject": subjects[1] if subjects else None}
         )
 
         # Synthesis task depends on both
+        if subjects:
+            synthesis_desc = f"위 검색 결과를 바탕으로 {subjects[0]}와 {subjects[1]}를 비교 분석하여 답변 생성"
+        else:
+            synthesis_desc = f"Synthesize results: {task}"
+
         synthesis = SubTask(
             task_id=synthesis_id,
-            description=f"Synthesize results: {task}",
+            description=synthesis_desc,
             agent_type=AgentType.RAG,
             dependencies=[task1_id, task2_id],
             status=TaskStatus.PENDING,
