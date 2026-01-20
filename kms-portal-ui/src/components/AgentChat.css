@@ -695,6 +695,9 @@
   transition: all 0.2s ease;
   cursor: pointer;
   flex-shrink: 0;
+  /* 이미지 카드 최대 너비 제한 - 너무 크게 확대되는 것 방지 */
+  max-width: 280px;
+  width: fit-content;
 }
 
 .agent-image-item:hover {
@@ -704,6 +707,8 @@
 
 .agent-image-preview {
   max-width: 100%;
+  max-height: 200px;  /* 이미지 최대 높이 제한 */
+  width: auto;
   height: auto;
   object-fit: contain;
   background: var(--surface-tertiary);
@@ -711,13 +716,14 @@
 }
 
 .agent-image-placeholder {
-  width: 100%;
+  width: 120px;
   height: 120px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--surface-tertiary);
   color: var(--text-tertiary);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 
 .agent-image-info {
@@ -1761,6 +1767,20 @@
 .agent-markdown-em {
   font-style: italic;
   color: var(--text-secondary);
+}
+
+/* Markdown images - constrain size */
+.agent-markdown-img {
+  max-width: 100%;
+  max-height: 300px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-tertiary);
+  margin: var(--space-2) 0;
+  display: block;
 }
 
 /* Inline code */

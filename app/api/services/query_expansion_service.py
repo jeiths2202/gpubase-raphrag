@@ -26,7 +26,8 @@ class ExpandedQuery:
             return self.original
 
         # Add top synonyms to the query for better embedding
-        expanded = f"{self.original} {' '.join(self.expanded_terms[:3])}"
+        # Increased from 3 to 5 terms to include cross-language translations
+        expanded = f"{self.original} {' '.join(self.expanded_terms[:5])}"
         return expanded
 
 
@@ -94,15 +95,53 @@ class QueryExpansionService:
 
     # Technical term expansions (product-specific)
     TECHNICAL_TERMS: Dict[str, List[str]] = {
-        "MFS": ["Message Format Service", "MFSメッセージフォーマット", "MFS処理"],
+        # MFS - Message Format Service (IMS)
+        "MFS": ["Message Format Service", "MFSメッセージフォーマット", "MFS処理", "MFSマップ", "MFS맵"],
         "MID": ["Message Input Descriptor", "MIDメッセージ入力記述子"],
         "MOD": ["Message Output Descriptor", "MODメッセージ出力記述子"],
         "DOF": ["Device Output Format", "DOFデバイス出力フォーマット"],
         "DIF": ["Device Input Format", "DIFデバイス入力フォーマット"],
-        "IMS": ["Information Management System", "IMSシステム"],
-        "BMP": ["Batch Message Processing", "BMPバッチ処理"],
+        # BMS - Basic Mapping Support (CICS)
+        "BMS": ["Basic Mapping Support", "BMSマップ", "BMS맵", "マッピングサポート",
+                "BMSマクロ", "シンボリックマップ", "物理マップ", "Mapping Support"],
+        # IMS related
+        "IMS": ["Information Management System", "IMSシステム", "IMS/DC"],
+        "BMP": ["Batch Message Processing", "BMPバッチ処理", "BMPユーザーサーバー"],
+        "MPP": ["Message Processing Program", "MPPプログラム", "MPPユーザーサーバー"],
         "PSB": ["Program Specification Block", "PSBプログラム仕様ブロック"],
         "DBD": ["Database Description", "DBDデータベース記述"],
+        # CICS/OSC related
+        "OSC": ["Online Service Controller", "OSCシステム", "OSCアプリケーション"],
+        "CICS": ["Customer Information Control System", "CICSシステム", "CICS/TS"],
+        # Map related terms
+        "맵": ["マップ", "MAP", "map"],
+        "MAP": ["マップ", "맵", "map"],
+        "マップ": ["MAP", "맵", "map"],
+    }
+
+    # Korean to Japanese cross-language mappings for improved retrieval
+    KO_TO_JA_MAPPINGS: Dict[str, List[str]] = {
+        # Common technical terms
+        "맵": ["マップ", "MAP"],
+        "특징": ["特徴", "特性"],
+        "비교": ["比較"],
+        "설명": ["説明", "解説"],
+        "알려": ["教えて", "説明して"],
+        "기능": ["機能", "機能説明"],
+        "구조": ["構造", "構成"],
+        "처리": ["処理"],
+        "정의": ["定義"],
+        "설정": ["設定"],
+        "오류": ["エラー", "障害"],
+        "에러": ["エラー", "障害"],
+        "개요": ["概要", "概略"],
+        "사용법": ["使用方法", "使い方"],
+        "사용": ["使用", "利用"],
+        "방법": ["方法", "やり方"],
+        "예제": ["例", "サンプル"],
+        "문서": ["ドキュメント", "文書"],
+        "가이드": ["ガイド", "Guide"],
+        "참조": ["参照", "リファレンス"],
     }
 
     def __init__(self):
@@ -153,6 +192,8 @@ class QueryExpansionService:
             expanded_terms.extend(self._expand_japanese(query))
         elif language == "ko":
             expanded_terms.extend(self._expand_korean(query))
+            # Add Japanese translations for Korean queries (cross-language retrieval)
+            expanded_terms.extend(self._expand_cross_language(query, "ko"))
         else:
             expanded_terms.extend(self._expand_english(query))
 
@@ -210,6 +251,28 @@ class QueryExpansionService:
         for term, synonyms in self._ko_all_synonyms.items():
             if term in query:
                 expanded.extend(synonyms)
+
+        return expanded
+
+    def _expand_cross_language(self, query: str, source_lang: str) -> List[str]:
+        """
+        Expand query with cross-language translations.
+        Particularly useful for Korean→Japanese retrieval when documents are in Japanese.
+
+        Args:
+            query: Original query text
+            source_lang: Detected source language
+
+        Returns:
+            List of translated/equivalent terms in target languages
+        """
+        expanded = []
+
+        if source_lang == "ko":
+            # Korean to Japanese expansion
+            for ko_term, ja_terms in self.KO_TO_JA_MAPPINGS.items():
+                if ko_term in query:
+                    expanded.extend(ja_terms)
 
         return expanded
 

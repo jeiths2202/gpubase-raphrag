@@ -138,6 +138,15 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
         // Strong and emphasis
         strong: ({ children }) => <strong className="agent-markdown-strong">{children}</strong>,
         em: ({ children }) => <em className="agent-markdown-em">{children}</em>,
+        // Images - constrain size to prevent oversized display
+        img: ({ src, alt }) => (
+          <img
+            src={src}
+            alt={alt || 'Image'}
+            className="agent-markdown-img"
+            loading="lazy"
+          />
+        ),
       }}
     >
       {content}
