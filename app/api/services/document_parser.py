@@ -21,6 +21,14 @@ try:
 except ImportError:
     PPTX_AVAILABLE = False
 
+# Excel parsing
+try:
+    from openpyxl import load_workbook
+    from openpyxl.utils import get_column_letter
+    OPENPYXL_AVAILABLE = True
+except ImportError:
+    OPENPYXL_AVAILABLE = False
+
 from ..models.document import (
     DocumentType,
     ProcessingMode,
@@ -787,12 +795,16 @@ Word 문서가 성공적으로 파싱되었습니다."""
 
 
 class ExcelParser(BaseDocumentParser):
-    """Parser for Microsoft Excel documents."""
+    """Parser for Microsoft Excel documents using openpyxl."""
 
     SUPPORTED_TYPES = [
         "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     ]
+
+    # Chunking configuration
+    ROWS_PER_CHUNK = 50  # Maximum rows per chunk for large sheets
+    CHUNK_OVERLAP_ROWS = 2  # Overlap rows between chunks for context
 
     def supports(self, mime_type: str) -> bool:
         return mime_type in self.SUPPORTED_TYPES
@@ -804,12 +816,14 @@ class ExcelParser(BaseDocumentParser):
         options: Dict[str, Any] = None
     ) -> ParsedDocument:
         """
-        Parse Excel document.
+        Parse Excel document using openpyxl.
 
-        In production, this would use libraries like:
-        - openpyxl
-        - pandas
-        - xlrd
+        Extracts:
+        - Sheet names and data
+        - Headers (first row)
+        - Data rows with type conversion
+        - Merged cell handling
+        - Large sheet chunking with header context
         """
         options = options or {}
         mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -818,83 +832,284 @@ class ExcelParser(BaseDocumentParser):
 
         doc = ParsedDocument(DocumentType.EXCEL, filename, mime_type)
 
-        # Mock Excel parsing
-        sheets = await self._mock_excel_extraction(file_content, filename)
+        if not OPENPYXL_AVAILABLE:
+            sheets = await self._fallback_extraction(file_content, filename)
+        else:
+            sheets = await self._extract_sheets(file_content, filename, options)
 
         # Convert sheets to text and tables
         text_parts = []
         tables = []
+        all_chunks = []
 
         for sheet in sheets:
             sheet_name = sheet["name"]
             headers = sheet["headers"]
             rows = sheet["rows"]
+            row_count = len(rows)
 
-            text_parts.append(f"=== 시트: {sheet_name} ===")
+            # Sheet header
+            text_parts.append(f"=== 시트: {sheet_name} ({row_count}행) ===")
 
-            table = TableInfo(
-                id=f"table_{uuid.uuid4().hex[:8]}",
-                headers=headers,
-                rows=rows,
-                caption=f"시트: {sheet_name}",
-                markdown=self._rows_to_markdown(headers, rows)
-            )
-            tables.append(table)
-
-            # Also add as text
-            text_parts.append(table.markdown)
+            # Chunk large sheets
+            if row_count > self.ROWS_PER_CHUNK:
+                chunks = self._chunk_rows(headers, rows, sheet_name)
+                for chunk in chunks:
+                    table = TableInfo(
+                        id=f"table_{uuid.uuid4().hex[:8]}",
+                        page_number=sheet.get("sheet_index", 1),
+                        headers=headers,
+                        rows=chunk["rows"],
+                        caption=f"시트: {sheet_name} (행 {chunk['start_row']}-{chunk['end_row']})",
+                        markdown=self._rows_to_markdown(headers, chunk["rows"])
+                    )
+                    tables.append(table)
+                    all_chunks.append({
+                        "sheet": sheet_name,
+                        "start_row": chunk["start_row"],
+                        "end_row": chunk["end_row"],
+                        "row_count": len(chunk["rows"])
+                    })
+                    text_parts.append(f"\n[청크 {chunk['start_row']}-{chunk['end_row']}]")
+                    text_parts.append(table.markdown)
+            else:
+                # Small sheet - single table
+                table = TableInfo(
+                    id=f"table_{uuid.uuid4().hex[:8]}",
+                    page_number=sheet.get("sheet_index", 1),
+                    headers=headers,
+                    rows=rows,
+                    caption=f"시트: {sheet_name}",
+                    markdown=self._rows_to_markdown(headers, rows)
+                )
+                tables.append(table)
+                text_parts.append(table.markdown)
 
         doc.text_content = "\n\n".join(text_parts)
         doc.tables = tables
+
+        # Calculate statistics
+        total_rows = sum(len(s["rows"]) for s in sheets)
+        max_cols = max((len(s["headers"]) for s in sheets), default=0)
 
         doc.metadata = {
             "title": filename.replace(".xlsx", "").replace(".xls", ""),
             "sheet_count": len(sheets),
             "sheet_names": [s["name"] for s in sheets],
-            "total_rows": sum(len(s["rows"]) for s in sheets),
-            "total_columns": max(len(s["headers"]) for s in sheets) if sheets else 0
+            "total_rows": total_rows,
+            "total_columns": max_cols,
+            "total_tables": len(tables),
+            "chunked": len(all_chunks) > 0,
+            "chunk_info": all_chunks if all_chunks else None
         }
 
-        doc.pages = [{"page_number": i + 1, "content": s["name"]} for i, s in enumerate(sheets)]
+        doc.pages = [
+            {
+                "page_number": i + 1,
+                "content": s["name"],
+                "row_count": len(s["rows"]),
+                "col_count": len(s["headers"])
+            }
+            for i, s in enumerate(sheets)
+        ]
 
         doc.processing_info = {
             "parser": "ExcelParser",
             "parsed_at": datetime.now(timezone.utc).isoformat(),
-            "is_xlsx": filename.endswith(".xlsx")
+            "is_xlsx": filename.endswith(".xlsx"),
+            "openpyxl_available": OPENPYXL_AVAILABLE
         }
 
         return doc
 
-    async def _mock_excel_extraction(self, content: bytes, filename: str) -> List[Dict[str, Any]]:
-        """Mock Excel sheet extraction."""
-        await asyncio.sleep(0.3)
+    async def _extract_sheets(
+        self,
+        content: bytes,
+        filename: str,
+        options: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Extract sheets using openpyxl."""
+        sheets_data = []
+
+        try:
+            # Load workbook with data_only to get calculated values
+            wb = load_workbook(
+                io.BytesIO(content),
+                data_only=True,
+                read_only=False  # Need full access for merged cells
+            )
+
+            skip_hidden = options.get("skip_hidden_sheets", True)
+            skip_empty = options.get("skip_empty_sheets", True)
+
+            for sheet_idx, sheet_name in enumerate(wb.sheetnames, start=1):
+                ws = wb[sheet_name]
+
+                # Skip hidden sheets if configured
+                if skip_hidden and ws.sheet_state == 'hidden':
+                    continue
+
+                # Get dimensions
+                if ws.max_row is None or ws.max_row == 0:
+                    if skip_empty:
+                        continue
+                    sheets_data.append({
+                        "name": sheet_name,
+                        "sheet_index": sheet_idx,
+                        "headers": [],
+                        "rows": []
+                    })
+                    continue
+
+                # Extract headers (first row)
+                headers = []
+                for col in range(1, (ws.max_column or 1) + 1):
+                    cell_value = ws.cell(row=1, column=col).value
+                    headers.append(self._cell_to_string(cell_value) if cell_value is not None else f"Column{col}")
+
+                # Extract data rows
+                rows = []
+                for row_idx in range(2, (ws.max_row or 1) + 1):
+                    row_data = []
+                    is_empty_row = True
+
+                    for col_idx in range(1, (ws.max_column or 1) + 1):
+                        cell = ws.cell(row=row_idx, column=col_idx)
+                        cell_value = self._get_cell_value(cell, ws)
+                        row_data.append(cell_value)
+                        if cell_value:
+                            is_empty_row = False
+
+                    # Skip completely empty rows
+                    if not is_empty_row:
+                        rows.append(row_data)
+
+                # Skip empty sheets
+                if skip_empty and not rows:
+                    continue
+
+                sheets_data.append({
+                    "name": sheet_name,
+                    "sheet_index": sheet_idx,
+                    "headers": headers,
+                    "rows": rows,
+                    "merged_cells": self._get_merged_ranges(ws)
+                })
+
+            wb.close()
+
+        except Exception as e:
+            import logging
+            logging.error(f"Error parsing Excel {filename}: {e}")
+            if not sheets_data:
+                sheets_data = await self._fallback_extraction(content, filename)
+
+        return sheets_data
+
+    def _get_cell_value(self, cell, worksheet) -> str:
+        """Get cell value, handling merged cells."""
+        value = cell.value
+
+        # Check if cell is part of merged range
+        for merged_range in worksheet.merged_cells.ranges:
+            if cell.coordinate in merged_range:
+                # Get value from top-left cell of merged range
+                value = worksheet.cell(
+                    row=merged_range.min_row,
+                    column=merged_range.min_col
+                ).value
+                break
+
+        return self._cell_to_string(value)
+
+    def _cell_to_string(self, value) -> str:
+        """Convert cell value to string."""
+        if value is None:
+            return ""
+        if isinstance(value, bool):
+            return "TRUE" if value else "FALSE"
+        if isinstance(value, (int, float)):
+            # Handle integers and floats
+            if isinstance(value, float) and value.is_integer():
+                return str(int(value))
+            return str(value)
+        if hasattr(value, 'strftime'):
+            # Handle datetime
+            return value.strftime("%Y-%m-%d %H:%M:%S") if hasattr(value, 'hour') else value.strftime("%Y-%m-%d")
+        return str(value).strip()
+
+    def _get_merged_ranges(self, worksheet) -> List[str]:
+        """Get list of merged cell ranges."""
+        return [str(r) for r in worksheet.merged_cells.ranges]
+
+    def _chunk_rows(
+        self,
+        headers: List[str],
+        rows: List[List[str]],
+        sheet_name: str
+    ) -> List[Dict[str, Any]]:
+        """Chunk large sheets into smaller pieces with header context."""
+        chunks = []
+        total_rows = len(rows)
+        chunk_size = self.ROWS_PER_CHUNK
+        overlap = self.CHUNK_OVERLAP_ROWS
+
+        start_idx = 0
+        chunk_num = 1
+
+        while start_idx < total_rows:
+            end_idx = min(start_idx + chunk_size, total_rows)
+
+            chunks.append({
+                "chunk_num": chunk_num,
+                "start_row": start_idx + 2,  # +2 because row 1 is header, data starts at 2
+                "end_row": end_idx + 1,
+                "rows": rows[start_idx:end_idx]
+            })
+
+            # Move to next chunk with overlap
+            start_idx = end_idx - overlap if end_idx < total_rows else total_rows
+            chunk_num += 1
+
+        return chunks
+
+    def _rows_to_markdown(self, headers: List[str], rows: List[List[str]]) -> str:
+        """Convert table rows to markdown format."""
+        if not headers:
+            return ""
+
+        # Escape pipe characters in content
+        def escape_pipe(s: str) -> str:
+            return s.replace("|", "\\|")
+
+        md_lines = []
+
+        # Header row
+        header_line = "| " + " | ".join(escape_pipe(h) for h in headers) + " |"
+        md_lines.append(header_line)
+
+        # Separator
+        md_lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
+
+        # Data rows
+        for row in rows:
+            # Pad row if needed
+            padded_row = row + [""] * (len(headers) - len(row)) if len(row) < len(headers) else row[:len(headers)]
+            row_line = "| " + " | ".join(escape_pipe(str(cell)) for cell in padded_row) + " |"
+            md_lines.append(row_line)
+
+        return "\n".join(md_lines)
+
+    async def _fallback_extraction(self, content: bytes, filename: str) -> List[Dict[str, Any]]:
+        """Fallback extraction when openpyxl is not available."""
         return [
             {
                 "name": "Sheet1",
-                "headers": ["ID", "이름", "부서", "직급"],
-                "rows": [
-                    ["1", "홍길동", "개발팀", "과장"],
-                    ["2", "김철수", "기획팀", "대리"],
-                    ["3", "이영희", "디자인팀", "사원"]
-                ]
-            },
-            {
-                "name": "Summary",
-                "headers": ["항목", "값"],
-                "rows": [
-                    ["총 직원 수", "3"],
-                    ["부서 수", "3"]
-                ]
+                "sheet_index": 1,
+                "headers": ["Error"],
+                "rows": [[f"Excel 파일 '{filename}'을 파싱할 수 없습니다. openpyxl 라이브러리가 필요합니다."]]
             }
         ]
-
-    def _rows_to_markdown(self, headers: List[str], rows: List[List[str]]) -> str:
-        """Convert table rows to markdown."""
-        md = "| " + " | ".join(headers) + " |\n"
-        md += "| " + " | ".join(["---"] * len(headers)) + " |\n"
-        for row in rows:
-            md += "| " + " | ".join(str(cell) for cell in row) + " |\n"
-        return md
 
 
 class PowerPointParser(BaseDocumentParser):
