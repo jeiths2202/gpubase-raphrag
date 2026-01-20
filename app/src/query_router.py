@@ -46,17 +46,24 @@ class EmbeddingClassifier:
         "Describe the process",
         "Tell me about this feature",
         "What does this mean?",
-        # Korean - 정의, 설명
+        "What does it stand for?",
+        "What is the abbreviation?",
+        # Korean - 정의, 설명, 약자
         "이것이 무엇인가요?",
         "설명해주세요",
         "이란 무엇인가요",
         "방법을 알려주세요",
         "어떻게 사용하나요?",
-        # Japanese - 定義、説明
+        "약자가 무엇인가요?",
+        "무엇의 약자인가요?",
+        "의 약자",
+        # Japanese - 定義、説明、略語
         "これは何ですか？",
         "説明してください",
         "とは何ですか",
         "方法を教えてください",
+        "の略語は何ですか?",
+        "略称は何ですか?",
     ]
 
     GRAPH_PROTOTYPES = [
