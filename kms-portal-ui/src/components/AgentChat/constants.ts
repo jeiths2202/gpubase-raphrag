@@ -97,10 +97,12 @@ export const TEXT_EXTENSIONS = [
   '.xml', '.csv', '.log', '.sql', '.sh', '.bat', '.html', '.css'
 ];
 export const BINARY_EXTENSIONS = ['.pdf', '.docx'];
-export const SUPPORTED_EXTENSIONS = [...TEXT_EXTENSIONS, ...BINARY_EXTENSIONS];
+export const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'];
+export const SUPPORTED_EXTENSIONS = [...TEXT_EXTENSIONS, ...BINARY_EXTENSIONS, ...IMAGE_EXTENSIONS];
 
 /**
  * File size limits
  */
 export const MAX_TEXT_FILE_SIZE = 500 * 1024; // 500KB for text files
 export const MAX_BINARY_FILE_SIZE = 2 * 1024 * 1024; // 2MB for PDF/DOCX
+export const MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024; // 5MB for images

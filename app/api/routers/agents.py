@@ -599,6 +599,138 @@ def _extract_docx_text(content_bytes: bytes) -> str:
     return "\n".join(text_parts)
 
 
+class AnalyzeImageResponse(BaseModel):
+    """Response for image analysis"""
+    filename: str
+    description: str
+    ocr_text: str
+    image_type: str
+    confidence: float
+
+
+# Supported image extensions
+IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "bmp", "webp"}
+
+
+@router.post("/analyze-image", response_model=AnalyzeImageResponse)
+async def analyze_image_file(
+    file: UploadFile = File(..., description="Image file to analyze"),
+    current_user: dict = Depends(get_current_user)
+) -> AnalyzeImageResponse:
+    """
+    Analyze an image file using VLM (Vision Language Model).
+
+    Extracts:
+    - Visual description of the image
+    - OCR text extraction
+    - Image type classification
+
+    Args:
+        file: Uploaded image file (max 5MB)
+        current_user: Authenticated user
+
+    Returns:
+        AnalyzeImageResponse with description and OCR text
+    """
+    # Check file extension
+    filename = file.filename or "unknown"
+    ext = filename.lower().split(".")[-1] if "." in filename else ""
+
+    if ext not in IMAGE_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "INVALID_FILE_TYPE",
+                "message": f"Only image files are supported. Got: .{ext}. Supported: {', '.join(IMAGE_EXTENSIONS)}"
+            }
+        )
+
+    # Read file content
+    try:
+        content_bytes = await file.read()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "FILE_READ_ERROR", "message": str(e)}
+        )
+
+    # Check file size (5MB limit)
+    max_size = 5 * 1024 * 1024
+    if len(content_bytes) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "FILE_TOO_LARGE", "message": f"File too large: {len(content_bytes):,} bytes (max 5MB)"}
+        )
+
+    # Analyze image using VLM service
+    try:
+        description, ocr_text, confidence = await _analyze_image_with_vlm(content_bytes, filename)
+    except Exception as e:
+        logger.error(f"Image analysis failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ANALYSIS_ERROR", "message": f"Failed to analyze image: {e}"}
+        )
+
+    return AnalyzeImageResponse(
+        filename=filename,
+        description=description,
+        ocr_text=ocr_text,
+        image_type=ext,
+        confidence=confidence
+    )
+
+
+async def _analyze_image_with_vlm(content_bytes: bytes, filename: str) -> tuple[str, str, float]:
+    """
+    Analyze image using VLM service.
+
+    Returns:
+        Tuple of (description, ocr_text, confidence)
+    """
+    try:
+        from ..services.ollama_vlm_service import OllamaVLMService
+
+        vlm_service = OllamaVLMService()
+
+        # Get image description
+        description_result = await vlm_service.describe_image(
+            image_data=content_bytes,
+            prompt="이 이미지를 상세하게 설명해주세요. 이미지에 보이는 주요 요소, 텍스트, 다이어그램, 차트 등을 포함해서 설명해주세요.",
+            context=f"파일명: {filename}"
+        )
+
+        description = description_result.get("description", "이미지 설명을 생성할 수 없습니다.")
+        confidence = description_result.get("confidence", 0.5)
+
+        # Extract OCR text
+        ocr_result = await vlm_service.extract_text_ocr(
+            image_data=content_bytes,
+            language="auto"
+        )
+
+        ocr_text = ocr_result.get("text", "")
+
+        return description, ocr_text, confidence
+
+    except ImportError:
+        # Fallback if VLM service is not available
+        logger.warning("VLM service not available, using fallback")
+        return (
+            f"이미지 파일: {filename} (VLM 서비스를 사용할 수 없어 분석이 제한됩니다)",
+            "",
+            0.0
+        )
+    except Exception as e:
+        logger.error(f"VLM analysis error: {e}")
+        # Return partial result on error
+        return (
+            f"이미지 파일: {filename} (분석 중 오류 발생: {str(e)[:100]})",
+            "",
+            0.0
+        )
+
+
 class FetchUrlRequest(BaseModel):
     """Request for URL content fetching"""
     url: str = Field(..., description="URL to fetch content from")

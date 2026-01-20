@@ -9,9 +9,11 @@ import type { AttachedFile } from '../types';
 import type { AgentType } from '../../../api/agent.api';
 import {
   BINARY_EXTENSIONS,
+  IMAGE_EXTENSIONS,
   SUPPORTED_EXTENSIONS,
   MAX_TEXT_FILE_SIZE,
   MAX_BINARY_FILE_SIZE,
+  MAX_IMAGE_FILE_SIZE,
 } from '../constants';
 
 // Per-agent file state
@@ -108,8 +110,9 @@ export function useFileAttachment(
 
       // Check size based on file type
       const isBinaryFile = BINARY_EXTENSIONS.includes(ext);
-      const maxSize = isBinaryFile ? MAX_BINARY_FILE_SIZE : MAX_TEXT_FILE_SIZE;
-      const maxSizeLabel = isBinaryFile ? '2MB' : '500KB';
+      const isImageFile = IMAGE_EXTENSIONS.includes(ext);
+      const maxSize = isImageFile ? MAX_IMAGE_FILE_SIZE : (isBinaryFile ? MAX_BINARY_FILE_SIZE : MAX_TEXT_FILE_SIZE);
+      const maxSizeLabel = isImageFile ? '5MB' : (isBinaryFile ? '2MB' : '500KB');
 
       if (file.size > maxSize) {
         updateAgentFileError(currentAgent, `File too large: ${file.name} (max ${maxSizeLabel})`);
@@ -126,7 +129,26 @@ export function useFileAttachment(
       try {
         let content: string;
 
-        if (isBinaryFile) {
+        if (isImageFile) {
+          // Image files: Send to server for VLM analysis
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const response = await fetch('/api/v1/agents/analyze-image', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include',
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail?.message || 'Failed to analyze image');
+          }
+
+          const result = await response.json();
+          // Format: image description with metadata
+          content = `[이미지: ${file.name}]\n${result.description}\n\n[OCR 텍스트]\n${result.ocr_text || '(텍스트 없음)'}`;
+        } else if (isBinaryFile) {
           // PDF/DOCX: Send to server for text extraction
           const formData = new FormData();
           formData.append('file', file);
