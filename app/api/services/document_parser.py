@@ -3,6 +3,7 @@ Document Parser Service
 Handles parsing of various document formats: PDF, Word, Excel, PowerPoint, Text, Images
 """
 import asyncio
+import base64
 import io
 import os
 import re
@@ -10,6 +11,15 @@ import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple, BinaryIO
+
+# PowerPoint parsing
+try:
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+    PPTX_AVAILABLE = True
+except ImportError:
+    PPTX_AVAILABLE = False
 
 from ..models.document import (
     DocumentType,
@@ -888,7 +898,7 @@ class ExcelParser(BaseDocumentParser):
 
 
 class PowerPointParser(BaseDocumentParser):
-    """Parser for Microsoft PowerPoint documents."""
+    """Parser for Microsoft PowerPoint documents using python-pptx."""
 
     SUPPORTED_TYPES = [
         "application/vnd.ms-powerpoint",
@@ -905,11 +915,13 @@ class PowerPointParser(BaseDocumentParser):
         options: Dict[str, Any] = None
     ) -> ParsedDocument:
         """
-        Parse PowerPoint document.
+        Parse PowerPoint document using python-pptx.
 
-        In production, this would use libraries like:
-        - python-pptx
-        - pdf2image (convert to images first)
+        Extracts:
+        - Slide text (title, body, shapes)
+        - Speaker notes
+        - Tables
+        - Images (as base64 for VLM processing)
         """
         options = options or {}
         mime_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
@@ -918,8 +930,12 @@ class PowerPointParser(BaseDocumentParser):
 
         doc = ParsedDocument(DocumentType.POWERPOINT, filename, mime_type)
 
-        # Mock PowerPoint parsing
-        slides = await self._mock_ppt_extraction(file_content, filename)
+        if not PPTX_AVAILABLE:
+            # Fallback to mock if python-pptx not installed
+            slides = await self._fallback_extraction(file_content, filename)
+        else:
+            # Real extraction using python-pptx
+            slides = await self._extract_slides(file_content, filename)
 
         # Convert slides to text
         text_parts = []
@@ -929,77 +945,260 @@ class PowerPointParser(BaseDocumentParser):
             content = slide.get("content", "")
 
             text_parts.append(f"--- 슬라이드 {slide_num}: {title} ---")
-            text_parts.append(content)
+            if content:
+                text_parts.append(content)
 
             # Add speaker notes if available
             if slide.get("notes"):
                 text_parts.append(f"[발표자 노트] {slide['notes']}")
+
+            # Add table markdown if present
+            if slide.get("tables"):
+                for table_md in slide["tables"]:
+                    text_parts.append(f"[테이블]\n{table_md}")
 
         doc.text_content = "\n\n".join(text_parts)
 
         doc.metadata = {
             "title": filename.replace(".pptx", "").replace(".ppt", ""),
             "slide_count": len(slides),
-            "has_notes": any(s.get("notes") for s in slides)
+            "has_notes": any(s.get("notes") for s in slides),
+            "has_tables": any(s.get("tables") for s in slides),
+            "has_images": any(s.get("images") for s in slides),
+            "total_images": sum(len(s.get("images", [])) for s in slides),
+            "total_tables": sum(len(s.get("tables", [])) for s in slides)
         }
 
         doc.pages = [
-            {"page_number": s["number"], "content": s.get("title", "")}
+            {
+                "page_number": s["number"],
+                "content": s.get("title", ""),
+                "text_length": len(s.get("content", ""))
+            }
             for s in slides
         ]
 
         # Extract images from slides
         if options.get("extract_images", True):
-            doc.images = await self._mock_image_extraction(slides)
+            doc.images = await self._collect_images(slides)
+
+        # Extract tables
+        doc.tables = await self._collect_tables(slides)
 
         doc.processing_info = {
             "parser": "PowerPointParser",
             "parsed_at": datetime.now(timezone.utc).isoformat(),
-            "is_pptx": filename.endswith(".pptx")
+            "is_pptx": filename.endswith(".pptx"),
+            "pptx_available": PPTX_AVAILABLE
         }
 
         return doc
 
-    async def _mock_ppt_extraction(self, content: bytes, filename: str) -> List[Dict[str, Any]]:
-        """Mock PowerPoint slide extraction."""
-        await asyncio.sleep(0.4)
+    async def _extract_slides(self, content: bytes, filename: str) -> List[Dict[str, Any]]:
+        """Extract slides using python-pptx."""
+        slides_data = []
+
+        try:
+            prs = Presentation(io.BytesIO(content))
+
+            for slide_idx, slide in enumerate(prs.slides, start=1):
+                slide_info = {
+                    "number": slide_idx,
+                    "title": "",
+                    "content": "",
+                    "notes": "",
+                    "tables": [],
+                    "images": []
+                }
+
+                # Extract title
+                if slide.shapes.title:
+                    slide_info["title"] = slide.shapes.title.text.strip()
+
+                # Extract text from all shapes
+                text_parts = []
+                for shape in slide.shapes:
+                    # Skip title shape (already extracted)
+                    if shape == slide.shapes.title:
+                        continue
+
+                    # Extract text from text frames
+                    if shape.has_text_frame:
+                        for paragraph in shape.text_frame.paragraphs:
+                            para_text = "".join(run.text for run in paragraph.runs).strip()
+                            if para_text:
+                                # Detect bullet points
+                                if paragraph.level > 0:
+                                    para_text = "  " * paragraph.level + "• " + para_text
+                                elif self._is_bullet_paragraph(paragraph):
+                                    para_text = "• " + para_text
+                                text_parts.append(para_text)
+
+                    # Extract tables
+                    if shape.has_table:
+                        table_md = self._extract_table(shape.table)
+                        slide_info["tables"].append(table_md)
+
+                    # Extract images
+                    if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+                        img_info = self._extract_image(shape, slide_idx)
+                        if img_info:
+                            slide_info["images"].append(img_info)
+
+                slide_info["content"] = "\n".join(text_parts)
+
+                # Extract speaker notes
+                if slide.has_notes_slide:
+                    notes_frame = slide.notes_slide.notes_text_frame
+                    if notes_frame:
+                        notes_text = notes_frame.text.strip()
+                        if notes_text:
+                            slide_info["notes"] = notes_text
+
+                slides_data.append(slide_info)
+
+        except Exception as e:
+            # Log error and return empty or partial data
+            import logging
+            logging.error(f"Error parsing PowerPoint {filename}: {e}")
+            if not slides_data:
+                slides_data = await self._fallback_extraction(content, filename)
+
+        return slides_data
+
+    def _is_bullet_paragraph(self, paragraph) -> bool:
+        """Check if paragraph has bullet formatting."""
+        try:
+            # Check for bullet character in XML
+            pPr = paragraph._p.get_or_add_pPr()
+            buNone = pPr.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}buNone')
+            return buNone is None and paragraph.level >= 0
+        except Exception:
+            return False
+
+    def _extract_table(self, table) -> str:
+        """Extract table and convert to markdown format."""
+        rows = []
+        for row_idx, row in enumerate(table.rows):
+            cells = []
+            for cell in row.cells:
+                cell_text = cell.text.strip().replace("\n", " ")
+                cells.append(cell_text)
+            rows.append(cells)
+
+        if not rows:
+            return ""
+
+        # Build markdown table
+        md_lines = []
+
+        # Header row
+        md_lines.append("| " + " | ".join(rows[0]) + " |")
+        md_lines.append("| " + " | ".join(["---"] * len(rows[0])) + " |")
+
+        # Data rows
+        for row in rows[1:]:
+            # Pad row if needed
+            while len(row) < len(rows[0]):
+                row.append("")
+            md_lines.append("| " + " | ".join(row[:len(rows[0])]) + " |")
+
+        return "\n".join(md_lines)
+
+    def _extract_image(self, shape, slide_num: int) -> Optional[Dict[str, Any]]:
+        """Extract image from shape."""
+        try:
+            image = shape.image
+            image_bytes = image.blob
+            content_type = image.content_type
+
+            # Get position and size
+            position = {
+                "x": shape.left,
+                "y": shape.top,
+                "width": shape.width,
+                "height": shape.height
+            }
+
+            # Convert to base64 for VLM processing
+            image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+
+            return {
+                "id": f"img_{uuid.uuid4().hex[:8]}",
+                "slide_number": slide_num,
+                "content_type": content_type,
+                "position": position,
+                "base64": image_b64,
+                "size_bytes": len(image_bytes)
+            }
+        except Exception as e:
+            return None
+
+    async def _collect_images(self, slides: List[Dict[str, Any]]) -> List[ImageInfo]:
+        """Collect all images from slides into ImageInfo list."""
+        images = []
+        for slide in slides:
+            for img in slide.get("images", []):
+                # Decode base64 to bytes for the data field
+                img_data = None
+                if img.get("base64"):
+                    try:
+                        img_data = base64.b64decode(img["base64"])
+                    except Exception:
+                        pass
+
+                images.append(ImageInfo(
+                    id=img["id"],
+                    page_number=img["slide_number"],
+                    position=img.get("position", {}),
+                    description=f"슬라이드 {img['slide_number']}의 이미지",
+                    alt_text=f"Image from slide {img['slide_number']}",
+                    data=img_data,
+                    mime_type=img.get("content_type", "image/png")
+                ))
+        return images
+
+    async def _collect_tables(self, slides: List[Dict[str, Any]]) -> List[TableInfo]:
+        """Collect all tables from slides into TableInfo list."""
+        tables = []
+        for slide in slides:
+            for table_idx, table_md in enumerate(slide.get("tables", [])):
+                # Parse markdown to extract headers and rows
+                lines = table_md.strip().split("\n")
+                headers = []
+                rows = []
+
+                if lines:
+                    header_line = lines[0].strip()
+                    if header_line.startswith("|"):
+                        headers = [h.strip() for h in header_line.split("|")[1:-1]]
+
+                    # Extract data rows (skip header and separator line)
+                    for line in lines[2:]:
+                        if line.strip().startswith("|"):
+                            row_cells = [c.strip() for c in line.split("|")[1:-1]]
+                            rows.append(row_cells)
+
+                tables.append(TableInfo(
+                    id=f"table_{uuid.uuid4().hex[:8]}",
+                    page_number=slide["number"],
+                    headers=headers,
+                    rows=rows,
+                    markdown=table_md
+                ))
+        return tables
+
+    async def _fallback_extraction(self, content: bytes, filename: str) -> List[Dict[str, Any]]:
+        """Fallback extraction when python-pptx is not available or parsing fails."""
         return [
             {
                 "number": 1,
-                "title": "프로젝트 개요",
-                "content": "GPU 기반 지식관리 시스템\n\n- 문서 처리\n- AI 질의응답\n- 마인드맵 생성",
-                "notes": "프로젝트 소개로 시작"
-            },
-            {
-                "number": 2,
-                "title": "시스템 아키텍처",
-                "content": "프론트엔드: React\n백엔드: FastAPI\n데이터베이스: Neo4j",
-                "notes": ""
-            },
-            {
-                "number": 3,
-                "title": "주요 기능",
-                "content": "1. 멀티모달 문서 처리\n2. VLM 기반 분석\n3. 하이브리드 RAG",
-                "notes": "각 기능 상세 설명"
-            },
-            {
-                "number": 4,
-                "title": "결론",
-                "content": "효율적인 지식 관리 플랫폼 구축",
-                "notes": ""
+                "title": "파싱 실패",
+                "content": f"PowerPoint 파일 '{filename}'을 파싱할 수 없습니다. python-pptx 라이브러리가 필요합니다.",
+                "notes": "",
+                "tables": [],
+                "images": []
             }
-        ]
-
-    async def _mock_image_extraction(self, slides: List[Dict[str, Any]]) -> List[ImageInfo]:
-        """Mock image extraction from slides."""
-        return [
-            ImageInfo(
-                id=f"img_{uuid.uuid4().hex[:8]}",
-                page_number=2,
-                position={"x": 100, "y": 150, "width": 600, "height": 400},
-                description="시스템 아키텍처 다이어그램",
-                alt_text="Architecture Diagram"
-            )
         ]
 
 
