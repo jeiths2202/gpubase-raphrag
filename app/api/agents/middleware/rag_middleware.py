@@ -181,10 +181,11 @@ class RAGToolsProvider:
         def document_read(doc_id: str) -> str:
             """Read the full content of a specific document.
 
-            Use this to get complete document content after finding it with vector_search.
+            IMPORTANT: You MUST first use vector_search to find documents and obtain valid doc_ids.
+            DO NOT guess or fabricate document IDs - they must come from vector_search results.
 
             Args:
-                doc_id: Document ID or source path
+                doc_id: Document ID from vector_search results (e.g., 'doc_0b2315a610f4'). NEVER guess IDs.
 
             Returns:
                 Full document content

@@ -21,8 +21,9 @@ class DocumentReadTool(BaseTool):
         super().__init__(
             name="document_read",
             description="""Read content from an uploaded document.
-Use this tool to retrieve the full text or specific sections of a document
-that was uploaded by the user or exists in the knowledge base."""
+IMPORTANT: You MUST first use vector_search to find relevant documents and obtain valid document_ids.
+DO NOT guess or make up document_ids - they must come from vector_search results.
+Use this tool ONLY when you need full document content after finding it via vector_search."""
         )
 
     def _get_default_parameters(self) -> Dict[str, Any]:
@@ -31,7 +32,7 @@ that was uploaded by the user or exists in the knowledge base."""
             "properties": {
                 "document_id": {
                     "type": "string",
-                    "description": "The ID of the document to read"
+                    "description": "The ID of the document to read. MUST be obtained from vector_search results (e.g., 'doc_0b2315a610f4'). DO NOT guess or fabricate IDs."
                 },
                 "chunk_index": {
                     "type": "integer",
