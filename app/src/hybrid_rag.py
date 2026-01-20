@@ -194,12 +194,23 @@ class HybridRAG:
             except Exception as e2:
                 print(f"    [Query Expansion] All methods failed: {e2}")
 
-        # Extract key concept and search by topic density
-        key_concept = self._extract_key_concept(query)
+        # Extract key concepts and search by topic density
+        # For comparison queries, extract multiple concepts
+        key_concepts = self._extract_key_concepts_for_comparison(query)
         topic_density_results = []
-        if key_concept:
-            print(f"    [Topic Density] Key concept: '{key_concept}'")
-            topic_density_results = self._search_by_topic_density(key_concept, k)
+
+        if key_concepts:
+            print(f"    [Topic Density] Key concepts: {key_concepts}")
+            seen_chunks = set()
+            # Use larger k for topic density to increase overlap with vector results
+            topic_k = k * 3
+            for concept in key_concepts:
+                results = self._search_by_topic_density(concept, topic_k)
+                for r in results:
+                    chunk_id = r.get("chunk_id")
+                    if chunk_id and chunk_id not in seen_chunks:
+                        topic_density_results.append(r)
+                        seen_chunks.add(chunk_id)
             if topic_density_results:
                 print(f"    [Topic Density] Found {len(topic_density_results)} results from topic-central documents")
 
@@ -825,6 +836,64 @@ Response:"""
         except Exception as e:
             print(f"Key concept extraction error: {e}")
             return fallback_concept if fallback_concept else self._fallback_key_concept(query)
+
+    def _extract_key_concepts_for_comparison(self, query: str) -> List[str]:
+        """
+        Extract multiple key concepts for comparison queries.
+
+        For queries like "OSC와 OSI 비교" or "MFS vs BMS", extracts both product names
+        to ensure both are boosted in topic density search.
+
+        Args:
+            query: User's query
+
+        Returns:
+            List of key concepts (1-3 items)
+        """
+        # Comparison patterns in Korean, Japanese, English
+        comparison_patterns = [
+            r'와\s*', r'과\s*', r'と\s*', r'\s+vs\.?\s+', r'\s+and\s+',
+            r'비교', r'比較', r'compare', r'차이', r'違い', r'difference'
+        ]
+
+        # Check if this is a comparison query
+        is_comparison = any(re.search(p, query, re.IGNORECASE) for p in comparison_patterns)
+
+        if not is_comparison:
+            # Not a comparison query, use single concept extraction
+            concept = self._extract_key_concept(query)
+            return [concept] if concept else []
+
+        # Extract product/acronym names for comparison
+        # Look for uppercase acronyms (2-5 letters)
+        # Note: \b doesn't work with CJK characters, use lookbehind/ahead instead
+        acronyms = re.findall(r'(?<![A-Za-z])([A-Z]{2,5})(?![A-Za-z])', query)
+
+        if len(acronyms) >= 2:
+            # Found multiple acronyms, return them as concepts
+            return list(set(acronyms[:3]))  # Limit to 3 concepts
+
+        # Try to find Japanese/Korean product names
+        # Pattern: OpenFrame/XXX or XXX製品 or XXX제품
+        product_patterns = [
+            r'OpenFrame[/]?(\w+)',
+            r'(\w+)製品',
+            r'(\w+)제품',
+            r'(\w+)システム',
+            r'(\w+)시스템',
+        ]
+
+        products = []
+        for pattern in product_patterns:
+            matches = re.findall(pattern, query)
+            products.extend(matches)
+
+        if products:
+            return list(set(products[:3]))
+
+        # Fallback to single concept
+        concept = self._extract_key_concept(query)
+        return [concept] if concept else []
 
     def _fallback_key_concept_compound(self, query: str) -> str:
         """
