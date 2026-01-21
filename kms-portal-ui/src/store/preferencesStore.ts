@@ -16,11 +16,15 @@ export type Theme = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
 export type Language = 'en' | 'ko' | 'ja';
 
+// Direct mode display types
+export type DirectModeDisplay = 'inline' | 'floating';
+
 interface PreferencesState {
   // State
   theme: Theme;
   language: Language;
   resolvedTheme: ResolvedTheme;
+  directModeDisplay: DirectModeDisplay;  // Direct mode 결과 표시 방식
   isLoading: boolean;
   isSynced: boolean;
   error: string | null;
@@ -28,6 +32,7 @@ interface PreferencesState {
   // Actions
   setTheme: (theme: Theme) => void;
   setLanguage: (language: Language) => void;
+  setDirectModeDisplay: (mode: DirectModeDisplay) => void;
   loadPreferences: () => Promise<void>;
   syncWithServer: () => Promise<void>;
   detectSystemTheme: () => ResolvedTheme;
@@ -80,6 +85,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       theme: 'system',
       language: 'ko', // Default to Korean for this KMS
       resolvedTheme: detectSystemTheme(),
+      directModeDisplay: 'inline', // Default to inline display
       isLoading: false,
       isSynced: false,
       error: null,
@@ -89,6 +95,12 @@ export const usePreferencesStore = create<PreferencesState>()(
       applyTheme: (theme: ResolvedTheme) => {
         applyThemeToDOM(theme);
         set({ resolvedTheme: theme });
+      },
+
+      setDirectModeDisplay: (mode: DirectModeDisplay) => {
+        set({ directModeDisplay: mode, isSynced: false });
+        // Sync with server (non-blocking)
+        get().syncWithServer();
       },
 
       setTheme: (theme: Theme) => {
@@ -192,10 +204,11 @@ export const usePreferencesStore = create<PreferencesState>()(
     }),
     {
       name: 'kms-preferences',
-      // Only persist theme and language
+      // Only persist theme, language, and display settings
       partialize: (state) => ({
         theme: state.theme,
         language: state.language,
+        directModeDisplay: state.directModeDisplay,
       }),
       // On rehydrate, apply stored preferences to DOM
       onRehydrateStorage: () => (state) => {

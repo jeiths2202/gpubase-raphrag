@@ -31,6 +31,8 @@ import {
   GitBranch,
   Link2,
   Search,
+  Layers,
+  MessageSquare,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import './AgentChat.css';
@@ -64,11 +66,28 @@ import { useExternalConnectorsStore } from '../store/externalConnectorsStore';
 // Auth store for user ID
 import { useAuthStore } from '../store/authStore';
 
+// Preferences store for display mode
+import { usePreferencesStore } from '../store/preferencesStore';
+
+// Floating panel store
+import { useFloatingPanelStore } from '../store/floatingPanelStore';
+
+// Floating panel component
+import { DirectModeFloatingPanel } from './AgentChat/DirectModeFloatingPanel';
+
 // =============================================================================
 // Component
 // =============================================================================
 
-export const AgentChat: React.FC = () => {
+interface AgentChatProps {
+  windowId?: string;  // For floating window mode
+  isFloatingWindow?: boolean;  // Whether this is inside a floating window
+}
+
+export const AgentChat: React.FC<AgentChatProps> = ({
+  windowId: _windowId,
+  isFloatingWindow: _isFloatingWindow = false,
+}) => {
   const { t, language: userLanguage } = useTranslation();
 
   // Artifact store
@@ -128,6 +147,25 @@ export const AgentChat: React.FC = () => {
 
   // Auth store - get current user ID
   const { user } = useAuthStore();
+
+  // Preferences store - display mode for Direct mode results
+  const { directModeDisplay, setDirectModeDisplay } = usePreferencesStore();
+
+  // Floating panel store - manage multiple floating panels
+  const {
+    panels: floatingPanels,
+    createPanel: _createPanel, // Will be used when Direct mode response is received
+    closePanel,
+    closeAllPanels,
+    minimizePanel,
+    restorePanel,
+    bringToFront,
+    updatePosition,
+    updateSize,
+  } = useFloatingPanelStore();
+
+  // Export createPanel for external use (e.g., from streaming chat hook)
+  const createPanel = _createPanel;
 
   // External connectors store and modal state (must be before setSelectedAgent callback)
   const {
@@ -268,6 +306,42 @@ export const AgentChat: React.FC = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingMessage]);
+
+  // Track previous messages length for floating panel creation
+  const prevMessagesLengthRef = useRef(messages.length);
+
+  // Auto-create floating panel when assistant message is added in floating mode
+  useEffect(() => {
+    // Only process if floating mode is active and messages increased
+    if (directModeDisplay !== 'floating' || messages.length <= prevMessagesLengthRef.current) {
+      prevMessagesLengthRef.current = messages.length;
+      return;
+    }
+
+    // Get the newly added message
+    const lastMessage = messages[messages.length - 1];
+
+    // Only process assistant messages
+    if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.isStreaming) {
+      // Find the corresponding user message (second to last or earlier)
+      const userMessage = [...messages].reverse().find(m => m.role === 'user');
+
+      // Create floating panel with the response
+      createPanel({
+        title: userMessage?.content.slice(0, 50) || 'Search Result',
+        query: userMessage?.content || '',
+        content: lastMessage.content,
+        searchResults: lastMessage.searchResults,
+        sourceReliability: lastMessage.sourceReliability,
+        timestamp: lastMessage.timestamp,
+      });
+
+      // Clear chat after creating panel (keep empty for new conversations)
+      setMessages([]);
+    }
+
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages, directModeDisplay, createPanel, setMessages]);
 
   // Restore agent state and load conversations when agent type changes
   useEffect(() => {
@@ -427,9 +501,23 @@ export const AgentChat: React.FC = () => {
 
   // Handle new conversation
   const handleNewConversation = useCallback(() => {
+    // If in floating mode and there are existing messages, create a floating panel first
+    if (directModeDisplay === 'floating' && messages.length > 0) {
+      const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
+      if (lastAssistantMessage) {
+        createPanel({
+          title: lastAssistantMessage.content.slice(0, 50) + '...',
+          query: messages.find(m => m.role === 'user')?.content || '',
+          content: lastAssistantMessage.content,
+          searchResults: lastAssistantMessage.searchResults,
+          sourceReliability: lastAssistantMessage.sourceReliability,
+          timestamp: lastAssistantMessage.timestamp,
+        });
+      }
+    }
     startNewConversation(selectedAgent);
     handleClearChat();
-  }, [selectedAgent, startNewConversation, handleClearChat]);
+  }, [selectedAgent, startNewConversation, handleClearChat, directModeDisplay, messages, createPanel]);
 
   // Track if we're manually selecting a conversation (to bypass agent_type check)
   const [manuallySelectedConversationId, setManuallySelectedConversationId] = useState<string | null>(null);
@@ -547,6 +635,21 @@ export const AgentChat: React.FC = () => {
             title="New conversation"
           >
             <Plus size={16} />
+          </button>
+
+          {/* Display mode toggle */}
+          <button
+            className={`agent-chat-display-mode-toggle ${directModeDisplay === 'floating' ? 'active' : ''}`}
+            onClick={() => {
+              const newMode = directModeDisplay === 'inline' ? 'floating' : 'inline';
+              console.log('[AgentChat] Display mode toggle clicked:', directModeDisplay, '->', newMode);
+              setDirectModeDisplay(newMode);
+            }}
+            title={directModeDisplay === 'floating'
+              ? (t('common.displayMode.inline') || 'Switch to inline mode')
+              : (t('common.displayMode.floating') || 'Switch to floating mode')}
+          >
+            {directModeDisplay === 'floating' ? <MessageSquare size={16} /> : <Layers size={16} />}
           </button>
 
           {/* External connectors button */}
@@ -933,6 +1036,51 @@ export const AgentChat: React.FC = () => {
 
     {/* Trace Panel */}
     <TracePanel t={t} />
+
+    {/* Floating Panels for Direct Mode Results */}
+    {directModeDisplay === 'floating' && floatingPanels.length > 0 && (
+      <div className="floating-panels-container">
+        {floatingPanels.map((panel) => (
+          <DirectModeFloatingPanel
+            key={panel.id}
+            panel={panel}
+            onClose={closePanel}
+            onMinimize={minimizePanel}
+            onRestore={restorePanel}
+            onBringToFront={bringToFront}
+            onUpdatePosition={updatePosition}
+            onUpdateSize={updateSize}
+            t={t}
+          />
+        ))}
+      </div>
+    )}
+
+    {/* Minimized panels bar */}
+    {directModeDisplay === 'floating' && floatingPanels.filter(p => p.isMinimized).length > 0 && (
+      <div className="minimized-panels-bar">
+        {floatingPanels.filter(p => p.isMinimized).map((panel) => (
+          <button
+            key={panel.id}
+            className="minimized-panel-item"
+            onClick={() => restorePanel(panel.id)}
+            title={panel.title}
+          >
+            <MessageSquare size={14} />
+            <span>{panel.title.length > 15 ? panel.title.slice(0, 15) + '...' : panel.title}</span>
+          </button>
+        ))}
+        {floatingPanels.filter(p => p.isMinimized).length > 1 && (
+          <button
+            className="minimized-panel-close-all"
+            onClick={closeAllPanels}
+            title={t('common.closeAll') || 'Close all'}
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+    )}
     </div>
   );
 };

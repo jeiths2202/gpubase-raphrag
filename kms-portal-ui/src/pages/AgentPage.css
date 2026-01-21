@@ -16,3 +16,483 @@
     padding: var(--space-4);
   }
 }
+
+/* =============================================================================
+   Floating Mode Styles
+   ============================================================================= */
+
+.agent-page.floating-mode {
+  max-width: none;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Top toolbar - always visible above windows */
+.floating-mode-toolbar {
+  position: fixed;
+  top: 0;
+  left: 220px; /* Account for sidebar */
+  right: 0;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-4, 16px);
+  background: var(--color-bg-secondary, #1e293b);
+  border-bottom: 1px solid var(--color-border, #334155);
+  z-index: 1200;
+}
+
+[data-theme="light"] .floating-mode-toolbar {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+.floating-mode-toolbar-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary, #94a3b8);
+}
+
+.floating-mode-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+}
+
+/* Toolbar buttons - smaller size */
+.floating-mode-toolbar .floating-mode-new-btn,
+.floating-mode-toolbar .floating-mode-exit-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* Background for floating mode */
+.floating-mode-background {
+  position: absolute;
+  top: 48px; /* Account for toolbar */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-primary, #0f172a);
+  z-index: 1;
+}
+
+[data-theme="light"] .floating-mode-background {
+  background: #f8fafc;
+}
+
+.floating-mode-hint {
+  text-align: center;
+  color: var(--color-text-muted, #64748b);
+}
+
+.floating-mode-hint p {
+  font-size: 18px;
+  margin-bottom: 20px;
+}
+
+.floating-mode-new-btn,
+.floating-mode-exit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  margin: 8px;
+  border-radius: var(--radius-md, 8px);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.floating-mode-new-btn {
+  background: var(--color-primary, #6366f1);
+  border: none;
+  color: white;
+}
+
+.floating-mode-new-btn:hover {
+  background: var(--color-primary-hover, #4f46e5);
+}
+
+.floating-mode-exit-btn {
+  background: transparent;
+  border: 1px solid var(--color-border, #334155);
+  color: var(--color-text-secondary, #94a3b8);
+}
+
+.floating-mode-exit-btn:hover {
+  background: var(--color-bg-hover, rgba(255, 255, 255, 0.05));
+  color: var(--color-text-primary, #f1f5f9);
+}
+
+[data-theme="light"] .floating-mode-exit-btn {
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
+[data-theme="light"] .floating-mode-exit-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* Floating windows container */
+.floating-windows-container {
+  position: absolute;
+  top: 48px; /* Account for toolbar */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* =============================================================================
+   Floating Chat Window Styles
+   ============================================================================= */
+
+.floating-chat-window {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-primary, #0f172a);
+  border: 1px solid var(--color-border, #334155);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5),
+              0 0 0 1px rgba(255, 255, 255, 0.05);
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.floating-chat-window.dragging {
+  cursor: grabbing;
+  user-select: none;
+  opacity: 0.95;
+}
+
+.floating-chat-window.resizing {
+  user-select: none;
+}
+
+[data-theme="light"] .floating-chat-window {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15),
+              0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+/* Resize handles */
+.floating-chat-window .resize-handle {
+  position: absolute;
+  z-index: 10;
+}
+
+.floating-chat-window .resize-handle.resize-n {
+  top: -4px;
+  left: 12px;
+  right: 12px;
+  height: 8px;
+  cursor: n-resize;
+}
+
+.floating-chat-window .resize-handle.resize-s {
+  bottom: -4px;
+  left: 12px;
+  right: 12px;
+  height: 8px;
+  cursor: s-resize;
+}
+
+.floating-chat-window .resize-handle.resize-e {
+  top: 12px;
+  right: -4px;
+  bottom: 12px;
+  width: 8px;
+  cursor: e-resize;
+}
+
+.floating-chat-window .resize-handle.resize-w {
+  top: 12px;
+  left: -4px;
+  bottom: 12px;
+  width: 8px;
+  cursor: w-resize;
+}
+
+.floating-chat-window .resize-handle.resize-ne {
+  top: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  cursor: ne-resize;
+}
+
+.floating-chat-window .resize-handle.resize-nw {
+  top: -4px;
+  left: -4px;
+  width: 16px;
+  height: 16px;
+  cursor: nw-resize;
+}
+
+.floating-chat-window .resize-handle.resize-se {
+  bottom: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  cursor: se-resize;
+}
+
+.floating-chat-window .resize-handle.resize-sw {
+  bottom: -4px;
+  left: -4px;
+  width: 16px;
+  height: 16px;
+  cursor: sw-resize;
+}
+
+/* Window header */
+.floating-window-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  background: var(--color-bg-secondary, #1e293b);
+  border-bottom: 1px solid var(--color-border, #334155);
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.floating-window-header:active {
+  cursor: grabbing;
+}
+
+[data-theme="light"] .floating-window-header {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+.floating-window-drag-handle {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted, #64748b);
+}
+
+.floating-window-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary, #f1f5f9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-theme="light"] .floating-window-title {
+  color: #0f172a;
+}
+
+/* Window controls */
+.floating-window-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1, 4px);
+}
+
+.floating-window-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-text-muted, #64748b);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.floating-window-control:hover {
+  background: var(--color-bg-hover, rgba(255, 255, 255, 0.1));
+  color: var(--color-text-primary, #f1f5f9);
+}
+
+.floating-window-control.close:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.floating-window-control.new-window:hover {
+  background: rgba(99, 102, 241, 0.2);
+  color: var(--color-primary, #6366f1);
+}
+
+.floating-window-control.exit-floating:hover {
+  background: rgba(99, 102, 241, 0.2);
+  color: var(--color-primary, #6366f1);
+}
+
+[data-theme="light"] .floating-window-control:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #0f172a;
+}
+
+/* Window content */
+.floating-window-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Adjust AgentChat inside floating window */
+.floating-window-content .agent-chat-wrapper {
+  height: 100%;
+}
+
+.floating-window-content .agent-chat {
+  height: 100%;
+  border-radius: 0;
+  border: none;
+}
+
+/* Hide toggle button inside floating window */
+.floating-window-content .agent-chat-display-mode-toggle {
+  display: none;
+}
+
+/* =============================================================================
+   Floating Taskbar
+   ============================================================================= */
+
+.floating-taskbar {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  padding: var(--space-2, 8px);
+  background: var(--color-bg-primary, #0f172a);
+  border: 1px solid var(--color-border, #334155);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  z-index: 1100;
+  pointer-events: auto;
+}
+
+[data-theme="light"] .floating-taskbar {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+}
+
+.floating-taskbar-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--color-primary, #6366f1);
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.floating-taskbar-new:hover {
+  background: var(--color-primary-hover, #4f46e5);
+}
+
+.minimized-window-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  background: var(--color-bg-secondary, #1e293b);
+  border: 1px solid var(--color-border, #334155);
+  border-radius: var(--radius-md, 8px);
+  color: var(--color-text-primary, #f1f5f9);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.minimized-window-btn:hover {
+  background: var(--color-bg-hover, rgba(255, 255, 255, 0.1));
+  border-color: var(--color-primary, #6366f1);
+}
+
+[data-theme="light"] .minimized-window-btn {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #0f172a;
+}
+
+[data-theme="light"] .minimized-window-btn:hover {
+  background: #f1f5f9;
+}
+
+.floating-taskbar-close-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid var(--color-border, #334155);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-text-muted, #64748b);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.floating-taskbar-close-all:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.floating-taskbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--color-border, #334155);
+  margin: 0 var(--space-1, 4px);
+}
+
+.floating-taskbar-exit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid var(--color-border, #334155);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-text-muted, #64748b);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.floating-taskbar-exit:hover {
+  background: var(--color-bg-hover, rgba(255, 255, 255, 0.1));
+  border-color: var(--color-primary, #6366f1);
+  color: var(--color-primary, #6366f1);
+}
+
+[data-theme="light"] .floating-taskbar-exit:hover {
+  background: #f1f5f9;
+}
