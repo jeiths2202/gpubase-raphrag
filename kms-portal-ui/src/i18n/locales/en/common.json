@@ -114,6 +114,35 @@
       "maxDocs": "Maximum {{count}} documents can be compared.",
       "selectMode": "Compare Mode",
       "exitMode": "Exit Compare Mode"
+    },
+    "feedback": {
+      "thumbsUp": "Helpful",
+      "thumbsDown": "Not helpful",
+      "registerFAQ": "Register as FAQ",
+      "regenerate": "Regenerate"
+    },
+    "faq": {
+      "registerTitle": "Register as FAQ",
+      "question": "Question",
+      "questionPlaceholder": "Enter the question",
+      "answer": "Answer",
+      "answerPlaceholder": "Enter the answer",
+      "category": "Category",
+      "tags": "Tags",
+      "tagsHint": "comma-separated",
+      "tagsPlaceholder": "e.g., installation, error, config",
+      "register": "Register",
+      "registering": "Registering...",
+      "emptyFields": "Please fill in question and answer",
+      "createError": "Failed to register FAQ",
+      "categories": {
+        "general": "General",
+        "openframe": "OpenFrame",
+        "ofcobol": "OFCOBOL",
+        "ofasm": "OFASM",
+        "ims": "IMS Issues",
+        "rag": "Knowledge Search"
+      }
     }
   },
   "externalConnectors": {

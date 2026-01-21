@@ -114,6 +114,35 @@
       "maxDocs": "최대 {{count}}개의 문서만 비교할 수 있습니다.",
       "selectMode": "비교 모드",
       "exitMode": "비교 모드 종료"
+    },
+    "feedback": {
+      "thumbsUp": "도움이 됨",
+      "thumbsDown": "도움 안됨",
+      "registerFAQ": "FAQ로 등록",
+      "regenerate": "다시 생성"
+    },
+    "faq": {
+      "registerTitle": "FAQ로 등록",
+      "question": "질문",
+      "questionPlaceholder": "질문을 입력하세요",
+      "answer": "답변",
+      "answerPlaceholder": "답변을 입력하세요",
+      "category": "카테고리",
+      "tags": "태그",
+      "tagsHint": "쉼표로 구분",
+      "tagsPlaceholder": "예: 설치, 오류, 설정",
+      "register": "등록",
+      "registering": "등록 중...",
+      "emptyFields": "질문과 답변을 입력해주세요",
+      "createError": "FAQ 등록에 실패했습니다",
+      "categories": {
+        "general": "일반",
+        "openframe": "OpenFrame",
+        "ofcobol": "OFCOBOL",
+        "ofasm": "OFASM",
+        "ims": "IMS 이슈",
+        "rag": "지식 검색"
+      }
     }
   },
   "externalConnectors": {

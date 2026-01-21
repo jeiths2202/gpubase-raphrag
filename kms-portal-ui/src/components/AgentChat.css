@@ -884,6 +884,28 @@
   color: var(--success-text);
 }
 
+/* Feedback button states */
+.agent-message-action.active {
+  background: var(--surface-tertiary);
+}
+
+.agent-message-action.active.thumbs-up {
+  color: var(--success-text);
+}
+
+.agent-message-action.active.thumbs-down {
+  color: var(--error-text);
+}
+
+.agent-message-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.agent-message-action:disabled:hover {
+  background: transparent;
+}
+
 /* Cancel Button */
 .agent-message-cancel {
   padding: var(--space-1) var(--space-2);
@@ -1518,6 +1540,209 @@
 
 .agent-credentials-cancel-btn:disabled,
 .agent-credentials-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =============================================================================
+   FAQ Registration Modal
+   ============================================================================= */
+
+.agent-faq-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  backdrop-filter: blur(4px);
+}
+
+.agent-faq-modal {
+  width: 90%;
+  max-width: 560px;
+  max-height: 90vh;
+  background: var(--surface-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-faq-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--surface-secondary);
+  flex-shrink: 0;
+}
+
+.agent-faq-modal-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--brand-primary);
+}
+
+.agent-faq-modal-title h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.agent-faq-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.agent-faq-modal-close:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.agent-faq-modal-body {
+  padding: var(--space-4);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.agent-faq-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+  background: var(--error-background);
+  border: 1px solid var(--error-border);
+  border-radius: var(--radius-md);
+  color: var(--error-text);
+  font-size: var(--text-sm);
+}
+
+.agent-faq-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.agent-faq-field:last-child {
+  margin-bottom: 0;
+}
+
+.agent-faq-field label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.agent-faq-field-hint {
+  font-weight: 400;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.agent-faq-field textarea,
+.agent-faq-field input,
+.agent-faq-field select {
+  padding: var(--space-3);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  transition: all 0.2s ease;
+  resize: vertical;
+}
+
+.agent-faq-field textarea:focus,
+.agent-faq-field input:focus,
+.agent-faq-field select:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 2px var(--brand-primary-muted);
+}
+
+.agent-faq-field textarea::placeholder,
+.agent-faq-field input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.agent-faq-field textarea:disabled,
+.agent-faq-field input:disabled,
+.agent-faq-field select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.agent-faq-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-top: 1px solid var(--border-primary);
+  background: var(--surface-secondary);
+  flex-shrink: 0;
+}
+
+.agent-faq-cancel-btn,
+.agent-faq-submit-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.agent-faq-cancel-btn {
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+}
+
+.agent-faq-cancel-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-secondary);
+  color: var(--text-primary);
+}
+
+.agent-faq-submit-btn {
+  background: var(--brand-primary);
+  border: none;
+  color: white;
+}
+
+.agent-faq-submit-btn:hover:not(:disabled) {
+  background: var(--brand-primary-hover);
+}
+
+.agent-faq-cancel-btn:disabled,
+.agent-faq-submit-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

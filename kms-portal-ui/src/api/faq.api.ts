@@ -100,6 +100,32 @@ export interface GetFAQItemsOptions {
   include_dynamic?: boolean;
 }
 
+/**
+ * Request for creating a new FAQ item
+ */
+export interface CreateFAQItemRequest {
+  question_ko?: string;
+  question_en?: string;
+  question_ja?: string;
+  answer_ko?: string;
+  answer_en?: string;
+  answer_ja?: string;
+  category: string;
+  tags?: string[];
+  source_type?: 'curated';
+}
+
+/**
+ * Response from creating a FAQ item
+ */
+export interface CreateFAQItemResponse {
+  status: string;
+  message: string;
+  data: {
+    id: string;
+  };
+}
+
 // =============================================================================
 // API Functions
 // =============================================================================
@@ -187,6 +213,16 @@ export const syncDynamicFAQItems = async (minFrequency?: number): Promise<{ coun
   return { count: response.data.count };
 };
 
+/**
+ * Create a new FAQ item (admin/leader only)
+ */
+export const createFAQItem = async (
+  request: CreateFAQItemRequest
+): Promise<CreateFAQItemResponse> => {
+  const response = await apiClient.post<CreateFAQItemResponse>('/faq', request);
+  return response.data;
+};
+
 // =============================================================================
 // Export default API object
 // =============================================================================
@@ -198,6 +234,7 @@ export const faqApi = {
   recordFeedback: recordFAQFeedback,
   getPopularQueries,
   syncDynamicFAQItems,
+  createFAQItem,
 };
 
 export default faqApi;

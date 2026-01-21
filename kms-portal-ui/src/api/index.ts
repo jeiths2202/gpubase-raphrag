@@ -78,6 +78,7 @@ export {
   recordFAQFeedback,
   getPopularQueries,
   syncDynamicFAQItems,
+  createFAQItem,
 } from './faq.api';
 export type {
   FAQItemAPI,
@@ -87,7 +88,14 @@ export type {
   FAQCategoriesResponse,
   PopularQueriesResponse,
   GetFAQItemsOptions,
+  CreateFAQItemRequest,
+  CreateFAQItemResponse,
 } from './faq.api';
+
+// Feedback API
+export { default as feedbackApi } from './feedback.api';
+export { submitQuickFeedback } from './feedback.api';
+export type { QuickFeedbackRequest, FeedbackResponse } from './feedback.api';
 
 // API Key API
 export { default as apiKeyApi } from './apiKey.api';

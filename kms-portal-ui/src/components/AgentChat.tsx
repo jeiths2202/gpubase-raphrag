@@ -51,6 +51,7 @@ import {
   IMSCredentialsModal,
   ExternalConnectorsModal,
   SearchProgressModal,
+  FAQRegistrationModal,
   useFileAttachment,
   useUrlAttachment,
   useStreamingChat,
@@ -59,6 +60,10 @@ import {
   SUPPORTED_EXTENSIONS,
   type ChatMessage,
 } from './AgentChat/index';
+
+// Feedback API
+import { submitQuickFeedback } from '../api/feedback.api';
+import type { FeedbackType } from './AgentChat/MessageBubble';
 
 // External connectors store
 import { useExternalConnectorsStore } from '../store/externalConnectorsStore';
@@ -144,6 +149,17 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   // IMS Credentials modal state
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [pendingQuery, setPendingQuery] = useState<string | null>(null);
+
+  // Feedback state (per message)
+  const [feedbackState, setFeedbackState] = useState<Record<string, FeedbackType>>({});
+
+  // FAQ Registration modal state
+  const [showFAQModal, setShowFAQModal] = useState(false);
+  const [faqData, setFaqData] = useState<{
+    question: string;
+    answer: string;
+    agentType?: AgentType;
+  } | null>(null);
 
   // Auth store - get current user ID
   const { user } = useAuthStore();
@@ -472,6 +488,73 @@ export const AgentChat: React.FC<AgentChatProps> = ({
     }
   };
 
+  // Handle feedback (thumbs up/down)
+  const handleFeedback = useCallback(async (messageId: string, type: 'thumbs_up' | 'thumbs_down') => {
+    try {
+      await submitQuickFeedback({ message_id: messageId, feedback_type: type });
+      setFeedbackState(prev => ({ ...prev, [messageId]: type }));
+    } catch (error) {
+      console.error('Failed to submit feedback:', error);
+    }
+  }, []);
+
+  // Handle FAQ registration modal open
+  const handleRegisterFAQ = useCallback((question: string, answer: string, agentType?: AgentType) => {
+    setFaqData({ question, answer, agentType });
+    setShowFAQModal(true);
+  }, []);
+
+  // Handle FAQ modal close
+  const handleFAQModalClose = useCallback(() => {
+    setShowFAQModal(false);
+    setFaqData(null);
+  }, []);
+
+  // Handle FAQ registration success
+  const handleFAQSuccess = useCallback(() => {
+    // Could show a toast notification here
+    console.log('FAQ registered successfully');
+  }, []);
+
+  // Handle regenerate response
+  const handleRegenerate = useCallback((messageId: string) => {
+    // Find the assistant message and its preceding user message
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1) return;
+
+    // Find the most recent user message before this assistant message
+    let userMessageContent = '';
+    for (let i = messageIndex - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        userMessageContent = messages[i].content;
+        break;
+      }
+    }
+
+    if (userMessageContent) {
+      // Remove the current assistant message and any after it (for re-streaming)
+      const newMessages = messages.slice(0, messageIndex);
+      setMessages(newMessages);
+
+      // Re-send the user's question
+      setInputValue(userMessageContent);
+      // Trigger send after state update
+      setTimeout(() => {
+        streamingHandleSend(userMessageContent);
+      }, 100);
+    }
+  }, [messages, setMessages, streamingHandleSend]);
+
+  // Find the user message for a given assistant message (for FAQ registration)
+  const findUserMessageForAssistant = useCallback((assistantIndex: number): string => {
+    for (let i = assistantIndex - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        return messages[i].content;
+      }
+    }
+    return '';
+  }, [messages]);
+
   // Clear chat (wrapper for streaming hook)
   const handleClearChat = useCallback(() => {
     streamingClearChat(clearArtifacts);
@@ -742,12 +825,18 @@ export const AgentChat: React.FC<AgentChatProps> = ({
           </div>
         ) : (
           <>
-            {messages.map((msg) => (
+            {messages.map((msg, index) => (
               <MessageBubble
                 key={msg.id}
                 message={msg}
                 onCopy={handleCopyMessage}
                 copiedMessageId={copiedMessageId}
+                onFeedback={handleFeedback}
+                onRegisterFAQ={handleRegisterFAQ}
+                onRegenerate={handleRegenerate}
+                feedbackState={feedbackState}
+                userMessage={msg.role === 'assistant' ? findUserMessageForAssistant(index) : undefined}
+                userRole={user?.role as 'user' | 'admin' | 'leader' | undefined}
               />
             ))}
 
@@ -1019,6 +1108,17 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         isOpen={showConnectorsModal}
         onClose={closeConnectorsModal}
         t={t}
+      />
+
+      {/* FAQ Registration Modal */}
+      <FAQRegistrationModal
+        isOpen={showFAQModal}
+        onClose={handleFAQModalClose}
+        onSuccess={handleFAQSuccess}
+        t={t}
+        question={faqData?.question || ''}
+        answer={faqData?.answer || ''}
+        agentType={faqData?.agentType}
       />
 
       {/* Search Progress Modal */}

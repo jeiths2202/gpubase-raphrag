@@ -114,6 +114,35 @@
       "maxDocs": "最大{{count}}個の文書まで比較できます。",
       "selectMode": "比較モード",
       "exitMode": "比較モードを終了"
+    },
+    "feedback": {
+      "thumbsUp": "役に立った",
+      "thumbsDown": "役に立たなかった",
+      "registerFAQ": "FAQとして登録",
+      "regenerate": "再生成"
+    },
+    "faq": {
+      "registerTitle": "FAQとして登録",
+      "question": "質問",
+      "questionPlaceholder": "質問を入力してください",
+      "answer": "回答",
+      "answerPlaceholder": "回答を入力してください",
+      "category": "カテゴリー",
+      "tags": "タグ",
+      "tagsHint": "カンマ区切り",
+      "tagsPlaceholder": "例: インストール, エラー, 設定",
+      "register": "登録",
+      "registering": "登録中...",
+      "emptyFields": "質問と回答を入力してください",
+      "createError": "FAQの登録に失敗しました",
+      "categories": {
+        "general": "一般",
+        "openframe": "OpenFrame",
+        "ofcobol": "OFCOBOL",
+        "ofasm": "OFASM",
+        "ims": "IMS課題",
+        "rag": "ナレッジ検索"
+      }
     }
   },
   "externalConnectors": {

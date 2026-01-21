@@ -20,12 +20,17 @@ import {
   Image as ImageIcon,
   ChevronDown,
   ChevronRight,
+  ThumbsUp,
+  ThumbsDown,
+  Upload,
+  RefreshCw,
 } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { MessageContent } from './MessageContent';
 import { SearchResultCards } from './ExpandableSearchResultCard';
 import { AGENT_CONFIGS } from './constants';
 import type { ChatMessage, ImageReference } from './types';
+import type { AgentType } from '../../api/agent.api';
 
 /**
  * Collapsible Images Component
@@ -129,11 +134,26 @@ const CollapsibleImages: React.FC<CollapsibleImagesProps> = ({ images, label }) 
   );
 };
 
+/** Feedback state for a message */
+export type FeedbackType = 'thumbs_up' | 'thumbs_down' | null;
+
 interface MessageBubbleProps {
   message: ChatMessage;
   onCopy: (content: string, messageId: string) => void;
   copiedMessageId: string | null;
   onCancel?: () => void;
+  /** Callback for feedback (thumbs up/down) */
+  onFeedback?: (messageId: string, type: 'thumbs_up' | 'thumbs_down') => void;
+  /** Callback for registering as FAQ */
+  onRegisterFAQ?: (question: string, answer: string, agentType?: AgentType) => void;
+  /** Callback for regenerating response */
+  onRegenerate?: (messageId: string) => void;
+  /** Current feedback state per message */
+  feedbackState?: Record<string, FeedbackType>;
+  /** The user's original question (for FAQ registration) */
+  userMessage?: string;
+  /** User's role for permission checks */
+  userRole?: 'user' | 'admin' | 'leader';
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -141,6 +161,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onCopy,
   copiedMessageId,
   onCancel,
+  onFeedback,
+  onRegisterFAQ,
+  onRegenerate,
+  feedbackState,
+  userMessage,
+  userRole,
 }) => {
   const { t } = useTranslation();
   const isUser = message.role === 'user';
@@ -307,13 +333,60 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         {/* Actions */}
         {!isUser && !message.isStreaming && (
           <div className="agent-message-actions">
+            {/* Copy button */}
             <button
               className={`agent-message-action ${copiedMessageId === message.id ? 'copied' : ''}`}
               onClick={() => onCopy(message.content, message.id)}
-              title="Copy"
+              title={t('common.copy') || 'Copy'}
             >
               {copiedMessageId === message.id ? <Check size={14} /> : <Copy size={14} />}
             </button>
+
+            {/* Thumbs up button */}
+            {onFeedback && (
+              <button
+                className={`agent-message-action ${feedbackState?.[message.id] === 'thumbs_up' ? 'active thumbs-up' : ''}`}
+                onClick={() => onFeedback(message.id, 'thumbs_up')}
+                disabled={!!feedbackState?.[message.id]}
+                title={t('common.agent.feedback.thumbsUp') || 'Helpful'}
+              >
+                <ThumbsUp size={14} />
+              </button>
+            )}
+
+            {/* Thumbs down button */}
+            {onFeedback && (
+              <button
+                className={`agent-message-action ${feedbackState?.[message.id] === 'thumbs_down' ? 'active thumbs-down' : ''}`}
+                onClick={() => onFeedback(message.id, 'thumbs_down')}
+                disabled={!!feedbackState?.[message.id]}
+                title={t('common.agent.feedback.thumbsDown') || 'Not helpful'}
+              >
+                <ThumbsDown size={14} />
+              </button>
+            )}
+
+            {/* FAQ registration button (admin/leader only) */}
+            {onRegisterFAQ && (userRole === 'admin' || userRole === 'leader') && (
+              <button
+                className="agent-message-action"
+                onClick={() => onRegisterFAQ(userMessage || '', message.content, message.agentType)}
+                title={t('common.agent.feedback.registerFAQ') || 'Register as FAQ'}
+              >
+                <Upload size={14} />
+              </button>
+            )}
+
+            {/* Regenerate button */}
+            {onRegenerate && (
+              <button
+                className="agent-message-action"
+                onClick={() => onRegenerate(message.id)}
+                title={t('common.agent.feedback.regenerate') || 'Regenerate'}
+              >
+                <RefreshCw size={14} />
+              </button>
+            )}
           </div>
         )}
 

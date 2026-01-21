@@ -11,6 +11,10 @@ export {
   type ExternalConnectorsModalProps,
 } from './ExternalConnectorsModal';
 export {
+  FAQRegistrationModal,
+  type FAQRegistrationModalProps,
+} from './FAQRegistrationModal';
+export {
   SearchProgressModal,
   type SearchToolResult,
   type SearchResultItem,
