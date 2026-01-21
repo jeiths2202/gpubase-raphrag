@@ -9,6 +9,7 @@ from .document_read import DocumentReadTool, WebFetchTool
 from .bash import BashTool, SafeBashTool
 from .image_search import ImageSearchTool
 from .adaptive_search import AdaptiveSearchTool
+from .unified_search import UnifiedSearchTool
 
 __all__ = [
     "BaseTool",
@@ -22,6 +23,7 @@ __all__ = [
     "SafeBashTool",
     "ImageSearchTool",
     "AdaptiveSearchTool",
+    "UnifiedSearchTool",
 ]
 
 
@@ -36,6 +38,7 @@ def get_all_tools():
         SafeBashTool(),
         ImageSearchTool(),
         AdaptiveSearchTool(),
+        UnifiedSearchTool(),
     ]
 
 
@@ -51,6 +54,7 @@ def get_tool_by_name(name: str) -> BaseTool:
         "mock_tool": MockTool,
         "image_search": ImageSearchTool,
         "adaptive_search": AdaptiveSearchTool,
+        "unified_search": UnifiedSearchTool,
     }
 
     tool_class = tools.get(name)

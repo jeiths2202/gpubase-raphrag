@@ -184,6 +184,46 @@ def _validate_query(query: str, original_query: str) -> Tuple[str, bool]:
     return query, False
 
 
+def _extract_error_codes(query: str) -> list:
+    """
+    Extract error codes from query for keyword filtering.
+
+    Detects patterns like:
+    - Numeric: -5212, -1234 (with error context)
+    - Named: DSALC_ERR_*, OFM-1234, TIBERO-5678
+    - System: NVSM_ERR_*, OSC_ERR_*
+
+    Returns:
+        List of detected error codes
+    """
+    error_codes = []
+
+    # Pattern 1: Named error codes (DSALC_ERR_DATASET_NOT_FOUND, etc.)
+    named_errors = re.findall(r'[A-Z]+[-_]ERR[-_][A-Z_]+', query, re.IGNORECASE)
+    error_codes.extend(named_errors)
+
+    # Pattern 2: Standard format (OFM-1234, TIBERO-5678)
+    standard_errors = re.findall(r'[A-Z]+-\d{3,5}', query)
+    error_codes.extend(standard_errors)
+
+    # Pattern 3: Numeric error codes with minus sign (-5212, -1234)
+    # Only if query contains error-related context
+    error_context = re.search(
+        r'(에러|오류|error|エラー|코드|code|コード|해결|조치|fix|対処|원인|cause|原因)',
+        query, re.IGNORECASE
+    )
+    if error_context:
+        numeric_errors = re.findall(r'-\d{4,5}', query)
+        error_codes.extend(numeric_errors)
+
+    # Pattern 4: Uppercase error keywords (ERROR_5212, etc.)
+    upper_errors = re.findall(r'[A-Z_]+_\d{4,5}', query)
+    error_codes.extend(upper_errors)
+
+    # Remove duplicates and return
+    return list(set(error_codes))
+
+
 class AdaptiveSearchTool(BaseTool):
     """
     Adaptive Search Tool for structure-preserving PDF search.
@@ -362,45 +402,6 @@ class AdaptiveSearchTool(BaseTool):
         result.extend(rows[1:])
         return result
 
-    def _extract_error_codes(self, query: str) -> list:
-        """
-        Extract error codes from query for keyword filtering.
-
-        Detects patterns like:
-        - Numeric: -5212, -1234 (with error context)
-        - Named: DSALC_ERR_*, OFM-1234, TIBERO-5678
-        - System: NVSM_ERR_*, OSC_ERR_*
-
-        Returns:
-            List of detected error codes
-        """
-        error_codes = []
-
-        # Pattern 1: Named error codes (DSALC_ERR_DATASET_NOT_FOUND, etc.)
-        named_errors = re.findall(r'[A-Z]+[-_]ERR[-_][A-Z_]+', query, re.IGNORECASE)
-        error_codes.extend(named_errors)
-
-        # Pattern 2: Standard format (OFM-1234, TIBERO-5678)
-        standard_errors = re.findall(r'[A-Z]+-\d{3,5}', query)
-        error_codes.extend(standard_errors)
-
-        # Pattern 3: Numeric error codes with minus sign (-5212, -1234)
-        # Only if query contains error-related context
-        error_context = re.search(
-            r'(에러|오류|error|エラー|코드|code|コード|해결|조치|fix|対処|원인|cause|原因)',
-            query, re.IGNORECASE
-        )
-        if error_context:
-            numeric_errors = re.findall(r'-\d{4,5}', query)
-            error_codes.extend(numeric_errors)
-
-        # Pattern 4: Uppercase error keywords (ERROR_5212, etc.)
-        upper_errors = re.findall(r'[A-Z_]+_\d{4,5}', query)
-        error_codes.extend(upper_errors)
-
-        # Remove duplicates and return
-        return list(set(error_codes))
-
     async def execute(
         self,
         context: AgentContext,
@@ -447,7 +448,7 @@ class AdaptiveSearchTool(BaseTool):
             return self.create_error_result("Query is required")
 
         # Detect error codes for keyword filtering (HYBRID search strategy)
-        error_codes = self._extract_error_codes(query)
+        error_codes = _extract_error_codes(query)
         keyword_filter = error_codes[0] if error_codes else None
 
         if error_codes:

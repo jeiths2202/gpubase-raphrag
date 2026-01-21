@@ -55,11 +55,24 @@ class AdaptiveSearchInput(BaseModel):
     )
 
 
+class UnifiedSearchInput(BaseModel):
+    """Unified search input schema combining Neo4j and PostgreSQL"""
+    query: str = Field(description="The search query - MUST be the EXACT user question without modification")
+    top_k: int = Field(default=5, description="Number of results to return")
+    doc_filter: Optional[str] = Field(default=None, description="Optional document ID to filter results")
+    include_images: bool = Field(default=True, description="Include CLIP-based image search")
+    include_tables: bool = Field(default=True, description="Auto-include related tables")
+    search_mode: str = Field(
+        default="hybrid",
+        description="Search mode: hybrid, vector_only, or keyword_only"
+    )
+
+
 class RAGToolsProvider:
     """
     RAG 도구 제공자
 
-    기존 VectorSearchTool, GraphQueryTool, ImageSearchTool, AdaptiveSearchTool을 LangChain tool로 래핑
+    기존 VectorSearchTool, GraphQueryTool, ImageSearchTool, AdaptiveSearchTool, UnifiedSearchTool을 LangChain tool로 래핑
     """
 
     def __init__(self, rag_service=None, multimodal_service=None, adaptive_service=None):
@@ -148,7 +161,12 @@ class RAGToolsProvider:
 
         tools = []
 
-        # Vector Search Tool
+        # Unified Search Tool (PRIMARY - combines Neo4j + PostgreSQL)
+        unified_tool = self._create_unified_search_tool()
+        if unified_tool:
+            tools.append(unified_tool)
+
+        # Vector Search Tool (fallback)
         vector_tool = self._create_vector_search_tool()
         if vector_tool:
             tools.append(vector_tool)
@@ -169,6 +187,98 @@ class RAGToolsProvider:
             tools.append(adaptive_tool)
 
         return tools
+
+    def _create_unified_search_tool(self):
+        """
+        Unified Search LangChain tool 생성
+
+        Neo4j 벡터 검색 + PostgreSQL 키워드 검색을 RRF로 통합
+        """
+        from ..tools import UnifiedSearchTool
+        from ..types import AgentContext
+
+        unified_tool = UnifiedSearchTool()
+        provider = self
+
+        def unified_search(
+            query: str,
+            top_k: int = 5,
+            doc_filter: Optional[str] = None,
+            include_images: bool = True,
+            include_tables: bool = True,
+            search_mode: str = "hybrid"
+        ) -> str:
+            """
+            PRIMARY search combining Neo4j accuracy with PostgreSQL structure.
+
+            Use this tool FIRST for any knowledge base query. Features:
+            - Semantic search via Neo4j (verified asymmetric embeddings)
+            - RRF hybrid ranking (semantic + keyword)
+            - PDF structure preservation (sections, tables, images)
+            - CLIP text-to-image search
+            - Error code detection and boosting
+            """
+            context = provider._context or AgentContext()
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            unified_tool.execute(
+                                context,
+                                query=query,
+                                top_k=top_k,
+                                doc_filter=doc_filter,
+                                include_images=include_images,
+                                include_tables=include_tables,
+                                search_mode=search_mode
+                            )
+                        )
+                        result = future.result()
+                else:
+                    result = loop.run_until_complete(
+                        unified_tool.execute(
+                            context,
+                            query=query,
+                            top_k=top_k,
+                            doc_filter=doc_filter,
+                            include_images=include_images,
+                            include_tables=include_tables,
+                            search_mode=search_mode
+                        )
+                    )
+            except RuntimeError:
+                result = asyncio.run(
+                    unified_tool.execute(
+                        context,
+                        query=query,
+                        top_k=top_k,
+                        doc_filter=doc_filter,
+                        include_images=include_images,
+                        include_tables=include_tables,
+                        search_mode=search_mode
+                    )
+                )
+
+            if result.get("success"):
+                return result.get("output", "No results found")
+            else:
+                return f"Unified search error: {result.get('error', 'Unknown error')}"
+
+        return StructuredTool.from_function(
+            func=unified_search,
+            name="unified_search",
+            description=(
+                "PRIMARY search tool - combines Neo4j accuracy with PostgreSQL structure. "
+                "Use this FIRST for any knowledge base query. Features: semantic search via "
+                "Neo4j, RRF hybrid ranking, PDF structure (sections, tables, images), "
+                "CLIP text-to-image search, error code detection and boosting."
+            ),
+            args_schema=UnifiedSearchInput,
+        )
 
     def _create_vector_search_tool(self):
         """Vector Search LangChain tool 생성"""
@@ -494,6 +604,12 @@ def create_adaptive_search_tool(adaptive_service=None) -> Optional[Any]:
     """Adaptive search tool 팩토리 함수 (구조 보존 PDF 검색)"""
     provider = RAGToolsProvider(adaptive_service=adaptive_service)
     return provider._create_adaptive_search_tool()
+
+
+def create_unified_search_tool(rag_service=None) -> Optional[Any]:
+    """Unified search tool 팩토리 함수 (Neo4j + PostgreSQL RRF 융합)"""
+    provider = RAGToolsProvider(rag_service)
+    return provider._create_unified_search_tool()
 
 
 def get_rag_tools(
