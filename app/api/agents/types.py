@@ -164,6 +164,14 @@ class ToolDefinition:
     required: List[str] = field(default_factory=list)
 
 
+# Response mode for hybrid RAG (LLM vs Direct Return)
+class ResponseMode(str, Enum):
+    """응답 생성 모드 - 할루시네이션 최소화를 위한 설정"""
+    DIRECT = "direct"   # LLM 없이 검색 결과 직접 반환 (할루시네이션 0%)
+    LLM = "llm"         # 기존 LLM synthesis 방식
+    HYBRID = "hybrid"   # 검색 결과 품질에 따라 자동 선택 (권장)
+
+
 # API Request/Response Models
 class AgentRequest(BaseModel):
     """API request for agent execution"""
@@ -178,6 +186,10 @@ class AgentRequest(BaseModel):
     url_context: Optional[str] = Field(None, description="URL to fetch and use as RAG context")
     ui_context: Optional[Dict[str, Any]] = Field(None, description="UI context for context-aware AI responses")
     use_deep_agent: bool = Field(True, description="Use Deep Agents framework for execution")
+    response_mode: ResponseMode = Field(
+        ResponseMode.DIRECT,
+        description="Response generation mode: 'direct' (no LLM, zero hallucination - default), 'llm' (traditional), 'hybrid' (auto-select based on search quality)"
+    )
 
 
 class AgentResponse(BaseModel):

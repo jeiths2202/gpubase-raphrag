@@ -13,7 +13,7 @@ import base64
 from .types import (
     AgentContext, AgentResult, AgentMessage, ToolCall,
     ToolResult, MessageRole, ToolStatus, AgentStreamChunk,
-    ToolDefinition
+    ToolDefinition, ResponseMode
 )
 from .base import BaseAgent
 from .registry import ToolRegistry, get_tool_registry
@@ -25,6 +25,7 @@ from .master_system_constraint import (
     ComplianceViolationType,
     get_insufficient_info_response
 )
+from .formatters import DirectReturnFormatter, HybridModeDecision
 from ..core.app_mode import is_develop_mode
 from ..services.reliability_service import calculate_reliability
 import re
@@ -615,6 +616,145 @@ def _truncate_file_context(content: str, max_chars: int = None) -> str:
     return truncated + f"\n\n[... 문서가 너무 길어 {remaining:,} 문자가 생략되었습니다. 전체 내용은 원본 문서를 참조하세요.]"
 
 
+# ============================================================================
+# HYBRID MODE: Direct Return vs LLM Synthesis
+# ============================================================================
+
+# Formatter instance for hybrid mode (singleton)
+_direct_formatter: Optional[DirectReturnFormatter] = None
+
+
+def _get_direct_formatter() -> DirectReturnFormatter:
+    """Get or create DirectReturnFormatter instance."""
+    global _direct_formatter
+    if _direct_formatter is None:
+        _direct_formatter = DirectReturnFormatter()
+    return _direct_formatter
+
+
+def _extract_search_results_from_tool_results(
+    tool_results: List[ToolResult]
+) -> Optional[List[Dict[str, Any]]]:
+    """
+    도구 결과에서 검색 결과(enriched_results) 추출.
+
+    Args:
+        tool_results: 실행된 도구 결과 리스트
+
+    Returns:
+        enriched_results 리스트 또는 None
+    """
+    for result in tool_results:
+        if not result.get("success"):
+            continue
+
+        metadata = result.get("metadata", {})
+        if not metadata:
+            continue
+
+        # unified_search 또는 vector_search 결과에서 individual_results 추출
+        individual_results = metadata.get("individual_results")
+        if individual_results:
+            return individual_results
+
+    return None
+
+
+def _should_use_direct_mode(
+    tool_results: List[ToolResult],
+    task: str,
+    context: AgentContext,
+    response_mode: ResponseMode = ResponseMode.HYBRID
+) -> tuple[bool, Optional[List[Dict[str, Any]]], Optional[HybridModeDecision]]:
+    """
+    Direct 모드 사용 여부 결정.
+
+    Args:
+        tool_results: 도구 실행 결과
+        task: 사용자 쿼리
+        context: 에이전트 컨텍스트
+        response_mode: 응답 모드 설정
+
+    Returns:
+        (use_direct, search_results, decision)
+        - use_direct: Direct 모드 사용 여부
+        - search_results: 검색 결과 (Direct 모드일 때)
+        - decision: 하이브리드 모드 결정 정보
+    """
+    # 명시적 LLM 모드면 스킵
+    if response_mode == ResponseMode.LLM:
+        return False, None, None
+
+    # 검색 결과 추출
+    search_results = _extract_search_results_from_tool_results(tool_results)
+    if not search_results:
+        return False, None, None
+
+    # 명시적 Direct 모드
+    if response_mode == ResponseMode.DIRECT:
+        decision = HybridModeDecision(
+            use_direct=True,
+            reason="explicit_direct_mode",
+            confidence=1.0,
+            top_score=search_results[0].get("rrf_score", 0) if search_results else 0,
+            result_count=len(search_results)
+        )
+        return True, search_results, decision
+
+    # 하이브리드 모드: 자동 결정
+    formatter = _get_direct_formatter()
+    decision = formatter.decide_mode(search_results, task)
+
+    logger.info(
+        f"[HybridMode] Decision: use_direct={decision.use_direct}, "
+        f"reason={decision.reason}, confidence={decision.confidence:.2f}, "
+        f"top_score={decision.top_score:.4f}, results={decision.result_count}"
+    )
+
+    return decision.use_direct, search_results, decision
+
+
+def _format_direct_response(
+    search_results: List[Dict[str, Any]],
+    task: str,
+    context: AgentContext,
+    decision: Optional[HybridModeDecision] = None
+) -> str:
+    """
+    Direct 모드로 검색 결과 포맷팅.
+
+    Args:
+        search_results: 검색 결과
+        task: 사용자 쿼리
+        context: 에이전트 컨텍스트
+        decision: 하이브리드 모드 결정 정보
+
+    Returns:
+        포맷팅된 응답 문자열
+    """
+    formatter = _get_direct_formatter()
+    language = context.language or "ko"
+
+    # 높은 신뢰도 또는 단일 결과면 컴팩트 포맷
+    if decision and (decision.reason in ("single_high_match", "error_code_match") or
+                     (decision.result_count == 1 and decision.confidence > 0.7)):
+        return formatter.format_compact(
+            search_results,
+            language=language,
+            query=task,
+            max_results=2
+        )
+
+    # 일반 포맷
+    return formatter.format(
+        search_results,
+        language=language,
+        query=task,
+        include_score=False,  # 사용자에게는 점수 숨김
+        highlight_keywords=True
+    )
+
+
 async def _stream_images_from_metadata(
     metadata: Dict[str, Any],
     max_images: int = 5
@@ -1140,6 +1280,35 @@ User Query: {task}"""
                 # Check if we broke out due to doom loop
                 if final_answer:
                     break
+
+                # ================================================================
+                # HYBRID MODE: Check if we should use Direct Return
+                # For RAG agents, skip LLM synthesis if search results are good
+                # ================================================================
+                if agent.agent_type.value == "rag" and step == 1:
+                    response_mode = ResponseMode(
+                        context.metadata.get("response_mode", "direct")
+                    )
+                    use_direct, search_results, decision = _should_use_direct_mode(
+                        tool_results, task, context, response_mode
+                    )
+
+                    if use_direct and search_results:
+                        logger.info(
+                            f"[Executor] Using DIRECT mode - skipping LLM synthesis "
+                            f"(reason={decision.reason}, confidence={decision.confidence:.2f})"
+                        )
+                        final_answer = _format_direct_response(
+                            search_results, task, context, decision
+                        )
+                        # Store decision info in metadata
+                        context.metadata["hybrid_mode_decision"] = {
+                            "mode": "direct",
+                            "reason": decision.reason,
+                            "confidence": decision.confidence,
+                            "top_score": decision.top_score
+                        }
+                        break
             else:
                 # No tool calls - agent has finished reasoning
                 # ================================================================
@@ -1614,6 +1783,74 @@ User Query: {task}"""
                         print(f"[Executor] Collected {len(result_sources)} sources from {tool_call.tool_name}", flush=True)
                         logger.info(f"[Executor] Collected {len(result_sources)} sources from {tool_call.tool_name}")
                         sources.extend(result_sources)
+
+                # ================================================================
+                # HYBRID MODE: Check if we should use Direct Return
+                # For RAG agents, skip LLM synthesis if search results are good
+                # ================================================================
+                if agent.agent_type.value == "rag" and step == 1:
+                    response_mode = ResponseMode(
+                        context.metadata.get("response_mode", "direct")
+                    )
+                    use_direct, search_results, decision = _should_use_direct_mode(
+                        tool_results, task, context, response_mode
+                    )
+
+                    if use_direct and search_results:
+                        logger.info(
+                            f"[Executor.stream] Using DIRECT mode - skipping LLM synthesis "
+                            f"(reason={decision.reason}, confidence={decision.confidence:.2f})"
+                        )
+                        print(
+                            f"[Executor.stream] DIRECT mode activated: {decision.reason} "
+                            f"(confidence={decision.confidence:.2f})",
+                            flush=True
+                        )
+
+                        # Format the direct response
+                        direct_answer = _format_direct_response(
+                            search_results, task, context, decision
+                        )
+
+                        # Stream the direct answer
+                        yield AgentStreamChunk(
+                            chunk_type="generation_start",
+                            content="검색 결과를 표시합니다...",
+                            metadata={
+                                "total_sources": len(sources),
+                                "mode": "direct",
+                                "decision_reason": decision.reason
+                            }
+                        )
+
+                        # Stream in chunks for smoother UI
+                        chunk_size = 100
+                        for i in range(0, len(direct_answer), chunk_size):
+                            chunk = direct_answer[i:i + chunk_size]
+                            yield AgentStreamChunk(chunk_type="text", content=chunk)
+                            await asyncio.sleep(0.01)
+
+                        # Send sources
+                        if sources:
+                            yield AgentStreamChunk(chunk_type="sources", sources=sources)
+
+                        # Clean up and finish
+                        for tool in available_tools:
+                            if hasattr(tool, 'set_status_callback'):
+                                tool.set_status_callback(None)
+
+                        yield AgentStreamChunk(
+                            chunk_type="done",
+                            metadata={
+                                "steps": step,
+                                "execution_time": time.time() - start_time,
+                                "hybrid_mode": "direct",
+                                "decision_reason": decision.reason,
+                                "decision_confidence": decision.confidence
+                            }
+                        )
+                        return
+
             else:
                 # Stream final answer
                 answer = response.content or ""

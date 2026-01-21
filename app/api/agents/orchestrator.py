@@ -237,6 +237,11 @@ class AgentOrchestrator:
             use_deep_agent=getattr(request, 'use_deep_agent', False)
         )
 
+        # Add response_mode to metadata for hybrid mode support
+        response_mode = getattr(request, 'response_mode', 'hybrid')
+        context.metadata['response_mode'] = response_mode.value if hasattr(response_mode, 'value') else response_mode
+        logger.info(f"[Orchestrator] response_mode={context.metadata['response_mode']}")
+
         # Select agent type
         if request.agent_type:
             agent_type = request.agent_type
@@ -364,6 +369,11 @@ class AgentOrchestrator:
             url_source=url_source,
             use_deep_agent=getattr(request, 'use_deep_agent', False)
         )
+
+        # Add response_mode to metadata for hybrid mode support
+        response_mode = getattr(request, 'response_mode', 'hybrid')
+        context.metadata['response_mode'] = response_mode.value if hasattr(response_mode, 'value') else response_mode
+        logger.info(f"[Orchestrator.stream] response_mode={context.metadata['response_mode']}")
 
         # Process UI context if provided
         ui_context_prompt = None
@@ -565,38 +575,44 @@ class AgentOrchestrator:
         """
         Classify a task to determine the appropriate agent type.
 
-        Uses keyword matching and optionally LLM classification.
+        KMS 시스템 정책: 모든 질문은 RAG Agent로 라우팅하여
+        임베딩된 문서에서만 답변하도록 강제합니다.
+        할루시네이션 방지를 위해 다른 에이전트로의 자동 라우팅을 비활성화합니다.
+
+        예외:
+        - IMS Agent: 명시적 키워드(ims, jira, 이슈, 티켓)가 있을 때만 선택
+        - Code Agent: 코드/소스 생성/작성 요청이 명시적일 때만 선택
+          예: "xxx코드로 생성해줘", "xxx소스를 작성해줘", "코드 작성해줘"
         """
         task_lower = task.lower()
 
-        # Score each agent type based on keyword matches
-        scores: Dict[AgentType, int] = {at: 0 for at in AgentType}
+        # IMS Agent: 명시적 키워드가 있을 때만 선택 (이슈 관리 시스템 검색)
+        ims_explicit_keywords = ["ims", "jira", "티켓", "ticket", "이슈 검색", "issue search"]
+        for keyword in ims_explicit_keywords:
+            if keyword in task_lower:
+                logger.info(f"[Classify] IMS explicit keyword '{keyword}' matched -> IMS")
+                return AgentType.IMS
 
-        for agent_type, keywords in AGENT_KEYWORDS.items():
-            for keyword in keywords:
-                if keyword.lower() in task_lower:
-                    scores[agent_type] += 1
-                    logger.debug(f"[Classify] matched '{keyword}' -> {agent_type.value}")
+        # Code Agent: 코드/소스 생성/작성 요청이 명시적일 때만 선택
+        # 패턴: "코드로 생성", "소스로 생성", "코드를 작성", "소스를 작성", "코드 작성", "코드 생성"
+        import re
+        code_generation_patterns = [
+            r'코드.{0,5}(생성|작성|만들어|짜|줘)',      # 코드로 생성해줘, 코드를 작성해줘, 코드 짜줘
+            r'소스.{0,5}(생성|작성|만들어|짜|줘)',      # 소스로 생성해줘, 소스를 작성해줘
+            r'(생성|작성|만들어).{0,5}(코드|소스)',      # 생성해줘 코드, 작성해줘 소스
+            r'(code|source).{0,10}(generate|create|write)',  # code generate, source create
+            r'(generate|create|write).{0,10}(code|source)',  # generate code, write source
+            r'プログラム.{0,5}(作成|生成|書)',          # 일본어: 프로그램 작성
+            r'コード.{0,5}(作成|生成|書)',              # 일본어: 코드 작성
+        ]
+        for pattern in code_generation_patterns:
+            if re.search(pattern, task_lower):
+                logger.info(f"[Classify] Code generation pattern '{pattern}' matched -> CODE")
+                return AgentType.CODE
 
-        logger.debug(f"[Classify] scores={scores}")
-
-        # Find best match
-        best_type = max(scores, key=scores.get)
-        best_score = scores[best_type]
-
-        # If no strong match, default to RAG
-        if best_score == 0:
-            logger.info("[Classify] no match, defaulting to RAG")
-            return AgentType.RAG
-
-        # If multiple high scores, prefer RAG as it's most general
-        high_scores = [at for at, score in scores.items() if score == best_score]
-        if len(high_scores) > 1 and AgentType.RAG in high_scores:
-            logger.info(f"[Classify] multiple high scores {high_scores}, preferring RAG")
-            return AgentType.RAG
-
-        logger.info(f"[Classify] result={best_type.value}")
-        return best_type
+        # 기본: 모든 질문은 RAG Agent로 라우팅 (임베딩 문서 기반 답변)
+        logger.info("[Classify] KMS policy: forcing RAG agent for document-based answers")
+        return AgentType.RAG
 
     async def classify_with_llm(self, task: str) -> AgentType:
         """
