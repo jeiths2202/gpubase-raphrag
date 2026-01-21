@@ -442,5 +442,14 @@
     "answerLength": "回答の長さ",
     "chunkProgress": "チャンク進行",
     "preparingAnswer": "回答を準備中..."
-  }
+  },
+  "displayMode": {
+    "inline": "インラインモードに切替",
+    "floating": "フローティングモードに切替",
+    "inlineDescription": "チャットで結果を表示",
+    "floatingDescription": "フローティングパネルで結果を表示"
+  },
+  "minimize": "最小化",
+  "closeAll": "すべて閉じる",
+  "query": "クエリ"
 }

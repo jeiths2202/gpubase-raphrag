@@ -442,5 +442,14 @@
     "answerLength": "답변 길이",
     "chunkProgress": "청크 진행",
     "preparingAnswer": "답변 준비 중..."
-  }
+  },
+  "displayMode": {
+    "inline": "인라인 모드로 전환",
+    "floating": "플로팅 모드로 전환",
+    "inlineDescription": "채팅에서 결과 표시",
+    "floatingDescription": "플로팅 패널에서 결과 표시"
+  },
+  "minimize": "최소화",
+  "closeAll": "모두 닫기",
+  "query": "검색어"
 }

@@ -15,6 +15,10 @@ export {
   type SearchToolResult,
   type SearchResultItem,
 } from './SearchProgressModal';
+export {
+  DirectModeFloatingPanel,
+  type FloatingPanelData,
+} from './DirectModeFloatingPanel';
 
 // Hooks
 export { useFileAttachment, type UseFileAttachmentReturn } from './hooks';

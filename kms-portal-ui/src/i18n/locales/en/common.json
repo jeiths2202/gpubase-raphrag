@@ -442,5 +442,14 @@
     "answerLength": "Answer Length",
     "chunkProgress": "Chunk Progress",
     "preparingAnswer": "Preparing answer..."
-  }
+  },
+  "displayMode": {
+    "inline": "Switch to inline mode",
+    "floating": "Switch to floating mode",
+    "inlineDescription": "Show results in chat",
+    "floatingDescription": "Show results in floating panels"
+  },
+  "minimize": "Minimize",
+  "closeAll": "Close all",
+  "query": "Query"
 }
