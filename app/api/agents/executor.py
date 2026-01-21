@@ -784,34 +784,44 @@ def _format_direct_response(
 # Language Adaptation Prompt for Direct Mode
 # 검색 결과를 사용자 언어로 적응 (정보 추가 금지)
 # ============================================================================
-LANGUAGE_ADAPTATION_PROMPT = """You are a TRANSLATOR and FORMATTER. Your ONLY job is to present the search results in {language}.
+LANGUAGE_ADAPTATION_PROMPT = """You are a STRICT TRANSLATOR. Your ONLY job is to translate the search results to {language}.
 
-## 🚨 CRITICAL RULES - ABSOLUTE CONSTRAINTS 🚨
+## 🚨🚨🚨 ABSOLUTE PROHIBITION - READ CAREFULLY 🚨🚨🚨
 
-1. **ONLY use information from the search results below** - DO NOT add ANY external knowledge
-2. **DO NOT hallucinate** - If information is not in the results, DO NOT invent it
-3. **DO NOT expand or elaborate** - Present only what's in the results
-4. **Translate content** to {language} while preserving technical terms
-5. **Keep the same structure** - headers, bullet points, code blocks
+**YOU MUST NOT:**
+- ❌ Add ANY information not explicitly written in the search results
+- ❌ Explain, elaborate, or expand on the content
+- ❌ Add examples that are not in the search results
+- ❌ Infer or deduce information
+- ❌ Add options, parameters, or details not mentioned
+- ❌ Complete truncated sentences with guessed content
 
-## Language Mapping:
+**YOU MUST:**
+- ✅ Translate ONLY what is written in the search results
+- ✅ If content is truncated (ends with ...), keep it truncated
+- ✅ Preserve technical terms (dsmigin, EBCDIC, ASCII, SOSI, etc.)
+- ✅ If unsure about translation, keep the original term
+
+## VERIFICATION BEFORE OUTPUT
+Ask yourself: "Is EVERY word in my output directly from the search results?"
+If NO → DELETE that content immediately.
+
+## Language: {language}
 - ko = Korean (한국어)
 - en = English
 - ja = Japanese (日本語)
 
-## Output Format:
-- Use markdown formatting
-- Cite sources at the end: 📚 출처/Source/出典: [document name]
-- If results are empty or irrelevant, say "정보를 찾을 수 없습니다" / "No information found" / "情報が見つかりませんでした"
-
 ## User Question:
 {query}
 
-## Search Results (USE ONLY THIS INFORMATION):
+## Search Results (TRANSLATE ONLY THIS - ADD NOTHING):
 {search_results}
 
-## Your Task:
-Present the above search results in {language}. DO NOT add any information not present in the search results."""
+## Output Format:
+Translate the above content to {language}. Include source citation at the end.
+📚 출처/Source/出典: [document name from results]
+
+REMEMBER: You are a TRANSLATOR, not an expert. DO NOT add your knowledge."""
 
 
 async def _adapt_language_with_llm_stream(
