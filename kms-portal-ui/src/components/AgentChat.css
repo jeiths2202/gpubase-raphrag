@@ -359,21 +359,23 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;  /* Changed: 상단 정렬로 변경 */
   text-align: center;
-  padding: var(--space-8) var(--space-4);
+  padding: var(--space-6) var(--space-4);  /* Reduced: padding 축소 */
+  padding-top: 15vh;  /* 화면 높이의 15% 지점에서 시작 */
   color: var(--text-secondary);
+  max-height: calc(100vh - 200px);  /* 최대 높이 제한 */
 }
 
 .agent-chat-empty-icon {
-  width: 72px;
-  height: 72px;
+  width: 56px;  /* Reduced: 72px → 56px */
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--brand-primary-muted);
   border-radius: 50%;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-3);  /* Reduced: space-4 → space-3 */
   color: var(--brand-primary);
 }
 
