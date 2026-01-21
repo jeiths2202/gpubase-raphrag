@@ -187,8 +187,8 @@ class AgentRequest(BaseModel):
     ui_context: Optional[Dict[str, Any]] = Field(None, description="UI context for context-aware AI responses")
     use_deep_agent: bool = Field(True, description="Use Deep Agents framework for execution")
     response_mode: ResponseMode = Field(
-        ResponseMode.DIRECT,
-        description="Response generation mode: 'direct' (no LLM, zero hallucination - default), 'llm' (traditional), 'hybrid' (auto-select based on search quality)"
+        ResponseMode.HYBRID,
+        description="Response generation mode: 'hybrid' (auto-select based on search quality - default), 'direct' (no LLM, zero hallucination), 'llm' (traditional)"
     )
 
 

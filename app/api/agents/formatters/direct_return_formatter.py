@@ -104,13 +104,14 @@ class DirectReturnFormatter:
         }
     }
 
-    # 하이브리드 모드 임계값
+    # 하이브리드 모드 임계값 (2026-01-21 조정: Direct 모드 더 적극적 사용)
     HYBRID_THRESHOLDS = {
-        "min_score_for_direct": 0.025,    # Direct 모드 최소 RRF 점수
-        "high_confidence_score": 0.030,   # 높은 신뢰도 점수
-        "single_result_threshold": 0.028, # 단일 결과일 때 Direct 사용 임계값
+        "min_score_for_direct": 0.015,    # Direct 모드 최소 RRF 점수 (낮춤: 0.025 → 0.015)
+        "high_confidence_score": 0.025,   # 높은 신뢰도 점수 (낮춤: 0.030 → 0.025)
+        "single_result_threshold": 0.020, # 단일 결과일 때 Direct 사용 임계값 (낮춤: 0.028 → 0.020)
         "error_code_boost": True,         # 에러 코드 매치 시 Direct 우선
-        "max_results_for_direct": 3,      # Direct 모드 최대 결과 수
+        "max_results_for_direct": 5,      # Direct 모드 최대 결과 수 (증가: 3 → 5)
+        "very_low_score": 0.008,          # 이 점수 미만이면 "정보 없음" 반환 (신규)
     }
 
     def __init__(self, thresholds: Optional[Dict[str, Any]] = None):
@@ -338,7 +339,7 @@ class DirectReturnFormatter:
         """
         if not results:
             return HybridModeDecision(
-                use_direct=False,
+                use_direct=True,  # Changed: Direct 모드로 "정보 없음" 반환
                 reason="no_results",
                 confidence=0.0,
                 top_score=0.0,
@@ -355,6 +356,20 @@ class DirectReturnFormatter:
         # 복잡한 질문 감지 (비교, 요약, 설명 요청 등)
         is_complex_query = self._is_complex_query(query)
 
+        # ================================================================
+        # Case 0: 매우 낮은 점수 → "정보 없음" 반환 (할루시네이션 방지)
+        # LLM에게 맡기면 일반 지식으로 답변할 수 있으므로 Direct 모드로 강제
+        # ================================================================
+        if top_score < self.HYBRID_THRESHOLDS["very_low_score"]:
+            logger.info(f"[HybridMode] Very low score ({top_score:.4f}) - forcing 'not found' response")
+            return HybridModeDecision(
+                use_direct=True,  # Direct 모드로 "정보 없음" 메시지 반환
+                reason="very_low_score",
+                confidence=0.0,
+                top_score=top_score,
+                result_count=result_count
+            )
+
         # 결정 로직
         # Case 1: 에러 코드 쿼리 + 매치 결과
         if error_codes and has_error_match:
@@ -366,15 +381,28 @@ class DirectReturnFormatter:
                 result_count=result_count
             )
 
-        # Case 2: 복잡한 질문은 LLM 사용
+        # Case 2: 복잡한 질문 + 적정 점수 → LLM 사용
+        # 단, 점수가 낮으면 LLM 대신 Direct 모드 사용 (할루시네이션 방지)
         if is_complex_query:
-            return HybridModeDecision(
-                use_direct=False,
-                reason="complex_query",
-                confidence=top_score * 20,
-                top_score=top_score,
-                result_count=result_count
-            )
+            if top_score >= self.HYBRID_THRESHOLDS["min_score_for_direct"]:
+                # 점수가 어느 정도 있으면 LLM 합성 허용
+                return HybridModeDecision(
+                    use_direct=False,
+                    reason="complex_query",
+                    confidence=top_score * 20,
+                    top_score=top_score,
+                    result_count=result_count
+                )
+            else:
+                # 복잡한 질문이지만 점수가 낮으면 Direct 모드
+                logger.info(f"[HybridMode] Complex query but low score ({top_score:.4f}) - using Direct mode")
+                return HybridModeDecision(
+                    use_direct=True,
+                    reason="complex_query_low_score",
+                    confidence=top_score * 20,
+                    top_score=top_score,
+                    result_count=result_count
+                )
 
         # Case 3: 높은 신뢰도 결과 (단일 또는 소수)
         if top_score >= self.HYBRID_THRESHOLDS["high_confidence_score"]:

@@ -687,8 +687,21 @@ def _should_use_direct_mode(
 
     # 검색 결과 추출
     search_results = _extract_search_results_from_tool_results(tool_results)
+
+    # ================================================================
+    # 검색 결과 없음 → Direct 모드로 "정보 없음" 반환 (할루시네이션 방지)
+    # LLM에게 맡기면 일반 지식으로 답변할 수 있으므로 강제로 Direct 모드 사용
+    # ================================================================
     if not search_results:
-        return False, None, None
+        logger.info("[HybridMode] No search results - forcing Direct mode to prevent hallucination")
+        decision = HybridModeDecision(
+            use_direct=True,
+            reason="no_results",
+            confidence=0.0,
+            top_score=0.0,
+            result_count=0
+        )
+        return True, [], decision  # 빈 리스트 반환 (None 대신)
 
     # 명시적 Direct 모드
     if response_mode == ResponseMode.DIRECT:
@@ -734,6 +747,18 @@ def _format_direct_response(
     """
     formatter = _get_direct_formatter()
     language = context.language or "ko"
+
+    # ================================================================
+    # Special Case: 결과 없음 또는 매우 낮은 점수 → "정보 없음" 메시지
+    # 할루시네이션을 방지하기 위해 명확하게 "없음"으로 응답
+    # ================================================================
+    if decision and decision.reason in ("no_results", "very_low_score"):
+        not_found_messages = {
+            "ko": f"죄송합니다. **\"{task}\"**에 대한 정보를 지식 베이스에서 찾을 수 없습니다.\n\n다른 키워드로 다시 검색해 주세요.",
+            "en": f"Sorry, I couldn't find information about **\"{task}\"** in the knowledge base.\n\nPlease try searching with different keywords.",
+            "ja": f"申し訳ございませんが、**「{task}」**に関する情報はナレッジベースに見つかりませんでした。\n\n別のキーワードで再検索してください。"
+        }
+        return not_found_messages.get(language, not_found_messages["en"])
 
     # 높은 신뢰도 또는 단일 결과면 컴팩트 포맷
     if decision and (decision.reason in ("single_high_match", "error_code_match") or
@@ -1287,19 +1312,20 @@ User Query: {task}"""
                 # ================================================================
                 if agent.agent_type.value == "rag" and step == 1:
                     response_mode = ResponseMode(
-                        context.metadata.get("response_mode", "direct")
+                        context.metadata.get("response_mode", "hybrid")
                     )
                     use_direct, search_results, decision = _should_use_direct_mode(
                         tool_results, task, context, response_mode
                     )
 
-                    if use_direct and search_results:
+                    # Changed: search_results는 빈 리스트일 수 있음 (no_results 케이스)
+                    if use_direct and decision is not None:
                         logger.info(
                             f"[Executor] Using DIRECT mode - skipping LLM synthesis "
                             f"(reason={decision.reason}, confidence={decision.confidence:.2f})"
                         )
                         final_answer = _format_direct_response(
-                            search_results, task, context, decision
+                            search_results or [], task, context, decision
                         )
                         # Store decision info in metadata
                         context.metadata["hybrid_mode_decision"] = {
@@ -1790,13 +1816,14 @@ User Query: {task}"""
                 # ================================================================
                 if agent.agent_type.value == "rag" and step == 1:
                     response_mode = ResponseMode(
-                        context.metadata.get("response_mode", "direct")
+                        context.metadata.get("response_mode", "hybrid")
                     )
                     use_direct, search_results, decision = _should_use_direct_mode(
                         tool_results, task, context, response_mode
                     )
 
-                    if use_direct and search_results:
+                    # Changed: search_results는 빈 리스트일 수 있음 (no_results 케이스)
+                    if use_direct and decision is not None:
                         logger.info(
                             f"[Executor.stream] Using DIRECT mode - skipping LLM synthesis "
                             f"(reason={decision.reason}, confidence={decision.confidence:.2f})"
@@ -1809,7 +1836,7 @@ User Query: {task}"""
 
                         # Format the direct response
                         direct_answer = _format_direct_response(
-                            search_results, task, context, decision
+                            search_results or [], task, context, decision
                         )
 
                         # Stream the direct answer
