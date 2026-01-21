@@ -780,6 +780,162 @@ def _format_direct_response(
     )
 
 
+# ============================================================================
+# Language Adaptation Prompt for Direct Mode
+# 검색 결과를 사용자 언어로 적응 (정보 추가 금지)
+# ============================================================================
+LANGUAGE_ADAPTATION_PROMPT = """You are a TRANSLATOR and FORMATTER. Your ONLY job is to present the search results in {language}.
+
+## 🚨 CRITICAL RULES - ABSOLUTE CONSTRAINTS 🚨
+
+1. **ONLY use information from the search results below** - DO NOT add ANY external knowledge
+2. **DO NOT hallucinate** - If information is not in the results, DO NOT invent it
+3. **DO NOT expand or elaborate** - Present only what's in the results
+4. **Translate content** to {language} while preserving technical terms
+5. **Keep the same structure** - headers, bullet points, code blocks
+
+## Language Mapping:
+- ko = Korean (한국어)
+- en = English
+- ja = Japanese (日本語)
+
+## Output Format:
+- Use markdown formatting
+- Cite sources at the end: 📚 출처/Source/出典: [document name]
+- If results are empty or irrelevant, say "정보를 찾을 수 없습니다" / "No information found" / "情報が見つかりませんでした"
+
+## User Question:
+{query}
+
+## Search Results (USE ONLY THIS INFORMATION):
+{search_results}
+
+## Your Task:
+Present the above search results in {language}. DO NOT add any information not present in the search results."""
+
+
+async def _adapt_language_with_llm_stream(
+    search_results: List[Dict[str, Any]],
+    query: str,
+    language: str,
+    llm_adapter,
+    decision: Optional[HybridModeDecision] = None
+) -> AsyncGenerator[str, None]:
+    """
+    검색 결과를 LLM을 통해 사용자 언어로 적응하여 스트리밍.
+
+    할루시네이션 방지:
+    - 검색 결과만 사용하도록 엄격한 프롬프트 적용
+    - 정보 추가 금지
+
+    Args:
+        search_results: 검색 결과 리스트
+        query: 사용자 쿼리
+        language: 대상 언어 (ko, en, ja)
+        llm_adapter: LLM 어댑터
+        decision: 하이브리드 모드 결정 정보
+
+    Yields:
+        적응된 응답 텍스트 청크
+    """
+    # 검색 결과가 없으면 "정보 없음" 메시지 반환
+    if not search_results or (decision and decision.reason in ("no_results", "very_low_score")):
+        not_found = {
+            "ko": f"죄송합니다. **\"{query}\"**에 대한 정보를 지식 베이스에서 찾을 수 없습니다.",
+            "en": f"Sorry, I couldn't find information about **\"{query}\"** in the knowledge base.",
+            "ja": f"申し訳ございませんが、**「{query}」**に関する情報はナレッジベースに見つかりませんでした。"
+        }
+        yield not_found.get(language, not_found["en"])
+        return
+
+    # 검색 결과를 텍스트로 포맷
+    results_text = []
+    for i, result in enumerate(search_results, 1):
+        source = result.get("source", {})
+        content = result.get("content", "")
+        doc_name = source.get("document_name", "Unknown")
+        page = source.get("page_start", "")
+        section = source.get("section_title", "")
+
+        result_entry = f"### Result {i}\n"
+        result_entry += f"- Document: {doc_name}\n"
+        if page:
+            result_entry += f"- Page: {page}\n"
+        if section:
+            result_entry += f"- Section: {section}\n"
+        result_entry += f"- Content:\n{content}\n"
+        results_text.append(result_entry)
+
+    formatted_results = "\n".join(results_text)
+
+    # 언어 이름 매핑
+    lang_names = {"ko": "Korean", "en": "English", "ja": "Japanese"}
+    lang_name = lang_names.get(language, "English")
+
+    # 프롬프트 생성
+    prompt = LANGUAGE_ADAPTATION_PROMPT.format(
+        language=lang_name,
+        query=query,
+        search_results=formatted_results
+    )
+
+    # LLM 호출 (스트리밍)
+    try:
+        messages = [{"role": "user", "content": prompt}]
+
+        # 스트리밍 지원 여부 확인
+        if hasattr(llm_adapter, 'generate_stream'):
+            async for chunk in llm_adapter.generate_stream(messages=messages, tools=None):
+                if isinstance(chunk, dict) and "content" in chunk:
+                    yield chunk["content"]
+                elif isinstance(chunk, str):
+                    yield chunk
+        else:
+            # 스트리밍 미지원 시 일반 호출
+            response = await llm_adapter.generate(messages=messages, tools=None)
+            content = response.get("content", "")
+            # 청크 단위로 분할하여 yield
+            chunk_size = 50
+            for i in range(0, len(content), chunk_size):
+                yield content[i:i + chunk_size]
+
+    except Exception as e:
+        logger.error(f"[LanguageAdapt] LLM call failed: {e}")
+        # 폴백: 원본 검색 결과 반환
+        formatter = _get_direct_formatter()
+        fallback = formatter.format(search_results, language=language, query=query)
+        yield fallback
+
+
+async def _adapt_language_with_llm(
+    search_results: List[Dict[str, Any]],
+    query: str,
+    language: str,
+    llm_adapter,
+    decision: Optional[HybridModeDecision] = None
+) -> str:
+    """
+    검색 결과를 LLM을 통해 사용자 언어로 적응 (non-streaming 버전).
+
+    Args:
+        search_results: 검색 결과 리스트
+        query: 사용자 쿼리
+        language: 대상 언어 (ko, en, ja)
+        llm_adapter: LLM 어댑터
+        decision: 하이브리드 모드 결정 정보
+
+    Returns:
+        적응된 응답 텍스트
+    """
+    # 스트리밍 버전을 사용하여 전체 응답 수집
+    chunks = []
+    async for chunk in _adapt_language_with_llm_stream(
+        search_results, query, language, llm_adapter, decision
+    ):
+        chunks.append(chunk)
+    return "".join(chunks)
+
+
 async def _stream_images_from_metadata(
     metadata: Dict[str, Any],
     max_images: int = 5
@@ -1321,15 +1477,20 @@ User Query: {task}"""
                     # Changed: search_results는 빈 리스트일 수 있음 (no_results 케이스)
                     if use_direct and decision is not None:
                         logger.info(
-                            f"[Executor] Using DIRECT mode - skipping LLM synthesis "
-                            f"(reason={decision.reason}, confidence={decision.confidence:.2f})"
+                            f"[Executor] Using DIRECT mode with LLM language adaptation "
+                            f"(reason={decision.reason}, confidence={decision.confidence:.2f}, lang={context.language})"
                         )
-                        final_answer = _format_direct_response(
-                            search_results or [], task, context, decision
+                        # LLM을 통한 언어 적응 (검색 결과만 사용)
+                        final_answer = await _adapt_language_with_llm(
+                            search_results=search_results or [],
+                            query=task,
+                            language=context.language or "ko",
+                            llm_adapter=self.llm_adapter,
+                            decision=decision
                         )
                         # Store decision info in metadata
                         context.metadata["hybrid_mode_decision"] = {
-                            "mode": "direct",
+                            "mode": "direct_with_llm",
                             "reason": decision.reason,
                             "confidence": decision.confidence,
                             "top_score": decision.top_score
@@ -1825,55 +1986,48 @@ User Query: {task}"""
                     # Changed: search_results는 빈 리스트일 수 있음 (no_results 케이스)
                     if use_direct and decision is not None:
                         logger.info(
-                            f"[Executor.stream] Using DIRECT mode - skipping LLM synthesis "
+                            f"[Executor.stream] Using DIRECT mode with LLM language adaptation "
                             f"(reason={decision.reason}, confidence={decision.confidence:.2f})"
                         )
                         print(
-                            f"[Executor.stream] DIRECT mode activated: {decision.reason} "
-                            f"(confidence={decision.confidence:.2f})",
+                            f"[Executor.stream] DIRECT mode + LLM language adapt: {decision.reason} "
+                            f"(confidence={decision.confidence:.2f}, lang={context.language})",
                             flush=True
                         )
 
-                        # Format the direct response
-                        direct_answer = _format_direct_response(
-                            search_results or [], task, context, decision
-                        )
-
-                        # Stream the direct answer
-                        total_chunks = (len(direct_answer) + 99) // 100  # ceiling division
+                        # Start generation
                         yield AgentStreamChunk(
                             chunk_type="generation_start",
-                            content="검색 결과를 표시합니다...",
+                            content="검색 결과를 분석하고 있습니다...",
                             metadata={
                                 "total_sources": len(sources),
-                                "mode": "direct",
+                                "mode": "direct_with_llm",
                                 "decision_reason": decision.reason,
-                                "total_chunks": total_chunks,
-                                "answer_length": len(direct_answer)
+                                "target_language": context.language
                             }
                         )
 
-                        # Stream in chunks for smoother UI with progress updates
-                        chunk_size = 100
-                        current_chunk = 0
-                        for i in range(0, len(direct_answer), chunk_size):
-                            current_chunk += 1
-                            chunk = direct_answer[i:i + chunk_size]
-
-                            # Send progress update every 5 chunks or at start/end
-                            if current_chunk == 1 or current_chunk % 5 == 0 or current_chunk == total_chunks:
+                        # ================================================================
+                        # LLM을 통한 언어 적응 스트리밍
+                        # 검색 결과만 사용하여 사용자 언어로 답변 생성
+                        # ================================================================
+                        chunk_count = 0
+                        async for text_chunk in _adapt_language_with_llm_stream(
+                            search_results=search_results or [],
+                            query=task,
+                            language=context.language or "ko",
+                            llm_adapter=self.llm_adapter,
+                            decision=decision
+                        ):
+                            chunk_count += 1
+                            # 진행 상태 업데이트 (매 10청크마다)
+                            if chunk_count % 10 == 1:
                                 yield AgentStreamChunk(
                                     chunk_type="generation_progress",
-                                    content=f"검색 결과 표시 중... ({current_chunk}/{total_chunks})",
-                                    metadata={
-                                        "current_chunk": current_chunk,
-                                        "total_chunks": total_chunks,
-                                        "progress_pct": round((current_chunk / total_chunks) * 100, 1)
-                                    }
+                                    content=f"답변 생성 중...",
+                                    metadata={"chunks_generated": chunk_count}
                                 )
-
-                            yield AgentStreamChunk(chunk_type="text", content=chunk)
-                            await asyncio.sleep(0.01)
+                            yield AgentStreamChunk(chunk_type="text", content=text_chunk)
 
                         # Send sources
                         if sources:
@@ -1889,7 +2043,7 @@ User Query: {task}"""
                             metadata={
                                 "steps": step,
                                 "execution_time": time.time() - start_time,
-                                "hybrid_mode": "direct",
+                                "hybrid_mode": "direct_with_llm",
                                 "decision_reason": decision.reason,
                                 "decision_confidence": decision.confidence
                             }
