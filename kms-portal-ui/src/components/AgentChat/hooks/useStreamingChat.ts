@@ -132,7 +132,7 @@ const createInitialAgentState = (): AgentLocalState => ({
 });
 
 // Search tools to track for progress visualization
-const SEARCH_TOOLS = ['adaptive_search', 'vector_search', 'graph_query', 'document_read'];
+const SEARCH_TOOLS = ['adaptive_search', 'vector_search', 'graph_query', 'document_read', 'ims_search', 'unified_search'];
 
 // Parse tool output to extract result items
 const parseToolOutput = (toolName: string, output: string): { resultCount: number; results: SearchResultItem[] } => {

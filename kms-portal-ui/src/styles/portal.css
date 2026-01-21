@@ -324,6 +324,12 @@
   overflow: hidden;
 }
 
+/* When agent page is in empty state, don't expand container */
+.portal-container:has(.agent-chat-wrapper.is-empty) {
+  flex: 0 0 auto;
+  align-content: start;
+}
+
 .portal-layout.left-collapsed .portal-container {
   grid-template-columns: var(--sidebar-collapsed-width) 1fr;
 }
@@ -745,6 +751,12 @@
   padding: var(--space-6);
   background: var(--color-bg-primary);
   min-width: 0;
+}
+
+/* When agent page is in empty state, don't stretch to fill grid area */
+.portal-content:has(.agent-chat-wrapper.is-empty) {
+  align-self: start;
+  overflow: visible;
 }
 
 .portal-content__header {

@@ -568,8 +568,10 @@ export const AgentChat: React.FC<AgentChatProps> = ({
     setShowHistorySidebar((prev) => !prev);
   }, []);
 
+  const isEmpty = messages.length === 0 && !streamingMessage;
+
   return (
-    <div className={`agent-chat-wrapper ${artifactPanel.isOpen ? 'with-artifact-panel' : ''} ${tracePanel.isOpen ? 'with-trace-panel' : ''} ${showHistorySidebar ? 'with-history-sidebar' : ''}`}>
+    <div className={`agent-chat-wrapper ${isEmpty ? 'is-empty' : ''} ${artifactPanel.isOpen ? 'with-artifact-panel' : ''} ${tracePanel.isOpen ? 'with-trace-panel' : ''} ${showHistorySidebar ? 'with-history-sidebar' : ''}`}>
     {/* Conversation History Sidebar */}
     <ConversationSidebar
       agentType={selectedAgent}

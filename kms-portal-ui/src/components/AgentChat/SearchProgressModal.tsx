@@ -61,6 +61,8 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   vector_search: <Search size={18} />,
   graph_query: <Network size={18} />,
   document_read: <FileText size={18} />,
+  ims_search: <AlertCircle size={18} />,
+  unified_search: <Layers size={18} />,
 };
 
 // Status indicator component

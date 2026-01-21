@@ -11,6 +11,11 @@
   padding: var(--space-6);
 }
 
+/* When in empty state, don't force full height */
+.agent-page:has(.agent-chat-wrapper.is-empty) {
+  height: auto;
+}
+
 @media (max-width: 768px) {
   .agent-page {
     padding: var(--space-4);
