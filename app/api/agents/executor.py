@@ -1813,20 +1813,38 @@ User Query: {task}"""
                         )
 
                         # Stream the direct answer
+                        total_chunks = (len(direct_answer) + 99) // 100  # ceiling division
                         yield AgentStreamChunk(
                             chunk_type="generation_start",
                             content="검색 결과를 표시합니다...",
                             metadata={
                                 "total_sources": len(sources),
                                 "mode": "direct",
-                                "decision_reason": decision.reason
+                                "decision_reason": decision.reason,
+                                "total_chunks": total_chunks,
+                                "answer_length": len(direct_answer)
                             }
                         )
 
-                        # Stream in chunks for smoother UI
+                        # Stream in chunks for smoother UI with progress updates
                         chunk_size = 100
+                        current_chunk = 0
                         for i in range(0, len(direct_answer), chunk_size):
+                            current_chunk += 1
                             chunk = direct_answer[i:i + chunk_size]
+
+                            # Send progress update every 5 chunks or at start/end
+                            if current_chunk == 1 or current_chunk % 5 == 0 or current_chunk == total_chunks:
+                                yield AgentStreamChunk(
+                                    chunk_type="generation_progress",
+                                    content=f"검색 결과 표시 중... ({current_chunk}/{total_chunks})",
+                                    metadata={
+                                        "current_chunk": current_chunk,
+                                        "total_chunks": total_chunks,
+                                        "progress_pct": round((current_chunk / total_chunks) * 100, 1)
+                                    }
+                                )
+
                             yield AgentStreamChunk(chunk_type="text", content=chunk)
                             await asyncio.sleep(0.01)
 
