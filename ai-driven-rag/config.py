@@ -18,7 +18,7 @@ class Config:
 
     # LLM (OpenAI-compatible API)
     llm_api_url: str = os.getenv("LLM_API_URL", "http://localhost:12800/v1")
-    llm_model: str = os.getenv("LLM_MODEL", "nemotron-nano")
+    llm_model: str = os.getenv("LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
     llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.1"))
     llm_max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "4096"))
 
