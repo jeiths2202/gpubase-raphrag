@@ -13,6 +13,9 @@
   /* Surface/Background */
   --surface-primary: var(--color-bg-secondary);
   --surface-secondary: var(--color-bg-tertiary);
+  --surface-tertiary: var(--color-bg-primary);
+  --surface-code: var(--color-bg-primary);
+  --surface-hover: var(--color-bg-hover);
 
   /* Text */
   --text-primary: var(--color-text-primary);
@@ -20,6 +23,19 @@
 
   /* Border */
   --border-primary: var(--color-border);
+  --border-secondary: var(--color-border-subtle);
+
+  /* Status colors */
+  --warning-border: var(--color-warning);
+  --warning-text: var(--color-warning);
+  --success-border: var(--color-success);
+  --success-text: var(--color-success);
+  --error-border: var(--color-error);
+  --error-text: var(--color-error);
+
+  /* Brand colors */
+  --brand-primary: var(--color-primary);
+  --brand-primary-muted: var(--color-primary-light);
 }
 
 /* Wrapper for chat + sidebar + artifact panel layout */
@@ -418,6 +434,63 @@
 .agent-chat-suggestion:hover {
   background: var(--surface-hover);
   border-color: var(--brand-primary);
+}
+
+/* Search Syntax Help */
+.agent-chat-search-syntax {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 480px;
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+}
+
+.agent-chat-search-syntax-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.agent-chat-search-syntax-description {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  margin: 0 0 var(--space-2) 0;
+}
+
+.agent-chat-search-syntax-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.agent-chat-search-syntax-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-primary);
+  border-radius: var(--radius-md);
+}
+
+.agent-chat-search-syntax-code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--brand-primary);
+  background: var(--surface-tertiary);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  min-width: 140px;
+}
+
+.agent-chat-search-syntax-desc {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  flex: 1;
 }
 
 /* Message Bubble */

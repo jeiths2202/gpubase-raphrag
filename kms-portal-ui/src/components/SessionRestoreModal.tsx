@@ -44,7 +44,6 @@ export const SessionRestoreModal: React.FC<SessionRestoreModalProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [session, setSession] = useState<SessionState | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
 
   // Check for restorable session on mount
@@ -56,7 +55,6 @@ export const SessionRestoreModal: React.FC<SessionRestoreModalProps> = ({
 
   // Check for session
   const checkSession = useCallback(async () => {
-    setIsLoading(true);
     try {
       const response = await checkSessionRestore(maxAgeHours);
       if (response.data.can_restore) {
@@ -65,8 +63,6 @@ export const SessionRestoreModal: React.FC<SessionRestoreModalProps> = ({
       }
     } catch (err) {
       console.error('Failed to check session:', err);
-    } finally {
-      setIsLoading(false);
     }
   }, [maxAgeHours]);
 

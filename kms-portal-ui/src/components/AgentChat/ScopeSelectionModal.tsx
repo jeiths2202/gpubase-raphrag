@@ -24,7 +24,6 @@ import {
 import {
   getCandidates,
   type DocumentCandidate,
-  type SectionCandidate,
   type SearchScope,
 } from '../../api/agent-navigation.api';
 import './ScopeSelectionModal.css';

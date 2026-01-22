@@ -20,7 +20,7 @@
 
 /* Modal container */
 .scope-modal {
-  background: var(--bg-primary);
+  background: var(--color-bg-modal);
   border-radius: 12px;
   width: 90%;
   max-width: 640px;
@@ -28,6 +28,7 @@
   display: flex;
   flex-direction: column;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--color-border);
 }
 
 /* Header */
@@ -36,14 +37,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .scope-modal-title {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
 }
 
 .scope-modal-title h3 {
@@ -53,7 +54,7 @@
 }
 
 .scope-modal-title svg {
-  color: var(--accent-primary);
+  color: var(--color-primary);
 }
 
 .scope-modal-close {
@@ -61,20 +62,20 @@
   border: none;
   padding: 6px;
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   border-radius: 6px;
   transition: all 0.2s;
 }
 
 .scope-modal-close:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
 }
 
 /* Query display */
 .scope-modal-query {
   padding: 12px 20px;
-  background: var(--bg-secondary);
+  background: var(--color-bg-secondary);
   display: flex;
   gap: 8px;
   align-items: center;
@@ -82,12 +83,12 @@
 }
 
 .scope-modal-query-label {
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   font-weight: 500;
 }
 
 .scope-modal-query-text {
-  color: var(--text-primary);
+  color: var(--color-text-primary);
   font-style: italic;
 }
 
@@ -97,6 +98,7 @@
   overflow-y: auto;
   padding: 16px 20px;
   min-height: 200px;
+  background: var(--color-bg-modal);
 }
 
 /* Loading state */
@@ -107,7 +109,7 @@
   justify-content: center;
   gap: 12px;
   height: 200px;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
 }
 
 .scope-modal-loading .spin {
@@ -129,8 +131,8 @@
   align-items: center;
   gap: 8px;
   padding: 12px;
-  background: var(--error-bg);
-  color: var(--error-text);
+  background: var(--color-error-light);
+  color: var(--color-error);
   border-radius: 8px;
 }
 
@@ -142,7 +144,7 @@
   justify-content: center;
   gap: 12px;
   height: 200px;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
 }
 
 /* Suggested scope */
@@ -151,8 +153,8 @@
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  background: var(--accent-bg);
-  border: 1px solid var(--accent-border);
+  background: var(--color-primary-light);
+  border: 1px solid var(--color-primary);
   border-radius: 8px;
   margin-bottom: 16px;
   cursor: pointer;
@@ -160,20 +162,20 @@
 }
 
 .scope-suggested:hover {
-  background: var(--accent-bg-hover);
+  background: var(--color-primary-bg);
 }
 
 .scope-suggested-icon {
-  color: var(--accent-primary);
+  color: var(--color-primary);
 }
 
 .scope-suggested-text {
   font-weight: 600;
-  color: var(--accent-primary);
+  color: var(--color-primary);
 }
 
 .scope-suggested-detail {
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   font-size: 0.875rem;
 }
 
@@ -186,9 +188,10 @@
 
 /* Document item */
 .scope-document {
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   overflow: hidden;
+  background: var(--color-bg-card);
 }
 
 .scope-document-header {
@@ -196,7 +199,7 @@
   align-items: center;
   gap: 8px;
   padding: 12px;
-  background: var(--bg-secondary);
+  background: var(--color-bg-secondary);
   cursor: pointer;
 }
 
@@ -205,7 +208,7 @@
   border: none;
   padding: 2px;
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -216,18 +219,18 @@
   border: none;
   padding: 2px;
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .scope-document-checkbox .checked {
-  color: var(--accent-primary);
+  color: var(--color-primary);
 }
 
 .scope-document-icon {
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
 }
 
 .scope-document-info {
@@ -240,7 +243,7 @@
 
 .scope-document-name {
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -248,13 +251,13 @@
 
 .scope-document-meta {
   font-size: 0.75rem;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
 }
 
 .scope-document-score {
   padding: 2px 8px;
-  background: var(--accent-bg);
-  color: var(--accent-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
   font-size: 0.75rem;
   font-weight: 600;
   border-radius: 4px;
@@ -262,8 +265,8 @@
 
 /* Sections list */
 .scope-sections {
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-modal);
 }
 
 .scope-section {
@@ -271,7 +274,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .scope-section:last-child {
@@ -283,24 +286,24 @@
   border: none;
   padding: 2px;
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .scope-section-checkbox .checked {
-  color: var(--accent-primary);
+  color: var(--color-primary);
 }
 
 .scope-section-icon {
-  color: var(--text-tertiary);
+  color: var(--color-text-muted);
 }
 
 .scope-section-title {
   flex: 1;
   font-size: 0.875rem;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -308,7 +311,7 @@
 
 .scope-section-pages {
   font-size: 0.75rem;
-  color: var(--text-tertiary);
+  color: var(--color-text-muted);
 }
 
 /* Footer */
@@ -317,15 +320,15 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
 }
 
 .scope-modal-selection {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   font-size: 0.875rem;
 }
 
@@ -334,7 +337,7 @@
   background: none;
   border: none;
   padding: 4px 8px;
-  color: var(--accent-primary);
+  color: var(--color-primary);
   cursor: pointer;
   font-size: 0.875rem;
   border-radius: 4px;
@@ -343,7 +346,7 @@
 
 .scope-clear-btn:hover,
 .scope-select-all-btn:hover {
-  background: var(--accent-bg);
+  background: var(--color-primary-light);
 }
 
 .scope-modal-actions {
@@ -364,48 +367,26 @@
 }
 
 .scope-search-all-btn {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
+  background: var(--color-bg-modal);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
 }
 
 .scope-search-all-btn:hover {
-  background: var(--bg-hover);
+  background: var(--color-bg-hover);
 }
 
 .scope-search-selected-btn {
-  background: var(--accent-primary);
+  background: var(--color-primary);
   border: none;
   color: white;
 }
 
 .scope-search-selected-btn:hover {
-  background: var(--accent-hover);
+  background: var(--color-primary-hover);
 }
 
 .scope-search-selected-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-/* Dark theme adjustments */
-[data-theme='dark'] .scope-modal {
-  background: var(--bg-primary);
-}
-
-[data-theme='dark'] .scope-modal-header {
-  border-color: var(--border-color);
-}
-
-[data-theme='dark'] .scope-document {
-  border-color: var(--border-color);
-}
-
-[data-theme='dark'] .scope-document-header {
-  background: var(--bg-secondary);
-}
-
-[data-theme='dark'] .scope-sections {
-  background: var(--bg-primary);
-  border-color: var(--border-color);
 }
