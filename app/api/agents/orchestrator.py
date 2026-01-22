@@ -226,6 +226,15 @@ class AgentOrchestrator:
                 logger.info(f"[Orchestrator] URL content fetched: {len(url_content)} chars from {url_source}")
 
         # Create context
+        # Convert search_scope from request to dataclass (Agent-Driven RAG)
+        search_scope = None
+        if hasattr(request, 'search_scope') and request.search_scope:
+            from .types import SearchScope
+            search_scope = SearchScope(
+                documents=request.search_scope.documents or [],
+                sections=request.search_scope.sections or [],
+                keywords=request.search_scope.keywords or []
+            )
         context = AgentContext(
             session_id=request.session_id or "",
             user_id=user_id,
@@ -234,7 +243,8 @@ class AgentOrchestrator:
             file_context=request.file_context,
             url_context=url_content,
             url_source=url_source,
-            use_deep_agent=getattr(request, 'use_deep_agent', False)
+            use_deep_agent=getattr(request, 'use_deep_agent', False),
+            search_scope=search_scope
         )
 
         # Add response_mode to metadata for hybrid mode support
@@ -359,6 +369,17 @@ class AgentOrchestrator:
             if url_content:
                 logger.info(f"[Orchestrator] URL content fetched: {len(url_content)} chars from {url_source}")
 
+        # Convert search_scope from request to dataclass (Agent-Driven RAG)
+        search_scope = None
+        if hasattr(request, 'search_scope') and request.search_scope:
+            from .types import SearchScope
+            search_scope = SearchScope(
+                documents=request.search_scope.documents or [],
+                sections=request.search_scope.sections or [],
+                keywords=request.search_scope.keywords or []
+            )
+            logger.info(f"[Orchestrator.stream] search_scope: {len(search_scope.documents)} docs, {len(search_scope.sections)} sections")
+
         context = AgentContext(
             session_id=request.session_id or "",
             user_id=user_id,
@@ -367,7 +388,8 @@ class AgentOrchestrator:
             file_context=request.file_context,
             url_context=url_content,
             url_source=url_source,
-            use_deep_agent=getattr(request, 'use_deep_agent', False)
+            use_deep_agent=getattr(request, 'use_deep_agent', False),
+            search_scope=search_scope
         )
 
         # Add response_mode to metadata for hybrid mode support

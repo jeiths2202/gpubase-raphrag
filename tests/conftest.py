@@ -100,6 +100,7 @@ def test_app(mock_auth_service):
 
     # Import routers directly (skip main.py lifespan which requires DB)
     from app.api.routers import auth, health, query
+    from app.api.routers import agent_navigation, agent_session
     from app.api.core.deps import get_auth_service
     from app.api.services.auth_service import get_auth_service as service_get_auth_service
 
@@ -119,6 +120,9 @@ def test_app(mock_auth_service):
     API_PREFIX = "/api/v1"
     test_application.include_router(auth.router, prefix=API_PREFIX)
     test_application.include_router(health.router, prefix=API_PREFIX)
+    # Agent-Driven RAG routers
+    test_application.include_router(agent_navigation.router, prefix=API_PREFIX)
+    test_application.include_router(agent_session.router, prefix=API_PREFIX)
 
     # Create async mock wrapper for the auth service
     async def mock_get_auth_service():

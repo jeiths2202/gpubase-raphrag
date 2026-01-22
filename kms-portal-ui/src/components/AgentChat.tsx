@@ -52,14 +52,15 @@ import {
   ExternalConnectorsModal,
   SearchProgressModal,
   FAQRegistrationModal,
+  ScopeSelectionModal,
   useFileAttachment,
   useUrlAttachment,
   useStreamingChat,
   AGENT_CONFIGS,
-  SUGGESTED_QUESTIONS,
   SUPPORTED_EXTENSIONS,
   type ChatMessage,
 } from './AgentChat/index';
+import type { SearchScope } from '../api/agent-navigation.api';
 
 // Feedback API
 import { submitQuickFeedback } from '../api/feedback.api';
@@ -160,6 +161,10 @@ export const AgentChat: React.FC<AgentChatProps> = ({
     answer: string;
     agentType?: AgentType;
   } | null>(null);
+
+  // Scope Selection modal state (Agent-Driven RAG)
+  const [showScopeModal, setShowScopeModal] = useState(false);
+  const [scopePendingQuery, setScopePendingQuery] = useState<string | null>(null);
 
   // Auth store - get current user ID
   const { user } = useAuthStore();
@@ -456,12 +461,41 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   }, [handleFileDrop]);
 
   // Handle send message (wrapper for streaming hook)
+  // For RAG agent, show scope selection modal first (Agent-Driven RAG)
   const handleSend = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
     const currentInput = inputValue;
+
+    // For RAG agent, show scope selection modal (can be bypassed with preference)
+    if (selectedAgent === 'rag') {
+      setScopePendingQuery(currentInput);
+      setShowScopeModal(true);
+      setInputValue('');
+      return;
+    }
+
     setInputValue('');
     await streamingHandleSend(currentInput);
-  }, [inputValue, isLoading, streamingHandleSend]);
+  }, [inputValue, isLoading, selectedAgent, streamingHandleSend]);
+
+  // Handle scope selection callback (Agent-Driven RAG)
+  const handleScopeSelect = useCallback(async (scope: SearchScope | null) => {
+    if (!scopePendingQuery) return;
+    const query = scopePendingQuery;
+    setScopePendingQuery(null);
+    setShowScopeModal(false);
+    await streamingHandleSend(query, scope);
+  }, [scopePendingQuery, streamingHandleSend]);
+
+  // Handle scope modal close (cancel)
+  const handleScopeModalClose = useCallback(() => {
+    setShowScopeModal(false);
+    // Restore input if user cancels
+    if (scopePendingQuery) {
+      setInputValue(scopePendingQuery);
+    }
+    setScopePendingQuery(null);
+  }, [scopePendingQuery]);
 
   // Handle key press
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -469,12 +503,6 @@ export const AgentChat: React.FC<AgentChatProps> = ({
       e.preventDefault();
       handleSend();
     }
-  };
-
-  // Handle suggestion click
-  const handleSuggestionClick = (question: string) => {
-    setInputValue(question);
-    inputRef.current?.focus();
   };
 
   // Copy message
@@ -807,20 +835,32 @@ export const AgentChat: React.FC<AgentChatProps> = ({
             <h3>{t('knowledge.chat.title') || 'AI Agent'}</h3>
             <p>{AGENT_CONFIGS[selectedAgent].description}</p>
 
-            {/* Suggestions */}
-            <div className="agent-chat-suggestions">
-              <span className="agent-chat-suggestions-label">
-                {t('knowledge.chat.suggestions') || 'Try asking'}:
+            {/* Search Syntax Help */}
+            <div className="agent-chat-search-syntax">
+              <span className="agent-chat-search-syntax-title">
+                {t('knowledge.chat.searchSyntax.title')}
               </span>
-              {SUGGESTED_QUESTIONS[selectedAgent].map((q, i) => (
-                <button
-                  key={i}
-                  className="agent-chat-suggestion"
-                  onClick={() => handleSuggestionClick(q)}
-                >
-                  {q}
-                </button>
-              ))}
+              <p className="agent-chat-search-syntax-description">
+                {t('knowledge.chat.searchSyntax.description')}
+              </p>
+              <div className="agent-chat-search-syntax-table">
+                <div className="agent-chat-search-syntax-row">
+                  <code className="agent-chat-search-syntax-code">{t('knowledge.chat.searchSyntax.examples.0.syntax')}</code>
+                  <span className="agent-chat-search-syntax-desc">{t('knowledge.chat.searchSyntax.examples.0.description')}</span>
+                </div>
+                <div className="agent-chat-search-syntax-row">
+                  <code className="agent-chat-search-syntax-code">{t('knowledge.chat.searchSyntax.examples.1.syntax')}</code>
+                  <span className="agent-chat-search-syntax-desc">{t('knowledge.chat.searchSyntax.examples.1.description')}</span>
+                </div>
+                <div className="agent-chat-search-syntax-row">
+                  <code className="agent-chat-search-syntax-code">{t('knowledge.chat.searchSyntax.examples.2.syntax')}</code>
+                  <span className="agent-chat-search-syntax-desc">{t('knowledge.chat.searchSyntax.examples.2.description')}</span>
+                </div>
+                <div className="agent-chat-search-syntax-row">
+                  <code className="agent-chat-search-syntax-code">{t('knowledge.chat.searchSyntax.examples.3.syntax')}</code>
+                  <span className="agent-chat-search-syntax-desc">{t('knowledge.chat.searchSyntax.examples.3.description')}</span>
+                </div>
+              </div>
             </div>
           </div>
         ) : (
@@ -1129,6 +1169,15 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         toolResults={searchProgress.toolResults}
         isSearching={searchProgress.toolResults.some(t => t.status === 'running') || ragProgress.isGenerating}
         ragProgress={ragProgress}
+        t={t}
+      />
+
+      {/* Scope Selection Modal (Agent-Driven RAG) */}
+      <ScopeSelectionModal
+        isOpen={showScopeModal}
+        onClose={handleScopeModalClose}
+        onSelectScope={handleScopeSelect}
+        query={scopePendingQuery || ''}
         t={t}
       />
     </div>

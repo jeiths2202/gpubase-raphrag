@@ -61,6 +61,16 @@
     "send": "Send",
     "thinking": "Thinking...",
     "suggestions": "Suggested questions",
+    "searchSyntax": {
+      "title": "Search Syntax Guide",
+      "description": "Use special prefixes and symbols to control your search precisely",
+      "examples": [
+        {"syntax": "keyword", "description": "Semantic search across all sources"},
+        {"syntax": "@keyword", "description": "Search only in web sources"},
+        {"syntax": "\"exact phrase\"", "description": "Prioritize exact phrase matches in all sources"},
+        {"syntax": "@\"exact phrase\"", "description": "Search exact phrase only in web sources"}
+      ]
+    },
     "clearHistory": "Clear history",
     "deleteHistory": "Delete History",
     "confirmDeleteAll": "Are you sure you want to delete all conversation history?",
@@ -77,5 +87,31 @@
     "documents": "Documents",
     "sources": "Sources",
     "notes": "Notes"
+  },
+  "agentNav": {
+    "selectScope": "Select Search Scope",
+    "searchQuery": "Query",
+    "loading": "Loading candidates...",
+    "loadError": "Failed to load document candidates",
+    "noCandidates": "No relevant documents found",
+    "suggested": "Suggested",
+    "documents": "documents",
+    "sections": "sections",
+    "pages": "pages",
+    "selected": "selected",
+    "clear": "Clear",
+    "selectAll": "Select All",
+    "searchAll": "Search All",
+    "searchSelected": "Search Selected",
+    "restoreSession": "Restore Previous Session",
+    "lastQuery": "Last Query",
+    "searchScope": "Search Scope",
+    "minutesAgo": "minutes ago",
+    "hoursAgo": "hours ago",
+    "daysAgo": "days ago",
+    "startFresh": "Start Fresh",
+    "continue": "Continue",
+    "restoring": "Restoring...",
+    "scopeNotFound": "The information was not found in the selected documents/sections. Try searching all documents."
   }
 }

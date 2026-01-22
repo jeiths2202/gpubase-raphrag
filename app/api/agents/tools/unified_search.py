@@ -196,7 +196,10 @@ Returns relevant document chunks with full context and source information."""
                     "doc_id": source.get("doc_id", ""),
                     "page_number": source.get("page_number"),
                     "rank": i + 1,
-                    "origin": "neo4j"
+                    "origin": "neo4j",
+                    # Web source specific fields
+                    "source_type": source.get("source_type", "document"),
+                    "source_url": source.get("source_url", "")
                 })
 
             logger.info(f"[UnifiedSearch] Neo4j returned {len(neo4j_results)} results")
@@ -291,6 +294,249 @@ Returns relevant document chunks with full context and source information."""
             logger.error(f"PostgreSQL keyword search error: {e}")
             return []
 
+    async def _exact_phrase_search(
+        self,
+        exact_phrases: List[str],
+        top_k: int = 10,
+        web_only: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for chunks containing exact phrases in Neo4j.
+        This is a direct string match search to complement vector search.
+
+        Args:
+            exact_phrases: List of exact phrases to search for
+            top_k: Maximum number of results
+            web_only: If True, only search web sources (for @ prefix mode)
+        """
+        if not exact_phrases:
+            return []
+
+        try:
+            from neo4j import GraphDatabase
+
+            neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+            neo4j_user = os.getenv("NEO4J_USER", "neo4j")
+            neo4j_password = os.getenv("NEO4J_PASSWORD", "")
+
+            driver = GraphDatabase.driver(
+                neo4j_uri,
+                auth=(neo4j_user, neo4j_password)
+            )
+
+            results = []
+            with driver.session() as session:
+                for phrase in exact_phrases:
+                    # Search for chunks containing the exact phrase (case-insensitive)
+                    phrase_lower = phrase.lower()
+
+                    # Build query based on web_only filter
+                    if web_only:
+                        # Only search web source chunks
+                        query_result = session.run("""
+                            MATCH (c:Chunk)
+                            WHERE toLower(c.content) CONTAINS $phrase
+                              AND c.source_type = 'web'
+                            OPTIONAL MATCH (d:Document)-[:CONTAINS]->(c)
+                            RETURN c.id AS chunk_id,
+                                   c.content AS content,
+                                   c.source_type AS source_type,
+                                   c.source_url AS source_url,
+                                   c.index AS chunk_index,
+                                   d.id AS doc_id,
+                                   d.title AS doc_title
+                            LIMIT $limit
+                        """, phrase=phrase_lower, limit=top_k)
+                    else:
+                        # Search all chunks
+                        query_result = session.run("""
+                            MATCH (c:Chunk)
+                            WHERE toLower(c.content) CONTAINS $phrase
+                            OPTIONAL MATCH (d:Document)-[:CONTAINS]->(c)
+                            RETURN c.id AS chunk_id,
+                                   c.content AS content,
+                                   c.source_type AS source_type,
+                                   c.source_url AS source_url,
+                                   c.index AS chunk_index,
+                                   d.id AS doc_id,
+                                   d.title AS doc_title
+                            LIMIT $limit
+                        """, phrase=phrase_lower, limit=top_k)
+
+                    for record in query_result:
+                        content = record["content"] or ""
+                        source_type = record["source_type"] or "document"
+                        doc_id = record["doc_id"] or record["chunk_id"]
+
+                        results.append({
+                            "chunk_id": record["chunk_id"],
+                            "content": content,
+                            "score": 1.0,  # High score for exact match
+                            "source": doc_id,
+                            "doc_id": doc_id,
+                            "document_name": record["doc_title"] or doc_id,
+                            "source_type": source_type,
+                            "source_url": record["source_url"] or "",
+                            "rank": len(results) + 1,
+                            "origin": "exact_phrase",
+                            "exact_phrase_match": True,
+                            "matched_phrases": [phrase]
+                        })
+
+            driver.close()
+
+            logger.info(f"[UnifiedSearch] Exact phrase search found {len(results)} results for phrases: {exact_phrases}")
+            print(f"[UnifiedSearch] Exact phrase search found {len(results)} direct matches", flush=True)
+            return results
+
+        except Exception as e:
+            logger.error(f"Exact phrase search error: {e}")
+            return []
+
+    async def _fetch_linked_chunks(
+        self,
+        results: List[Dict[str, Any]],
+        num_following: int = 2,
+        web_only: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch subsequent chunks for each result to include related content.
+        This helps include tables/lists that follow headers.
+
+        Args:
+            results: Search results to expand
+            num_following: Number of subsequent chunks to fetch (default: 2)
+            web_only: If True, only link web source chunks
+
+        Returns:
+            Expanded results with linked chunks appended
+        """
+        if not results or num_following <= 0:
+            return results
+
+        try:
+            from neo4j import GraphDatabase
+
+            neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+            neo4j_user = os.getenv("NEO4J_USER", "neo4j")
+            neo4j_password = os.getenv("NEO4J_PASSWORD", "")
+
+            driver = GraphDatabase.driver(
+                neo4j_uri,
+                auth=(neo4j_user, neo4j_password)
+            )
+
+            linked_chunks = []
+            seen_chunk_ids = set()
+
+            # Track original chunk IDs to avoid duplicates
+            for r in results:
+                chunk_id = r.get("chunk_id")
+                if chunk_id:
+                    seen_chunk_ids.add(chunk_id)
+
+            with driver.session() as session:
+                for result in results:
+                    chunk_id = result.get("chunk_id")
+                    source_type = result.get("source_type", "document")
+
+                    # Skip if web_only and this isn't a web source
+                    if web_only and source_type != "web":
+                        continue
+
+                    if not chunk_id:
+                        continue
+
+                    # First, get the index of this chunk
+                    index_result = session.run("""
+                        MATCH (c:Chunk)
+                        WHERE c.id = $chunk_id
+                        RETURN c.index AS chunk_index, c.source_type AS source_type
+                    """, chunk_id=chunk_id)
+
+                    index_record = index_result.single()
+                    if not index_record or index_record["chunk_index"] is None:
+                        continue
+
+                    current_index = index_record["chunk_index"]
+                    chunk_source_type = index_record["source_type"] or "document"
+
+                    # Fetch subsequent chunks with consecutive indexes
+                    # For web sources, we fetch chunks with indexes current+1 to current+num_following
+                    if chunk_source_type == "web":
+                        following_query = """
+                            MATCH (c:Chunk)
+                            WHERE c.source_type = 'web'
+                              AND c.index > $current_index
+                              AND c.index <= $max_index
+                            RETURN c.id AS chunk_id,
+                                   c.content AS content,
+                                   c.source_type AS source_type,
+                                   c.source_url AS source_url,
+                                   c.index AS chunk_index
+                            ORDER BY c.index ASC
+                        """
+                    else:
+                        following_query = """
+                            MATCH (c:Chunk)
+                            WHERE c.index > $current_index
+                              AND c.index <= $max_index
+                            OPTIONAL MATCH (d:Document)-[:CONTAINS]->(c)
+                            RETURN c.id AS chunk_id,
+                                   c.content AS content,
+                                   c.source_type AS source_type,
+                                   c.source_url AS source_url,
+                                   c.index AS chunk_index,
+                                   d.id AS doc_id,
+                                   d.title AS doc_title
+                            ORDER BY c.index ASC
+                        """
+
+                    following_result = session.run(
+                        following_query,
+                        current_index=current_index,
+                        max_index=current_index + num_following
+                    )
+
+                    for record in following_result:
+                        linked_chunk_id = record["chunk_id"]
+                        if linked_chunk_id in seen_chunk_ids:
+                            continue  # Skip duplicates
+
+                        seen_chunk_ids.add(linked_chunk_id)
+                        content = record["content"] or ""
+
+                        # Create linked chunk result
+                        linked_chunk = {
+                            "chunk_id": linked_chunk_id,
+                            "content": content,
+                            "score": result.get("score", 0.5) * 0.8,  # Slightly lower score
+                            "source": result.get("source", ""),
+                            "doc_id": result.get("doc_id", ""),
+                            "document_name": result.get("document_name", ""),
+                            "source_type": record["source_type"] or "document",
+                            "source_url": record["source_url"] or result.get("source_url", ""),
+                            "rank": result.get("rank", 999) + record["chunk_index"] - current_index,
+                            "origin": "linked_chunk",
+                            "linked_from": chunk_id,
+                            "chunk_index": record["chunk_index"],
+                            "is_linked_chunk": True
+                        }
+                        linked_chunks.append(linked_chunk)
+
+            driver.close()
+
+            if linked_chunks:
+                logger.info(f"[UnifiedSearch] Fetched {len(linked_chunks)} linked chunks")
+                print(f"[UnifiedSearch] Chunk linking: added {len(linked_chunks)} subsequent chunks", flush=True)
+
+            # Append linked chunks to results (they will be sorted by RRF later)
+            return results + linked_chunks
+
+        except Exception as e:
+            logger.error(f"Chunk linking error: {e}")
+            return results
+
     async def _clip_image_search(
         self,
         query: str,
@@ -361,13 +607,17 @@ Returns relevant document chunks with full context and source information."""
         neo4j_results: List[Dict],
         postgres_results: List[Dict],
         error_codes: List[str],
-        k: int = 60
+        k: int = 60,
+        prioritize_web: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Reciprocal Rank Fusion (RRF) to combine search results.
 
         RRF score = 1/(k + rank_v) + 1/(k + rank_k) + error_boost
         Where k=60 is a constant that prevents extreme rankings.
+
+        Args:
+            prioritize_web: If True (triggered by @ prefix), heavily boost web sources
         """
         # Create lookup maps by chunk_id or content hash
         all_chunks = {}
@@ -406,6 +656,30 @@ Returns relevant document chunks with full context and source information."""
             # Base RRF score
             rrf_score = 1.0 / (k + neo4j_rank) + 1.0 / (k + postgres_rank)
 
+            source_type = chunk.get("source_type", "")
+
+            # @ prefix mode: heavily prioritize web sources
+            if prioritize_web:
+                if source_type == "web":
+                    # Web sources get massive boost (3x multiplier + rank simulation)
+                    simulated_postgres_rank = min(neo4j_rank, 3)  # Treat as top-3 in postgres
+                    rrf_score = 1.0 / (k + neo4j_rank) + 1.0 / (k + simulated_postgres_rank)
+                    rrf_score *= 3.0  # Triple the score for web sources
+                    chunk["web_priority_boosted"] = True
+                else:
+                    # Non-web sources get penalized in @ mode
+                    rrf_score *= 0.3
+                    chunk["web_priority_penalized"] = True
+            else:
+                # Normal mode: moderate web source boosting for fairness
+                # Web source boosting: if source only exists in Neo4j (no PostgreSQL match)
+                # and has high vector rank, boost it to be competitive
+                if source_type == "web" and postgres_rank == 999 and neo4j_rank <= 5:
+                    # Simulate as if it had a postgres_rank of neo4j_rank + 2
+                    simulated_postgres_rank = neo4j_rank + 2
+                    rrf_score = 1.0 / (k + neo4j_rank) + 1.0 / (k + simulated_postgres_rank)
+                    chunk["web_boosted"] = True
+
             # Error code boosting
             content = chunk.get("content", "")
             if error_codes and any(code in content for code in error_codes):
@@ -421,8 +695,113 @@ Returns relevant document chunks with full context and source information."""
             reverse=True
         )
 
+        # @ prefix mode: filter to web sources only
+        if prioritize_web:
+            web_only_chunks = [c for c in sorted_chunks if c.get("source_type") == "web"]
+            if web_only_chunks:
+                logger.info(f"[UnifiedSearch] RRF fusion (web priority mode): returning {len(web_only_chunks)} web-only results")
+                return web_only_chunks
+            else:
+                # No web sources found - return all with warning
+                logger.warning(f"[UnifiedSearch] Web priority mode but no web sources found, returning {len(sorted_chunks)} general results")
+
         logger.info(f"[UnifiedSearch] RRF fusion produced {len(sorted_chunks)} unique results")
         return sorted_chunks
+
+    def _apply_web_priority(self, results: List[Dict]) -> List[Dict]:
+        """
+        Apply web source priority for vector_only mode.
+        Returns only web sources when @ prefix is used.
+        """
+        web_results = []
+
+        for result in results:
+            if result.get("source_type") == "web":
+                result["web_priority_boosted"] = True
+                web_results.append(result)
+
+        if web_results:
+            logger.info(f"[UnifiedSearch] Web priority: returning {len(web_results)} web-only results")
+            return web_results
+        else:
+            # No web sources found - return all with warning
+            logger.warning(f"[UnifiedSearch] Web priority mode but no web sources found, returning {len(results)} general results")
+            return results
+
+    def _apply_exact_phrase_priority(
+        self,
+        results: List[Dict],
+        exact_phrases: List[str]
+    ) -> List[Dict]:
+        """
+        Prioritize results containing exact phrases (quoted search).
+        Results with exact matches are moved to the top with boosted scores.
+
+        Args:
+            results: Search results to reorder
+            exact_phrases: List of exact phrases to match (from "quoted" parts of query)
+
+        Returns:
+            Reordered results with exact matches first
+        """
+        if not exact_phrases or not results:
+            return results
+
+        exact_match_results = []
+        partial_match_results = []
+        no_match_results = []
+
+        for result in results:
+            content = result.get("content", "").lower()
+
+            # Check for exact phrase matches
+            match_count = 0
+            matched_phrases = []
+            for phrase in exact_phrases:
+                phrase_lower = phrase.lower()
+                if phrase_lower in content:
+                    match_count += 1
+                    matched_phrases.append(phrase)
+
+            if match_count == len(exact_phrases):
+                # All phrases matched - highest priority
+                result["exact_phrase_match"] = True
+                result["matched_phrases"] = matched_phrases
+                # Boost score significantly for exact matches
+                original_score = result.get("rrf_score", result.get("score", 0.1))
+                result["rrf_score"] = original_score * 5.0 + 1.0  # Major boost
+                exact_match_results.append(result)
+            elif match_count > 0:
+                # Partial match - medium priority
+                result["exact_phrase_partial"] = True
+                result["matched_phrases"] = matched_phrases
+                original_score = result.get("rrf_score", result.get("score", 0.1))
+                result["rrf_score"] = original_score * 2.0 + 0.5  # Moderate boost
+                partial_match_results.append(result)
+            else:
+                # No match - lowest priority
+                no_match_results.append(result)
+
+        # Sort each group by score
+        exact_match_results.sort(key=lambda x: x.get("rrf_score", 0), reverse=True)
+        partial_match_results.sort(key=lambda x: x.get("rrf_score", 0), reverse=True)
+        no_match_results.sort(key=lambda x: x.get("rrf_score", 0), reverse=True)
+
+        # Combine: exact matches first, then partial, then others
+        combined = exact_match_results + partial_match_results + no_match_results
+
+        logger.info(
+            f"[UnifiedSearch] Exact phrase priority: "
+            f"{len(exact_match_results)} exact, {len(partial_match_results)} partial, "
+            f"{len(no_match_results)} no match (phrases: {exact_phrases})"
+        )
+        print(
+            f"[UnifiedSearch] Exact phrase matching: "
+            f"{len(exact_match_results)} exact matches for {exact_phrases}",
+            flush=True
+        )
+
+        return combined
 
     def _fix_markdown_table_separators(self, content: str) -> str:
         """Fix markdown tables missing separator line"""
@@ -575,6 +954,10 @@ Returns relevant document chunks with full context and source information."""
 
             doc_name = result.get("document_name") or result.get("source") or pdf_id or "Unknown"
 
+            # Get web source info
+            source_type = result.get("source_type", "document")
+            source_url = result.get("source_url", "")
+
             enriched_result = {
                 "index": i + 1,
                 "chunk_id": result.get("chunk_id"),
@@ -585,13 +968,20 @@ Returns relevant document chunks with full context and source information."""
                 "neo4j_rank": result.get("neo4j_rank"),
                 "postgres_rank": result.get("postgres_rank"),
                 "error_boosted": result.get("error_boosted", False),
+                # Exact phrase match flags
+                "exact_phrase_match": result.get("exact_phrase_match", False),
+                "exact_phrase_partial": result.get("exact_phrase_partial", False),
+                "matched_phrases": result.get("matched_phrases", []),
                 "source": {
                     "document_name": doc_name,
                     "page_start": page_start,
                     "page_end": page_end,
                     "section_path": result.get("section_path"),
                     "section_title": result.get("section_title"),
-                    "doc_id": pdf_id
+                    "doc_id": pdf_id,
+                    # Web source specific fields
+                    "source_type": source_type,
+                    "source_url": source_url
                 },
                 "images": chunk_images,
                 "tables": tables,
@@ -612,7 +1002,7 @@ Returns relevant document chunks with full context and source information."""
 
         Args:
             context: Agent execution context
-            query: Search query
+            query: Search query (prefix with @ to prioritize web sources)
             top_k: Number of results (default: 3/5 based on context)
             doc_filter: Optional document ID filter
             include_images: Include CLIP image search (default: true)
@@ -629,6 +1019,46 @@ Returns relevant document chunks with full context and source information."""
         include_tables = kwargs.get("include_tables", True)
         search_mode = kwargs.get("search_mode", "hybrid")
 
+        # Get original_query early for fallback checks (LLM may strip special characters)
+        original_user_query = context.metadata.get('original_query', '') if context.metadata else ''
+
+        # Feature: "@" prefix for web source priority search
+        # Example: "@어셈블러 자산 수정 방법" → prioritize web sources
+        # Check both tool query and original_query (LLM may strip @ prefix)
+        prioritize_web_sources = False
+        if query.startswith("@"):
+            prioritize_web_sources = True
+            query = query[1:].strip()  # Remove @ prefix
+        elif original_user_query.startswith("@"):
+            # LLM stripped the @ prefix, restore web priority mode
+            prioritize_web_sources = True
+
+        if prioritize_web_sources:
+            print(f"[UnifiedSearch] Web source priority mode activated", flush=True)
+            logger.info(f"[UnifiedSearch] Web source priority mode activated for query: {query[:50]}...")
+
+        # Feature: Exact phrase matching with double quotes
+        # Example: '"정확한 문구"' → prioritize results containing exact phrase
+        # Check both tool query and original_query (LLM may strip quotes)
+        exact_phrases = []
+        quote_pattern = r'"([^"]+)"'
+
+        # First check tool query for quotes
+        quote_matches = re.findall(quote_pattern, query)
+
+        # If no quotes in tool query, check original_query from context
+        if not quote_matches and original_user_query:
+            quote_matches = re.findall(quote_pattern, original_user_query)
+
+        if quote_matches:
+            exact_phrases = [phrase.strip() for phrase in quote_matches if phrase.strip()]
+            # Remove quotes from query for normal search, but keep the phrase
+            search_query = re.sub(quote_pattern, r'\1', query)
+            print(f"[UnifiedSearch] Exact phrase mode: {exact_phrases}", flush=True)
+            logger.info(f"[UnifiedSearch] Exact phrase matching enabled: {exact_phrases}")
+        else:
+            search_query = query
+
         # Track query correction
         llm_query = query
         query_was_corrected = False
@@ -642,8 +1072,15 @@ Returns relevant document chunks with full context and source information."""
                 query = validated_query
                 query_was_corrected = True
 
-        print(f"[UnifiedSearch] Called with query: {query[:50]}..., mode={search_mode}", flush=True)
-        logger.info(f"[UnifiedSearch] Called with query: {query[:50]}..., mode={search_mode}")
+        # Agent-Driven RAG: Check for search scope from context
+        search_scope = getattr(context, 'search_scope', None) if context else None
+        has_scope = search_scope and (search_scope.documents or search_scope.sections)
+        if has_scope:
+            print(f"[UnifiedSearch] Scoped search: {len(search_scope.documents)} docs, {len(search_scope.sections)} sections", flush=True)
+            logger.info(f"[UnifiedSearch] Using scoped search: {len(search_scope.documents)} docs, {len(search_scope.sections)} sections")
+
+        print(f"[UnifiedSearch] Called with query: {query[:50]}..., mode={search_mode}, web_priority={prioritize_web_sources}, scoped={has_scope}", flush=True)
+        logger.info(f"[UnifiedSearch] Called with query: {query[:50]}..., mode={search_mode}, web_priority={prioritize_web_sources}, scoped={has_scope}")
 
         if not query:
             return self.create_error_result("Query is required")
@@ -661,21 +1098,78 @@ Returns relevant document chunks with full context and source information."""
 
             language = kwargs.get("language", context.language if context else "auto")
 
-            # Execute searches based on mode
-            if search_mode in ("hybrid", "vector_only"):
-                neo4j_results = await self._neo4j_vector_search(
-                    query=query,
-                    top_k=top_k,
-                    language=language,
-                    context=context
-                )
+            # Agent-Driven RAG: Use scoped search if scope is provided
+            if has_scope and self.rag_service:
+                try:
+                    scoped_result = await self.rag_service.search_with_scope(
+                        query=search_query,
+                        documents=search_scope.documents,
+                        sections=search_scope.sections,
+                        top_k=top_k,
+                        language=language
+                    )
+                    if scoped_result.get("success"):
+                        neo4j_results = [
+                            {
+                                "chunk_id": src.get("doc_id", f"scoped_{i}"),
+                                "content": src.get("content", ""),
+                                "score": src.get("score", 0.0),
+                                "source": src.get("doc_name") or src.get("source", "Unknown"),
+                                "doc_id": src.get("doc_id", ""),
+                                "page_number": src.get("page_number"),
+                                "rank": i + 1,
+                                "origin": "scoped",
+                            }
+                            for i, src in enumerate(scoped_result.get("sources", []))
+                        ]
+                        print(f"[UnifiedSearch] Scoped search returned {len(neo4j_results)} results", flush=True)
+                        logger.info(f"[UnifiedSearch] Scoped search returned {len(neo4j_results)} results")
+                except Exception as scope_err:
+                    logger.warning(f"[UnifiedSearch] Scoped search failed, falling back to normal: {scope_err}")
+                    has_scope = False  # Fall back to normal search
 
-            if search_mode in ("hybrid", "keyword_only"):
-                postgres_results = await self._postgres_keyword_search(
-                    query=query,
-                    top_k=top_k,
-                    doc_filter=doc_filter,
-                    error_codes=error_codes
+            # Execute normal searches if no scope or scope failed
+            if not has_scope:
+                # Execute searches based on mode (use search_query which has quotes removed)
+                if search_mode in ("hybrid", "vector_only"):
+                    neo4j_results = await self._neo4j_vector_search(
+                        query=search_query,
+                        top_k=top_k,
+                        language=language,
+                        context=context
+                    )
+
+                if search_mode in ("hybrid", "keyword_only"):
+                    postgres_results = await self._postgres_keyword_search(
+                        query=search_query,
+                        top_k=top_k,
+                        doc_filter=doc_filter,
+                        error_codes=error_codes
+                    )
+
+            # Phase 2.5: Exact phrase search (if quotes were used)
+            exact_phrase_results = []
+            if exact_phrases:
+                exact_phrase_results = await self._exact_phrase_search(
+                    exact_phrases=exact_phrases,
+                    top_k=top_k * 2,
+                    web_only=prioritize_web_sources  # @ prefix = web sources only
+                )
+                # Add exact phrase results to neo4j_results so they get included in fusion
+                if exact_phrase_results:
+                    # Prepend exact matches to neo4j results with high rank
+                    for i, result in enumerate(exact_phrase_results):
+                        result["rank"] = i + 1  # Top ranks
+                        result["neo4j_rank"] = i + 1
+                    neo4j_results = exact_phrase_results + neo4j_results
+
+            # Phase 2.7: Chunk Linking - fetch subsequent chunks for headers/titles
+            # This ensures tables/lists that follow headers are included
+            if neo4j_results:
+                neo4j_results = await self._fetch_linked_chunks(
+                    results=neo4j_results,
+                    num_following=2,  # Fetch 2 subsequent chunks
+                    web_only=prioritize_web_sources
                 )
 
             # Check if we got any results
@@ -690,12 +1184,20 @@ Returns relevant document chunks with full context and source information."""
                 fused_results = self._rrf_fusion(
                     neo4j_results=neo4j_results,
                     postgres_results=postgres_results,
-                    error_codes=error_codes
+                    error_codes=error_codes,
+                    prioritize_web=prioritize_web_sources
                 )
             elif search_mode == "vector_only":
                 fused_results = neo4j_results
+                # Apply web source filter/boost for vector_only mode
+                if prioritize_web_sources:
+                    fused_results = self._apply_web_priority(fused_results)
             else:
                 fused_results = postgres_results
+
+            # Phase 3.5: Exact phrase matching - prioritize results containing exact phrases
+            if exact_phrases:
+                fused_results = self._apply_exact_phrase_priority(fused_results, exact_phrases)
 
             # Extract relevant pages for image search
             relevant_pages = set()
@@ -728,7 +1230,13 @@ Returns relevant document chunks with full context and source information."""
             )
 
             # Format output text
-            output_parts = [f"Found {len(enriched_results)} relevant result(s) via unified search:\n"]
+            if exact_phrases:
+                exact_count = sum(1 for r in enriched_results if r.get("exact_phrase_match"))
+                output_parts = [f"🎯 [Exact Phrase Mode] Found {len(enriched_results)} result(s) - {exact_count} exact match(es) for \"{' '.join(exact_phrases)}\":\n"]
+            elif prioritize_web_sources:
+                output_parts = [f"🌐 [Web Priority Mode] Found {len(enriched_results)} relevant result(s) - web sources prioritized:\n"]
+            else:
+                output_parts = [f"Found {len(enriched_results)} relevant result(s) via unified search:\n"]
 
             for result in enriched_results:
                 chunk_type = result.get("chunk_type", "TEXT")
@@ -755,8 +1263,20 @@ Returns relevant document chunks with full context and source information."""
                     f"   Source: {source_display}\n"
                 )
 
+                # Show web source URL if available
+                result_source_type = source.get("source_type", "document")
+                result_source_url = source.get("source_url", "")
+                if result_source_type == "web" and result_source_url:
+                    chunk_info += f"   🌐 Web Source: {result_source_url}\n"
+
                 if error_boosted:
-                    chunk_info += f"   KEYWORD MATCH - ANSWER IS IN CONTENT BELOW:\n"
+                    chunk_info += f"   ⚠️ KEYWORD MATCH - ANSWER IS IN CONTENT BELOW:\n"
+
+                # Show exact phrase match status
+                if result.get("exact_phrase_match"):
+                    chunk_info += f"   🎯 EXACT PHRASE MATCH - HIGH PRIORITY RESULT\n"
+                elif result.get("exact_phrase_partial"):
+                    chunk_info += f"   ✓ Partial phrase match\n"
 
                 if section_title:
                     chunk_info += f"   Section: {section_title}\n"
@@ -818,12 +1338,18 @@ Returns relevant document chunks with full context and source information."""
                     else:
                         page_display = f"p.{page_start}-{page_end}"
 
+                    source_type = source.get("source_type", "document")
+                    source_url = source.get("source_url", "")
+
                     sources.append({
                         "source": f"{doc_name} ({page_display})",
                         "score": result.get("rrf_score", 0),
                         "page_number": page_start,
                         "content": result.get("content", "")[:200],
-                        "doc_id": source.get("doc_id")
+                        "doc_id": source.get("doc_id"),
+                        # Web source specific fields
+                        "source_type": source_type,
+                        "source_url": source_url
                     })
 
             # Store sources in context metadata
@@ -838,6 +1364,7 @@ Returns relevant document chunks with full context and source information."""
                 "results_count": len(enriched_results),
                 "query": query,
                 "search_mode": search_mode,
+                "web_priority_mode": prioritize_web_sources,
                 "neo4j_count": len(neo4j_results),
                 "postgres_count": len(postgres_results),
                 "error_codes_detected": error_codes,

@@ -12,7 +12,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
-import { streamAgent, type AgentType } from '../../../api/agent.api';
+import { streamAgent, type AgentType, type SearchScope } from '../../../api/agent.api';
 import { conversationApi } from '../../../api/conversation.api';
 import type {
   ChatMessage,
@@ -97,7 +97,7 @@ export interface UseStreamingChatReturn {
   agentLocalStatesRef: React.MutableRefObject<Record<AgentType, AgentLocalState>>;
 
   // Actions
-  handleSend: (inputValue: string) => Promise<void>;
+  handleSend: (inputValue: string, scope?: SearchScope | null) => Promise<void>;
   handleCancelStreaming: () => void;
   handleClearChat: (clearArtifacts: (agent: AgentType) => void) => void;
   saveMessageToDb: (conversationId: string, role: 'user' | 'assistant', content: string) => Promise<void>;
@@ -328,7 +328,7 @@ export function useStreamingChat(
   // Stream Processing
   // ============================================================================
 
-  const handleSend = useCallback(async (inputValue: string) => {
+  const handleSend = useCallback(async (inputValue: string, scope?: SearchScope | null) => {
     if (!inputValue.trim() || agentLocalStatesRef.current[selectedAgentRef.current].isLoading) return;
 
     // Capture agent type at start (won't change during streaming)
@@ -424,9 +424,11 @@ export function useStreamingChat(
       const language = userLanguage as SupportedLanguage;
       // 모든 에이전트에서 Deep Agents 사용
       const useDeepAgent = true;
+      // Include search scope if provided (Agent-Driven RAG)
+      const searchScope = scope && (scope.documents?.length || scope.sections?.length) ? scope : undefined;
       const requestPayload = requestingAgent === 'auto'
-        ? { task: userMessage.content, language, file_context: combinedContext, ui_context: uiContext, use_deep_agent: useDeepAgent }
-        : { task: userMessage.content, agent_type: requestingAgent, language, file_context: combinedContext, ui_context: uiContext, use_deep_agent: useDeepAgent };
+        ? { task: userMessage.content, language, file_context: combinedContext, ui_context: uiContext, use_deep_agent: useDeepAgent, search_scope: searchScope }
+        : { task: userMessage.content, agent_type: requestingAgent, language, file_context: combinedContext, ui_context: uiContext, use_deep_agent: useDeepAgent, search_scope: searchScope };
 
       // Process stream
       for await (const chunk of streamAgent(requestPayload, controller.signal)) {

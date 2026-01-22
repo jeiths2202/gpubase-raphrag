@@ -17,6 +17,15 @@ import apiClient from './client';
 export type AgentType = 'auto' | 'rag' | 'ims' | 'vision' | 'code' | 'planner';
 
 /**
+ * Search scope for Agent-Driven RAG
+ */
+export interface SearchScope {
+  documents?: string[];  // Selected document IDs
+  sections?: string[];   // Selected section paths
+  keywords?: string[];   // Keywords for filtering
+}
+
+/**
  * Agent execution request
  */
 export interface AgentExecuteRequest {
@@ -29,6 +38,7 @@ export interface AgentExecuteRequest {
   url_context?: string;   // URL to fetch and use as RAG context
   ui_context?: UIContext; // UI context for context-aware AI responses
   use_deep_agent?: boolean; // Use Deep Agents framework for execution
+  search_scope?: SearchScope; // Agent-Driven RAG: selected search scope
 }
 
 /**

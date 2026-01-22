@@ -23,6 +23,10 @@ export {
   DirectModeFloatingPanel,
   type FloatingPanelData,
 } from './DirectModeFloatingPanel';
+export {
+  ScopeSelectionModal,
+  type ScopeSelectionModalProps,
+} from './ScopeSelectionModal';
 
 // Hooks
 export { useFileAttachment, type UseFileAttachmentReturn } from './hooks';

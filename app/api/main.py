@@ -36,7 +36,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management, agent_navigation, agent_session
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 from .admin_dashboard.router import router as admin_dashboard_router
 
@@ -548,6 +548,8 @@ app.include_router(rag_evaluation.router, prefix=API_PREFIX)  # RAG Evaluation (
 app.include_router(user_feedback.router, prefix=API_PREFIX)  # User Feedback (👍/👎, HITL, consistency)
 app.include_router(analytics_dashboard.router, prefix=API_PREFIX)  # Real-time Analytics Dashboard
 app.include_router(context_management.router, prefix=API_PREFIX)  # Long Context Management (32K+ tokens)
+app.include_router(agent_navigation.router, prefix=API_PREFIX)  # Agent-Driven RAG: Document navigation
+app.include_router(agent_session.router, prefix=API_PREFIX)  # Agent-Driven RAG: Session management
 
 
 # Root endpoint

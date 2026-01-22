@@ -474,7 +474,8 @@ class RAGService:
                     **gs,
                     "is_session_doc": False,
                     "is_external_resource": False,
-                    "source_url": None
+                    # Preserve source_url for web sources (from VectorRAG)
+                    "source_url": gs.get("source_url")
                     # page_number is preserved from gs via **gs spread
                 })
 
@@ -700,6 +701,8 @@ class RAGService:
         for r in results_list:
             doc_id = r.get("doc_id", "")
             chunk_id = r.get("chunk_id", "")
+            # Get source_type from either source_type or source field
+            source_type = r.get("source_type") or r.get("source", "unknown")
             sources.append({
                 "doc_id": doc_id,
                 "doc_name": doc_names.get(doc_id, doc_id),  # Use actual name or fallback to ID
@@ -707,9 +710,11 @@ class RAGService:
                 "chunk_index": r.get("chunk_index", 0),
                 "content": r.get("content", "")[:api_settings.RAG_CONTENT_MAX_CHARS],
                 "score": r.get("score", 0.0) if isinstance(r.get("score"), (int, float)) else 0.0,
-                "source_type": r.get("source", "unknown"),
+                "source_type": source_type,
                 "entities": r.get("entities", []),
-                "page_number": r.get("page_number") or page_numbers.get(chunk_id)
+                "page_number": r.get("page_number") or page_numbers.get(chunk_id),
+                # Include web source URL if available
+                "source_url": r.get("source_url", "")
             })
 
         return {
@@ -822,6 +827,211 @@ class RAGService:
             "is_comprehensive": False,
             "is_code_query": query_type == QueryType.CODE
         }
+
+    async def search_with_scope(
+        self,
+        question: str,
+        scope_documents: Optional[List[str]] = None,
+        scope_sections: Optional[List[str]] = None,
+        language: str = "auto",
+        top_k: int = 5,
+        conversation_history: Optional[List[Dict]] = None,
+        user_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Execute RAG search with scope restriction.
+
+        This method enables the Agent-Driven RAG approach by limiting
+        search to user-selected documents and sections.
+
+        Args:
+            question: User's question
+            scope_documents: List of pdf_ids to search within
+            scope_sections: List of section_paths to search within
+            language: Response language
+            top_k: Number of results
+            conversation_history: Previous Q&A pairs
+            user_id: User ID for tracking
+
+        Returns:
+            Dictionary with answer, sources, and metadata
+        """
+        try:
+            # If no scope specified, fallback to regular query
+            if not scope_documents and not scope_sections:
+                return await self.query(
+                    question=question,
+                    language=language,
+                    top_k=top_k,
+                    conversation_history=conversation_history,
+                    user_id=user_id
+                )
+
+            # Use PostgreSQL adaptive chunk repository for scoped search
+            from ..core.deps import get_adaptive_chunk_repository
+            from ..adapters.langchain.embedding_adapter import get_embedding_function
+
+            # Get embedding for query
+            embedding_fn = get_embedding_function()
+            query_embedding = embedding_fn.embed_query(question)
+
+            # Get repository
+            chunk_repo = await get_adaptive_chunk_repository()
+
+            # Build scope filter and search
+            scoped_results = []
+
+            if scope_documents:
+                # Search within specified documents
+                for pdf_id in scope_documents:
+                    section_prefix = None
+                    if scope_sections:
+                        # Find sections for this document
+                        for section in scope_sections:
+                            section_prefix = section
+                            break  # Use first matching section
+
+                    results = await chunk_repo.search_similar(
+                        query_embedding=query_embedding,
+                        limit=top_k,
+                        min_similarity=0.2,
+                        pdf_id=pdf_id,
+                        section_path_prefix=section_prefix
+                    )
+                    scoped_results.extend(results)
+
+            elif scope_sections:
+                # Search within specified sections (across all documents)
+                for section_path in scope_sections:
+                    results = await chunk_repo.search_similar(
+                        query_embedding=query_embedding,
+                        limit=top_k,
+                        min_similarity=0.2,
+                        section_path_prefix=section_path
+                    )
+                    scoped_results.extend(results)
+
+            # De-duplicate and sort by similarity
+            seen_chunk_ids = set()
+            unique_results = []
+            for r in sorted(scoped_results, key=lambda x: x.get("similarity", 0), reverse=True):
+                if r["chunk_id"] not in seen_chunk_ids:
+                    seen_chunk_ids.add(r["chunk_id"])
+                    unique_results.append(r)
+
+            unique_results = unique_results[:top_k]
+
+            # Format sources
+            sources = []
+            for r in unique_results:
+                sources.append({
+                    "doc_id": r.get("pdf_id", ""),
+                    "doc_name": r.get("document_name", r.get("pdf_id", "")),
+                    "chunk_id": r.get("chunk_id", ""),
+                    "chunk_index": 0,
+                    "content": r.get("content", "")[:api_settings.RAG_CONTENT_MAX_CHARS],
+                    "score": r.get("similarity", 0.0),
+                    "source_type": "scoped_search",
+                    "entities": [],
+                    "page_number": r.get("page_start"),
+                    "section_path": r.get("section_path"),
+                    "section_title": r.get("section_title")
+                })
+
+            # Generate answer with scoped context
+            if sources:
+                answer = await self._generate_scoped_answer(
+                    question=question,
+                    sources=sources,
+                    language=language
+                )
+            else:
+                answer = "검색 범위 내에서 관련 정보를 찾지 못했습니다. 다른 문서나 섹션을 선택해보세요."
+
+            return {
+                "answer": answer,
+                "strategy": "scoped",
+                "language": language,
+                "confidence": 0.85 if sources else 0.3,
+                "sources": sources,
+                "query_analysis": {
+                    "detected_language": language,
+                    "query_type": "scoped",
+                    "scope_used": True,
+                    "scope_documents": scope_documents,
+                    "scope_sections": scope_sections
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Scoped search failed: {e}")
+            # Fallback to regular search
+            return await self.query(
+                question=question,
+                language=language,
+                top_k=top_k,
+                conversation_history=conversation_history,
+                user_id=user_id
+            )
+
+    async def _generate_scoped_answer(
+        self,
+        question: str,
+        sources: List[Dict],
+        language: str
+    ) -> str:
+        """Generate answer from scoped search results."""
+        try:
+            rag = self._ensure_initialized()
+
+            # Build context
+            context_parts = []
+            for i, src in enumerate(sources[:5], 1):
+                section_info = ""
+                if src.get("section_title"):
+                    section_info = f" ({src['section_title']})"
+                if src.get("page_number"):
+                    section_info += f" - Page {src['page_number']}"
+
+                context_parts.append(
+                    f"[{i}] {src.get('doc_name', 'Document')}{section_info}\n{src['content']}"
+                )
+
+            context = "\n\n".join(context_parts)
+
+            # Truncate if needed
+            max_context_len = int(os.getenv("LLM_MAX_CONTEXT_LENGTH", "3000"))
+            if len(context) > max_context_len:
+                context = context[:max_context_len] + "\n...[truncated]"
+
+            # Language instruction
+            from .language_policy import get_language_policy_service
+            policy_service = get_language_policy_service()
+            lang_instruction = policy_service.get_language_instruction(language)
+
+            prompt = f"""다음은 사용자가 선택한 검색 범위 내의 문서 내용입니다.
+이 내용만을 참고하여 질문에 답변하세요.
+
+**응답 언어**: {lang_instruction}
+
+{context}
+
+질문: {question}
+
+답변:"""
+
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: rag.llm.invoke(prompt)
+            )
+
+            answer = strip_thinking_tags(response.content)
+            return answer
+
+        except Exception as e:
+            logger.error(f"Failed to generate scoped answer: {e}")
+            return "답변 생성 중 오류가 발생했습니다."
 
     async def get_stats(self) -> Dict[str, Any]:
         """Get RAG system statistics"""

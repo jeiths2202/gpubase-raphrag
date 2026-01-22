@@ -110,6 +110,15 @@ class AgentEvent(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+# Search scope for Agent-Driven RAG
+@dataclass
+class SearchScope:
+    """Search scope for scoped RAG queries"""
+    documents: List[str] = field(default_factory=list)  # Selected document IDs
+    sections: List[str] = field(default_factory=list)   # Selected section paths
+    keywords: List[str] = field(default_factory=list)   # Keywords for filtering
+
+
 # Dataclasses for internal context
 @dataclass
 class AgentContext:
@@ -138,6 +147,9 @@ class AgentContext:
 
     # Deep Agent flag (set by orchestrator)
     use_deep_agent: bool = False
+
+    # Agent-Driven RAG: search scope (set from request)
+    search_scope: Optional[SearchScope] = None
 
 
 @dataclass
@@ -172,6 +184,14 @@ class ResponseMode(str, Enum):
     HYBRID = "hybrid"   # 검색 결과 품질에 따라 자동 선택 (권장)
 
 
+# Pydantic model for search scope in API requests
+class SearchScopeModel(BaseModel):
+    """Search scope for Agent-Driven RAG queries"""
+    documents: List[str] = Field(default_factory=list, description="Selected document IDs")
+    sections: List[str] = Field(default_factory=list, description="Selected section paths")
+    keywords: List[str] = Field(default_factory=list, description="Keywords for filtering")
+
+
 # API Request/Response Models
 class AgentRequest(BaseModel):
     """API request for agent execution"""
@@ -190,6 +210,7 @@ class AgentRequest(BaseModel):
         ResponseMode.HYBRID,
         description="Response generation mode: 'hybrid' (auto-select based on search quality - default), 'direct' (no LLM, zero hallucination), 'llm' (traditional)"
     )
+    search_scope: Optional[SearchScopeModel] = Field(None, description="Agent-Driven RAG: selected search scope")
 
 
 class AgentResponse(BaseModel):
