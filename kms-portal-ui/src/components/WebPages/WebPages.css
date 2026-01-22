@@ -369,7 +369,7 @@
 }
 
 .webpages-modal {
-  background: var(--bg-primary);
+  background: var(--bg-primary, #ffffff);
   border-radius: 12px;
   max-width: 500px;
   width: 100%;
@@ -377,6 +377,13 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-color);
+}
+
+[data-theme='dark'] .webpages-modal {
+  background: #1e1e2e;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
 }
 
 .webpages-modal--large {
