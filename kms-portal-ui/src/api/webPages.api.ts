@@ -259,7 +259,7 @@ export interface DeleteResponse {
 // API Functions
 // =============================================================================
 
-const BASE_URL = '/api/v1/web-sources';
+const BASE_URL = '/web-sources';
 
 /**
  * List web sources with optional filtering
