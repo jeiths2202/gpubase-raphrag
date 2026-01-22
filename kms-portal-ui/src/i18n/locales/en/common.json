@@ -424,6 +424,87 @@
       "statusFailed": "Failed"
     }
   },
+  "webPages": {
+    "title": "Web Pages",
+    "tabLabel": "Web Pages",
+    "description": "Add web pages as knowledge sources",
+    "addUrl": "Add URL",
+    "search": {
+      "placeholder": "Search by URL, title, or domain..."
+    },
+    "filter": {
+      "allStatus": "All Status"
+    },
+    "table": {
+      "url": "URL",
+      "status": "Status",
+      "chunks": "Chunks",
+      "words": "Words",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "status": {
+      "pending": "Pending",
+      "fetching": "Fetching...",
+      "extracting": "Extracting...",
+      "chunking": "Chunking...",
+      "embedding": "Embedding...",
+      "ready": "Ready",
+      "error": "Error"
+    },
+    "actions": {
+      "viewContent": "View Content",
+      "viewLinks": "View Links",
+      "viewImages": "View Images",
+      "refresh": "Refresh",
+      "openUrl": "Open URL"
+    },
+    "addModal": {
+      "title": "Add Web Page",
+      "singleUrl": "Single URL",
+      "bulkUrls": "Bulk URLs",
+      "urlLabel": "URL",
+      "urlPlaceholder": "https://example.com/page",
+      "urlsLabel": "URLs (one per line)",
+      "urlsPlaceholder": "https://example.com/page1\nhttps://example.com/page2",
+      "tagsLabel": "Tags (optional)",
+      "tagsPlaceholder": "tag1, tag2, tag3",
+      "add": "Add",
+      "adding": "Adding..."
+    },
+    "detail": {
+      "content": "Content",
+      "links": "Links",
+      "images": "Images",
+      "wordCount": "Words",
+      "charCount": "Characters",
+      "linkCount": "Links",
+      "imageCount": "Images",
+      "noContent": "No content available"
+    },
+    "deleteConfirm": {
+      "message": "Are you sure you want to delete",
+      "warning": "This will permanently delete the web page and all associated data including chunks and embeddings."
+    },
+    "batchDelete": {
+      "title": "Delete Selected",
+      "button": "Delete Selected",
+      "message": "Are you sure you want to delete {{count}} web page(s)?",
+      "confirm": "Delete All",
+      "deleting": "Deleting..."
+    },
+    "empty": {
+      "title": "No Web Pages",
+      "description": "Add web pages to use their content as RAG knowledge sources"
+    },
+    "errors": {
+      "loadFailed": "Failed to load web pages",
+      "addFailed": "Failed to add web page",
+      "deleteFailed": "Failed to delete web page",
+      "refreshFailed": "Failed to refresh web page",
+      "invalidUrl": "Please enter a valid URL starting with http:// or https://"
+    }
+  },
   "searchProgress": {
     "title": "Knowledge Search Progress",
     "query": "Query",

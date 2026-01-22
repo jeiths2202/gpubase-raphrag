@@ -21,6 +21,10 @@ from .external_chunk_repository import (
     PostgresExternalChunkRepository,
     get_external_chunk_repository
 )
+from .web_source_repository import (
+    PostgresWebSourceRepository,
+    get_web_source_repository
+)
 
 __all__ = [
     "PostgresConversationRepository",
@@ -32,4 +36,7 @@ __all__ = [
     "get_external_connection_repository",
     "get_external_document_repository",
     "get_external_chunk_repository",
+    # Web source repository
+    "PostgresWebSourceRepository",
+    "get_web_source_repository",
 ]

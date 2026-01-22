@@ -404,13 +404,22 @@ class WebContentExtractor:
 
 
 class WebContentService:
-    """Service for managing web sources"""
+    """Service for managing web sources with PostgreSQL persistence"""
 
-    # In-memory storage (replace with database in production)
-    _web_sources: Dict[str, WebSource] = {}
+    # In-memory cache for active processing (cleared on restart)
+    _processing_cache: Dict[str, WebSource] = {}
 
-    def __init__(self):
+    def __init__(self, repository=None):
+        """
+        Initialize WebContentService.
+
+        Args:
+            repository: Optional PostgresWebSourceRepository for persistence.
+                       If not provided, uses lazy loading via get_web_source_repository().
+        """
         self.extractor = WebContentExtractor()
+        self._repository = repository
+        self._repository_initialized = False
         self.http_client = httpx.AsyncClient(
             timeout=30.0,
             follow_redirects=True,
@@ -420,6 +429,18 @@ class WebContentService:
                 'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6',
             }
         )
+
+    async def _get_repository(self):
+        """Get repository with lazy initialization."""
+        if self._repository is None and not self._repository_initialized:
+            try:
+                from ..infrastructure.postgres.web_source_repository import get_web_source_repository
+                self._repository = await get_web_source_repository()
+                self._repository_initialized = True
+            except Exception as e:
+                print(f"[WebContentService] Repository initialization failed: {e}")
+                self._repository_initialized = True  # Don't retry on error
+        return self._repository
 
     async def close(self):
         """Close HTTP client"""
@@ -658,7 +679,28 @@ class WebContentService:
             created_by=user_id
         )
 
-        self._web_sources[web_source_id] = web_source
+        # Save to repository (PostgreSQL)
+        repo = await self._get_repository()
+        if repo:
+            try:
+                await repo.create(
+                    id=web_source_id,
+                    url=request.url,
+                    display_name=web_source.display_name,
+                    domain=web_source.domain,
+                    user_id=user_id,
+                    extractor=request.extractor.value if request.extractor else "trafilatura",
+                    include_images=request.include_images,
+                    include_links=request.include_links,
+                    status="pending",
+                    tags=request.tags or [],
+                    metadata={}
+                )
+            except Exception as e:
+                print(f"[WebContentService] Failed to save to repository: {e}")
+
+        # Keep in processing cache for active processing
+        self._processing_cache[web_source_id] = web_source
 
         # Start async processing
         asyncio.create_task(self._process_web_source(web_source_id))
@@ -684,14 +726,26 @@ class WebContentService:
 
     async def _process_web_source(self, web_source_id: str):
         """Process a web source (fetch, extract, chunk, embed)"""
-        web_source = self._web_sources.get(web_source_id)
+        web_source = self._processing_cache.get(web_source_id)
         if not web_source:
-            return
+            # Try to load from repository
+            repo = await self._get_repository()
+            if repo:
+                data = await repo.get(web_source_id)
+                if data:
+                    web_source = self._dict_to_web_source(data)
+                    self._processing_cache[web_source_id] = web_source
+            if not web_source:
+                return
+
+        repo = await self._get_repository()
 
         try:
             # Step 1: Fetch
             web_source.status = WebSourceStatus.FETCHING
-            self._web_sources[web_source_id] = web_source
+            self._processing_cache[web_source_id] = web_source
+            if repo:
+                await repo.update_status(web_source_id, "fetching")
 
             fetch_start = time.time()
             html_content, status_code, error = await self.fetch_url(web_source.url)
@@ -703,7 +757,9 @@ class WebContentService:
             if html_content is None:
                 web_source.status = WebSourceStatus.ERROR
                 web_source.error_message = error
-                self._web_sources[web_source_id] = web_source
+                self._processing_cache[web_source_id] = web_source
+                if repo:
+                    await repo.update_status(web_source_id, "error", error)
                 return
 
             # Compute content hash
@@ -711,7 +767,9 @@ class WebContentService:
 
             # Step 2: Extract content
             web_source.status = WebSourceStatus.EXTRACTING
-            self._web_sources[web_source_id] = web_source
+            self._processing_cache[web_source_id] = web_source
+            if repo:
+                await repo.update_status(web_source_id, "extracting")
 
             # Extract metadata
             web_source.metadata = self.extractor.extract_metadata(
@@ -746,7 +804,9 @@ class WebContentService:
             if not extraction.success or not extraction.text_content:
                 web_source.status = WebSourceStatus.ERROR
                 web_source.error_message = extraction.error_message or "No content extracted"
-                self._web_sources[web_source_id] = web_source
+                self._processing_cache[web_source_id] = web_source
+                if repo:
+                    await repo.update_status(web_source_id, "error", web_source.error_message)
                 return
 
             web_source.extracted_text = extraction.text_content
@@ -772,14 +832,18 @@ class WebContentService:
 
             # Step 3: Chunking
             web_source.status = WebSourceStatus.CHUNKING
-            self._web_sources[web_source_id] = web_source
+            self._processing_cache[web_source_id] = web_source
+            if repo:
+                await repo.update_status(web_source_id, "chunking")
 
             chunks = await self._chunk_content(extraction.text_content, web_source.url)
             web_source.stats.chunk_count = len(chunks)
 
             # Step 4: Embedding and indexing to Neo4j
             web_source.status = WebSourceStatus.EMBEDDING
-            self._web_sources[web_source_id] = web_source
+            self._processing_cache[web_source_id] = web_source
+            if repo:
+                await repo.update_status(web_source_id, "embedding")
 
             # Index to Neo4j with embeddings
             indexed = await self._index_to_neo4j(web_source, chunks)
@@ -791,12 +855,38 @@ class WebContentService:
             web_source.processed_at = datetime.now(timezone.utc)
             web_source.stats.last_fetched = datetime.now(timezone.utc)
             web_source.updated_at = datetime.now(timezone.utc)
-            self._web_sources[web_source_id] = web_source
+            self._processing_cache[web_source_id] = web_source
+
+            # Save all content to repository
+            if repo:
+                await repo.update_content(
+                    web_source_id=web_source_id,
+                    extracted_text=web_source.extracted_text,
+                    extracted_links=[l.model_dump() for l in web_source.extracted_links] if web_source.extracted_links else [],
+                    extracted_images=[i.model_dump() for i in web_source.extracted_images] if web_source.extracted_images else [],
+                    metadata=web_source.metadata.model_dump() if web_source.metadata else {},
+                    content_hash=web_source.content_hash,
+                    word_count=web_source.stats.word_count,
+                    char_count=web_source.stats.char_count,
+                    chunk_count=web_source.stats.chunk_count,
+                    link_count=web_source.stats.link_count,
+                    image_count=web_source.stats.image_count,
+                    fetch_time_ms=web_source.stats.fetch_time_ms,
+                    extraction_time_ms=web_source.stats.extraction_time_ms,
+                    status="ready",
+                    fetched_at=web_source.fetched_at,
+                    processed_at=web_source.processed_at
+                )
+
+            # Remove from processing cache after successful completion
+            self._processing_cache.pop(web_source_id, None)
 
         except Exception as e:
             web_source.status = WebSourceStatus.ERROR
             web_source.error_message = str(e)
-            self._web_sources[web_source_id] = web_source
+            self._processing_cache[web_source_id] = web_source
+            if repo:
+                await repo.update_status(web_source_id, "error", str(e))
 
     async def _chunk_content(
         self,
@@ -876,9 +966,117 @@ class WebContentService:
             print(f"[WebContentService] Neo4j indexing failed: {e}")
             return False
 
+    def _dict_to_web_source(self, data: Dict[str, Any]) -> WebSource:
+        """Convert repository dict to WebSource object."""
+        from ..models.web_source import (
+            WebSourceMetadata, WebSourceStats, LinkInfo, ImageFromWeb,
+            ContentType
+        )
+
+        # Parse metadata
+        metadata_dict = data.get("metadata") or {}
+        content_type_str = metadata_dict.get("content_type", "generic")
+        try:
+            content_type = ContentType(content_type_str)
+        except ValueError:
+            content_type = ContentType.GENERIC
+
+        metadata = WebSourceMetadata(
+            title=metadata_dict.get("title"),
+            description=metadata_dict.get("description"),
+            author=metadata_dict.get("author"),
+            site_name=metadata_dict.get("site_name"),
+            og_image=metadata_dict.get("og_image"),
+            language=metadata_dict.get("language"),
+            keywords=metadata_dict.get("keywords", []),
+            canonical_url=metadata_dict.get("canonical_url"),
+            content_type=content_type
+        )
+
+        # Parse stats
+        stats = WebSourceStats(
+            word_count=data.get("word_count", 0),
+            char_count=data.get("char_count", 0),
+            chunk_count=data.get("chunk_count", 0),
+            link_count=data.get("link_count", 0),
+            image_count=data.get("image_count", 0),
+            fetch_time_ms=data.get("fetch_time_ms", 0),
+            extraction_time_ms=data.get("extraction_time_ms", 0)
+        )
+
+        # Parse links
+        links = []
+        for link_data in (data.get("extracted_links") or []):
+            links.append(LinkInfo(
+                url=link_data.get("url", ""),
+                text=link_data.get("text", ""),
+                is_internal=link_data.get("is_internal", False)
+            ))
+
+        # Parse images
+        images = []
+        for img_data in (data.get("extracted_images") or []):
+            images.append(ImageFromWeb(
+                url=img_data.get("url", ""),
+                alt_text=img_data.get("alt_text", ""),
+                caption=img_data.get("caption", ""),
+                width=img_data.get("width"),
+                height=img_data.get("height")
+            ))
+
+        # Parse status
+        status_str = data.get("status", "pending")
+        try:
+            status = WebSourceStatus(status_str)
+        except ValueError:
+            status = WebSourceStatus.PENDING
+
+        # Parse extractor
+        extractor_str = data.get("extractor", "trafilatura")
+        try:
+            extractor = ExtractorType(extractor_str)
+        except ValueError:
+            extractor = ExtractorType.TRAFILATURA
+
+        return WebSource(
+            id=data.get("id"),
+            url=data.get("url"),
+            display_name=data.get("display_name"),
+            domain=data.get("domain"),
+            extractor=extractor,
+            include_images=data.get("include_images", False),
+            include_links=data.get("include_links", False),
+            status=status,
+            http_status_code=data.get("http_status_code"),
+            error_message=data.get("error_message"),
+            retry_count=data.get("retry_count", 0),
+            extracted_text=data.get("extracted_text"),
+            extracted_links=links,
+            extracted_images=images,
+            content_hash=data.get("content_hash"),
+            metadata=metadata,
+            stats=stats,
+            tags=data.get("tags", []),
+            created_at=data.get("created_at"),
+            updated_at=data.get("updated_at"),
+            fetched_at=data.get("fetched_at"),
+            processed_at=data.get("processed_at"),
+            created_by=data.get("user_id")
+        )
+
     async def get_web_source(self, web_source_id: str) -> Optional[WebSource]:
         """Get web source by ID"""
-        return self._web_sources.get(web_source_id)
+        # Check processing cache first
+        if web_source_id in self._processing_cache:
+            return self._processing_cache[web_source_id]
+
+        # Load from repository
+        repo = await self._get_repository()
+        if repo:
+            data = await repo.get(web_source_id)
+            if data:
+                return self._dict_to_web_source(data)
+        return None
 
     async def list_web_sources(
         self,
@@ -890,7 +1088,65 @@ class WebContentService:
         limit: int = 20
     ) -> Tuple[List[WebSourceListItem], int]:
         """List web sources with filtering"""
-        sources = list(self._web_sources.values())
+        repo = await self._get_repository()
+        if repo:
+            # Use repository for persistent data
+            status_str = status.value if status else None
+            sources_data, total = await repo.list(
+                user_id=user_id,
+                status=status_str,
+                domain=domain,
+                tags=tags,
+                page=page,
+                limit=limit
+            )
+
+            # Merge with processing cache for real-time status
+            list_items = []
+            for data in sources_data:
+                ws_id = data.get("id")
+                # Check if in processing cache for latest status
+                if ws_id in self._processing_cache:
+                    s = self._processing_cache[ws_id]
+                    list_items.append(WebSourceListItem(
+                        id=s.id,
+                        url=s.url,
+                        display_name=s.display_name,
+                        domain=s.domain,
+                        status=s.status,
+                        chunk_count=s.stats.chunk_count,
+                        word_count=s.stats.word_count,
+                        tags=s.tags,
+                        created_at=s.created_at,
+                        fetched_at=s.fetched_at,
+                        error_message=s.error_message
+                    ))
+                else:
+                    # Parse status
+                    status_str = data.get("status", "pending")
+                    try:
+                        ws_status = WebSourceStatus(status_str)
+                    except ValueError:
+                        ws_status = WebSourceStatus.PENDING
+
+                    list_items.append(WebSourceListItem(
+                        id=data.get("id"),
+                        url=data.get("url"),
+                        display_name=data.get("display_name"),
+                        domain=data.get("domain"),
+                        status=ws_status,
+                        chunk_count=data.get("chunk_count", 0),
+                        word_count=data.get("word_count", 0),
+                        tags=data.get("tags", []),
+                        created_at=data.get("created_at"),
+                        fetched_at=data.get("fetched_at"),
+                        error_message=data.get("error_message")
+                    ))
+
+            return list_items, total
+
+        # Fallback to processing cache only (no repository)
+        sources = list(self._processing_cache.values())
 
         # Apply filters
         if user_id:
@@ -935,7 +1191,7 @@ class WebContentService:
         force: bool = False
     ) -> Tuple[bool, str]:
         """Refresh web source content"""
-        web_source = self._web_sources.get(web_source_id)
+        web_source = await self.get_web_source(web_source_id)
         if not web_source:
             return False, "Web source not found"
 
@@ -952,12 +1208,15 @@ class WebContentService:
         new_hash = self._compute_content_hash(html_content)
         if not force and new_hash == web_source.content_hash:
             web_source.stats.last_checked = datetime.now(timezone.utc)
-            self._web_sources[web_source_id] = web_source
             return True, "Content unchanged"
 
         # Content changed - reprocess
         web_source.content_hash = new_hash
-        self._web_sources[web_source_id] = web_source
+        self._processing_cache[web_source_id] = web_source
+
+        repo = await self._get_repository()
+        if repo:
+            await repo.update(web_source_id, content_hash=new_hash)
 
         asyncio.create_task(self._process_web_source(web_source_id))
         return True, "Refresh started"
@@ -968,16 +1227,32 @@ class WebContentService:
         user_id: Optional[str] = None
     ) -> bool:
         """Delete a web source and its index from Neo4j"""
-        web_source = self._web_sources.get(web_source_id)
+        repo = await self._get_repository()
+
+        # Get web source to check ownership
+        web_source = await self.get_web_source(web_source_id)
         if not web_source:
-            return False
+            # Also check repository directly
+            if repo:
+                data = await repo.get(web_source_id)
+                if not data:
+                    return False
+                # Check ownership
+                if user_id and data.get("user_id") and data.get("user_id") != user_id:
+                    return False
+            else:
+                return False
+        else:
+            # Check ownership if user_id provided
+            if user_id and web_source.created_by and web_source.created_by != user_id:
+                return False
 
-        # Check ownership if user_id provided
-        if user_id and web_source.created_by and web_source.created_by != user_id:
-            return False
+        # Delete from processing cache
+        self._processing_cache.pop(web_source_id, None)
 
-        # Delete from in-memory storage
-        del self._web_sources[web_source_id]
+        # Delete from repository (PostgreSQL)
+        if repo:
+            await repo.delete(web_source_id)
 
         # Delete from Neo4j
         try:
@@ -992,13 +1267,37 @@ class WebContentService:
     async def search_web_sources(
         self,
         query: str,
+        user_id: Optional[str] = None,
         limit: int = 20
     ) -> List[WebSourceListItem]:
         """Search web sources by content or metadata"""
+        repo = await self._get_repository()
+        if repo:
+            # Use repository full-text search
+            results_data = await repo.search(query, user_id=user_id, limit=limit)
+
+            return [
+                WebSourceListItem(
+                    id=data.get("id"),
+                    url=data.get("url"),
+                    display_name=data.get("display_name"),
+                    domain=data.get("domain"),
+                    status=WebSourceStatus(data.get("status", "pending")),
+                    chunk_count=data.get("chunk_count", 0),
+                    word_count=data.get("word_count", 0),
+                    tags=data.get("tags", []),
+                    created_at=data.get("created_at"),
+                    fetched_at=data.get("fetched_at"),
+                    error_message=data.get("error_message")
+                )
+                for data in results_data
+            ]
+
+        # Fallback to in-memory search
         query_lower = query.lower()
         results = []
 
-        for source in self._web_sources.values():
+        for source in self._processing_cache.values():
             if source.status != WebSourceStatus.READY:
                 continue
 

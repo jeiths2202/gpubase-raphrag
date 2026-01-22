@@ -39,8 +39,10 @@ import {
   Shield,
   Layers,
   FolderOpen,
+  Globe,
 } from 'lucide-react';
 import { AdaptiveDocuments } from '../components/AdaptiveDocuments';
+import { WebPages } from '../components/WebPages';
 import {
   BarChart,
   Bar,
@@ -60,7 +62,7 @@ import { useTranslation } from '../hooks/useTranslation';
 // Types
 // =============================================================================
 
-type TabId = 'documents' | 'adaptive' | 'profiles' | 'experiments' | 'metrics';
+type TabId = 'documents' | 'webpages' | 'adaptive' | 'profiles' | 'experiments' | 'metrics';
 
 interface RAGProfileSummary {
   id: string;
@@ -142,13 +144,14 @@ interface CleanupResult {
 // Tab icons only - labels are translated in component
 const TAB_ICONS: Record<TabId, React.ReactNode> = {
   documents: <FileText size={18} />,
+  webpages: <Globe size={18} />,
   adaptive: <Layers size={18} />,
   profiles: <Settings size={18} />,
   experiments: <FlaskConical size={18} />,
   metrics: <TrendingUp size={18} />,
 };
 
-const TAB_IDS: TabId[] = ['documents', 'adaptive', 'profiles', 'experiments', 'metrics'];
+const TAB_IDS: TabId[] = ['documents', 'webpages', 'adaptive', 'profiles', 'experiments', 'metrics'];
 
 const STRATEGY_COLORS: Record<string, string> = {
   vector: '#6366f1',
@@ -184,6 +187,7 @@ export const DocumentsPage: React.FC = () => {
   const getTabLabel = (tabId: TabId): string => {
     switch (tabId) {
       case 'documents': return 'Documents';
+      case 'webpages': return t('common.webPages.tabLabel');
       case 'adaptive': return t('common.adaptive.tabLabelFull');
       case 'profiles': return 'RAG Profiles';
       case 'experiments': return 'A/B Tests';
@@ -243,6 +247,8 @@ export const DocumentsPage: React.FC = () => {
     switch (activeTab) {
       case 'documents':
         return <DocumentsTab />;
+      case 'webpages':
+        return <WebPages />;
       case 'adaptive':
         return <AdaptiveDocuments />;
       case 'profiles':

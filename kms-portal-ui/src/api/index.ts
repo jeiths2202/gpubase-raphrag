@@ -254,3 +254,41 @@ export type {
   NodeDetailResponse,
   MindmapListResponse,
 } from './mindmap.api';
+
+// Web Pages API
+export { default as webPagesApi } from './webPages.api';
+export {
+  listWebSources,
+  getWebSource,
+  createWebSource,
+  createBulkWebSources,
+  refreshWebSource,
+  deleteWebSource,
+  getWebSourceContent,
+  getWebSourceLinks,
+  getWebSourceImages,
+  searchWebSources,
+} from './webPages.api';
+export type {
+  WebSourceStatus,
+  ExtractorType,
+  ContentType,
+  WebSourceListItem,
+  WebSource,
+  WebSourceMetadata,
+  WebSourceStats,
+  LinkInfo,
+  ImageInfo,
+  CreateWebSourceRequest,
+  BulkCreateWebSourceRequest,
+  ListWebSourcesParams,
+  WebSourceResponse,
+  WebSourceListResponse,
+  BulkCreateResponse,
+  ContentResponse,
+  LinksResponse,
+  ImagesResponse,
+  SearchResponse as WebSourceSearchResponse,
+  RefreshResponse as WebSourceRefreshResponse,
+  DeleteResponse as WebSourceDeleteResponse,
+} from './webPages.api';

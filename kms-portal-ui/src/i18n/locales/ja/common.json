@@ -424,6 +424,87 @@
       "statusFailed": "失敗"
     }
   },
+  "webPages": {
+    "title": "ウェブページ",
+    "tabLabel": "ウェブページ",
+    "description": "ウェブページを知識ソースとして追加",
+    "addUrl": "URL追加",
+    "search": {
+      "placeholder": "URL、タイトル、ドメインで検索..."
+    },
+    "filter": {
+      "allStatus": "全てのステータス"
+    },
+    "table": {
+      "url": "URL",
+      "status": "ステータス",
+      "chunks": "チャンク",
+      "words": "単語数",
+      "created": "作成日",
+      "actions": "アクション"
+    },
+    "status": {
+      "pending": "待機中",
+      "fetching": "取得中...",
+      "extracting": "抽出中...",
+      "chunking": "チャンク作成中...",
+      "embedding": "エンベディング中...",
+      "ready": "完了",
+      "error": "エラー"
+    },
+    "actions": {
+      "viewContent": "内容を表示",
+      "viewLinks": "リンクを表示",
+      "viewImages": "画像を表示",
+      "refresh": "更新",
+      "openUrl": "URLを開く"
+    },
+    "addModal": {
+      "title": "ウェブページ追加",
+      "singleUrl": "単一URL",
+      "bulkUrls": "一括URL",
+      "urlLabel": "URL",
+      "urlPlaceholder": "https://example.com/page",
+      "urlsLabel": "URL一覧（1行に1つ）",
+      "urlsPlaceholder": "https://example.com/page1\nhttps://example.com/page2",
+      "tagsLabel": "タグ（任意）",
+      "tagsPlaceholder": "タグ1, タグ2, タグ3",
+      "add": "追加",
+      "adding": "追加中..."
+    },
+    "detail": {
+      "content": "内容",
+      "links": "リンク",
+      "images": "画像",
+      "wordCount": "単語数",
+      "charCount": "文字数",
+      "linkCount": "リンク数",
+      "imageCount": "画像数",
+      "noContent": "内容がありません"
+    },
+    "deleteConfirm": {
+      "message": "本当に削除しますか？",
+      "warning": "この操作により、ウェブページと関連するすべてのデータ（チャンク、エンベディングを含む）が完全に削除されます。"
+    },
+    "batchDelete": {
+      "title": "選択項目を削除",
+      "button": "選択削除",
+      "message": "{{count}}件のウェブページを削除しますか？",
+      "confirm": "すべて削除",
+      "deleting": "削除中..."
+    },
+    "empty": {
+      "title": "ウェブページなし",
+      "description": "ウェブページを追加してRAG知識ソースとして活用してください"
+    },
+    "errors": {
+      "loadFailed": "ウェブページの読み込みに失敗しました",
+      "addFailed": "ウェブページの追加に失敗しました",
+      "deleteFailed": "ウェブページの削除に失敗しました",
+      "refreshFailed": "ウェブページの更新に失敗しました",
+      "invalidUrl": "http://またはhttps://で始まる有効なURLを入力してください"
+    }
+  },
   "searchProgress": {
     "title": "ナレッジ検索進捗",
     "query": "検索クエリ",
