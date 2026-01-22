@@ -1180,6 +1180,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         onSelectScope={handleScopeSelect}
         query={scopePendingQuery || ''}
         t={t}
+        language={userLanguage}
       />
     </div>
 

@@ -112,6 +112,10 @@
     "startFresh": "Start Fresh",
     "continue": "Continue",
     "restoring": "Restoring...",
-    "scopeNotFound": "The information was not found in the selected documents/sections. Try searching all documents."
+    "scopeNotFound": "The information was not found in the selected documents/sections. Try searching all documents.",
+    "keywords": "Keywords",
+    "subcategories": "subcategories",
+    "matched": "matched",
+    "categories": "categories"
   }
 }

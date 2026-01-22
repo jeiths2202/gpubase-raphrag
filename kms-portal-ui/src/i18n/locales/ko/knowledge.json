@@ -112,6 +112,10 @@
     "startFresh": "새로 시작",
     "continue": "이어서 작업",
     "restoring": "복원 중...",
-    "scopeNotFound": "선택한 문서/섹션에서 해당 정보를 찾을 수 없습니다. 전체 검색을 시도해보세요."
+    "scopeNotFound": "선택한 문서/섹션에서 해당 정보를 찾을 수 없습니다. 전체 검색을 시도해보세요.",
+    "keywords": "키워드",
+    "subcategories": "개 하위 카테고리",
+    "matched": "일치",
+    "categories": "개 카테고리"
   }
 }

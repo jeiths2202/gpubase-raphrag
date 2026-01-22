@@ -31,6 +31,11 @@
   border: 1px solid var(--color-border);
 }
 
+/* Wide modal variant for category view */
+.scope-modal.scope-modal-wide {
+  max-width: 780px;
+}
+
 /* Header */
 .scope-modal-header {
   display: flex;
@@ -90,6 +95,43 @@
 .scope-modal-query-text {
   color: var(--color-text-primary);
   font-style: italic;
+}
+
+/* Keywords display */
+.scope-keywords {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
+.scope-keywords-icon {
+  color: var(--color-primary);
+}
+
+.scope-keywords-label {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.scope-keywords-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.scope-keyword-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 /* Body */
@@ -179,11 +221,228 @@
   font-size: 0.875rem;
 }
 
+/* Summary display */
+.scope-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--color-primary-light);
+  border: 1px solid var(--color-primary);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+  color: var(--color-text-primary);
+}
+
+.scope-summary-icon {
+  color: var(--color-primary);
+}
+
 /* Candidates list */
 .scope-candidates {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Categories list */
+.scope-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Category item */
+.scope-category {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-bg-card);
+}
+
+.scope-category-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--color-bg-secondary);
+  cursor: pointer;
+}
+
+.scope-category-icon {
+  color: var(--color-primary);
+}
+
+.scope-category-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.scope-category-name {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scope-category-meta {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+/* Subcategories list */
+.scope-subcategories {
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-modal);
+}
+
+.scope-subcategory {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.scope-subcategory:last-child {
+  border-bottom: none;
+}
+
+.scope-subcategory-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px 10px 28px;
+  cursor: pointer;
+}
+
+.scope-subcategory-header:hover {
+  background: var(--color-bg-hover);
+}
+
+.scope-subcategory-icon {
+  color: var(--color-text-secondary);
+}
+
+.scope-subcategory-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.scope-subcategory-name {
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scope-subcategory-meta {
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+}
+
+/* Documents within subcategory */
+.scope-documents {
+  background: var(--color-bg-modal);
+  border-top: 1px solid var(--color-border);
+}
+
+.scope-documents .scope-document {
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.scope-documents .scope-document:last-child {
+  border-bottom: none;
+}
+
+.scope-documents .scope-document-header {
+  padding: 8px 14px 8px 42px;
+  background: transparent;
+}
+
+.scope-documents .scope-document-header:hover {
+  background: var(--color-bg-hover);
+}
+
+.scope-documents .scope-document-name {
+  font-size: 0.85rem;
+}
+
+.scope-documents .scope-sections {
+  padding-left: 28px;
+}
+
+.scope-documents .scope-section {
+  padding: 6px 12px;
+}
+
+/* Common expand button */
+.scope-expand-btn {
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scope-expand-btn:hover {
+  color: var(--color-text-primary);
+}
+
+/* Common checkbox */
+.scope-checkbox {
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scope-checkbox:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.scope-checkbox .checked {
+  color: var(--color-primary);
+}
+
+/* Score badge */
+.scope-score {
+  padding: 2px 8px;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+.scope-score-small {
+  padding: 2px 6px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: 0.7rem;
+  font-weight: 500;
+  border-radius: 3px;
+}
+
+/* Document icon */
+.scope-doc-icon {
+  color: var(--color-text-muted);
 }
 
 /* Document item */

@@ -13,6 +13,7 @@ from ..models.base import SuccessResponse, MetaInfo
 from ..core.deps import get_current_user
 from ..services.document_map_service import get_document_map_service
 from ..services.agent_work_service import get_agent_work_service, SearchScope
+from ..services.document_category_service import get_document_category_service
 import logging
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,81 @@ class DocumentMapResponse(BaseModel):
     """Response with document map."""
     documents: List[dict] = Field(default_factory=list)
     total_documents: int = Field(0)
+
+
+# ============================================================================
+# Category-based Models (Agent-Driven RAG with Categories)
+# ============================================================================
+
+class CategoryMatchRequest(BaseModel):
+    """Request for category matching."""
+    query: str = Field(..., min_length=1, max_length=1000, description="Search query")
+    max_categories: int = Field(5, ge=1, le=10, description="Maximum categories")
+    max_subcategories: int = Field(3, ge=1, le=5, description="Maximum subcategories per category")
+    max_documents: int = Field(5, ge=1, le=10, description="Maximum documents per subcategory")
+    min_score: float = Field(0.1, ge=0.0, le=1.0, description="Minimum relevance score")
+
+
+class SectionInfoResponse(BaseModel):
+    """Section information in response."""
+    section_id: str = Field(..., description="Section ID")
+    title: str = Field(..., description="Section title")
+    level: int = Field(1, description="Section level")
+    page_start: int = Field(1, description="Start page")
+    page_end: int = Field(1, description="End page")
+    keywords: List[str] = Field(default_factory=list, description="Keywords")
+
+
+class DocumentInfoResponse(BaseModel):
+    """Document information in response."""
+    pdf_id: str = Field(..., description="Document ID")
+    document_name: str = Field(..., description="Document name")
+    document_type: str = Field(..., description="Document type")
+    total_pages: int = Field(0, description="Total pages")
+    language: str = Field("auto", description="Document language")
+    keywords: List[str] = Field(default_factory=list, description="Keywords")
+    sections: List[SectionInfoResponse] = Field(default_factory=list, description="Sections")
+    relevance_score: float = Field(0.0, description="Relevance score")
+
+
+class SubCategoryResponse(BaseModel):
+    """Subcategory in response."""
+    id: str = Field(..., description="Subcategory ID")
+    name: str = Field(..., description="Subcategory name")
+    description: str = Field("", description="Description")
+    keywords: List[str] = Field(default_factory=list, description="Keywords")
+    documents: List[DocumentInfoResponse] = Field(default_factory=list, description="Documents")
+    document_count: int = Field(0, description="Total document count")
+    relevance_score: float = Field(0.0, description="Relevance score")
+
+
+class CategoryResponse(BaseModel):
+    """Category in response."""
+    id: str = Field(..., description="Category ID")
+    name: str = Field(..., description="Category name (English)")
+    name_ko: str = Field(..., description="Category name (Korean)")
+    name_ja: str = Field(..., description="Category name (Japanese)")
+    icon: str = Field("Folder", description="Icon name")
+    description: str = Field("", description="Description")
+    subcategories: List[SubCategoryResponse] = Field(default_factory=list, description="Subcategories")
+    subcategory_count: int = Field(0, description="Total subcategory count")
+    document_count: int = Field(0, description="Total document count")
+    relevance_score: float = Field(0.0, description="Relevance score")
+
+
+class CategoryMatchResponse(BaseModel):
+    """Response for category matching."""
+    query: str = Field(..., description="Original query")
+    extracted_keywords: List[str] = Field(default_factory=list, description="Extracted keywords")
+    categories: List[CategoryResponse] = Field(default_factory=list, description="Matched categories")
+    total_documents: int = Field(0, description="Total matched documents")
+    total_sections: int = Field(0, description="Total matched sections")
+
+
+class AllCategoriesResponse(BaseModel):
+    """Response for all categories overview."""
+    categories: List[CategoryResponse] = Field(default_factory=list, description="All categories")
+    total_categories: int = Field(0, description="Total category count")
 
 
 # ============================================================================
@@ -360,3 +436,238 @@ async def get_stats(
     except Exception as e:
         logger.error(f"Failed to get stats: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve statistics")
+
+
+# ============================================================================
+# Category-based Endpoints (Agent-Driven RAG with Categories)
+# ============================================================================
+
+@router.post(
+    "/categories/match",
+    response_model=SuccessResponse[CategoryMatchResponse],
+    summary="쿼리 기반 카테고리 매칭",
+    description="사용자 쿼리에서 키워드를 추출하고 관련 카테고리와 문서를 반환합니다."
+)
+async def match_categories(
+    request: CategoryMatchRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Match user query to relevant categories.
+
+    This is the main endpoint for Agent-Driven RAG pre-search confirmation.
+    It extracts keywords from the query and returns categorized documents/sections.
+    """
+    start_time = time.time()
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    try:
+        category_service = get_document_category_service()
+        result = await category_service.match_query_to_categories(
+            query=request.query,
+            max_categories=request.max_categories,
+            max_subcategories=request.max_subcategories,
+            max_documents_per_subcategory=request.max_documents,
+            min_score=request.min_score
+        )
+
+        # Convert to response models
+        categories_response = []
+        for cat in result.categories:
+            subcategories_response = []
+            for sub in cat.subcategories:
+                documents_response = []
+                for doc in sub.documents:
+                    sections_response = [
+                        SectionInfoResponse(
+                            section_id=s.section_id,
+                            title=s.title,
+                            level=s.level,
+                            page_start=s.page_start,
+                            page_end=s.page_end,
+                            keywords=s.keywords
+                        )
+                        for s in doc.sections
+                    ]
+                    documents_response.append(DocumentInfoResponse(
+                        pdf_id=doc.pdf_id,
+                        document_name=doc.document_name,
+                        document_type=doc.document_type,
+                        total_pages=doc.total_pages,
+                        language=doc.language,
+                        keywords=doc.keywords,
+                        sections=sections_response,
+                        relevance_score=doc.relevance_score
+                    ))
+                subcategories_response.append(SubCategoryResponse(
+                    id=sub.id,
+                    name=sub.name,
+                    description=sub.description,
+                    keywords=sub.keywords,
+                    documents=documents_response,
+                    document_count=len(documents_response),
+                    relevance_score=sub.relevance_score
+                ))
+            categories_response.append(CategoryResponse(
+                id=cat.id,
+                name=cat.name,
+                name_ko=cat.name_ko,
+                name_ja=cat.name_ja,
+                icon=cat.icon,
+                description=cat.description,
+                subcategories=subcategories_response,
+                subcategory_count=len(subcategories_response),
+                document_count=sum(len(s.documents) for s in subcategories_response),
+                relevance_score=cat.relevance_score
+            ))
+
+        processing_time = int((time.time() - start_time) * 1000)
+
+        return SuccessResponse(
+            data=CategoryMatchResponse(
+                query=result.query,
+                extracted_keywords=result.extracted_keywords,
+                categories=categories_response,
+                total_documents=result.total_documents,
+                total_sections=result.total_sections
+            ),
+            meta=MetaInfo(
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                request_id=request_id,
+                processing_time_ms=processing_time
+            )
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to match categories: {e}")
+        raise HTTPException(status_code=500, detail="Category matching failed")
+
+
+@router.get(
+    "/categories",
+    response_model=SuccessResponse[AllCategoriesResponse],
+    summary="전체 카테고리 목록 조회",
+    description="모든 사용 가능한 카테고리 목록을 반환합니다."
+)
+async def get_all_categories(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all available categories."""
+    start_time = time.time()
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    try:
+        category_service = get_document_category_service()
+        categories = await category_service.get_all_categories()
+
+        # Convert to response
+        categories_response = []
+        for cat in categories:
+            subcategories_response = [
+                SubCategoryResponse(
+                    id=sub.id,
+                    name=sub.name,
+                    description=sub.description,
+                    keywords=sub.keywords,
+                    documents=[],
+                    document_count=0,
+                    relevance_score=0
+                )
+                for sub in cat.subcategories
+            ]
+            categories_response.append(CategoryResponse(
+                id=cat.id,
+                name=cat.name,
+                name_ko=cat.name_ko,
+                name_ja=cat.name_ja,
+                icon=cat.icon,
+                description=cat.description,
+                subcategories=subcategories_response,
+                subcategory_count=len(subcategories_response),
+                document_count=0,
+                relevance_score=0
+            ))
+
+        processing_time = int((time.time() - start_time) * 1000)
+
+        return SuccessResponse(
+            data=AllCategoriesResponse(
+                categories=categories_response,
+                total_categories=len(categories_response)
+            ),
+            meta=MetaInfo(
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                request_id=request_id,
+                processing_time_ms=processing_time
+            )
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to get categories: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve categories")
+
+
+@router.post(
+    "/categories/refresh",
+    response_model=SuccessResponse[dict],
+    summary="카테고리 캐시 새로고침",
+    description="카테고리 캐시를 강제로 새로고침합니다."
+)
+async def refresh_categories(
+    current_user: dict = Depends(get_current_user)
+):
+    """Refresh category cache."""
+    start_time = time.time()
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    try:
+        category_service = get_document_category_service()
+        success = await category_service.refresh()
+
+        processing_time = int((time.time() - start_time) * 1000)
+
+        return SuccessResponse(
+            data={"success": success, "message": "Category cache refreshed"},
+            meta=MetaInfo(
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                request_id=request_id,
+                processing_time_ms=processing_time
+            )
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to refresh categories: {e}")
+        raise HTTPException(status_code=500, detail="Category refresh failed")
+
+
+@router.get(
+    "/categories/stats",
+    response_model=SuccessResponse[dict],
+    summary="카테고리 통계 조회",
+    description="카테고리 서비스 통계를 반환합니다."
+)
+async def get_category_stats(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get category service statistics."""
+    start_time = time.time()
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    try:
+        category_service = get_document_category_service()
+        stats = await category_service.get_stats()
+
+        processing_time = int((time.time() - start_time) * 1000)
+
+        return SuccessResponse(
+            data=stats,
+            meta=MetaInfo(
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                request_id=request_id,
+                processing_time_ms=processing_time
+            )
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to get category stats: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve category statistics")

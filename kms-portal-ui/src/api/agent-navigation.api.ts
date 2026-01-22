@@ -114,6 +114,109 @@ export interface DocumentMapEntry {
   language?: string;
 }
 
+// =============================================================================
+// Category-based Types (Agent-Driven RAG with Categories)
+// =============================================================================
+
+/**
+ * Section info within a document
+ */
+export interface CategorySectionInfo {
+  section_id: string;
+  title: string;
+  level: number;
+  page_start: number;
+  page_end: number;
+  keywords: string[];
+}
+
+/**
+ * Document info within a category
+ */
+export interface CategoryDocumentInfo {
+  pdf_id: string;
+  document_name: string;
+  document_type: string;
+  total_pages: number;
+  language: string;
+  keywords: string[];
+  sections: CategorySectionInfo[];
+  relevance_score: number;
+}
+
+/**
+ * Subcategory containing documents
+ */
+export interface SubCategory {
+  id: string;
+  name: string;
+  description: string;
+  keywords: string[];
+  documents: CategoryDocumentInfo[];
+  document_count: number;
+  relevance_score: number;
+}
+
+/**
+ * Top-level category
+ */
+export interface Category {
+  id: string;
+  name: string;
+  name_ko: string;
+  name_ja: string;
+  icon: string;
+  description: string;
+  subcategories: SubCategory[];
+  subcategory_count: number;
+  document_count: number;
+  relevance_score: number;
+}
+
+/**
+ * Category match request
+ */
+export interface CategoryMatchRequest {
+  query: string;
+  max_categories?: number;
+  max_subcategories?: number;
+  max_documents?: number;
+  min_score?: number;
+}
+
+/**
+ * Category match response
+ */
+export interface CategoryMatchResponse {
+  data: {
+    query: string;
+    extracted_keywords: string[];
+    categories: Category[];
+    total_documents: number;
+    total_sections: number;
+  };
+  meta: {
+    timestamp: string;
+    request_id: string;
+    processing_time_ms: number;
+  };
+}
+
+/**
+ * All categories response
+ */
+export interface AllCategoriesResponse {
+  data: {
+    categories: Category[];
+    total_categories: number;
+  };
+  meta: {
+    timestamp: string;
+    request_id: string;
+    processing_time_ms: number;
+  };
+}
+
 /**
  * Document map response
  */
@@ -287,6 +390,54 @@ export const refreshDocumentMap = async (
   const params = pdfId ? `?pdf_id=${encodeURIComponent(pdfId)}` : '';
   const response = await apiClient.post<{ data: { success: boolean; pdf_id: string | null } }>(
     `/agent-navigation/refresh${params}`
+  );
+  return response.data;
+};
+
+// =============================================================================
+// API Functions - Categories
+// =============================================================================
+
+/**
+ * Match query to categories
+ * Main endpoint for Agent-Driven RAG pre-search confirmation
+ */
+export const matchCategories = async (
+  request: CategoryMatchRequest
+): Promise<CategoryMatchResponse> => {
+  const response = await apiClient.post<CategoryMatchResponse>(
+    '/agent-navigation/categories/match',
+    request
+  );
+  return response.data;
+};
+
+/**
+ * Get all available categories
+ */
+export const getAllCategories = async (): Promise<AllCategoriesResponse> => {
+  const response = await apiClient.get<AllCategoriesResponse>(
+    '/agent-navigation/categories'
+  );
+  return response.data;
+};
+
+/**
+ * Refresh category cache
+ */
+export const refreshCategories = async (): Promise<{ data: { success: boolean; message: string } }> => {
+  const response = await apiClient.post<{ data: { success: boolean; message: string } }>(
+    '/agent-navigation/categories/refresh'
+  );
+  return response.data;
+};
+
+/**
+ * Get category statistics
+ */
+export const getCategoryStats = async (): Promise<{ data: Record<string, unknown> }> => {
+  const response = await apiClient.get<{ data: Record<string, unknown> }>(
+    '/agent-navigation/categories/stats'
   );
   return response.data;
 };

@@ -112,6 +112,10 @@
     "startFresh": "新規で開始",
     "continue": "続きから",
     "restoring": "復元中...",
-    "scopeNotFound": "選択したドキュメント/セクションに該当情報が見つかりませんでした。全検索をお試しください。"
+    "scopeNotFound": "選択したドキュメント/セクションに該当情報が見つかりませんでした。全検索をお試しください。",
+    "keywords": "キーワード",
+    "subcategories": "件のサブカテゴリ",
+    "matched": "一致",
+    "categories": "件のカテゴリ"
   }
 }
