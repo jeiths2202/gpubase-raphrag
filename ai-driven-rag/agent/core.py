@@ -5,7 +5,7 @@ from typing import AsyncIterator
 
 from .llm import LLMClient, ToolCall
 from .prompts import SYSTEM_PROMPT
-from tools import ToolRegistry, VectorSearchTool, GraphQueryTool, DocumentReadTool, KeywordSearchTool
+from tools import ToolRegistry, VectorSearchTool, GraphQueryTool, DocumentReadTool, KeywordSearchTool, WebSearchTool, RerankTool
 from config import config
 
 
@@ -34,8 +34,10 @@ class AIAgent:
         registry = ToolRegistry()
         registry.register(VectorSearchTool())
         registry.register(KeywordSearchTool())
+        registry.register(WebSearchTool())
         registry.register(GraphQueryTool())
         registry.register(DocumentReadTool())
+        registry.register(RerankTool())
         return registry
 
     async def run(self, query: str, conversation_history: list[dict] | None = None) -> AgentResponse:
@@ -61,10 +63,45 @@ class AIAgent:
                 tools=self.tools.to_openai_tools(),
             )
 
-            # If no tool calls, we have the final answer
+            # If no tool calls, check for tool_call in text (Qwen fallback)
             if not response.tool_calls:
+                # Check if there's a tool_call embedded in the text
+                text_tool_call, clean_content = self._extract_tool_call_from_text(
+                    response.content or ""
+                )
+
+                if text_tool_call:
+                    # Execute the tool call found in text
+                    tool_name = text_tool_call["name"]
+                    tool_args = text_tool_call["arguments"]
+
+                    result = await self.tools.execute(tool_name, **tool_args)
+
+                    tool_calls_made.append({
+                        "tool": tool_name,
+                        "arguments": tool_args,
+                        "result_summary": self._summarize_result(result),
+                    })
+
+                    # Extract sources from result
+                    if isinstance(result, dict) and "results" in result:
+                        for r in result["results"]:
+                            source_name = r.get("title") or r.get("doc_title") or r.get("doc_id")
+                            if source_name:
+                                sources.add(source_name)
+
+                    # Add result to messages and continue loop
+                    messages.append({"role": "assistant", "content": clean_content})
+                    messages.append({
+                        "role": "user",
+                        "content": f"Tool {tool_name} result:\n{json.dumps(result, ensure_ascii=False, default=str)[:3000]}\n\nBased on these results, please provide the final answer."
+                    })
+                    continue
+
+                # No tool calls - return final answer
+                answer = self._clean_response(response.content or "I couldn't generate a response.")
                 return AgentResponse(
-                    answer=response.content or "I couldn't generate a response.",
+                    answer=answer,
                     tool_calls_made=tool_calls_made,
                     sources=list(sources),
                 )
@@ -101,8 +138,15 @@ class AIAgent:
                 if isinstance(result, dict):
                     if "results" in result:
                         for r in result["results"]:
-                            if doc_title := r.get("doc_title"):
-                                sources.add(doc_title)
+                            # Try multiple fields for source name
+                            source_name = (
+                                r.get("doc_title") or
+                                r.get("title") or
+                                r.get("url") or
+                                r.get("doc_id")
+                            )
+                            if source_name:
+                                sources.add(source_name)
                     if doc_id := result.get("doc_id"):
                         sources.add(doc_id)
 
@@ -185,6 +229,37 @@ class AIAgent:
         if "related_nodes" in result:
             return f"Found {len(result['related_nodes'])} related nodes"
         return "Completed"
+
+    def _extract_tool_call_from_text(self, content: str) -> tuple[dict | None, str]:
+        """Extract tool call from <tool_call> tags in content."""
+        import re
+        # Find <tool_call>...</tool_call> or <tool_call>...
+        match = re.search(r'<tool_call>\s*(\{[\s\S]*?\})\s*(?:</tool_call>|$)', content)
+        if match:
+            try:
+                tool_call_json = json.loads(match.group(1))
+                if "name" in tool_call_json and "arguments" in tool_call_json:
+                    # Remove the tool_call from content
+                    clean_content = re.sub(r'<tool_call>[\s\S]*?(?:</tool_call>|$)', '', content).strip()
+                    return tool_call_json, clean_content
+            except json.JSONDecodeError:
+                pass
+        return None, content
+
+    def _clean_response(self, content: str) -> str:
+        """Clean up response content - remove leaked tool_call JSON."""
+        import re
+        # Remove <tool_call>...</tool_call> blocks (greedy)
+        content = re.sub(r'<tool_call>[\s\S]*?</tool_call>', '', content)
+        # Remove <tool_call>... without closing tag (to end of string)
+        content = re.sub(r'<tool_call>[\s\S]*$', '', content)
+        # Remove standalone {"name": "xxx", "arguments": {...}} JSON blocks
+        content = re.sub(r'\{"name":\s*"[^"]+",\s*"arguments":\s*\{[\s\S]*?\}\}', '', content)
+        # Remove ``` code blocks containing tool calls
+        content = re.sub(r'```json\s*\{[\s\S]*?"name"[\s\S]*?\}\s*```', '', content)
+        # Clean up multiple newlines
+        content = re.sub(r'\n{3,}', '\n\n', content)
+        return content.strip()
 
     async def close(self):
         """Clean up resources."""

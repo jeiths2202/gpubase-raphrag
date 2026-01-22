@@ -4,6 +4,8 @@ from .vector_search import VectorSearchTool
 from .graph_query import GraphQueryTool
 from .document_read import DocumentReadTool
 from .keyword_search import KeywordSearchTool
+from .web_search import WebSearchTool
+from .rerank import RerankTool
 
 __all__ = [
     "Tool",
@@ -12,4 +14,6 @@ __all__ = [
     "GraphQueryTool",
     "DocumentReadTool",
     "KeywordSearchTool",
+    "WebSearchTool",
+    "RerankTool",
 ]
