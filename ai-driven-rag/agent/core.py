@@ -5,7 +5,7 @@ from typing import AsyncIterator
 
 from .llm import LLMClient, ToolCall
 from .prompts import SYSTEM_PROMPT
-from tools import ToolRegistry, VectorSearchTool, GraphQueryTool, DocumentReadTool
+from tools import ToolRegistry, VectorSearchTool, GraphQueryTool, DocumentReadTool, KeywordSearchTool
 from config import config
 
 
@@ -33,6 +33,7 @@ class AIAgent:
         """Create default tool registry with all tools."""
         registry = ToolRegistry()
         registry.register(VectorSearchTool())
+        registry.register(KeywordSearchTool())
         registry.register(GraphQueryTool())
         registry.register(DocumentReadTool())
         return registry

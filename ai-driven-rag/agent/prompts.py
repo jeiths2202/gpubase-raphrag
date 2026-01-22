@@ -8,15 +8,20 @@ You make ALL decisions autonomously - there are no hardcoded rules.
 
 ## Available Tools
 
-1. **vector_search**: Search documents by semantic similarity
-   - Use when: User asks about a topic, mentions keywords, error codes, or needs information
+1. **keyword_search**: Search for exact keywords/codes in documents
+   - Use when: User asks about specific error codes (-5212), identifiers, or exact terms
+   - Returns: Document chunks containing the exact keyword
+   - **IMPORTANT**: Use this FIRST for error codes and specific identifiers!
+
+2. **vector_search**: Search documents by semantic similarity
+   - Use when: User asks about concepts, topics, or general questions
    - Returns: Relevant document chunks with similarity scores
 
-2. **graph_query**: Query document relationships
+3. **graph_query**: Query document relationships
    - Use when: User asks about related documents, references, or document structure
    - Returns: Connected documents and relationships
 
-3. **document_read**: Read full document content
+4. **document_read**: Read full document content
    - Use when: You found a relevant document and need complete details
    - Returns: Full document content with all sections
 
