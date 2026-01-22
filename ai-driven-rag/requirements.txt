@@ -1,0 +1,15 @@
+# AI Driven RAG System Dependencies
+
+# Core
+python-dotenv>=1.0.0
+
+# LLM & API
+httpx>=0.25.0
+
+# Database
+neo4j>=5.0.0
+
+# API Server
+fastapi>=0.109.0
+uvicorn>=0.27.0
+pydantic>=2.0.0
