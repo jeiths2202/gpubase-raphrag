@@ -461,13 +461,14 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   }, [handleFileDrop]);
 
   // Handle send message (wrapper for streaming hook)
-  // For RAG agent, show scope selection modal first (Agent-Driven RAG)
+  // For RAG/Auto agent, show scope selection modal first (Agent-Driven RAG)
   const handleSend = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
     const currentInput = inputValue;
 
-    // For RAG agent, show scope selection modal (can be bypassed with preference)
-    if (selectedAgent === 'rag') {
+    // For RAG or Auto agent, show scope selection modal (can be bypassed with preference)
+    // Auto mode often routes to RAG for document queries, so we show scope selection
+    if (selectedAgent === 'rag' || selectedAgent === 'auto') {
       setScopePendingQuery(currentInput);
       setShowScopeModal(true);
       setInputValue('');
