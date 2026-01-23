@@ -3,12 +3,44 @@
 import argparse
 import asyncio
 import sys
+import getpass
 from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agent import AIAgent
+
+
+def setup_ims_credentials(username: str = None, password: str = None, prompt: bool = False) -> bool:
+    """Setup IMS credentials from arguments or prompt."""
+    from tools.ims_search import _get_ims_crawler
+
+    crawler = _get_ims_crawler()
+
+    # If already has credentials, skip
+    if crawler.has_credentials():
+        return True
+
+    # Use provided credentials
+    if username and password:
+        crawler.set_credentials(username, password)
+        return True
+
+    # Prompt for credentials if requested
+    if prompt:
+        print("\n[IMS 로그인 필요]")
+        try:
+            ims_user = input("IMS ID: ").strip()
+            ims_pass = getpass.getpass("IMS Password: ").strip()
+            if ims_user and ims_pass:
+                crawler.set_credentials(ims_user, ims_pass)
+                print("IMS credentials set.\n")
+                return True
+        except (EOFError, KeyboardInterrupt):
+            print("\nIMS login skipped.\n")
+
+    return False
 
 
 def print_header():
@@ -43,8 +75,12 @@ def print_response(response):
     print()
 
 
-async def run_single_query(query: str, stream: bool = False):
+async def run_single_query(query: str, stream: bool = False, ims_user: str = None, ims_pass: str = None):
     """Run a single query."""
+    # Setup IMS credentials if provided
+    if ims_user and ims_pass:
+        setup_ims_credentials(ims_user, ims_pass)
+
     agent = AIAgent()
 
     try:
@@ -55,18 +91,41 @@ async def run_single_query(query: str, stream: bool = False):
             print("\n")
         else:
             response = await agent.run(query)
+
+            # Check if IMS login is required and prompt for credentials
+            if _needs_ims_login(response):
+                print("\n[IMS 로그인이 필요합니다]")
+                if setup_ims_credentials(prompt=True):
+                    # Retry the query with credentials
+                    response = await agent.run(query)
+
             print_response(response)
     finally:
         await agent.close()
 
 
-async def run_interactive():
+def _needs_ims_login(response) -> bool:
+    """Check if response indicates IMS login is required."""
+    for tc in response.tool_calls_made:
+        result_summary = tc.get("result_summary", "")
+        if "login" in result_summary.lower() or "로그인" in result_summary:
+            return True
+    return "로그인이 필요" in response.answer or "login_required" in response.answer
+
+
+async def run_interactive(ims_user: str = None, ims_pass: str = None):
     """Run interactive REPL mode."""
+    # Setup IMS credentials if provided
+    if ims_user and ims_pass:
+        setup_ims_credentials(ims_user, ims_pass)
+
     print_header()
     print("Type your questions. Commands:")
     print("  /quit, /exit - Exit the program")
     print("  /clear       - Clear conversation history")
     print("  /stream      - Toggle streaming mode")
+    print("  /ims-login   - Login to IMS")
+    print("  /ims-logout  - Logout from IMS")
     print()
 
     agent = AIAgent()
@@ -98,6 +157,16 @@ async def run_interactive():
                 print(f"Streaming mode: {'ON' if stream_mode else 'OFF'}\n")
                 continue
 
+            if query.lower() == "/ims-login":
+                setup_ims_credentials(prompt=True)
+                continue
+
+            if query.lower() == "/ims-logout":
+                from tools.ims_search import _get_ims_crawler
+                _get_ims_crawler().clear_credentials()
+                print("IMS logged out.\n")
+                continue
+
             # Run query
             try:
                 if stream_mode:
@@ -107,6 +176,14 @@ async def run_interactive():
                     print("\n")
                 else:
                     response = await agent.run(query, conversation_history)
+
+                    # Check if IMS login is required
+                    if _needs_ims_login(response):
+                        print("\n[IMS 로그인이 필요합니다]")
+                        if setup_ims_credentials(prompt=True):
+                            # Retry the query
+                            response = await agent.run(query, conversation_history)
+
                     print_response(response)
 
                     # Add to conversation history
@@ -135,6 +212,12 @@ Examples:
 
   # Stream mode
   python -m cli.main --stream "검색어"
+
+  # With IMS credentials
+  python -m cli.main --ims-user hong --ims-password 1234 "DFSORT 이슈"
+
+  # Using environment variables
+  IMS_USERNAME=hong IMS_PASSWORD=1234 python -m cli.main "DFSORT 이슈"
         """,
     )
 
@@ -148,13 +231,21 @@ Examples:
         action="store_true",
         help="Enable streaming output",
     )
+    parser.add_argument(
+        "--ims-user",
+        help="IMS username for authentication",
+    )
+    parser.add_argument(
+        "--ims-password",
+        help="IMS password for authentication",
+    )
 
     args = parser.parse_args()
 
     if args.query:
-        asyncio.run(run_single_query(args.query, args.stream))
+        asyncio.run(run_single_query(args.query, args.stream, args.ims_user, args.ims_password))
     else:
-        asyncio.run(run_interactive())
+        asyncio.run(run_interactive(args.ims_user, args.ims_password))
 
 
 if __name__ == "__main__":

@@ -38,5 +38,17 @@ class Config:
     api_host: str = os.getenv("AI_RAG_HOST", "0.0.0.0")
     api_port: int = int(os.getenv("AI_RAG_PORT", "8100"))
 
+    # KMS API (for IMS integration)
+    kms_api_url: str = os.getenv("KMS_API_URL", "http://localhost:9000")
+
+    # IMS Crawling (direct authentication)
+    ims_base_url: str = os.getenv("IMS_BASE_URL", "https://ims.tmaxsoft.com")
+    ims_username: str = os.getenv("IMS_USERNAME", "")
+    ims_password: str = os.getenv("IMS_PASSWORD", "")
+    ims_product_codes: list[str] = os.getenv(
+        "IMS_PRODUCT_CODES",
+        "128,520,129,123,500,137,141,126,147,145,135,143,138,134,142,510,127,124,640,425"
+    ).split(",")
+
 
 config = Config()

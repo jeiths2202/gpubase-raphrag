@@ -5,7 +5,7 @@ from typing import AsyncIterator
 
 from .llm import LLMClient, ToolCall
 from .prompts import SYSTEM_PROMPT
-from tools import ToolRegistry, VectorSearchTool, GraphQueryTool, DocumentReadTool, KeywordSearchTool, WebSearchTool, RerankTool
+from tools import ToolRegistry, VectorSearchTool, GraphQueryTool, DocumentReadTool, KeywordSearchTool, WebSearchTool, RerankTool, IMSSearchTool, IMSDetailTool, IMSLoginTool, IMSLogoutTool
 from config import config
 
 
@@ -35,6 +35,10 @@ class AIAgent:
         registry.register(VectorSearchTool())
         registry.register(KeywordSearchTool())
         registry.register(WebSearchTool())
+        registry.register(IMSSearchTool())
+        registry.register(IMSDetailTool())
+        registry.register(IMSLoginTool())
+        registry.register(IMSLogoutTool())
         registry.register(GraphQueryTool())
         registry.register(DocumentReadTool())
         registry.register(RerankTool())
