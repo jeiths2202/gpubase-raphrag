@@ -7,8 +7,6 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  Home,
-  BookOpen,
   Database,
   Brain,
   FileText,
@@ -17,8 +15,8 @@ import {
   Shield,
   ExternalLink,
   ChevronDown,
-  Book,
-  Download,
+  ChevronLeft,
+  ChevronRight,
   HelpCircle,
   Bot,
   Lightbulb,
@@ -45,56 +43,13 @@ interface NavItem {
   children?: SubNavItem[];
 }
 
-// Product list for submenus
-const PRODUCTS = ['tmax', 'jeus', 'tibero', 'openframe', 'openframeCobol', 'openframeAsm'];
-
 // Navigation items configuration
 const NAV_ITEMS: NavItem[] = [
   {
-    id: 'home',
-    path: '/',
-    icon: <Home size={20} />,
-    labelKey: 'common.nav.home',
-  },
-  {
-    id: 'knowledge',
-    path: '/knowledge',
-    icon: <BookOpen size={20} />,
-    labelKey: 'common.nav.knowledge',
-  },
-  {
-    id: 'productManual',
-    path: '/manual',
-    icon: <Book size={20} />,
-    labelKey: 'common.nav.productManual',
-    children: PRODUCTS.map(product => ({
-      id: `manual-${product}`,
-      path: `/manual/${product}`,
-      labelKey: `common.products.${product}`,
-    })),
-  },
-  {
-    id: 'installGuide',
-    path: '/install',
-    icon: <Download size={20} />,
-    labelKey: 'common.nav.installGuide',
-    children: PRODUCTS.map(product => ({
-      id: `install-${product}`,
-      path: `/install/${product}`,
-      labelKey: `common.products.${product}`,
-    })),
-  },
-  {
-    id: 'faq',
-    path: '/faq',
-    icon: <HelpCircle size={20} />,
-    labelKey: 'common.nav.faq',
-  },
-  {
-    id: 'ims',
-    path: '/ims',
-    icon: <Database size={20} />,
-    labelKey: 'common.nav.ims',
+    id: 'agent',
+    path: '/agent',
+    icon: <Bot size={20} />,
+    labelKey: 'common.nav.agent',
   },
   {
     id: 'mindmap',
@@ -103,10 +58,16 @@ const NAV_ITEMS: NavItem[] = [
     labelKey: 'common.nav.mindmap',
   },
   {
-    id: 'agent',
-    path: '/agent',
-    icon: <Bot size={20} />,
-    labelKey: 'common.nav.agent',
+    id: 'ims',
+    path: '/ims',
+    icon: <Database size={20} />,
+    labelKey: 'common.nav.ims',
+  },
+  {
+    id: 'faq',
+    path: '/faq',
+    icon: <HelpCircle size={20} />,
+    labelKey: 'common.nav.faq',
   },
   {
     id: 'documents',
@@ -157,10 +118,22 @@ export const Sidebar: React.FC = () => {
   const { t } = useTranslation();
   const location = useLocation();
   const { user } = useAuthStore();
-  const { leftSidebarOpen, isMobile } = useUIStore();
+  const { leftSidebarOpen, isMobile, setLeftSidebarOpen, toggleLeftSidebar } = useUIStore();
 
-  // Desktop: always open, Mobile: controlled by leftSidebarOpen
-  const isOpen = isMobile ? leftSidebarOpen : true;
+  // Both desktop and mobile use leftSidebarOpen state
+  const isOpen = leftSidebarOpen;
+
+  // Close sidebar on mobile when navigating
+  const handleNavClick = () => {
+    if (isMobile) {
+      setLeftSidebarOpen(false);
+    }
+  };
+
+  // Toggle sidebar (for desktop collapse button)
+  const handleToggleSidebar = () => {
+    toggleLeftSidebar();
+  };
 
   // Track expanded submenus
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
@@ -214,11 +187,14 @@ export const Sidebar: React.FC = () => {
 
     // Item with children (expandable)
     if (hasChildren) {
+      const tooltipText = t(item.labelKey);
       return (
         <div key={item.id} className="sidebar-nav-group">
           <button
             className={`sidebar-nav-item ${isActive || childActive ? 'active' : ''}`}
             onClick={() => toggleSubmenu(item.id)}
+            data-tooltip={tooltipText}
+            title={!isOpen ? tooltipText : undefined}
           >
             <span className="sidebar-nav-icon">{item.icon}</span>
             <span className="sidebar-nav-label">{t(item.labelKey)}</span>
@@ -227,13 +203,14 @@ export const Sidebar: React.FC = () => {
               className={`sidebar-nav-chevron ${isExpanded ? 'expanded' : ''}`}
             />
           </button>
-          {isExpanded && (
+          {isExpanded && isOpen && (
             <div className="sidebar-submenu">
               {item.children!.map(child => (
                 <NavLink
                   key={child.id}
                   to={child.path}
                   className={`sidebar-submenu-item ${location.pathname === child.path ? 'active' : ''}`}
+                  onClick={handleNavClick}
                 >
                   <span className="sidebar-submenu-label">{t(child.labelKey)}</span>
                 </NavLink>
@@ -245,6 +222,7 @@ export const Sidebar: React.FC = () => {
     }
 
     const className = `sidebar-nav-item ${isActive ? 'active' : ''}`;
+    const tooltipText = t(item.labelKey);
 
     if (item.external) {
       return (
@@ -254,6 +232,9 @@ export const Sidebar: React.FC = () => {
           target="_blank"
           rel="noopener noreferrer"
           className={className}
+          onClick={handleNavClick}
+          data-tooltip={tooltipText}
+          title={!isOpen ? tooltipText : undefined}
         >
           <span className="sidebar-nav-icon">{item.icon}</span>
           <span className="sidebar-nav-label">{t(item.labelKey)}</span>
@@ -266,6 +247,9 @@ export const Sidebar: React.FC = () => {
         key={item.id}
         to={item.path}
         className={className}
+        onClick={handleNavClick}
+        data-tooltip={tooltipText}
+        title={!isOpen ? tooltipText : undefined}
       >
         <span className="sidebar-nav-icon">{item.icon}</span>
         <span className="sidebar-nav-label">{t(item.labelKey)}</span>
@@ -287,6 +271,16 @@ export const Sidebar: React.FC = () => {
           {BOTTOM_NAV_ITEMS.map(renderNavItem)}
         </div>
       </nav>
+
+      {/* Toggle button */}
+      <button
+        className="sidebar-toggle"
+        onClick={handleToggleSidebar}
+        aria-label={isOpen ? t('common.collapseSidebar') : t('common.expandSidebar')}
+        title={isOpen ? t('common.collapseSidebar') : t('common.expandSidebar')}
+      >
+        {isOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
+      </button>
     </aside>
   );
 };

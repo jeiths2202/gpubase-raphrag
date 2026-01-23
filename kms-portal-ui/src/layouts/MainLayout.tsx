@@ -33,8 +33,8 @@ export const MainLayout: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [setIsMobile]);
 
-  // Desktop: left sidebar always open, Mobile: controlled by state
-  const isLeftOpen = isMobile ? leftSidebarOpen : true;
+  // Both desktop and mobile use leftSidebarOpen state
+  const isLeftOpen = leftSidebarOpen;
 
   // Calculate layout class
   const layoutClass = [

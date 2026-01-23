@@ -572,6 +572,7 @@
   border-right: 1px solid var(--color-border);
   overflow: hidden;
   transition: width var(--duration-normal) var(--ease-out);
+  height: calc(100vh - var(--header-height));
 }
 
 .portal-sidebar.open {
@@ -735,11 +736,63 @@
   color: var(--color-text-muted);
   cursor: pointer;
   transition: var(--transition-colors);
+  flex-shrink: 0;
+  min-height: 48px;
 }
 
 .sidebar-toggle:hover {
   background: var(--color-bg-hover);
+  color: var(--color-primary);
+}
+
+/* Collapsed sidebar styles */
+.portal-sidebar.collapsed {
+  width: var(--sidebar-collapsed-width);
+}
+
+.portal-sidebar.collapsed .sidebar-nav-label,
+.portal-sidebar.collapsed .sidebar-nav-chevron,
+.portal-sidebar.collapsed .sidebar-submenu {
+  display: none;
+}
+
+.portal-sidebar.collapsed .sidebar-nav-item {
+  justify-content: center;
+  padding: var(--space-3);
+}
+
+.portal-sidebar.collapsed .sidebar-nav-icon {
+  margin: 0;
+}
+
+/* Tooltip for collapsed sidebar */
+.portal-sidebar.collapsed .sidebar-nav-item {
+  position: relative;
+}
+
+.portal-sidebar.collapsed .sidebar-nav-item::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-tooltip);
   color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.portal-sidebar.collapsed .sidebar-nav-item:hover::after {
+  opacity: 1;
+  visibility: visible;
 }
 
 /* ============================================
@@ -1688,6 +1741,11 @@
     transform: translateX(0);
   }
 
+  /* Hide toggle button on mobile - use hamburger menu instead */
+  .sidebar-toggle {
+    display: none;
+  }
+
   .portal-ai-sidebar {
     position: fixed;
     top: var(--header-height);
@@ -1734,6 +1792,17 @@
     padding: var(--space-4);
   }
 
+  /* Mobile sidebar full width */
+  .portal-sidebar {
+    width: 100% !important;
+    max-width: 300px;
+  }
+
+  /* Hide logo text on small screens */
+  .header-logo-text {
+    display: none;
+  }
+
   .home-stats {
     grid-template-columns: 1fr;
   }
@@ -1750,6 +1819,15 @@
   .home-activity-content {
     flex-direction: column;
     gap: var(--space-1);
+  }
+
+  /* Mobile dropdown menu adjustments */
+  .header-dropdown-menu {
+    position: fixed;
+    top: var(--header-height);
+    left: var(--space-2);
+    right: var(--space-2);
+    min-width: auto;
   }
 }
 

@@ -24,6 +24,8 @@
   "actions": "Actions",
   "copy": "Copy",
   "copied": "Copied",
+  "collapseSidebar": "Collapse sidebar",
+  "expandSidebar": "Expand sidebar",
   "nav": {
     "home": "Home",
     "knowledge": "Knowledge Base",

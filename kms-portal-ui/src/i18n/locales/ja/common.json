@@ -24,6 +24,8 @@
   "actions": "アクション",
   "copy": "コピー",
   "copied": "コピーしました",
+  "collapseSidebar": "サイドバーを閉じる",
+  "expandSidebar": "サイドバーを開く",
   "nav": {
     "home": "ホーム",
     "knowledge": "ナレッジベース",

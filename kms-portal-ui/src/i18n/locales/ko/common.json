@@ -24,6 +24,8 @@
   "actions": "작업",
   "copy": "복사",
   "copied": "복사됨",
+  "collapseSidebar": "사이드바 접기",
+  "expandSidebar": "사이드바 펼치기",
   "nav": {
     "home": "홈",
     "knowledge": "지식 베이스",

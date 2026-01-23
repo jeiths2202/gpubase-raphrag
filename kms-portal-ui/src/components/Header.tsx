@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Menu,
   Search,
@@ -89,10 +90,10 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, showAISidebarToggle
           </button>
         )}
 
-        <div className="header-logo">
+        <Link to="/" className="header-logo">
           <div className="header-logo-icon">K</div>
           <span className="header-logo-text">{t('common.appName')}</span>
-        </div>
+        </Link>
       </div>
 
       {/* Center section - Search */}
