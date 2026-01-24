@@ -1009,3 +1009,177 @@ async def get_monitoring_dashboard(
 
     monitor = get_smarter_rag_monitor()
     return await monitor.get_dashboard_data()
+
+
+# ============================================
+# GPU Monitoring Endpoints
+# ============================================
+
+
+@router.get(
+    "/monitor/gpu",
+    summary="GPU 상태 모니터링",
+    description="nvidia-smi를 통해 GPU 상태를 조회합니다.",
+)
+async def get_gpu_status(
+    user=Depends(get_current_user),
+):
+    """GPU 상태 조회"""
+    import subprocess
+    import re
+
+    try:
+        # Run nvidia-smi to get GPU info
+        result = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=index,name,memory.used,memory.total,utilization.gpu,temperature.gpu,power.draw,power.limit",
+                "--format=csv,noheader,nounits"
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        if result.returncode != 0:
+            return {"available": False, "error": "nvidia-smi failed", "gpus": []}
+
+        gpus = []
+        for line in result.stdout.strip().split("\n"):
+            if not line.strip():
+                continue
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) >= 8:
+                gpus.append({
+                    "index": int(parts[0]),
+                    "name": parts[1],
+                    "memory_used": float(parts[2]),
+                    "memory_total": float(parts[3]),
+                    "memory_percent": round(float(parts[2]) / float(parts[3]) * 100, 1) if float(parts[3]) > 0 else 0,
+                    "utilization": float(parts[4]) if parts[4] != "[N/A]" else 0,
+                    "temperature": float(parts[5]) if parts[5] != "[N/A]" else 0,
+                    "power_draw": float(parts[6]) if parts[6] != "[N/A]" else 0,
+                    "power_limit": float(parts[7]) if parts[7] != "[N/A]" else 0,
+                })
+
+        return {
+            "available": True,
+            "gpu_count": len(gpus),
+            "gpus": gpus,
+        }
+
+    except subprocess.TimeoutExpired:
+        return {"available": False, "error": "nvidia-smi timeout", "gpus": []}
+    except FileNotFoundError:
+        return {"available": False, "error": "nvidia-smi not found", "gpus": []}
+    except Exception as e:
+        return {"available": False, "error": str(e), "gpus": []}
+
+
+@router.get(
+    "/monitor/training-progress",
+    summary="학습 진행 상황 조회",
+    description="현재 진행 중인 학습의 상태와 로그를 조회합니다.",
+)
+async def get_training_progress(
+    user=Depends(get_current_user),
+):
+    """학습 진행 상황 조회"""
+    import subprocess
+    import glob
+    from pathlib import Path
+
+    result = {
+        "is_training": False,
+        "process": None,
+        "current_batch_id": None,
+        "log_file": None,
+        "log_lines": [],
+        "progress": None,
+    }
+
+    try:
+        # Check if training process is running
+        ps_result = subprocess.run(
+            ["ps", "aux"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        for line in ps_result.stdout.split("\n"):
+            if "qlora_trainer" in line and "grep" not in line:
+                parts = line.split()
+                result["is_training"] = True
+                result["process"] = {
+                    "pid": int(parts[1]),
+                    "cpu_percent": float(parts[2]),
+                    "memory_percent": float(parts[3]),
+                }
+                # Extract batch_id from command line
+                if "--batch_id" in line:
+                    batch_idx = line.index("--batch_id") + len("--batch_id")
+                    batch_part = line[batch_idx:].strip().split()[0]
+                    result["current_batch_id"] = batch_part
+                break
+
+        # Find the latest training log
+        log_files = sorted(
+            glob.glob("/opt/kms/logs/training_*.log"),
+            key=lambda x: Path(x).stat().st_mtime,
+            reverse=True
+        )
+
+        if log_files:
+            latest_log = log_files[0]
+            result["log_file"] = latest_log
+
+            # Read last 50 lines of log
+            with open(latest_log, "r") as f:
+                lines = f.readlines()
+                result["log_lines"] = [l.rstrip() for l in lines[-50:]]
+
+            # Parse progress from log
+            log_content = "".join(lines)
+
+            # Check for various progress indicators
+            if "Training completed" in log_content or "completed_at" in log_content:
+                result["progress"] = {"stage": "completed", "percent": 100}
+            elif "Loading checkpoint shards" in log_content:
+                # Parse checkpoint loading progress
+                match = re.search(r"Loading checkpoint shards:\s*(\d+)%", log_content)
+                if match:
+                    result["progress"] = {"stage": "loading_model", "percent": int(match.group(1))}
+                else:
+                    result["progress"] = {"stage": "loading_model", "percent": 0}
+            elif "Fetching" in log_content:
+                match = re.search(r"Fetching \d+ files:\s*(\d+)%", log_content)
+                if match:
+                    result["progress"] = {"stage": "downloading", "percent": int(match.group(1))}
+                else:
+                    result["progress"] = {"stage": "downloading", "percent": 0}
+            elif "Training" in log_content or "Epoch" in log_content:
+                # Parse training progress
+                match = re.search(r"(\d+)/(\d+)\s*\[", log_content)
+                if match:
+                    current, total = int(match.group(1)), int(match.group(2))
+                    result["progress"] = {
+                        "stage": "training",
+                        "percent": round(current / total * 100) if total > 0 else 0,
+                        "current_step": current,
+                        "total_steps": total,
+                    }
+                else:
+                    result["progress"] = {"stage": "training", "percent": 0}
+            elif "status to training" in log_content:
+                result["progress"] = {"stage": "initializing", "percent": 5}
+
+            # Check for errors
+            if "Error" in log_content or "Traceback" in log_content:
+                result["progress"] = result.get("progress") or {}
+                result["progress"]["has_error"] = True
+
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result

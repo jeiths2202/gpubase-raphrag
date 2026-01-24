@@ -242,7 +242,7 @@ def train(
         logging_steps=10,
         save_steps=100,
         save_total_limit=3,
-        evaluation_strategy="steps" if eval_dataset else "no",
+        eval_strategy="steps" if eval_dataset else "no",
         eval_steps=100 if eval_dataset else None,
         bf16=True,
         gradient_checkpointing=True,

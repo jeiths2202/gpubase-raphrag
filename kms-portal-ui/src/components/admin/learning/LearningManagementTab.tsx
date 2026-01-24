@@ -32,6 +32,11 @@ import {
   Sparkles,
   BarChart3,
   Info,
+  Monitor,
+  Thermometer,
+  HardDrive,
+  Terminal,
+  Server,
 } from 'lucide-react';
 import client from '../../../api/client';
 import './LearningManagementTab.css';
@@ -105,6 +110,45 @@ interface LearningLLMStatus {
   };
 }
 
+interface GPUInfo {
+  index: number;
+  name: string;
+  memory_used: number;
+  memory_total: number;
+  memory_percent: number;
+  utilization: number;
+  temperature: number;
+  power_draw: number;
+  power_limit: number;
+}
+
+interface GPUStatus {
+  available: boolean;
+  gpu_count: number;
+  gpus: GPUInfo[];
+  error?: string;
+}
+
+interface TrainingProgress {
+  is_training: boolean;
+  process: {
+    pid: number;
+    cpu_percent: number;
+    memory_percent: number;
+  } | null;
+  current_batch_id: string | null;
+  log_file: string | null;
+  log_lines: string[];
+  progress: {
+    stage: string;
+    percent: number;
+    current_step?: number;
+    total_steps?: number;
+    has_error?: boolean;
+  } | null;
+  error?: string;
+}
+
 // Status Indicator Component
 const StatusDot: React.FC<{ status: 'active' | 'inactive' | 'warning' | 'error'; size?: number }> = ({
   status,
@@ -158,12 +202,15 @@ export const LearningManagementTab: React.FC = () => {
   const [llmStatus, setLlmStatus] = useState<LearningLLMStatus | null>(null);
   const [pendingItems, setPendingItems] = useState<PendingKnowledge[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [gpuStatus, setGpuStatus] = useState<GPUStatus | null>(null);
+  const [trainingProgress, setTrainingProgress] = useState<TrainingProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [triggerLoading, setTriggerLoading] = useState(false);
   const [reloadLoading, setReloadLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -194,9 +241,39 @@ export const LearningManagementTab: React.FC = () => {
     }
   }, []);
 
+  // Fetch GPU and training progress
+  const fetchMonitoringData = useCallback(async () => {
+    try {
+      const [gpuRes, progressRes] = await Promise.all([
+        client.get('/verified-knowledge/monitor/gpu').catch(() => ({ data: null })),
+        client.get('/verified-knowledge/monitor/training-progress').catch(() => ({ data: null })),
+      ]);
+      setGpuStatus(gpuRes.data);
+      setTrainingProgress(progressRes.data);
+    } catch (err) {
+      console.error('Failed to fetch monitoring data:', err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    fetchMonitoringData();
+  }, [fetchData, fetchMonitoringData]);
+
+  // Auto-refresh when training is active
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    if (autoRefresh || trainingProgress?.is_training) {
+      interval = setInterval(() => {
+        fetchMonitoringData();
+      }, 3000); // Refresh every 3 seconds
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [autoRefresh, trainingProgress?.is_training, fetchMonitoringData]);
 
   // Trigger training
   const handleTriggerTraining = async () => {
@@ -683,6 +760,174 @@ export const LearningManagementTab: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* GPU Monitoring & Training Progress Section */}
+      {(gpuStatus?.available || trainingProgress?.is_training) && (
+        <section className="monitoring-section">
+          <div className="monitoring-header">
+            <h3 className="section-title">
+              <Monitor size={18} />
+              실시간 모니터링
+            </h3>
+            <div className="monitoring-controls">
+              <label className="auto-refresh-toggle">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh || trainingProgress?.is_training || false}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                />
+                <span>자동 새로고침</span>
+                {(autoRefresh || trainingProgress?.is_training) && (
+                  <Loader2 size={12} className="spin" />
+                )}
+              </label>
+              <button className="btn btn-sm btn-ghost" onClick={fetchMonitoringData}>
+                <RefreshCw size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="monitoring-grid">
+            {/* GPU Cards */}
+            {gpuStatus?.available && gpuStatus.gpus.map((gpu) => (
+              <div key={gpu.index} className="gpu-card">
+                <div className="gpu-card__header">
+                  <Server size={16} />
+                  <span>GPU {gpu.index}</span>
+                  <span className="gpu-name">{gpu.name.replace('NVIDIA ', '')}</span>
+                </div>
+                <div className="gpu-card__body">
+                  <div className="gpu-metric">
+                    <div className="gpu-metric__header">
+                      <HardDrive size={14} />
+                      <span>메모리</span>
+                      <span className="gpu-metric__value">
+                        {(gpu.memory_used / 1024).toFixed(1)}GB / {(gpu.memory_total / 1024).toFixed(0)}GB
+                      </span>
+                    </div>
+                    <div className="gpu-progress-bar">
+                      <div
+                        className={`gpu-progress-bar__fill ${gpu.memory_percent > 90 ? 'critical' : gpu.memory_percent > 70 ? 'warning' : ''}`}
+                        style={{ width: `${gpu.memory_percent}%` }}
+                      />
+                    </div>
+                    <span className="gpu-metric__percent">{gpu.memory_percent}%</span>
+                  </div>
+
+                  <div className="gpu-metric">
+                    <div className="gpu-metric__header">
+                      <Activity size={14} />
+                      <span>사용률</span>
+                      <span className="gpu-metric__value">{gpu.utilization}%</span>
+                    </div>
+                    <div className="gpu-progress-bar">
+                      <div
+                        className={`gpu-progress-bar__fill utilization ${gpu.utilization > 90 ? 'critical' : ''}`}
+                        style={{ width: `${gpu.utilization}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="gpu-stats-row">
+                    <div className="gpu-stat">
+                      <Thermometer size={12} />
+                      <span>{gpu.temperature}°C</span>
+                    </div>
+                    <div className="gpu-stat">
+                      <Zap size={12} />
+                      <span>{gpu.power_draw.toFixed(0)}W / {gpu.power_limit.toFixed(0)}W</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Training Progress Card */}
+            {trainingProgress && (
+              <div className={`training-progress-card ${trainingProgress.is_training ? 'active' : ''}`}>
+                <div className="training-progress-card__header">
+                  <Brain size={16} className={trainingProgress.is_training ? 'spin' : ''} />
+                  <span>학습 진행 상황</span>
+                  {trainingProgress.is_training && (
+                    <Badge variant="success" icon={<Activity size={10} />}>진행 중</Badge>
+                  )}
+                </div>
+                <div className="training-progress-card__body">
+                  {trainingProgress.is_training ? (
+                    <>
+                      <div className="training-info">
+                        <div className="training-info__item">
+                          <span className="label">Batch ID</span>
+                          <code>{trainingProgress.current_batch_id || '-'}</code>
+                        </div>
+                        {trainingProgress.process && (
+                          <>
+                            <div className="training-info__item">
+                              <span className="label">CPU</span>
+                              <span>{trainingProgress.process.cpu_percent}%</span>
+                            </div>
+                            <div className="training-info__item">
+                              <span className="label">MEM</span>
+                              <span>{trainingProgress.process.memory_percent}%</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {trainingProgress.progress && (
+                        <div className="training-stage">
+                          <div className="training-stage__header">
+                            <span className="stage-name">
+                              {trainingProgress.progress.stage === 'downloading' && '모델 다운로드'}
+                              {trainingProgress.progress.stage === 'loading_model' && '모델 로딩'}
+                              {trainingProgress.progress.stage === 'initializing' && '초기화'}
+                              {trainingProgress.progress.stage === 'training' && 'QLoRA 학습'}
+                              {trainingProgress.progress.stage === 'completed' && '완료'}
+                            </span>
+                            <span className="stage-percent">{trainingProgress.progress.percent}%</span>
+                          </div>
+                          <div className="training-progress-bar">
+                            <div
+                              className="training-progress-bar__fill"
+                              style={{ width: `${trainingProgress.progress.percent}%` }}
+                            />
+                          </div>
+                          {trainingProgress.progress.current_step && (
+                            <span className="stage-steps">
+                              Step {trainingProgress.progress.current_step} / {trainingProgress.progress.total_steps}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Log Output */}
+                      <div className="training-log">
+                        <div className="training-log__header">
+                          <Terminal size={12} />
+                          <span>로그 출력</span>
+                        </div>
+                        <div className="training-log__content">
+                          {trainingProgress.log_lines.slice(-10).map((line, i) => (
+                            <div key={i} className={`log-line ${line.includes('Error') || line.includes('Traceback') ? 'error' : ''}`}>
+                              {line}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="training-idle">
+                      <Brain size={32} />
+                      <span>대기 중</span>
+                      <p>학습을 시작하면 진행 상황이 여기에 표시됩니다.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Pending Training Items */}
       <section className="premium-card">
