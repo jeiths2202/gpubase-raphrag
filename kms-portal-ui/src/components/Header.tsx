@@ -7,7 +7,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Menu,
   Search,
   Bell,
   Sun,
@@ -25,11 +24,10 @@ import { useUIStore } from '../store/uiStore';
 import { SettingsPopup } from './SettingsPopup';
 
 interface HeaderProps {
-  onMenuClick?: () => void;
   showAISidebarToggle?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onMenuClick, showAISidebarToggle = true }) => {
+export const Header: React.FC<HeaderProps> = ({ showAISidebarToggle = true }) => {
   const { t, language, setLanguage, languages } = useTranslation();
   const { user, logout } = useAuthStore();
   const { theme, setTheme, rightSidebarOpen, toggleRightSidebar } = useUIStore();
@@ -80,16 +78,6 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick, showAISidebarToggle
     <header className="portal-header">
       {/* Left section */}
       <div className="header-left">
-        {onMenuClick && (
-          <button
-            className="btn btn-ghost header-menu-btn"
-            onClick={onMenuClick}
-            aria-label="Toggle menu"
-          >
-            <Menu size={20} />
-          </button>
-        )}
-
         <Link to="/" className="header-logo">
           <div className="header-logo-icon">K</div>
           <span className="header-logo-text">{t('common.appName')}</span>

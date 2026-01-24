@@ -1,10 +1,21 @@
 /**
  * Sidebar Component (Left Navigation)
  *
- * Main navigation sidebar with collapsible menu items and submenu support
+ * ChatGPT-style responsive sidebar with smooth slide animations.
+ *
+ * Features:
+ * - Desktop: Open by default, closes with slide-out animation
+ * - Mobile/Tablet: Closed by default, overlay mode with backdrop
+ * - Close button at top of sidebar (ChatGPT style)
+ * - Keyboard accessible (Tab, Enter, Escape)
+ * - ARIA attributes for accessibility
+ *
+ * Breakpoints:
+ * - Desktop: > 1024px - Sidebar pushes content
+ * - Tablet/Mobile: <= 1024px - Sidebar overlays content
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Database,
@@ -15,8 +26,7 @@ import {
   Shield,
   ExternalLink,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
+  PanelLeftClose,
   HelpCircle,
   Bot,
   Lightbulb,
@@ -118,25 +128,34 @@ export const Sidebar: React.FC = () => {
   const { t } = useTranslation();
   const location = useLocation();
   const { user } = useAuthStore();
-  const { leftSidebarOpen, isMobile, setLeftSidebarOpen, toggleLeftSidebar } = useUIStore();
-
-  // Both desktop and mobile use leftSidebarOpen state
-  const isOpen = leftSidebarOpen;
-
-  // Close sidebar on mobile when navigating
-  const handleNavClick = () => {
-    if (isMobile) {
-      setLeftSidebarOpen(false);
-    }
-  };
-
-  // Toggle sidebar (for desktop collapse button)
-  const handleToggleSidebar = () => {
-    toggleLeftSidebar();
-  };
+  const { leftSidebarOpen, isMobile, setLeftSidebarOpen } = useUIStore();
 
   // Track expanded submenus
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
+
+  // Close sidebar handler
+  const handleCloseSidebar = useCallback(() => {
+    setLeftSidebarOpen(false);
+  }, [setLeftSidebarOpen]);
+
+  // Close sidebar on mobile when navigating
+  const handleNavClick = useCallback(() => {
+    if (isMobile) {
+      setLeftSidebarOpen(false);
+    }
+  }, [isMobile, setLeftSidebarOpen]);
+
+  // Handle Escape key to close sidebar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && leftSidebarOpen) {
+        handleCloseSidebar();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [leftSidebarOpen, handleCloseSidebar]);
 
   // Toggle submenu expansion
   const toggleSubmenu = (itemId: string) => {
@@ -156,7 +175,6 @@ export const Sidebar: React.FC = () => {
     if (!requiredRole) return true;
     if (!user) return false;
 
-    // Role hierarchy: admin > leader > senior > user > guest/viewer
     const roleHierarchy: Record<string, number> = {
       admin: 5,
       leader: 4,
@@ -173,7 +191,9 @@ export const Sidebar: React.FC = () => {
   // Check if any child is active
   const isChildActive = (children?: SubNavItem[]) => {
     if (!children) return false;
-    return children.some(child => location.pathname === child.path || location.pathname.startsWith(child.path + '/'));
+    return children.some(
+      child => location.pathname === child.path || location.pathname.startsWith(child.path + '/')
+    );
   };
 
   // Render navigation item
@@ -187,14 +207,12 @@ export const Sidebar: React.FC = () => {
 
     // Item with children (expandable)
     if (hasChildren) {
-      const tooltipText = t(item.labelKey);
       return (
         <div key={item.id} className="sidebar-nav-group">
           <button
             className={`sidebar-nav-item ${isActive || childActive ? 'active' : ''}`}
             onClick={() => toggleSubmenu(item.id)}
-            data-tooltip={tooltipText}
-            title={!isOpen ? tooltipText : undefined}
+            aria-expanded={isExpanded}
           >
             <span className="sidebar-nav-icon">{item.icon}</span>
             <span className="sidebar-nav-label">{t(item.labelKey)}</span>
@@ -203,7 +221,7 @@ export const Sidebar: React.FC = () => {
               className={`sidebar-nav-chevron ${isExpanded ? 'expanded' : ''}`}
             />
           </button>
-          {isExpanded && isOpen && (
+          {isExpanded && (
             <div className="sidebar-submenu">
               {item.children!.map(child => (
                 <NavLink
@@ -222,7 +240,6 @@ export const Sidebar: React.FC = () => {
     }
 
     const className = `sidebar-nav-item ${isActive ? 'active' : ''}`;
-    const tooltipText = t(item.labelKey);
 
     if (item.external) {
       return (
@@ -233,8 +250,6 @@ export const Sidebar: React.FC = () => {
           rel="noopener noreferrer"
           className={className}
           onClick={handleNavClick}
-          data-tooltip={tooltipText}
-          title={!isOpen ? tooltipText : undefined}
         >
           <span className="sidebar-nav-icon">{item.icon}</span>
           <span className="sidebar-nav-label">{t(item.labelKey)}</span>
@@ -248,8 +263,6 @@ export const Sidebar: React.FC = () => {
         to={item.path}
         className={className}
         onClick={handleNavClick}
-        data-tooltip={tooltipText}
-        title={!isOpen ? tooltipText : undefined}
       >
         <span className="sidebar-nav-icon">{item.icon}</span>
         <span className="sidebar-nav-label">{t(item.labelKey)}</span>
@@ -258,7 +271,31 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside className={`portal-sidebar ${isOpen ? 'open' : 'collapsed'}`}>
+    <aside
+      id="main-sidebar"
+      className={`portal-sidebar ${leftSidebarOpen ? 'open' : 'closed'}`}
+      aria-hidden={!leftSidebarOpen}
+      role="navigation"
+      aria-label={t('common.nav.mainNavigation') || 'Main navigation'}
+    >
+      {/* Sidebar Header with Logo and Close Button */}
+      <div className="sidebar-header">
+        <div className="sidebar-logo">
+          <img src="/tmax-logo.png" alt="Tmax Logo" className="sidebar-logo-img" />
+        </div>
+        <button
+          className="sidebar-close-button"
+          onClick={handleCloseSidebar}
+          aria-label={t('common.collapseSidebar')}
+          aria-expanded={leftSidebarOpen}
+          aria-controls="main-sidebar"
+          title={t('common.collapseSidebar')}
+          tabIndex={leftSidebarOpen ? 0 : -1}
+        >
+          <PanelLeftClose size={20} />
+        </button>
+      </div>
+
       {/* Navigation */}
       <nav className="sidebar-nav">
         <div className="sidebar-nav-section">
@@ -271,16 +308,6 @@ export const Sidebar: React.FC = () => {
           {BOTTOM_NAV_ITEMS.map(renderNavItem)}
         </div>
       </nav>
-
-      {/* Toggle button */}
-      <button
-        className="sidebar-toggle"
-        onClick={handleToggleSidebar}
-        aria-label={isOpen ? t('common.collapseSidebar') : t('common.expandSidebar')}
-        title={isOpen ? t('common.collapseSidebar') : t('common.expandSidebar')}
-      >
-        {isOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
-      </button>
     </aside>
   );
 };
