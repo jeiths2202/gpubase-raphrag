@@ -27,7 +27,10 @@ import type {
   EmbeddingInfo,
   GenerationProgress,
   ExpandableSearchResult,
-  SourceReliability
+  SourceReliability,
+  AnswerBlock,
+  ClarificationRequest,
+  ClarificationState
 } from '../types';
 
 // ============================================================================
@@ -121,6 +124,13 @@ export interface UseStreamingChatReturn {
     generationProgress: GenerationProgress | null;
     isGenerating: boolean;
   };
+
+  // Query Clarification state (Human-in-the-loop)
+  clarificationState: ClarificationState;
+  handleClarificationSelect: (optionId: string) => void;
+  handleClarificationCustomInput: (input: string) => void;
+  handleClarificationSubmit: () => void;
+  handleClarificationSkip: () => void;
 }
 
 // Initial state for each agent
@@ -234,6 +244,17 @@ export function useStreamingChat(
   const [generationProgress, setGenerationProgress] = useState<GenerationProgress | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // Query Clarification state (Human-in-the-loop)
+  const [clarificationState, setClarificationState] = useState<ClarificationState>({
+    isOpen: false,
+    request: null,
+    selectedOptionId: null,
+    customInput: '',
+  });
+  // Store pending query for clarification flow
+  const pendingQueryRef = useRef<string>('');
+  const pendingScopeRef = useRef<SearchScope | null>(null);
+
   // ============================================================================
   // State Updaters (update specific agent's state)
   // ============================================================================
@@ -328,7 +349,7 @@ export function useStreamingChat(
   // Stream Processing
   // ============================================================================
 
-  const handleSend = useCallback(async (inputValue: string, scope?: SearchScope | null) => {
+  const handleSend = useCallback(async (inputValue: string, scope?: SearchScope | null, skipClarification?: boolean) => {
     if (!inputValue.trim() || agentLocalStatesRef.current[selectedAgentRef.current].isLoading) return;
 
     // Capture agent type at start (won't change during streaming)
@@ -404,6 +425,7 @@ export function useStreamingChat(
       let sources: AgentSource[] = [];
       const images: ImageReference[] = [];
       const searchResults: ExpandableSearchResult[] = [];
+      const structuredBlocks: AnswerBlock[] = [];
       let sourceReliability: SourceReliability | undefined;
       let receivedAnyChunk = false;
 
@@ -426,9 +448,13 @@ export function useStreamingChat(
       const useDeepAgent = true;
       // Include search scope if provided (Agent-Driven RAG)
       const searchScope = scope && (scope.documents?.length || scope.sections?.length) ? scope : undefined;
+      // Enable structured output for ChatGPT-style block rendering
+      const structuredOutput = true;
+      // Skip clarification if user already responded to a clarification request
+      const skipClarificationFlag = skipClarification === true;
       const requestPayload = requestingAgent === 'auto'
-        ? { task: userMessage.content, language, file_context: combinedContext, ui_context: uiContext, use_deep_agent: useDeepAgent, search_scope: searchScope }
-        : { task: userMessage.content, agent_type: requestingAgent, language, file_context: combinedContext, ui_context: uiContext, use_deep_agent: useDeepAgent, search_scope: searchScope };
+        ? { task: userMessage.content, language, file_context: combinedContext, ui_context: uiContext, use_deep_agent: useDeepAgent, search_scope: searchScope, structured_output: structuredOutput, skip_clarification: skipClarificationFlag }
+        : { task: userMessage.content, agent_type: requestingAgent, language, file_context: combinedContext, ui_context: uiContext, use_deep_agent: useDeepAgent, search_scope: searchScope, structured_output: structuredOutput, skip_clarification: skipClarificationFlag };
 
       // Process stream
       for await (const chunk of streamAgent(requestPayload, controller.signal)) {
@@ -776,6 +802,37 @@ export function useStreamingChat(
             }
             break;
 
+          // Structured answer chunk types (ChatGPT-style block output)
+          case 'answer_start':
+            // Structured answer streaming started
+            console.log('[useStreamingChat] Structured answer started:', chunk.metadata);
+            break;
+
+          case 'answer_block':
+            // Individual answer block received
+            {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const blockData = (chunk as any).answer_block as AnswerBlock | undefined;
+              if (blockData) {
+                structuredBlocks.push(blockData);
+                const currentStreaming = agentLocalStatesRef.current[requestingAgent].streamingMessage;
+
+                console.log('[useStreamingChat] Answer block received:', blockData.type, 'total blocks:', structuredBlocks.length);
+
+                updateAgentStreamingMessage(requestingAgent,
+                  currentStreaming
+                    ? { ...currentStreaming, structuredBlocks: [...structuredBlocks] }
+                    : null
+                );
+              }
+            }
+            break;
+
+          case 'answer_complete':
+            // Structured answer streaming complete
+            console.log('[useStreamingChat] Structured answer complete:', chunk.metadata);
+            break;
+
           // Enterprise multi-agent chunk types
           case 'agent_chunk':
             // Extract text content from nested agent chunk
@@ -810,6 +867,35 @@ export function useStreamingChat(
                   ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, content: accumulatedContent }
                   : null
               );
+            }
+            break;
+
+          // Query Clarification (Human-in-the-loop)
+          case 'clarification_needed':
+            // clarification_data can be in chunk.clarification_data or chunk.metadata.clarification_data
+            const clarificationData = chunk.clarification_data || (chunk.metadata as Record<string, unknown> | null)?.clarification_data;
+            if (clarificationData) {
+              console.log('[useStreamingChat] Clarification needed:', clarificationData);
+              const clarificationRequest = clarificationData as ClarificationRequest;
+
+              // Store pending query info for re-submission after clarification
+              pendingQueryRef.current = inputValue;
+              pendingScopeRef.current = scope || null;
+
+              // Update clarification state to show modal
+              setClarificationState({
+                isOpen: true,
+                request: clarificationRequest,
+                selectedOptionId: null,
+                customInput: '',
+              });
+
+              // Stop loading state since we're waiting for user input
+              updateAgentIsLoading(requestingAgent, false);
+              updateAgentStreamingMessage(requestingAgent, null);
+
+              // Return early - don't finalize message
+              return;
             }
             break;
 
@@ -858,6 +944,7 @@ export function useStreamingChat(
         sources,
         images: images.length > 0 ? images : undefined,
         searchResults: searchResults.length > 0 ? searchResults : undefined,
+        structuredBlocks: structuredBlocks.length > 0 ? structuredBlocks : undefined,
         sourceReliability,
         isStreaming: false,
       };
@@ -950,6 +1037,74 @@ export function useStreamingChat(
   }, [selectedAgentRef, setMessages, setStreamingMessage]);
 
   // ============================================================================
+  // Clarification Handlers (Human-in-the-loop)
+  // ============================================================================
+
+  const handleClarificationSelect = useCallback((optionId: string) => {
+    setClarificationState((prev) => ({
+      ...prev,
+      selectedOptionId: optionId,
+      customInput: '', // Clear custom input when selecting an option
+    }));
+  }, []);
+
+  const handleClarificationCustomInput = useCallback((input: string) => {
+    setClarificationState((prev) => ({
+      ...prev,
+      selectedOptionId: null, // Clear option selection when typing custom input
+      customInput: input,
+    }));
+  }, []);
+
+  const handleClarificationSubmit = useCallback(() => {
+    const { request, selectedOptionId, customInput } = clarificationState;
+    if (!request) return;
+
+    let refinedQuery: string;
+
+    if (customInput.trim()) {
+      // User provided custom input
+      refinedQuery = customInput.trim();
+    } else if (selectedOptionId) {
+      // User selected an option
+      const selectedOption = request.options.find((opt) => opt.option_id === selectedOptionId);
+      refinedQuery = selectedOption?.refined_query || request.original_query;
+    } else {
+      // No selection made, use original query
+      refinedQuery = request.original_query;
+    }
+
+    // Close clarification modal
+    setClarificationState({
+      isOpen: false,
+      request: null,
+      selectedOptionId: null,
+      customInput: '',
+    });
+
+    // Re-submit with refined query (skip clarification this time)
+    console.log('[useStreamingChat] Submitting refined query:', refinedQuery);
+    handleSend(refinedQuery, pendingScopeRef.current, true);
+  }, [clarificationState, handleSend]);
+
+  const handleClarificationSkip = useCallback(() => {
+    const { request } = clarificationState;
+    if (!request) return;
+
+    // Close clarification modal
+    setClarificationState({
+      isOpen: false,
+      request: null,
+      selectedOptionId: null,
+      customInput: '',
+    });
+
+    // Re-submit with original query (skip clarification)
+    console.log('[useStreamingChat] Skipping clarification, using original query');
+    handleSend(request.original_query, pendingScopeRef.current, true);
+  }, [clarificationState, handleSend]);
+
+  // ============================================================================
   // Return
   // ============================================================================
 
@@ -999,6 +1154,13 @@ export function useStreamingChat(
       generationProgress,
       isGenerating,
     },
+
+    // Query Clarification state (Human-in-the-loop)
+    clarificationState,
+    handleClarificationSelect,
+    handleClarificationCustomInput,
+    handleClarificationSubmit,
+    handleClarificationSkip,
   };
 }
 

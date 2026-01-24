@@ -62,6 +62,7 @@ import {
   SUPPORTED_EXTENSIONS,
   type ChatMessage,
 } from './AgentChat/index';
+import { ClarificationBlock } from './AgentChat/blocks';
 import type { SearchScope } from '../api/agent-navigation.api';
 
 // Feedback API
@@ -276,6 +277,12 @@ export const AgentChat: React.FC<AgentChatProps> = ({
     searchProgress,
     setSearchProgressOpen,
     ragProgress,
+    // LLM-based query clarification (Human-in-the-loop)
+    clarificationState: llmClarificationState,
+    handleClarificationSelect: handleLlmClarificationSelect,
+    handleClarificationCustomInput: handleLlmClarificationCustomInput,
+    handleClarificationSubmit: handleLlmClarificationSubmit,
+    handleClarificationSkip: handleLlmClarificationSkip,
   } = useStreamingChat(selectedAgentRef, {
     t,
     userLanguage,
@@ -1258,6 +1265,23 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         onClose={closeClarificationModal}
         t={t}
       />
+
+      {/* LLM-based Query Clarification (Human-in-the-loop for ambiguous queries) */}
+      {llmClarificationState.isOpen && llmClarificationState.request && (
+        <div className="llm-clarification-overlay" onClick={handleLlmClarificationSkip}>
+          <div className="llm-clarification-container" onClick={(e) => e.stopPropagation()}>
+            <ClarificationBlock
+              request={llmClarificationState.request}
+              selectedOptionId={llmClarificationState.selectedOptionId}
+              customInput={llmClarificationState.customInput}
+              onSelectOption={handleLlmClarificationSelect}
+              onCustomInputChange={handleLlmClarificationCustomInput}
+              onSubmit={handleLlmClarificationSubmit}
+              onSkip={handleLlmClarificationSkip}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Auto-resolved notification */}
       {autoResolvedMessage && (

@@ -18,7 +18,8 @@ from ..types import (
 )
 from .types import (
     ExecutionPlan, PlannedTask, EnhancedRetryConfig,
-    AutoAgentMemoryContext, PlanStatus
+    AutoAgentMemoryContext, PlanStatus,
+    ClarificationRequest, ClarificationOption, AmbiguityType
 )
 
 logger = logging.getLogger(__name__)
@@ -70,6 +71,171 @@ class AutoPlannerAgent(BaseAgent):
             from ..adapters.ollama_adapter import get_llm_adapter
             self._llm_adapter = get_llm_adapter()
         return self._llm_adapter
+
+    def _load_clarification_prompt(self) -> str:
+        """Load the clarification analysis prompt"""
+        prompt_file = Path(__file__).parent / "prompts" / "clarification.txt"
+        if prompt_file.exists():
+            return prompt_file.read_text(encoding="utf-8")
+        return self._get_default_clarification_prompt()
+
+    def _get_default_clarification_prompt(self) -> str:
+        """Fallback clarification prompt"""
+        return """Analyze if the query needs clarification.
+Return JSON with needs_clarification (bool), and if true, include:
+- ambiguity_type, clarification_question, options (list with option_id, label, description, refined_query)"""
+
+    async def check_query_clarity(
+        self,
+        task: str,
+        context: Optional[AgentContext] = None
+    ) -> Optional[ClarificationRequest]:
+        """
+        Check if the query is clear enough or needs clarification.
+
+        Args:
+            task: User's query
+            context: Agent context (may include file_context)
+
+        Returns:
+            ClarificationRequest if clarification needed, None otherwise
+        """
+        # Skip clarification if file context is provided (user has specific context)
+        if context and context.file_context:
+            logger.info("[AutoPlannerAgent] Skipping clarification - file context provided")
+            return None
+
+        # Skip clarification for very specific queries
+        if self._is_specific_query(task):
+            logger.info("[AutoPlannerAgent] Skipping clarification - query is specific enough")
+            return None
+
+        clarification_prompt = self._load_clarification_prompt()
+
+        messages = [
+            {"role": "system", "content": clarification_prompt},
+            {"role": "user", "content": f"User Query: {task}"}
+        ]
+
+        try:
+            response = await self.llm_adapter.generate(messages)
+            content = response.get("content", "")
+            result = self._parse_clarification_response(content)
+
+            if result.get("needs_clarification", False):
+                logger.info(
+                    f"[AutoPlannerAgent] Clarification needed: type={result.get('ambiguity_type')}, "
+                    f"confidence_without={result.get('confidence_without_clarification', 0.4)}"
+                )
+                return self._build_clarification_request(task, result)
+            else:
+                logger.info(
+                    f"[AutoPlannerAgent] No clarification needed: confidence={result.get('confidence', 0.8)}"
+                )
+                return None
+
+        except Exception as e:
+            logger.warning(f"[AutoPlannerAgent] Clarification check failed: {e}, proceeding without")
+            return None
+
+    def _is_specific_query(self, task: str) -> bool:
+        """
+        Quick heuristic check if query is specific enough.
+        Returns True if query likely doesn't need clarification.
+        """
+        task_lower = task.lower()
+
+        # Contains error codes or specific identifiers
+        error_patterns = [
+            r'ora-\d+', r'err[-_]?\d+', r'error\s*\d+',
+            r'오류\s*코드', r'에러\s*코드', r'エラーコード',
+        ]
+        for pattern in error_patterns:
+            if re.search(pattern, task_lower):
+                return True
+
+        # Contains version numbers
+        if re.search(r'v?\d+\.\d+', task_lower):
+            return True
+
+        # Contains file paths or specific file names
+        if re.search(r'[/\\][\w\-\.]+\.(conf|xml|properties|yaml|json|log)', task_lower):
+            return True
+
+        # Long enough query with multiple keywords (likely specific)
+        words = task.split()
+        if len(words) >= 8:
+            return True
+
+        # Contains specific technical terms with product names
+        products = ['openframe', 'jeus', 'tibero', 'tmax', 'proframe', 'webtob']
+        actions = ['설치', '설정', '에러', '오류', 'install', 'config', 'error', 'エラー', '設定']
+        has_product = any(p in task_lower for p in products)
+        has_action = any(a in task_lower for a in actions)
+        if has_product and has_action:
+            return True
+
+        return False
+
+    def _parse_clarification_response(self, content: str) -> Dict[str, Any]:
+        """Parse LLM response for clarification analysis"""
+        content = content.strip()
+
+        # Remove markdown code blocks
+        if content.startswith("```"):
+            content = re.sub(r'^```(?:json)?\s*', '', content)
+            content = re.sub(r'\s*```$', '', content)
+
+        # Find JSON object
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if not json_match:
+            logger.warning("[AutoPlannerAgent] No JSON in clarification response")
+            return {"needs_clarification": False}
+
+        try:
+            return json.loads(json_match.group())
+        except json.JSONDecodeError as e:
+            logger.warning(f"[AutoPlannerAgent] JSON parse error: {e}")
+            return {"needs_clarification": False}
+
+    def _build_clarification_request(
+        self,
+        original_query: str,
+        result: Dict[str, Any]
+    ) -> ClarificationRequest:
+        """Build ClarificationRequest from parsed response"""
+        # Map ambiguity type
+        ambiguity_str = result.get("ambiguity_type", "scope_unclear")
+        ambiguity_map = {
+            "term_ambiguous": AmbiguityType.TERM_AMBIGUOUS,
+            "scope_unclear": AmbiguityType.SCOPE_UNCLEAR,
+            "context_missing": AmbiguityType.CONTEXT_MISSING,
+            "multiple_intents": AmbiguityType.MULTIPLE_INTENTS,
+            "product_unspecified": AmbiguityType.PRODUCT_UNSPECIFIED,
+        }
+        ambiguity_type = ambiguity_map.get(ambiguity_str, AmbiguityType.SCOPE_UNCLEAR)
+
+        # Build options
+        options = []
+        for opt_data in result.get("options", []):
+            option = ClarificationOption(
+                option_id=opt_data.get("option_id", f"opt_{len(options)+1}"),
+                label=opt_data.get("label", ""),
+                description=opt_data.get("description", ""),
+                refined_query=opt_data.get("refined_query", original_query),
+            )
+            options.append(option)
+
+        return ClarificationRequest(
+            clarification_id=str(uuid.uuid4()),
+            original_query=original_query,
+            ambiguity_type=ambiguity_type,
+            clarification_question=result.get("clarification_question", ""),
+            options=options,
+            allow_custom_input=True,
+            confidence_without_clarification=result.get("confidence_without_clarification", 0.4),
+            internal_reasoning=result.get("internal_reasoning"),
+        )
 
     def _load_planner_prompt(self) -> str:
         """Load the planner system prompt"""

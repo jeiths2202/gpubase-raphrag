@@ -252,6 +252,12 @@ class AgentOrchestrator:
         context.metadata['response_mode'] = response_mode.value if hasattr(response_mode, 'value') else response_mode
         logger.info(f"[Orchestrator] response_mode={context.metadata['response_mode']}")
 
+        # Add structured_output to metadata for ChatGPT-style block output
+        structured_output = getattr(request, 'structured_output', False)
+        context.metadata['structured_output'] = structured_output
+        if structured_output:
+            logger.info(f"[Orchestrator] structured_output=True (ChatGPT-style blocks enabled)")
+
         # Select agent type
         if request.agent_type:
             agent_type = request.agent_type
@@ -361,6 +367,49 @@ class AgentOrchestrator:
         start_time = time.time()
         logger.info(f"[Orchestrator] stream called: task={request.task[:50]}...")
 
+        # =====================================================================
+        # Query Clarification Check (Human-in-the-loop)
+        # Only for 'auto' agent type and when not skipped
+        # =====================================================================
+        skip_clarification = getattr(request, 'skip_clarification', False)
+        agent_type_str = request.agent_type.value if request.agent_type else None
+
+        if not skip_clarification and (agent_type_str is None or agent_type_str == 'auto'):
+            try:
+                from .auto_agent import get_auto_planner_agent
+                planner = get_auto_planner_agent()
+
+                # Create minimal context for clarification check
+                clarification_context = AgentContext(
+                    session_id=request.session_id or "",
+                    user_id=user_id,
+                    language=request.language,
+                    file_context=request.file_context,
+                )
+
+                clarification = await planner.check_query_clarity(
+                    request.task,
+                    clarification_context
+                )
+
+                if clarification:
+                    logger.info(
+                        f"[Orchestrator] Clarification needed: {clarification.ambiguity_type.value}"
+                    )
+                    yield AgentStreamChunk(
+                        chunk_type="clarification_needed",
+                        content=clarification.clarification_question,
+                        metadata={
+                            "clarification_data": clarification.to_dict()
+                        }
+                    )
+                    # Stop here and wait for user response
+                    return
+
+            except Exception as e:
+                logger.warning(f"[Orchestrator] Clarification check failed: {e}, proceeding without")
+        # =====================================================================
+
         # Fetch URL content if url_context is provided
         url_content = None
         url_source = None
@@ -396,6 +445,12 @@ class AgentOrchestrator:
         response_mode = getattr(request, 'response_mode', 'hybrid')
         context.metadata['response_mode'] = response_mode.value if hasattr(response_mode, 'value') else response_mode
         logger.info(f"[Orchestrator.stream] response_mode={context.metadata['response_mode']}")
+
+        # Add structured_output to metadata for ChatGPT-style block output
+        structured_output = getattr(request, 'structured_output', False)
+        context.metadata['structured_output'] = structured_output
+        if structured_output:
+            logger.info(f"[Orchestrator.stream] structured_output=True (ChatGPT-style blocks enabled)")
 
         # Process UI context if provided
         ui_context_prompt = None

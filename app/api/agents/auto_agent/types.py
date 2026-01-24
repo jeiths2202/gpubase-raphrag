@@ -54,6 +54,63 @@ class PlanStatus(str, Enum):
     REPLAN_PENDING = "replan_pending"
     COMPLETED = "completed"
     FAILED = "failed"
+    CLARIFICATION_NEEDED = "clarification_needed"  # 질문 명확화 필요
+
+
+class AmbiguityType(str, Enum):
+    """Types of query ambiguity that require clarification"""
+    TERM_AMBIGUOUS = "term_ambiguous"          # 용어가 여러 의미를 가질 수 있음
+    SCOPE_UNCLEAR = "scope_unclear"            # 범위가 불명확
+    CONTEXT_MISSING = "context_missing"        # 맥락 정보 부족
+    MULTIPLE_INTENTS = "multiple_intents"      # 여러 의도가 혼재
+    PRODUCT_UNSPECIFIED = "product_unspecified"  # 제품/기능 미지정
+
+
+# ============================================================================
+# Query Clarification Types
+# ============================================================================
+
+@dataclass
+class ClarificationOption:
+    """Single option for query clarification"""
+    option_id: str                              # 옵션 식별자 (e.g., "opt_1")
+    label: str                                  # 사용자에게 표시할 라벨
+    description: str                            # 옵션 설명
+    refined_query: str                          # 이 옵션 선택 시 사용할 구체화된 쿼리
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ClarificationRequest:
+    """Request for query clarification from user"""
+    clarification_id: str                       # 고유 ID
+    original_query: str                         # 원래 사용자 질문
+    ambiguity_type: AmbiguityType               # 애매함의 유형
+    clarification_question: str                 # 명확화를 위한 질문
+    options: List[ClarificationOption] = field(default_factory=list)  # 선택 옵션들
+    allow_custom_input: bool = True             # 사용자 직접 입력 허용
+    confidence_without_clarification: float = 0.4  # 명확화 없이 진행 시 예상 신뢰도
+    internal_reasoning: Optional[str] = None    # 내부 분석 (로그용)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization"""
+        return {
+            "clarification_id": self.clarification_id,
+            "original_query": self.original_query,
+            "ambiguity_type": self.ambiguity_type.value,
+            "clarification_question": self.clarification_question,
+            "options": [
+                {
+                    "option_id": opt.option_id,
+                    "label": opt.label,
+                    "description": opt.description,
+                    "refined_query": opt.refined_query,
+                }
+                for opt in self.options
+            ],
+            "allow_custom_input": self.allow_custom_input,
+            "confidence_without_clarification": self.confidence_without_clarification,
+        }
 
 
 # ============================================================================
@@ -350,6 +407,10 @@ class AutoAgentStreamChunk(BaseModel):
         "planning_progress",
         "planning_done",
 
+        # Query Clarification phase (Human-in-the-loop)
+        "clarification_needed",     # 질문 명확화 필요
+        "clarification_received",   # 사용자 선택 수신
+
         # Execution phase
         "execution_start",
         "batch_start",
@@ -389,6 +450,9 @@ class AutoAgentStreamChunk(BaseModel):
     # Plan/Verification data
     plan_data: Optional[Dict[str, Any]] = None
     verification_data: Optional[Dict[str, Any]] = None
+
+    # Clarification data (Human-in-the-loop)
+    clarification_data: Optional[Dict[str, Any]] = None
 
     # Answer data
     sources: Optional[List[Dict[str, Any]]] = None

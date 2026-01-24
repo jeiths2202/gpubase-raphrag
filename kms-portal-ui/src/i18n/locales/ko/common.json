@@ -82,6 +82,13 @@
       "emptyFields": "모든 필드를 입력해주세요",
       "saveError": "계정 정보 저장에 실패했습니다"
     },
+    "clarification": {
+      "title": "질문 명확화",
+      "customInput": "직접 입력...",
+      "customPlaceholder": "구체적인 질문을 입력해주세요...",
+      "skip": "그대로 검색",
+      "search": "검색하기"
+    },
     "searchResults": "검색 결과",
     "expandAll": "모두 펼치기",
     "collapseAll": "모두 접기",
@@ -117,6 +124,13 @@
       "maxDocs": "최대 {{count}}개의 문서만 비교할 수 있습니다.",
       "selectMode": "비교 모드",
       "exitMode": "비교 모드 종료"
+    },
+    "clarification": {
+      "title": "질문 명확화",
+      "customInput": "직접 입력...",
+      "customPlaceholder": "구체적인 질문을 입력해주세요...",
+      "skip": "그대로 검색",
+      "search": "검색하기"
     },
     "feedback": {
       "thumbsUp": "도움이 됨",

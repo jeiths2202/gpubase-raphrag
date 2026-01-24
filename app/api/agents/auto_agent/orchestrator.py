@@ -35,7 +35,8 @@ from ..parallel_executor import get_parallel_executor
 from .types import (
     ExecutionPlan, PlannedTask, VerificationResult, VerificationDecision,
     AutoAgentMemoryContext, ComposedAnswer, AutoAgentStreamChunk,
-    AutoAgentExecutionResult, PlanStatus, EnhancedRetryConfig
+    AutoAgentExecutionResult, PlanStatus, EnhancedRetryConfig,
+    ClarificationRequest
 )
 from .planner_agent import get_auto_planner_agent
 from .verifier_agent import get_verifier_agent
@@ -253,7 +254,8 @@ class AutoAgentOrchestrator:
         self,
         task: str,
         context: AgentContext,
-        config: Optional[EnhancedRetryConfig] = None
+        config: Optional[EnhancedRetryConfig] = None,
+        skip_clarification: bool = False
     ) -> AsyncGenerator[AutoAgentStreamChunk, None]:
         """
         Stream the Auto Agent orchestration flow.
@@ -262,6 +264,7 @@ class AutoAgentOrchestrator:
             task: User's task/question
             context: Agent execution context
             config: Optional retry configuration
+            skip_clarification: If True, skip the clarification check
 
         Yields:
             AutoAgentStreamChunk with progress updates
@@ -270,6 +273,24 @@ class AutoAgentOrchestrator:
         execution_id = str(uuid.uuid4())
 
         try:
+            # 0. Query Clarification Check (Human-in-the-loop)
+            if not skip_clarification:
+                clarification = await self.planner.check_query_clarity(task, context)
+
+                if clarification:
+                    logger.info(
+                        f"[AutoAgent] Clarification needed: {clarification.ambiguity_type.value}"
+                    )
+                    yield AutoAgentStreamChunk(
+                        chunk_type="clarification_needed",
+                        phase="clarification",
+                        content=clarification.clarification_question,
+                        clarification_data=clarification.to_dict()
+                    )
+                    # Stop here and wait for user response
+                    # The frontend will handle user selection and re-call with refined query
+                    return
+
             # 1. Planning phase
             yield AutoAgentStreamChunk(
                 chunk_type="planning_start",

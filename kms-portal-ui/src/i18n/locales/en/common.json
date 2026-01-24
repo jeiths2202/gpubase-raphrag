@@ -82,6 +82,13 @@
       "emptyFields": "Please fill in all fields",
       "saveError": "Failed to save credentials"
     },
+    "clarification": {
+      "title": "Question Clarification",
+      "customInput": "Enter custom query...",
+      "customPlaceholder": "Type your specific question...",
+      "skip": "Search anyway",
+      "search": "Search"
+    },
     "searchResults": "Search Results",
     "expandAll": "Expand All",
     "collapseAll": "Collapse All",
@@ -117,6 +124,13 @@
       "maxDocs": "Maximum {{count}} documents can be compared.",
       "selectMode": "Compare Mode",
       "exitMode": "Exit Compare Mode"
+    },
+    "clarification": {
+      "title": "Question Clarification",
+      "customInput": "Enter custom query...",
+      "customPlaceholder": "Type your specific question...",
+      "skip": "Search anyway",
+      "search": "Search"
     },
     "feedback": {
       "thumbsUp": "Helpful",

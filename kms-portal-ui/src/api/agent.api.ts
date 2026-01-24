@@ -39,6 +39,7 @@ export interface AgentExecuteRequest {
   ui_context?: UIContext; // UI context for context-aware AI responses
   use_deep_agent?: boolean; // Use Deep Agents framework for execution
   search_scope?: SearchScope; // Agent-Driven RAG: selected search scope
+  skip_clarification?: boolean; // Skip query clarification (Human-in-the-loop)
 }
 
 /**
@@ -144,6 +145,9 @@ export type AgentStreamChunkType =
   | 'search_result'
   // Source reliability for search result credibility
   | 'source_reliability'
+  // Query clarification (Human-in-the-loop)
+  | 'clarification_needed'
+  | 'clarification_received'
   // Enterprise multi-agent orchestration chunk types
   | 'orchestration_start'
   | 'dag_created'
@@ -155,7 +159,11 @@ export type AgentStreamChunkType =
   | 'evaluation'
   | 'retry'
   | 'synthesis'
-  | 'next_actions';
+  | 'next_actions'
+  // Structured answer chunk types (ChatGPT-style block output)
+  | 'answer_start'
+  | 'answer_block'
+  | 'answer_complete';
 
 /**
  * Trace data for DAG visualization (enterprise multi-agent)
@@ -237,6 +245,42 @@ export interface AgentStreamChunk {
   task_id?: string;  // Task ID for enterprise multi-agent
   agent_type?: AgentType;  // Agent type for enterprise multi-agent
   agent_chunk?: AgentStreamChunk;  // Nested chunk from sub-agent
+
+  // Query clarification data (Human-in-the-loop)
+  clarification_data?: {
+    clarification_id: string;
+    original_query: string;
+    ambiguity_type: string;
+    clarification_question: string;
+    options: Array<{
+      option_id: string;
+      label: string;
+      description: string;
+      refined_query: string;
+    }>;
+    allow_custom_input: boolean;
+    confidence_without_clarification: number;
+  };
+
+  // Structured answer fields (for answer_block chunk type)
+  answer_block?: {
+    type: string;
+    content?: string;
+    items?: string[];
+    ordered?: boolean;
+    language?: string;
+    headers?: string[];
+    rows?: string[][];
+    level?: number;
+    url?: string;
+    caption?: string;
+    doc_name?: string;
+    page?: number;
+    chunk_id?: string;
+    score?: number;
+  };
+  block_index?: number;
+  total_blocks?: number;
 }
 
 /**

@@ -82,6 +82,13 @@
       "emptyFields": "すべてのフィールドに入力してください",
       "saveError": "認証情報の保存に失敗しました"
     },
+    "clarification": {
+      "title": "質問の明確化",
+      "customInput": "カスタム入力...",
+      "customPlaceholder": "具体的な質問を入力してください...",
+      "skip": "そのまま検索",
+      "search": "検索する"
+    },
     "searchResults": "検索結果",
     "expandAll": "すべて展開",
     "collapseAll": "すべて折りたたむ",
@@ -117,6 +124,13 @@
       "maxDocs": "最大{{count}}個の文書まで比較できます。",
       "selectMode": "比較モード",
       "exitMode": "比較モードを終了"
+    },
+    "clarification": {
+      "title": "質問の明確化",
+      "customInput": "自由入力...",
+      "customPlaceholder": "具体的な質問を入力してください...",
+      "skip": "そのまま検索",
+      "search": "検索する"
     },
     "feedback": {
       "thumbsUp": "役に立った",

@@ -28,6 +28,26 @@ export interface SourceReliability {
 }
 
 /**
+ * Structured Answer Block (ChatGPT-style output)
+ */
+export interface AnswerBlock {
+  type: 'text' | 'heading' | 'list' | 'code' | 'table' | 'quote' | 'image' | 'source_citation' | 'no_answer';
+  content?: string;
+  items?: string[];
+  ordered?: boolean;
+  language?: string;
+  headers?: string[];
+  rows?: string[][];
+  level?: 1 | 2 | 3 | 4;
+  url?: string;
+  caption?: string;
+  doc_name?: string;
+  page?: number;
+  chunk_id?: string;
+  score?: number;
+}
+
+/**
  * Chat message structure
  */
 export interface ChatMessage {
@@ -41,6 +61,7 @@ export interface ChatMessage {
   images?: ImageReference[];  // Multimodal RAG images
   searchResults?: ExpandableSearchResult[];  // Individual expandable search results
   sourceReliability?: SourceReliability;  // Source reliability information
+  structuredBlocks?: AnswerBlock[];  // ChatGPT-style structured answer blocks
   isStreaming?: boolean;
   error?: string;
   statusType?: 'crawling' | 'ready' | 'credentials_required';
@@ -275,4 +296,51 @@ export interface SearchResultSource {
   sectionPath?: string;
   sectionTitle?: string;
   docId?: string;
+}
+
+/**
+ * Query Clarification Types (Human-in-the-loop)
+ */
+
+/**
+ * Single option for query clarification
+ */
+export interface ClarificationOption {
+  option_id: string;           // 옵션 식별자
+  label: string;               // 짧은 라벨 (2-5 단어)
+  description: string;         // 옵션 설명
+  refined_query: string;       // 선택 시 사용할 구체화된 쿼리
+}
+
+/**
+ * Ambiguity type for query clarification
+ */
+export type AmbiguityType =
+  | 'term_ambiguous'           // 용어가 여러 의미를 가짐
+  | 'scope_unclear'            // 범위 불명확
+  | 'context_missing'          // 맥락 부족
+  | 'multiple_intents'         // 다중 의도
+  | 'product_unspecified';     // 제품 미지정
+
+/**
+ * Clarification request from server
+ */
+export interface ClarificationRequest {
+  clarification_id: string;
+  original_query: string;
+  ambiguity_type: AmbiguityType;
+  clarification_question: string;
+  options: ClarificationOption[];
+  allow_custom_input: boolean;
+  confidence_without_clarification: number;
+}
+
+/**
+ * Clarification state for UI
+ */
+export interface ClarificationState {
+  isOpen: boolean;
+  request: ClarificationRequest | null;
+  selectedOptionId: string | null;
+  customInput: string;
 }

@@ -184,6 +184,110 @@ class ResponseMode(str, Enum):
     HYBRID = "hybrid"   # 검색 결과 품질에 따라 자동 선택 (권장)
 
 
+# ============================================================================
+# Structured Answer Types for ChatGPT-level RAG Output
+# ============================================================================
+
+class BlockType(str, Enum):
+    """Types of content blocks in structured answers"""
+    TEXT = "text"
+    HEADING = "heading"
+    LIST = "list"
+    CODE = "code"
+    TABLE = "table"
+    QUOTE = "quote"
+    IMAGE = "image"
+    SOURCE_CITATION = "source_citation"
+    NO_ANSWER = "no_answer"
+
+
+class AnswerBlock(BaseModel):
+    """
+    Individual block in a structured answer.
+    Supports multiple content types for ChatGPT-like output rendering.
+    """
+    type: BlockType = Field(..., description="Type of the content block")
+    content: Optional[str] = Field(None, description="Main text content")
+
+    # List block fields
+    items: Optional[List[str]] = Field(None, description="List items for LIST type")
+    ordered: bool = Field(False, description="Whether list is ordered (numbered)")
+
+    # Code block fields
+    language: Optional[str] = Field(None, description="Programming language for CODE type")
+
+    # Table block fields
+    headers: Optional[List[str]] = Field(None, description="Table headers for TABLE type")
+    rows: Optional[List[List[str]]] = Field(None, description="Table rows for TABLE type")
+
+    # Heading block fields
+    level: Optional[int] = Field(None, ge=1, le=4, description="Heading level (1-4)")
+
+    # Image block fields
+    url: Optional[str] = Field(None, description="Image URL for IMAGE type")
+    caption: Optional[str] = Field(None, description="Image caption")
+
+    # Source citation fields
+    doc_name: Optional[str] = Field(None, description="Document name for SOURCE_CITATION")
+    page: Optional[int] = Field(None, description="Page number for SOURCE_CITATION")
+    chunk_id: Optional[str] = Field(None, description="Chunk ID for SOURCE_CITATION")
+    score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Relevance score")
+
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {"type": "text", "content": "This is a text block."},
+                {"type": "heading", "content": "Section Title", "level": 2},
+                {"type": "list", "items": ["Item 1", "Item 2"], "ordered": True},
+                {"type": "code", "content": "print('hello')", "language": "python"},
+            ]
+        }
+
+
+class StructuredAnswer(BaseModel):
+    """
+    Structured answer composed of multiple content blocks.
+    Enables ChatGPT-like rendering with proper formatting.
+    """
+    blocks: List[AnswerBlock] = Field(..., description="Ordered list of content blocks")
+    confidence: float = Field(0.0, ge=0.0, le=1.0, description="Overall answer confidence")
+    language: str = Field("auto", description="Answer language (auto, ko, en, ja)")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+
+    def to_markdown(self) -> str:
+        """Convert structured answer to markdown string for backward compatibility"""
+        lines = []
+        for block in self.blocks:
+            if block.type == BlockType.TEXT:
+                lines.append(block.content or "")
+            elif block.type == BlockType.HEADING:
+                level = block.level or 2
+                lines.append(f"{'#' * level} {block.content or ''}")
+            elif block.type == BlockType.LIST:
+                for i, item in enumerate(block.items or [], 1):
+                    prefix = f"{i}." if block.ordered else "-"
+                    lines.append(f"{prefix} {item}")
+            elif block.type == BlockType.CODE:
+                lang = block.language or ""
+                lines.append(f"```{lang}\n{block.content or ''}\n```")
+            elif block.type == BlockType.TABLE:
+                if block.headers:
+                    lines.append("| " + " | ".join(block.headers) + " |")
+                    lines.append("| " + " | ".join(["---"] * len(block.headers)) + " |")
+                for row in block.rows or []:
+                    lines.append("| " + " | ".join(row) + " |")
+            elif block.type == BlockType.QUOTE:
+                lines.append(f"> {block.content or ''}")
+            elif block.type == BlockType.SOURCE_CITATION:
+                page_info = f" (p.{block.page})" if block.page else ""
+                score_info = f" [{block.score*100:.0f}%]" if block.score else ""
+                lines.append(f"📎 {block.doc_name or 'Unknown'}{page_info}{score_info}")
+            elif block.type == BlockType.NO_ANSWER:
+                lines.append(block.content or "No relevant information found.")
+            lines.append("")
+        return "\n".join(lines)
+
+
 # Pydantic model for search scope in API requests
 class SearchScopeModel(BaseModel):
     """Search scope for Agent-Driven RAG queries"""
@@ -211,6 +315,14 @@ class AgentRequest(BaseModel):
         description="Response generation mode: 'hybrid' (auto-select based on search quality - default), 'direct' (no LLM, zero hallucination), 'llm' (traditional)"
     )
     search_scope: Optional[SearchScopeModel] = Field(None, description="Agent-Driven RAG: selected search scope")
+    structured_output: bool = Field(
+        False,
+        description="Enable ChatGPT-style structured answer blocks for improved rendering"
+    )
+    skip_clarification: bool = Field(
+        False,
+        description="Skip query clarification (Human-in-the-loop) for this request"
+    )
 
 
 class AgentResponse(BaseModel):
@@ -250,13 +362,20 @@ class AgentStreamChunk(BaseModel):
         "search_result",     # 개별 검색 결과 (텍스트, 이미지, 테이블 포함)
         # Source reliability for search result credibility
         "source_reliability", # 출처 신뢰도 정보
+        # Query clarification (Human-in-the-loop)
+        "clarification_needed",   # 질문 명확화 필요 (옵션 목록 포함)
+        "clarification_received", # 사용자 선택 수신
         # RAG Evaluation chunk types (RAGAS-style quality metrics)
         "rag_evaluation",     # RAG 평가 결과 (종합 점수, 메트릭별 점수, 이슈)
         "rag_evaluation_progress",  # RAG 평가 진행 중 (메트릭별 진행 상태)
         # User feedback prompt
         "feedback_prompt",    # 피드백 요청 (message_id와 함께 UI에 👍/👎 버튼 표시)
         # Enhanced citation display
-        "enhanced_citations"  # 강화된 출처 정보 (피드백 점수, 표시 포맷 포함)
+        "enhanced_citations",  # 강화된 출처 정보 (피드백 점수, 표시 포맷 포함)
+        # Structured answer chunk types for ChatGPT-like output
+        "answer_start",       # 구조화 답변 시작 (total_blocks, confidence 포함)
+        "answer_block",       # 개별 블록 스트리밍
+        "answer_complete"     # 답변 완료
     ]
     content: Optional[str] = None
     tool_name: Optional[str] = None
@@ -280,6 +399,11 @@ class AgentStreamChunk(BaseModel):
     result_tables: Optional[List[Dict[str, Any]]] = None   # 관련 테이블들
     result_source: Optional[Dict[str, Any]] = None         # 참조 문서 정보
     result_score: Optional[float] = None        # 관련도 점수
+
+    # Structured answer fields (for answer_block chunk type)
+    answer_block: Optional[AnswerBlock] = None  # 개별 답변 블록
+    block_index: Optional[int] = None           # 현재 블록 인덱스
+    total_blocks: Optional[int] = None          # 전체 블록 수
 
 
 # Permission Models
