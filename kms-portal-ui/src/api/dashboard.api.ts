@@ -93,12 +93,26 @@ interface SuccessResponse<T> {
 // =============================================================================
 
 /**
+ * Calculate date range from days
+ */
+function getDateRange(days: number): { start_date: string; end_date: string } {
+  const end_date = new Date();
+  const start_date = new Date();
+  start_date.setDate(start_date.getDate() - days);
+  return {
+    start_date: start_date.toISOString(),
+    end_date: end_date.toISOString(),
+  };
+}
+
+/**
  * Get dashboard summary statistics
  */
 export async function getDashboardSummary(days: number = 30): Promise<DashboardSummary> {
+  const { start_date, end_date } = getDateRange(days);
   const response = await apiClient.get<SuccessResponse<DashboardSummary>>(
     '/analytics/summary',
-    { params: { days } }
+    { params: { start_date, end_date } }
   );
   return response.data.data;
 }
@@ -107,9 +121,10 @@ export async function getDashboardSummary(days: number = 30): Promise<DashboardS
  * Get content/document analytics
  */
 export async function getContentAnalytics(days: number = 30): Promise<ContentAnalytics> {
+  const { start_date, end_date } = getDateRange(days);
   const response = await apiClient.get<SuccessResponse<ContentAnalytics>>(
     '/analytics/content',
-    { params: { days } }
+    { params: { start_date, end_date } }
   );
   return response.data.data;
 }
@@ -121,10 +136,11 @@ export async function getUsageAnalytics(days: number = 30): Promise<{
   total_users: number;
   avg_queries_per_user: number;
 }> {
+  const { start_date, end_date } = getDateRange(days);
   const response = await apiClient.get<SuccessResponse<{
     total_users: number;
     avg_queries_per_user: number;
-  }>>('/analytics/usage/users', { params: { days } });
+  }>>('/analytics/usage/users', { params: { start_date, end_date, days } });
   return response.data.data;
 }
 

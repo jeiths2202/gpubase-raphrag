@@ -455,7 +455,22 @@ class AnalyticsDashboardRepository:
             WHERE cited_at >= $1 AND cited_at <= $2
         """
 
-        return await self._execute_query(query, (start_date, end_date), fetch_one=True)
+        result = await self._execute_query(query, (start_date, end_date), fetch_one=True)
+
+        # If document_citation_analytics is empty, get total documents count
+        if result.get("documents_cited", 0) == 0:
+            fallback_query = """
+                SELECT
+                    (SELECT COUNT(*) FROM documents) as total_documents,
+                    (SELECT COUNT(*) FROM text_chunks) as total_chunks,
+                    0 as documents_cited,
+                    0 as total_citations,
+                    NULL as avg_relevance_score,
+                    NULL as overall_helpfulness
+            """
+            result = await self._execute_query(fallback_query, (), fetch_one=True)
+
+        return result
 
     async def get_top_cited_documents(
         self,
@@ -742,6 +757,7 @@ class AnalyticsDashboardRepository:
         end_date: datetime
     ) -> Dict[str, Any]:
         """Get dashboard summary data"""
+        # Try query_analytics first
         query = """
             SELECT
                 COUNT(*) as total_queries,
@@ -760,7 +776,25 @@ class AnalyticsDashboardRepository:
 
         result = await self._execute_query(query, (start_date, end_date), fetch_one=True)
 
-        # Get error rate from performance metrics
+        # If query_analytics is empty, fallback to query_log
+        if result.get("total_queries", 0) == 0:
+            fallback_query = """
+                SELECT
+                    COUNT(*) as total_queries,
+                    COUNT(DISTINCT user_id) as unique_users,
+                    AVG(execution_time_ms) as avg_response_time_ms,
+                    NULL as avg_quality_score,
+                    CASE
+                        WHEN COUNT(*) > 0
+                        THEN COUNT(*) FILTER (WHERE success = TRUE)::FLOAT / COUNT(*)
+                        ELSE NULL
+                    END as satisfaction_rate
+                FROM query_log
+                WHERE created_at >= $1 AND created_at <= $2
+            """
+            result = await self._execute_query(fallback_query, (start_date, end_date), fetch_one=True)
+
+        # Get error rate from performance metrics or query_log
         error_query = """
             SELECT
                 CASE
@@ -773,6 +807,21 @@ class AnalyticsDashboardRepository:
         """
 
         error_result = await self._execute_query(error_query, (start_date, end_date), fetch_one=True)
+
+        # If no performance metrics, calculate from query_log
+        if error_result.get("error_rate", 0.0) == 0:
+            fallback_error_query = """
+                SELECT
+                    CASE
+                        WHEN COUNT(*) > 0
+                        THEN COUNT(*) FILTER (WHERE success = FALSE)::FLOAT / COUNT(*)
+                        ELSE 0.0
+                    END as error_rate
+                FROM query_log
+                WHERE created_at >= $1 AND created_at <= $2
+            """
+            error_result = await self._execute_query(fallback_error_query, (start_date, end_date), fetch_one=True)
+
         result["error_rate"] = error_result.get("error_rate", 0.0)
 
         # Get recent quality scores
