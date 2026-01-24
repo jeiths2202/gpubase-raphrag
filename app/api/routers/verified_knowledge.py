@@ -603,8 +603,10 @@ async def trigger_training(
         # 비동기 실행: 백그라운드에서 학습 시작
         async def run_training_async():
             try:
+                import sys
+                python_path = sys.executable or "python3"
                 cmd = [
-                    "python", "/opt/kms/scripts/training/qlora_trainer.py",
+                    python_path, "/opt/kms/scripts/training/qlora_trainer.py",
                     "--batch_id", batch_id,
                     "--min_score", str(request.min_feedback_score),
                     "--min_thumbs_up", str(request.min_thumbs_up),
