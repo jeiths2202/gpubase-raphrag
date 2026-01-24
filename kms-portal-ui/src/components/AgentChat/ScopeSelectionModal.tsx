@@ -19,7 +19,6 @@ import {
   CheckSquare,
   Square,
   Folder,
-  BookOpen,
   Globe,
   Tag,
   AlertTriangle,
@@ -181,23 +180,27 @@ export const ScopeSelectionModal: React.FC<ScopeSelectionModalProps> = ({
       setTotalDocuments(response.data.total_documents);
       setTotalSections(response.data.total_sections);
 
+      // If no candidates found, skip modal and search all
+      if (response.data.categories.length === 0) {
+        onSelectScope(null);
+        return;
+      }
+
       // Auto-expand first category with high relevance
-      if (response.data.categories.length > 0) {
-        const first = response.data.categories[0];
-        if (first.relevance_score > 0.5) {
-          setExpanded((prev) => ({
-            ...prev,
-            categories: new Set([first.id]),
-          }));
-        }
+      const first = response.data.categories[0];
+      if (first.relevance_score > 0.5) {
+        setExpanded((prev) => ({
+          ...prev,
+          categories: new Set([first.id]),
+        }));
       }
     } catch (err) {
       console.error('Failed to load categories:', err);
-      setError(t('agentNav.loadError') || 'Failed to load document candidates');
+      setError(t('knowledge.agentNav.loadError') || 'Failed to load document candidates');
     } finally {
       setIsLoading(false);
     }
-  }, [query, t]);
+  }, [query, t, onSelectScope]);
 
   // Toggle category expansion
   const toggleCategoryExpand = useCallback((categoryId: string) => {
@@ -379,7 +382,7 @@ export const ScopeSelectionModal: React.FC<ScopeSelectionModalProps> = ({
         <div className="scope-modal-header">
           <div className="scope-modal-title">
             <Search size={20} />
-            <h3>{t('agentNav.selectScope') || 'Select Search Scope'}</h3>
+            <h3>{t('knowledge.agentNav.selectScope') || 'Select Search Scope'}</h3>
           </div>
           <button className="scope-modal-close" onClick={onClose}>
             <X size={20} />
@@ -389,7 +392,7 @@ export const ScopeSelectionModal: React.FC<ScopeSelectionModalProps> = ({
         {/* Query display */}
         <div className="scope-modal-query">
           <span className="scope-modal-query-label">
-            {t('agentNav.searchQuery') || 'Query'}:
+            {t('knowledge.agentNav.searchQuery') || 'Query'}:
           </span>
           <span className="scope-modal-query-text">"{query}"</span>
         </div>
@@ -399,7 +402,7 @@ export const ScopeSelectionModal: React.FC<ScopeSelectionModalProps> = ({
           <div className="scope-keywords">
             <Tag size={14} className="scope-keywords-icon" />
             <span className="scope-keywords-label">
-              {t('agentNav.keywords') || 'Keywords'}:
+              {t('knowledge.agentNav.keywords') || 'Keywords'}:
             </span>
             <div className="scope-keywords-list">
               {extractedKeywords.map((kw) => (
@@ -416,17 +419,12 @@ export const ScopeSelectionModal: React.FC<ScopeSelectionModalProps> = ({
           {isLoading ? (
             <div className="scope-modal-loading">
               <Loader2 size={24} className="spin" />
-              <span>{t('agentNav.loading') || 'Loading candidates...'}</span>
+              <span>{t('knowledge.agentNav.loading') || 'Loading candidates...'}</span>
             </div>
           ) : error ? (
             <div className="scope-modal-error">
               <AlertCircle size={20} />
               <span>{error}</span>
-            </div>
-          ) : categories.length === 0 ? (
-            <div className="scope-modal-empty">
-              <BookOpen size={24} />
-              <span>{t('agentNav.noCandidates') || 'No relevant documents found'}</span>
             </div>
           ) : (
             <>
@@ -434,9 +432,9 @@ export const ScopeSelectionModal: React.FC<ScopeSelectionModalProps> = ({
               <div className="scope-summary">
                 <Star size={16} className="scope-summary-icon" />
                 <span>
-                  {totalDocuments} {t('agentNav.documents') || 'documents'},{' '}
-                  {totalSections} {t('agentNav.sections') || 'sections'}{' '}
-                  {t('agentNav.matched') || 'matched'}
+                  {totalDocuments} {t('knowledge.agentNav.documents') || 'documents'},{' '}
+                  {totalSections} {t('knowledge.agentNav.sections') || 'sections'}{' '}
+                  {t('knowledge.agentNav.matched') || 'matched'}
                 </span>
               </div>
 
@@ -478,9 +476,9 @@ export const ScopeSelectionModal: React.FC<ScopeSelectionModalProps> = ({
                           </span>
                           <span className="scope-category-meta">
                             {category.subcategory_count}{' '}
-                            {t('agentNav.subcategories') || 'subcategories'},{' '}
+                            {t('knowledge.agentNav.subcategories') || 'subcategories'},{' '}
                             {category.document_count}{' '}
-                            {t('agentNav.documents') || 'docs'}
+                            {t('knowledge.agentNav.documents') || 'docs'}
                           </span>
                         </div>
                         <span className="scope-score">
@@ -534,7 +532,7 @@ export const ScopeSelectionModal: React.FC<ScopeSelectionModalProps> = ({
                                     </span>
                                     <span className="scope-subcategory-meta">
                                       {subcategory.document_count}{' '}
-                                      {t('agentNav.documents') || 'docs'}
+                                      {t('knowledge.agentNav.documents') || 'docs'}
                                     </span>
                                   </div>
                                   <span className="scope-score-small">
@@ -593,7 +591,7 @@ export const ScopeSelectionModal: React.FC<ScopeSelectionModalProps> = ({
                                                 </span>
                                                 <span className="scope-document-meta">
                                                   {doc.total_pages}{' '}
-                                                  {t('agentNav.pages') || 'pages'}
+                                                  {t('knowledge.agentNav.pages') || 'pages'}
                                                 </span>
                                               </div>
                                             </div>
@@ -676,22 +674,22 @@ export const ScopeSelectionModal: React.FC<ScopeSelectionModalProps> = ({
             {selectionCount > 0 ? (
               <>
                 <span>
-                  {selectionCount} {t('agentNav.selected') || 'selected'}
+                  {selectionCount} {t('knowledge.agentNav.selected') || 'selected'}
                 </span>
                 <button className="scope-clear-btn" onClick={clearSelection}>
-                  {t('agentNav.clear') || 'Clear'}
+                  {t('knowledge.agentNav.clear') || 'Clear'}
                 </button>
               </>
             ) : (
               <button className="scope-select-all-btn" onClick={selectAll}>
-                {t('agentNav.selectAll') || 'Select All'}
+                {t('knowledge.agentNav.selectAll') || 'Select All'}
               </button>
             )}
           </div>
           <div className="scope-modal-actions">
             <button className="scope-search-all-btn" onClick={handleSearchAll}>
               <Globe size={16} />
-              {t('agentNav.searchAll') || 'Search All'}
+              {t('knowledge.agentNav.searchAll') || 'Search All'}
             </button>
             <button
               className="scope-search-selected-btn"
@@ -700,8 +698,8 @@ export const ScopeSelectionModal: React.FC<ScopeSelectionModalProps> = ({
             >
               <Search size={16} />
               {selectionCount > 0
-                ? t('agentNav.searchSelected') || 'Search Selected'
-                : t('agentNav.searchAll') || 'Search All'}
+                ? t('knowledge.agentNav.searchSelected') || 'Search Selected'
+                : t('knowledge.agentNav.searchAll') || 'Search All'}
             </button>
           </div>
         </div>
