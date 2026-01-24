@@ -181,7 +181,8 @@ def setup_model_and_tokenizer(config: TrainingConfig):
         quantization_config=bnb_config,
         device_map=config.DEVICE_MAP,
         trust_remote_code=True,
-        torch_dtype=torch.bfloat16,
+        torch_dtype=torch.float16,
+        attn_implementation="eager",  # Avoid SDPA compatibility issues
     )
 
     # Prepare for k-bit training
