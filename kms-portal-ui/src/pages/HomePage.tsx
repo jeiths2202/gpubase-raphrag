@@ -4,7 +4,7 @@
  * Main landing page after login with quick access cards and stats
  */
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BookOpen,
@@ -13,13 +13,17 @@ import {
   FileText,
   Search,
   TrendingUp,
+  TrendingDown,
   Users,
   Clock,
   ArrowRight,
+  Loader2,
+  MessageSquare,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useSimplePageContext } from '../hooks/usePageContext';
 import { useAuthStore } from '../store/authStore';
+import { getDashboardData, type DashboardData, type UserActivity } from '../api/dashboard.api';
 
 // Quick action card interface
 interface QuickAction {
@@ -37,7 +41,8 @@ interface Stat {
   icon: React.ReactNode;
   value: string;
   labelKey: string;
-  trend?: string;
+  trend?: number;
+  trendDirection?: 'up' | 'down' | 'stable';
 }
 
 // Quick actions configuration
@@ -76,72 +81,100 @@ const QUICK_ACTIONS: QuickAction[] = [
   },
 ];
 
-// Stats configuration
-const STATS: Stat[] = [
-  {
-    id: 'documents',
-    icon: <FileText size={20} />,
-    value: '1,234',
-    labelKey: 'Documents indexed',
-    trend: '+12%',
-  },
-  {
-    id: 'queries',
-    icon: <Search size={20} />,
-    value: '5,678',
-    labelKey: 'Queries this month',
-    trend: '+23%',
-  },
-  {
-    id: 'users',
-    icon: <Users size={20} />,
-    value: '89',
-    labelKey: 'Active users',
-    trend: '+5%',
-  },
-  {
-    id: 'response',
-    icon: <Clock size={20} />,
-    value: '1.2s',
-    labelKey: 'Avg response time',
-    trend: '-15%',
-  },
-];
+// Format number with commas
+const formatNumber = (num: number): string => {
+  return num.toLocaleString();
+};
 
-// Recent activity mock data
-const RECENT_ACTIVITY = [
-  {
-    id: 1,
-    type: 'search',
-    message: 'Searched for "API documentation"',
-    time: '2 minutes ago',
-  },
-  {
-    id: 2,
-    type: 'upload',
-    message: 'Uploaded "Q4 Report.pdf"',
-    time: '15 minutes ago',
-  },
-  {
-    id: 3,
-    type: 'mindmap',
-    message: 'Created mindmap "Product Architecture"',
-    time: '1 hour ago',
-  },
-  {
-    id: 4,
-    type: 'crawl',
-    message: 'IMS crawl completed (152 documents)',
-    time: '3 hours ago',
-  },
-];
+// Format trend percentage
+const formatTrend = (trend?: number): string | undefined => {
+  if (trend === undefined || trend === null) return undefined;
+  const sign = trend >= 0 ? '+' : '';
+  return `${sign}${Math.round(trend)}%`;
+};
 
 export const HomePage: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuthStore();
 
+  // State for dashboard data
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_error, setError] = useState<string | null>(null);
+
+  // Fetch dashboard data
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await getDashboardData();
+      setDashboardData(data);
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Fetch data on mount and refresh every 5 minutes
+  useEffect(() => {
+    fetchDashboardData();
+    const interval = setInterval(fetchDashboardData, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchDashboardData]);
+
   // Register page context for AI awareness
   useSimplePageContext(['dashboard', 'quick-actions', 'stats']);
+
+  // Build stats array from dashboard data
+  const stats: Stat[] = dashboardData ? [
+    {
+      id: 'documents',
+      icon: <FileText size={20} />,
+      value: formatNumber(dashboardData.stats.documentsIndexed),
+      labelKey: 'home.stats.documentsIndexed',
+      trend: dashboardData.stats.documentsTrend,
+      trendDirection: dashboardData.stats.documentsTrend !== undefined
+        ? (dashboardData.stats.documentsTrend > 0 ? 'up' : dashboardData.stats.documentsTrend < 0 ? 'down' : 'stable')
+        : undefined,
+    },
+    {
+      id: 'queries',
+      icon: <Search size={20} />,
+      value: formatNumber(dashboardData.stats.queriesThisMonth),
+      labelKey: 'home.stats.queriesThisMonth',
+      trend: dashboardData.stats.queriesTrend,
+      trendDirection: dashboardData.stats.queriesTrend !== undefined
+        ? (dashboardData.stats.queriesTrend > 0 ? 'up' : dashboardData.stats.queriesTrend < 0 ? 'down' : 'stable')
+        : undefined,
+    },
+    {
+      id: 'users',
+      icon: <Users size={20} />,
+      value: formatNumber(dashboardData.stats.activeUsers),
+      labelKey: 'home.stats.activeUsers',
+      trend: dashboardData.stats.usersTrend,
+      trendDirection: dashboardData.stats.usersTrend !== undefined
+        ? (dashboardData.stats.usersTrend > 0 ? 'up' : dashboardData.stats.usersTrend < 0 ? 'down' : 'stable')
+        : undefined,
+    },
+    {
+      id: 'response',
+      icon: <Clock size={20} />,
+      value: dashboardData.stats.avgResponseTime,
+      labelKey: 'home.stats.avgResponseTime',
+      trend: dashboardData.stats.responseTrend,
+      // For response time, lower is better, so reverse the direction indicator
+      trendDirection: dashboardData.stats.responseTrend !== undefined
+        ? (dashboardData.stats.responseTrend < 0 ? 'up' : dashboardData.stats.responseTrend > 0 ? 'down' : 'stable')
+        : undefined,
+    },
+  ] : [];
+
+  // Get recent activity from dashboard data
+  const recentActivity: UserActivity[] = dashboardData?.recentActivity || [];
 
   return (
     <div className="home-page">
@@ -169,23 +202,42 @@ export const HomePage: React.FC = () => {
 
       {/* Stats section */}
       <section className="home-stats">
-        {STATS.map((stat) => (
-          <div key={stat.id} className="home-stat-card">
-            <div className="home-stat-icon">{stat.icon}</div>
-            <div className="home-stat-content">
-              <div className="home-stat-value">{stat.value}</div>
-              <div className="home-stat-label">{stat.labelKey}</div>
-            </div>
-            {stat.trend && (
-              <div
-                className={`home-stat-trend ${stat.trend.startsWith('+') ? 'positive' : 'negative'}`}
-              >
-                <TrendingUp size={14} />
-                <span>{stat.trend}</span>
+        {isLoading ? (
+          // Loading skeleton
+          Array.from({ length: 4 }).map((_, idx) => (
+            <div key={idx} className="home-stat-card home-stat-loading">
+              <div className="home-stat-icon">
+                <Loader2 size={20} className="animate-spin" />
               </div>
-            )}
-          </div>
-        ))}
+              <div className="home-stat-content">
+                <div className="home-stat-value">--</div>
+                <div className="home-stat-label">Loading...</div>
+              </div>
+            </div>
+          ))
+        ) : (
+          stats.map((stat) => (
+            <div key={stat.id} className="home-stat-card">
+              <div className="home-stat-icon">{stat.icon}</div>
+              <div className="home-stat-content">
+                <div className="home-stat-value">{stat.value}</div>
+                <div className="home-stat-label">{t(stat.labelKey)}</div>
+              </div>
+              {stat.trend !== undefined && (
+                <div
+                  className={`home-stat-trend ${stat.trendDirection === 'up' ? 'positive' : stat.trendDirection === 'down' ? 'negative' : ''}`}
+                >
+                  {stat.trendDirection === 'up' ? (
+                    <TrendingUp size={14} />
+                  ) : stat.trendDirection === 'down' ? (
+                    <TrendingDown size={14} />
+                  ) : null}
+                  <span>{formatTrend(stat.trend)}</span>
+                </div>
+              )}
+            </div>
+          ))
+        )}
       </section>
 
       {/* Quick actions */}
@@ -217,21 +269,47 @@ export const HomePage: React.FC = () => {
       {/* Recent activity */}
       <section className="home-activity">
         <div className="home-activity-header">
-          <h2 className="home-section-title">Recent Activity</h2>
-          <Link to="/analytics" className="home-activity-link">
+          <h2 className="home-section-title">{t('home.recentActivity')}</h2>
+          <Link to="/ai-agent" className="home-activity-link">
             {t('common.viewAll')} <ArrowRight size={14} />
           </Link>
         </div>
         <div className="home-activity-list">
-          {RECENT_ACTIVITY.map((activity) => (
-            <div key={activity.id} className="home-activity-item">
-              <div className="home-activity-dot" />
-              <div className="home-activity-content">
-                <span className="home-activity-message">{activity.message}</span>
-                <span className="home-activity-time">{activity.time}</span>
+          {isLoading ? (
+            // Loading skeleton
+            Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="home-activity-item home-activity-loading">
+                <div className="home-activity-dot" />
+                <div className="home-activity-content">
+                  <span className="home-activity-message">Loading...</span>
+                  <span className="home-activity-time">--</span>
+                </div>
               </div>
+            ))
+          ) : recentActivity.length > 0 ? (
+            recentActivity.map((activity) => (
+              <Link
+                key={activity.id}
+                to={activity.type === 'chat' ? `/ai-agent?conversation=${activity.id}` : '/ai-agent'}
+                className="home-activity-item home-activity-link-item"
+              >
+                <div className="home-activity-icon">
+                  <MessageSquare size={14} />
+                </div>
+                <div className="home-activity-content">
+                  <span className="home-activity-message">{activity.message}</span>
+                  <span className="home-activity-time">{activity.time}</span>
+                </div>
+              </Link>
+            ))
+          ) : (
+            <div className="home-activity-empty">
+              <p>{t('home.noRecentActivity')}</p>
+              <Link to="/ai-agent" className="home-activity-start">
+                {t('home.startConversation')} <ArrowRight size={14} />
+              </Link>
             </div>
-          ))}
+          )}
         </div>
       </section>
     </div>

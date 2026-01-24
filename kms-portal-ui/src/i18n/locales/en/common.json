@@ -563,5 +563,27 @@
   },
   "minimize": "Minimize",
   "closeAll": "Close all",
-  "query": "Query"
+  "query": "Query",
+  "clarification": {
+    "title": "Clarify Your Search",
+    "query": "Your query",
+    "infoMessage": "Your query contains terms that could have multiple meanings. Please select the intended meaning for each term to get more accurate results.",
+    "selected": "selected",
+    "confirm": "Confirm & Search",
+    "remember": "Remember this choice for future searches",
+    "autoResolved": "Auto-resolved",
+    "preferenceSaved": "preference saved",
+    "preferencesSaved": "preferences saved"
+  },
+  "home": {
+    "stats": {
+      "documentsIndexed": "Documents indexed",
+      "queriesThisMonth": "Queries this month",
+      "activeUsers": "Active users",
+      "avgResponseTime": "Avg response time"
+    },
+    "recentActivity": "Recent Activity",
+    "noRecentActivity": "No recent activity yet",
+    "startConversation": "Start a conversation"
+  }
 }

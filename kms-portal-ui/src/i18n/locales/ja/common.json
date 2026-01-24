@@ -563,5 +563,27 @@
   },
   "minimize": "最小化",
   "closeAll": "すべて閉じる",
-  "query": "クエリ"
+  "query": "クエリ",
+  "clarification": {
+    "title": "検索語の明確化",
+    "query": "入力したクエリ",
+    "infoMessage": "クエリに複数の意味を持つ可能性のある用語が含まれています。より正確な検索結果を得るために、各用語の意図された意味を選択してください。",
+    "selected": "選択済み",
+    "confirm": "確認して検索",
+    "remember": "この選択を今後の検索にも適用する",
+    "autoResolved": "自動解決",
+    "preferenceSaved": "件の設定が保存されました",
+    "preferencesSaved": "件の設定が保存されました"
+  },
+  "home": {
+    "stats": {
+      "documentsIndexed": "インデックス済み文書",
+      "queriesThisMonth": "今月のクエリ",
+      "activeUsers": "アクティブユーザー",
+      "avgResponseTime": "平均応答時間"
+    },
+    "recentActivity": "最近のアクティビティ",
+    "noRecentActivity": "最近のアクティビティがありません",
+    "startConversation": "会話を始める"
+  }
 }

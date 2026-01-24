@@ -563,5 +563,27 @@
   },
   "minimize": "최소화",
   "closeAll": "모두 닫기",
-  "query": "검색어"
+  "query": "검색어",
+  "clarification": {
+    "title": "검색어 명확화",
+    "query": "입력한 검색어",
+    "infoMessage": "검색어에 여러 의미를 가질 수 있는 용어가 포함되어 있습니다. 더 정확한 검색 결과를 위해 각 용어의 의도된 의미를 선택해 주세요.",
+    "selected": "선택됨",
+    "confirm": "확인 및 검색",
+    "remember": "이 선택을 다음 검색에도 적용",
+    "autoResolved": "자동 해석됨",
+    "preferenceSaved": "개 선호도 저장됨",
+    "preferencesSaved": "개 선호도 저장됨"
+  },
+  "home": {
+    "stats": {
+      "documentsIndexed": "색인된 문서",
+      "queriesThisMonth": "이번 달 쿼리",
+      "activeUsers": "활성 사용자",
+      "avgResponseTime": "평균 응답 시간"
+    },
+    "recentActivity": "최근 활동",
+    "noRecentActivity": "최근 활동이 없습니다",
+    "startConversation": "대화 시작하기"
+  }
 }
