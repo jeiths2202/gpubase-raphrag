@@ -25,6 +25,7 @@ import {
   Thermometer,
   Zap,
   HardDrive,
+  Server,
 } from 'lucide-react';
 import {
   UserManagementTable,
@@ -1009,7 +1010,10 @@ const HealthTab: React.FC<{ data: ExecutiveDashboard }> = ({ data }) => {
       {/* Components Section */}
       {components.length > 0 && (
         <section className="admin-components-grid">
-          <h3 className="admin-section-title">Services</h3>
+          <h3 className="admin-section-title">
+            <Server size={20} />
+            Services
+          </h3>
           <div className="admin-component-cards">
             {components.map(([name, info]) => (
               <div key={name} className="admin-component-card">
