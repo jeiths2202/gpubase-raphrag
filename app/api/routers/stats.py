@@ -14,7 +14,7 @@ from ..models.stats import (
     QueryStatsDetail,
     DocumentStatsDetail,
 )
-from ..core.deps import get_current_user, get_stats_service, get_db_pool
+from ..core.deps import get_current_user, get_stats_service, get_postgres_pool
 
 router = APIRouter(prefix="/stats", tags=["Statistics"])
 
@@ -39,7 +39,7 @@ class HomeDashboardStats(BaseModel):
 )
 async def get_home_dashboard_stats(
     current_user: dict = Depends(get_current_user),
-    pool = Depends(get_db_pool)
+    pool = Depends(get_postgres_pool)
 ):
     """Get statistics for home page dashboard"""
     request_id = f"req_{uuid.uuid4().hex[:12]}"
