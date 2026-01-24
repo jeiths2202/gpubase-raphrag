@@ -270,7 +270,7 @@ export const HomePage: React.FC = () => {
       <section className="home-activity">
         <div className="home-activity-header">
           <h2 className="home-section-title">{t('common.home.recentActivity')}</h2>
-          <Link to="/ai-agent" className="home-activity-link">
+          <Link to="/agent" className="home-activity-link">
             {t('common.viewAll')} <ArrowRight size={14} />
           </Link>
         </div>
@@ -290,7 +290,7 @@ export const HomePage: React.FC = () => {
             recentActivity.map((activity) => (
               <Link
                 key={activity.id}
-                to={activity.type === 'chat' ? `/ai-agent?conversation=${activity.id}` : '/ai-agent'}
+                to={activity.type === 'chat' ? `/agent?conversation=${activity.id}` : '/agent'}
                 className="home-activity-item home-activity-link-item"
               >
                 <div className="home-activity-icon">
@@ -305,7 +305,7 @@ export const HomePage: React.FC = () => {
           ) : (
             <div className="home-activity-empty">
               <p>{t('common.home.noRecentActivity')}</p>
-              <Link to="/ai-agent" className="home-activity-start">
+              <Link to="/agent" className="home-activity-start">
                 {t('common.home.startConversation')} <ArrowRight size={14} />
               </Link>
             </div>
