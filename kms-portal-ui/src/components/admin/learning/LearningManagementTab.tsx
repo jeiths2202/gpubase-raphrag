@@ -1,9 +1,12 @@
 /**
  * Learning Management Tab
- * Smarter RAG 시스템의 학습 관리 UI
- * - Verified Knowledge Store 현황
- * - 학습 배치 관리
- * - 수동 학습 트리거
+ * Premium UI for Smarter RAG Learning System
+ *
+ * Features:
+ * - Verified Knowledge Store management
+ * - Training batch monitoring
+ * - Learning LLM status
+ * - Daily statistics visualization
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -18,8 +21,17 @@ import {
   Loader2,
   AlertTriangle,
   ThumbsUp,
-  BookOpen,
   Trash2,
+  Zap,
+  Calendar,
+  Cpu,
+  Layers,
+  Activity,
+  Settings,
+  ChevronRight,
+  Sparkles,
+  BarChart3,
+  Info,
 } from 'lucide-react';
 import client from '../../../api/client';
 import './LearningManagementTab.css';
@@ -82,6 +94,50 @@ interface LearningLLMStatus {
   };
 }
 
+// Status Indicator Component
+const StatusDot: React.FC<{ status: 'active' | 'inactive' | 'warning' | 'error'; size?: number }> = ({
+  status,
+  size = 8
+}) => {
+  const colors = {
+    active: '#22c55e',
+    inactive: '#64748b',
+    warning: '#f59e0b',
+    error: '#ef4444',
+  };
+
+  return (
+    <span
+      className="status-dot"
+      style={{
+        width: size,
+        height: size,
+        backgroundColor: colors[status],
+        boxShadow: status === 'active' ? `0 0 8px ${colors[status]}50` : 'none',
+      }}
+    />
+  );
+};
+
+// Badge Component
+const Badge: React.FC<{
+  variant: 'success' | 'warning' | 'error' | 'info' | 'neutral';
+  children: React.ReactNode;
+  icon?: React.ReactNode;
+}> = ({ variant, children, icon }) => (
+  <span className={`premium-badge premium-badge--${variant}`}>
+    {icon}
+    {children}
+  </span>
+);
+
+// Tooltip wrapper
+const Tooltip: React.FC<{ content: string; children: React.ReactNode }> = ({ content, children }) => (
+  <span className="tooltip-wrapper" data-tooltip={content}>
+    {children}
+  </span>
+);
+
 export const LearningManagementTab: React.FC = () => {
   // State
   const [stats, setStats] = useState<VerifiedKnowledgeStats | null>(null);
@@ -141,7 +197,6 @@ export const LearningManagementTab: React.FC = () => {
 
       if (response.data.success) {
         setSuccessMessage(`학습이 시작되었습니다. Batch ID: ${response.data.batch_id}`);
-        // Refresh data after a delay
         setTimeout(fetchData, 2000);
       } else {
         setError(response.data.message);
@@ -180,7 +235,6 @@ export const LearningManagementTab: React.FC = () => {
 
       if (response.data.success) {
         setSuccessMessage(`Learning LLM 어댑터 리로드 완료: ${response.data.adapter_name}`);
-        // Refresh LLM status
         const statusRes = await client.get('/verified-knowledge/learning-llm/status');
         setLlmStatus(statusRes.data);
       } else {
@@ -193,56 +247,66 @@ export const LearningManagementTab: React.FC = () => {
     }
   };
 
-  // Format date
+  // Format helpers
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleString('ko-KR');
+    return new Date(dateStr).toLocaleString('ko-KR', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
-  // Get status badge
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { color: string; icon: React.ReactNode }> = {
-      completed: { color: 'green', icon: <CheckCircle size={14} /> },
-      training: { color: 'blue', icon: <Loader2 size={14} className="spin" /> },
-      pending: { color: 'yellow', icon: <Clock size={14} /> },
-      failed: { color: 'red', icon: <XCircle size={14} /> },
-      collecting: { color: 'purple', icon: <Database size={14} /> },
+  // Get status config
+  const getStatusConfig = (status: string) => {
+    const configs: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
+      completed: { color: 'success', icon: <CheckCircle size={14} />, label: 'Completed' },
+      training: { color: 'info', icon: <Loader2 size={14} className="spin" />, label: 'Training' },
+      pending: { color: 'warning', icon: <Clock size={14} />, label: 'Pending' },
+      failed: { color: 'error', icon: <XCircle size={14} />, label: 'Failed' },
+      collecting: { color: 'info', icon: <Database size={14} />, label: 'Collecting' },
     };
-
-    const config = statusConfig[status] || { color: 'gray', icon: <Clock size={14} /> };
-
-    return (
-      <span className={`status-badge status-badge--${config.color}`}>
-        {config.icon}
-        <span>{status}</span>
-      </span>
-    );
+    return configs[status] || { color: 'neutral', icon: <Clock size={14} />, label: status };
   };
+
+  // Calculate max value for chart scaling
+  const maxChartValue = Math.max(
+    ...dailyStats.map(d => Math.max(d.new_entries, d.trained_entries)),
+    1
+  );
 
   if (loading) {
     return (
-      <div className="learning-tab loading">
-        <Loader2 className="spin" size={32} />
-        <span>Loading...</span>
+      <div className="learning-tab learning-tab--loading">
+        <div className="loading-content">
+          <div className="loading-spinner">
+            <Brain className="spin" size={32} />
+          </div>
+          <span>Loading Learning System...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="learning-tab">
+    <div className="learning-tab premium">
       {/* Header */}
-      <div className="learning-header">
+      <header className="learning-header">
         <div className="learning-header__title">
-          <Brain size={24} />
-          <h2>Smarter RAG - Learning Management</h2>
+          <div className="learning-header__icon">
+            <Brain size={28} />
+          </div>
+          <div>
+            <h2>Smarter RAG - Learning Management</h2>
+            <p className="learning-header__subtitle">
+              AI 시스템이 지속적으로 학습하고 개선됩니다
+            </p>
+          </div>
         </div>
         <div className="learning-header__actions">
-          <button
-            className="btn btn-secondary"
-            onClick={fetchData}
-            disabled={loading}
-          >
-            <RefreshCw size={16} />
+          <button className="btn btn-ghost" onClick={fetchData} disabled={loading}>
+            <RefreshCw size={16} className={loading ? 'spin' : ''} />
             <span>새로고침</span>
           </button>
           <button
@@ -254,325 +318,482 @@ export const LearningManagementTab: React.FC = () => {
             <span>수동 학습 시작</span>
           </button>
         </div>
-      </div>
+      </header>
 
       {/* Messages */}
       {error && (
-        <div className="message message--error">
-          <AlertTriangle size={16} />
+        <div className="alert alert--error">
+          <AlertTriangle size={18} />
           <span>{error}</span>
+          <button className="alert__close" onClick={() => setError(null)}>×</button>
         </div>
       )}
       {successMessage && (
-        <div className="message message--success">
-          <CheckCircle size={16} />
+        <div className="alert alert--success">
+          <CheckCircle size={18} />
           <span>{successMessage}</span>
+          <button className="alert__close" onClick={() => setSuccessMessage(null)}>×</button>
         </div>
       )}
 
-      {/* Stats Cards */}
-      <div className="stats-grid">
+      {/* Stats Overview Cards */}
+      <section className="stats-overview">
         <div className="stat-card stat-card--primary">
           <div className="stat-card__icon">
-            <Database size={24} />
+            <Database size={22} />
           </div>
           <div className="stat-card__content">
-            <div className="stat-card__value">{stats?.active_count || 0}</div>
-            <div className="stat-card__label">Active Knowledge</div>
+            <span className="stat-card__value">{stats?.active_count || 0}</span>
+            <span className="stat-card__label">Active Knowledge</span>
           </div>
+          <div className="stat-card__decoration" />
         </div>
 
         <div className="stat-card stat-card--success">
           <div className="stat-card__icon">
-            <ThumbsUp size={24} />
+            <ThumbsUp size={22} />
           </div>
           <div className="stat-card__content">
-            <div className="stat-card__value">{stats?.trained_count || 0}</div>
-            <div className="stat-card__label">Trained</div>
+            <span className="stat-card__value">{stats?.trained_count || 0}</span>
+            <span className="stat-card__label">Trained</span>
           </div>
+          <div className="stat-card__decoration" />
         </div>
 
         <div className="stat-card stat-card--warning">
           <div className="stat-card__icon">
-            <Clock size={24} />
+            <Clock size={22} />
           </div>
           <div className="stat-card__content">
-            <div className="stat-card__value">{stats?.pending_training_count || 0}</div>
-            <div className="stat-card__label">Pending Training</div>
+            <span className="stat-card__value">{stats?.pending_training_count || 0}</span>
+            <span className="stat-card__label">Pending Training</span>
           </div>
+          <div className="stat-card__decoration" />
         </div>
 
         <div className="stat-card stat-card--danger">
           <div className="stat-card__icon">
-            <Trash2 size={24} />
+            <Trash2 size={22} />
           </div>
           <div className="stat-card__content">
-            <div className="stat-card__value">{stats?.unlearn_pending_count || 0}</div>
-            <div className="stat-card__label">Pending Unlearn</div>
+            <span className="stat-card__value">{stats?.unlearn_pending_count || 0}</span>
+            <span className="stat-card__label">Pending Unlearn</span>
+          </div>
+          <div className="stat-card__decoration" />
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-card__icon">
+            <TrendingUp size={22} />
+          </div>
+          <div className="stat-card__content">
+            <span className="stat-card__value">
+              {((stats?.avg_feedback_score || 0) * 100).toFixed(0)}%
+            </span>
+            <span className="stat-card__label">Avg Score</span>
           </div>
         </div>
 
         <div className="stat-card">
           <div className="stat-card__icon">
-            <TrendingUp size={24} />
+            <Activity size={22} />
           </div>
           <div className="stat-card__content">
-            <div className="stat-card__value">
-              {((stats?.avg_feedback_score || 0) * 100).toFixed(1)}%
-            </div>
-            <div className="stat-card__label">Avg Feedback Score</div>
+            <span className="stat-card__value">{stats?.total_usage_count || 0}</span>
+            <span className="stat-card__label">Total Usage</span>
           </div>
         </div>
+      </section>
 
-        <div className="stat-card">
-          <div className="stat-card__icon">
-            <BookOpen size={24} />
-          </div>
-          <div className="stat-card__content">
-            <div className="stat-card__value">{stats?.total_usage_count || 0}</div>
-            <div className="stat-card__label">Total Usage</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Schedule Section */}
-      <div className="section">
-        <h3 className="section__title">학습 스케줄</h3>
-        {schedule && (
-          <div className="schedule-card">
-            <div className="schedule-info">
-              <div className="schedule-item">
-                <span className="schedule-item__label">스케줄</span>
-                <span className="schedule-item__value">{schedule.cron_expression} (매일 00:00)</span>
-              </div>
-              <div className="schedule-item">
-                <span className="schedule-item__label">상태</span>
-                <span className={`schedule-item__value ${schedule.is_enabled ? 'enabled' : 'disabled'}`}>
-                  {schedule.is_enabled ? '활성화' : '비활성화'}
-                </span>
-              </div>
-              <div className="schedule-item">
-                <span className="schedule-item__label">다음 실행</span>
-                <span className="schedule-item__value">{formatDate(schedule.next_run_at)}</span>
-              </div>
-              <div className="schedule-item">
-                <span className="schedule-item__label">마지막 실행</span>
-                <span className="schedule-item__value">
-                  {formatDate(schedule.last_run_at)}
-                  {schedule.last_status && ` (${schedule.last_status})`}
-                </span>
-              </div>
+      {/* Main Grid: Schedule & LLM Status */}
+      <section className="main-grid">
+        {/* Learning Schedule Card */}
+        <div className="premium-card">
+          <div className="premium-card__header">
+            <div className="premium-card__title">
+              <Calendar size={18} />
+              <span>학습 스케줄</span>
             </div>
-            <div className="schedule-actions">
-              <label className="toggle">
+            {schedule && (
+              <label className="toggle-switch">
                 <input
                   type="checkbox"
                   checked={schedule.is_enabled}
                   onChange={handleToggleSchedule}
                 />
-                <span className="toggle__slider"></span>
+                <span className="toggle-switch__slider" />
               </label>
-            </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Learning LLM Status */}
-      <div className="section">
-        <h3 className="section__title">Learning LLM 상태</h3>
-        <div className="schedule-card">
-          <div className="schedule-info">
-            <div className="schedule-item">
-              <span className="schedule-item__label">서비스</span>
-              <span className={`schedule-item__value ${llmStatus?.enabled ? 'enabled' : 'disabled'}`}>
-                {llmStatus?.enabled ? '활성화' : '비활성화'}
-              </span>
+          {schedule ? (
+            <div className="premium-card__body">
+              <div className="schedule-status">
+                <StatusDot status={schedule.is_enabled ? 'active' : 'inactive'} size={10} />
+                <span className={schedule.is_enabled ? 'text-success' : 'text-muted'}>
+                  {schedule.is_enabled ? '자동 학습 활성화' : '자동 학습 비활성화'}
+                </span>
+              </div>
+
+              <div className="info-grid">
+                <div className="info-item">
+                  <span className="info-item__label">
+                    <Clock size={14} />
+                    스케줄
+                  </span>
+                  <Tooltip content="Cron 표현식으로 설정된 자동 학습 시간">
+                    <span className="info-item__value mono">
+                      {schedule.cron_expression}
+                      <span className="text-muted"> (매일 00:00)</span>
+                    </span>
+                  </Tooltip>
+                </div>
+
+                <div className="info-item">
+                  <span className="info-item__label">
+                    <ChevronRight size={14} />
+                    다음 실행
+                  </span>
+                  <span className="info-item__value">
+                    {schedule.next_run_at ? formatDate(schedule.next_run_at) : '스케줄 비활성화'}
+                  </span>
+                </div>
+
+                <div className="info-item">
+                  <span className="info-item__label">
+                    <CheckCircle size={14} />
+                    마지막 실행
+                  </span>
+                  <span className="info-item__value">
+                    {schedule.last_run_at ? (
+                      <>
+                        {formatDate(schedule.last_run_at)}
+                        {schedule.last_status && (
+                          <Badge
+                            variant={schedule.last_status === 'completed' ? 'success' : 'warning'}
+                          >
+                            {schedule.last_status}
+                          </Badge>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted">실행 기록 없음</span>
+                    )}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="schedule-item">
-              <span className="schedule-item__label">모델 로드</span>
-              <span className={`schedule-item__value ${llmStatus?.is_loaded ? 'enabled' : 'disabled'}`}>
-                {llmStatus?.is_loaded ? '로드됨' : '미로드'}
-              </span>
+          ) : (
+            <div className="premium-card__body">
+              <div className="empty-state empty-state--small">
+                <Settings size={24} />
+                <span>스케줄 설정이 없습니다</span>
+              </div>
             </div>
-            <div className="schedule-item">
-              <span className="schedule-item__label">베이스 모델</span>
-              <span className="schedule-item__value">{llmStatus?.base_model || '-'}</span>
+          )}
+        </div>
+
+        {/* Learning LLM Status Card */}
+        <div className="premium-card">
+          <div className="premium-card__header">
+            <div className="premium-card__title">
+              <Cpu size={18} />
+              <span>Learning LLM 상태</span>
             </div>
-            <div className="schedule-item">
-              <span className="schedule-item__label">현재 어댑터</span>
-              <span className="schedule-item__value">{llmStatus?.current_adapter || '없음'}</span>
-            </div>
-            <div className="schedule-item">
-              <span className="schedule-item__label">사용 가능한 어댑터</span>
-              <span className="schedule-item__value">{llmStatus?.available_adapters?.length || 0}개</span>
-            </div>
-          </div>
-          <div className="schedule-actions">
             <button
-              className="btn btn-secondary"
+              className="btn btn-sm btn-ghost"
               onClick={() => handleReloadLLM()}
               disabled={reloadLoading || !llmStatus?.enabled || (llmStatus?.available_adapters?.length === 0)}
             >
-              {reloadLoading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
-              <span>어댑터 리로드</span>
+              {reloadLoading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
+              <span>리로드</span>
             </button>
           </div>
-        </div>
-        {llmStatus?.available_adapters && llmStatus.available_adapters.length > 0 && (
-          <div className="adapter-list" style={{ marginTop: 'var(--spacing-md)' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              최근 어댑터: {llmStatus.available_adapters.slice(0, 5).join(', ')}
-            </span>
+
+          <div className="premium-card__body">
+            {llmStatus ? (
+              <>
+                <div className="llm-status-row">
+                  <div className="llm-status-item">
+                    <span className="llm-status-item__label">서비스</span>
+                    <div className="llm-status-item__value">
+                      <StatusDot status={llmStatus.enabled ? 'active' : 'inactive'} />
+                      <span>{llmStatus.enabled ? '활성화' : '비활성화'}</span>
+                    </div>
+                  </div>
+
+                  <div className="llm-status-item">
+                    <span className="llm-status-item__label">모델</span>
+                    <div className="llm-status-item__value">
+                      <StatusDot status={llmStatus.is_loaded ? 'active' : 'inactive'} />
+                      <span>{llmStatus.is_loaded ? '로드됨' : '미로드'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="info-grid">
+                  <div className="info-item info-item--full">
+                    <span className="info-item__label">
+                      <Layers size={14} />
+                      베이스 모델
+                    </span>
+                    <span className="info-item__value mono">
+                      {llmStatus.base_model || '-'}
+                    </span>
+                  </div>
+
+                  <div className="info-item">
+                    <span className="info-item__label">
+                      <Zap size={14} />
+                      현재 어댑터
+                    </span>
+                    <span className="info-item__value">
+                      {llmStatus.current_adapter ? (
+                        <Badge variant="success" icon={<CheckCircle size={12} />}>
+                          {llmStatus.current_adapter}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted">없음</span>
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="info-item">
+                    <span className="info-item__label">
+                      <Database size={14} />
+                      사용 가능한 어댑터
+                    </span>
+                    <span className="info-item__value">
+                      <Badge variant="info">
+                        {llmStatus.available_adapters?.length || 0}개
+                      </Badge>
+                    </span>
+                  </div>
+                </div>
+
+                {llmStatus.available_adapters && llmStatus.available_adapters.length > 0 && (
+                  <div className="adapter-list">
+                    <span className="adapter-list__label">최근 어댑터:</span>
+                    <div className="adapter-list__items">
+                      {llmStatus.available_adapters.slice(0, 3).map((adapter, i) => (
+                        <span key={i} className="adapter-tag">{adapter}</span>
+                      ))}
+                      {llmStatus.available_adapters.length > 3 && (
+                        <span className="adapter-tag adapter-tag--more">
+                          +{llmStatus.available_adapters.length - 3}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="empty-state empty-state--small">
+                <Cpu size={24} />
+                <span>LLM 상태를 불러올 수 없습니다</span>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      </section>
 
       {/* Training Batches */}
-      <div className="section">
-        <h3 className="section__title">최근 학습 배치</h3>
-        <div className="batches-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Batch ID</th>
-                <th>상태</th>
-                <th>샘플 수</th>
-                <th>어댑터</th>
-                <th>Loss</th>
-                <th>시작</th>
-                <th>완료</th>
-              </tr>
-            </thead>
-            <tbody>
-              {batches.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="empty-row">
-                    학습 배치가 없습니다
-                  </td>
-                </tr>
-              ) : (
-                batches.map((batch) => (
-                  <tr key={batch.id}>
-                    <td className="batch-id">{batch.batch_id}</td>
-                    <td>{getStatusBadge(batch.status)}</td>
-                    <td>
-                      {batch.trained_samples} / {batch.total_samples}
-                    </td>
-                    <td>{batch.adapter_name || '-'}</td>
-                    <td>{batch.eval_loss?.toFixed(4) || '-'}</td>
-                    <td>{formatDate(batch.started_at)}</td>
-                    <td>{formatDate(batch.completed_at)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      <section className="premium-card">
+        <div className="premium-card__header">
+          <div className="premium-card__title">
+            <Sparkles size={18} />
+            <span>최근 학습 배치</span>
+          </div>
+          <span className="text-muted text-sm">{batches.length}개 배치</span>
         </div>
-      </div>
 
-      {/* Daily Stats Chart */}
-      <div className="section">
-        <h3 className="section__title">일별 통계 (최근 14일)</h3>
-        <div className="daily-stats-chart">
-          {dailyStats.length === 0 ? (
-            <div className="empty-chart">데이터가 없습니다</div>
+        <div className="premium-card__body premium-card__body--no-padding">
+          {batches.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state__icon">
+                <Sparkles size={32} />
+              </div>
+              <h4>학습 배치가 없습니다</h4>
+              <p>첫 번째 학습을 시작하면 여기에 배치 기록이 표시됩니다.</p>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={handleTriggerTraining}
+                disabled={triggerLoading || (stats?.pending_training_count === 0)}
+              >
+                <Play size={14} />
+                <span>학습 시작하기</span>
+              </button>
+            </div>
           ) : (
-            <div className="chart-bars">
-              {dailyStats.slice().reverse().map((day) => (
-                <div key={day.date} className="chart-bar-group">
-                  <div className="chart-bars-container">
-                    <div
-                      className="chart-bar chart-bar--new"
-                      style={{ height: `${Math.min(day.new_entries * 10, 100)}%` }}
-                      title={`New: ${day.new_entries}`}
-                    />
-                    <div
-                      className="chart-bar chart-bar--trained"
-                      style={{ height: `${Math.min(day.trained_entries * 10, 100)}%` }}
-                      title={`Trained: ${day.trained_entries}`}
-                    />
-                  </div>
-                  <div className="chart-label">{day.date.slice(5)}</div>
-                </div>
-              ))}
+            <div className="batch-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Batch ID</th>
+                    <th>상태</th>
+                    <th>진행률</th>
+                    <th>어댑터</th>
+                    <th>Loss</th>
+                    <th>시작</th>
+                    <th>완료</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {batches.map((batch) => {
+                    const config = getStatusConfig(batch.status);
+                    const progress = batch.total_samples > 0
+                      ? Math.round((batch.trained_samples / batch.total_samples) * 100)
+                      : 0;
+
+                    return (
+                      <tr key={batch.id}>
+                        <td>
+                          <code className="batch-id">{batch.batch_id}</code>
+                        </td>
+                        <td>
+                          <Badge
+                            variant={config.color as any}
+                            icon={config.icon}
+                          >
+                            {config.label}
+                          </Badge>
+                        </td>
+                        <td>
+                          <div className="progress-cell">
+                            <div className="progress-bar">
+                              <div
+                                className="progress-bar__fill"
+                                style={{ width: `${progress}%` }}
+                              />
+                            </div>
+                            <span className="progress-text">
+                              {batch.trained_samples}/{batch.total_samples}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          {batch.adapter_name ? (
+                            <span className="adapter-tag">{batch.adapter_name}</span>
+                          ) : (
+                            <span className="text-muted">-</span>
+                          )}
+                        </td>
+                        <td>
+                          {batch.eval_loss ? (
+                            <span className="mono">{batch.eval_loss.toFixed(4)}</span>
+                          ) : (
+                            <span className="text-muted">-</span>
+                          )}
+                        </td>
+                        <td className="text-muted">{formatDate(batch.started_at)}</td>
+                        <td className="text-muted">{formatDate(batch.completed_at)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Daily Statistics Chart */}
+      <section className="premium-card">
+        <div className="premium-card__header">
+          <div className="premium-card__title">
+            <BarChart3 size={18} />
+            <span>일별 통계</span>
+            <span className="text-muted text-sm">(최근 14일)</span>
+          </div>
           <div className="chart-legend">
-            <span className="legend-item legend-item--new">New Entries</span>
-            <span className="legend-item legend-item--trained">Trained</span>
+            <span className="legend-item">
+              <span className="legend-dot legend-dot--new" />
+              New Entries
+            </span>
+            <span className="legend-item">
+              <span className="legend-dot legend-dot--trained" />
+              Trained
+            </span>
           </div>
         </div>
-      </div>
 
-      {/* System Health */}
-      <div className="section">
-        <h3 className="section__title">시스템 상태</h3>
-        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-          <div className="stat-card">
-            <div className="stat-card__content">
-              <div className="stat-card__label">RAG 응답 전략</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: 'var(--spacing-sm)' }}>
-                <div>Verified Knowledge: 최우선</div>
-                <div>Learning LLM: 2순위</div>
-                <div>Document RAG: 폴백</div>
+        <div className="premium-card__body">
+          {dailyStats.length === 0 ? (
+            <div className="empty-state empty-state--small">
+              <BarChart3 size={24} />
+              <span>통계 데이터가 없습니다</span>
+            </div>
+          ) : (
+            <div className="chart-container">
+              <div className="bar-chart">
+                {dailyStats.slice().reverse().map((day, index) => (
+                  <div key={day.date} className="bar-group">
+                    <div className="bars">
+                      <Tooltip content={`New: ${day.new_entries}`}>
+                        <div
+                          className="bar bar--new"
+                          style={{
+                            height: `${(day.new_entries / maxChartValue) * 100}%`,
+                            animationDelay: `${index * 30}ms`
+                          }}
+                        />
+                      </Tooltip>
+                      <Tooltip content={`Trained: ${day.trained_entries}`}>
+                        <div
+                          className="bar bar--trained"
+                          style={{
+                            height: `${(day.trained_entries / maxChartValue) * 100}%`,
+                            animationDelay: `${index * 30 + 15}ms`
+                          }}
+                        />
+                      </Tooltip>
+                    </div>
+                    <span className="bar-label">{day.date.slice(5)}</span>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-card__content">
-              <div className="stat-card__label">피드백 영향</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: 'var(--spacing-sm)' }}>
-                <div>👍 → VK Store 등록 → 학습</div>
-                <div>👎 → VK Store 삭제 → 망각</div>
-              </div>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-card__content">
-              <div className="stat-card__label">학습 효과</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: 'var(--spacing-sm)' }}>
-                <div>동일 질문: VK Store 응답</div>
-                <div>유사 질문: Learning LLM 생성</div>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
-      </div>
+      </section>
 
-      {/* How it works */}
-      <div className="section">
-        <h3 className="section__title">Smarter RAG 동작 원리</h3>
-        <div className="how-it-works">
-          <div className="step">
-            <div className="step__number">1</div>
-            <div className="step__content">
-              <h4>사용자 피드백 수집</h4>
-              <p>사용자가 응답에 👍/👎 피드백을 제공합니다.</p>
+      {/* How It Works Section */}
+      <section className="how-it-works">
+        <h3 className="section-title">
+          <Info size={18} />
+          Smarter RAG 동작 원리
+        </h3>
+        <div className="workflow-cards">
+          <div className="workflow-card">
+            <div className="workflow-card__number">1</div>
+            <div className="workflow-card__content">
+              <h4>피드백 수집</h4>
+              <p>사용자의 👍/👎 피드백을 실시간으로 수집합니다.</p>
             </div>
           </div>
-          <div className="step">
-            <div className="step__number">2</div>
-            <div className="step__content">
-              <h4>Verified Knowledge Store</h4>
-              <p>👍 받은 응답은 자동으로 검증된 지식 저장소에 등록됩니다.</p>
+          <div className="workflow-card">
+            <div className="workflow-card__number">2</div>
+            <div className="workflow-card__content">
+              <h4>검증된 지식 저장</h4>
+              <p>👍 받은 응답은 Verified Knowledge Store에 등록됩니다.</p>
             </div>
           </div>
-          <div className="step">
-            <div className="step__number">3</div>
-            <div className="step__content">
+          <div className="workflow-card">
+            <div className="workflow-card__number">3</div>
+            <div className="workflow-card__content">
               <h4>QLoRA 학습</h4>
-              <p>매일 00:00 또는 수동 트리거로 검증된 지식을 학습합니다.</p>
+              <p>매일 자동으로 또는 수동으로 검증된 지식을 학습합니다.</p>
             </div>
           </div>
-          <div className="step">
-            <div className="step__number">4</div>
-            <div className="step__content">
+          <div className="workflow-card">
+            <div className="workflow-card__number">4</div>
+            <div className="workflow-card__content">
               <h4>스마트 응답</h4>
-              <p>학습된 지식으로 더 정확한 응답을 제공합니다.</p>
+              <p>학습된 지식으로 더 정확하고 일관된 응답을 제공합니다.</p>
             </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 };
