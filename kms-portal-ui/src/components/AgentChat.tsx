@@ -53,9 +53,11 @@ import {
   SearchProgressModal,
   FAQRegistrationModal,
   ScopeSelectionModal,
+  ClarificationModal,
   useFileAttachment,
   useUrlAttachment,
   useStreamingChat,
+  useClarification,
   AGENT_CONFIGS,
   SUPPORTED_EXTENSIONS,
   type ChatMessage,
@@ -304,6 +306,26 @@ export const AgentChat: React.FC<AgentChatProps> = ({
     onTraceData: updateFromTraceData,
   });
 
+  // Query clarification hook (for ambiguous terms like MFS, WebAdmin)
+  const {
+    isModalOpen: isClarificationModalOpen,
+    detectedTerms,
+    pendingQuery: clarificationPendingQuery,
+    checkQueryClarification,
+    handleClarificationConfirm,
+    closeClarificationModal,
+    autoResolvedMessage,
+    clearAutoResolvedMessage,
+  } = useClarification(async (resolvedQuery: string) => {
+    // After clarification, proceed with scope selection or direct send
+    if (selectedAgent === 'rag' || selectedAgent === 'auto') {
+      setScopePendingQuery(resolvedQuery);
+      setShowScopeModal(true);
+    } else {
+      await streamingHandleSend(resolvedQuery);
+    }
+  });
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -461,23 +483,33 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   }, [handleFileDrop]);
 
   // Handle send message (wrapper for streaming hook)
-  // For RAG/Auto agent, show scope selection modal first (Agent-Driven RAG)
+  // Flow: Check Clarification → Scope Selection (RAG/Auto) → Send
   const handleSend = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
     const currentInput = inputValue;
+    setInputValue('');
 
-    // For RAG or Auto agent, show scope selection modal (can be bypassed with preference)
-    // Auto mode often routes to RAG for document queries, so we show scope selection
-    if (selectedAgent === 'rag' || selectedAgent === 'auto') {
-      setScopePendingQuery(currentInput);
-      setShowScopeModal(true);
-      setInputValue('');
+    // Step 1: Check for ambiguous terms that need clarification
+    const clarificationResult = await checkQueryClarification(currentInput);
+
+    if (!clarificationResult.canProceed) {
+      // Clarification modal is now open, wait for user selection
       return;
     }
 
-    setInputValue('');
-    await streamingHandleSend(currentInput);
-  }, [inputValue, isLoading, selectedAgent, streamingHandleSend]);
+    // Use resolved query (may have auto-resolved terms)
+    const queryToSend = clarificationResult.resolvedQuery;
+
+    // Step 2: For RAG or Auto agent, show scope selection modal
+    if (selectedAgent === 'rag' || selectedAgent === 'auto') {
+      setScopePendingQuery(queryToSend);
+      setShowScopeModal(true);
+      return;
+    }
+
+    // Step 3: Send directly for other agents
+    await streamingHandleSend(queryToSend);
+  }, [inputValue, isLoading, selectedAgent, streamingHandleSend, checkQueryClarification]);
 
   // Handle scope selection callback (Agent-Driven RAG)
   const handleScopeSelect = useCallback(async (scope: SearchScope | null) => {
@@ -1182,6 +1214,24 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         t={t}
         language={userLanguage}
       />
+
+      {/* Query Clarification Modal (for ambiguous terms like MFS, WebAdmin) */}
+      <ClarificationModal
+        isOpen={isClarificationModalOpen}
+        detectedTerms={detectedTerms}
+        query={clarificationPendingQuery}
+        onConfirm={handleClarificationConfirm}
+        onClose={closeClarificationModal}
+        t={t}
+      />
+
+      {/* Auto-resolved notification */}
+      {autoResolvedMessage && (
+        <div className="auto-resolved-notification" onClick={clearAutoResolvedMessage}>
+          <span>{autoResolvedMessage}</span>
+          <X size={14} />
+        </div>
+      )}
     </div>
 
     {/* Artifact Panel */}

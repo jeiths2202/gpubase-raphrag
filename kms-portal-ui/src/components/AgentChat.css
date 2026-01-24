@@ -6379,3 +6379,38 @@
 [data-theme="light"] .floating-panel-content::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Auto-resolved notification (Query Clarification) */
+.auto-resolved-notification {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--color-primary, #6366f1);
+  color: white;
+  border-radius: 8px;
+  font-size: 13px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  z-index: 1000;
+  animation: slideUp 0.3s ease-out;
+}
+
+.auto-resolved-notification:hover {
+  background: var(--color-primary-hover, #4f46e5);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

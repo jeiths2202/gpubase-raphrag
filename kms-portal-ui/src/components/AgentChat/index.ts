@@ -27,6 +27,10 @@ export {
   ScopeSelectionModal,
   type ScopeSelectionModalProps,
 } from './ScopeSelectionModal';
+export {
+  ClarificationModal,
+  type ClarificationModalProps,
+} from './ClarificationModal';
 
 // Hooks
 export { useFileAttachment, type UseFileAttachmentReturn } from './hooks';
@@ -36,6 +40,11 @@ export {
   type UseStreamingChatReturn,
   type StreamingChatDependencies,
 } from './hooks';
+export {
+  useClarification,
+  type UseClarificationReturn,
+  type ClarificationCheckResult,
+} from './hooks/useClarification';
 
 // Types
 export type {
