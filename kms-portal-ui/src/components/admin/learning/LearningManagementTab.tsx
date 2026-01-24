@@ -50,6 +50,17 @@ interface VerifiedKnowledgeStats {
   category_count: number;
 }
 
+interface PendingKnowledge {
+  id: string;
+  question: string;
+  answer: string;
+  feedback_score: number;
+  thumbs_up_count: number;
+  thumbs_down_count: number;
+  category: string | null;
+  created_at: string;
+}
+
 interface TrainingBatch {
   id: string;
   batch_id: string;
@@ -145,9 +156,12 @@ export const LearningManagementTab: React.FC = () => {
   const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
   const [schedule, setSchedule] = useState<TrainingSchedule | null>(null);
   const [llmStatus, setLlmStatus] = useState<LearningLLMStatus | null>(null);
+  const [pendingItems, setPendingItems] = useState<PendingKnowledge[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [triggerLoading, setTriggerLoading] = useState(false);
   const [reloadLoading, setReloadLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -157,12 +171,13 @@ export const LearningManagementTab: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const [statsRes, batchesRes, dailyRes, scheduleRes, llmStatusRes] = await Promise.all([
+      const [statsRes, batchesRes, dailyRes, scheduleRes, llmStatusRes, pendingRes] = await Promise.all([
         client.get('/verified-knowledge/stats/overview'),
         client.get('/verified-knowledge/training/batches?limit=10'),
         client.get('/verified-knowledge/stats/daily?days=14'),
         client.get('/verified-knowledge/training/schedule').catch(() => ({ data: null })),
         client.get('/verified-knowledge/learning-llm/status').catch(() => ({ data: null })),
+        client.get('/verified-knowledge?is_trained=false&status=active&limit=50').catch(() => ({ data: [] })),
       ]);
 
       setStats(statsRes.data);
@@ -170,6 +185,8 @@ export const LearningManagementTab: React.FC = () => {
       setDailyStats(dailyRes.data);
       setSchedule(scheduleRes.data);
       setLlmStatus(llmStatusRes.data);
+      setPendingItems(pendingRes.data || []);
+      setSelectedIds(new Set());
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to load data');
     } finally {
@@ -219,6 +236,76 @@ export const LearningManagementTab: React.FC = () => {
       setSchedule({ ...schedule, is_enabled: !schedule.is_enabled });
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to update schedule');
+    }
+  };
+
+  // Toggle item selection
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  // Toggle select all
+  const handleToggleSelectAll = () => {
+    if (selectedIds.size === pendingItems.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(pendingItems.map(item => item.id)));
+    }
+  };
+
+  // Delete single item
+  const handleDeleteItem = async (id: string) => {
+    if (!confirm('이 항목을 삭제하시겠습니까?')) return;
+
+    try {
+      setDeleteLoading(id);
+      await client.delete(`/verified-knowledge/${id}?reason=Admin deleted from dashboard`);
+      setPendingItems(prev => prev.filter(item => item.id !== id));
+      setSelectedIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
+      setSuccessMessage('항목이 삭제되었습니다.');
+      // Refresh stats
+      const statsRes = await client.get('/verified-knowledge/stats/overview');
+      setStats(statsRes.data);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to delete item');
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
+
+  // Delete selected items
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`선택된 ${selectedIds.size}개 항목을 삭제하시겠습니까?`)) return;
+
+    try {
+      setDeleteLoading('batch');
+      const deletePromises = Array.from(selectedIds).map(id =>
+        client.delete(`/verified-knowledge/${id}?reason=Admin bulk deleted from dashboard`)
+      );
+      await Promise.all(deletePromises);
+      setPendingItems(prev => prev.filter(item => !selectedIds.has(item.id)));
+      setSelectedIds(new Set());
+      setSuccessMessage(`${deletePromises.length}개 항목이 삭제되었습니다.`);
+      // Refresh stats
+      const statsRes = await client.get('/verified-knowledge/stats/overview');
+      setStats(statsRes.data);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to delete items');
+    } finally {
+      setDeleteLoading(null);
     }
   };
 
@@ -594,6 +681,132 @@ export const LearningManagementTab: React.FC = () => {
               </div>
             )}
           </div>
+        </div>
+      </section>
+
+      {/* Pending Training Items */}
+      <section className="premium-card">
+        <div className="premium-card__header">
+          <div className="premium-card__title">
+            <Clock size={18} />
+            <span>학습 대기 항목</span>
+            <Badge variant="warning">{pendingItems.length}개</Badge>
+          </div>
+          <div className="header-actions">
+            {selectedIds.size > 0 && (
+              <>
+                <button
+                  className="btn btn-sm btn-danger"
+                  onClick={handleDeleteSelected}
+                  disabled={deleteLoading === 'batch'}
+                >
+                  {deleteLoading === 'batch' ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
+                  <span>선택 삭제 ({selectedIds.size})</span>
+                </button>
+                <button
+                  className="btn btn-sm btn-primary"
+                  onClick={handleTriggerTraining}
+                  disabled={triggerLoading}
+                >
+                  {triggerLoading ? <Loader2 size={14} className="spin" /> : <Play size={14} />}
+                  <span>선택 학습</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="premium-card__body premium-card__body--no-padding">
+          {pendingItems.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state__icon">
+                <Clock size={32} />
+              </div>
+              <h4>학습 대기 항목이 없습니다</h4>
+              <p>사용자가 👍 피드백을 보내면 여기에 표시됩니다.</p>
+            </div>
+          ) : (
+            <div className="pending-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th className="th-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size === pendingItems.length && pendingItems.length > 0}
+                        onChange={handleToggleSelectAll}
+                      />
+                    </th>
+                    <th>질문</th>
+                    <th>답변</th>
+                    <th>점수</th>
+                    <th>👍</th>
+                    <th>카테고리</th>
+                    <th>생성일</th>
+                    <th>작업</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingItems.map((item) => (
+                    <tr key={item.id} className={selectedIds.has(item.id) ? 'selected' : ''}>
+                      <td className="td-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(item.id)}
+                          onChange={() => handleToggleSelect(item.id)}
+                        />
+                      </td>
+                      <td className="td-question">
+                        <Tooltip content={item.question}>
+                          <span className="truncate-text">{item.question}</span>
+                        </Tooltip>
+                      </td>
+                      <td className="td-answer">
+                        <Tooltip content={item.answer.slice(0, 200) + (item.answer.length > 200 ? '...' : '')}>
+                          <span className="truncate-text">{item.answer}</span>
+                        </Tooltip>
+                      </td>
+                      <td>
+                        <Badge variant={item.feedback_score >= 0.8 ? 'success' : 'warning'}>
+                          {(item.feedback_score * 100).toFixed(0)}%
+                        </Badge>
+                      </td>
+                      <td className="td-thumbs">
+                        <span className="thumbs-count">
+                          <ThumbsUp size={12} />
+                          {item.thumbs_up_count}
+                        </span>
+                      </td>
+                      <td>
+                        {item.category ? (
+                          <span className="category-tag">{item.category}</span>
+                        ) : (
+                          <span className="text-muted">-</span>
+                        )}
+                      </td>
+                      <td className="text-muted text-sm">
+                        {formatDate(item.created_at)}
+                      </td>
+                      <td>
+                        <button
+                          className="btn-icon btn-icon--danger"
+                          onClick={() => handleDeleteItem(item.id)}
+                          disabled={deleteLoading === item.id}
+                          title="삭제"
+                        >
+                          {deleteLoading === item.id ? (
+                            <Loader2 size={14} className="spin" />
+                          ) : (
+                            <Trash2 size={14} />
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </section>
 

@@ -695,6 +695,157 @@
 }
 
 /* ==========================================================================
+   Header Actions
+   ========================================================================== */
+
+.header-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+/* ==========================================================================
+   Pending Table
+   ========================================================================== */
+
+.pending-table {
+  overflow-x: auto;
+}
+
+.pending-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pending-table th,
+.pending-table td {
+  padding: var(--spacing-sm) var(--spacing-md);
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.pending-table th {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--bg-tertiary);
+}
+
+.pending-table td {
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+}
+
+.pending-table tr:last-child td {
+  border-bottom: none;
+}
+
+.pending-table tr:hover td {
+  background: rgba(99, 102, 241, 0.03);
+}
+
+.pending-table tr.selected td {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+[data-theme="dark"] .pending-table tr:hover td {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+[data-theme="dark"] .pending-table tr.selected td {
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.th-checkbox,
+.td-checkbox {
+  width: 40px;
+  text-align: center;
+}
+
+.td-question,
+.td-answer {
+  max-width: 200px;
+}
+
+.truncate-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.td-thumbs {
+  white-space: nowrap;
+}
+
+.thumbs-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #22c55e;
+  font-weight: 500;
+}
+
+.category-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+/* Icon Buttons */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-icon--danger {
+  color: var(--text-secondary);
+}
+
+.btn-icon--danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+/* Danger Button */
+.btn-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* Checkbox Styles */
+.pending-table input[type="checkbox"],
+.batch-table input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #6366f1;
+  cursor: pointer;
+}
+
+/* ==========================================================================
    Batch Table
    ========================================================================== */
 
