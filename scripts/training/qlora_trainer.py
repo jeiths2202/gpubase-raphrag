@@ -28,9 +28,8 @@ from transformers import (
     AutoTokenizer,
     BitsAndBytesConfig,
     TrainingArguments,
-    Trainer,
-    DataCollatorForSeq2Seq,
 )
+from trl import SFTTrainer, SFTConfig
 from peft import (
     LoraConfig,
     get_peft_model,
@@ -71,7 +70,7 @@ class TrainingConfig:
 
     # Training
     MAX_SEQ_LENGTH = 2048
-    BATCH_SIZE = 4
+    BATCH_SIZE = 1  # Reduced to avoid attention mask dimension issues
     GRADIENT_ACCUMULATION_STEPS = 4
     LEARNING_RATE = 2e-4
     NUM_EPOCHS = 3
@@ -82,8 +81,8 @@ class TrainingConfig:
     OUTPUT_DIR = Path("/opt/kms/models/qlora_adapters")
     DATA_DIR = Path("/opt/kms/data/training")
 
-    # GPU
-    DEVICE_MAP = "auto"
+    # GPU - use specific device to avoid .to() issues with 4-bit models
+    DEVICE_MAP = {"": 0}
 
 
 # ============================================
@@ -127,35 +126,18 @@ def prepare_dataset(
     tokenizer,
     max_length: int = 2048
 ) -> Dataset:
-    """데이터셋 준비"""
+    """데이터셋 준비 (SFTTrainer용 - 토큰화는 내부에서 처리)"""
 
-    def tokenize_function(examples):
-        texts = [format_instruction(ex) for ex in examples]
-
-        tokenized = tokenizer(
-            texts,
-            truncation=True,
-            max_length=max_length,
-            padding="max_length",
-            return_tensors="pt"
-        )
-
-        # Labels = input_ids (for causal LM)
-        tokenized["labels"] = tokenized["input_ids"].clone()
-
-        return tokenized
+    # Format each example as text
+    formatted_data = []
+    for example in training_data:
+        text = format_instruction(example)
+        formatted_data.append({"text": text})
 
     # Convert to HuggingFace Dataset
-    dataset = Dataset.from_list(training_data)
+    dataset = Dataset.from_list(formatted_data)
 
-    # Tokenize
-    tokenized_dataset = dataset.map(
-        lambda x: tokenize_function([x]),
-        remove_columns=dataset.column_names,
-        desc="Tokenizing"
-    )
-
-    return tokenized_dataset
+    return dataset
 
 
 # ============================================
@@ -182,11 +164,11 @@ def setup_model_and_tokenizer(config: TrainingConfig):
         device_map=config.DEVICE_MAP,
         trust_remote_code=True,
         torch_dtype=torch.float16,
-        attn_implementation="eager",  # Avoid SDPA compatibility issues
+        use_cache=False,  # Disable KV cache for training
     )
 
-    # Prepare for k-bit training
-    model = prepare_model_for_kbit_training(model)
+    # Prepare for k-bit training (without gradient checkpointing)
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
 
     # LoRA config
     lora_config = LoraConfig(
@@ -227,12 +209,12 @@ def train(
     output_dir: Path,
     config: TrainingConfig
 ) -> Dict[str, float]:
-    """QLoRA 학습 실행"""
+    """QLoRA 학습 실행 (SFTTrainer 사용)"""
 
     logger.info(f"Starting training with {len(train_dataset)} samples")
 
-    # Training arguments
-    training_args = TrainingArguments(
+    # SFT Config - optimized for QLoRA
+    sft_config = SFTConfig(
         output_dir=str(output_dir),
         num_train_epochs=config.NUM_EPOCHS,
         per_device_train_batch_size=config.BATCH_SIZE,
@@ -245,29 +227,22 @@ def train(
         save_total_limit=3,
         eval_strategy="steps" if eval_dataset else "no",
         eval_steps=100 if eval_dataset else None,
-        fp16=True,  # fp16 is more widely supported than bf16
-        gradient_checkpointing=True,
+        fp16=True,
         optim="paged_adamw_32bit",
         lr_scheduler_type="cosine",
         report_to="none",
-        remove_unused_columns=False,
+        max_seq_length=config.MAX_SEQ_LENGTH,
+        packing=False,
+        dataset_text_field="text",
     )
 
-    # Data collator
-    data_collator = DataCollatorForSeq2Seq(
-        tokenizer=tokenizer,
+    # SFTTrainer - handles tokenization and data collation internally
+    trainer = SFTTrainer(
         model=model,
-        padding=True,
-        return_tensors="pt"
-    )
-
-    # Trainer
-    trainer = Trainer(
-        model=model,
-        args=training_args,
+        args=sft_config,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        data_collator=data_collator,
+        tokenizer=tokenizer,
     )
 
     # Train
