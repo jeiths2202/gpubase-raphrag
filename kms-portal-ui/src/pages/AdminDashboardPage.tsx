@@ -26,6 +26,12 @@ import {
   Zap,
   HardDrive,
   Server,
+  Search,
+  ThumbsUp,
+  ThumbsDown,
+  FileText,
+  Target,
+  Gauge,
 } from 'lucide-react';
 import {
   UserManagementTable,
@@ -110,6 +116,35 @@ interface GpuStatus {
   gpu_count: number;
   gpus: GpuInfo[];
   error?: string;
+}
+
+// RAG Metrics Types
+interface RAGStrategyMetrics {
+  strategy: string;
+  total_queries: number;
+  success_rate: number;
+  avg_retrieval_time_ms: number;
+  avg_generation_time_ms: number;
+  avg_result_count: number;
+  avg_similarity_score: number;
+  avg_confidence_score: number;
+}
+
+interface RAGQualityMetrics {
+  avg_user_rating: number | null;
+  thumbs_up_count: number;
+  thumbs_down_count: number;
+  satisfaction_rate: number | null;
+  queries_with_sources_pct: number;
+}
+
+interface RAGMetricsData {
+  total_queries: number;
+  overall_success_rate: number;
+  strategies: RAGStrategyMetrics[];
+  quality: RAGQualityMetrics;
+  trend: Array<{ date: string; queries: number; success_rate: number }>;
+  top_knowledge_sources: Array<{ source: string; query_count: number; avg_score: number }>;
 }
 
 // Tab configuration
@@ -334,11 +369,7 @@ export const AdminDashboardPage: React.FC = () => {
           <LearningManagementTab />
         )}
         {activeTab === 'rag' && (
-          <div className="admin-placeholder">
-            <Database size={48} />
-            <h3>RAG Metrics</h3>
-            <p>Coming soon...</p>
-          </div>
+          <RAGTab />
         )}
         {activeTab === 'audit' && (
           <div className="admin-placeholder">
@@ -1029,6 +1060,327 @@ const HealthTab: React.FC<{ data: ExecutiveDashboard }> = ({ data }) => {
                 )}
               </div>
             ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+};
+
+// RAG Metrics Tab
+const RAGTab: React.FC = () => {
+  const [data, setData] = useState<RAGMetricsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchRAGMetrics = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/v1/admin/analytics/rag-metrics?days=7', {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json();
+      setData(result.data);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to fetch RAG metrics:', err);
+      setError('Failed to load RAG metrics');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRAGMetrics();
+  }, [fetchRAGMetrics]);
+
+  // Strategy color mapping
+  const getStrategyColor = (strategy: string): string => {
+    const colors: Record<string, string> = {
+      'VECTOR': '#6366f1',
+      'GRAPH': '#8b5cf6',
+      'HYBRID': '#06b6d4',
+      'CODE': '#f59e0b',
+      'AUTO': '#22c55e',
+    };
+    return colors[strategy.toUpperCase()] || '#64748b';
+  };
+
+  // Format percentage
+  const formatPercent = (value: number | null | undefined): string => {
+    if (value === null || value === undefined) return 'N/A';
+    return `${(value * 100).toFixed(1)}%`;
+  };
+
+  if (loading) {
+    return (
+      <div className="admin-tab-content">
+        <div className="admin-loading-state">
+          <Loader2 className="spinning" size={32} />
+          <span>Loading RAG metrics...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="admin-tab-content">
+        <div className="admin-error-state">
+          <AlertTriangle size={32} />
+          <span>{error || 'No data available'}</span>
+          <button className="admin-refresh-btn" onClick={fetchRAGMetrics}>
+            <RefreshCw size={16} /> Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Prepare trend data for chart
+  const trendData = data.trend?.map((item) => ({
+    date: new Date(item.date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
+    queries: item.queries,
+    successRate: item.success_rate * 100,
+  })) || [];
+
+  // Calculate satisfaction rate
+  const totalFeedback = data.quality.thumbs_up_count + data.quality.thumbs_down_count;
+  const satisfactionRate = totalFeedback > 0
+    ? (data.quality.thumbs_up_count / totalFeedback) * 100
+    : null;
+
+  return (
+    <div className="admin-tab-content">
+      {/* Overview Section */}
+      <section className="admin-rag-overview">
+        <div className="admin-section-header">
+          <h3 className="admin-section-title">
+            <Database size={20} />
+            RAG Performance Overview
+          </h3>
+          <button
+            className="admin-refresh-btn admin-refresh-btn--small"
+            onClick={fetchRAGMetrics}
+            disabled={loading}
+          >
+            <RefreshCw size={14} className={loading ? 'spinning' : ''} />
+          </button>
+        </div>
+
+        <div className="admin-rag-stats-grid">
+          <div className="admin-rag-stat-card">
+            <div className="admin-rag-stat-icon" style={{ background: 'rgba(99, 102, 241, 0.1)' }}>
+              <Search size={24} style={{ color: '#6366f1' }} />
+            </div>
+            <div className="admin-rag-stat-content">
+              <span className="admin-rag-stat-value">{data.total_queries.toLocaleString()}</span>
+              <span className="admin-rag-stat-label">Total Queries</span>
+            </div>
+          </div>
+
+          <div className="admin-rag-stat-card">
+            <div className="admin-rag-stat-icon" style={{ background: 'rgba(34, 197, 94, 0.1)' }}>
+              <Target size={24} style={{ color: '#22c55e' }} />
+            </div>
+            <div className="admin-rag-stat-content">
+              <span className="admin-rag-stat-value">{formatPercent(data.overall_success_rate)}</span>
+              <span className="admin-rag-stat-label">Success Rate</span>
+            </div>
+          </div>
+
+          <div className="admin-rag-stat-card">
+            <div className="admin-rag-stat-icon" style={{ background: 'rgba(34, 197, 94, 0.1)' }}>
+              <ThumbsUp size={24} style={{ color: '#22c55e' }} />
+            </div>
+            <div className="admin-rag-stat-content">
+              <span className="admin-rag-stat-value">{data.quality.thumbs_up_count}</span>
+              <span className="admin-rag-stat-label">Positive Feedback</span>
+            </div>
+          </div>
+
+          <div className="admin-rag-stat-card">
+            <div className="admin-rag-stat-icon" style={{ background: 'rgba(239, 68, 68, 0.1)' }}>
+              <ThumbsDown size={24} style={{ color: '#ef4444' }} />
+            </div>
+            <div className="admin-rag-stat-content">
+              <span className="admin-rag-stat-value">{data.quality.thumbs_down_count}</span>
+              <span className="admin-rag-stat-label">Negative Feedback</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Strategy Performance Section */}
+      {data.strategies && data.strategies.length > 0 && (
+        <section className="admin-rag-strategies">
+          <h3 className="admin-section-title">
+            <Gauge size={20} />
+            Strategy Performance
+          </h3>
+          <div className="admin-rag-strategy-grid">
+            {data.strategies.map((strategy) => (
+              <div key={strategy.strategy} className="admin-rag-strategy-card">
+                <div className="admin-rag-strategy-header">
+                  <span
+                    className="admin-rag-strategy-badge"
+                    style={{ backgroundColor: getStrategyColor(strategy.strategy) }}
+                  >
+                    {strategy.strategy}
+                  </span>
+                  <span className="admin-rag-strategy-queries">
+                    {strategy.total_queries.toLocaleString()} queries
+                  </span>
+                </div>
+                <div className="admin-rag-strategy-metrics">
+                  <div className="admin-rag-strategy-metric">
+                    <span className="admin-rag-metric-label">Success Rate</span>
+                    <span className="admin-rag-metric-value">{formatPercent(strategy.success_rate)}</span>
+                  </div>
+                  <div className="admin-rag-strategy-metric">
+                    <span className="admin-rag-metric-label">Avg Retrieval</span>
+                    <span className="admin-rag-metric-value">{strategy.avg_retrieval_time_ms}ms</span>
+                  </div>
+                  <div className="admin-rag-strategy-metric">
+                    <span className="admin-rag-metric-label">Avg Results</span>
+                    <span className="admin-rag-metric-value">{strategy.avg_result_count.toFixed(1)}</span>
+                  </div>
+                  <div className="admin-rag-strategy-metric">
+                    <span className="admin-rag-metric-label">Confidence</span>
+                    <span className="admin-rag-metric-value">{formatPercent(strategy.avg_confidence_score)}</span>
+                  </div>
+                </div>
+                {/* Success rate bar */}
+                <div className="admin-rag-strategy-bar">
+                  <div
+                    className="admin-rag-strategy-bar-fill"
+                    style={{
+                      width: `${(strategy.success_rate || 0) * 100}%`,
+                      backgroundColor: getStrategyColor(strategy.strategy)
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Quality Metrics & Trend Section */}
+      <div className="admin-rag-bottom-grid">
+        {/* Quality Metrics */}
+        <section className="admin-rag-quality">
+          <h3 className="admin-section-title">
+            <CheckCircle size={20} />
+            Quality Metrics
+          </h3>
+          <div className="admin-rag-quality-content">
+            <div className="admin-rag-quality-item">
+              <div className="admin-rag-quality-label">User Satisfaction</div>
+              <div className="admin-rag-quality-value">
+                {satisfactionRate !== null ? (
+                  <>
+                    <span className={satisfactionRate >= 70 ? 'positive' : satisfactionRate >= 50 ? 'neutral' : 'negative'}>
+                      {satisfactionRate.toFixed(1)}%
+                    </span>
+                    <span className="admin-rag-quality-detail">
+                      ({data.quality.thumbs_up_count} / {totalFeedback})
+                    </span>
+                  </>
+                ) : (
+                  <span className="neutral">No feedback yet</span>
+                )}
+              </div>
+            </div>
+            <div className="admin-rag-quality-item">
+              <div className="admin-rag-quality-label">Queries with Sources</div>
+              <div className="admin-rag-quality-value">
+                <span>{formatPercent(data.quality.queries_with_sources_pct)}</span>
+              </div>
+            </div>
+            {data.quality.avg_user_rating && (
+              <div className="admin-rag-quality-item">
+                <div className="admin-rag-quality-label">Average Rating</div>
+                <div className="admin-rag-quality-value">
+                  <span>{data.quality.avg_user_rating.toFixed(1)} / 5</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Trend Chart */}
+        {trendData.length > 0 && (
+          <section className="admin-rag-trend">
+            <h3 className="admin-section-title">
+              <TrendingUp size={20} />
+              Query Trend (7 Days)
+            </h3>
+            <div className="admin-chart-container">
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={trendData}>
+                  <defs>
+                    <linearGradient id="ragQueryGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #e2e8f0)" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 12, fill: 'var(--color-text-secondary, #64748b)' }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: 'var(--color-text-secondary, #64748b)' }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: 'var(--color-bg-elevated, #fff)',
+                      border: '1px solid var(--color-border, #e2e8f0)',
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="queries"
+                    stroke="#6366f1"
+                    fill="url(#ragQueryGradient)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+        )}
+      </div>
+
+      {/* Top Knowledge Sources */}
+      {data.top_knowledge_sources && data.top_knowledge_sources.length > 0 && (
+        <section className="admin-rag-sources">
+          <h3 className="admin-section-title">
+            <FileText size={20} />
+            Top Knowledge Sources
+          </h3>
+          <div className="admin-rag-sources-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Source</th>
+                  <th>Queries</th>
+                  <th>Avg Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.top_knowledge_sources.map((source, idx) => (
+                  <tr key={idx}>
+                    <td className="admin-rag-source-name">{source.source}</td>
+                    <td>{source.query_count.toLocaleString()}</td>
+                    <td>{(source.avg_score * 100).toFixed(1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       )}
