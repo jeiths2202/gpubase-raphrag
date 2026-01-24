@@ -2,6 +2,7 @@
 KMS API Main Application
 GPU Hybrid RAG based Knowledge Management System
 """
+import os
 import sys
 import asyncio
 
@@ -36,7 +37,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management, agent_navigation, agent_session
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management, agent_navigation, agent_session, clarification, verified_knowledge
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 from .admin_dashboard.router import router as admin_dashboard_router
 
@@ -270,6 +271,52 @@ async def lifespan(app: FastAPI):
             category=LogCategory.BUSINESS
         )
 
+        # ==================== Verified Knowledge Service Initialization ====================
+        # Initialize Verified Knowledge Store for Smarter RAG (must be before User Feedback)
+        from .infrastructure.postgres.verified_knowledge_repository import (
+            PostgresVerifiedKnowledgeRepository
+        )
+        from .services.verified_knowledge_service import (
+            initialize_verified_knowledge_service
+        )
+
+        verified_knowledge_repo = PostgresVerifiedKnowledgeRepository(db_pool)
+        verified_knowledge_service = initialize_verified_knowledge_service(
+            repository=verified_knowledge_repo,
+            embedding_service=None,  # Will be set later if embedding service available
+            min_similarity_threshold=0.85,
+        )
+
+        container.register_singleton("verified_knowledge_repository", verified_knowledge_repo)
+        container.register_singleton("verified_knowledge_service", verified_knowledge_service)
+
+        logger.info(
+            "[OK] Verified Knowledge service initialized (Smarter RAG: 👍→학습, 👎→제거)",
+            category=LogCategory.BUSINESS
+        )
+
+        # ==================== Learning LLM Service Initialization ====================
+        from .services.learning_llm_service import initialize_learning_llm_service
+
+        # Check if Learning LLM is enabled via environment variable
+        learning_llm_enabled = os.getenv("ENABLE_LEARNING_LLM", "false").lower() == "true"
+        learning_llm_auto_load = os.getenv("LEARNING_LLM_AUTO_LOAD", "false").lower() == "true"
+        learning_llm_model = os.getenv("LEARNING_LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+
+        learning_llm_service = await initialize_learning_llm_service(
+            base_model=learning_llm_model,
+            adapter_dir="/opt/kms/models/qlora_adapters",
+            auto_load=learning_llm_auto_load,
+            enabled=learning_llm_enabled,
+        )
+
+        container.register_singleton("learning_llm_service", learning_llm_service)
+
+        logger.info(
+            f"[OK] Learning LLM service initialized (enabled={learning_llm_enabled}, auto_load={learning_llm_auto_load})",
+            category=LogCategory.BUSINESS
+        )
+
         # ==================== User Feedback Service Initialization ====================
         from .repositories.user_feedback_repository import (
             initialize_user_feedback_repository
@@ -281,15 +328,93 @@ async def lifespan(app: FastAPI):
         user_feedback_repo = initialize_user_feedback_repository(db_pool=db_pool)
         user_feedback_service = initialize_user_feedback_service(
             repository=user_feedback_repo,
+            verified_knowledge_service=verified_knowledge_service,  # Connect for auto-learning
         )
 
         container.register_singleton("user_feedback_repository", user_feedback_repo)
         container.register_singleton("user_feedback_service", user_feedback_service)
 
         logger.info(
-            "[OK] User Feedback service initialized (👍/👎, HITL, consistency)",
+            "[OK] User Feedback service initialized (👍/👎, HITL, Verified Knowledge 연동)",
             category=LogCategory.BUSINESS
         )
+
+        # ==================== Query Clarification Service Initialization ====================
+        # Initialize query clarification service for ambiguous term handling
+        from .infrastructure.postgres.ambiguous_term_repository import PostgresAmbiguousTermRepository
+        from .infrastructure.postgres.user_term_preference_repository import PostgresUserTermPreferenceRepository
+        from .services.query_clarification_service import initialize_query_clarification_service
+        from .services.entity_embedding_service import EntityEmbeddingService
+
+        try:
+            ambiguous_term_repo = PostgresAmbiguousTermRepository(db_pool)
+            await ambiguous_term_repo._ensure_table()
+
+            user_term_pref_repo = PostgresUserTermPreferenceRepository(db_pool)
+            await user_term_pref_repo._ensure_table()
+
+            # Create embedding port adapter for ML recommendations
+            entity_embedding_service = None
+            try:
+                from .services.multimodal_embedding import TextEmbeddingService
+                from .ports.embedding_port import EmbeddingPort, EmbeddingResult, BatchEmbeddingResult
+
+                class TextEmbeddingAdapter(EmbeddingPort):
+                    """Adapter to make TextEmbeddingService compatible with EmbeddingPort."""
+
+                    def __init__(self):
+                        self.service = TextEmbeddingService()
+
+                    @property
+                    def dimensions(self) -> int:
+                        return 4096  # NV-EmbedQA-Mistral-7B v2
+
+                    async def embed_text(self, text: str, config=None) -> EmbeddingResult:
+                        embedding = await self.service.embed_text(text, input_type="passage")
+                        return EmbeddingResult(text=text, embedding=embedding, token_count=len(text) // 4)
+
+                    async def embed_texts(self, texts, config=None) -> BatchEmbeddingResult:
+                        embeddings = await self.service.embed_texts(texts, input_type="passage")
+                        results = [EmbeddingResult(text=t, embedding=e, token_count=len(t) // 4)
+                                   for t, e in zip(texts, embeddings)]
+                        return BatchEmbeddingResult(embeddings=results, total_tokens=sum(r.token_count for r in results))
+
+                    async def embed_query(self, query: str, config=None) -> EmbeddingResult:
+                        embedding = await self.service.embed_text(query, input_type="query")
+                        return EmbeddingResult(text=query, embedding=embedding, token_count=len(query) // 4)
+
+                    async def get_available_models(self):
+                        return ["nvidia/nv-embedqa-mistral-7b-v2"]
+
+                    async def health_check(self) -> bool:
+                        return True
+
+                embedding_adapter = TextEmbeddingAdapter()
+                entity_embedding_service = EntityEmbeddingService(embedding_port=embedding_adapter)
+                logger.info("[OK] EntityEmbeddingService initialized for ML recommendations", category=LogCategory.BUSINESS)
+            except Exception as embed_e:
+                logger.warning(f"EntityEmbeddingService initialization failed (ML recommendations disabled): {embed_e}", category=LogCategory.BUSINESS)
+
+            clarification_service = initialize_query_clarification_service(
+                ambiguous_term_repo=ambiguous_term_repo,
+                user_preference_repo=user_term_pref_repo,
+                entity_embedding_service=entity_embedding_service,
+            )
+
+            container.register_singleton("ambiguous_term_repository", ambiguous_term_repo)
+            container.register_singleton("user_term_preference_repository", user_term_pref_repo)
+            container.register_singleton("query_clarification_service", clarification_service)
+
+            logger.info(
+                "[OK] Query Clarification service initialized (ambiguous term detection)",
+                category=LogCategory.BUSINESS
+            )
+        except Exception as clarification_e:
+            # Non-fatal: clarification is optional
+            logger.warning(
+                f"Query Clarification service initialization failed (non-fatal): {clarification_e}",
+                category=LogCategory.BUSINESS
+            )
 
         # ==================== External Document Service Initialization ====================
         # Initialize external document service for connector persistence (if postgres mode)
@@ -550,6 +675,8 @@ app.include_router(analytics_dashboard.router, prefix=API_PREFIX)  # Real-time A
 app.include_router(context_management.router, prefix=API_PREFIX)  # Long Context Management (32K+ tokens)
 app.include_router(agent_navigation.router, prefix=API_PREFIX)  # Agent-Driven RAG: Document navigation
 app.include_router(agent_session.router, prefix=API_PREFIX)  # Agent-Driven RAG: Session management
+app.include_router(clarification.router, prefix=API_PREFIX)  # Query Clarification (ambiguous term detection)
+app.include_router(verified_knowledge.router, prefix=API_PREFIX)  # Verified Knowledge Store (Smarter RAG)
 
 
 # Root endpoint

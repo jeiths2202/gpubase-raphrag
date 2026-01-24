@@ -1,0 +1,19 @@
+# QLoRA Training Requirements
+# Install: pip install -r requirements-training.txt
+
+# Core
+torch>=2.0.0
+transformers>=4.36.0
+datasets>=2.14.0
+accelerate>=0.25.0
+
+# QLoRA / PEFT
+peft>=0.7.0
+bitsandbytes>=0.41.0
+
+# Scheduler
+apscheduler>=3.10.0
+
+# Database (already in main requirements)
+# asyncpg>=0.29.0
+# python-dotenv>=1.0.0

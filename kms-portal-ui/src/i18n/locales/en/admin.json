@@ -1,0 +1,92 @@
+{
+  "tabs": {
+    "executive": "Executive",
+    "users": "Users",
+    "tokens": "Tokens",
+    "agents": "Agents",
+    "health": "Health",
+    "enhance": "Enhance Requests",
+    "learning": "Learning",
+    "rag": "RAG",
+    "audit": "Audit"
+  },
+  "learning": {
+    "title": "Smarter RAG - Learning Management",
+    "refresh": "Refresh",
+    "manualTraining": "Start Manual Training",
+    "stats": {
+      "activeKnowledge": "Active Knowledge",
+      "trained": "Trained",
+      "pendingTraining": "Pending Training",
+      "pendingUnlearn": "Pending Unlearn",
+      "avgFeedbackScore": "Avg Feedback Score",
+      "totalUsage": "Total Usage"
+    },
+    "schedule": {
+      "title": "Training Schedule",
+      "schedule": "Schedule",
+      "status": "Status",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "nextRun": "Next Run",
+      "lastRun": "Last Run",
+      "dailyMidnight": "Daily at 00:00"
+    },
+    "batches": {
+      "title": "Recent Training Batches",
+      "batchId": "Batch ID",
+      "status": "Status",
+      "samples": "Samples",
+      "adapter": "Adapter",
+      "loss": "Loss",
+      "started": "Started",
+      "completed": "Completed",
+      "empty": "No training batches yet"
+    },
+    "dailyStats": {
+      "title": "Daily Statistics (Last 14 Days)",
+      "noData": "No data available",
+      "newEntries": "New Entries",
+      "trained": "Trained"
+    },
+    "howItWorks": {
+      "title": "How Smarter RAG Works",
+      "step1": {
+        "title": "Collect User Feedback",
+        "description": "Users provide feedback on responses."
+      },
+      "step2": {
+        "title": "Verified Knowledge Store",
+        "description": "Responses with positive feedback are automatically added to the verified knowledge store."
+      },
+      "step3": {
+        "title": "QLoRA Training",
+        "description": "Verified knowledge is trained daily at 00:00 or via manual trigger."
+      },
+      "step4": {
+        "title": "Smart Responses",
+        "description": "Provide more accurate responses with learned knowledge."
+      }
+    },
+    "messages": {
+      "trainingStarted": "Training started. Batch ID: {{batchId}}",
+      "loadFailed": "Failed to load data",
+      "triggerFailed": "Failed to trigger training",
+      "scheduleFailed": "Failed to update schedule",
+      "adapterReloaded": "Learning LLM adapter reloaded: {{adapterName}}"
+    },
+    "learningLLM": {
+      "title": "Learning LLM Status",
+      "service": "Service",
+      "modelLoaded": "Model Loaded",
+      "loaded": "Loaded",
+      "notLoaded": "Not Loaded",
+      "baseModel": "Base Model",
+      "currentAdapter": "Current Adapter",
+      "noAdapter": "None",
+      "availableAdapters": "Available Adapters",
+      "reloadAdapter": "Reload Adapter",
+      "recentAdapters": "Recent Adapters"
+    }
+  }
+}

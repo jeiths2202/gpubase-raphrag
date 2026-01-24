@@ -21,6 +21,7 @@ import {
   BarChart3,
   Loader2,
   Lightbulb,
+  Brain,
 } from 'lucide-react';
 import {
   UserManagementTable,
@@ -31,6 +32,7 @@ import {
 } from '../components/admin';
 import type { UserData } from '../components/admin';
 import { EnhanceRequestsTab } from '../components/admin/enhance';
+import { LearningManagementTab } from '../components/admin/learning';
 import {
   LineChart,
   Line,
@@ -87,7 +89,7 @@ interface ExecutiveDashboard {
 }
 
 // Tab configuration
-type TabId = 'executive' | 'users' | 'tokens' | 'agents' | 'health' | 'enhance' | 'rag' | 'audit';
+type TabId = 'executive' | 'users' | 'tokens' | 'agents' | 'health' | 'enhance' | 'learning' | 'rag' | 'audit';
 
 interface TabConfig {
   id: TabId;
@@ -102,6 +104,7 @@ const TABS: TabConfig[] = [
   { id: 'agents', labelKey: 'Agents', icon: <Cpu size={18} /> },
   { id: 'health', labelKey: 'Health', icon: <HeartPulse size={18} /> },
   { id: 'enhance', labelKey: 'Enhance Requests', icon: <Lightbulb size={18} /> },
+  { id: 'learning', labelKey: 'Learning', icon: <Brain size={18} /> },
   { id: 'rag', labelKey: 'RAG', icon: <Database size={18} /> },
   { id: 'audit', labelKey: 'Audit', icon: <Shield size={18} /> },
 ];
@@ -302,6 +305,9 @@ export const AdminDashboardPage: React.FC = () => {
         )}
         {activeTab === 'enhance' && (
           <EnhanceRequestsTab />
+        )}
+        {activeTab === 'learning' && (
+          <LearningManagementTab />
         )}
         {activeTab === 'rag' && (
           <div className="admin-placeholder">

@@ -1,0 +1,92 @@
+{
+  "tabs": {
+    "executive": "대시보드",
+    "users": "사용자",
+    "tokens": "토큰",
+    "agents": "에이전트",
+    "health": "상태",
+    "enhance": "개선 요청",
+    "learning": "학습",
+    "rag": "RAG",
+    "audit": "감사"
+  },
+  "learning": {
+    "title": "Smarter RAG - 학습 관리",
+    "refresh": "새로고침",
+    "manualTraining": "수동 학습 시작",
+    "stats": {
+      "activeKnowledge": "활성 지식",
+      "trained": "학습 완료",
+      "pendingTraining": "학습 대기",
+      "pendingUnlearn": "삭제 대기",
+      "avgFeedbackScore": "평균 피드백 점수",
+      "totalUsage": "총 사용량"
+    },
+    "schedule": {
+      "title": "학습 스케줄",
+      "schedule": "스케줄",
+      "status": "상태",
+      "enabled": "활성화",
+      "disabled": "비활성화",
+      "nextRun": "다음 실행",
+      "lastRun": "마지막 실행",
+      "dailyMidnight": "매일 00:00"
+    },
+    "batches": {
+      "title": "최근 학습 배치",
+      "batchId": "배치 ID",
+      "status": "상태",
+      "samples": "샘플 수",
+      "adapter": "어댑터",
+      "loss": "손실",
+      "started": "시작",
+      "completed": "완료",
+      "empty": "학습 배치가 없습니다"
+    },
+    "dailyStats": {
+      "title": "일별 통계 (최근 14일)",
+      "noData": "데이터가 없습니다",
+      "newEntries": "신규 등록",
+      "trained": "학습 완료"
+    },
+    "howItWorks": {
+      "title": "Smarter RAG 동작 원리",
+      "step1": {
+        "title": "사용자 피드백 수집",
+        "description": "사용자가 응답에 피드백을 제공합니다."
+      },
+      "step2": {
+        "title": "Verified Knowledge Store",
+        "description": "긍정적 피드백을 받은 응답은 자동으로 검증된 지식 저장소에 등록됩니다."
+      },
+      "step3": {
+        "title": "QLoRA 학습",
+        "description": "매일 00:00 또는 수동 트리거로 검증된 지식을 학습합니다."
+      },
+      "step4": {
+        "title": "스마트 응답",
+        "description": "학습된 지식으로 더 정확한 응답을 제공합니다."
+      }
+    },
+    "messages": {
+      "trainingStarted": "학습이 시작되었습니다. Batch ID: {{batchId}}",
+      "loadFailed": "데이터를 불러오는데 실패했습니다",
+      "triggerFailed": "학습 시작에 실패했습니다",
+      "scheduleFailed": "스케줄 업데이트에 실패했습니다",
+      "adapterReloaded": "Learning LLM 어댑터 리로드 완료: {{adapterName}}"
+    },
+    "learningLLM": {
+      "title": "Learning LLM 상태",
+      "service": "서비스",
+      "modelLoaded": "모델 로드",
+      "loaded": "로드됨",
+      "notLoaded": "미로드",
+      "baseModel": "베이스 모델",
+      "currentAdapter": "현재 어댑터",
+      "noAdapter": "없음",
+      "availableAdapters": "사용 가능한 어댑터",
+      "reloadAdapter": "어댑터 리로드",
+      "recentAdapters": "최근 어댑터"
+    }
+  }
+}
