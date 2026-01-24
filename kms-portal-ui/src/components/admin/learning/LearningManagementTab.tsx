@@ -102,11 +102,11 @@ export const LearningManagementTab: React.FC = () => {
       setError(null);
 
       const [statsRes, batchesRes, dailyRes, scheduleRes, llmStatusRes] = await Promise.all([
-        client.get('/api/v1/verified-knowledge/stats/overview'),
-        client.get('/api/v1/verified-knowledge/training/batches?limit=10'),
-        client.get('/api/v1/verified-knowledge/stats/daily?days=14'),
-        client.get('/api/v1/verified-knowledge/training/schedule').catch(() => ({ data: null })),
-        client.get('/api/v1/verified-knowledge/learning-llm/status').catch(() => ({ data: null })),
+        client.get('/verified-knowledge/stats/overview'),
+        client.get('/verified-knowledge/training/batches?limit=10'),
+        client.get('/verified-knowledge/stats/daily?days=14'),
+        client.get('/verified-knowledge/training/schedule').catch(() => ({ data: null })),
+        client.get('/verified-knowledge/learning-llm/status').catch(() => ({ data: null })),
       ]);
 
       setStats(statsRes.data);
@@ -132,7 +132,7 @@ export const LearningManagementTab: React.FC = () => {
       setError(null);
       setSuccessMessage(null);
 
-      const response = await client.post('/api/v1/verified-knowledge/training/trigger', {
+      const response = await client.post('/verified-knowledge/training/trigger', {
         min_feedback_score: 0.8,
         min_thumbs_up: 1,
         limit: 1000,
@@ -158,7 +158,7 @@ export const LearningManagementTab: React.FC = () => {
     if (!schedule) return;
 
     try {
-      await client.patch('/api/v1/verified-knowledge/training/schedule', {
+      await client.patch('/verified-knowledge/training/schedule', {
         is_enabled: !schedule.is_enabled,
       });
       setSchedule({ ...schedule, is_enabled: !schedule.is_enabled });
@@ -174,14 +174,14 @@ export const LearningManagementTab: React.FC = () => {
       setError(null);
       setSuccessMessage(null);
 
-      const response = await client.post('/api/v1/verified-knowledge/learning-llm/reload', {
+      const response = await client.post('/verified-knowledge/learning-llm/reload', {
         adapter_name: adapterName || null,
       });
 
       if (response.data.success) {
         setSuccessMessage(`Learning LLM 어댑터 리로드 완료: ${response.data.adapter_name}`);
         // Refresh LLM status
-        const statusRes = await client.get('/api/v1/verified-knowledge/learning-llm/status');
+        const statusRes = await client.get('/verified-knowledge/learning-llm/status');
         setLlmStatus(statusRes.data);
       } else {
         setError('Learning LLM 리로드 실패');
