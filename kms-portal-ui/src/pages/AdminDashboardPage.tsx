@@ -32,6 +32,16 @@ import {
   FileText,
   Target,
   Gauge,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
+  Info,
+  XCircle,
+  ShieldAlert,
+  User,
+  Settings,
+  Eye,
 } from 'lucide-react';
 import {
   UserManagementTable,
@@ -145,6 +155,44 @@ interface RAGMetricsData {
   quality: RAGQualityMetrics;
   trend: Array<{ date: string; queries: number; success_rate: number }>;
   top_knowledge_sources: Array<{ source: string; query_count: number; avg_score: number }>;
+}
+
+// Audit Types
+type AuditCategory = 'USER_MANAGEMENT' | 'CONTENT' | 'SYSTEM' | 'SECURITY' | 'GOVERNANCE' | 'AGENT';
+type AuditSeverity = 'info' | 'warning' | 'error' | 'critical';
+
+interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  user_id: string;
+  user_email: string;
+  user_role: string;
+  action: string;
+  action_category: AuditCategory;
+  severity: AuditSeverity;
+  resource_type: string;
+  resource_id?: string;
+  resource_name?: string;
+  ip_address?: string;
+  success: boolean;
+  error_message?: string;
+  changes?: Record<string, unknown>;
+}
+
+interface AuditLogsResponse {
+  entries: AuditLogEntry[];
+  total: number;
+  page: number;
+  limit: number;
+  has_more: boolean;
+}
+
+interface AuditStats {
+  total_events: number;
+  events_by_category: Record<string, number>;
+  events_by_severity: Record<string, number>;
+  events_by_user: Array<{ user_id: string; count: number }>;
+  recent_security_events: AuditLogEntry[];
 }
 
 // Tab configuration
@@ -372,11 +420,7 @@ export const AdminDashboardPage: React.FC = () => {
           <RAGTab />
         )}
         {activeTab === 'audit' && (
-          <div className="admin-placeholder">
-            <Shield size={48} />
-            <h3>Audit Logs</h3>
-            <p>Coming soon...</p>
-          </div>
+          <AuditTab />
         )}
       </main>
     </div>
@@ -1384,6 +1428,491 @@ const RAGTab: React.FC = () => {
           </div>
         </section>
       )}
+    </div>
+  );
+};
+
+// Audit Tab
+const AuditTab: React.FC = () => {
+  const [stats, setStats] = useState<AuditStats | null>(null);
+  const [logs, setLogs] = useState<AuditLogsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Filter states
+  const [filterCategory, setFilterCategory] = useState<string>('');
+  const [filterSeverity, setFilterSeverity] = useState<string>('');
+  const [filterUserId, setFilterUserId] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 20;
+
+  // Fetch audit stats
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await fetch('/api/v1/admin/analytics/audit-stats?hours=24', {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json();
+      setStats(result.data);
+    } catch (err) {
+      console.error('Failed to fetch audit stats:', err);
+      setError('Failed to load audit statistics');
+    }
+  }, []);
+
+  // Fetch audit logs with filters
+  const fetchLogs = useCallback(async () => {
+    try {
+      setLogsLoading(true);
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: pageSize.toString(),
+      });
+      if (filterCategory) params.append('action_category', filterCategory);
+      if (filterSeverity) params.append('severity', filterSeverity);
+      if (filterUserId) params.append('user_id', filterUserId);
+
+      const response = await fetch(`/api/v1/admin/analytics/audit-logs?${params}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json();
+      setLogs(result.data);
+    } catch (err) {
+      console.error('Failed to fetch audit logs:', err);
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [currentPage, filterCategory, filterSeverity, filterUserId]);
+
+  // Initial fetch
+  useEffect(() => {
+    const fetchAll = async () => {
+      setLoading(true);
+      await Promise.all([fetchStats(), fetchLogs()]);
+      setLoading(false);
+    };
+    fetchAll();
+  }, [fetchStats, fetchLogs]);
+
+  // Refetch logs when filters change
+  useEffect(() => {
+    if (!loading) {
+      fetchLogs();
+    }
+  }, [currentPage, filterCategory, filterSeverity, filterUserId, fetchLogs, loading]);
+
+  // Category color mapping
+  const getCategoryColor = (category: string): string => {
+    const colors: Record<string, string> = {
+      'USER_MANAGEMENT': '#6366f1',
+      'CONTENT': '#8b5cf6',
+      'SYSTEM': '#06b6d4',
+      'SECURITY': '#ef4444',
+      'GOVERNANCE': '#f59e0b',
+      'AGENT': '#22c55e',
+    };
+    return colors[category] || '#64748b';
+  };
+
+  // Severity color mapping
+  const getSeverityColor = (severity: string): string => {
+    const colors: Record<string, string> = {
+      'info': '#3b82f6',
+      'warning': '#f59e0b',
+      'error': '#ef4444',
+      'critical': '#dc2626',
+    };
+    return colors[severity] || '#64748b';
+  };
+
+  // Severity icon
+  const getSeverityIcon = (severity: string): React.ReactNode => {
+    switch (severity) {
+      case 'info': return <Info size={14} />;
+      case 'warning': return <AlertTriangle size={14} />;
+      case 'error': return <XCircle size={14} />;
+      case 'critical': return <ShieldAlert size={14} />;
+      default: return <AlertCircle size={14} />;
+    }
+  };
+
+  // Category icon
+  const getCategoryIcon = (category: string): React.ReactNode => {
+    switch (category) {
+      case 'USER_MANAGEMENT': return <Users size={16} />;
+      case 'CONTENT': return <FileText size={16} />;
+      case 'SYSTEM': return <Settings size={16} />;
+      case 'SECURITY': return <Shield size={16} />;
+      case 'GOVERNANCE': return <Eye size={16} />;
+      case 'AGENT': return <Cpu size={16} />;
+      default: return <Activity size={16} />;
+    }
+  };
+
+  // Format timestamp
+  const formatTimestamp = (ts: string): string => {
+    return new Date(ts).toLocaleString('ko-KR', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  // Reset filters
+  const resetFilters = () => {
+    setFilterCategory('');
+    setFilterSeverity('');
+    setFilterUserId('');
+    setCurrentPage(1);
+  };
+
+  if (loading) {
+    return (
+      <div className="admin-tab-content">
+        <div className="admin-loading-state">
+          <Loader2 className="spinning" size={32} />
+          <span>Loading audit data...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !stats) {
+    return (
+      <div className="admin-tab-content">
+        <div className="admin-error-state">
+          <AlertTriangle size={32} />
+          <span>{error || 'No data available'}</span>
+          <button className="admin-refresh-btn" onClick={fetchStats}>
+            <RefreshCw size={16} /> Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Prepare chart data
+  const categoryData = Object.entries(stats.events_by_category || {}).map(([name, value]) => ({
+    name,
+    value,
+    color: getCategoryColor(name),
+  }));
+
+  const severityData = Object.entries(stats.events_by_severity || {}).map(([name, value]) => ({
+    name,
+    value,
+    color: getSeverityColor(name),
+  }));
+
+  const totalPages = logs ? Math.ceil(logs.total / pageSize) : 0;
+
+  return (
+    <div className="admin-tab-content">
+      {/* Overview Section */}
+      <section className="admin-audit-overview">
+        <div className="admin-section-header">
+          <h3 className="admin-section-title">
+            <Shield size={20} />
+            Audit Log Overview (Last 24 Hours)
+          </h3>
+          <button
+            className="admin-refresh-btn admin-refresh-btn--small"
+            onClick={() => { fetchStats(); fetchLogs(); }}
+            disabled={loading}
+          >
+            <RefreshCw size={14} className={loading ? 'spinning' : ''} />
+          </button>
+        </div>
+
+        <div className="admin-audit-stats-grid">
+          <div className="admin-audit-stat-card">
+            <div className="admin-audit-stat-icon" style={{ background: 'rgba(99, 102, 241, 0.1)' }}>
+              <Activity size={24} style={{ color: '#6366f1' }} />
+            </div>
+            <div className="admin-audit-stat-content">
+              <span className="admin-audit-stat-value">{stats.total_events.toLocaleString()}</span>
+              <span className="admin-audit-stat-label">Total Events</span>
+            </div>
+          </div>
+
+          <div className="admin-audit-stat-card">
+            <div className="admin-audit-stat-icon" style={{ background: 'rgba(239, 68, 68, 0.1)' }}>
+              <ShieldAlert size={24} style={{ color: '#ef4444' }} />
+            </div>
+            <div className="admin-audit-stat-content">
+              <span className="admin-audit-stat-value">
+                {(stats.events_by_severity?.critical || 0) + (stats.events_by_severity?.error || 0)}
+              </span>
+              <span className="admin-audit-stat-label">Critical/Error Events</span>
+            </div>
+          </div>
+
+          <div className="admin-audit-stat-card">
+            <div className="admin-audit-stat-icon" style={{ background: 'rgba(34, 197, 94, 0.1)' }}>
+              <Users size={24} style={{ color: '#22c55e' }} />
+            </div>
+            <div className="admin-audit-stat-content">
+              <span className="admin-audit-stat-value">
+                {(stats.events_by_user || []).length}
+              </span>
+              <span className="admin-audit-stat-label">Active Users</span>
+            </div>
+          </div>
+
+          <div className="admin-audit-stat-card">
+            <div className="admin-audit-stat-icon" style={{ background: 'rgba(245, 158, 11, 0.1)' }}>
+              <Shield size={24} style={{ color: '#f59e0b' }} />
+            </div>
+            <div className="admin-audit-stat-content">
+              <span className="admin-audit-stat-value">
+                {stats.events_by_category?.SECURITY || 0}
+              </span>
+              <span className="admin-audit-stat-label">Security Events</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Distribution Charts */}
+      <section className="admin-audit-charts">
+        <div className="admin-audit-chart-card">
+          <h4 className="admin-audit-chart-title">Events by Category</h4>
+          <div className="admin-audit-distribution">
+            {categoryData.map((item) => (
+              <div key={item.name} className="admin-audit-dist-item">
+                <div className="admin-audit-dist-header">
+                  <span className="admin-audit-dist-icon" style={{ color: item.color }}>
+                    {getCategoryIcon(item.name)}
+                  </span>
+                  <span className="admin-audit-dist-name">{item.name.replace('_', ' ')}</span>
+                  <span className="admin-audit-dist-value">{item.value}</span>
+                </div>
+                <div className="admin-audit-dist-bar">
+                  <div
+                    className="admin-audit-dist-bar-fill"
+                    style={{
+                      width: `${(item.value / stats.total_events) * 100}%`,
+                      backgroundColor: item.color,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="admin-audit-chart-card">
+          <h4 className="admin-audit-chart-title">Events by Severity</h4>
+          <div className="admin-audit-severity-grid">
+            {severityData.map((item) => (
+              <div
+                key={item.name}
+                className="admin-audit-severity-card"
+                style={{ borderLeftColor: item.color }}
+              >
+                <div className="admin-audit-severity-icon" style={{ color: item.color }}>
+                  {getSeverityIcon(item.name)}
+                </div>
+                <div className="admin-audit-severity-info">
+                  <span className="admin-audit-severity-value">{item.value}</span>
+                  <span className="admin-audit-severity-name">{item.name}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Recent Security Events */}
+      {stats.recent_security_events && stats.recent_security_events.length > 0 && (
+        <section className="admin-audit-security">
+          <h3 className="admin-section-title">
+            <ShieldAlert size={20} />
+            Recent Security Events
+          </h3>
+          <div className="admin-audit-security-list">
+            {stats.recent_security_events.slice(0, 5).map((event) => (
+              <div key={event.id} className="admin-audit-security-item">
+                <div
+                  className="admin-audit-security-severity"
+                  style={{ backgroundColor: getSeverityColor(event.severity) }}
+                >
+                  {getSeverityIcon(event.severity)}
+                </div>
+                <div className="admin-audit-security-content">
+                  <div className="admin-audit-security-action">{event.action}</div>
+                  <div className="admin-audit-security-meta">
+                    <span>{event.user_email || 'System'}</span>
+                    <span className="admin-audit-security-time">
+                      {formatTimestamp(event.timestamp)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Audit Logs Table */}
+      <section className="admin-audit-logs">
+        <div className="admin-section-header">
+          <h3 className="admin-section-title">
+            <FileText size={20} />
+            Audit Logs
+          </h3>
+          <span className="admin-audit-logs-count">
+            {logs?.total.toLocaleString() || 0} total records
+          </span>
+        </div>
+
+        {/* Filters */}
+        <div className="admin-audit-filters">
+          <div className="admin-audit-filter-group">
+            <Filter size={16} />
+            <select
+              value={filterCategory}
+              onChange={(e) => { setFilterCategory(e.target.value); setCurrentPage(1); }}
+              className="admin-audit-filter-select"
+            >
+              <option value="">All Categories</option>
+              <option value="USER_MANAGEMENT">User Management</option>
+              <option value="CONTENT">Content</option>
+              <option value="SYSTEM">System</option>
+              <option value="SECURITY">Security</option>
+              <option value="GOVERNANCE">Governance</option>
+              <option value="AGENT">Agent</option>
+            </select>
+
+            <select
+              value={filterSeverity}
+              onChange={(e) => { setFilterSeverity(e.target.value); setCurrentPage(1); }}
+              className="admin-audit-filter-select"
+            >
+              <option value="">All Severities</option>
+              <option value="info">Info</option>
+              <option value="warning">Warning</option>
+              <option value="error">Error</option>
+              <option value="critical">Critical</option>
+            </select>
+
+            <input
+              type="text"
+              value={filterUserId}
+              onChange={(e) => { setFilterUserId(e.target.value); setCurrentPage(1); }}
+              placeholder="Filter by User ID..."
+              className="admin-audit-filter-input"
+            />
+
+            {(filterCategory || filterSeverity || filterUserId) && (
+              <button className="admin-audit-filter-reset" onClick={resetFilters}>
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Logs Table */}
+        <div className="admin-audit-table-container">
+          {logsLoading && (
+            <div className="admin-audit-table-loading">
+              <Loader2 className="spinning" size={20} />
+            </div>
+          )}
+
+          <table className="admin-audit-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>Category</th>
+                <th>Severity</th>
+                <th>Resource</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs?.entries && logs.entries.length > 0 ? (
+                logs.entries.map((entry) => (
+                  <tr key={entry.id}>
+                    <td className="admin-audit-cell-time">
+                      {formatTimestamp(entry.timestamp)}
+                    </td>
+                    <td className="admin-audit-cell-user">
+                      <User size={14} />
+                      <span title={entry.user_id}>{entry.user_email || entry.user_id}</span>
+                    </td>
+                    <td className="admin-audit-cell-action">{entry.action}</td>
+                    <td>
+                      <span
+                        className="admin-audit-badge"
+                        style={{ backgroundColor: `${getCategoryColor(entry.action_category)}20`, color: getCategoryColor(entry.action_category) }}
+                      >
+                        {entry.action_category.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className="admin-audit-badge admin-audit-badge--severity"
+                        style={{ backgroundColor: `${getSeverityColor(entry.severity)}20`, color: getSeverityColor(entry.severity) }}
+                      >
+                        {getSeverityIcon(entry.severity)}
+                        {entry.severity}
+                      </span>
+                    </td>
+                    <td className="admin-audit-cell-resource">
+                      {entry.resource_name || entry.resource_type || '-'}
+                    </td>
+                    <td>
+                      {entry.success ? (
+                        <CheckCircle size={16} className="admin-audit-success" />
+                      ) : (
+                        <XCircle size={16} className="admin-audit-failure" />
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="admin-audit-empty">
+                    No audit logs found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {logs && logs.total > pageSize && (
+          <div className="admin-audit-pagination">
+            <button
+              className="admin-audit-page-btn"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft size={16} />
+              Previous
+            </button>
+            <span className="admin-audit-page-info">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              className="admin-audit-page-btn"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+            >
+              Next
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+      </section>
     </div>
   );
 };
