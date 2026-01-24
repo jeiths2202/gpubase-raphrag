@@ -53,16 +53,20 @@ async def health_check(
 
     # Convert other service health results
     neo4j = _convert_health_result(services_data.get("neo4j", {}))
-    llm = _convert_health_result(services_data.get("nemotron_llm", {}))
+    qwen_llm = _convert_health_result(services_data.get("qwen_llm", {}))
     embedding = _convert_health_result(services_data.get("embedding", {}))
-    mistral = _convert_health_result(services_data.get("mistral_code", {}))
+    codeqwen = _convert_health_result(services_data.get("codeqwen", {}))
+    vision_llm = _convert_health_result(services_data.get("vision_llm", {}))
+    learning_llm = _convert_health_result(services_data.get("learning_llm", {}))
 
     services = ServicesHealth(
         api=api_health,
         neo4j=neo4j,
-        nemotron_llm=llm,
+        qwen_llm=qwen_llm,
         embedding=embedding,
-        mistral_code=mistral
+        codeqwen=codeqwen,
+        vision_llm=vision_llm,
+        learning_llm=learning_llm
     )
 
     # Determine overall status from result

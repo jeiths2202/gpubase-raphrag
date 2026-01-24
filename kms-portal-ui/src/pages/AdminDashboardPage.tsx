@@ -22,6 +22,9 @@ import {
   Loader2,
   Lightbulb,
   Brain,
+  Thermometer,
+  Zap,
+  HardDrive,
 } from 'lucide-react';
 import {
   UserManagementTable,
@@ -86,6 +89,26 @@ interface ExecutiveDashboard {
   user_trend: Array<{ timestamp: string; value: number }>;
   query_trend: Array<{ timestamp: string; value: number }>;
   token_trend: Array<{ timestamp: string; value: number }>;
+}
+
+// GPU Status Types
+interface GpuInfo {
+  index: number;
+  name: string;
+  memory_used: number;
+  memory_total: number;
+  memory_percent: number;
+  utilization: number;
+  temperature: number;
+  power_draw: number;
+  power_limit: number;
+}
+
+interface GpuStatus {
+  available: boolean;
+  gpu_count: number;
+  gpus: GpuInfo[];
+  error?: string;
 }
 
 // Tab configuration
@@ -805,9 +828,52 @@ const AgentsTab: React.FC<{ data: ExecutiveDashboard }> = ({ data }) => {
   );
 };
 
-// Health Tab
+// Health Tab with GPU Monitoring
 const HealthTab: React.FC<{ data: ExecutiveDashboard }> = ({ data }) => {
+  const [gpuStatus, setGpuStatus] = useState<GpuStatus | null>(null);
+  const [gpuLoading, setGpuLoading] = useState(true);
+  const [gpuError, setGpuError] = useState<string | null>(null);
+
   const components = Object.entries(data.system_health.components || {});
+
+  // Fetch GPU status (show_all=true for admin dashboard)
+  const fetchGpuStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/v1/verified-knowledge/monitor/gpu?show_all=true', {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json();
+      setGpuStatus(result);
+      setGpuError(null);
+    } catch (err) {
+      console.error('Failed to fetch GPU status:', err);
+      setGpuError('Failed to load GPU status');
+    } finally {
+      setGpuLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGpuStatus();
+    // Auto-refresh GPU status every 10 seconds
+    const interval = setInterval(fetchGpuStatus, 10000);
+    return () => clearInterval(interval);
+  }, [fetchGpuStatus]);
+
+  // GPU utilization color based on percentage
+  const getUtilizationColor = (percent: number): string => {
+    if (percent >= 90) return '#ef4444';
+    if (percent >= 70) return '#f59e0b';
+    return '#22c55e';
+  };
+
+  // Temperature color
+  const getTemperatureColor = (temp: number): string => {
+    if (temp >= 80) return '#ef4444';
+    if (temp >= 65) return '#f59e0b';
+    return '#22c55e';
+  };
 
   return (
     <div className="admin-tab-content">
@@ -828,9 +894,122 @@ const HealthTab: React.FC<{ data: ExecutiveDashboard }> = ({ data }) => {
         </div>
       </section>
 
+      {/* GPU Monitoring Section */}
+      <section className="admin-gpu-section">
+        <div className="admin-section-header">
+          <h3 className="admin-section-title">
+            <Cpu size={20} />
+            GPU Monitoring
+          </h3>
+          <button
+            className="admin-refresh-btn admin-refresh-btn--small"
+            onClick={fetchGpuStatus}
+            disabled={gpuLoading}
+          >
+            <RefreshCw size={14} className={gpuLoading ? 'spinning' : ''} />
+          </button>
+        </div>
+
+        {gpuLoading && !gpuStatus && (
+          <div className="admin-gpu-loading">
+            <Loader2 className="spinning" size={24} />
+            <span>Loading GPU status...</span>
+          </div>
+        )}
+
+        {gpuError && !gpuStatus && (
+          <div className="admin-gpu-error">
+            <AlertTriangle size={20} />
+            <span>{gpuError}</span>
+          </div>
+        )}
+
+        {gpuStatus && !gpuStatus.available && (
+          <div className="admin-gpu-unavailable">
+            <AlertTriangle size={20} />
+            <span>{gpuStatus.error || 'GPU monitoring not available'}</span>
+          </div>
+        )}
+
+        {gpuStatus && gpuStatus.available && gpuStatus.gpus.length > 0 && (
+          <div className="admin-gpu-grid">
+            {gpuStatus.gpus.map((gpu) => (
+              <div key={gpu.index} className="admin-gpu-card">
+                <div className="admin-gpu-header">
+                  <div className="admin-gpu-index">GPU {gpu.index}</div>
+                  <div className="admin-gpu-name" title={gpu.name}>
+                    {gpu.name.length > 25 ? gpu.name.slice(0, 22) + '...' : gpu.name}
+                  </div>
+                </div>
+
+                {/* Memory Usage */}
+                <div className="admin-gpu-metric">
+                  <div className="admin-gpu-metric-header">
+                    <HardDrive size={14} />
+                    <span>Memory</span>
+                    <span className="admin-gpu-metric-value">
+                      {(gpu.memory_used / 1024).toFixed(1)} / {(gpu.memory_total / 1024).toFixed(1)} GB
+                    </span>
+                  </div>
+                  <div className="admin-gpu-progress-bar">
+                    <div
+                      className="admin-gpu-progress-fill"
+                      style={{
+                        width: `${gpu.memory_percent}%`,
+                        backgroundColor: getUtilizationColor(gpu.memory_percent),
+                      }}
+                    />
+                  </div>
+                  <span className="admin-gpu-metric-percent">{gpu.memory_percent.toFixed(1)}%</span>
+                </div>
+
+                {/* GPU Utilization */}
+                <div className="admin-gpu-metric">
+                  <div className="admin-gpu-metric-header">
+                    <Activity size={14} />
+                    <span>Utilization</span>
+                    <span className="admin-gpu-metric-value">{gpu.utilization.toFixed(0)}%</span>
+                  </div>
+                  <div className="admin-gpu-progress-bar">
+                    <div
+                      className="admin-gpu-progress-fill"
+                      style={{
+                        width: `${gpu.utilization}%`,
+                        backgroundColor: getUtilizationColor(gpu.utilization),
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Temperature & Power */}
+                <div className="admin-gpu-stats">
+                  <div className="admin-gpu-stat">
+                    <Thermometer size={14} style={{ color: getTemperatureColor(gpu.temperature) }} />
+                    <span style={{ color: getTemperatureColor(gpu.temperature) }}>
+                      {gpu.temperature.toFixed(0)}°C
+                    </span>
+                  </div>
+                  <div className="admin-gpu-stat">
+                    <Zap size={14} />
+                    <span>{gpu.power_draw.toFixed(0)}W / {gpu.power_limit.toFixed(0)}W</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {gpuStatus && gpuStatus.available && gpuStatus.gpus.length === 0 && (
+          <div className="admin-gpu-unavailable">
+            <span>No GPUs found in monitoring range</span>
+          </div>
+        )}
+      </section>
+
+      {/* Components Section */}
       {components.length > 0 && (
         <section className="admin-components-grid">
-          <h3 className="admin-section-title">Components</h3>
+          <h3 className="admin-section-title">Services</h3>
           <div className="admin-component-cards">
             {components.map(([name, info]) => (
               <div key={name} className="admin-component-card">

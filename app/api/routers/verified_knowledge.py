@@ -1019,14 +1019,14 @@ async def get_monitoring_dashboard(
 @router.get(
     "/monitor/gpu",
     summary="GPU 상태 모니터링",
-    description="nvidia-smi를 통해 GPU 상태를 조회합니다.",
+    description="nvidia-smi를 통해 GPU 상태를 조회합니다. show_all=true면 모든 GPU를 표시합니다.",
 )
 async def get_gpu_status(
+    show_all: bool = Query(False, description="모든 GPU 표시 (기본: 학습용 GPU 4~7만 표시)"),
     user=Depends(get_current_user),
 ):
     """GPU 상태 조회"""
     import subprocess
-    import re
 
     try:
         # Run nvidia-smi to get GPU info
@@ -1045,15 +1045,15 @@ async def get_gpu_status(
             return {"available": False, "error": "nvidia-smi failed", "gpus": []}
 
         gpus = []
-        # GPU 4~7만 모니터링 (학습용 GPU)
-        target_gpus = {4, 5, 6, 7}
+        # 기본: GPU 4~7만 모니터링 (학습용 GPU), show_all=True면 모든 GPU 표시
+        target_gpus = None if show_all else {4, 5, 6, 7}
         for line in result.stdout.strip().split("\n"):
             if not line.strip():
                 continue
             parts = [p.strip() for p in line.split(",")]
             if len(parts) >= 8:
                 gpu_index = int(parts[0])
-                if gpu_index not in target_gpus:
+                if target_gpus is not None and gpu_index not in target_gpus:
                     continue
                 gpus.append({
                     "index": gpu_index,

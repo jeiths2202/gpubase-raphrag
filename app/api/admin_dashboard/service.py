@@ -183,8 +183,14 @@ class AdminDashboardService:
 
         try:
             async with self._pool.acquire() as conn:
-                # Check if token_usage_log table exists (using cache)
-                if not self._table_exists('token_usage_log'):
+                # Check if token_usage_log table exists and has data
+                use_token_usage_log = False
+                if self._table_exists('token_usage_log'):
+                    # Check if table has any data
+                    count = await conn.fetchval("SELECT COUNT(*) FROM token_usage_log LIMIT 1")
+                    use_token_usage_log = count > 0
+
+                if not use_token_usage_log:
                     # Use query_log as fallback
                     return await self._get_token_metrics_from_query_log(conn, start_date, end_date)
 
@@ -241,6 +247,8 @@ class AdminDashboardService:
             today_start = datetime.now(timezone.utc).replace(
                 hour=0, minute=0, second=0, microsecond=0
             )
+            week_ago = end_date - timedelta(days=7)
+            month_ago = end_date - timedelta(days=30)
 
             row = await conn.fetchrow("""
                 SELECT
@@ -250,10 +258,23 @@ class AdminDashboardService:
                     COALESCE(AVG(input_tokens + output_tokens), 0) as avg_per_request
                 FROM query_log
                 WHERE created_at >= $3
-            """, today_start, end_date - timedelta(days=7), end_date - timedelta(days=30))
+            """, today_start, week_ago, month_ago)
 
             total_today = int(row["today"] or 0)
             total_month = int(row["month"] or 0)
+
+            # Top endpoints by agent_type (fallback from query_log)
+            top_endpoints = await conn.fetch("""
+                SELECT
+                    COALESCE(agent_type, 'general') as endpoint,
+                    SUM(input_tokens + output_tokens) as tokens,
+                    COUNT(*) as requests
+                FROM query_log
+                WHERE created_at >= $1
+                GROUP BY agent_type
+                ORDER BY tokens DESC
+                LIMIT 5
+            """, start_date)
 
             return TokenMetricsSummary(
                 total_tokens_today=total_today,
@@ -261,7 +282,11 @@ class AdminDashboardService:
                 total_tokens_30d=total_month,
                 avg_tokens_per_request=float(row["avg_per_request"] or 0),
                 estimated_cost_today=self._estimate_cost(total_today),
-                estimated_cost_30d=self._estimate_cost(total_month)
+                estimated_cost_30d=self._estimate_cost(total_month),
+                top_endpoints=[
+                    {"endpoint": e["endpoint"], "tokens": int(e["tokens"] or 0), "requests": int(e["requests"] or 0)}
+                    for e in top_endpoints
+                ]
             )
         except Exception as e:
             logger.error(f"Error getting token metrics from query_log: {e}")
@@ -416,8 +441,13 @@ class AdminDashboardService:
 
         try:
             async with self._pool.acquire() as conn:
-                # Try token_usage_log first, then fallback to query_log (using cache)
+                # Check if token_usage_log exists and has data
+                use_token_usage_log = False
                 if self._table_exists('token_usage_log'):
+                    count = await conn.fetchval("SELECT COUNT(*) FROM token_usage_log LIMIT 1")
+                    use_token_usage_log = count > 0
+
+                if use_token_usage_log:
                     rows = await conn.fetch("""
                         SELECT DATE(timestamp) as date, SUM(total_tokens) as total
                         FROM token_usage_log
@@ -426,6 +456,7 @@ class AdminDashboardService:
                         ORDER BY date
                     """, days)
                 else:
+                    # Fallback to query_log
                     rows = await conn.fetch("""
                         SELECT DATE(created_at) as date,
                                SUM(input_tokens + output_tokens) as total

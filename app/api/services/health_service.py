@@ -22,9 +22,11 @@ class HealthService:
 
     Checks health of:
     - Neo4j database
-    - Nemotron LLM
-    - NeMo Embedding service
-    - Mistral Code LLM
+    - Qwen LLM (Text, GPU 4, port 12800)
+    - NeMo Embedding service (GPU 5, port 12801)
+    - CodeQwen (Code, GPU 7, port 12802)
+    - Vision LLM (GPU 6, port 12803)
+    - Learning LLM (GPU 7, port 12804)
     """
 
     # Cache TTL in seconds
@@ -80,12 +82,68 @@ class HealthService:
             }
 
     async def check_llm(self) -> Dict[str, Any]:
-        """Check Nemotron LLM health"""
+        """Check Qwen Text LLM health (GPU 4, port 12800)"""
         start = time.time()
         try:
-            # Extract base URL (remove /chat/completions)
-            base_url = config.llm.api_url.replace("/chat/completions", "")
-            health_url = f"{base_url}/health/ready"
+            # vLLM uses /health endpoint at root (not /v1/health)
+            base_url = config.llm.api_url.replace("/v1/chat/completions", "")
+            health_url = f"{base_url}/health"
+
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                response = await client.get(health_url)
+                response_time = int((time.time() - start) * 1000)
+
+                if response.status_code == 200:
+                    return {
+                        "status": "healthy",
+                        "response_time_ms": response_time,
+                        "gpu": "GPU 4"
+                    }
+                else:
+                    return {
+                        "status": "unhealthy",
+                        "error": f"HTTP {response.status_code}"
+                    }
+        except Exception as e:
+            return {
+                "status": "unhealthy",
+                "error": str(e)
+            }
+
+    async def check_embedding(self) -> Dict[str, Any]:
+        """Check NeMo Embedding service health (GPU 5, port 12801)"""
+        start = time.time()
+        try:
+            health_url = f"{config.embedding.api_url}/health/ready"
+
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                response = await client.get(health_url)
+                response_time = int((time.time() - start) * 1000)
+
+                if response.status_code == 200:
+                    return {
+                        "status": "healthy",
+                        "response_time_ms": response_time,
+                        "gpu": "GPU 5"
+                    }
+                else:
+                    return {
+                        "status": "unhealthy",
+                        "error": f"HTTP {response.status_code}"
+                    }
+        except Exception as e:
+            return {
+                "status": "unhealthy",
+                "error": str(e)
+            }
+
+    async def check_code_llm(self) -> Dict[str, Any]:
+        """Check CodeQwen Code LLM health (GPU 7, port 12802)"""
+        start = time.time()
+        try:
+            # vLLM uses /health endpoint at root (not /v1/health)
+            base_url = config.code_llm.api_url.replace("/v1/chat/completions", "")
+            health_url = f"{base_url}/health"
 
             async with httpx.AsyncClient(timeout=2.0) as client:
                 response = await client.get(health_url)
@@ -108,11 +166,13 @@ class HealthService:
                 "error": str(e)
             }
 
-    async def check_embedding(self) -> Dict[str, Any]:
-        """Check embedding service health"""
+    async def check_vision_llm(self) -> Dict[str, Any]:
+        """Check Vision LLM health (GPU 6, port 12803)"""
         start = time.time()
         try:
-            health_url = f"{config.embedding.api_url}/health/ready"
+            # NIM uses /v1/health/ready endpoint
+            base_url = config.vision_llm.api_url.replace("/chat/completions", "")
+            health_url = f"{base_url}/health/ready"
 
             async with httpx.AsyncClient(timeout=2.0) as client:
                 response = await client.get(health_url)
@@ -122,7 +182,7 @@ class HealthService:
                     return {
                         "status": "healthy",
                         "response_time_ms": response_time,
-                        "gpu": "GPU 4,5"
+                        "gpu": "GPU 6"
                     }
                 else:
                     return {
@@ -135,12 +195,12 @@ class HealthService:
                 "error": str(e)
             }
 
-    async def check_mistral(self) -> Dict[str, Any]:
-        """Check Mistral Code LLM health"""
+    async def check_learning_llm(self) -> Dict[str, Any]:
+        """Check Learning LLM health (GPU 7, port 12804)"""
         start = time.time()
         try:
-            # vLLM uses /health endpoint
-            base_url = config.code_llm.api_url.replace("/chat/completions", "")
+            # vLLM uses /health endpoint at root (not /v1/health)
+            base_url = config.learning_llm.api_url.replace("/v1/chat/completions", "")
             health_url = f"{base_url}/health"
 
             async with httpx.AsyncClient(timeout=2.0) as client:
@@ -151,7 +211,7 @@ class HealthService:
                     return {
                         "status": "healthy",
                         "response_time_ms": response_time,
-                        "gpu": "GPU 0"
+                        "gpu": "GPU 7"
                     }
                 else:
                     return {
@@ -183,11 +243,13 @@ class HealthService:
                 return self._cache
 
         # Run all health checks in parallel
-        neo4j, llm, embedding, mistral = await asyncio.gather(
+        neo4j, llm, embedding, code_llm, vision_llm, learning_llm = await asyncio.gather(
             self.check_neo4j(),
             self.check_llm(),
             self.check_embedding(),
-            self.check_mistral()
+            self.check_code_llm(),
+            self.check_vision_llm(),
+            self.check_learning_llm()
         )
 
         services = {
@@ -196,13 +258,17 @@ class HealthService:
                 "uptime_seconds": self.uptime_seconds
             },
             "neo4j": neo4j,
-            "nemotron_llm": llm,
+            "qwen_llm": llm,
             "embedding": embedding,
-            "mistral_code": mistral
+            "codeqwen": code_llm,
+            "vision_llm": vision_llm,
+            "learning_llm": learning_llm
         }
 
-        # Determine overall status
-        external_services = [neo4j, llm, embedding, mistral]
+        # Determine overall status (core services only: neo4j, llm, embedding)
+        # Vision and Learning LLM are optional services
+        core_services = [neo4j, llm, embedding]
+        external_services = [neo4j, llm, embedding, code_llm, vision_llm, learning_llm]
         unhealthy_count = sum(
             1 for s in external_services
             if s.get("status") == "unhealthy"
