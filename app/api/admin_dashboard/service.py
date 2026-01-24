@@ -1032,11 +1032,24 @@ class AdminDashboardService:
         # Try database first
         if self._pool:
             try:
-                return await self._get_audit_logs_from_db(
+                result = await self._get_audit_logs_from_db(
                     page, limit, user_id, action_category, severity, start_date, end_date
                 )
+                # If admin_audit_logs is empty, fallback to query_log
+                if result["total"] == 0:
+                    return await self._get_audit_logs_from_query_log(
+                        page, limit, user_id, action_category, severity, start_date, end_date
+                    )
+                return result
             except Exception as e:
                 logger.error(f"Error getting audit logs from DB: {e}")
+                # Try query_log fallback
+                try:
+                    return await self._get_audit_logs_from_query_log(
+                        page, limit, user_id, action_category, severity, start_date, end_date
+                    )
+                except Exception as e2:
+                    logger.error(f"Error getting audit logs from query_log: {e2}")
 
         # Fallback to in-memory audit service
         if self._audit_service:
@@ -1059,6 +1072,138 @@ class AdminDashboardService:
                 logger.error(f"Error getting audit logs from service: {e}")
 
         return {"entries": [], "total": 0, "page": page, "limit": limit, "has_more": False}
+
+    async def _get_audit_logs_from_query_log(
+        self,
+        page: int,
+        limit: int,
+        user_id: Optional[str],
+        action_category: Optional[str],
+        severity: Optional[str],
+        start_date: Optional[datetime],
+        end_date: Optional[datetime]
+    ) -> Dict[str, Any]:
+        """Get audit-like logs from query_log table as fallback"""
+        async with self._pool.acquire() as conn:
+            # Build query conditions
+            conditions = []
+            params = []
+            param_idx = 1
+
+            if user_id:
+                conditions.append(f"q.user_id = ${param_idx}")
+                params.append(user_id)
+                param_idx += 1
+
+            # Map action_category to agent_type
+            if action_category:
+                agent_type_map = {
+                    'AGENT': 'rag',
+                    'CONTENT': 'rag',
+                    'SYSTEM': 'code',
+                    'USER_MANAGEMENT': None,
+                    'SECURITY': None,
+                    'GOVERNANCE': 'ims'
+                }
+                mapped_type = agent_type_map.get(action_category)
+                if mapped_type:
+                    conditions.append(f"q.agent_type = ${param_idx}")
+                    params.append(mapped_type)
+                    param_idx += 1
+
+            # Map severity to success status
+            if severity:
+                if severity in ('error', 'critical'):
+                    conditions.append(f"q.success = ${param_idx}")
+                    params.append(False)
+                    param_idx += 1
+                elif severity == 'info':
+                    conditions.append(f"q.success = ${param_idx}")
+                    params.append(True)
+                    param_idx += 1
+
+            if start_date:
+                conditions.append(f"q.created_at >= ${param_idx}")
+                params.append(start_date)
+                param_idx += 1
+
+            if end_date:
+                conditions.append(f"q.created_at <= ${param_idx}")
+                params.append(end_date)
+                param_idx += 1
+
+            where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+            # Count total
+            count_query = f"SELECT COUNT(*) FROM query_log q WHERE {where_clause}"
+            total = await conn.fetchval(count_query, *params)
+
+            # Get entries with user info
+            offset = (page - 1) * limit
+            query = f"""
+                SELECT
+                    q.id,
+                    q.created_at as timestamp,
+                    q.user_id,
+                    COALESCE(u.email, q.user_id) as user_email,
+                    COALESCE(u.role, 'user') as user_role,
+                    CASE
+                        WHEN q.agent_type = 'rag' THEN 'RAG Query'
+                        WHEN q.agent_type = 'code' THEN 'Code Query'
+                        WHEN q.agent_type = 'ims' THEN 'IMS Query'
+                        ELSE 'Query'
+                    END || ': ' || LEFT(q.query_text, 50) as action,
+                    CASE
+                        WHEN q.agent_type = 'ims' THEN 'GOVERNANCE'
+                        WHEN q.agent_type = 'code' THEN 'SYSTEM'
+                        ELSE 'AGENT'
+                    END as action_category,
+                    CASE
+                        WHEN q.success = false THEN 'error'
+                        WHEN q.execution_time_ms > 10000 THEN 'warning'
+                        ELSE 'info'
+                    END as severity,
+                    'query' as resource_type,
+                    q.conversation_id::text as resource_id,
+                    q.agent_type as resource_name,
+                    q.success,
+                    CASE WHEN q.success = false THEN 'Query execution failed' ELSE NULL END as error_message
+                FROM query_log q
+                LEFT JOIN users u ON q.user_id::uuid = u.id
+                WHERE {where_clause}
+                ORDER BY q.created_at DESC
+                LIMIT ${param_idx} OFFSET ${param_idx + 1}
+            """
+            params.extend([limit, offset])
+
+            rows = await conn.fetch(query, *params)
+
+            entries = [
+                {
+                    "id": str(r["id"]),
+                    "timestamp": r["timestamp"].isoformat() if r["timestamp"] else None,
+                    "user_id": str(r["user_id"]) if r["user_id"] else "system",
+                    "user_email": r["user_email"] or "unknown",
+                    "user_role": r["user_role"] or "user",
+                    "action": r["action"],
+                    "action_category": r["action_category"],
+                    "severity": r["severity"],
+                    "resource_type": r["resource_type"],
+                    "resource_id": r["resource_id"],
+                    "resource_name": r["resource_name"],
+                    "success": r["success"],
+                    "error_message": r["error_message"]
+                }
+                for r in rows
+            ]
+
+            return {
+                "entries": entries,
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "has_more": offset + len(entries) < total
+            }
 
     async def _get_audit_logs_from_db(
         self,
@@ -1153,6 +1298,14 @@ class AdminDashboardService:
 
     async def get_audit_stats(self, hours: int = 24) -> AuditLogStats:
         """Get audit log statistics"""
+        # Try database first (query_log as primary source)
+        if self._pool:
+            try:
+                return await self._get_audit_stats_from_query_log(hours)
+            except Exception as e:
+                logger.error(f"Error getting audit stats from query_log: {e}")
+
+        # Fallback to in-memory audit service
         if self._audit_service:
             try:
                 stats = self._audit_service.get_stats(hours)
@@ -1190,6 +1343,117 @@ class AdminDashboardService:
             events_by_user=[],
             recent_security_events=[]
         )
+
+    async def _get_audit_stats_from_query_log(self, hours: int = 24) -> AuditLogStats:
+        """Get audit statistics from query_log table"""
+        async with self._pool.acquire() as conn:
+            start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+            # Total events
+            total = await conn.fetchval(
+                "SELECT COUNT(*) FROM query_log WHERE created_at >= $1",
+                start_time
+            )
+
+            # Events by category (mapped from agent_type)
+            category_rows = await conn.fetch("""
+                SELECT category, COUNT(*) as count FROM (
+                    SELECT
+                        CASE
+                            WHEN agent_type = 'ims' THEN 'GOVERNANCE'
+                            WHEN agent_type = 'code' THEN 'SYSTEM'
+                            ELSE 'AGENT'
+                        END as category
+                    FROM query_log
+                    WHERE created_at >= $1
+                ) sub
+                GROUP BY category
+                ORDER BY count DESC
+            """, start_time)
+            events_by_category = {r["category"]: r["count"] for r in category_rows}
+
+            # Events by severity (mapped from success status and execution time)
+            severity_rows = await conn.fetch("""
+                SELECT severity, COUNT(*) as count FROM (
+                    SELECT
+                        CASE
+                            WHEN success = false THEN 'error'
+                            WHEN execution_time_ms > 10000 THEN 'warning'
+                            ELSE 'info'
+                        END as severity
+                    FROM query_log
+                    WHERE created_at >= $1
+                ) sub
+                GROUP BY severity
+                ORDER BY count DESC
+            """, start_time)
+            events_by_severity = {r["severity"]: r["count"] for r in severity_rows}
+
+            # Events by user
+            user_rows = await conn.fetch("""
+                SELECT
+                    COALESCE(q.user_id, 'anonymous') as user_id,
+                    COUNT(*) as count
+                FROM query_log q
+                WHERE q.created_at >= $1
+                GROUP BY q.user_id
+                ORDER BY count DESC
+                LIMIT 10
+            """, start_time)
+            events_by_user = [
+                {"user_id": r["user_id"], "count": r["count"]}
+                for r in user_rows
+            ]
+
+            # Recent "security" events (failed queries or slow queries)
+            security_rows = await conn.fetch("""
+                SELECT
+                    q.id,
+                    q.created_at as timestamp,
+                    COALESCE(q.user_id, 'system') as user_id,
+                    COALESCE(u.email, q.user_id) as user_email,
+                    COALESCE(u.role, 'user') as user_role,
+                    CASE
+                        WHEN q.success = false THEN 'Query Failed: '
+                        ELSE 'Slow Query: '
+                    END || LEFT(q.query_text, 50) as action,
+                    'query' as resource_type,
+                    CASE
+                        WHEN q.success = false THEN 'error'
+                        ELSE 'warning'
+                    END as severity,
+                    q.success
+                FROM query_log q
+                LEFT JOIN users u ON q.user_id::uuid = u.id
+                WHERE q.created_at >= $1
+                  AND (q.success = false OR q.execution_time_ms > 10000)
+                ORDER BY q.created_at DESC
+                LIMIT 10
+            """, start_time)
+
+            recent_security_events = [
+                AuditLogEntry(
+                    id=str(r["id"]),
+                    timestamp=r["timestamp"],
+                    user_id=str(r["user_id"]) if r["user_id"] else "system",
+                    user_email=r["user_email"] or "unknown",
+                    user_role=r["user_role"] or "user",
+                    action=r["action"],
+                    action_category=AuditCategory.SECURITY,
+                    severity=AuditSeverity(r["severity"]),
+                    resource_type=r["resource_type"],
+                    success=r["success"]
+                )
+                for r in security_rows
+            ]
+
+            return AuditLogStats(
+                total_events=total or 0,
+                events_by_category=events_by_category,
+                events_by_severity=events_by_severity,
+                events_by_user=events_by_user,
+                recent_security_events=recent_security_events
+            )
 
     # =========================================================================
     # HELPER METHODS
