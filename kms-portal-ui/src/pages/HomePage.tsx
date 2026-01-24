@@ -134,7 +134,7 @@ export const HomePage: React.FC = () => {
       id: 'documents',
       icon: <FileText size={20} />,
       value: formatNumber(dashboardData.stats.documentsIndexed),
-      labelKey: 'home.stats.documentsIndexed',
+      labelKey: 'common.home.stats.documentsIndexed',
       trend: dashboardData.stats.documentsTrend,
       trendDirection: dashboardData.stats.documentsTrend !== undefined
         ? (dashboardData.stats.documentsTrend > 0 ? 'up' : dashboardData.stats.documentsTrend < 0 ? 'down' : 'stable')
@@ -144,7 +144,7 @@ export const HomePage: React.FC = () => {
       id: 'queries',
       icon: <Search size={20} />,
       value: formatNumber(dashboardData.stats.queriesThisMonth),
-      labelKey: 'home.stats.queriesThisMonth',
+      labelKey: 'common.home.stats.queriesThisMonth',
       trend: dashboardData.stats.queriesTrend,
       trendDirection: dashboardData.stats.queriesTrend !== undefined
         ? (dashboardData.stats.queriesTrend > 0 ? 'up' : dashboardData.stats.queriesTrend < 0 ? 'down' : 'stable')
@@ -154,7 +154,7 @@ export const HomePage: React.FC = () => {
       id: 'users',
       icon: <Users size={20} />,
       value: formatNumber(dashboardData.stats.activeUsers),
-      labelKey: 'home.stats.activeUsers',
+      labelKey: 'common.home.stats.activeUsers',
       trend: dashboardData.stats.usersTrend,
       trendDirection: dashboardData.stats.usersTrend !== undefined
         ? (dashboardData.stats.usersTrend > 0 ? 'up' : dashboardData.stats.usersTrend < 0 ? 'down' : 'stable')
@@ -164,7 +164,7 @@ export const HomePage: React.FC = () => {
       id: 'response',
       icon: <Clock size={20} />,
       value: dashboardData.stats.avgResponseTime,
-      labelKey: 'home.stats.avgResponseTime',
+      labelKey: 'common.home.stats.avgResponseTime',
       trend: dashboardData.stats.responseTrend,
       // For response time, lower is better, so reverse the direction indicator
       trendDirection: dashboardData.stats.responseTrend !== undefined
@@ -269,7 +269,7 @@ export const HomePage: React.FC = () => {
       {/* Recent activity */}
       <section className="home-activity">
         <div className="home-activity-header">
-          <h2 className="home-section-title">{t('home.recentActivity')}</h2>
+          <h2 className="home-section-title">{t('common.home.recentActivity')}</h2>
           <Link to="/ai-agent" className="home-activity-link">
             {t('common.viewAll')} <ArrowRight size={14} />
           </Link>
@@ -304,9 +304,9 @@ export const HomePage: React.FC = () => {
             ))
           ) : (
             <div className="home-activity-empty">
-              <p>{t('home.noRecentActivity')}</p>
+              <p>{t('common.home.noRecentActivity')}</p>
               <Link to="/ai-agent" className="home-activity-start">
-                {t('home.startConversation')} <ArrowRight size={14} />
+                {t('common.home.startConversation')} <ArrowRight size={14} />
               </Link>
             </div>
           )}

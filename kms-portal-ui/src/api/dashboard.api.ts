@@ -174,37 +174,62 @@ function formatRelativeTime(dateString: string): string {
 }
 
 /**
+ * Home dashboard stats response
+ */
+interface HomeDashboardStatsResponse {
+  documents_indexed: number;
+  queries_this_month: number;
+  active_users: number;
+  avg_response_time_ms: number;
+  documents_trend?: number;
+  queries_trend?: number;
+  users_trend?: number;
+  response_trend?: number;
+}
+
+/**
+ * Get home dashboard stats from simple endpoint
+ */
+async function getHomeDashboardStats(): Promise<HomeDashboardStatsResponse | null> {
+  try {
+    const response = await apiClient.get<SuccessResponse<HomeDashboardStatsResponse>>(
+      '/stats/home-dashboard'
+    );
+    return response.data.data;
+  } catch (error) {
+    console.error('Failed to fetch home dashboard stats:', error);
+    return null;
+  }
+}
+
+/**
  * Get combined dashboard data
  * Fetches all necessary data for the home page dashboard
  */
 export async function getDashboardData(): Promise<DashboardData> {
   try {
-    // Fetch data in parallel
-    const [summaryResult, contentResult, usageResult, conversationsResult] = await Promise.allSettled([
-      getDashboardSummary(30),
-      getContentAnalytics(30),
-      getUsageAnalytics(30),
+    // Fetch data in parallel - use simple home-dashboard endpoint
+    const [homeStatsResult, conversationsResult] = await Promise.allSettled([
+      getHomeDashboardStats(),
       apiClient.get('/conversations', { params: { limit: 5, include_archived: false } }),
     ]);
 
     // Extract successful results with fallbacks
-    const summary = summaryResult.status === 'fulfilled' ? summaryResult.value : null;
-    const content = contentResult.status === 'fulfilled' ? contentResult.value : null;
-    const usage = usageResult.status === 'fulfilled' ? usageResult.value : null;
+    const homeStats = homeStatsResult.status === 'fulfilled' ? homeStatsResult.value : null;
     const conversationsData = conversationsResult.status === 'fulfilled'
       ? conversationsResult.value.data?.data?.conversations || []
       : [];
 
-    // Build stats object
+    // Build stats object from home dashboard stats
     const stats = {
-      documentsIndexed: content?.total_documents || 0,
-      queriesThisMonth: summary?.total_queries || 0,
-      activeUsers: usage?.total_users || summary?.total_users || 0,
-      avgResponseTime: formatResponseTime(summary?.avg_response_time_ms || 0),
-      documentsTrend: undefined as number | undefined,
-      queriesTrend: summary?.queries_change_percent,
-      usersTrend: undefined as number | undefined,
-      responseTrend: summary?.quality_change_percent,
+      documentsIndexed: homeStats?.documents_indexed || 0,
+      queriesThisMonth: homeStats?.queries_this_month || 0,
+      activeUsers: homeStats?.active_users || 0,
+      avgResponseTime: formatResponseTime(homeStats?.avg_response_time_ms || 0),
+      documentsTrend: homeStats?.documents_trend,
+      queriesTrend: homeStats?.queries_trend,
+      usersTrend: homeStats?.users_trend,
+      responseTrend: homeStats?.response_trend,
     };
 
     // Build recent activity from conversations
