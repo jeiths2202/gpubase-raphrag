@@ -244,7 +244,7 @@ def train(
         save_total_limit=3,
         eval_strategy="steps" if eval_dataset else "no",
         eval_steps=100 if eval_dataset else None,
-        bf16=True,
+        fp16=True,  # fp16 is more widely supported than bf16
         gradient_checkpointing=True,
         optim="paged_adamw_32bit",
         lr_scheduler_type="cosine",
