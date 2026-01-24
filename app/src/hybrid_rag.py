@@ -246,9 +246,23 @@ class HybridRAG:
                 topic_density_results, vector_results,
                 preserve_order=(merge_strategy == "interleave")
             )
-            return merged[:k]
+            final_results = merged[:k]
+        else:
+            final_results = vector_results
 
-        return vector_results
+        # Step 6: Intent verification (Stage 2 of Auto Agent)
+        # Verify that results actually match the user's query intent
+        intent_value = analysis.intent.value
+        if intent_value in ["definition", "troubleshooting", "comparison", "howto"]:
+            print(f"    [Auto Agent] Stage 2: Verifying results match intent '{intent_value}'")
+            final_results = self._verify_results_by_intent(
+                query=query,
+                intent=intent_value,
+                results=final_results,
+                max_to_verify=5
+            )
+
+        return final_results
 
     def _document_scoped_search(
         self,
@@ -500,6 +514,97 @@ class HybridRAG:
         print(f"    [Glossary Search] Found {len(all_results)} total results")
 
         return all_results[:k]
+
+    def _verify_results_by_intent(
+        self,
+        query: str,
+        intent: str,
+        results: List[Dict],
+        max_to_verify: int = 5
+    ) -> List[Dict]:
+        """
+        Verify search results match the user's intent using LLM.
+
+        Stage 2 of Auto Agent: After similarity search, verify each result
+        actually answers the user's question type.
+
+        Args:
+            query: Original user query
+            intent: Detected intent (definition, troubleshooting, comparison, etc.)
+            results: Search results to verify
+            max_to_verify: Maximum number of results to verify (for performance)
+
+        Returns:
+            Filtered results that match the intent
+        """
+        if not results:
+            return results
+
+        # Intent-specific verification criteria
+        intent_criteria = {
+            "definition": "용어의 정의, 설명, 개요, 약어 풀이를 포함하는가",
+            "troubleshooting": "에러 해결 방법, 원인, 조치 방법을 포함하는가",
+            "comparison": "비교 대상 간의 차이점, 공통점을 설명하는가",
+            "howto": "절차, 방법, 단계별 가이드를 포함하는가",
+            "factual": "사실적인 정보, 수치, 데이터를 포함하는가",
+        }
+
+        criteria = intent_criteria.get(intent, "질문에 대한 답변을 포함하는가")
+
+        # Build verification prompt
+        results_to_verify = results[:max_to_verify]
+
+        verification_prompt = f"""사용자 질문: "{query}"
+질문 유형: {intent}
+검증 기준: {criteria}
+
+아래 검색 결과들이 사용자의 질문 유형에 적합한지 검증하세요.
+각 결과에 대해 "YES" 또는 "NO"로만 답하세요.
+
+"""
+        for i, r in enumerate(results_to_verify, 1):
+            content = r.get("content", "")[:300]
+            verification_prompt += f"[결과 {i}]\n{content}\n\n"
+
+        verification_prompt += f"""
+각 결과가 "{intent}" 유형의 질문에 적합한 답변을 포함하는지 판단하세요.
+형식: 결과1:YES/NO, 결과2:YES/NO, ...
+"""
+
+        try:
+            response = self.llm.invoke(verification_prompt)
+            verification_text = response.content.upper()
+
+            print(f"    [Intent Verify] Query intent: {intent}, Criteria: {criteria[:30]}...")
+
+            # Parse verification results
+            verified_results = []
+            for i, r in enumerate(results_to_verify, 1):
+                # Check if this result was verified as matching
+                pattern = f"결과{i}:YES|결과 {i}:YES|{i}:YES|\\[{i}\\].*YES"
+                if re.search(pattern, verification_text) or f"YES" in verification_text.split(',')[i-1] if i <= len(verification_text.split(',')) else False:
+                    r["intent_verified"] = True
+                    r["score"] = r.get("score", 0) * 1.5  # Boost verified results
+                    verified_results.append(r)
+                    print(f"    [Intent Verify] Result {i}: VERIFIED ✓")
+                else:
+                    print(f"    [Intent Verify] Result {i}: NOT MATCHED ✗")
+
+            # If no results verified, return original results with lower scores
+            if not verified_results:
+                print(f"    [Intent Verify] No results matched intent, returning unverified")
+                return results
+
+            # Add remaining unverified results at the end
+            for r in results[max_to_verify:]:
+                if r not in verified_results:
+                    verified_results.append(r)
+
+            return verified_results
+
+        except Exception as e:
+            print(f"    [Intent Verify] Error: {e}")
+            return results
 
     def _merge_topic_density_with_vector(
         self,

@@ -218,12 +218,18 @@ class RAGService:
         # External resource options
         user_id: Optional[str] = None,
         use_external_resources: bool = True,
-        external_weight: float = 2.5
+        external_weight: float = 2.5,
+        # Smarter RAG options
+        use_verified_knowledge: bool = True,
+        verified_min_similarity: float = 0.85,
+        use_learning_llm: bool = True,
+        learning_llm_min_confidence: float = 0.6,
     ) -> Dict[str, Any]:
         """
         Execute RAG query asynchronously with priority-based retrieval
 
-        Priority order:
+        Priority order (Smarter RAG):
+        0. Verified Knowledge Store (👍 받은 검증된 지식) - 최우선
         1. Session documents (uploaded in current session)
         2. User's external resources (OneNote, GitHub, Drive, Notion, Confluence)
         3. Global knowledge base
@@ -241,6 +247,8 @@ class RAGService:
             user_id: User ID for external resources
             use_external_resources: Whether to use external resources (default True)
             external_weight: Score boost for external results (default 2.5)
+            use_verified_knowledge: Whether to use Verified Knowledge Store (default True)
+            verified_min_similarity: Minimum similarity for verified knowledge (default 0.85)
 
         Returns:
             Dictionary with answer, sources, and metadata
@@ -251,6 +259,98 @@ class RAGService:
         used_external_resources = False
         session_doc_count = 0
         external_doc_count = 0
+
+        # Step 0: Check Verified Knowledge Store first (Smarter RAG - highest priority)
+        if use_verified_knowledge:
+            try:
+                from .verified_knowledge_service import get_verified_knowledge_service
+                vk_service = get_verified_knowledge_service()
+
+                if vk_service:
+                    vk_match = await vk_service.get_best_match(
+                        query=question,
+                        min_similarity=verified_min_similarity,
+                        language=language if language != "auto" else None,
+                    )
+
+                    if vk_match:
+                        entity, similarity = vk_match
+                        print(f"[RAGService] ✅ Verified Knowledge match found (similarity: {similarity:.3f})")
+
+                        # Record usage
+                        await vk_service.record_usage(
+                            knowledge_id=entity.id,
+                            query=question,
+                            similarity_score=similarity,
+                            conversation_id=conversation_id,
+                            user_id=user_id,
+                        )
+
+                        # Return verified answer directly
+                        return {
+                            "answer": entity.answer,
+                            "sources": entity.source_documents or [],
+                            "strategy": "verified_knowledge",
+                            "language": entity.language,
+                            "metadata": {
+                                "source_type": "verified_knowledge",
+                                "verified_id": entity.id,
+                                "similarity_score": similarity,
+                                "feedback_score": entity.feedback_score,
+                                "thumbs_up_count": entity.thumbs_up_count,
+                                "usage_count": entity.usage_count + 1,
+                                "is_trained": entity.is_trained,
+                            }
+                        }
+            except Exception as e:
+                print(f"[RAGService] Verified Knowledge search failed: {e}")
+
+        # Step 0.5: Try Learning LLM if Verified Knowledge didn't match exactly
+        # Learning LLM generates new responses based on learned patterns
+        if use_learning_llm:
+            try:
+                from .learning_llm_service import get_learning_llm_service
+                from .verified_knowledge_service import get_verified_knowledge_service
+
+                llm_service = get_learning_llm_service()
+                vk_service = get_verified_knowledge_service()
+
+                if llm_service and llm_service.enabled:
+                    # Check if Learning LLM can answer based on learned domain
+                    can_answer, knowledge_hint, confidence = await llm_service.can_answer(
+                        question=question,
+                        verified_knowledge_service=vk_service,
+                    )
+
+                    if can_answer and confidence >= learning_llm_min_confidence:
+                        print(f"[RAGService] Learning LLM can answer (confidence: {confidence:.3f})")
+
+                        # Generate response using Learning LLM
+                        llm_response = await llm_service.generate(
+                            question=question,
+                            verified_knowledge_hint=knowledge_hint,
+                            max_tokens=512,
+                            temperature=0.7,
+                        )
+
+                        if llm_response and llm_response.get("answer"):
+                            print(f"[RAGService] ✅ Learning LLM generated response")
+
+                            return {
+                                "answer": llm_response["answer"],
+                                "sources": [],
+                                "strategy": "learning_llm",
+                                "language": language if language != "auto" else "ko",
+                                "metadata": {
+                                    "source_type": "learning_llm",
+                                    "adapter": llm_response.get("adapter"),
+                                    "model": llm_response.get("model"),
+                                    "confidence": confidence,
+                                    "has_knowledge_hint": knowledge_hint is not None,
+                                }
+                            }
+            except Exception as e:
+                print(f"[RAGService] Learning LLM generation failed: {e}")
 
         # Step 1: Search session documents first (highest priority)
         if session_id and use_session_docs:
