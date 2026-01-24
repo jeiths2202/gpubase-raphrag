@@ -177,7 +177,7 @@ Returns relevant document chunks with full context and source information."""
         try:
             result = await self.rag_service.query(
                 question=query,
-                strategy="vector",
+                strategy="hybrid",  # Use hybrid for glossary-enhanced search
                 language=language,
                 top_k=top_k * 2,  # Fetch more for fusion
                 session_id=context.session_id,

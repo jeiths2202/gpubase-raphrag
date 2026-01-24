@@ -445,6 +445,16 @@ class HybridRAG:
         if product_entities:
             entity_names = " ".join([e.name for e in product_entities])
             glossary_query = f"{entity_names} 用語集 略語 定義 {search_query}"
+        else:
+            # No recognized entities - still enhance with glossary keywords
+            # Extract potential acronym/term from query (e.g., "BMS" from "BMS란")
+            import re
+            acronym_match = re.match(r'^([A-Za-z0-9_]+)', search_query)
+            if acronym_match:
+                acronym = acronym_match.group(1)
+                glossary_query = f"{acronym} 용어 정의 약어 개요 {search_query}"
+            else:
+                glossary_query = f"용어 정의 약어 {search_query}"
 
         print(f"    [Glossary] Query: '{glossary_query[:60]}...'")
         glossary_results = self.vector_rag.search_similar(
@@ -899,6 +909,18 @@ class HybridRAG:
         if not results:
             return self._no_results_message(language)
 
+        # Filter out low-quality results to prevent hallucination
+        MIN_RELEVANCE_SCORE = float(os.getenv("RAG_MIN_RELEVANCE_SCORE", "0.3"))
+        relevant_results = [r for r in results if r.get("score", 0) >= MIN_RELEVANCE_SCORE]
+
+        # If no relevant results after filtering, return no-info message
+        if not relevant_results:
+            print(f"    [HybridRAG] No relevant results (all scores < {MIN_RELEVANCE_SCORE})")
+            return self._no_results_message(language)
+
+        # Use filtered results for answer generation
+        results = relevant_results
+
         # Adjust context size based on query type
         if is_deep_analysis:
             max_results = 20
@@ -999,6 +1021,14 @@ The user has requested a detailed, thorough analysis. Follow these guidelines:
         # Generate answer with conversation context
         prompt = f"""Based on the context below, answer the question.
 {lang_instruction}{comprehensive_instruction}{deep_analysis_instruction}
+IMPORTANT: Only answer based on information found in the Document Context below.
+If the documents do not contain relevant information about the question topic, respond with:
+- Korean: "관련 정보를 찾을 수 없습니다."
+- Japanese: "関連情報が見つかりません。"
+- English: "No relevant information found."
+
+Do NOT make up or hallucinate information that is not in the provided documents.
+
 {conversation_context}Document Context:
 {context}
 

@@ -309,14 +309,15 @@ class QueryAnalyzer:
             hints["prioritize_intro_sections"] = True
             hints["merge_strategy"] = "interleave"
 
-        # For definition queries
-        elif intent == QueryIntent.DEFINITION and product_entities:
-            hints["use_doc_filter"] = True
-            # Include both product-specific docs AND common glossary
-            hints["doc_filters"] = [e.doc_filter for e in product_entities if e.doc_filter]
-            hints["doc_filters"].append("OF_Common")  # Glossary is in Common docs
+        # For definition queries - always enable glossary search
+        elif intent == QueryIntent.DEFINITION:
             hints["prioritize_intro_sections"] = True
-            hints["search_glossary"] = True  # Signal to search for glossary terms
+            hints["search_glossary"] = True  # Always search glossary for definitions
+            # If product entities recognized, also apply document filtering
+            if product_entities:
+                hints["use_doc_filter"] = True
+                hints["doc_filters"] = [e.doc_filter for e in product_entities if e.doc_filter]
+                hints["doc_filters"].append("OF_Common")  # Glossary is in Common docs
 
         # For troubleshooting
         elif intent == QueryIntent.TROUBLESHOOTING:
