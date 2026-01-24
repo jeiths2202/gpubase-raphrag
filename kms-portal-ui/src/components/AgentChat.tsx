@@ -561,16 +561,43 @@ export const AgentChat: React.FC<AgentChatProps> = ({
     try {
       const currentFeedback = feedbackState[messageId];
 
-      // Find the message and its context for learning
+      // Find the assistant message
       const messageIndex = messages.findIndex(m => m.id === messageId);
+      if (messageIndex < 0) {
+        console.error('Message not found:', messageId);
+        return;
+      }
       const assistantMessage = messages[messageIndex];
-      const userMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
+
+      // Find the corresponding user message by walking backwards
+      // (not just the previous message, as there could be system messages in between)
+      let userMessage = null;
+      for (let i = messageIndex - 1; i >= 0; i--) {
+        if (messages[i].role === 'user') {
+          userMessage = messages[i];
+          break;
+        }
+      }
+
+      // Get content values
+      const query = userMessage?.content?.trim() || '';
+      const answer = assistantMessage?.content?.trim() || '';
+
+      // Validate required data for thumbs_up (needed for verified knowledge)
+      if (type === 'thumbs_up' && (!query || !answer)) {
+        console.warn('[Feedback] Missing query or answer for thumbs_up feedback:', {
+          messageId,
+          hasQuery: !!query,
+          hasAnswer: !!answer,
+        });
+        // Still allow the feedback but log warning
+      }
 
       const feedbackData = {
         message_id: messageId,
         feedback_type: type,
-        query: userMessage?.role === 'user' ? userMessage.content : undefined,
-        answer: assistantMessage?.content,
+        query: query || undefined,
+        answer: answer || undefined,
         conversation_id: activeConversationId || undefined,
       };
 

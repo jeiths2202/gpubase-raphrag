@@ -75,6 +75,19 @@ class VerifiedKnowledgeService:
         """
         logger.info(f"[VerifiedKnowledge] 👍 Processing thumbs_up for message: {message_id}")
 
+        # Validate required fields - reject empty question/answer
+        if not question or not question.strip():
+            logger.warning(
+                f"[VerifiedKnowledge] ❌ Rejected thumbs_up: empty question for message {message_id}"
+            )
+            raise ValueError("Question is required for verified knowledge registration")
+
+        if not answer or not answer.strip():
+            logger.warning(
+                f"[VerifiedKnowledge] ❌ Rejected thumbs_up: empty answer for message {message_id}"
+            )
+            raise ValueError("Answer is required for verified knowledge registration")
+
         # Verified Knowledge Store에 등록
         entity = await self.repository.create(
             message_id=message_id,
