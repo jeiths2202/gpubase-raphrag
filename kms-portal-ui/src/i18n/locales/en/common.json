@@ -120,6 +120,9 @@
     "feedback": {
       "thumbsUp": "Helpful",
       "thumbsDown": "Not helpful",
+      "thumbsUpSubmitted": "Marked as helpful",
+      "thumbsDownSubmitted": "Marked as not helpful",
+      "clickToCancel": "Click to cancel",
       "registerFAQ": "Register as FAQ",
       "regenerate": "Regenerate"
     },

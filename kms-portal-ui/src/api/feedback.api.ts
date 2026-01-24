@@ -41,12 +41,30 @@ export const submitQuickFeedback = async (
   return response.data;
 };
 
+/**
+ * Cancel/delete feedback for a message
+ */
+export const cancelFeedback = async (messageId: string): Promise<{ success: boolean }> => {
+  const response = await apiClient.delete<{ success: boolean }>(`/feedback/cancel/${messageId}`);
+  return response.data;
+};
+
+/**
+ * Get user's feedback for a message
+ */
+export const getUserFeedback = async (messageId: string): Promise<{ feedback_type: string | null }> => {
+  const response = await apiClient.get<{ feedback_type: string | null }>(`/feedback/message/${messageId}/user-feedback`);
+  return response.data;
+};
+
 // =============================================================================
 // Export default API object
 // =============================================================================
 
 export const feedbackApi = {
   submitQuickFeedback,
+  cancelFeedback,
+  getUserFeedback,
 };
 
 export default feedbackApi;

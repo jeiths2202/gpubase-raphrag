@@ -4,6 +4,7 @@
  * Shows 5 sections: Query Analysis, Chunk Structure, Embedding Info, Tool Progress, Generation
  */
 import React, { useState, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   ChevronDown,
@@ -568,7 +569,9 @@ export const SearchProgressModal: React.FC<SearchProgressModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  // Use portal to render modal at document root level
+  // This prevents layout shifts caused by parent container transitions/transforms
+  return createPortal(
     <div className="search-progress-modal-overlay" onClick={onClose}>
       <div className="search-progress-modal" onClick={e => e.stopPropagation()}>
         {/* Header */}
@@ -673,7 +676,8 @@ export const SearchProgressModal: React.FC<SearchProgressModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

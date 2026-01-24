@@ -65,7 +65,7 @@ import {
 import type { SearchScope } from '../api/agent-navigation.api';
 
 // Feedback API
-import { submitQuickFeedback } from '../api/feedback.api';
+import { submitQuickFeedback, cancelFeedback } from '../api/feedback.api';
 import type { FeedbackType } from './AgentChat/MessageBubble';
 
 // External connectors store
@@ -549,15 +549,36 @@ export const AgentChat: React.FC<AgentChatProps> = ({
     }
   };
 
-  // Handle feedback (thumbs up/down)
+  // Handle feedback (thumbs up/down) with toggle support
   const handleFeedback = useCallback(async (messageId: string, type: 'thumbs_up' | 'thumbs_down') => {
     try {
-      await submitQuickFeedback({ message_id: messageId, feedback_type: type });
-      setFeedbackState(prev => ({ ...prev, [messageId]: type }));
+      const currentFeedback = feedbackState[messageId];
+
+      // If clicking the same button, cancel the feedback (toggle off)
+      if (currentFeedback === type) {
+        await cancelFeedback(messageId);
+        setFeedbackState(prev => {
+          const newState = { ...prev };
+          delete newState[messageId];
+          return newState;
+        });
+      }
+      // If clicking a different button, switch the feedback
+      else if (currentFeedback) {
+        // First cancel the old feedback, then submit the new one
+        await cancelFeedback(messageId);
+        await submitQuickFeedback({ message_id: messageId, feedback_type: type });
+        setFeedbackState(prev => ({ ...prev, [messageId]: type }));
+      }
+      // If no existing feedback, submit new one
+      else {
+        await submitQuickFeedback({ message_id: messageId, feedback_type: type });
+        setFeedbackState(prev => ({ ...prev, [messageId]: type }));
+      }
     } catch (error) {
       console.error('Failed to submit feedback:', error);
     }
-  }, []);
+  }, [feedbackState]);
 
   // Handle FAQ registration modal open
   const handleRegisterFAQ = useCallback((question: string, answer: string, agentType?: AgentType) => {

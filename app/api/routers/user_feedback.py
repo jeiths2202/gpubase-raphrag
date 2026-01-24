@@ -79,6 +79,74 @@ async def submit_quick_feedback(
         )
 
 
+@router.delete(
+    "/cancel/{message_id}",
+    summary="피드백 취소",
+    description="제출된 피드백을 취소(삭제)합니다."
+)
+async def cancel_feedback(
+    message_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    피드백 취소/삭제
+
+    - **message_id**: 피드백을 취소할 메시지 ID
+    """
+    try:
+        service = get_user_feedback_service()
+        user_id = current_user.get("user_id", "anonymous")
+
+        deleted = await service.cancel_feedback(message_id, user_id)
+
+        if deleted:
+            return {"success": True, "message": "Feedback cancelled"}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Feedback not found or already deleted"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Feedback] Cancel feedback error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.get(
+    "/message/{message_id}/user-feedback",
+    summary="사용자 피드백 조회",
+    description="현재 사용자가 해당 메시지에 남긴 피드백 타입을 조회합니다."
+)
+async def get_user_feedback_for_message(
+    message_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    사용자 피드백 조회
+
+    - **message_id**: 메시지 ID
+    """
+    try:
+        service = get_user_feedback_service()
+        user_id = current_user.get("user_id", "anonymous")
+
+        feedback_type = await service.get_user_feedback_for_message(message_id, user_id)
+
+        return {"feedback_type": feedback_type}
+
+    except Exception as e:
+        logger.error(f"[Feedback] Get user feedback error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
 @router.post(
     "/detailed",
     response_model=FeedbackResponse,

@@ -960,19 +960,38 @@
 /* Feedback button states */
 .agent-message-action.active {
   background: var(--surface-tertiary);
+  transform: scale(1.1);
 }
 
 .agent-message-action.active.thumbs-up {
-  color: var(--success-text);
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.agent-message-action.active.thumbs-up svg {
+  fill: currentColor;
 }
 
 .agent-message-action.active.thumbs-down {
-  color: var(--error-text);
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
-.agent-message-action:disabled {
-  opacity: 0.5;
+.agent-message-action.active.thumbs-down svg {
+  fill: currentColor;
+}
+
+/* Non-selected feedback button when one is active */
+.agent-message-action:disabled:not(.active) {
+  opacity: 0.3;
   cursor: not-allowed;
+}
+
+.agent-message-action:disabled.active {
+  opacity: 1;
+  cursor: default;
 }
 
 .agent-message-action:disabled:hover {

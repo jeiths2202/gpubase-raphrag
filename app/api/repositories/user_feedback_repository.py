@@ -33,7 +33,7 @@ class UserFeedbackRepository:
                 feedback_type, categories, comment, expected_answer,
                 query_snapshot, answer_snapshot, sources_snapshot, status
             ) VALUES (
-                $1::uuid, $2::uuid, $3::uuid, $4,
+                $1::uuid, $2, $3, $4,
                 $5, $6::jsonb, $7, $8,
                 $9, $10, $11::jsonb, $12
             )
@@ -86,6 +86,52 @@ class UserFeedbackRepository:
             logger.error(f"[FeedbackRepo] Error getting feedback: {e}")
             return None
 
+    async def get_feedback_by_message_and_user(
+        self, message_id: str, user_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Get feedback by message ID and user ID"""
+        if not self.db_pool:
+            return None
+
+        query = """
+            SELECT * FROM user_feedbacks
+            WHERE message_id = $1 AND user_id = $2
+            ORDER BY created_at DESC
+            LIMIT 1
+        """
+
+        try:
+            async with self.db_pool.acquire() as conn:
+                row = await conn.fetchrow(query, message_id, user_id)
+                return dict(row) if row else None
+        except Exception as e:
+            logger.error(f"[FeedbackRepo] Error getting feedback by message/user: {e}")
+            return None
+
+    async def delete_feedback_by_message_and_user(
+        self, message_id: str, user_id: str
+    ) -> bool:
+        """Delete feedback by message ID and user ID"""
+        if not self.db_pool:
+            return False
+
+        query = """
+            DELETE FROM user_feedbacks
+            WHERE message_id = $1 AND user_id = $2
+            RETURNING feedback_id
+        """
+
+        try:
+            async with self.db_pool.acquire() as conn:
+                result = await conn.fetchval(query, message_id, user_id)
+                if result:
+                    logger.info(f"[FeedbackRepo] Deleted feedback: {result}")
+                    return True
+                return False
+        except Exception as e:
+            logger.error(f"[FeedbackRepo] Error deleting feedback: {e}")
+            return False
+
     async def get_feedback_summary(self, message_id: str) -> Dict[str, Any]:
         """Get aggregated feedback summary for a message"""
         if not self.db_pool:
@@ -102,7 +148,7 @@ class UserFeedbackRepository:
                     2
                 ) as positive_ratio
             FROM user_feedbacks
-            WHERE message_id = $1::uuid
+            WHERE message_id = $1
         """
 
         try:
@@ -114,7 +160,7 @@ class UserFeedbackRepository:
                         SELECT category, COUNT(*) as count
                         FROM user_feedbacks,
                              jsonb_array_elements_text(categories) as category
-                        WHERE message_id = $1::uuid
+                        WHERE message_id = $1
                         GROUP BY category
                         ORDER BY count DESC
                         LIMIT 5
@@ -304,7 +350,7 @@ class UserFeedbackRepository:
             INSERT INTO citation_feedbacks (
                 message_id, user_id, source_index,
                 feedback_type, comment, doc_id, doc_name, chunk_id
-            ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         """
 
         try:

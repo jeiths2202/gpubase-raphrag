@@ -47,10 +47,12 @@ class UserFeedbackService:
         repository=None,
         embedding_service=None,
         conversation_service=None,
+        verified_knowledge_service=None,
     ):
         self.repository = repository
         self.embedding_service = embedding_service
         self.conversation_service = conversation_service
+        self.verified_knowledge_service = verified_knowledge_service
 
         # Configuration
         self.consistency_threshold = 0.85
@@ -89,6 +91,29 @@ class UserFeedbackService:
             if self.repository:
                 await self.repository.save_feedback(feedback_data)
 
+            # Verified Knowledge Store 연동 (Smarter RAG)
+            if self.verified_knowledge_service:
+                try:
+                    if request.feedback_type == FeedbackType.THUMBS_UP:
+                        # 👍: 학습 대상으로 등록
+                        await self.verified_knowledge_service.handle_thumbs_up(
+                            message_id=str(request.message_id),
+                            conversation_id=str(message_context.get("conversation_id", "")),
+                            user_id=user_id,
+                            question=message_context.get("query", ""),
+                            answer=message_context.get("answer", ""),
+                            sources=message_context.get("sources", []),
+                        )
+                        logger.info(f"[Feedback] ✅ Registered to Verified Knowledge: {request.message_id}")
+                    else:
+                        # 👎: 학습에서 제거
+                        await self.verified_knowledge_service.handle_thumbs_down(
+                            message_id=str(request.message_id),
+                        )
+                        logger.info(f"[Feedback] ❌ Removed from Verified Knowledge: {request.message_id}")
+                except Exception as e:
+                    logger.warning(f"[Feedback] Verified Knowledge processing failed: {e}")
+
             # Generate HITL signal if negative
             if request.feedback_type == FeedbackType.THUMBS_DOWN:
                 await self._generate_hitl_signal(feedback_data)
@@ -109,6 +134,72 @@ class UserFeedbackService:
         except Exception as e:
             logger.error(f"[Feedback] Error submitting quick feedback: {e}")
             raise
+
+    async def cancel_feedback(
+        self,
+        message_id: str,
+        user_id: str,
+    ) -> bool:
+        """Cancel/delete feedback for a message"""
+        try:
+            if not self.repository:
+                return False
+
+            # Get existing feedback to check type
+            existing = await self.repository.get_feedback_by_message_and_user(
+                message_id, user_id
+            )
+
+            if not existing:
+                logger.warning(f"[Feedback] No feedback found to cancel: {message_id}")
+                return False
+
+            # Delete from repository
+            deleted = await self.repository.delete_feedback_by_message_and_user(
+                message_id, user_id
+            )
+
+            if deleted:
+                # Also remove from verified_knowledge if it was a thumbs_up
+                if existing.get("feedback_type") == "thumbs_up" and self.verified_knowledge_service:
+                    try:
+                        await self.verified_knowledge_service.handle_thumbs_down(
+                            message_id=message_id,
+                        )
+                    except Exception as e:
+                        logger.warning(f"[Feedback] Error removing from verified knowledge: {e}")
+
+                logger.info(f"[Feedback] Cancelled feedback for message: {message_id}")
+                return True
+
+            return False
+
+        except Exception as e:
+            logger.error(f"[Feedback] Error cancelling feedback: {e}")
+            raise
+
+    async def get_user_feedback_for_message(
+        self,
+        message_id: str,
+        user_id: str,
+    ) -> Optional[str]:
+        """Get user's feedback type for a message (if any)"""
+        try:
+            if not self.repository:
+                return None
+
+            feedback = await self.repository.get_feedback_by_message_and_user(
+                message_id, user_id
+            )
+
+            if feedback:
+                return feedback.get("feedback_type")
+
+            return None
+
+        except Exception as e:
+            logger.error(f"[Feedback] Error getting user feedback: {e}")
+            return None
 
     async def submit_detailed_feedback(
         self,
@@ -226,7 +317,7 @@ class UserFeedbackService:
 
     async def get_feedback_summary(
         self,
-        message_id: UUID,
+        message_id: str,
     ) -> FeedbackSummary:
         """Get aggregated feedback summary for a message"""
         if not self.repository:
@@ -688,12 +779,12 @@ class UserFeedbackService:
 
     async def _get_message_context(
         self,
-        message_id: UUID,
+        message_id: str,
     ) -> Dict[str, Any]:
         """Get message context for feedback"""
         if self.conversation_service:
             try:
-                message = await self.conversation_service.get_message(str(message_id))
+                message = await self.conversation_service.get_message(message_id)
                 if message:
                     # Get the user's question (previous message)
                     query = await self.conversation_service.get_parent_message_content(
@@ -735,6 +826,7 @@ def initialize_user_feedback_service(
     repository=None,
     embedding_service=None,
     conversation_service=None,
+    verified_knowledge_service=None,
 ) -> UserFeedbackService:
     """Initialize UserFeedbackService with dependencies"""
     global _user_feedback_service
@@ -742,5 +834,6 @@ def initialize_user_feedback_service(
         repository=repository,
         embedding_service=embedding_service,
         conversation_service=conversation_service,
+        verified_knowledge_service=verified_knowledge_service,
     )
     return _user_feedback_service

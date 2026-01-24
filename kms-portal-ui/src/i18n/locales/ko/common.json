@@ -120,6 +120,9 @@
     "feedback": {
       "thumbsUp": "도움이 됨",
       "thumbsDown": "도움 안됨",
+      "thumbsUpSubmitted": "도움이 됨으로 평가됨",
+      "thumbsDownSubmitted": "도움 안됨으로 평가됨",
+      "clickToCancel": "클릭하여 취소",
       "registerFAQ": "FAQ로 등록",
       "regenerate": "다시 생성"
     },

@@ -347,8 +347,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <button
                 className={`agent-message-action ${feedbackState?.[message.id] === 'thumbs_up' ? 'active thumbs-up' : ''}`}
                 onClick={() => onFeedback(message.id, 'thumbs_up')}
-                disabled={!!feedbackState?.[message.id]}
-                title={t('common.agent.feedback.thumbsUp') || 'Helpful'}
+                title={
+                  feedbackState?.[message.id] === 'thumbs_up'
+                    ? t('common.agent.feedback.clickToCancel') || 'Click to cancel'
+                    : t('common.agent.feedback.thumbsUp') || 'Helpful'
+                }
               >
                 <ThumbsUp size={14} />
               </button>
@@ -359,8 +362,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <button
                 className={`agent-message-action ${feedbackState?.[message.id] === 'thumbs_down' ? 'active thumbs-down' : ''}`}
                 onClick={() => onFeedback(message.id, 'thumbs_down')}
-                disabled={!!feedbackState?.[message.id]}
-                title={t('common.agent.feedback.thumbsDown') || 'Not helpful'}
+                title={
+                  feedbackState?.[message.id] === 'thumbs_down'
+                    ? t('common.agent.feedback.clickToCancel') || 'Click to cancel'
+                    : t('common.agent.feedback.thumbsDown') || 'Not helpful'
+                }
               >
                 <ThumbsDown size={14} />
               </button>

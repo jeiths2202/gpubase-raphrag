@@ -71,12 +71,12 @@ class CitationFeedbackType(str, Enum):
 
 class QuickFeedbackRequest(BaseModel):
     """Request for quick thumbs up/down feedback"""
-    message_id: UUID = Field(..., description="대상 메시지 ID")
+    message_id: str = Field(..., description="대상 메시지 ID (UUID 또는 클라이언트 생성 ID)")
     feedback_type: FeedbackType = Field(..., description="👍 또는 👎")
 
     model_config = {"json_schema_extra": {
         "example": {
-            "message_id": "123e4567-e89b-12d3-a456-426614174000",
+            "message_id": "msg-1706123456789-assistant",
             "feedback_type": "thumbs_up"
         }
     }}
@@ -84,7 +84,7 @@ class QuickFeedbackRequest(BaseModel):
 
 class DetailedFeedbackRequest(BaseModel):
     """Request for detailed feedback with categories"""
-    message_id: UUID = Field(..., description="대상 메시지 ID")
+    message_id: str = Field(..., description="대상 메시지 ID (UUID 또는 클라이언트 생성 ID)")
     feedback_type: FeedbackType = Field(..., description="👍 또는 👎")
     categories: List[str] = Field(
         default_factory=list,
@@ -139,7 +139,7 @@ class BulkCitationFeedback(BaseModel):
 class FeedbackResponse(BaseModel):
     """Response after submitting feedback"""
     feedback_id: UUID
-    message_id: UUID
+    message_id: str
     feedback_type: FeedbackType
     categories: List[str] = Field(default_factory=list)
     status: FeedbackStatus = FeedbackStatus.PENDING
@@ -150,7 +150,7 @@ class FeedbackResponse(BaseModel):
 
 class FeedbackSummary(BaseModel):
     """Summary of feedback for a message"""
-    message_id: UUID
+    message_id: str
     thumbs_up_count: int = 0
     thumbs_down_count: int = 0
     total_count: int = 0
@@ -162,8 +162,8 @@ class FeedbackSummary(BaseModel):
 class FeedbackDetail(BaseModel):
     """Full feedback detail"""
     feedback_id: UUID
-    message_id: UUID
-    conversation_id: UUID
+    message_id: str
+    conversation_id: Optional[str] = None
     user_id: str
     feedback_type: FeedbackType
     categories: List[str] = Field(default_factory=list)

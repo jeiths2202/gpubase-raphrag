@@ -120,6 +120,9 @@
     "feedback": {
       "thumbsUp": "役に立った",
       "thumbsDown": "役に立たなかった",
+      "thumbsUpSubmitted": "役に立ったと評価済み",
+      "thumbsDownSubmitted": "役に立たなかったと評価済み",
+      "clickToCancel": "クリックしてキャンセル",
       "registerFAQ": "FAQとして登録",
       "regenerate": "再生成"
     },
