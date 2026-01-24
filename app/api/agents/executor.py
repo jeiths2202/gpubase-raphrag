@@ -26,6 +26,7 @@ from .master_system_constraint import (
     get_insufficient_info_response
 )
 from .formatters import DirectReturnFormatter, HybridModeDecision
+from .types import BlockType, AnswerBlock, StructuredAnswer
 from ..core.app_mode import is_develop_mode
 from ..services.reliability_service import calculate_reliability
 import re
@@ -818,10 +819,9 @@ If NO → DELETE that content immediately.
 {search_results}
 
 ## Output Format:
-Translate the above content to {language}. Include source citation at the end.
-📚 출처/Source/出典: [document name from results]
+Translate the above content to {language}. Do NOT add source citations - they will be added automatically by the system.
 
-REMEMBER: You are a TRANSLATOR, not an expert. DO NOT add your knowledge."""
+REMEMBER: You are a TRANSLATOR, not an expert. DO NOT add your knowledge. DO NOT generate document IDs or source references."""
 
 
 async def _adapt_language_with_llm_stream(
@@ -908,6 +908,28 @@ async def _adapt_language_with_llm_stream(
             chunk_size = 50
             for i in range(0, len(content), chunk_size):
                 yield content[i:i + chunk_size]
+
+        # ================================================================
+        # PROGRAMMATIC CITATIONS: Append actual source citations
+        # This prevents LLM hallucination of document IDs
+        # ================================================================
+        citation_labels = {"ko": "\n\n📚 출처:", "en": "\n\n📚 Sources:", "ja": "\n\n📚 出典:"}
+        citation_header = citation_labels.get(language, citation_labels["en"])
+        yield citation_header
+
+        for i, result in enumerate(search_results[:3], 1):
+            source = result.get("source", {})
+            doc_name = source.get("document_name") or result.get("doc_name") or source.get("doc_id", "Unknown")
+            page = source.get("page_start") or result.get("page_number", "")
+            doc_id = source.get("doc_id") or result.get("doc_id", "")
+
+            # Build citation line with actual data
+            citation_line = f"\n- {doc_name}"
+            if page:
+                citation_line += f" (p.{page})"
+            if doc_id:
+                citation_line += f" [{doc_id}]"
+            yield citation_line
 
     except Exception as e:
         logger.error(f"[LanguageAdapt] LLM call failed: {e}")
@@ -1165,6 +1187,113 @@ class MaxStepsExceeded(Exception):
 class DoomLoopDetected(Exception):
     """Raised when agent is stuck in a doom loop"""
     pass
+
+
+# ============================================================================
+# STRUCTURED ANSWER STREAMING: ChatGPT-style block-based output
+# ============================================================================
+
+async def _stream_structured_answer(
+    answer: StructuredAnswer,
+    delay: float = 0.05
+) -> AsyncGenerator[AgentStreamChunk, None]:
+    """
+    Stream a structured answer as individual blocks.
+
+    Args:
+        answer: StructuredAnswer with blocks to stream
+        delay: Delay between blocks for UX
+
+    Yields:
+        AgentStreamChunk for each block
+    """
+    total_blocks = len(answer.blocks)
+
+    # Start notification
+    yield AgentStreamChunk(
+        chunk_type="answer_start",
+        metadata={
+            "total_blocks": total_blocks,
+            "confidence": answer.confidence,
+            "language": answer.language,
+            "intent": answer.metadata.get("intent") if answer.metadata else None
+        }
+    )
+
+    # Stream each block
+    for i, block in enumerate(answer.blocks):
+        yield AgentStreamChunk(
+            chunk_type="answer_block",
+            answer_block=block,
+            block_index=i,
+            total_blocks=total_blocks
+        )
+        await asyncio.sleep(delay)
+
+    # Completion notification
+    yield AgentStreamChunk(
+        chunk_type="answer_complete",
+        metadata={
+            "total_blocks": total_blocks,
+            "confidence": answer.confidence
+        }
+    )
+
+
+async def _build_and_stream_structured_answer(
+    search_results: List[Dict[str, Any]],
+    query: str,
+    language: str,
+    sources: List[Dict[str, Any]]
+) -> AsyncGenerator[AgentStreamChunk, None]:
+    """
+    Build structured answer from search results and stream it.
+
+    Args:
+        search_results: List of search result dictionaries
+        query: User's original query
+        language: Response language
+        sources: Source list for citation
+
+    Yields:
+        AgentStreamChunk for structured answer
+    """
+    try:
+        from ..services.answer_builder_service import get_answer_builder_service
+
+        builder = get_answer_builder_service()
+
+        # Build structured answer
+        answer = await builder.build_answer(
+            query=query,
+            search_results=search_results,
+            language=language
+        )
+
+        logger.info(
+            f"[StructuredAnswer] Built answer with {len(answer.blocks)} blocks, "
+            f"confidence={answer.confidence:.2f}"
+        )
+
+        # Stream the structured answer
+        async for chunk in _stream_structured_answer(answer):
+            yield chunk
+
+        # Also yield the markdown version for backward compatibility
+        markdown_content = answer.to_markdown()
+        yield AgentStreamChunk(
+            chunk_type="text",
+            content=markdown_content,
+            metadata={"structured_fallback": True}
+        )
+
+    except Exception as e:
+        logger.error(f"[StructuredAnswer] Failed to build structured answer: {e}")
+        # Fall back to sources-based response
+        yield AgentStreamChunk(
+            chunk_type="error",
+            content=f"Structured answer generation failed: {str(e)}"
+        )
 
 
 class AgentExecutor:
@@ -1995,6 +2124,59 @@ User Query: {task}"""
 
                     # Changed: search_results는 빈 리스트일 수 있음 (no_results 케이스)
                     if use_direct and decision is not None:
+                        # ================================================================
+                        # STRUCTURED OUTPUT: ChatGPT-style block-based answer
+                        # Check if structured output is requested and enabled
+                        # ================================================================
+                        from ..core.config import api_settings
+                        use_structured = (
+                            context.metadata.get("structured_output", False) and
+                            getattr(api_settings, 'ENABLE_STRUCTURED_ANSWER', False)
+                        )
+
+                        if use_structured and search_results:
+                            logger.info(
+                                f"[Executor.stream] Using STRUCTURED OUTPUT mode "
+                                f"(reason={decision.reason})"
+                            )
+                            print(
+                                f"[Executor.stream] STRUCTURED OUTPUT mode: {decision.reason}",
+                                flush=True
+                            )
+
+                            # Stream structured answer blocks
+                            async for chunk in _build_and_stream_structured_answer(
+                                search_results=search_results,
+                                query=task,
+                                language=context.language or "ko",
+                                sources=sources
+                            ):
+                                yield chunk
+
+                            # Send sources
+                            if sources:
+                                yield AgentStreamChunk(chunk_type="sources", sources=sources)
+
+                            # Clean up and finish
+                            for tool in available_tools:
+                                if hasattr(tool, 'set_status_callback'):
+                                    tool.set_status_callback(None)
+
+                            yield AgentStreamChunk(
+                                chunk_type="done",
+                                metadata={
+                                    "steps": step,
+                                    "execution_time": time.time() - start_time,
+                                    "structured_output": True,
+                                    "decision_reason": decision.reason,
+                                    "decision_confidence": decision.confidence
+                                }
+                            )
+                            return
+
+                        # ================================================================
+                        # FALLBACK: LLM language adaptation (existing behavior)
+                        # ================================================================
                         logger.info(
                             f"[Executor.stream] Using DIRECT mode with LLM language adaptation "
                             f"(reason={decision.reason}, confidence={decision.confidence:.2f})"

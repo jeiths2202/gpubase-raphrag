@@ -352,6 +352,16 @@ class APISettings(BaseSettings):
         default=True,
         description="Enable RAG response quality evaluation"
     )
+
+    # Structured Answer Settings (ChatGPT-style Output)
+    ENABLE_STRUCTURED_ANSWER: bool = Field(
+        default=True,
+        description="Enable ChatGPT-style structured answer blocks for improved rendering"
+    )
+    STRUCTURED_ANSWER_MIN_CONFIDENCE: float = Field(
+        default=0.3,
+        description="Minimum confidence threshold for structured answer sources"
+    )
     RAG_EVALUATION_TIMEOUT: float = Field(
         default=30.0,
         description="Timeout for evaluation operations in seconds"

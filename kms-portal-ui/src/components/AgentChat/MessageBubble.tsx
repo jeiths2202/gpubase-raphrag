@@ -28,9 +28,11 @@ import {
 import { useTranslation } from '../../hooks/useTranslation';
 import { MessageContent } from './MessageContent';
 import { SearchResultCards } from './ExpandableSearchResultCard';
+import { BlockRenderer } from './blocks';
 import { AGENT_CONFIGS } from './constants';
-import type { ChatMessage, ImageReference } from './types';
+import type { ChatMessage, ImageReference, AnswerBlock } from './types';
 import type { AgentType } from '../../api/agent.api';
+import type { SourceCitationInfo } from './blocks/types';
 
 /**
  * Collapsible Images Component
@@ -280,10 +282,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <AlertCircle size={16} />
               <span>{message.content}</span>
             </div>
+          ) : message.structuredBlocks && message.structuredBlocks.length > 0 ? (
+            /* ChatGPT-style structured answer blocks */
+            <BlockRenderer
+              blocks={message.structuredBlocks as AnswerBlock[]}
+              isStreaming={message.isStreaming}
+              onSourceClick={(source: SourceCitationInfo) => {
+                console.log('[MessageBubble] Source clicked:', source);
+                // TODO: Implement source preview/navigation
+              }}
+            />
           ) : (
+            /* Fallback to markdown rendering */
             <MessageContent content={message.content} />
           )}
-          {message.isStreaming && <span className="agent-typing-cursor" />}
+          {message.isStreaming && !message.structuredBlocks && <span className="agent-typing-cursor" />}
         </div>
 
         {/* Expandable Search Results - Individual cards with text, images, tables */}
