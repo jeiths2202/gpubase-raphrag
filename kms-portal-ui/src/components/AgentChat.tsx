@@ -564,7 +564,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         feedback_type: type,
         query: userMessage?.role === 'user' ? userMessage.content : undefined,
         answer: assistantMessage?.content,
-        conversation_id: currentConversationId || undefined,
+        conversation_id: activeConversationId || undefined,
       };
 
       // If clicking the same button, cancel the feedback (toggle off)
@@ -591,7 +591,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
     } catch (error) {
       console.error('Failed to submit feedback:', error);
     }
-  }, [feedbackState, messages, currentConversationId]);
+  }, [feedbackState, messages, activeConversationId]);
 
   // Handle FAQ registration modal open
   const handleRegisterFAQ = useCallback((question: string, answer: string, agentType?: AgentType) => {

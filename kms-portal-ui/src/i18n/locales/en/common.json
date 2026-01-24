@@ -42,7 +42,8 @@
     "settings": "Settings",
     "logout": "Logout",
     "externalPortal": "External Portal",
-    "apikeys": "API Keys"
+    "apikeys": "API Keys",
+    "mainNavigation": "Main navigation"
   },
   "products": {
     "tmax": "Tmax",

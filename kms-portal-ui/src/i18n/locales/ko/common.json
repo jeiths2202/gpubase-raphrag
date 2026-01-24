@@ -42,7 +42,8 @@
     "settings": "설정",
     "logout": "로그아웃",
     "externalPortal": "외부 포털",
-    "apikeys": "API 키"
+    "apikeys": "API 키",
+    "mainNavigation": "메인 네비게이션"
   },
   "products": {
     "tmax": "Tmax",
