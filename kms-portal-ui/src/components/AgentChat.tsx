@@ -554,6 +554,19 @@ export const AgentChat: React.FC<AgentChatProps> = ({
     try {
       const currentFeedback = feedbackState[messageId];
 
+      // Find the message and its context for learning
+      const messageIndex = messages.findIndex(m => m.id === messageId);
+      const assistantMessage = messages[messageIndex];
+      const userMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
+
+      const feedbackData = {
+        message_id: messageId,
+        feedback_type: type,
+        query: userMessage?.role === 'user' ? userMessage.content : undefined,
+        answer: assistantMessage?.content,
+        conversation_id: currentConversationId || undefined,
+      };
+
       // If clicking the same button, cancel the feedback (toggle off)
       if (currentFeedback === type) {
         await cancelFeedback(messageId);
@@ -567,18 +580,18 @@ export const AgentChat: React.FC<AgentChatProps> = ({
       else if (currentFeedback) {
         // First cancel the old feedback, then submit the new one
         await cancelFeedback(messageId);
-        await submitQuickFeedback({ message_id: messageId, feedback_type: type });
+        await submitQuickFeedback(feedbackData);
         setFeedbackState(prev => ({ ...prev, [messageId]: type }));
       }
       // If no existing feedback, submit new one
       else {
-        await submitQuickFeedback({ message_id: messageId, feedback_type: type });
+        await submitQuickFeedback(feedbackData);
         setFeedbackState(prev => ({ ...prev, [messageId]: type }));
       }
     } catch (error) {
       console.error('Failed to submit feedback:', error);
     }
-  }, [feedbackState]);
+  }, [feedbackState, messages, currentConversationId]);
 
   // Handle FAQ registration modal open
   const handleRegisterFAQ = useCallback((question: string, answer: string, agentType?: AgentType) => {

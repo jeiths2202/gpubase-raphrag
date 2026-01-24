@@ -73,11 +73,17 @@ class QuickFeedbackRequest(BaseModel):
     """Request for quick thumbs up/down feedback"""
     message_id: str = Field(..., description="대상 메시지 ID (UUID 또는 클라이언트 생성 ID)")
     feedback_type: FeedbackType = Field(..., description="👍 또는 👎")
+    query: Optional[str] = Field(None, description="사용자 질문 (학습용 스냅샷)")
+    answer: Optional[str] = Field(None, description="어시스턴트 답변 (학습용 스냅샷)")
+    conversation_id: Optional[str] = Field(None, description="대화 ID")
 
     model_config = {"json_schema_extra": {
         "example": {
             "message_id": "msg-1706123456789-assistant",
-            "feedback_type": "thumbs_up"
+            "feedback_type": "thumbs_up",
+            "query": "BMS란 무엇인가요?",
+            "answer": "BMS는 Battery Management System의 약자로...",
+            "conversation_id": "conv-123"
         }
     }}
 

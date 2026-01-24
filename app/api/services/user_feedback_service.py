@@ -70,20 +70,31 @@ class UserFeedbackService:
     ) -> FeedbackResponse:
         """Submit quick 👍/👎 feedback"""
         try:
-            # Get message context
-            message_context = await self._get_message_context(request.message_id)
+            # Use request fields directly (preferred) or fall back to message context lookup
+            query = request.query
+            answer = request.answer
+            conversation_id = request.conversation_id
+            sources = []
+
+            # Only try _get_message_context if request fields are missing
+            if not query or not answer:
+                message_context = await self._get_message_context(request.message_id)
+                query = query or message_context.get("query")
+                answer = answer or message_context.get("answer")
+                conversation_id = conversation_id or str(message_context.get("conversation_id", ""))
+                sources = message_context.get("sources", [])
 
             feedback_id = uuid4()
             feedback_data = {
                 "feedback_id": str(feedback_id),
                 "message_id": str(request.message_id),
-                "conversation_id": str(message_context.get("conversation_id", "")),
+                "conversation_id": str(conversation_id or ""),
                 "user_id": user_id,
                 "feedback_type": request.feedback_type.value,
                 "categories": [],
-                "query_snapshot": message_context.get("query"),
-                "answer_snapshot": message_context.get("answer"),
-                "sources_snapshot": message_context.get("sources", []),
+                "query_snapshot": query,
+                "answer_snapshot": answer,
+                "sources_snapshot": sources,
                 "status": FeedbackStatus.PENDING.value,
             }
 
@@ -98,11 +109,11 @@ class UserFeedbackService:
                         # 👍: 학습 대상으로 등록
                         await self.verified_knowledge_service.handle_thumbs_up(
                             message_id=str(request.message_id),
-                            conversation_id=str(message_context.get("conversation_id", "")),
+                            conversation_id=str(conversation_id or ""),
                             user_id=user_id,
-                            question=message_context.get("query", ""),
-                            answer=message_context.get("answer", ""),
-                            sources=message_context.get("sources", []),
+                            question=query or "",
+                            answer=answer or "",
+                            sources=sources,
                         )
                         logger.info(f"[Feedback] ✅ Registered to Verified Knowledge: {request.message_id}")
                     else:

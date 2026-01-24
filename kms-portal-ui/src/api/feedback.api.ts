@@ -16,6 +16,9 @@ import apiClient from './client';
 export interface QuickFeedbackRequest {
   message_id: string;
   feedback_type: 'thumbs_up' | 'thumbs_down';
+  query?: string;      // User's question
+  answer?: string;     // Assistant's response
+  conversation_id?: string;
 }
 
 /**
