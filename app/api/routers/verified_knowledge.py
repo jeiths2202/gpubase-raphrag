@@ -1045,13 +1045,18 @@ async def get_gpu_status(
             return {"available": False, "error": "nvidia-smi failed", "gpus": []}
 
         gpus = []
+        # GPU 4~7만 모니터링 (학습용 GPU)
+        target_gpus = {4, 5, 6, 7}
         for line in result.stdout.strip().split("\n"):
             if not line.strip():
                 continue
             parts = [p.strip() for p in line.split(",")]
             if len(parts) >= 8:
+                gpu_index = int(parts[0])
+                if gpu_index not in target_gpus:
+                    continue
                 gpus.append({
-                    "index": int(parts[0]),
+                    "index": gpu_index,
                     "name": parts[1],
                     "memory_used": float(parts[2]),
                     "memory_total": float(parts[3]),
