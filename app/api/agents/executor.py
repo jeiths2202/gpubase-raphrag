@@ -2642,28 +2642,59 @@ User Query:"""
 
             # Format messages for LLM with size limiting
             # NIM/vLLM can fail with 400 error if request is too large
-            MAX_TOTAL_CONTENT_CHARS = 30000  # ~7500 tokens
-            total_chars = sum(len(msg.content or "") for msg in messages)
+            # Must count TOTAL payload size including tool_calls, not just content
+            MAX_TOTAL_CHARS = 25000  # ~6250 tokens (reduced for safety margin)
 
-            if total_chars > MAX_TOTAL_CONTENT_CHARS:
-                logger.warning(f"[Executor] Message content too large ({total_chars} chars), truncating older messages")
-                # Keep system prompt (first) and user query (last), truncate middle
+            def _estimate_message_size(msg: AgentMessage) -> int:
+                """Estimate total serialized size of a message including tool_calls."""
+                size = len(msg.content or "")
+                if msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        size += len(tc.call_id or "")
+                        size += len(tc.tool_name or "")
+                        # Arguments can be very large (e.g., search results)
+                        args_str = json.dumps(tc.arguments) if tc.arguments else "{}"
+                        size += len(args_str)
+                if msg.tool_call_id:
+                    size += len(msg.tool_call_id)
+                if msg.name:
+                    size += len(msg.name)
+                return size
+
+            total_chars = sum(_estimate_message_size(msg) for msg in messages)
+            logger.debug(f"[Executor] Total message payload size: {total_chars} chars, {len(messages)} messages")
+
+            if total_chars > MAX_TOTAL_CHARS:
+                logger.warning(f"[Executor] Message payload too large ({total_chars} chars), truncating")
+                # Keep system prompt (first) and latest user query (last), truncate middle
+                # For RAG agents, the middle messages are typically:
+                # - Assistant with tool_calls
+                # - Tool results (can be VERY large)
+                # We prioritize keeping the system prompt and user query
+
                 truncated_messages = []
-                remaining_chars = MAX_TOTAL_CONTENT_CHARS
+                # Always keep system prompt (index 0)
+                if messages:
+                    truncated_messages.append(messages[0])
+                # Always keep latest user message (last index)
+                if len(messages) > 1:
+                    truncated_messages.append(messages[-1])
 
-                # Always keep first (system) and last (user) messages
-                for i, msg in enumerate(messages):
-                    if i == 0 or i == len(messages) - 1:
-                        truncated_messages.append(msg)
-                        remaining_chars -= len(msg.content or "")
-                    elif remaining_chars > 2000:  # Keep some middle messages if space allows
-                        content_len = len(msg.content or "")
-                        if content_len <= remaining_chars:
-                            truncated_messages.insert(-1, msg)
-                            remaining_chars -= content_len
+                current_size = sum(_estimate_message_size(m) for m in truncated_messages)
+
+                # Try to add some middle messages if space allows (from most recent backward)
+                middle_messages = messages[1:-1] if len(messages) > 2 else []
+                for msg in reversed(middle_messages):
+                    msg_size = _estimate_message_size(msg)
+                    if current_size + msg_size < MAX_TOTAL_CHARS - 2000:  # Leave 2000 char buffer
+                        truncated_messages.insert(-1, msg)  # Insert before last
+                        current_size += msg_size
+                    else:
+                        logger.debug(f"[Executor] Skipping message (size={msg_size}) to stay under limit")
 
                 messages = truncated_messages
-                logger.info(f"[Executor] Truncated to {len(messages)} messages, {sum(len(m.content or '') for m in messages)} chars")
+                final_size = sum(_estimate_message_size(m) for m in messages)
+                logger.info(f"[Executor] Truncated to {len(messages)} messages, {final_size} chars (from {total_chars})")
 
             formatted_messages = []
             for msg in messages:
@@ -2700,7 +2731,13 @@ User Query:"""
             ]
 
             # Call LLM
-            logger.info(f"[Executor] Calling LLM with {len(formatted_messages)} messages, {len(formatted_tools)} tools, tool_choice={tool_choice}")
+            # Log actual payload size for debugging
+            payload_size = len(json.dumps(formatted_messages, ensure_ascii=False))
+            tools_size = len(json.dumps(formatted_tools, ensure_ascii=False)) if formatted_tools else 0
+            total_payload = payload_size + tools_size
+            logger.info(f"[Executor] Calling LLM: {len(formatted_messages)} messages ({payload_size} chars), {len(formatted_tools)} tools ({tools_size} chars), total={total_payload} chars, tool_choice={tool_choice}")
+            if total_payload > 30000:
+                logger.warning(f"[Executor] ⚠️ Large payload detected: {total_payload} chars may cause NIM 400 error")
             response = await self.llm_adapter.generate(
                 messages=formatted_messages,
                 tools=formatted_tools if formatted_tools else None,
