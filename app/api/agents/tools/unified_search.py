@@ -86,7 +86,7 @@ Returns relevant document chunks with full context and source information."""
                 },
                 "doc_filter": {
                     "type": "string",
-                    "description": "Optional filter: document ID (doc_xxx) or partial filename/product name to narrow search scope"
+                    "description": "Optional: ONLY use if the user explicitly mentions a specific document name. Use the EXACT filename or product name from the user query. Do NOT invent or guess document names from search results. Leave empty if unsure."
                 },
                 "include_images": {
                     "type": "boolean",
@@ -112,11 +112,14 @@ Returns relevant document chunks with full context and source information."""
     def rag_service(self):
         """Lazy load RAG service for Neo4j vector search"""
         if self._rag_service is None:
+            print(f"[UnifiedSearch.rag_service] Lazy loading RAG service...", flush=True)
             try:
                 from ...core.deps import get_rag_service
                 self._rag_service = get_rag_service()
+                print(f"[UnifiedSearch.rag_service] RAG service loaded: {self._rag_service is not None}", flush=True)
             except Exception as e:
                 logger.error(f"Failed to get RAG service: {e}")
+                print(f"[UnifiedSearch.rag_service] ERROR loading: {e}", flush=True)
         return self._rag_service
 
     async def _get_adaptive_service(self):
@@ -174,7 +177,11 @@ Returns relevant document chunks with full context and source information."""
         context: AgentContext
     ) -> List[Dict[str, Any]]:
         """Execute vector search via Neo4j using RAGService"""
+        print(f"[UnifiedSearch._neo4j_vector_search] Entered, rag_service={self.rag_service is not None}", flush=True)
         try:
+            if self.rag_service is None:
+                print("[UnifiedSearch._neo4j_vector_search] ERROR: rag_service is None!", flush=True)
+                return []
             result = await self.rag_service.query(
                 question=query,
                 strategy="hybrid",  # Use hybrid for glossary-enhanced search
@@ -203,10 +210,14 @@ Returns relevant document chunks with full context and source information."""
                 })
 
             logger.info(f"[UnifiedSearch] Neo4j returned {len(neo4j_results)} results")
+            print(f"[UnifiedSearch._neo4j_vector_search] Success: {len(neo4j_results)} results", flush=True)
             return neo4j_results
 
         except Exception as e:
             logger.error(f"Neo4j vector search error: {e}")
+            print(f"[UnifiedSearch._neo4j_vector_search] EXCEPTION: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
             return []
 
     async def _postgres_keyword_search(
@@ -1025,6 +1036,7 @@ Returns relevant document chunks with full context and source information."""
         Returns:
             ToolResult with fused search results
         """
+        print(f"[UnifiedSearch.execute] ENTERED with kwargs keys: {list(kwargs.keys())}", flush=True)
         query = kwargs.get("query", "")
         top_k = kwargs.get("top_k", DEFAULT_TOP_K)
         doc_filter = kwargs.get("doc_filter")
@@ -1145,20 +1157,24 @@ Returns relevant document chunks with full context and source information."""
             if not has_scope:
                 # Execute searches based on mode (use search_query which has quotes removed)
                 if search_mode in ("hybrid", "vector_only"):
+                    print(f"[UnifiedSearch] DEBUG: Calling Neo4j search with query='{search_query[:50]}...'", flush=True)
                     neo4j_results = await self._neo4j_vector_search(
                         query=search_query,
                         top_k=top_k,
                         language=language,
                         context=context
                     )
+                    print(f"[UnifiedSearch] DEBUG: Neo4j returned {len(neo4j_results)} results", flush=True)
 
                 if search_mode in ("hybrid", "keyword_only"):
+                    print(f"[UnifiedSearch] DEBUG: Calling PostgreSQL search with doc_filter='{doc_filter}'", flush=True)
                     postgres_results = await self._postgres_keyword_search(
                         query=search_query,
                         top_k=top_k,
                         doc_filter=doc_filter,
                         error_codes=error_codes
                     )
+                    print(f"[UnifiedSearch] DEBUG: PostgreSQL returned {len(postgres_results)} results", flush=True)
 
             # Phase 2.5: Exact phrase search (if quotes were used)
             exact_phrase_results = []
