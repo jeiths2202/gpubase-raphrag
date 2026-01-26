@@ -243,7 +243,8 @@ Returns relevant document chunks with full context and source information."""
                     doc_filter_sql = f"AND pdf_id = '{safe_filter}'"
                 else:
                     # Fuzzy match against document name (for category/product names)
-                    doc_filter_sql = f"AND pdf_id IN (SELECT pdf_id FROM pdf_documents WHERE filename ILIKE '%{safe_filter}%')"
+                    # Use 'documents' table (id column) instead of non-existent 'pdf_documents'
+                    doc_filter_sql = f"AND pdf_id IN (SELECT id FROM documents WHERE filename ILIKE '%{safe_filter}%' OR original_name ILIKE '%{safe_filter}%')"
                     logger.info(f"[UnifiedSearch] doc_filter '{doc_filter}' is not a doc_id, using fuzzy filename match")
 
             # PostgreSQL full-text search with ts_rank
