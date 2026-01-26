@@ -1,0 +1,290 @@
+version: '3.8'
+
+# GraphRAG Docker Services
+# GPU Allocation: 4=Text(Qwen), 5=Embedding, 6=Vision, 7=Code+Learning
+# GPU 7 shared: CodeQwen 3B (~6GB) + Learning LLM QLoRA (~8GB)
+# Neo4j data persists in bind-mounted directory
+
+services:
+  # ============================================================
+  # PostgreSQL with pgvector (port 5432)
+  # ============================================================
+  postgres-kms:
+    container_name: postgres-kms
+    image: pgvector/pgvector:pg15
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-raguser}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ragpassword123}
+      - POSTGRES_DB=${POSTGRES_DB:-ragdb}
+    volumes:
+      - postgres_kms_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raguser} -d ${POSTGRES_DB:-ragdb}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ============================================================
+  # pgAdmin - PostgreSQL Web UI (port 5050)
+  # ============================================================
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@example.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD:-admin123}
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres-kms
+
+  # ============================================================
+  # Neo4j Graph Database (port 7474, 7687)
+  # ============================================================
+  neo4j:
+    container_name: neo4j-graphrag
+    image: neo4j:latest
+    restart: unless-stopped
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-graphrag2024}
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+    volumes:
+      - ../neo4j/data:/data
+      - ../neo4j/logs:/logs
+      - ../neo4j/plugins:/plugins
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ============================================================
+  # GPU 4 - Text LLM (vLLM + Qwen2.5-7B-Instruct with Tool Calling)
+  # ============================================================
+  qwen-llm:
+    container_name: qwen-graphrag
+    image: vllm/vllm-openai:latest
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "12800:8000"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+      - NVIDIA_VISIBLE_DEVICES=4
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+    command: >
+      --model Qwen/Qwen2.5-7B-Instruct
+      --max-model-len 8192
+      --gpu-memory-utilization 0.9
+      --enable-auto-tool-choice
+      --tool-call-parser hermes
+    shm_size: '16gb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+
+  # ============================================================
+  # [DISABLED] Text LLM - Nemotron (GPU 4, port 12800)
+  # ============================================================
+  # nemotron-llm:
+  #   container_name: nemotron-graphrag
+  #   image: nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2:latest
+  #   restart: unless-stopped
+  #   runtime: nvidia
+  #   ports:
+  #     - "12800:8000"
+  #   environment:
+  #     - NGC_API_KEY=${NGC_API_KEY}
+  #     - NVIDIA_VISIBLE_DEVICES=4
+  #     - CUDA_VISIBLE_DEVICES=0
+  #     - NIM_MAX_NUM_SEQS=32
+  #     - NIM_MAX_MODEL_LEN=8192
+  #   volumes:
+  #     - nim_llm_cache:/opt/nim/.cache
+  #   shm_size: '16gb'
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 10
+  #     start_period: 180s
+
+  # ============================================================
+  # Embedding - NeMo (GPU 5, port 12801)
+  # ============================================================
+  nemo-embedding:
+    container_name: nemo-embedding-graphrag
+    image: nvcr.io/nim/nvidia/nv-embedqa-mistral-7b-v2:1.0.1
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "12801:8000"
+    environment:
+      - NGC_API_KEY=${NGC_API_KEY}
+      - NIM_TRITON_PERFORMANCE_MODE=latency
+      - NVIDIA_VISIBLE_DEVICES=5
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - nim_embed_cache:/opt/nim/.cache
+    shm_size: '16gb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+
+  # ============================================================
+  # Vision - LLaVA or similar (GPU 6, port 12803)
+  # ============================================================
+  vision-llm:
+    container_name: vision-graphrag
+    image: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-vl-8b-v1:1.3.0
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "12803:8000"
+    environment:
+      - NGC_API_KEY=${NGC_API_KEY}
+      - NVIDIA_VISIBLE_DEVICES=6
+      - CUDA_VISIBLE_DEVICES=0
+      - NIM_MAX_MODEL_LEN=4096
+    volumes:
+      - nim_vision_cache:/opt/nim/.cache
+    shm_size: '16gb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+
+  # ============================================================
+  # Code LLM - CodeQwen 3B (GPU 7, port 12802)
+  # Lightweight model (~6GB VRAM) - shares GPU 7 with Learning LLM
+  # Memory split: CodeQwen 0.4 + Learning LLM 0.5 = 0.9 total
+  # ============================================================
+  codeqwen-coder:
+    container_name: codeqwen-graphrag
+    image: vllm/vllm-openai:latest
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "12802:8000"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+      - NVIDIA_VISIBLE_DEVICES=7
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+    command: >
+      --model Qwen/Qwen2.5-Coder-3B-Instruct
+      --max-model-len 4096
+      --gpu-memory-utilization 0.4
+    shm_size: '8gb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  # ============================================================
+  # [DISABLED] Code LLM - Mistral NeMo 12B (GPU 7, port 12802)
+  # Original heavy model (~24GB VRAM) - replaced with CodeQwen 3B
+  # ============================================================
+  # mistral-nemo-coder:
+  #   container_name: mistral-coder-graphrag
+  #   image: vllm/vllm-openai:latest
+  #   restart: unless-stopped
+  #   runtime: nvidia
+  #   ports:
+  #     - "12802:8000"
+  #   environment:
+  #     - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+  #     - NVIDIA_VISIBLE_DEVICES=7
+  #     - CUDA_VISIBLE_DEVICES=0
+  #   volumes:
+  #     - huggingface_cache:/root/.cache/huggingface
+  #   command: >
+  #     --model mistralai/Mistral-Nemo-Instruct-2407
+  #     --max-model-len 8192
+  #     --gpu-memory-utilization 0.9
+  #   shm_size: '16gb'
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 10
+  #     start_period: 180s
+
+  # ============================================================
+  # Learning LLM - Qwen2.5-7B + QLoRA (GPU 7, port 12804)
+  # Feedback-driven learning model with LoRA adapter support
+  # Shares GPU 7 with CodeQwen - memory split: CodeQwen 0.4 + Learning 0.5
+  # ============================================================
+  learning-llm:
+    container_name: learning-llm-graphrag
+    image: vllm/vllm-openai:latest
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "12804:8000"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+      - NVIDIA_VISIBLE_DEVICES=7
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+      - /opt/kms/models/qlora_adapters:/opt/qlora_adapters:ro
+    command: >
+      --model Qwen/Qwen2.5-7B-Instruct
+      --max-model-len 4096
+      --gpu-memory-utilization 0.5
+      --enable-lora
+      --max-lora-rank 64
+      --lora-modules learning=/opt/qlora_adapters/qlora_manual_20260124_091631
+      --dtype bfloat16
+    shm_size: '16gb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+    depends_on:
+      - codeqwen-coder
+
+# Named volumes for model caches and data persistence
+volumes:
+  postgres_kms_data:
+    name: graphrag_postgres_kms_data
+  pgadmin_data:
+    name: graphrag_pgadmin_data
+  nim_embed_cache:
+    name: graphrag_nim_embed_cache
+  nim_vision_cache:
+    name: graphrag_nim_vision_cache
+  huggingface_cache:
+    name: graphrag_huggingface_cache
+  qlora_adapters:
+    name: graphrag_qlora_adapters

@@ -1,0 +1,1173 @@
+"""
+RAG Service - Integrates existing Hybrid RAG with FastAPI
+Provides async wrappers for RAG operations with session document priority
+"""
+import asyncio
+import re
+import logging
+from typing import Dict, List, Any, Optional, AsyncGenerator
+from functools import lru_cache
+from datetime import datetime
+import sys
+import os
+
+logger = logging.getLogger(__name__)
+
+
+def strip_thinking_tags(text: str) -> str:
+    """
+    LLM 응답에서 <think>...</think> 태그 제거
+    일부 LLM (DeepSeek, Qwen 등)은 chain-of-thought를 이 태그로 출력함
+    """
+    if not text:
+        return text
+    # <think>...</think> 태그와 그 내용 제거 (멀티라인 지원)
+    cleaned = re.sub(r'<think>.*?</think>\s*', '', text, flags=re.DOTALL)
+    return cleaned.strip()
+
+# Add src directory to path for importing existing modules
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+
+from hybrid_rag import HybridRAG, get_hybrid_rag
+from query_router import QueryRouter, QueryType
+
+from ..core.tracing import get_trace_context_from_request
+from ..core.trace_context import SpanType
+from ..core.config import api_settings
+
+
+class RAGService:
+    """
+    FastAPI-compatible RAG Service wrapping HybridRAG
+
+    Provides async methods for:
+    - Query execution (with streaming support)
+    - Query classification
+    - System statistics
+    - Session document priority retrieval
+    """
+
+    _instance: Optional['RAGService'] = None
+    _initialized: bool = False
+
+    def __init__(self):
+        """Initialize RAG service with lazy loading"""
+        self._hybrid_rag: Optional[HybridRAG] = None
+        self._query_router: Optional[QueryRouter] = None
+
+    @classmethod
+    def get_instance(cls) -> 'RAGService':
+        """Get singleton instance"""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def _ensure_initialized(self) -> HybridRAG:
+        """Ensure RAG system is initialized (lazy loading)"""
+        if self._hybrid_rag is None:
+            print("Initializing HybridRAG system...")
+            self._hybrid_rag = get_hybrid_rag()
+            self._query_router = self._hybrid_rag.router
+
+            # Initialize system components
+            status = self._hybrid_rag.init_system()
+            for component, ok in status.items():
+                print(f"  {component}: {'OK' if ok else 'FAILED'}")
+
+            self._initialized = True
+        return self._hybrid_rag
+
+    async def _get_document_names(self, document_ids: List[str]) -> Dict[str, str]:
+        """
+        Fetch document names from PostgreSQL documents table.
+
+        Args:
+            document_ids: List of document IDs to look up
+
+        Returns:
+            Dict mapping document_id to original_name
+        """
+        if not document_ids:
+            return {}
+
+        try:
+            import asyncpg
+            from ..core.config import api_settings
+
+            dsn = f"postgresql://{api_settings.POSTGRES_USER}:{api_settings.POSTGRES_PASSWORD}@{api_settings.POSTGRES_HOST}:{api_settings.POSTGRES_PORT}/{api_settings.POSTGRES_DB}"
+            pool = await asyncpg.create_pool(dsn, min_size=1, max_size=2)
+            try:
+                async with pool.acquire() as conn:
+                    rows = await conn.fetch("""
+                        SELECT id, original_name FROM documents
+                        WHERE id = ANY($1)
+                    """, document_ids)
+                    # Extract filename only, removing directory path
+                    return {
+                        row['id']: row['original_name'].split('/')[-1]
+                        if row['original_name'] and '/' in row['original_name']
+                        else row['original_name']
+                        for row in rows
+                    }
+            finally:
+                await pool.close()
+        except Exception as e:
+            logger.warning(f"Failed to fetch document names: {e}")
+            return {}
+
+    def _get_document_names_sync(self, document_ids: List[str]) -> Dict[str, str]:
+        """
+        Synchronous version of _get_document_names for use in sync methods.
+        """
+        if not document_ids:
+            return {}
+
+        try:
+            import asyncio
+            # Run async method in new event loop if needed
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're in an async context, create a new thread
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            self._get_document_names(document_ids)
+                        )
+                        return future.result(timeout=5)
+                else:
+                    return loop.run_until_complete(self._get_document_names(document_ids))
+            except RuntimeError:
+                return asyncio.run(self._get_document_names(document_ids))
+        except Exception as e:
+            logger.warning(f"Failed to fetch document names (sync): {e}")
+            return {}
+
+    async def _get_chunk_page_numbers(self, chunk_ids: List[str]) -> Dict[str, int]:
+        """
+        Fetch page numbers for chunks from PostgreSQL text_chunks table.
+
+        Args:
+            chunk_ids: List of chunk IDs to look up
+
+        Returns:
+            Dict mapping chunk_id to page_number
+        """
+        if not chunk_ids:
+            return {}
+
+        try:
+            import asyncpg
+            from ..core.config import api_settings
+
+            dsn = f"postgresql://{api_settings.POSTGRES_USER}:{api_settings.POSTGRES_PASSWORD}@{api_settings.POSTGRES_HOST}:{api_settings.POSTGRES_PORT}/{api_settings.POSTGRES_DB}"
+            pool = await asyncpg.create_pool(dsn, min_size=1, max_size=2)
+            try:
+                async with pool.acquire() as conn:
+                    rows = await conn.fetch("""
+                        SELECT id, page_number FROM text_chunks
+                        WHERE id = ANY($1)
+                    """, chunk_ids)
+                    return {row['id']: row['page_number'] for row in rows if row['page_number']}
+            finally:
+                await pool.close()
+        except Exception as e:
+            logger.warning(f"Failed to fetch chunk page numbers: {e}")
+            return {}
+
+    def _get_chunk_page_numbers_sync(self, chunk_ids: List[str]) -> Dict[str, int]:
+        """
+        Synchronous version of _get_chunk_page_numbers for use in sync methods.
+        """
+        if not chunk_ids:
+            return {}
+
+        try:
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            self._get_chunk_page_numbers(chunk_ids)
+                        )
+                        return future.result(timeout=5)
+                else:
+                    return loop.run_until_complete(self._get_chunk_page_numbers(chunk_ids))
+            except RuntimeError:
+                return asyncio.run(self._get_chunk_page_numbers(chunk_ids))
+        except Exception as e:
+            logger.warning(f"Failed to fetch chunk page numbers (sync): {e}")
+            return {}
+
+    async def query(
+        self,
+        question: str,
+        strategy: str = "auto",
+        language: str = "auto",
+        top_k: int = 5,
+        conversation_id: Optional[str] = None,
+        conversation_history: Optional[List[Dict]] = None,
+        # Session document options
+        session_id: Optional[str] = None,
+        use_session_docs: bool = True,
+        session_weight: float = 2.0,
+        # External resource options
+        user_id: Optional[str] = None,
+        use_external_resources: bool = True,
+        external_weight: float = 2.5,
+        # Smarter RAG options
+        use_verified_knowledge: bool = True,
+        verified_min_similarity: float = 0.85,
+        use_learning_llm: bool = True,
+        learning_llm_min_confidence: float = 0.6,
+    ) -> Dict[str, Any]:
+        """
+        Execute RAG query asynchronously with priority-based retrieval
+
+        Priority order (Smarter RAG):
+        0. Verified Knowledge Store (👍 받은 검증된 지식) - 최우선
+        1. Session documents (uploaded in current session)
+        2. User's external resources (OneNote, GitHub, Drive, Notion, Confluence)
+        3. Global knowledge base
+
+        Args:
+            question: User's question
+            strategy: RAG strategy (auto, vector, graph, hybrid, code)
+            language: Response language (auto, ko, ja, en)
+            top_k: Number of results to retrieve
+            conversation_id: Optional conversation session ID
+            conversation_history: Previous Q&A pairs for context
+            session_id: Session ID for uploaded documents
+            use_session_docs: Whether to use session documents (default True)
+            session_weight: Score boost for session results (default 2.0)
+            user_id: User ID for external resources
+            use_external_resources: Whether to use external resources (default True)
+            external_weight: Score boost for external results (default 2.5)
+            use_verified_knowledge: Whether to use Verified Knowledge Store (default True)
+            verified_min_similarity: Minimum similarity for verified knowledge (default 0.85)
+
+        Returns:
+            Dictionary with answer, sources, and metadata
+        """
+        session_results = []
+        external_results = []
+        used_session_docs = False
+        used_external_resources = False
+        session_doc_count = 0
+        external_doc_count = 0
+
+        # Step 0: Check Verified Knowledge Store first (Smarter RAG - highest priority)
+        if use_verified_knowledge:
+            try:
+                from .verified_knowledge_service import get_verified_knowledge_service
+                vk_service = get_verified_knowledge_service()
+
+                if vk_service:
+                    vk_match = await vk_service.get_best_match(
+                        query=question,
+                        min_similarity=verified_min_similarity,
+                        language=language if language != "auto" else None,
+                    )
+
+                    if vk_match:
+                        entity, similarity = vk_match
+                        print(f"[RAGService] ✅ Verified Knowledge match found (similarity: {similarity:.3f})")
+
+                        # Record usage
+                        await vk_service.record_usage(
+                            knowledge_id=entity.id,
+                            query=question,
+                            similarity_score=similarity,
+                            conversation_id=conversation_id,
+                            user_id=user_id,
+                        )
+
+                        # Return verified answer directly
+                        return {
+                            "answer": entity.answer,
+                            "sources": entity.source_documents or [],
+                            "strategy": "verified_knowledge",
+                            "language": entity.language,
+                            "metadata": {
+                                "source_type": "verified_knowledge",
+                                "verified_id": entity.id,
+                                "similarity_score": similarity,
+                                "feedback_score": entity.feedback_score,
+                                "thumbs_up_count": entity.thumbs_up_count,
+                                "usage_count": entity.usage_count + 1,
+                                "is_trained": entity.is_trained,
+                            }
+                        }
+            except Exception as e:
+                print(f"[RAGService] Verified Knowledge search failed: {e}")
+
+        # Step 0.5: Try Learning LLM if Verified Knowledge didn't match exactly
+        # Learning LLM generates new responses based on learned patterns
+        if use_learning_llm:
+            try:
+                from .learning_llm_service import get_learning_llm_service
+                from .verified_knowledge_service import get_verified_knowledge_service
+
+                llm_service = get_learning_llm_service()
+                vk_service = get_verified_knowledge_service()
+
+                if llm_service and llm_service.enabled:
+                    # Check if Learning LLM can answer based on learned domain
+                    can_answer, knowledge_hint, confidence = await llm_service.can_answer(
+                        question=question,
+                        verified_knowledge_service=vk_service,
+                    )
+
+                    if can_answer and confidence >= learning_llm_min_confidence:
+                        print(f"[RAGService] Learning LLM can answer (confidence: {confidence:.3f})")
+
+                        # Generate response using Learning LLM
+                        llm_response = await llm_service.generate(
+                            question=question,
+                            verified_knowledge_hint=knowledge_hint,
+                            max_tokens=512,
+                            temperature=0.7,
+                        )
+
+                        if llm_response and llm_response.get("answer"):
+                            print(f"[RAGService] ✅ Learning LLM generated response")
+
+                            return {
+                                "answer": llm_response["answer"],
+                                "sources": [],
+                                "strategy": "learning_llm",
+                                "language": language if language != "auto" else "ko",
+                                "metadata": {
+                                    "source_type": "learning_llm",
+                                    "adapter": llm_response.get("adapter"),
+                                    "model": llm_response.get("model"),
+                                    "confidence": confidence,
+                                    "has_knowledge_hint": knowledge_hint is not None,
+                                }
+                            }
+            except Exception as e:
+                print(f"[RAGService] Learning LLM generation failed: {e}")
+
+        # Step 1: Search session documents first (highest priority)
+        if session_id and use_session_docs:
+            try:
+                from .session_document_service import get_session_document_service
+                session_service = get_session_document_service()
+
+                session_results = await session_service.search_session(
+                    session_id=session_id,
+                    query=question,
+                    top_k=top_k,
+                    min_score=0.3
+                )
+
+                if session_results:
+                    used_session_docs = True
+                    session_doc_count = len(session_results)
+                    print(f"[RAGService] Found {session_doc_count} results from session documents")
+
+            except Exception as e:
+                print(f"[RAGService] Session document search failed: {e}")
+
+        # Step 2: Search user's external resources (second priority)
+        if user_id and use_external_resources:
+            try:
+                from .external_document_service import get_external_document_service
+                external_service = get_external_document_service()
+
+                external_results = await external_service.search_user_resources(
+                    user_id=user_id,
+                    query=question,
+                    top_k=top_k,
+                    min_score=0.3
+                )
+
+                if external_results:
+                    used_external_resources = True
+                    external_doc_count = len(external_results)
+                    print(f"[RAGService] Found {external_doc_count} results from external resources")
+
+            except Exception as e:
+                print(f"[RAGService] External resource search failed: {e}")
+
+        # Step 3: Search global knowledge base (if needed)
+        # Skip global search if we have sufficient results from user sources
+        search_global = True
+        if (session_doc_count + external_doc_count) >= top_k:
+            # Check if scores are high enough
+            all_user_results = session_results + external_results
+            avg_score = sum(r.score for r in all_user_results) / len(all_user_results) if all_user_results else 0
+            if avg_score >= 0.7:
+                search_global = False
+                print(f"[RAGService] Skipping global search (sufficient user context: avg_score={avg_score:.2f})")
+
+        global_result = {"answer": "", "sources": [], "strategy": strategy, "language": language}
+        if search_global:
+            loop = asyncio.get_event_loop()
+            global_result = await loop.run_in_executor(
+                None,
+                self._sync_query,
+                question, strategy, language, top_k, conversation_history
+            )
+
+        # Step 4: Merge results with priority
+        merged_sources = self._merge_all_results_with_priority(
+            session_results=session_results,
+            external_results=external_results,
+            global_sources=global_result.get("sources", []),
+            session_weight=session_weight,
+            external_weight=external_weight,
+            top_k=top_k
+        )
+
+        # Step 5: Generate answer with combined context
+        if session_results or external_results:
+            # Re-generate answer with user context included
+            answer = await self._generate_answer_with_full_context(
+                question=question,
+                session_results=session_results,
+                external_results=external_results,
+                global_sources=global_result.get("sources", []),
+                language=language,
+                original_answer=global_result.get("answer", "")
+            )
+        else:
+            answer = global_result.get("answer", "")
+
+        # Get query features for analysis with trace span
+        trace_ctx = get_trace_context_from_request()
+        features = None
+
+        if trace_ctx:
+            with trace_ctx.create_span("query_classification", SpanType.CLASSIFICATION, metadata={"strategy": strategy}):
+                features = self._query_router.get_query_features(question)
+        else:
+            features = self._query_router.get_query_features(question)
+
+        return {
+            "answer": answer,
+            "strategy": global_result.get("strategy", strategy),
+            "language": global_result.get("language", language),
+            "confidence": 0.85,
+            "sources": merged_sources,
+            "query_analysis": {
+                "detected_language": features.get("language", "en"),
+                "query_type": global_result.get("strategy", "vector"),
+                "is_comprehensive": False,
+                "is_deep_analysis": False,
+                "has_error_code": features.get("has_error_code", False),
+                "used_session_docs": used_session_docs,
+                "session_doc_count": session_doc_count,
+                "used_external_resources": used_external_resources,
+                "external_doc_count": external_doc_count
+            }
+        }
+
+    def _merge_results_with_priority(
+        self,
+        session_results: List[Any],
+        global_sources: List[Dict],
+        session_weight: float,
+        top_k: int
+    ) -> List[Dict]:
+        """
+        Merge session and global results with priority scoring.
+        Session documents get a score boost.
+        """
+        merged = []
+
+        # Add session results with boosted scores
+        for sr in session_results:
+            merged.append({
+                "doc_id": sr.document_id,
+                "doc_name": sr.source_name,
+                "chunk_id": sr.chunk_id,
+                "chunk_index": sr.metadata.get("index", 0),
+                "content": sr.content[:api_settings.RAG_CONTENT_MAX_CHARS],
+                "score": min(sr.score * session_weight, 1.0),  # Boost but cap at 1.0
+                "source_type": "session",
+                "entities": [],
+                "is_session_doc": True,
+                "page_number": sr.page_number
+            })
+
+        # Add global results
+        for gs in global_sources:
+            # Check if this chunk is already from session
+            if not any(m.get("chunk_id") == gs.get("chunk_id") for m in merged):
+                merged.append({
+                    **gs,
+                    "is_session_doc": False,
+                    "page_number": None
+                })
+
+        # Sort by score descending
+        merged.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+        return merged[:top_k]
+
+    def _merge_all_results_with_priority(
+        self,
+        session_results: List[Any],
+        external_results: List[Any],
+        global_sources: List[Dict],
+        session_weight: float,
+        external_weight: float,
+        top_k: int
+    ) -> List[Dict]:
+        """
+        Merge session, external, and global results with priority scoring.
+
+        Priority (highest to lowest):
+        1. Session documents (uploaded in current chat) - highest weight
+        2. External resources (user's connected resources) - medium weight
+        3. Global knowledge base - base score
+        """
+        merged = []
+
+        # Add session results with highest boost
+        for sr in session_results:
+            merged.append({
+                "doc_id": sr.document_id,
+                "doc_name": sr.source_name,
+                "chunk_id": sr.chunk_id,
+                "chunk_index": sr.metadata.get("index", 0),
+                "content": sr.content[:api_settings.RAG_CONTENT_MAX_CHARS],
+                "score": min(sr.score * session_weight, 1.0),
+                "source_type": "session",
+                "entities": [],
+                "is_session_doc": True,
+                "is_external_resource": False,
+                "page_number": getattr(sr, 'page_number', None),
+                "source_url": None
+            })
+
+        # Add external resource results with medium boost
+        for er in external_results:
+            merged.append({
+                "doc_id": er.document_id,
+                "doc_name": er.source_name,
+                "chunk_id": er.chunk_id,
+                "chunk_index": er.metadata.get("index", 0),
+                "content": er.content[:api_settings.RAG_CONTENT_MAX_CHARS],
+                "score": min(er.score * external_weight, 1.0),
+                "source_type": f"external_{er.source}" if hasattr(er, 'source') else "external",
+                "entities": [],
+                "is_session_doc": False,
+                "is_external_resource": True,
+                "page_number": getattr(er, 'page_number', None),
+                "source_url": getattr(er, 'source_url', None),
+                "external_source": er.source if hasattr(er, 'source') else None,
+                "section_title": getattr(er, 'section_title', None)
+            })
+
+        # Add global results (no boost)
+        for gs in global_sources:
+            # Check if this chunk is already included
+            existing_chunks = {m.get("chunk_id") for m in merged}
+            if gs.get("chunk_id") not in existing_chunks:
+                merged.append({
+                    **gs,
+                    "is_session_doc": False,
+                    "is_external_resource": False,
+                    # Preserve source_url for web sources (from VectorRAG)
+                    "source_url": gs.get("source_url")
+                    # page_number is preserved from gs via **gs spread
+                })
+
+        # Sort by score descending
+        merged.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+        return merged[:top_k]
+
+    async def _generate_answer_with_session_context(
+        self,
+        question: str,
+        session_results: List[Any],
+        global_sources: List[Dict],
+        language: str,
+        original_answer: str
+    ) -> str:
+        """
+        Generate answer with session document context prioritized.
+        """
+        try:
+            rag = self._ensure_initialized()
+
+            # Build context from session documents first
+            context_parts = []
+
+            # Session context (marked as uploaded documents)
+            if session_results:
+                context_parts.append("=== 업로드된 문서 (우선 참조) ===")
+                for i, sr in enumerate(session_results[:5], 1):
+                    source_info = f"[{sr.source_name}]"
+                    if sr.page_number:
+                        source_info += f" (페이지 {sr.page_number})"
+                    context_parts.append(f"[업로드{i}] {source_info}")
+                    context_parts.append(sr.content[:600])
+                context_parts.append("")
+
+            # Global context (reference knowledge base)
+            if global_sources:
+                context_parts.append("=== 기존 지식 베이스 ===")
+                for i, gs in enumerate(global_sources[:3], 1):
+                    context_parts.append(f"[참조{i}] {gs.get('content', '')[:400]}")
+
+            context = "\n\n".join(context_parts)
+
+            # Truncate context to prevent LLM token limit errors
+            max_context_len = int(os.getenv("LLM_MAX_CONTEXT_LENGTH", "3000"))
+            if len(context) > max_context_len:
+                context = context[:max_context_len] + "\n...[truncated]"
+
+            # Language instruction from policy service
+            from .language_policy import get_language_policy_service
+            policy_service = get_language_policy_service()
+            lang_instruction = policy_service.get_language_instruction(language)
+
+            # Generate answer
+            prompt = f"""다음 문서들을 참고하여 질문에 답변하세요.
+
+**응답 언어 지시**: {lang_instruction}
+
+**중요**: '업로드된 문서'의 내용을 우선적으로 참조하여 답변하세요.
+답변 시 정보의 출처(업로드 문서 또는 기존 지식)를 명시해주세요.
+
+{context}
+
+질문: {question}
+
+답변:"""
+
+            # Run in thread pool
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: rag.llm.invoke(prompt)
+            )
+
+            answer = response.content
+
+            # Clean thinking tags from LLM output
+            answer = strip_thinking_tags(answer)
+
+            return answer
+
+        except Exception as e:
+            print(f"[RAGService] Answer generation with session context failed: {e}")
+            # Fallback to original answer
+            return original_answer
+
+    async def _generate_answer_with_full_context(
+        self,
+        question: str,
+        session_results: List[Any],
+        external_results: List[Any],
+        global_sources: List[Dict],
+        language: str,
+        original_answer: str
+    ) -> str:
+        """
+        Generate answer with full context from all sources.
+
+        Priority:
+        1. Session documents (uploaded files)
+        2. External resources (connected accounts)
+        3. Global knowledge base
+        """
+        try:
+            rag = self._ensure_initialized()
+
+            context_parts = []
+
+            # Session context (highest priority)
+            if session_results:
+                context_parts.append("=== 업로드된 문서 (최우선 참조) ===")
+                for i, sr in enumerate(session_results[:4], 1):
+                    source_info = f"[{sr.source_name}]"
+                    if hasattr(sr, 'page_number') and sr.page_number:
+                        source_info += f" (페이지 {sr.page_number})"
+                    context_parts.append(f"[업로드{i}] {source_info}")
+                    context_parts.append(sr.content[:api_settings.RAG_CONTENT_MAX_CHARS])
+                context_parts.append("")
+
+            # External resource context (second priority)
+            if external_results:
+                context_parts.append("=== 연결된 외부 리소스 (우선 참조) ===")
+                for i, er in enumerate(external_results[:4], 1):
+                    source_type = er.source if hasattr(er, 'source') else "external"
+                    source_info = f"[{er.source_name}] ({source_type})"
+                    if hasattr(er, 'source_url') and er.source_url:
+                        source_info += f"\n   링크: {er.source_url}"
+                    if hasattr(er, 'section_title') and er.section_title:
+                        source_info += f"\n   섹션: {er.section_title}"
+                    context_parts.append(f"[외부{i}] {source_info}")
+                    context_parts.append(er.content[:api_settings.RAG_CONTENT_MAX_CHARS])
+                context_parts.append("")
+
+            # Global context (base knowledge)
+            if global_sources:
+                context_parts.append("=== 기존 지식 베이스 ===")
+                for i, gs in enumerate(global_sources[:3], 1):
+                    context_parts.append(f"[참조{i}] {gs.get('content', '')[:400]}")
+
+            context = "\n\n".join(context_parts)
+
+            # Truncate context to prevent LLM token limit errors
+            max_context_len = int(os.getenv("LLM_MAX_CONTEXT_LENGTH", "3000"))
+            if len(context) > max_context_len:
+                context = context[:max_context_len] + "\n...[truncated]"
+
+            # Language instruction from policy service
+            from .language_policy import get_language_policy_service
+            policy_service = get_language_policy_service()
+            lang_instruction = policy_service.get_language_instruction(language)
+
+            # Generate answer with source attribution
+            prompt = f"""다음 문서들을 참고하여 질문에 답변하세요.
+
+**응답 언어 지시**: {lang_instruction}
+
+**중요 지시사항**:
+1. '업로드된 문서'와 '연결된 외부 리소스'의 내용을 우선적으로 참조하여 답변하세요.
+2. 답변에 사용한 정보의 출처를 명시해주세요:
+   - 업로드된 문서에서 온 정보: "[업로드 문서]"
+   - 외부 리소스에서 온 정보: "[외부 리소스: 소스명]"
+   - 기존 지식에서 온 정보: "[기존 지식]"
+3. 외부 리소스의 링크가 있다면 참조용으로 제공해주세요.
+
+{context}
+
+질문: {question}
+
+답변:"""
+
+            # Run in thread pool
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: rag.llm.invoke(prompt)
+            )
+
+            answer = response.content
+
+            # Clean thinking tags from LLM output
+            answer = strip_thinking_tags(answer)
+
+            return answer
+
+        except Exception as e:
+            print(f"[RAGService] Answer generation with full context failed: {e}")
+            return original_answer
+
+    def _sync_query(
+        self,
+        question: str,
+        strategy: str,
+        language: str,
+        top_k: int,
+        conversation_history: Optional[List[Dict]]
+    ) -> Dict[str, Any]:
+        """Synchronous query execution for global knowledge base"""
+        rag = self._ensure_initialized()
+
+        # Execute query
+        result = rag.query(
+            question=question,
+            strategy=strategy,
+            language=language,
+            k=top_k,
+            conversation_history=conversation_history
+        )
+
+        # Get query features for analysis
+        features = self._query_router.get_query_features(question)
+
+        # Fetch document names and page numbers from PostgreSQL
+        results_list = result.get("results", [])
+        doc_ids = list(set(r.get("doc_id", "") for r in results_list if r.get("doc_id")))
+        chunk_ids = list(set(r.get("chunk_id", "") for r in results_list if r.get("chunk_id")))
+
+        doc_names = self._get_document_names_sync(doc_ids)
+        page_numbers = self._get_chunk_page_numbers_sync(chunk_ids)
+
+        # Format sources for API response
+        sources = []
+        for r in results_list:
+            doc_id = r.get("doc_id", "")
+            chunk_id = r.get("chunk_id", "")
+            # Get source_type from either source_type or source field
+            source_type = r.get("source_type") or r.get("source", "unknown")
+            sources.append({
+                "doc_id": doc_id,
+                "doc_name": doc_names.get(doc_id, doc_id),  # Use actual name or fallback to ID
+                "chunk_id": chunk_id,
+                "chunk_index": r.get("chunk_index", 0),
+                "content": r.get("content", "")[:api_settings.RAG_CONTENT_MAX_CHARS],
+                "score": r.get("score", 0.0) if isinstance(r.get("score"), (int, float)) else 0.0,
+                "source_type": source_type,
+                "entities": r.get("entities", []),
+                "page_number": r.get("page_number") or page_numbers.get(chunk_id),
+                # Include web source URL if available
+                "source_url": r.get("source_url", "")
+            })
+
+        return {
+            "answer": result.get("answer", ""),
+            "strategy": result.get("strategy", strategy),
+            "language": result.get("language", language),
+            "confidence": 0.85,
+            "sources": sources,
+            "query_analysis": {
+                "detected_language": features.get("language", "en"),
+                "query_type": result.get("strategy", "vector"),
+                "is_comprehensive": False,
+                "is_deep_analysis": False,
+                "has_error_code": features.get("has_error_code", False)
+            }
+        }
+
+    async def stream_query(
+        self,
+        question: str,
+        strategy: str = "auto",
+        language: str = "auto",
+        top_k: int = 5,
+        session_id: Optional[str] = None,
+        use_session_docs: bool = True
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Stream RAG query response
+
+        Yields chunks of the response for real-time streaming.
+
+        Args:
+            question: User's question
+            strategy: RAG strategy
+            language: Response language
+            top_k: Number of results
+            session_id: Session ID for documents
+            use_session_docs: Whether to use session documents
+
+        Yields:
+            Dictionaries with type and content
+        """
+        # Get full result first (TODO: implement true streaming from LLM)
+        result = await self.query(
+            question=question,
+            strategy=strategy,
+            language=language,
+            top_k=top_k,
+            session_id=session_id,
+            use_session_docs=use_session_docs
+        )
+
+        answer = result.get("answer", "")
+
+        # Simulate streaming by yielding chunks
+        chunk_size = 50
+        for i in range(0, len(answer), chunk_size):
+            chunk = answer[i:i + chunk_size]
+            yield {"type": "text", "content": chunk}
+            await asyncio.sleep(0.02)  # Small delay for streaming effect
+
+        # Yield sources at the end
+        yield {"type": "sources", "sources": result.get("sources", [])}
+
+    async def classify_query(self, question: str) -> Dict[str, Any]:
+        """
+        Classify query without executing search
+
+        Args:
+            question: User's question
+
+        Returns:
+            Classification result with strategy and probabilities
+        """
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            self._sync_classify,
+            question
+        )
+        return result
+
+    def _sync_classify(self, question: str) -> Dict[str, Any]:
+        """Synchronous query classification"""
+        self._ensure_initialized()
+
+        # Get rule scores
+        rule_scores = self._query_router._get_rule_scores(question)
+
+        # Get classification result
+        query_type = self._query_router.classify_query(question)
+
+        # Get query features
+        features = self._query_router.get_query_features(question)
+
+        # Normalize scores to probabilities
+        total = sum(rule_scores.values())
+        probabilities = {k: v / total for k, v in rule_scores.items()}
+
+        # Determine confidence based on score distribution
+        max_prob = max(probabilities.values())
+        confidence = min(max_prob * 1.5, 0.99)  # Scale up but cap at 0.99
+
+        return {
+            "strategy": query_type.value,
+            "confidence": confidence,
+            "probabilities": probabilities,
+            "language": features.get("language", "en"),
+            "has_error_code": features.get("has_error_code", False),
+            "is_comprehensive": False,
+            "is_code_query": query_type == QueryType.CODE
+        }
+
+    async def search_with_scope(
+        self,
+        question: str,
+        scope_documents: Optional[List[str]] = None,
+        scope_sections: Optional[List[str]] = None,
+        language: str = "auto",
+        top_k: int = 5,
+        conversation_history: Optional[List[Dict]] = None,
+        user_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Execute RAG search with scope restriction.
+
+        This method enables the Agent-Driven RAG approach by limiting
+        search to user-selected documents and sections.
+
+        Args:
+            question: User's question
+            scope_documents: List of pdf_ids to search within
+            scope_sections: List of section_paths to search within
+            language: Response language
+            top_k: Number of results
+            conversation_history: Previous Q&A pairs
+            user_id: User ID for tracking
+
+        Returns:
+            Dictionary with answer, sources, and metadata
+        """
+        try:
+            # If no scope specified, fallback to regular query
+            if not scope_documents and not scope_sections:
+                return await self.query(
+                    question=question,
+                    language=language,
+                    top_k=top_k,
+                    conversation_history=conversation_history,
+                    user_id=user_id
+                )
+
+            # Use PostgreSQL adaptive chunk repository for scoped search
+            from ..core.deps import get_adaptive_chunk_repository
+            from ..adapters.langchain.embedding_adapter import get_embedding_function
+
+            # Get embedding for query
+            embedding_fn = get_embedding_function()
+            query_embedding = embedding_fn.embed_query(question)
+
+            # Get repository
+            chunk_repo = await get_adaptive_chunk_repository()
+
+            # Build scope filter and search
+            scoped_results = []
+
+            if scope_documents:
+                # Search within specified documents
+                for pdf_id in scope_documents:
+                    section_prefix = None
+                    if scope_sections:
+                        # Find sections for this document
+                        for section in scope_sections:
+                            section_prefix = section
+                            break  # Use first matching section
+
+                    results = await chunk_repo.search_similar(
+                        query_embedding=query_embedding,
+                        limit=top_k,
+                        min_similarity=0.2,
+                        pdf_id=pdf_id,
+                        section_path_prefix=section_prefix
+                    )
+                    scoped_results.extend(results)
+
+            elif scope_sections:
+                # Search within specified sections (across all documents)
+                for section_path in scope_sections:
+                    results = await chunk_repo.search_similar(
+                        query_embedding=query_embedding,
+                        limit=top_k,
+                        min_similarity=0.2,
+                        section_path_prefix=section_path
+                    )
+                    scoped_results.extend(results)
+
+            # De-duplicate and sort by similarity
+            seen_chunk_ids = set()
+            unique_results = []
+            for r in sorted(scoped_results, key=lambda x: x.get("similarity", 0), reverse=True):
+                if r["chunk_id"] not in seen_chunk_ids:
+                    seen_chunk_ids.add(r["chunk_id"])
+                    unique_results.append(r)
+
+            unique_results = unique_results[:top_k]
+
+            # Format sources
+            sources = []
+            for r in unique_results:
+                sources.append({
+                    "doc_id": r.get("pdf_id", ""),
+                    "doc_name": r.get("document_name", r.get("pdf_id", "")),
+                    "chunk_id": r.get("chunk_id", ""),
+                    "chunk_index": 0,
+                    "content": r.get("content", "")[:api_settings.RAG_CONTENT_MAX_CHARS],
+                    "score": r.get("similarity", 0.0),
+                    "source_type": "scoped_search",
+                    "entities": [],
+                    "page_number": r.get("page_start"),
+                    "section_path": r.get("section_path"),
+                    "section_title": r.get("section_title")
+                })
+
+            # Generate answer with scoped context
+            if sources:
+                answer = await self._generate_scoped_answer(
+                    question=question,
+                    sources=sources,
+                    language=language
+                )
+            else:
+                answer = "검색 범위 내에서 관련 정보를 찾지 못했습니다. 다른 문서나 섹션을 선택해보세요."
+
+            return {
+                "answer": answer,
+                "strategy": "scoped",
+                "language": language,
+                "confidence": 0.85 if sources else 0.3,
+                "sources": sources,
+                "query_analysis": {
+                    "detected_language": language,
+                    "query_type": "scoped",
+                    "scope_used": True,
+                    "scope_documents": scope_documents,
+                    "scope_sections": scope_sections
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Scoped search failed: {e}")
+            # Fallback to regular search
+            return await self.query(
+                question=question,
+                language=language,
+                top_k=top_k,
+                conversation_history=conversation_history,
+                user_id=user_id
+            )
+
+    async def _generate_scoped_answer(
+        self,
+        question: str,
+        sources: List[Dict],
+        language: str
+    ) -> str:
+        """Generate answer from scoped search results."""
+        try:
+            rag = self._ensure_initialized()
+
+            # Build context
+            context_parts = []
+            for i, src in enumerate(sources[:5], 1):
+                section_info = ""
+                if src.get("section_title"):
+                    section_info = f" ({src['section_title']})"
+                if src.get("page_number"):
+                    section_info += f" - Page {src['page_number']}"
+
+                context_parts.append(
+                    f"[{i}] {src.get('doc_name', 'Document')}{section_info}\n{src['content']}"
+                )
+
+            context = "\n\n".join(context_parts)
+
+            # Truncate if needed
+            max_context_len = int(os.getenv("LLM_MAX_CONTEXT_LENGTH", "3000"))
+            if len(context) > max_context_len:
+                context = context[:max_context_len] + "\n...[truncated]"
+
+            # Language instruction
+            from .language_policy import get_language_policy_service
+            policy_service = get_language_policy_service()
+            lang_instruction = policy_service.get_language_instruction(language)
+
+            prompt = f"""다음은 사용자가 선택한 검색 범위 내의 문서 내용입니다.
+이 내용만을 참고하여 질문에 답변하세요.
+
+**응답 언어**: {lang_instruction}
+
+{context}
+
+질문: {question}
+
+답변:"""
+
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: rag.llm.invoke(prompt)
+            )
+
+            answer = strip_thinking_tags(response.content)
+            return answer
+
+        except Exception as e:
+            logger.error(f"Failed to generate scoped answer: {e}")
+            return "답변 생성 중 오류가 발생했습니다."
+
+    async def get_stats(self) -> Dict[str, Any]:
+        """Get RAG system statistics"""
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            self._sync_get_stats
+        )
+        return result
+
+    def _sync_get_stats(self) -> Dict[str, Any]:
+        """Synchronous stats retrieval"""
+        rag = self._ensure_initialized()
+        return rag.get_stats()
+
+    async def health_check(self) -> Dict[str, Any]:
+        """Check RAG system health"""
+        try:
+            rag = self._ensure_initialized()
+            status = rag.init_system()
+
+            all_healthy = all(status.values())
+
+            return {
+                "status": "healthy" if all_healthy else "degraded",
+                "components": status
+            }
+        except Exception as e:
+            return {
+                "status": "unhealthy",
+                "error": str(e)
+            }
+
+
+# Singleton instance getter
+@lru_cache()
+def get_rag_service() -> RAGService:
+    """Get cached RAG service instance"""
+    return RAGService.get_instance()

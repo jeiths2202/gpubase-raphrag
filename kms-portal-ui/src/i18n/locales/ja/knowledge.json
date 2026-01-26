@@ -1,0 +1,121 @@
+{
+  "title": "ナレッジベース",
+  "searchPlaceholder": "ナレッジを検索...",
+  "reembed": {
+    "title": "ドキュメント再埋め込み",
+    "configureButton": "設定して再埋め込み",
+    "hideParameters": "パラメータを非表示",
+    "chunkSize": "チャンクサイズ (100-4000)",
+    "chunkSizeHint": "チャンクあたりの文字数",
+    "chunkOverlap": "チャンクオーバーラップ (0-500)",
+    "chunkOverlapHint": "チャンク間の重複文字数",
+    "processingMode": "処理モード",
+    "processingModes": {
+      "textOnly": "テキストのみ",
+      "imageOnly": "画像のみ (OCR)",
+      "vlmEnhanced": "VLM強化"
+    },
+    "enableVlm": "VLM分析を有効化",
+    "extractTables": "テーブル抽出",
+    "extractImages": "画像抽出",
+    "warning": "再埋め込みは既存のチャンクと埋め込みを削除し、指定されたパラメータで新しく作成します。この処理には数分かかる場合があります。",
+    "hint": "埋め込み品質が低い場合、異なるチャンクサイズと処理オプションでドキュメントを再埋め込みして検索精度を向上させることができます。",
+    "startButton": "再埋め込みを開始",
+    "processing": "処理中...",
+    "cancel": "キャンセル",
+    "started": "再埋め込みが開始されました！"
+  },
+  "askQuestion": "質問する",
+  "noResults": "結果が見つかりません",
+  "sources": "ソース",
+  "relevance": "関連度",
+  "newConversation": "新しい会話",
+  "conversationHistory": "会話履歴",
+  "relatedDocuments": "関連ドキュメント",
+  "categories": {
+    "all": "すべて",
+    "documents": "ドキュメント",
+    "faqs": "FAQ",
+    "guides": "ガイド",
+    "policies": "ポリシー"
+  },
+  "filters": {
+    "date": "日付",
+    "type": "タイプ",
+    "status": "ステータス",
+    "author": "作成者"
+  },
+  "article": {
+    "views": "閲覧数",
+    "lastUpdated": "最終更新",
+    "helpful": "お役に立ちましたか？",
+    "yes": "はい",
+    "no": "いいえ",
+    "relatedArticles": "関連記事",
+    "notHelpful": "役に立たなかった"
+  },
+  "chat": {
+    "title": "AIアシスタント",
+    "subtitle": "ナレッジベースについて何でも聞いてください",
+    "inputPlaceholder": "質問を入力してください...",
+    "send": "送信",
+    "thinking": "考え中...",
+    "suggestions": "おすすめの質問",
+    "searchSyntax": {
+      "title": "検索構文ガイド",
+      "description": "特殊なプレフィックスと記号を使用して、検索を細かく制御できます",
+      "examples": [
+        {"syntax": "キーワード", "description": "すべてのソースでセマンティック検索"},
+        {"syntax": "@キーワード", "description": "Webソースのみで検索"},
+        {"syntax": "\"正確なフレーズ\"", "description": "すべてのソースで正確なフレーズを優先検索"},
+        {"syntax": "@\"正確なフレーズ\"", "description": "Webソースのみで正確なフレーズを検索"}
+      ]
+    },
+    "clearHistory": "履歴をクリア",
+    "deleteHistory": "履歴を削除",
+    "confirmDeleteAll": "すべての会話履歴を削除してもよろしいですか？",
+    "errorMessage": "申し訳ございません。エラーが発生しました。もう一度お試しください。",
+    "noConversations": "会話がありません",
+    "startNewConversation": "新しい会話を開始してください",
+    "noSourcesYet": "チャット後に参照されたソースがここに表示されます",
+    "addNote": "ノートを追加",
+    "noNotesYet": "ノートがここに表示されます",
+    "messages": "件のメッセージ"
+  },
+  "sidebar": {
+    "chat": "チャット",
+    "documents": "ドキュメント",
+    "sources": "ソース",
+    "notes": "ノート"
+  },
+  "agentNav": {
+    "selectScope": "検索範囲を選択",
+    "searchQuery": "検索クエリ",
+    "loading": "ドキュメント候補を読み込み中...",
+    "loadError": "ドキュメント候補の読み込みに失敗しました",
+    "noCandidates": "関連ドキュメントが見つかりません",
+    "suggested": "おすすめ",
+    "documents": "件のドキュメント",
+    "sections": "件のセクション",
+    "pages": "ページ",
+    "selected": "件選択中",
+    "clear": "選択解除",
+    "selectAll": "すべて選択",
+    "searchAll": "すべて検索",
+    "searchSelected": "選択範囲で検索",
+    "restoreSession": "前回のセッションを復元",
+    "lastQuery": "最後の検索",
+    "searchScope": "検索範囲",
+    "minutesAgo": "分前",
+    "hoursAgo": "時間前",
+    "daysAgo": "日前",
+    "startFresh": "新規で開始",
+    "continue": "続きから",
+    "restoring": "復元中...",
+    "scopeNotFound": "選択したドキュメント/セクションに該当情報が見つかりませんでした。全検索をお試しください。",
+    "keywords": "キーワード",
+    "subcategories": "件のサブカテゴリ",
+    "matched": "一致",
+    "categories": "件のカテゴリ"
+  }
+}

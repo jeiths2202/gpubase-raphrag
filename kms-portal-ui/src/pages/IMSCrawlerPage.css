@@ -1,0 +1,887 @@
+/**
+ * IMS Crawler Page Styles
+ * Phase 3: Crawler management dashboard
+ */
+
+/* ============================================
+   Page Layout
+   ============================================ */
+.ims-page {
+  min-height: 100%;
+  padding-bottom: var(--space-8);
+}
+
+.ims-page--loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: var(--space-4);
+  color: var(--color-text-secondary);
+}
+
+/* ============================================
+   Header Section
+   ============================================ */
+.ims-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-6);
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.ims-header__content {
+  flex: 1;
+  min-width: 200px;
+}
+
+.ims-header__title {
+  font-size: var(--text-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-2) 0;
+}
+
+.ims-header__description {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.ims-header__actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* ============================================
+   Stats Cards
+   ============================================ */
+.ims-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.ims-stat-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  transition: var(--transition-transform);
+}
+
+.ims-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.ims-stat-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.ims-stat-card__icon--primary {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.ims-stat-card__icon--success {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.ims-stat-card__icon--warning {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.ims-stat-card__icon--error {
+  background: var(--color-error-light);
+  color: var(--color-error);
+}
+
+.ims-stat-card__content {
+  display: flex;
+  flex-direction: column;
+}
+
+.ims-stat-card__value {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  line-height: 1.2;
+}
+
+.ims-stat-card__label {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+/* ============================================
+   Main Content Grid
+   ============================================ */
+.ims-content {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: var(--space-6);
+}
+
+@media (max-width: 1200px) {
+  .ims-content {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ims-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.ims-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* ============================================
+   Card Base
+   ============================================ */
+.ims-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.ims-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  gap: var(--space-3);
+}
+
+.ims-card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+/* ============================================
+   Status Badge
+   ============================================ */
+.ims-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: capitalize;
+}
+
+.ims-status-badge--neutral {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+}
+
+.ims-status-badge--primary {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.ims-status-badge--success {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.ims-status-badge--warning {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.ims-status-badge--error {
+  background: var(--color-error-light);
+  color: var(--color-error);
+}
+
+/* ============================================
+   Crawler Dashboard
+   ============================================ */
+.ims-dashboard {
+  padding-bottom: var(--space-5);
+}
+
+.ims-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+}
+
+.ims-progress--inline {
+  padding: 0;
+}
+
+.ims-progress__bar {
+  flex: 1;
+  height: 8px;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.ims-progress__fill {
+  height: 100%;
+  background: var(--gradient-primary);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease-out;
+}
+
+.ims-progress__text {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  min-width: 48px;
+  text-align: right;
+}
+
+.ims-dashboard__info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.ims-dashboard__info-label {
+  color: var(--color-text-muted);
+}
+
+.ims-dashboard__info-value {
+  color: var(--color-text-primary);
+  font-family: monospace;
+  font-size: var(--text-xs);
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ims-dashboard__info-separator {
+  color: var(--color-border);
+  margin: 0 var(--space-2);
+}
+
+.ims-dashboard__controls {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  padding-top: var(--space-2);
+}
+
+/* ============================================
+   Jobs Table
+   ============================================ */
+.ims-jobs__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12);
+  text-align: center;
+}
+
+.ims-jobs__empty-icon {
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-4);
+}
+
+.ims-jobs__empty h3 {
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-2) 0;
+}
+
+.ims-jobs__empty p {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-4) 0;
+}
+
+.ims-jobs__table-container {
+  overflow-x: auto;
+}
+
+.ims-jobs__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ims-jobs__table th,
+.ims-jobs__table td {
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ims-jobs__table th {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  background: var(--color-bg-tertiary);
+}
+
+.ims-jobs__table td {
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+}
+
+.ims-jobs__table tr:hover td {
+  background: var(--color-bg-hover);
+}
+
+.ims-jobs__id {
+  font-family: monospace;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.ims-jobs__url {
+  max-width: 300px;
+}
+
+.ims-jobs__name {
+  display: block;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.ims-jobs__url-text {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ims-jobs__actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* ============================================
+   Settings Panel
+   ============================================ */
+.ims-settings__form {
+  padding: var(--space-4) var(--space-5);
+}
+
+.ims-settings__field {
+  margin-bottom: var(--space-4);
+}
+
+.ims-settings__field label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.ims-settings__help {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+}
+
+.ims-settings__field input[type="number"] {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  outline: none;
+  transition: var(--transition-colors);
+}
+
+.ims-settings__field input[type="number"]:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--focus-ring-color);
+}
+
+.ims-settings__checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ims-settings__checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: var(--transition-colors);
+}
+
+.ims-settings__checkbox:hover {
+  background: var(--color-bg-hover);
+}
+
+.ims-settings__checkbox input {
+  margin: 0;
+}
+
+.ims-settings__actions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  margin-top: var(--space-4);
+}
+
+/* ============================================
+   Logs Panel
+   ============================================ */
+.ims-logs {
+  display: flex;
+  flex-direction: column;
+  max-height: 500px;
+}
+
+.ims-logs__header-actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.ims-logs__filter {
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--color-text-primary);
+  outline: none;
+  cursor: pointer;
+}
+
+.ims-logs__filter:focus {
+  border-color: var(--color-primary);
+}
+
+.ims-logs__container {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3);
+  background: var(--color-bg-primary);
+  font-family: monospace;
+  font-size: var(--text-xs);
+}
+
+.ims-logs__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.ims-logs__empty p {
+  margin-top: var(--space-2);
+}
+
+.ims-log-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-1);
+}
+
+.ims-log-entry:hover {
+  background: var(--color-bg-hover);
+}
+
+.ims-log-entry__time {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.ims-log-entry__source {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.ims-log-entry__message {
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+
+.ims-log-entry--error .ims-log-entry__message {
+  color: var(--color-error);
+}
+
+.ims-log-entry--warning .ims-log-entry__message {
+  color: var(--color-warning);
+}
+
+.ims-log-icon--info {
+  color: var(--color-info);
+}
+
+.ims-log-icon--warning {
+  color: var(--color-warning);
+}
+
+.ims-log-icon--error {
+  color: var(--color-error);
+}
+
+.ims-log-icon--debug {
+  color: var(--color-text-muted);
+}
+
+/* ============================================
+   Modal
+   ============================================ */
+.ims-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--color-bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--space-4);
+}
+
+.ims-modal {
+  background: var(--color-bg-modal);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-2xl);
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ims-modal--large {
+  max-width: 600px;
+}
+
+.ims-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ims-modal__header h2 {
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.ims-modal__form,
+.ims-modal__content {
+  padding: var(--space-5);
+  overflow-y: auto;
+}
+
+.ims-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-tertiary);
+}
+
+/* ============================================
+   Form Fields
+   ============================================ */
+.ims-form-field {
+  margin-bottom: var(--space-4);
+}
+
+.ims-form-field label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.ims-form-field input,
+.ims-form-field textarea {
+  width: 100%;
+  padding: var(--space-3);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-base);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  outline: none;
+  transition: var(--transition-colors);
+  font-family: inherit;
+}
+
+.ims-form-field input::placeholder,
+.ims-form-field textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.ims-form-field input:focus,
+.ims-form-field textarea:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--focus-ring-color);
+}
+
+.ims-form-field input.error,
+.ims-form-field textarea.error {
+  border-color: var(--color-error);
+}
+
+.ims-form-field input.error:focus,
+.ims-form-field textarea.error:focus {
+  box-shadow: 0 0 0 3px var(--color-error-light);
+}
+
+.ims-form-error {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-error);
+  margin-top: var(--space-1);
+}
+
+/* ============================================
+   Job Detail
+   ============================================ */
+.ims-job-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ims-job-detail__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.ims-job-detail__label {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  min-width: 120px;
+  flex-shrink: 0;
+}
+
+.ims-job-detail__value {
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+
+/* ============================================
+   Buttons
+   ============================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-base);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: var(--transition-colors);
+  border: 1px solid transparent;
+  outline: none;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-icon {
+  gap: var(--space-2);
+}
+
+.btn-sm {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.btn-primary {
+  background: var(--gradient-primary);
+  color: white;
+  border-color: transparent;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--gradient-primary-hover);
+}
+
+.btn-secondary {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+  border-color: var(--color-primary);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.btn-warning {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+  border-color: transparent;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: var(--color-warning);
+  color: white;
+}
+
+.btn-error {
+  background: var(--color-error-light);
+  color: var(--color-error);
+  border-color: transparent;
+}
+
+.btn-error:hover:not(:disabled) {
+  background: var(--color-error);
+  color: white;
+}
+
+.btn-error-ghost {
+  color: var(--color-text-secondary);
+}
+
+.btn-error-ghost:hover:not(:disabled) {
+  background: var(--color-error-light);
+  color: var(--color-error);
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ims-icon-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+@media (max-width: 768px) {
+  .ims-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ims-header__actions {
+    justify-content: flex-end;
+  }
+
+  .ims-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ims-content {
+    grid-template-columns: 1fr;
+  }
+
+  .ims-jobs__table th:nth-child(4),
+  .ims-jobs__table td:nth-child(4),
+  .ims-jobs__table th:nth-child(5),
+  .ims-jobs__table td:nth-child(5) {
+    display: none;
+  }
+
+  .ims-modal {
+    max-width: 100%;
+    margin: var(--space-4);
+    max-height: calc(100vh - var(--space-8));
+  }
+}
+
+@media (max-width: 480px) {
+  .ims-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .ims-dashboard__controls {
+    flex-direction: column;
+  }
+
+  .ims-dashboard__controls .btn {
+    width: 100%;
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "title": "設定",
+  "nav": {
+    "general": "一般",
+    "notifications": "通知",
+    "security": "セキュリティ",
+    "account": "アカウント",
+    "subscription": "サブスクリプション"
+  },
+  "general": {
+    "title": "一般",
+    "appearance": "外観",
+    "appearanceDesc": "お好みのカラーテーマを選択してください",
+    "language": "言語",
+    "languageDesc": "表示言語を選択してください"
+  },
+  "theme": {
+    "light": "ライト",
+    "dark": "ダーク",
+    "system": "システム"
+  },
+  "notifications": {
+    "title": "通知",
+    "email": "メール通知",
+    "emailDesc": "アカウントに関するメール更新を受信",
+    "push": "プッシュ通知",
+    "pushDesc": "ブラウザプッシュ通知を受信",
+    "weekly": "週間ダイジェスト",
+    "weeklyDesc": "アクティビティの概要を取得"
+  },
+  "security": {
+    "title": "セキュリティ",
+    "password": "パスワード",
+    "passwordDesc": "30日前に変更",
+    "changePassword": "パスワードを変更",
+    "twoFactor": "二段階認証",
+    "twoFactorDesc": "セキュリティを強化",
+    "sessions": "アクティブセッション",
+    "sessionsDesc": "2つのアクティブセッション",
+    "manageSessions": "管理"
+  },
+  "account": {
+    "title": "アカウント",
+    "editProfile": "プロフィールを編集",
+    "email": "メールアドレス",
+    "change": "変更",
+    "timezone": "タイムゾーン",
+    "deleteAccount": "アカウントを削除",
+    "deleteDesc": "アカウントとデータを完全に削除します",
+    "delete": "削除"
+  },
+  "subscription": {
+    "title": "サブスクリプション",
+    "description": "ニーズに合ったプランをお選びください。いつでもアップグレードまたはダウングレードできます。",
+    "current": "現在",
+    "currentPlan": "現在のプラン",
+    "upgrade": "アップグレード",
+    "contactSales": "営業に問い合わせ"
+  }
+}

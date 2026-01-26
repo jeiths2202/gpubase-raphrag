@@ -1,0 +1,1348 @@
+"""
+Web Content Service for URL-based RAG
+Handles URL fetching, content extraction, and web source management
+"""
+import uuid
+import hashlib
+import asyncio
+import re
+import socket
+from ipaddress import ip_address, ip_network
+from typing import Optional, List, Dict, Any, Tuple
+from datetime import datetime, timezone
+from urllib.parse import urlparse, urljoin
+import time
+
+import httpx
+
+# SSRF Protection: Block internal/private IP ranges
+BLOCKED_NETWORKS = [
+    ip_network("127.0.0.0/8"),       # Loopback
+    ip_network("10.0.0.0/8"),        # Private Class A
+    ip_network("172.16.0.0/12"),     # Private Class B
+    ip_network("192.168.0.0/16"),    # Private Class C
+    ip_network("169.254.0.0/16"),    # Link-local
+    ip_network("::1/128"),           # IPv6 loopback
+    ip_network("fc00::/7"),          # IPv6 private
+    ip_network("fe80::/10"),         # IPv6 link-local
+]
+
+
+def is_ssrf_safe_url(url: str) -> Tuple[bool, str]:
+    """
+    Validate URL against SSRF attacks by checking resolved IP.
+
+    Returns:
+        Tuple of (is_safe, error_message)
+    """
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+
+        if not hostname:
+            return False, "Invalid URL: no hostname"
+
+        # Block non-HTTP(S) schemes
+        if parsed.scheme not in ("http", "https"):
+            return False, f"Invalid scheme: {parsed.scheme}"
+
+        # Resolve hostname to IP
+        try:
+            resolved_ip = socket.gethostbyname(hostname)
+        except socket.gaierror:
+            return False, f"Cannot resolve hostname: {hostname}"
+
+        # Check against blocked networks
+        ip_obj = ip_address(resolved_ip)
+        for blocked_net in BLOCKED_NETWORKS:
+            if ip_obj in blocked_net:
+                return False, f"Access to internal network blocked: {resolved_ip}"
+
+        return True, ""
+    except Exception as e:
+        return False, f"URL validation error: {str(e)}"
+
+# Optional imports with fallbacks
+try:
+    import trafilatura
+    from trafilatura import extract, fetch_url
+    from trafilatura.settings import use_config
+    TRAFILATURA_AVAILABLE = True
+except ImportError:
+    TRAFILATURA_AVAILABLE = False
+
+try:
+    from bs4 import BeautifulSoup
+    BS4_AVAILABLE = True
+except ImportError:
+    BS4_AVAILABLE = False
+
+from ..models.web_source import (
+    WebSource, WebSourceStatus, WebSourceCreate, WebSourceBulkCreate,
+    WebSourceMetadata, WebSourceStats, ContentType, ExtractorType,
+    ExtractionResult, LinkInfo, ImageFromWeb, WebSourceListItem
+)
+
+
+class WebContentExtractor:
+    """Content extraction utilities"""
+
+    def __init__(self):
+        if TRAFILATURA_AVAILABLE:
+            self.trafilatura_config = use_config()
+            self.trafilatura_config.set("DEFAULT", "EXTRACTION_TIMEOUT", "30")
+
+    def is_frameset_page(self, html_content: str) -> bool:
+        """Check if HTML is a frameset page"""
+        if not BS4_AVAILABLE:
+            # Fallback to regex check
+            return bool(re.search(r'<frameset[^>]*>', html_content, re.IGNORECASE))
+
+        try:
+            soup = BeautifulSoup(html_content, 'lxml')
+            return soup.find('frameset') is not None
+        except Exception:
+            return False
+
+    def extract_frame_urls(self, html_content: str, base_url: str) -> List[Dict[str, str]]:
+        """
+        Extract frame URLs from a frameset page.
+        Returns list of dicts with 'url', 'name', and 'priority' keys.
+        Priority is higher for main content frames.
+        """
+        if not BS4_AVAILABLE:
+            return []
+
+        try:
+            soup = BeautifulSoup(html_content, 'lxml')
+            frames = []
+
+            for frame in soup.find_all(['frame', 'iframe']):
+                src = frame.get('src', '')
+                if not src:
+                    continue
+
+                # Make absolute URL
+                full_url = urljoin(base_url, src)
+                name = frame.get('name', '').lower()
+
+                # Determine priority based on frame name/attributes
+                # Main content frames typically have names like 'main', 'content', 'mainFrame'
+                priority = 0
+                if 'main' in name or 'content' in name or 'body' in name:
+                    priority = 10
+                elif 'toc' in name or 'nav' in name or 'menu' in name:
+                    priority = 3
+                elif 'top' in name or 'header' in name or 'banner' in name:
+                    priority = 1
+                elif 'overview' in name:
+                    priority = 5
+                else:
+                    priority = 5  # Default priority for unnamed frames
+
+                frames.append({
+                    'url': full_url,
+                    'name': name or 'unnamed',
+                    'priority': priority
+                })
+
+            # Sort by priority descending
+            frames.sort(key=lambda x: x['priority'], reverse=True)
+            return frames
+
+        except Exception as e:
+            print(f"[WebContentExtractor] Error extracting frames: {e}")
+            return []
+
+    async def extract_with_trafilatura(
+        self,
+        html_content: str,
+        url: str
+    ) -> ExtractionResult:
+        """Extract content using Trafilatura"""
+        if not TRAFILATURA_AVAILABLE:
+            return ExtractionResult(
+                success=False,
+                error_message="Trafilatura not installed"
+            )
+
+        start_time = time.time()
+        try:
+            # Run in thread pool since trafilatura is sync
+            text = await asyncio.to_thread(
+                extract,
+                html_content,
+                include_comments=False,
+                include_tables=True,
+                include_images=False,
+                include_links=False,
+                output_format="txt",
+                config=self.trafilatura_config
+            )
+
+            if text is None:
+                text = ""
+
+            extraction_time = int((time.time() - start_time) * 1000)
+
+            return ExtractionResult(
+                text_content=text,
+                html_content=html_content,
+                word_count=len(text.split()) if text else 0,
+                char_count=len(text) if text else 0,
+                extraction_time_ms=extraction_time,
+                extractor_used=ExtractorType.TRAFILATURA,
+                success=True
+            )
+        except Exception as e:
+            return ExtractionResult(
+                success=False,
+                error_message=str(e),
+                extractor_used=ExtractorType.TRAFILATURA
+            )
+
+    async def extract_with_beautifulsoup(
+        self,
+        html_content: str,
+        url: str
+    ) -> ExtractionResult:
+        """Extract content using BeautifulSoup"""
+        if not BS4_AVAILABLE:
+            return ExtractionResult(
+                success=False,
+                error_message="BeautifulSoup not installed"
+            )
+
+        start_time = time.time()
+        try:
+            soup = BeautifulSoup(html_content, 'lxml')
+
+            # Remove script and style elements
+            for script in soup(["script", "style", "nav", "footer", "header"]):
+                script.decompose()
+
+            # Get text content
+            text = soup.get_text(separator='\n', strip=True)
+
+            # Clean up whitespace
+            lines = [line.strip() for line in text.splitlines() if line.strip()]
+            text = '\n'.join(lines)
+
+            extraction_time = int((time.time() - start_time) * 1000)
+
+            return ExtractionResult(
+                text_content=text,
+                html_content=html_content,
+                word_count=len(text.split()) if text else 0,
+                char_count=len(text) if text else 0,
+                extraction_time_ms=extraction_time,
+                extractor_used=ExtractorType.BEAUTIFULSOUP,
+                success=True
+            )
+        except Exception as e:
+            return ExtractionResult(
+                success=False,
+                error_message=str(e),
+                extractor_used=ExtractorType.BEAUTIFULSOUP
+            )
+
+    def extract_metadata(self, html_content: str, url: str) -> WebSourceMetadata:
+        """Extract metadata from HTML"""
+        if not BS4_AVAILABLE:
+            return WebSourceMetadata()
+
+        try:
+            soup = BeautifulSoup(html_content, 'lxml')
+            metadata = WebSourceMetadata()
+
+            # Title
+            title_tag = soup.find('title')
+            if title_tag:
+                metadata.title = title_tag.get_text(strip=True)
+
+            # Meta tags
+            for meta in soup.find_all('meta'):
+                name = meta.get('name', '').lower()
+                prop = meta.get('property', '').lower()
+                content = meta.get('content', '')
+
+                if name == 'description' or prop == 'og:description':
+                    metadata.description = content
+                elif name == 'author':
+                    metadata.author = content
+                elif name == 'keywords':
+                    metadata.keywords = [k.strip() for k in content.split(',')]
+                elif prop == 'og:site_name':
+                    metadata.site_name = content
+                elif prop == 'og:image':
+                    metadata.og_image = content
+                elif prop == 'article:published_time':
+                    try:
+                        metadata.published_date = datetime.fromisoformat(
+                            content.replace('Z', '+00:00')
+                        )
+                    except:
+                        pass
+                elif prop == 'article:modified_time':
+                    try:
+                        metadata.modified_date = datetime.fromisoformat(
+                            content.replace('Z', '+00:00')
+                        )
+                    except:
+                        pass
+
+            # Language
+            html_tag = soup.find('html')
+            if html_tag:
+                metadata.language = html_tag.get('lang')
+
+            # Canonical URL
+            canonical = soup.find('link', rel='canonical')
+            if canonical:
+                metadata.canonical_url = canonical.get('href')
+
+            # Detect content type
+            metadata.content_type = self._detect_content_type(url, metadata)
+
+            return metadata
+        except Exception:
+            return WebSourceMetadata()
+
+    def _detect_content_type(
+        self,
+        url: str,
+        metadata: WebSourceMetadata
+    ) -> ContentType:
+        """Detect content type based on URL and metadata"""
+        url_lower = url.lower()
+        domain = urlparse(url).netloc.lower()
+
+        if 'blog' in url_lower or 'blog' in domain:
+            return ContentType.BLOG
+        elif 'docs' in url_lower or 'documentation' in url_lower:
+            return ContentType.DOCUMENTATION
+        elif 'wiki' in domain or 'wikipedia' in domain:
+            return ContentType.WIKI
+        elif 'news' in domain or '/news/' in url_lower:
+            return ContentType.NEWS
+        elif '/article/' in url_lower or 'article' in (metadata.description or '').lower():
+            return ContentType.ARTICLE
+        else:
+            return ContentType.GENERIC
+
+    def extract_links(self, html_content: str, base_url: str) -> List[LinkInfo]:
+        """Extract links from HTML"""
+        if not BS4_AVAILABLE:
+            return []
+
+        try:
+            soup = BeautifulSoup(html_content, 'lxml')
+            base_domain = urlparse(base_url).netloc
+            links = []
+
+            for a in soup.find_all('a', href=True):
+                href = a.get('href', '')
+                if not href or href.startswith('#') or href.startswith('javascript:'):
+                    continue
+
+                # Make absolute URL
+                full_url = urljoin(base_url, href)
+                parsed = urlparse(full_url)
+
+                # Only keep http/https links
+                if parsed.scheme not in ['http', 'https']:
+                    continue
+
+                is_internal = parsed.netloc == base_domain
+
+                links.append(LinkInfo(
+                    url=full_url,
+                    text=a.get_text(strip=True)[:200],
+                    is_internal=is_internal
+                ))
+
+            # Remove duplicates
+            seen = set()
+            unique_links = []
+            for link in links:
+                if link.url not in seen:
+                    seen.add(link.url)
+                    unique_links.append(link)
+
+            return unique_links[:100]  # Limit to 100 links
+        except Exception:
+            return []
+
+    def extract_images(self, html_content: str, base_url: str) -> List[ImageFromWeb]:
+        """Extract images from HTML"""
+        if not BS4_AVAILABLE:
+            return []
+
+        try:
+            soup = BeautifulSoup(html_content, 'lxml')
+            images = []
+
+            for img in soup.find_all('img'):
+                src = img.get('src', '')
+                if not src:
+                    continue
+
+                # Make absolute URL
+                full_url = urljoin(base_url, src)
+
+                images.append(ImageFromWeb(
+                    url=full_url,
+                    alt_text=img.get('alt', '')[:200],
+                    caption="",
+                    width=int(img.get('width')) if img.get('width', '').isdigit() else None,
+                    height=int(img.get('height')) if img.get('height', '').isdigit() else None
+                ))
+
+            return images[:50]  # Limit to 50 images
+        except Exception:
+            return []
+
+
+class WebContentService:
+    """Service for managing web sources with PostgreSQL persistence"""
+
+    # In-memory cache for active processing (cleared on restart)
+    _processing_cache: Dict[str, WebSource] = {}
+
+    def __init__(self, repository=None):
+        """
+        Initialize WebContentService.
+
+        Args:
+            repository: Optional PostgresWebSourceRepository for persistence.
+                       If not provided, uses lazy loading via get_web_source_repository().
+        """
+        self.extractor = WebContentExtractor()
+        self._repository = repository
+        self._repository_initialized = False
+        self.http_client = httpx.AsyncClient(
+            timeout=30.0,
+            follow_redirects=True,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (compatible; KMS-RAG-Bot/1.0; +https://kms.example.com/bot)',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6',
+            }
+        )
+
+    async def _get_repository(self):
+        """Get repository with lazy initialization."""
+        if self._repository is None and not self._repository_initialized:
+            try:
+                from ..infrastructure.postgres.web_source_repository import get_web_source_repository
+                self._repository = await get_web_source_repository()
+                self._repository_initialized = True
+            except Exception as e:
+                print(f"[WebContentService] Repository initialization failed: {e}")
+                self._repository_initialized = True  # Don't retry on error
+        return self._repository
+
+    async def close(self):
+        """Close HTTP client"""
+        await self.http_client.aclose()
+
+    async def fetch_url(self, url: str) -> Tuple[Optional[str], int, Optional[str]]:
+        """
+        Fetch content from URL
+
+        Returns:
+            Tuple of (html_content, status_code, error_message)
+        """
+        # SSRF Protection: Validate URL before fetching
+        is_safe, ssrf_error = is_ssrf_safe_url(url)
+        if not is_safe:
+            return None, 0, f"SSRF protection: {ssrf_error}"
+
+        try:
+            response = await self.http_client.get(url)
+            if response.status_code == 200:
+                content_type = response.headers.get('content-type', '')
+                if 'text/html' in content_type or 'application/xhtml' in content_type:
+                    return response.text, response.status_code, None
+                else:
+                    return None, response.status_code, f"Unsupported content type: {content_type}"
+            else:
+                return None, response.status_code, f"HTTP {response.status_code}"
+        except httpx.TimeoutException:
+            return None, 0, "Request timeout"
+        except httpx.RequestError as e:
+            return None, 0, f"Request error: {str(e)}"
+        except Exception as e:
+            return None, 0, f"Unexpected error: {str(e)}"
+
+    def _is_significant_redirect(self, original_url: str, final_url: str) -> bool:
+        """
+        Check if a redirect is significant (different domain or completely different path).
+        Returns True if the redirect likely means the original content is not available.
+        """
+        original_parsed = urlparse(original_url)
+        final_parsed = urlparse(str(final_url))
+
+        # Different domain is significant
+        if original_parsed.netloc.lower() != final_parsed.netloc.lower():
+            # Allow www. prefix difference
+            orig_domain = original_parsed.netloc.lower().replace('www.', '')
+            final_domain = final_parsed.netloc.lower().replace('www.', '')
+            if orig_domain != final_domain:
+                return True
+
+        # Check if path changed significantly (e.g., redirected to homepage or list page)
+        original_path = original_parsed.path.rstrip('/')
+        final_path = final_parsed.path.rstrip('/')
+
+        # If original had specific content path but redirected to generic list/home
+        if len(original_path) > 20 and (
+            final_path in ('', '/', '/home', '/list') or
+            final_path.endswith('/list') or
+            final_path.endswith('/home')
+        ):
+            return True
+
+        return False
+
+    async def fetch_url_with_redirect_check(
+        self,
+        url: str
+    ) -> Tuple[Optional[str], int, Optional[str], Optional[str]]:
+        """
+        Fetch content from URL with redirect detection.
+
+        Returns:
+            Tuple of (html_content, status_code, error_message, redirect_warning)
+            redirect_warning is set if URL was redirected to a significantly different page
+        """
+        try:
+            response = await self.http_client.get(url)
+            final_url = str(response.url)
+            redirect_warning = None
+
+            # Check for significant redirect
+            if final_url != url and self._is_significant_redirect(url, final_url):
+                redirect_warning = f"URL redirected to different page: {final_url}"
+                print(f"[WebContentService] Significant redirect detected: {url} -> {final_url}")
+
+            if response.status_code == 200:
+                content_type = response.headers.get('content-type', '')
+                if 'text/html' in content_type or 'application/xhtml' in content_type:
+                    return response.text, response.status_code, None, redirect_warning
+                else:
+                    return None, response.status_code, f"Unsupported content type: {content_type}", None
+            else:
+                return None, response.status_code, f"HTTP {response.status_code}", None
+        except httpx.TimeoutException:
+            return None, 0, "Request timeout", None
+        except httpx.RequestError as e:
+            return None, 0, f"Request error: {str(e)}", None
+        except Exception as e:
+            return None, 0, f"Unexpected error: {str(e)}", None
+
+    async def fetch_url_with_frameset_handling(
+        self,
+        url: str,
+        max_frames: int = 3
+    ) -> Tuple[Optional[str], int, Optional[str], bool, Optional[str]]:
+        """
+        Fetch content from URL with automatic frameset handling.
+
+        If the URL is a frameset page, fetches content from main frames
+        and combines them.
+
+        Returns:
+            Tuple of (html_content, status_code, error_message, is_frameset, redirect_warning)
+        """
+        # First fetch with redirect check
+        html_content, status_code, error, redirect_warning = await self.fetch_url_with_redirect_check(url)
+        if html_content is None:
+            return None, status_code, error, False, redirect_warning
+
+        # If there was a significant redirect, return immediately with warning
+        if redirect_warning:
+            return html_content, status_code, None, False, redirect_warning
+
+        # Check if frameset
+        if not self.extractor.is_frameset_page(html_content):
+            return html_content, status_code, None, False, None
+
+        # Extract frame URLs
+        frames = self.extractor.extract_frame_urls(html_content, url)
+        if not frames:
+            # Frameset with no extractable frames
+            return html_content, status_code, None, True, None
+
+        print(f"[WebContentService] Detected frameset with {len(frames)} frames")
+
+        # Fetch content from top frames (by priority)
+        combined_contents = []
+        frames_fetched = 0
+
+        for frame in frames[:max_frames]:
+            frame_url = frame['url']
+            frame_name = frame['name']
+
+            try:
+                frame_html, frame_status, frame_error = await self.fetch_url(frame_url)
+                if frame_html:
+                    # Check if this frame is also a frameset (nested)
+                    if self.extractor.is_frameset_page(frame_html):
+                        nested_frames = self.extractor.extract_frame_urls(frame_html, frame_url)
+                        if nested_frames:
+                            # Fetch first nested frame
+                            nested_html, _, _ = await self.fetch_url(nested_frames[0]['url'])
+                            if nested_html:
+                                frame_html = nested_html
+
+                    combined_contents.append({
+                        'name': frame_name,
+                        'url': frame_url,
+                        'html': frame_html
+                    })
+                    frames_fetched += 1
+                    print(f"[WebContentService] Fetched frame '{frame_name}' ({len(frame_html)} bytes)")
+            except Exception as e:
+                print(f"[WebContentService] Failed to fetch frame '{frame_name}': {e}")
+
+        if not combined_contents:
+            return html_content, status_code, "Failed to fetch any frame content", True, None
+
+        # Combine frame contents into a single HTML document
+        combined_html = self._combine_frame_contents(combined_contents, url)
+        print(f"[WebContentService] Combined {frames_fetched} frames into {len(combined_html)} bytes")
+
+        return combined_html, status_code, None, True, None
+
+    def _combine_frame_contents(
+        self,
+        frame_contents: List[Dict[str, str]],
+        original_url: str
+    ) -> str:
+        """Combine multiple frame HTML contents into a single document"""
+        if not frame_contents:
+            return ""
+
+        # If only one frame, return it directly
+        if len(frame_contents) == 1:
+            return frame_contents[0]['html']
+
+        # Combine multiple frames
+        combined_parts = []
+        combined_parts.append(f"<!-- Combined from frameset: {original_url} -->")
+        combined_parts.append("<html><head><meta charset='utf-8'/></head><body>")
+
+        for frame in frame_contents:
+            # Extract body content from each frame
+            if BS4_AVAILABLE:
+                try:
+                    soup = BeautifulSoup(frame['html'], 'lxml')
+                    body = soup.find('body')
+                    if body:
+                        combined_parts.append(f"<!-- Frame: {frame['name']} from {frame['url']} -->")
+                        combined_parts.append(str(body))
+                    else:
+                        combined_parts.append(frame['html'])
+                except Exception:
+                    combined_parts.append(frame['html'])
+            else:
+                combined_parts.append(frame['html'])
+
+        combined_parts.append("</body></html>")
+        return '\n'.join(combined_parts)
+
+    def _compute_content_hash(self, content: str) -> str:
+        """Compute hash of content for change detection"""
+        return hashlib.sha256(content.encode('utf-8')).hexdigest()[:16]
+
+    async def create_web_source(
+        self,
+        request: WebSourceCreate,
+        user_id: Optional[str] = None
+    ) -> WebSource:
+        """Create a new web source and start processing"""
+        parsed_url = urlparse(request.url)
+        web_source_id = f"ws_{uuid.uuid4().hex[:12]}"
+
+        # Create initial web source
+        web_source = WebSource(
+            id=web_source_id,
+            url=request.url,
+            display_name=request.name or parsed_url.netloc + parsed_url.path[:50],
+            domain=parsed_url.netloc,
+            status=WebSourceStatus.PENDING,
+            tags=request.tags,
+            extractor=request.extractor,
+            include_images=request.include_images,
+            include_links=request.include_links,
+            created_by=user_id
+        )
+
+        # Save to repository (PostgreSQL)
+        repo = await self._get_repository()
+        if repo:
+            try:
+                await repo.create(
+                    id=web_source_id,
+                    url=request.url,
+                    display_name=web_source.display_name,
+                    domain=web_source.domain,
+                    user_id=user_id,
+                    extractor=request.extractor.value if request.extractor else "trafilatura",
+                    include_images=request.include_images,
+                    include_links=request.include_links,
+                    status="pending",
+                    tags=request.tags or [],
+                    metadata={}
+                )
+            except Exception as e:
+                print(f"[WebContentService] Failed to save to repository: {e}")
+
+        # Keep in processing cache for active processing
+        self._processing_cache[web_source_id] = web_source
+
+        # Start async processing
+        asyncio.create_task(self._process_web_source(web_source_id))
+
+        return web_source
+
+    async def create_bulk_web_sources(
+        self,
+        request: WebSourceBulkCreate,
+        user_id: Optional[str] = None
+    ) -> List[WebSource]:
+        """Create multiple web sources"""
+        sources = []
+        for url in request.urls:
+            single_request = WebSourceCreate(
+                url=url,
+                tags=request.tags,
+                extractor=request.extractor
+            )
+            source = await self.create_web_source(single_request, user_id)
+            sources.append(source)
+        return sources
+
+    async def _process_web_source(self, web_source_id: str):
+        """Process a web source (fetch, extract, chunk, embed)"""
+        web_source = self._processing_cache.get(web_source_id)
+        if not web_source:
+            # Try to load from repository
+            repo = await self._get_repository()
+            if repo:
+                data = await repo.get(web_source_id)
+                if data:
+                    web_source = self._dict_to_web_source(data)
+                    self._processing_cache[web_source_id] = web_source
+            if not web_source:
+                return
+
+        repo = await self._get_repository()
+
+        try:
+            # Step 1: Fetch
+            web_source.status = WebSourceStatus.FETCHING
+            self._processing_cache[web_source_id] = web_source
+            if repo:
+                await repo.update_status(web_source_id, "fetching")
+
+            fetch_start = time.time()
+            html_content, status_code, error = await self.fetch_url(web_source.url)
+            fetch_time = int((time.time() - fetch_start) * 1000)
+
+            web_source.http_status_code = status_code
+            web_source.stats.fetch_time_ms = fetch_time
+
+            if html_content is None:
+                web_source.status = WebSourceStatus.ERROR
+                web_source.error_message = error
+                self._processing_cache[web_source_id] = web_source
+                if repo:
+                    await repo.update_status(web_source_id, "error", error)
+                return
+
+            # Compute content hash
+            web_source.content_hash = self._compute_content_hash(html_content)
+
+            # Step 2: Extract content
+            web_source.status = WebSourceStatus.EXTRACTING
+            self._processing_cache[web_source_id] = web_source
+            if repo:
+                await repo.update_status(web_source_id, "extracting")
+
+            # Extract metadata
+            web_source.metadata = self.extractor.extract_metadata(
+                html_content, web_source.url
+            )
+
+            # Update display name with title if available
+            if web_source.metadata.title and not web_source.display_name.startswith('http'):
+                web_source.display_name = web_source.metadata.title[:100]
+
+            # Extract main content
+            if web_source.extractor == ExtractorType.TRAFILATURA:
+                extraction = await self.extractor.extract_with_trafilatura(
+                    html_content, web_source.url
+                )
+            else:
+                extraction = await self.extractor.extract_with_beautifulsoup(
+                    html_content, web_source.url
+                )
+
+            if not extraction.success:
+                # Fallback to other extractor
+                if web_source.extractor == ExtractorType.TRAFILATURA:
+                    extraction = await self.extractor.extract_with_beautifulsoup(
+                        html_content, web_source.url
+                    )
+                else:
+                    extraction = await self.extractor.extract_with_trafilatura(
+                        html_content, web_source.url
+                    )
+
+            if not extraction.success or not extraction.text_content:
+                web_source.status = WebSourceStatus.ERROR
+                web_source.error_message = extraction.error_message or "No content extracted"
+                self._processing_cache[web_source_id] = web_source
+                if repo:
+                    await repo.update_status(web_source_id, "error", web_source.error_message)
+                return
+
+            web_source.extracted_text = extraction.text_content
+            web_source.stats.word_count = extraction.word_count
+            web_source.stats.char_count = extraction.char_count
+            web_source.stats.extraction_time_ms = extraction.extraction_time_ms
+
+            # Extract links if requested
+            if web_source.include_links:
+                web_source.extracted_links = self.extractor.extract_links(
+                    html_content, web_source.url
+                )
+                web_source.stats.link_count = len(web_source.extracted_links)
+
+            # Extract images if requested
+            if web_source.include_images:
+                web_source.extracted_images = self.extractor.extract_images(
+                    html_content, web_source.url
+                )
+                web_source.stats.image_count = len(web_source.extracted_images)
+
+            web_source.fetched_at = datetime.now(timezone.utc)
+
+            # Step 3: Chunking
+            web_source.status = WebSourceStatus.CHUNKING
+            self._processing_cache[web_source_id] = web_source
+            if repo:
+                await repo.update_status(web_source_id, "chunking")
+
+            chunks = await self._chunk_content(extraction.text_content, web_source.url)
+            web_source.stats.chunk_count = len(chunks)
+
+            # Step 4: Embedding and indexing to Neo4j
+            web_source.status = WebSourceStatus.EMBEDDING
+            self._processing_cache[web_source_id] = web_source
+            if repo:
+                await repo.update_status(web_source_id, "embedding")
+
+            # Index to Neo4j with embeddings
+            indexed = await self._index_to_neo4j(web_source, chunks)
+            if not indexed:
+                print(f"[WebContentService] Warning: Neo4j indexing skipped for {web_source_id}")
+
+            # Done
+            web_source.status = WebSourceStatus.READY
+            web_source.processed_at = datetime.now(timezone.utc)
+            web_source.stats.last_fetched = datetime.now(timezone.utc)
+            web_source.updated_at = datetime.now(timezone.utc)
+            self._processing_cache[web_source_id] = web_source
+
+            # Save all content to repository
+            if repo:
+                await repo.update_content(
+                    web_source_id=web_source_id,
+                    extracted_text=web_source.extracted_text,
+                    extracted_links=[l.model_dump() for l in web_source.extracted_links] if web_source.extracted_links else [],
+                    extracted_images=[i.model_dump() for i in web_source.extracted_images] if web_source.extracted_images else [],
+                    metadata=web_source.metadata.model_dump() if web_source.metadata else {},
+                    content_hash=web_source.content_hash,
+                    word_count=web_source.stats.word_count,
+                    char_count=web_source.stats.char_count,
+                    chunk_count=web_source.stats.chunk_count,
+                    link_count=web_source.stats.link_count,
+                    image_count=web_source.stats.image_count,
+                    fetch_time_ms=web_source.stats.fetch_time_ms,
+                    extraction_time_ms=web_source.stats.extraction_time_ms,
+                    status="ready",
+                    fetched_at=web_source.fetched_at,
+                    processed_at=web_source.processed_at
+                )
+
+            # Remove from processing cache after successful completion
+            self._processing_cache.pop(web_source_id, None)
+
+        except Exception as e:
+            web_source.status = WebSourceStatus.ERROR
+            web_source.error_message = str(e)
+            self._processing_cache[web_source_id] = web_source
+            if repo:
+                await repo.update_status(web_source_id, "error", str(e))
+
+    async def _chunk_content(
+        self,
+        content: str,
+        source_url: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Chunk content for embedding using semantic chunking.
+        """
+        # Split by paragraphs first
+        paragraphs = content.split('\n\n')
+        chunks = []
+        chunk_size = 1000  # Target chunk size in characters
+        overlap_words = 20  # Number of words to overlap
+
+        current_chunk = ""
+        for para in paragraphs:
+            para = para.strip()
+            if not para:
+                continue
+
+            if len(current_chunk) + len(para) < chunk_size:
+                current_chunk += "\n\n" + para if current_chunk else para
+            else:
+                if current_chunk:
+                    chunks.append({
+                        "id": f"wc_{uuid.uuid4().hex[:8]}",
+                        "content": current_chunk.strip(),
+                        "source_url": source_url,
+                        "index": len(chunks)
+                    })
+                # Start new chunk with overlap from end of previous
+                words = current_chunk.split()
+                actual_overlap = min(overlap_words, len(words) // 4)
+                overlap_text = ' '.join(words[-actual_overlap:]) if actual_overlap > 0 else ""
+                current_chunk = overlap_text + " " + para if overlap_text else para
+
+        # Add remaining content
+        if current_chunk.strip():
+            chunks.append({
+                "id": f"wc_{uuid.uuid4().hex[:8]}",
+                "content": current_chunk.strip(),
+                "source_url": source_url,
+                "index": len(chunks)
+            })
+
+        return chunks
+
+    async def _index_to_neo4j(
+        self,
+        web_source: WebSource,
+        chunks: List[Dict[str, Any]]
+    ) -> bool:
+        """
+        Index web source and chunks to Neo4j with embeddings.
+        """
+        try:
+            from .web_source_indexer import get_web_source_indexer
+
+            indexer = get_web_source_indexer()
+            success = await indexer.index_web_source(
+                web_source_id=web_source.id,
+                url=web_source.url,
+                title=web_source.metadata.title or web_source.display_name,
+                content=web_source.extracted_text or "",
+                chunks=chunks,
+                metadata={
+                    "domain": web_source.domain,
+                    "content_type": web_source.metadata.content_type.value if web_source.metadata.content_type else "generic",
+                    "language": web_source.metadata.language,
+                    "author": web_source.metadata.author,
+                    "tags": web_source.tags
+                }
+            )
+            return success
+        except Exception as e:
+            print(f"[WebContentService] Neo4j indexing failed: {e}")
+            return False
+
+    def _dict_to_web_source(self, data: Dict[str, Any]) -> WebSource:
+        """Convert repository dict to WebSource object."""
+        from ..models.web_source import (
+            WebSourceMetadata, WebSourceStats, LinkInfo, ImageFromWeb,
+            ContentType
+        )
+
+        # Parse metadata
+        metadata_dict = data.get("metadata") or {}
+        content_type_str = metadata_dict.get("content_type", "generic")
+        try:
+            content_type = ContentType(content_type_str)
+        except ValueError:
+            content_type = ContentType.GENERIC
+
+        metadata = WebSourceMetadata(
+            title=metadata_dict.get("title"),
+            description=metadata_dict.get("description"),
+            author=metadata_dict.get("author"),
+            site_name=metadata_dict.get("site_name"),
+            og_image=metadata_dict.get("og_image"),
+            language=metadata_dict.get("language"),
+            keywords=metadata_dict.get("keywords", []),
+            canonical_url=metadata_dict.get("canonical_url"),
+            content_type=content_type
+        )
+
+        # Parse stats
+        stats = WebSourceStats(
+            word_count=data.get("word_count", 0),
+            char_count=data.get("char_count", 0),
+            chunk_count=data.get("chunk_count", 0),
+            link_count=data.get("link_count", 0),
+            image_count=data.get("image_count", 0),
+            fetch_time_ms=data.get("fetch_time_ms", 0),
+            extraction_time_ms=data.get("extraction_time_ms", 0)
+        )
+
+        # Parse links
+        links = []
+        for link_data in (data.get("extracted_links") or []):
+            links.append(LinkInfo(
+                url=link_data.get("url", ""),
+                text=link_data.get("text", ""),
+                is_internal=link_data.get("is_internal", False)
+            ))
+
+        # Parse images
+        images = []
+        for img_data in (data.get("extracted_images") or []):
+            images.append(ImageFromWeb(
+                url=img_data.get("url", ""),
+                alt_text=img_data.get("alt_text", ""),
+                caption=img_data.get("caption", ""),
+                width=img_data.get("width"),
+                height=img_data.get("height")
+            ))
+
+        # Parse status
+        status_str = data.get("status", "pending")
+        try:
+            status = WebSourceStatus(status_str)
+        except ValueError:
+            status = WebSourceStatus.PENDING
+
+        # Parse extractor
+        extractor_str = data.get("extractor", "trafilatura")
+        try:
+            extractor = ExtractorType(extractor_str)
+        except ValueError:
+            extractor = ExtractorType.TRAFILATURA
+
+        return WebSource(
+            id=data.get("id"),
+            url=data.get("url"),
+            display_name=data.get("display_name"),
+            domain=data.get("domain"),
+            extractor=extractor,
+            include_images=data.get("include_images", False),
+            include_links=data.get("include_links", False),
+            status=status,
+            http_status_code=data.get("http_status_code"),
+            error_message=data.get("error_message"),
+            retry_count=data.get("retry_count", 0),
+            extracted_text=data.get("extracted_text"),
+            extracted_links=links,
+            extracted_images=images,
+            content_hash=data.get("content_hash"),
+            metadata=metadata,
+            stats=stats,
+            tags=data.get("tags", []),
+            created_at=data.get("created_at"),
+            updated_at=data.get("updated_at"),
+            fetched_at=data.get("fetched_at"),
+            processed_at=data.get("processed_at"),
+            created_by=data.get("user_id")
+        )
+
+    async def get_web_source(self, web_source_id: str) -> Optional[WebSource]:
+        """Get web source by ID"""
+        # Check processing cache first
+        if web_source_id in self._processing_cache:
+            return self._processing_cache[web_source_id]
+
+        # Load from repository
+        repo = await self._get_repository()
+        if repo:
+            data = await repo.get(web_source_id)
+            if data:
+                return self._dict_to_web_source(data)
+        return None
+
+    async def list_web_sources(
+        self,
+        user_id: Optional[str] = None,
+        status: Optional[WebSourceStatus] = None,
+        domain: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        page: int = 1,
+        limit: int = 20
+    ) -> Tuple[List[WebSourceListItem], int]:
+        """List web sources with filtering"""
+        repo = await self._get_repository()
+        if repo:
+            # Use repository for persistent data
+            status_str = status.value if status else None
+            sources_data, total = await repo.list(
+                user_id=user_id,
+                status=status_str,
+                domain=domain,
+                tags=tags,
+                page=page,
+                limit=limit
+            )
+
+            # Merge with processing cache for real-time status
+            list_items = []
+            for data in sources_data:
+                ws_id = data.get("id")
+                # Check if in processing cache for latest status
+                if ws_id in self._processing_cache:
+                    s = self._processing_cache[ws_id]
+                    list_items.append(WebSourceListItem(
+                        id=s.id,
+                        url=s.url,
+                        display_name=s.display_name,
+                        domain=s.domain,
+                        status=s.status,
+                        chunk_count=s.stats.chunk_count,
+                        word_count=s.stats.word_count,
+                        tags=s.tags,
+                        created_at=s.created_at,
+                        fetched_at=s.fetched_at,
+                        error_message=s.error_message
+                    ))
+                else:
+                    # Parse status
+                    status_str = data.get("status", "pending")
+                    try:
+                        ws_status = WebSourceStatus(status_str)
+                    except ValueError:
+                        ws_status = WebSourceStatus.PENDING
+
+                    list_items.append(WebSourceListItem(
+                        id=data.get("id"),
+                        url=data.get("url"),
+                        display_name=data.get("display_name"),
+                        domain=data.get("domain"),
+                        status=ws_status,
+                        chunk_count=data.get("chunk_count", 0),
+                        word_count=data.get("word_count", 0),
+                        tags=data.get("tags", []),
+                        created_at=data.get("created_at"),
+                        fetched_at=data.get("fetched_at"),
+                        error_message=data.get("error_message")
+                    ))
+
+            return list_items, total
+
+        # Fallback to processing cache only (no repository)
+        sources = list(self._processing_cache.values())
+
+        # Apply filters
+        if user_id:
+            sources = [s for s in sources if s.created_by == user_id]
+        if status:
+            sources = [s for s in sources if s.status == status]
+        if domain:
+            sources = [s for s in sources if domain.lower() in s.domain.lower()]
+        if tags:
+            sources = [s for s in sources if any(t in s.tags for t in tags)]
+
+        # Sort by created_at descending
+        sources.sort(key=lambda x: x.created_at, reverse=True)
+
+        total = len(sources)
+        start = (page - 1) * limit
+        end = start + limit
+
+        # Convert to list items
+        list_items = [
+            WebSourceListItem(
+                id=s.id,
+                url=s.url,
+                display_name=s.display_name,
+                domain=s.domain,
+                status=s.status,
+                chunk_count=s.stats.chunk_count,
+                word_count=s.stats.word_count,
+                tags=s.tags,
+                created_at=s.created_at,
+                fetched_at=s.fetched_at,
+                error_message=s.error_message
+            )
+            for s in sources[start:end]
+        ]
+
+        return list_items, total
+
+    async def refresh_web_source(
+        self,
+        web_source_id: str,
+        force: bool = False
+    ) -> Tuple[bool, str]:
+        """Refresh web source content"""
+        web_source = await self.get_web_source(web_source_id)
+        if not web_source:
+            return False, "Web source not found"
+
+        if web_source.status in [WebSourceStatus.FETCHING, WebSourceStatus.EXTRACTING,
+                                  WebSourceStatus.CHUNKING, WebSourceStatus.EMBEDDING]:
+            return False, "Processing in progress"
+
+        # Fetch new content
+        html_content, status_code, error = await self.fetch_url(web_source.url)
+        if html_content is None:
+            return False, error or "Failed to fetch content"
+
+        # Check if content changed
+        new_hash = self._compute_content_hash(html_content)
+        if not force and new_hash == web_source.content_hash:
+            web_source.stats.last_checked = datetime.now(timezone.utc)
+            return True, "Content unchanged"
+
+        # Content changed - reprocess
+        web_source.content_hash = new_hash
+        self._processing_cache[web_source_id] = web_source
+
+        repo = await self._get_repository()
+        if repo:
+            await repo.update(web_source_id, content_hash=new_hash)
+
+        asyncio.create_task(self._process_web_source(web_source_id))
+        return True, "Refresh started"
+
+    async def delete_web_source(
+        self,
+        web_source_id: str,
+        user_id: Optional[str] = None
+    ) -> bool:
+        """Delete a web source and its index from Neo4j"""
+        repo = await self._get_repository()
+
+        # Get web source to check ownership
+        web_source = await self.get_web_source(web_source_id)
+        if not web_source:
+            # Also check repository directly
+            if repo:
+                data = await repo.get(web_source_id)
+                if not data:
+                    return False
+                # Check ownership
+                if user_id and data.get("user_id") and data.get("user_id") != user_id:
+                    return False
+            else:
+                return False
+        else:
+            # Check ownership if user_id provided
+            if user_id and web_source.created_by and web_source.created_by != user_id:
+                return False
+
+        # Delete from processing cache
+        self._processing_cache.pop(web_source_id, None)
+
+        # Delete from repository (PostgreSQL)
+        if repo:
+            await repo.delete(web_source_id)
+
+        # Delete from Neo4j
+        try:
+            from .web_source_indexer import get_web_source_indexer
+            indexer = get_web_source_indexer()
+            await indexer.delete_web_source_index(web_source_id)
+        except Exception as e:
+            print(f"[WebContentService] Neo4j deletion failed: {e}")
+
+        return True
+
+    async def search_web_sources(
+        self,
+        query: str,
+        user_id: Optional[str] = None,
+        limit: int = 20
+    ) -> List[WebSourceListItem]:
+        """Search web sources by content or metadata"""
+        repo = await self._get_repository()
+        if repo:
+            # Use repository full-text search
+            results_data = await repo.search(query, user_id=user_id, limit=limit)
+
+            return [
+                WebSourceListItem(
+                    id=data.get("id"),
+                    url=data.get("url"),
+                    display_name=data.get("display_name"),
+                    domain=data.get("domain"),
+                    status=WebSourceStatus(data.get("status", "pending")),
+                    chunk_count=data.get("chunk_count", 0),
+                    word_count=data.get("word_count", 0),
+                    tags=data.get("tags", []),
+                    created_at=data.get("created_at"),
+                    fetched_at=data.get("fetched_at"),
+                    error_message=data.get("error_message")
+                )
+                for data in results_data
+            ]
+
+        # Fallback to in-memory search
+        query_lower = query.lower()
+        results = []
+
+        for source in self._processing_cache.values():
+            if source.status != WebSourceStatus.READY:
+                continue
+
+            # Search in title, URL, tags, and content
+            score = 0
+            if query_lower in source.display_name.lower():
+                score += 3
+            if query_lower in source.url.lower():
+                score += 2
+            if any(query_lower in tag.lower() for tag in source.tags):
+                score += 2
+            if source.extracted_text and query_lower in source.extracted_text.lower():
+                score += 1
+
+            if score > 0:
+                results.append((score, source))
+
+        # Sort by score descending
+        results.sort(key=lambda x: x[0], reverse=True)
+
+        return [
+            WebSourceListItem(
+                id=s.id,
+                url=s.url,
+                display_name=s.display_name,
+                domain=s.domain,
+                status=s.status,
+                chunk_count=s.stats.chunk_count,
+                word_count=s.stats.word_count,
+                tags=s.tags,
+                created_at=s.created_at,
+                fetched_at=s.fetched_at,
+                error_message=s.error_message
+            )
+            for _, s in results[:limit]
+        ]
+
+
+# Singleton instance
+_web_content_service: Optional[WebContentService] = None
+
+
+def get_web_content_service() -> WebContentService:
+    """Get or create web content service instance"""
+    global _web_content_service
+    if _web_content_service is None:
+        _web_content_service = WebContentService()
+    return _web_content_service

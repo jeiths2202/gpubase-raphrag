@@ -1,0 +1,607 @@
+{
+  "appName": "KMS 포탈",
+  "loading": "로딩 중...",
+  "error": "오류",
+  "success": "성공",
+  "cancel": "취소",
+  "confirm": "확인",
+  "save": "저장",
+  "delete": "삭제",
+  "edit": "편집",
+  "create": "생성",
+  "search": "검색",
+  "filter": "필터",
+  "sort": "정렬",
+  "refresh": "새로고침",
+  "close": "닫기",
+  "back": "뒤로",
+  "next": "다음",
+  "previous": "이전",
+  "submit": "제출",
+  "reset": "초기화",
+  "viewAll": "전체 보기",
+  "noData": "데이터가 없습니다",
+  "actions": "작업",
+  "copy": "복사",
+  "copied": "복사됨",
+  "collapseSidebar": "사이드바 접기",
+  "expandSidebar": "사이드바 펼치기",
+  "nav": {
+    "home": "홈",
+    "knowledge": "지식 베이스",
+    "productManual": "제품 매뉴얼",
+    "installGuide": "제품설치 가이드",
+    "faq": "FAQ",
+    "ims": "IMS",
+    "mindmap": "AI 스튜디오",
+    "agent": "AI 에이전트",
+    "documents": "문서",
+    "analytics": "분석",
+    "improvements": "개선 요청",
+    "admin": "관리자",
+    "settings": "설정",
+    "logout": "로그아웃",
+    "externalPortal": "외부 포털",
+    "apikeys": "API 키",
+    "mainNavigation": "메인 네비게이션"
+  },
+  "products": {
+    "tmax": "Tmax",
+    "jeus": "JEUS",
+    "tibero": "Tibero",
+    "openframe": "OpenFrame",
+    "openframeCobol": "OpenFrame COBOL",
+    "openframeAsm": "OpenFrame ASM"
+  },
+  "settings": {
+    "language": "Language / 언어 / 言語",
+    "theme": "테마",
+    "themeLight": "라이트",
+    "themeDark": "다크",
+    "themeSystem": "시스템"
+  },
+  "agent": {
+    "status": {
+      "crawling": "지식검색(crawl)하여 답변하겠습니다. 추출하는데 시간이 소요되니 잠시 기다려주세요.",
+      "ready": "데이터를 기반으로 답변할 준비가 되었습니다. 무엇을 도와 드릴까요?",
+      "searching": "데이터베이스 검색 중...",
+      "processing": "요청을 처리 중입니다...",
+      "analyzing": "요청을 분석하고 있습니다...",
+      "thinking": "생각 중...",
+      "credentials_required": "IMS 로그인이 필요합니다. IMS 계정 정보를 입력해주세요."
+    },
+    "credentials": {
+      "title": "IMS 로그인 필요",
+      "description": "이슈 관리 시스템(IMS)을 검색하려면 IMS 계정 정보를 입력해주세요.",
+      "username": "사용자 이름",
+      "usernamePlaceholder": "IMS 사용자 이름 입력",
+      "password": "비밀번호",
+      "passwordPlaceholder": "IMS 비밀번호 입력",
+      "login": "로그인",
+      "saving": "저장 중...",
+      "emptyFields": "모든 필드를 입력해주세요",
+      "saveError": "계정 정보 저장에 실패했습니다"
+    },
+    "clarification": {
+      "title": "질문 명확화",
+      "customInput": "직접 입력...",
+      "customPlaceholder": "구체적인 질문을 입력해주세요...",
+      "skip": "그대로 검색",
+      "search": "검색하기"
+    },
+    "searchResults": "검색 결과",
+    "expandAll": "모두 펼치기",
+    "collapseAll": "모두 접기",
+    "textTab": "텍스트",
+    "imagesTab": "이미지",
+    "tablesTab": "표",
+    "reliability": {
+      "title": "출처 신뢰도",
+      "high": "높음",
+      "medium": "보통",
+      "low": "낮음",
+      "factors": {
+        "sourceCount": "출처 수",
+        "similarity": "유사도",
+        "diversity": "다양성",
+        "quality": "품질"
+      }
+    },
+    "compare": {
+      "title": "문서 비교",
+      "button": "비교하기",
+      "topic": "비교 주제",
+      "topicPlaceholder": "비교할 주제나 질문을 입력하세요...",
+      "selectedDocs": "선택된 문서",
+      "comparing": "비교 중...",
+      "summary": "비교 요약",
+      "commonalities": "공통점",
+      "differences": "차이점",
+      "docContent": "문서별 내용",
+      "noContent": "이 주제에 대한 관련 내용이 없습니다.",
+      "sections": "개 섹션",
+      "minDocs": "최소 2개의 문서가 필요합니다.",
+      "maxDocs": "최대 {{count}}개의 문서만 비교할 수 있습니다.",
+      "selectMode": "비교 모드",
+      "exitMode": "비교 모드 종료"
+    },
+    "clarification": {
+      "title": "질문 명확화",
+      "customInput": "직접 입력...",
+      "customPlaceholder": "구체적인 질문을 입력해주세요...",
+      "skip": "그대로 검색",
+      "search": "검색하기"
+    },
+    "feedback": {
+      "thumbsUp": "도움이 됨",
+      "thumbsDown": "도움 안됨",
+      "thumbsUpSubmitted": "도움이 됨으로 평가됨",
+      "thumbsDownSubmitted": "도움 안됨으로 평가됨",
+      "clickToCancel": "클릭하여 취소",
+      "registerFAQ": "FAQ로 등록",
+      "regenerate": "다시 생성"
+    },
+    "faq": {
+      "registerTitle": "FAQ로 등록",
+      "question": "질문",
+      "questionPlaceholder": "질문을 입력하세요",
+      "answer": "답변",
+      "answerPlaceholder": "답변을 입력하세요",
+      "category": "카테고리",
+      "tags": "태그",
+      "tagsHint": "쉼표로 구분",
+      "tagsPlaceholder": "예: 설치, 오류, 설정",
+      "register": "등록",
+      "registering": "등록 중...",
+      "emptyFields": "질문과 답변을 입력해주세요",
+      "createError": "FAQ 등록에 실패했습니다",
+      "categories": {
+        "general": "일반",
+        "openframe": "OpenFrame",
+        "ofcobol": "OFCOBOL",
+        "ofasm": "OFASM",
+        "ims": "IMS 이슈",
+        "rag": "지식 검색"
+      }
+    }
+  },
+  "externalConnectors": {
+    "title": "외부 커넥터",
+    "description": "외부 서비스를 연결하여 대화 컨텍스트로 사용하세요.",
+    "connected": "연결됨",
+    "connect": "연결",
+    "disconnect": "연결 해제",
+    "connecting": "연결 중...",
+    "sync": "동기화",
+    "syncing": "리소스 동기화 중...",
+    "syncingHint": "약 1분 정도 소요될 수 있습니다",
+    "lastSync": "마지막 동기화",
+    "resources": "개 리소스",
+    "noResources": "리소스가 없습니다",
+    "selected": "개 선택됨",
+    "selectResources": "채팅 컨텍스트에 사용할 리소스 선택",
+    "selectHint": "선택한 리소스는 대화에서 컨텍스트로 사용됩니다",
+    "resourcesSelected": "개 리소스가 컨텍스트로 선택됨",
+    "comingSoon": "곧 출시 예정",
+    "plannedDescription": "이 커넥터는 향후 개발 예정입니다.",
+    "status": {
+      "available": "사용 가능",
+      "inDevelopment": "개발 중",
+      "planned": "예정"
+    },
+    "fields": {
+      "accessToken": "통합 토큰",
+      "accessTokenPlaceholder": "통합 토큰을 입력하세요",
+      "workspaceId": "워크스페이스 ID",
+      "workspaceIdPlaceholder": "워크스페이스 ID를 입력하세요",
+      "email": "이메일",
+      "emailPlaceholder": "Atlassian 이메일을 입력하세요",
+      "apiKey": "API 토큰",
+      "apiKeyPlaceholder": "Atlassian API 토큰을 입력하세요",
+      "siteUrl": "사이트 URL",
+      "siteUrlPlaceholder": "예: your-domain.atlassian.net (또는 /wiki 포함 전체 URL)",
+      "notionHint": "notion.so/my-integrations에서 통합 토큰을 발급받으세요",
+      "confluenceHint": "id.atlassian.com/manage-profile/security/api-tokens에서 API 토큰을 발급받으세요"
+    },
+    "error": {
+      "missingFields": "모든 필수 필드를 입력해주세요"
+    },
+    "sso": {
+      "signInWithNotion": "Notion으로 로그인",
+      "signInWithAtlassian": "Atlassian으로 로그인",
+      "signInWithGitHub": "GitHub으로 로그인",
+      "signInWithGoogle": "Google로 로그인",
+      "signInWithMicrosoft": "Microsoft로 로그인",
+      "signIn": "로그인",
+      "connectedAs": "연결된 계정",
+      "permissions": "요청 권한",
+      "secureAuth": "보안 인증",
+      "secureAuthDesc": "OAuth 2.0을 사용하여 계정에 안전하게 연결합니다. 비밀번호는 저장되지 않습니다.",
+      "authorizing": "인증 중...",
+      "authorizingDesc": "팝업 창에서 로그인을 완료해주세요.",
+      "cancel": "취소",
+      "securityInfo": "귀하의 데이터는 OAuth 2.0을 통해 안전하게 처리됩니다. 콘텐츠 접근에 필요한 권한만 요청합니다."
+    },
+    "apiToken": {
+      "label": "API 토큰",
+      "placeholder": "API 토큰을 입력하세요",
+      "hint": "Atlassian 계정 설정에서 API 토큰을 발급받을 수 있습니다."
+    },
+    "docStatus": {
+      "ready": "준비됨",
+      "processing": "처리 중...",
+      "error": "오류",
+      "notProcessed": "미처리",
+      "chunks": "청크"
+    },
+    "needsProcessing": "개 문서 처리 필요",
+    "processSelected": "선택 항목 처리",
+    "processDoc": "이 문서 처리",
+    "selectAll": "전체 선택",
+    "deselectAll": "전체 해제"
+  },
+  "embeddingQuality": {
+    "title": "임베딩 품질 검증",
+    "verifyButton": "품질 검증",
+    "reVerifyButton": "재검증",
+    "verifying": "검증 중...",
+    "score": "점수",
+    "verified": "검증 완료",
+    "levels": {
+      "excellent": "우수",
+      "good": "양호",
+      "fair": "보통",
+      "poor": "개선필요"
+    },
+    "metrics": {
+      "retrievalAccuracy": "검색 정확도",
+      "avgSimilarity": "평균 유사도",
+      "coverage": "커버리지",
+      "chunksTested": "테스트된 청크"
+    },
+    "issues": {
+      "title": "발견된 문제",
+      "lowAccuracy": "검색 정확도가 낮습니다",
+      "lowSimilarity": "평균 유사도 점수가 기대치 이하입니다",
+      "highVariance": "유사도 점수의 분산이 높습니다",
+      "lowCoverage": "일부 청크가 다른 청크들과 격리되어 있습니다"
+    },
+    "recommendations": {
+      "title": "권장 사항",
+      "adjustChunkSize": "더 나은 컨텍스트 보존을 위해 청크 크기나 오버랩을 조정하세요",
+      "reviewContent": "문서 내용을 검토하세요 - 매우 다양한 주제가 포함되어 있을 수 있습니다",
+      "reprocess": "일부 청크의 임베딩 품질이 낮습니다 - 재처리를 고려하세요",
+      "checkChunks": "특수 문자가 있거나 매우 짧은 청크를 확인하세요",
+      "excellent": "임베딩 품질이 우수합니다 - 개선이 필요 없습니다",
+      "acceptable": "임베딩 품질이 수용 가능한 수준입니다"
+    },
+    "empty": {
+      "message": "\"품질 검증\" 버튼을 클릭하여 이 문서의 임베딩 품질을 확인하세요."
+    },
+    "error": {
+      "notReady": "임베딩이 아직 준비되지 않았습니다",
+      "failed": "품질 검증에 실패했습니다"
+    }
+  },
+  "adaptive": {
+    "title": "적응형 임베딩",
+    "tabLabel": "적응형",
+    "tabLabelFull": "적응형 (PDF전용)",
+    "description": "의미적 경계 기반 구조 보존 PDF 청킹",
+    "table": {
+      "document": "문서",
+      "status": "상태",
+      "chunks": "청크",
+      "types": "유형",
+      "quality": "품질",
+      "created": "생성일",
+      "actions": "작업",
+      "allStatus": "전체 상태",
+      "uploadPdf": "PDF 업로드"
+    },
+    "upload": {
+      "title": "PDF 업로드",
+      "dropzone": "PDF 파일을 여기에 드롭하거나 클릭하여 업로드",
+      "selectFolder": "PDF가 포함된 폴더 선택",
+      "processing": "처리 중...",
+      "success": "처리가 시작되었습니다",
+      "error": "업로드 실패",
+      "noPdfInFolder": "선택한 폴더에 PDF 파일이 없습니다"
+    },
+    "options": {
+      "language": "언어",
+      "languageAuto": "자동 감지",
+      "maxChunkSize": "최대 청크 크기",
+      "minChunkSize": "최소 청크 크기",
+      "preserveTables": "테이블 보존",
+      "preserveSections": "섹션 보존",
+      "forceReprocess": "강제 재처리"
+    },
+    "status": {
+      "pending": "대기 중",
+      "analyzing": "구조 분석 중...",
+      "chunking": "청크 생성 중...",
+      "embedding": "임베딩 생성 중...",
+      "validating": "커버리지 검증 중...",
+      "completed": "완료",
+      "failed": "실패",
+      "partial": "부분 완료"
+    },
+    "chunks": {
+      "title": "청크",
+      "noChunks": "청크가 없습니다",
+      "types": {
+        "TEXT_CHUNK": "텍스트",
+        "TABLE_CHUNK": "테이블",
+        "IMAGE_CHUNK": "이미지",
+        "OCR_CHUNK": "OCR"
+      },
+      "pages": "페이지",
+      "section": "섹션",
+      "embedded": "임베딩됨",
+      "notEmbedded": "임베딩 안됨"
+    },
+    "coverage": {
+      "title": "커버리지 리포트",
+      "overall": "전체 커버리지",
+      "text": "텍스트 커버리지",
+      "table": "테이블 커버리지",
+      "image": "이미지 커버리지",
+      "ocr": "OCR 커버리지",
+      "totalChunks": "전체 청크",
+      "embeddedChunks": "임베딩된 청크"
+    },
+    "quality": {
+      "title": "품질 메트릭",
+      "topKRecall": "Top-K 재현율",
+      "sectionPrecision": "섹션 정밀도",
+      "avgSimilarity": "평균 유사도",
+      "hallucination": "환각 감지됨",
+      "issues": "문제점",
+      "recommendations": "권장 사항",
+      "levels": {
+        "excellent": "우수",
+        "good": "양호",
+        "fair": "보통",
+        "poor": "개선필요"
+      }
+    },
+    "structure": {
+      "title": "문서 구조",
+      "documentType": "문서 유형",
+      "totalPages": "전체 페이지",
+      "totalSections": "전체 섹션",
+      "totalImages": "전체 이미지",
+      "totalTables": "전체 테이블",
+      "hierarchy": "섹션 계층 구조",
+      "types": {
+        "manual": "매뉴얼",
+        "report": "보고서",
+        "paper": "논문",
+        "contract": "계약서",
+        "presentation": "프레젠테이션",
+        "form": "양식",
+        "other": "기타"
+      }
+    },
+    "search": {
+      "title": "청크 검색",
+      "placeholder": "검색어를 입력하세요...",
+      "results": "결과",
+      "noResults": "결과가 없습니다",
+      "similarity": "유사도"
+    },
+    "actions": {
+      "viewChunks": "청크 보기",
+      "viewCoverage": "커버리지 보기",
+      "viewQuality": "품질 보기",
+      "viewStructure": "구조 보기",
+      "evaluateQuality": "품질 평가 실행",
+      "delete": "삭제",
+      "refresh": "새로고침"
+    },
+    "qualityEvaluation": {
+      "completed": "품질 평가 완료",
+      "failed": "품질 평가 실패",
+      "running": "품질 평가 중..."
+    },
+    "documents": {
+      "title": "적응형 문서",
+      "empty": "적응형 문서가 없습니다",
+      "uploadFirst": "PDF를 업로드하여 시작하세요"
+    },
+    "batchDelete": {
+      "title": "선택한 문서 삭제",
+      "button": "선택 삭제",
+      "confirmMessage": "{{count}}개의 문서를 삭제하시겠습니까?",
+      "confirm": "모두 삭제",
+      "deleting": "삭제 중...",
+      "error": "일괄 삭제에 실패했습니다",
+      "partialError": "개의 문서 삭제에 실패했습니다"
+    },
+    "deleteConfirm": {
+      "single": "다음 문서를 삭제하시겠습니까:",
+      "warning": "이 작업은 문서와 관련된 모든 데이터(청크, 임베딩, 메타데이터)를 데이터베이스에서 영구적으로 삭제합니다."
+    },
+    "pending": {
+      "title": "대기 중 업로드",
+      "filename": "파일명",
+      "size": "크기",
+      "uploadedAt": "업로드 시간",
+      "deleteConfirm": "이 대기 중인 파일을 삭제하시겠습니까?"
+    },
+    "embed": {
+      "button": "임베딩 시작",
+      "optionsTitle": "임베딩 옵션",
+      "selectedFiles": "{{count}}개 파일 선택됨",
+      "start": "임베딩 시작",
+      "processing": "처리 중...",
+      "error": "임베딩 실패",
+      "progressTitle": "임베딩 진행 상황",
+      "statusPending": "대기 중",
+      "statusProcessing": "처리 중",
+      "statusCompleted": "완료",
+      "statusFailed": "실패"
+    }
+  },
+  "webPages": {
+    "title": "웹 페이지",
+    "tabLabel": "웹 페이지",
+    "description": "웹 페이지를 지식 소스로 추가",
+    "addUrl": "URL 추가",
+    "search": {
+      "placeholder": "URL, 제목, 도메인으로 검색..."
+    },
+    "filter": {
+      "allStatus": "전체 상태"
+    },
+    "table": {
+      "url": "URL",
+      "status": "상태",
+      "chunks": "청크",
+      "words": "단어",
+      "created": "생성일",
+      "actions": "작업"
+    },
+    "status": {
+      "pending": "대기 중",
+      "fetching": "가져오는 중...",
+      "extracting": "추출 중...",
+      "chunking": "청킹 중...",
+      "embedding": "임베딩 중...",
+      "ready": "완료",
+      "error": "오류"
+    },
+    "actions": {
+      "viewContent": "내용 보기",
+      "viewLinks": "링크 보기",
+      "viewImages": "이미지 보기",
+      "refresh": "새로고침",
+      "openUrl": "URL 열기"
+    },
+    "addModal": {
+      "title": "웹 페이지 추가",
+      "singleUrl": "단일 URL",
+      "bulkUrls": "일괄 URL",
+      "urlLabel": "URL",
+      "urlPlaceholder": "https://example.com/page",
+      "urlsLabel": "URL 목록 (한 줄에 하나씩)",
+      "urlsPlaceholder": "https://example.com/page1\nhttps://example.com/page2",
+      "tagsLabel": "태그 (선택사항)",
+      "tagsPlaceholder": "태그1, 태그2, 태그3",
+      "add": "추가",
+      "adding": "추가 중..."
+    },
+    "detail": {
+      "content": "내용",
+      "links": "링크",
+      "images": "이미지",
+      "wordCount": "단어 수",
+      "charCount": "문자 수",
+      "linkCount": "링크 수",
+      "imageCount": "이미지 수",
+      "noContent": "내용이 없습니다"
+    },
+    "deleteConfirm": {
+      "message": "정말 삭제하시겠습니까?",
+      "warning": "이 작업은 웹 페이지와 관련된 모든 데이터(청크, 임베딩 포함)를 영구적으로 삭제합니다."
+    },
+    "batchDelete": {
+      "title": "선택 항목 삭제",
+      "button": "선택 삭제",
+      "message": "{{count}}개의 웹 페이지를 삭제하시겠습니까?",
+      "confirm": "모두 삭제",
+      "deleting": "삭제 중..."
+    },
+    "empty": {
+      "title": "웹 페이지 없음",
+      "description": "웹 페이지를 추가하여 RAG 지식 소스로 활용하세요"
+    },
+    "errors": {
+      "loadFailed": "웹 페이지 로드 실패",
+      "addFailed": "웹 페이지 추가 실패",
+      "deleteFailed": "웹 페이지 삭제 실패",
+      "refreshFailed": "웹 페이지 새로고침 실패",
+      "invalidUrl": "http:// 또는 https://로 시작하는 유효한 URL을 입력하세요"
+    }
+  },
+  "searchProgress": {
+    "title": "지식 검색 진행 상황",
+    "query": "검색어",
+    "results": "건",
+    "totalResults": "총 검색 결과",
+    "searching": "검색 중...",
+    "expandAll": "모두 펼치기",
+    "collapseAll": "모두 접기",
+    "showMore": "더 보기",
+    "showLess": "접기",
+    "waiting": "대기 중...",
+    "running": "검색 중...",
+    "noResults": "검색 결과 없음",
+    "unknownError": "알 수 없는 오류가 발생했습니다",
+    "queryCorrected": "검색어가 자동 수정됨",
+    "queryCorrectedNotice": "인코딩 문제로 검색어가 자동 수정되었습니다",
+    "tools": {
+      "adaptive_search": "적응형 PDF 검색",
+      "vector_search": "벡터 검색",
+      "graph_query": "그래프 쿼리",
+      "document_read": "문서 읽기"
+    }
+  },
+  "ragProgress": {
+    "queryAnalysis": "키워드 분석",
+    "keywords": "키워드",
+    "intent": "의도",
+    "extractedKeywords": "추출된 키워드",
+    "searchStrategy": "검색 전략",
+    "tokenCount": "토큰 수",
+    "chunkStructure": "문서 청킹 구조",
+    "chunks": "청크",
+    "chunkTypes": "청크 타입",
+    "pageDistribution": "페이지 분포",
+    "avgChunkSize": "평균 청크 크기",
+    "preview": "미리보기",
+    "embeddingInfo": "임베딩 정보",
+    "scoreDistribution": "점수 분포",
+    "topMatches": "상위 매치",
+    "toolProgress": "Tool 처리과정",
+    "generationProgress": "답변 생성 과정",
+    "completed": "완료",
+    "sourcesUsed": "사용된 소스",
+    "toolsUsed": "사용된 도구",
+    "answerLength": "답변 길이",
+    "chunkProgress": "청크 진행",
+    "preparingAnswer": "답변 준비 중..."
+  },
+  "displayMode": {
+    "inline": "인라인 모드로 전환",
+    "floating": "플로팅 모드로 전환",
+    "inlineDescription": "채팅에서 결과 표시",
+    "floatingDescription": "플로팅 패널에서 결과 표시"
+  },
+  "minimize": "최소화",
+  "closeAll": "모두 닫기",
+  "query": "검색어",
+  "clarification": {
+    "title": "검색어 명확화",
+    "query": "입력한 검색어",
+    "infoMessage": "검색어에 여러 의미를 가질 수 있는 용어가 포함되어 있습니다. 더 정확한 검색 결과를 위해 각 용어의 의도된 의미를 선택해 주세요.",
+    "selected": "선택됨",
+    "confirm": "확인 및 검색",
+    "remember": "이 선택을 다음 검색에도 적용",
+    "autoResolved": "자동 해석됨",
+    "preferenceSaved": "개 선호도 저장됨",
+    "preferencesSaved": "개 선호도 저장됨"
+  },
+  "home": {
+    "stats": {
+      "documentsIndexed": "색인된 문서",
+      "queriesThisMonth": "이번 달 쿼리",
+      "activeUsers": "활성 사용자",
+      "avgResponseTime": "평균 응답 시간"
+    },
+    "recentActivity": "최근 활동",
+    "noRecentActivity": "최근 활동이 없습니다",
+    "startConversation": "대화 시작하기"
+  }
+}

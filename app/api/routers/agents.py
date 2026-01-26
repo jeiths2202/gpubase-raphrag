@@ -1,0 +1,841 @@
+"""
+Agent API Router
+Provides endpoints for agent execution.
+"""
+from typing import Optional, List
+import logging
+import json
+import io
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+
+from ..core.deps import get_current_user, get_current_user_or_api_key
+from ..agents import (
+    AgentOrchestrator,
+    get_orchestrator,
+    AgentRequest,
+    AgentResponse,
+    AgentType,
+    get_tool_registry,
+    get_agent_registry,
+)
+from ..agents.types import (
+    EnterpriseAgentRequest,
+    EnterpriseAgentResponse,
+    OrchestrationConfig,
+    EvaluationCriteria,
+    RetryConfig,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/agents", tags=["agents"])
+
+
+# Dependency for orchestrator
+async def get_agent_orchestrator() -> AgentOrchestrator:
+    """Get the agent orchestrator"""
+    return get_orchestrator()
+
+
+# Response models
+class AgentInfo(BaseModel):
+    """Agent information"""
+    type: str
+    name: str
+    description: str
+    tools: List[str]
+
+
+class ToolInfo(BaseModel):
+    """Tool information"""
+    name: str
+    description: str
+
+
+class AgentListResponse(BaseModel):
+    """Response for listing agents"""
+    agents: List[AgentInfo]
+
+
+class ToolListResponse(BaseModel):
+    """Response for listing tools"""
+    tools: List[ToolInfo]
+
+
+@router.post("/execute", response_model=AgentResponse)
+async def execute_agent(
+    request: AgentRequest,
+    auth_context: dict = Depends(get_current_user_or_api_key),
+    orchestrator: AgentOrchestrator = Depends(get_agent_orchestrator)
+) -> AgentResponse:
+    """
+    Execute an agent task.
+
+    The agent will be automatically selected based on the task,
+    or you can specify a specific agent_type.
+
+    Supports both JWT authentication and API key authentication.
+    API keys may have restrictions on allowed agent types.
+
+    Args:
+        request: Agent execution request
+        auth_context: Authenticated user or API key
+        orchestrator: Agent orchestrator
+
+    Returns:
+        AgentResponse with answer and metadata
+    """
+    try:
+        # Check API key permissions for agent type
+        if auth_context.get("auth_type") == "api_key":
+            allowed_types = auth_context.get("allowed_agent_types", [])
+            requested_type = request.agent_type or "auto"
+
+            if allowed_types and requested_type not in allowed_types and "*" not in allowed_types:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "code": "AGENT_TYPE_NOT_ALLOWED",
+                        "message": f"Agent type '{requested_type}' is not allowed for this API key. Allowed types: {allowed_types}"
+                    }
+                )
+
+        user_id = auth_context.get("id") or auth_context.get("sub")
+
+        response = await orchestrator.execute(request, user_id=user_id)
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Agent execution failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "AGENT_ERROR", "message": str(e)}
+        )
+
+
+@router.post("/stream")
+async def stream_agent(
+    request: AgentRequest,
+    auth_context: dict = Depends(get_current_user_or_api_key),
+    orchestrator: AgentOrchestrator = Depends(get_agent_orchestrator)
+):
+    """
+    Stream agent execution using Server-Sent Events (SSE).
+
+    Provides real-time updates as the agent thinks and acts.
+
+    Supports both JWT authentication and API key authentication.
+    API keys may have restrictions on allowed agent types.
+
+    Args:
+        request: Agent execution request
+        auth_context: Authenticated user or API key
+        orchestrator: Agent orchestrator
+
+    Returns:
+        StreamingResponse with SSE events
+    """
+    # Check API key permissions for agent type
+    if auth_context.get("auth_type") == "api_key":
+        allowed_types = auth_context.get("allowed_agent_types", [])
+        requested_type = request.agent_type or "auto"
+
+        if allowed_types and requested_type not in allowed_types and "*" not in allowed_types:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "AGENT_TYPE_NOT_ALLOWED",
+                    "message": f"Agent type '{requested_type}' is not allowed for this API key. Allowed types: {allowed_types}"
+                }
+            )
+
+    user_id = auth_context.get("id") or auth_context.get("sub")
+
+    # Debug: log file_context presence
+    file_context_len = len(request.file_context) if request.file_context else 0
+    print(f"[AgentsRouter] Request: task={request.task[:50]}..., file_context={file_context_len} chars", flush=True)
+    if file_context_len > 0:
+        print(f"[AgentsRouter] file_context preview: {request.file_context[:200]}...", flush=True)
+
+    async def generate():
+        try:
+            async for chunk in orchestrator.stream(request, user_id=user_id):
+                data = chunk.model_dump()
+                # Debug: log sources chunk
+                if chunk.chunk_type == "sources":
+                    print(f"[AgentsRouter] Sending sources chunk: {len(chunk.sources or [])} sources", flush=True)
+                    print(f"[AgentsRouter] Sources data: {data.get('sources', [])[:2]}", flush=True)
+                yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.error(f"Agent streaming failed: {e}")
+            yield f"data: {json.dumps({'chunk_type': 'error', 'content': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@router.get("/types", response_model=AgentListResponse)
+async def list_agents(
+    orchestrator: AgentOrchestrator = Depends(get_agent_orchestrator)
+) -> AgentListResponse:
+    """
+    List available agent types.
+
+    Returns information about all registered agents.
+    """
+    agents = orchestrator.get_available_agents()
+    return AgentListResponse(
+        agents=[AgentInfo(**a) for a in agents]
+    )
+
+
+@router.get("/tools", response_model=ToolListResponse)
+async def list_tools() -> ToolListResponse:
+    """
+    List available tools.
+
+    Returns information about all registered tools.
+    """
+    registry = get_tool_registry()
+    tools = [
+        ToolInfo(name=t.name, description=t.description)
+        for t in registry.get_all()
+    ]
+    return ToolListResponse(tools=tools)
+
+
+@router.post("/classify")
+async def classify_task(
+    task: str,
+    use_llm: bool = False,
+    orchestrator: AgentOrchestrator = Depends(get_agent_orchestrator)
+) -> dict:
+    """
+    Classify a task to determine the appropriate agent type.
+
+    Args:
+        task: The task to classify
+        use_llm: Whether to use LLM for classification (slower but more accurate)
+        orchestrator: Agent orchestrator
+
+    Returns:
+        Classification result with agent type and confidence
+    """
+    if use_llm:
+        agent_type = await orchestrator.classify_with_llm(task)
+    else:
+        agent_type = await orchestrator.classify_task(task)
+
+    return {
+        "task": task,
+        "agent_type": agent_type.value,
+        "method": "llm" if use_llm else "keyword"
+    }
+
+
+# =========================================================================
+# Enterprise Multi-Agent Orchestration Endpoints
+# =========================================================================
+
+@router.post("/enterprise/execute", response_model=EnterpriseAgentResponse)
+async def execute_enterprise_agent(
+    request: EnterpriseAgentRequest,
+    auth_context: dict = Depends(get_current_user_or_api_key),
+    orchestrator: AgentOrchestrator = Depends(get_agent_orchestrator)
+) -> EnterpriseAgentResponse:
+    """
+    Execute an enterprise multi-agent task with orchestration.
+
+    Supports task decomposition into subtasks, parallel execution,
+    result evaluation with retry logic, and final answer synthesis.
+
+    Features:
+    - Automatic task decomposition into DAG of subtasks
+    - Parallel agent execution for independent subtasks
+    - Result quality evaluation with configurable criteria
+    - Automatic retry on failure or low quality
+    - Multi-result synthesis into coherent answer
+    - Next-action recommendations
+    - Full execution trace for explainability
+
+    Supports both JWT authentication and API key authentication.
+
+    Args:
+        request: Enterprise agent request with orchestration config
+        auth_context: Authenticated user or API key
+        orchestrator: Agent orchestrator
+
+    Returns:
+        EnterpriseAgentResponse with synthesized answer, trace, and metadata
+    """
+    try:
+        # Check API key permissions
+        if auth_context.get("auth_type") == "api_key":
+            allowed_types = auth_context.get("allowed_agent_types", [])
+            requested_type = request.agent_type or "auto"
+
+            if allowed_types and requested_type not in allowed_types and "*" not in allowed_types:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "code": "AGENT_TYPE_NOT_ALLOWED",
+                        "message": f"Agent type '{requested_type}' is not allowed for this API key."
+                    }
+                )
+
+        user_id = auth_context.get("id") or auth_context.get("sub")
+
+        response = await orchestrator.execute_enterprise(request, user_id=user_id)
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Enterprise agent execution failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ENTERPRISE_AGENT_ERROR", "message": str(e)}
+        )
+
+
+@router.post("/enterprise/stream")
+async def stream_enterprise_agent(
+    request: EnterpriseAgentRequest,
+    auth_context: dict = Depends(get_current_user_or_api_key),
+    orchestrator: AgentOrchestrator = Depends(get_agent_orchestrator)
+):
+    """
+    Stream enterprise multi-agent execution using Server-Sent Events (SSE).
+
+    Provides real-time updates from parallel agent execution with
+    interleaved streaming from multiple agents.
+
+    Event types:
+    - orchestration_start: Orchestration has started
+    - dag_created: Task DAG has been created, shows subtask breakdown
+    - batch_start: Starting a batch of parallel tasks
+    - agent_start: Individual agent has started
+    - agent_chunk: Streaming output from an agent
+    - agent_done: Individual agent has completed
+    - batch_done: Batch of parallel tasks completed
+    - evaluation: Result evaluation complete
+    - retry: Retrying a failed task
+    - synthesis: Synthesizing results from multiple agents
+    - next_actions: Recommended next actions
+    - done: Orchestration complete
+    - error: Error occurred
+
+    Supports both JWT authentication and API key authentication.
+
+    Args:
+        request: Enterprise agent request with orchestration config
+        auth_context: Authenticated user or API key
+        orchestrator: Agent orchestrator
+
+    Returns:
+        StreamingResponse with SSE events
+    """
+    # Check API key permissions
+    if auth_context.get("auth_type") == "api_key":
+        allowed_types = auth_context.get("allowed_agent_types", [])
+        requested_type = request.agent_type or "auto"
+
+        if allowed_types and requested_type not in allowed_types and "*" not in allowed_types:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "AGENT_TYPE_NOT_ALLOWED",
+                    "message": f"Agent type '{requested_type}' is not allowed for this API key."
+                }
+            )
+
+    user_id = auth_context.get("id") or auth_context.get("sub")
+
+    async def generate():
+        try:
+            async for chunk in orchestrator.stream_enterprise(request, user_id=user_id):
+                data = chunk.model_dump()
+                # Debug log for key chunk types
+                if chunk.chunk_type in ("synthesis", "agent_chunk", "text"):
+                    content_preview = (chunk.content or "")[:100] if chunk.content else "no content"
+                    logger.info(f"[Enterprise] chunk_type={chunk.chunk_type}, content_preview={content_preview}")
+                yield f"data: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
+        except Exception as e:
+            logger.error(f"Enterprise agent streaming failed: {e}")
+            yield f"data: {json.dumps({'chunk_type': 'error', 'content': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+class OrchestrationConfigResponse(BaseModel):
+    """Response for orchestration configuration"""
+    enable_parallel: bool
+    enable_retry: bool
+    enable_evaluation: bool
+    continue_on_failure: bool
+    enable_synthesis: bool
+    enable_next_actions: bool
+    evaluation_criteria: dict
+    retry_config: dict
+
+
+@router.get("/enterprise/config", response_model=OrchestrationConfigResponse)
+async def get_default_orchestration_config() -> OrchestrationConfigResponse:
+    """
+    Get default orchestration configuration.
+
+    Returns the default configuration values that can be used
+    as a template for enterprise agent requests.
+
+    Returns:
+        Default OrchestrationConfig values
+    """
+    default_config = OrchestrationConfig()
+    default_criteria = EvaluationCriteria()
+    default_retry = RetryConfig()
+
+    return OrchestrationConfigResponse(
+        enable_parallel=default_config.enable_parallel,
+        enable_retry=default_config.enable_retry,
+        enable_evaluation=default_config.enable_evaluation,
+        continue_on_failure=default_config.continue_on_failure,
+        enable_synthesis=default_config.enable_synthesis,
+        enable_next_actions=default_config.enable_next_actions,
+        evaluation_criteria={
+            "min_confidence": default_criteria.min_confidence,
+            "require_sources": default_criteria.require_sources,
+            "min_answer_length": default_criteria.min_answer_length,
+            "max_execution_time": default_criteria.max_execution_time,
+        },
+        retry_config={
+            "max_retries": default_retry.max_retries,
+            "backoff_factor": default_retry.backoff_factor,
+            "initial_delay": default_retry.initial_delay,
+            "retry_on_failure": default_retry.retry_on_failure,
+            "retry_on_low_quality": default_retry.retry_on_low_quality,
+        }
+    )
+
+
+# Health check endpoint
+@router.get("/health")
+async def agent_health():
+    """
+    Check agent system health.
+
+    Returns status of agent and tool registries.
+    """
+    try:
+        tool_registry = get_tool_registry()
+        agent_registry = get_agent_registry()
+
+        return {
+            "status": "healthy",
+            "agents_registered": len(agent_registry.get_all_types()),
+            "tools_registered": len(tool_registry.get_names())
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e)
+        }
+
+
+class ExtractTextResponse(BaseModel):
+    """Response for file text extraction"""
+    filename: str
+    content: str
+    size: int
+    file_type: str
+
+
+@router.post("/extract-text", response_model=ExtractTextResponse)
+async def extract_text_from_file(
+    file: UploadFile = File(..., description="PDF or DOCX file to extract text from"),
+    current_user: dict = Depends(get_current_user)
+) -> ExtractTextResponse:
+    """
+    Extract text from PDF or DOCX files for RAG context.
+
+    This endpoint is used by the WebUI to support PDF/DOCX file attachments.
+    The extracted text can be used as file_context in agent requests.
+
+    Args:
+        file: Uploaded PDF or DOCX file (max 2MB)
+        current_user: Authenticated user
+
+    Returns:
+        ExtractTextResponse with extracted text content
+    """
+    # Check file extension
+    filename = file.filename or "unknown"
+    ext = filename.lower().split(".")[-1] if "." in filename else ""
+
+    if ext not in ("pdf", "docx"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "INVALID_FILE_TYPE", "message": f"Only PDF and DOCX files are supported. Got: .{ext}"}
+        )
+
+    # Read file content
+    try:
+        content_bytes = await file.read()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "FILE_READ_ERROR", "message": str(e)}
+        )
+
+    # Check file size (2MB limit)
+    max_size = 2 * 1024 * 1024
+    if len(content_bytes) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "FILE_TOO_LARGE", "message": f"File too large: {len(content_bytes):,} bytes (max 2MB)"}
+        )
+
+    # Extract text based on file type
+    try:
+        if ext == "pdf":
+            text_content = _extract_pdf_text(content_bytes)
+        else:  # docx
+            text_content = _extract_docx_text(content_bytes)
+    except ImportError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "MISSING_DEPENDENCY", "message": str(e)}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "EXTRACTION_ERROR", "message": f"Failed to extract text: {e}"}
+        )
+
+    # Check extracted text size (500KB limit)
+    max_text_size = 500 * 1024
+    if len(text_content) > max_text_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "CONTENT_TOO_LARGE", "message": f"Extracted content too large: {len(text_content):,} chars (max 500KB)"}
+        )
+
+    return ExtractTextResponse(
+        filename=filename,
+        content=text_content,
+        size=len(text_content),
+        file_type=ext
+    )
+
+
+def _extract_pdf_text(content_bytes: bytes) -> str:
+    """Extract text from PDF bytes using pypdf"""
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        try:
+            from PyPDF2 import PdfReader
+        except ImportError:
+            raise ImportError("PDF support requires 'pypdf' or 'PyPDF2'. Install with: pip install pypdf")
+
+    text_parts = []
+    reader = PdfReader(io.BytesIO(content_bytes))
+
+    for i, page in enumerate(reader.pages):
+        page_text = page.extract_text()
+        if page_text:
+            text_parts.append(f"[Page {i + 1}]\n{page_text}")
+
+    if not text_parts:
+        raise ValueError("Could not extract text from PDF (may be image-based)")
+
+    return "\n\n".join(text_parts)
+
+
+def _extract_docx_text(content_bytes: bytes) -> str:
+    """Extract text from DOCX bytes using python-docx"""
+    try:
+        from docx import Document
+    except ImportError:
+        raise ImportError("DOCX support requires 'python-docx'. Install with: pip install python-docx")
+
+    doc = Document(io.BytesIO(content_bytes))
+    text_parts = []
+
+    for para in doc.paragraphs:
+        if para.text.strip():
+            text_parts.append(para.text)
+
+    # Also extract text from tables
+    for table in doc.tables:
+        for row in table.rows:
+            row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+            if row_text:
+                text_parts.append(row_text)
+
+    if not text_parts:
+        raise ValueError("Could not extract text from DOCX")
+
+    return "\n".join(text_parts)
+
+
+class AnalyzeImageResponse(BaseModel):
+    """Response for image analysis"""
+    filename: str
+    description: str
+    ocr_text: str
+    image_type: str
+    confidence: float
+
+
+# Supported image extensions
+IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "bmp", "webp"}
+
+
+@router.post("/analyze-image", response_model=AnalyzeImageResponse)
+async def analyze_image_file(
+    file: UploadFile = File(..., description="Image file to analyze"),
+    current_user: dict = Depends(get_current_user)
+) -> AnalyzeImageResponse:
+    """
+    Analyze an image file using VLM (Vision Language Model).
+
+    Extracts:
+    - Visual description of the image
+    - OCR text extraction
+    - Image type classification
+
+    Args:
+        file: Uploaded image file (max 5MB)
+        current_user: Authenticated user
+
+    Returns:
+        AnalyzeImageResponse with description and OCR text
+    """
+    # Check file extension
+    filename = file.filename or "unknown"
+    ext = filename.lower().split(".")[-1] if "." in filename else ""
+
+    if ext not in IMAGE_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "INVALID_FILE_TYPE",
+                "message": f"Only image files are supported. Got: .{ext}. Supported: {', '.join(IMAGE_EXTENSIONS)}"
+            }
+        )
+
+    # Read file content
+    try:
+        content_bytes = await file.read()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "FILE_READ_ERROR", "message": str(e)}
+        )
+
+    # Check file size (5MB limit)
+    max_size = 5 * 1024 * 1024
+    if len(content_bytes) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "FILE_TOO_LARGE", "message": f"File too large: {len(content_bytes):,} bytes (max 5MB)"}
+        )
+
+    # Analyze image using VLM service
+    try:
+        description, ocr_text, confidence = await _analyze_image_with_vlm(content_bytes, filename)
+    except Exception as e:
+        logger.error(f"Image analysis failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "ANALYSIS_ERROR", "message": f"Failed to analyze image: {e}"}
+        )
+
+    return AnalyzeImageResponse(
+        filename=filename,
+        description=description,
+        ocr_text=ocr_text,
+        image_type=ext,
+        confidence=confidence
+    )
+
+
+async def _analyze_image_with_vlm(content_bytes: bytes, filename: str) -> tuple[str, str, float]:
+    """
+    Analyze image using VLM service.
+
+    Returns:
+        Tuple of (description, ocr_text, confidence)
+    """
+    try:
+        from ..services.ollama_vlm_service import OllamaVLMService
+
+        vlm_service = OllamaVLMService()
+
+        # Get image description
+        description_result = await vlm_service.describe_image(
+            image_data=content_bytes,
+            prompt="이 이미지를 상세하게 설명해주세요. 이미지에 보이는 주요 요소, 텍스트, 다이어그램, 차트 등을 포함해서 설명해주세요.",
+            context=f"파일명: {filename}"
+        )
+
+        description = description_result.get("description", "이미지 설명을 생성할 수 없습니다.")
+        confidence = description_result.get("confidence", 0.5)
+
+        # Extract OCR text
+        ocr_result = await vlm_service.extract_text_ocr(
+            image_data=content_bytes,
+            language="auto"
+        )
+
+        ocr_text = ocr_result.get("text", "")
+
+        return description, ocr_text, confidence
+
+    except ImportError:
+        # Fallback if VLM service is not available
+        logger.warning("VLM service not available, using fallback")
+        return (
+            f"이미지 파일: {filename} (VLM 서비스를 사용할 수 없어 분석이 제한됩니다)",
+            "",
+            0.0
+        )
+    except Exception as e:
+        logger.error(f"VLM analysis error: {e}")
+        # Return partial result on error
+        return (
+            f"이미지 파일: {filename} (분석 중 오류 발생: {str(e)[:100]})",
+            "",
+            0.0
+        )
+
+
+class FetchUrlRequest(BaseModel):
+    """Request for URL content fetching"""
+    url: str = Field(..., description="URL to fetch content from")
+
+
+class FetchUrlResponse(BaseModel):
+    """Response for URL content fetching"""
+    url: str
+    title: str | None = None
+    content: str
+    char_count: int
+    word_count: int
+    success: bool = True
+    error: str | None = None
+    warning: str | None = None  # Set when URL was redirected to a different page
+
+
+@router.post("/fetch-url", response_model=FetchUrlResponse)
+async def fetch_url_content(
+    request: FetchUrlRequest,
+    auth_context: dict = Depends(get_current_user_or_api_key)
+) -> FetchUrlResponse:
+    """
+    Fetch and extract text content from a URL for RAG context.
+
+    This endpoint fetches the URL content and extracts readable text,
+    which can be used as url_context in agent requests.
+
+    Supports both JWT authentication and API key authentication.
+
+    Args:
+        request: URL fetch request
+        auth_context: Authenticated user or API key
+
+    Returns:
+        FetchUrlResponse with extracted text content
+    """
+    from ..services.web_content_service import get_web_content_service
+
+    try:
+        web_service = get_web_content_service()
+
+        # Fetch HTML with frameset handling and redirect check
+        html_content, status_code, error, is_frameset, redirect_warning = await web_service.fetch_url_with_frameset_handling(request.url)
+        if html_content is None:
+            return FetchUrlResponse(
+                url=request.url,
+                content="",
+                char_count=0,
+                word_count=0,
+                success=False,
+                error=error or f"Failed to fetch URL (HTTP {status_code})",
+                warning=redirect_warning
+            )
+
+        if is_frameset:
+            logger.info(f"Processed frameset URL: {request.url}")
+
+        if redirect_warning:
+            logger.warning(f"URL redirect detected: {redirect_warning}")
+
+        # Extract metadata for title
+        metadata = web_service.extractor.extract_metadata(html_content, request.url)
+
+        # Extract text content
+        extraction = await web_service.extractor.extract_with_trafilatura(html_content, request.url)
+        if not extraction.success or not extraction.text_content:
+            # Fallback to BeautifulSoup
+            extraction = await web_service.extractor.extract_with_beautifulsoup(html_content, request.url)
+
+        if not extraction.success or not extraction.text_content:
+            return FetchUrlResponse(
+                url=request.url,
+                title=metadata.title,
+                content="",
+                char_count=0,
+                word_count=0,
+                success=False,
+                error="Failed to extract text content from URL",
+                warning=redirect_warning
+            )
+
+        # Truncate if too large (max 50KB)
+        content = extraction.text_content
+        max_size = 50 * 1024
+        if len(content) > max_size:
+            content = content[:max_size] + "\n\n[... content truncated ...]"
+
+        return FetchUrlResponse(
+            url=request.url,
+            title=metadata.title,
+            content=content,
+            char_count=len(content),
+            word_count=len(content.split()),
+            success=True,
+            warning=redirect_warning
+        )
+
+    except Exception as e:
+        logger.error(f"URL fetch failed: {e}")
+        return FetchUrlResponse(
+            url=request.url,
+            content="",
+            char_count=0,
+            word_count=0,
+            success=False,
+            error=str(e)
+        )

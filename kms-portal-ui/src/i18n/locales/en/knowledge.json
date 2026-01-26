@@ -1,0 +1,121 @@
+{
+  "title": "Knowledge Base",
+  "searchPlaceholder": "Search knowledge...",
+  "reembed": {
+    "title": "Re-Embed Document",
+    "configureButton": "Configure & Re-embed",
+    "hideParameters": "Hide Parameters",
+    "chunkSize": "Chunk Size (100-4000)",
+    "chunkSizeHint": "Characters per chunk",
+    "chunkOverlap": "Chunk Overlap (0-500)",
+    "chunkOverlapHint": "Overlap between chunks",
+    "processingMode": "Processing Mode",
+    "processingModes": {
+      "textOnly": "Text Only",
+      "imageOnly": "Image Only (OCR)",
+      "vlmEnhanced": "VLM Enhanced"
+    },
+    "enableVlm": "Enable VLM Analysis",
+    "extractTables": "Extract Tables",
+    "extractImages": "Extract Images",
+    "warning": "Re-embedding will delete existing chunks and embeddings, then create new ones with the specified parameters. This process may take several minutes.",
+    "hint": "If embedding quality is poor, you can re-embed the document with different chunk sizes and processing options to improve retrieval accuracy.",
+    "startButton": "Start Re-embedding",
+    "processing": "Processing...",
+    "cancel": "Cancel",
+    "started": "Re-embedding started!"
+  },
+  "askQuestion": "Ask a question",
+  "noResults": "No results found",
+  "sources": "Sources",
+  "relevance": "Relevance",
+  "newConversation": "New Conversation",
+  "conversationHistory": "Conversation History",
+  "relatedDocuments": "Related Documents",
+  "categories": {
+    "all": "All",
+    "documents": "Documents",
+    "faqs": "FAQs",
+    "guides": "Guides",
+    "policies": "Policies"
+  },
+  "filters": {
+    "date": "Date",
+    "type": "Type",
+    "status": "Status",
+    "author": "Author"
+  },
+  "article": {
+    "views": "views",
+    "lastUpdated": "Last updated",
+    "helpful": "Was this helpful?",
+    "yes": "Yes",
+    "no": "No",
+    "relatedArticles": "Related Articles",
+    "notHelpful": "Not helpful"
+  },
+  "chat": {
+    "title": "AI Assistant",
+    "subtitle": "Ask me anything about your knowledge base",
+    "inputPlaceholder": "Type your question...",
+    "send": "Send",
+    "thinking": "Thinking...",
+    "suggestions": "Suggested questions",
+    "searchSyntax": {
+      "title": "Search Syntax Guide",
+      "description": "Use special prefixes and symbols to control your search precisely",
+      "examples": [
+        {"syntax": "keyword", "description": "Semantic search across all sources"},
+        {"syntax": "@keyword", "description": "Search only in web sources"},
+        {"syntax": "\"exact phrase\"", "description": "Prioritize exact phrase matches in all sources"},
+        {"syntax": "@\"exact phrase\"", "description": "Search exact phrase only in web sources"}
+      ]
+    },
+    "clearHistory": "Clear history",
+    "deleteHistory": "Delete History",
+    "confirmDeleteAll": "Are you sure you want to delete all conversation history?",
+    "errorMessage": "Sorry, I encountered an error. Please try again.",
+    "noConversations": "No conversations yet",
+    "startNewConversation": "Start a new conversation",
+    "noSourcesYet": "Referenced sources will appear here after chatting",
+    "addNote": "Add Note",
+    "noNotesYet": "Your notes will appear here",
+    "messages": "messages"
+  },
+  "sidebar": {
+    "chat": "Chat",
+    "documents": "Documents",
+    "sources": "Sources",
+    "notes": "Notes"
+  },
+  "agentNav": {
+    "selectScope": "Select Search Scope",
+    "searchQuery": "Query",
+    "loading": "Loading candidates...",
+    "loadError": "Failed to load document candidates",
+    "noCandidates": "No relevant documents found",
+    "suggested": "Suggested",
+    "documents": "documents",
+    "sections": "sections",
+    "pages": "pages",
+    "selected": "selected",
+    "clear": "Clear",
+    "selectAll": "Select All",
+    "searchAll": "Search All",
+    "searchSelected": "Search Selected",
+    "restoreSession": "Restore Previous Session",
+    "lastQuery": "Last Query",
+    "searchScope": "Search Scope",
+    "minutesAgo": "minutes ago",
+    "hoursAgo": "hours ago",
+    "daysAgo": "days ago",
+    "startFresh": "Start Fresh",
+    "continue": "Continue",
+    "restoring": "Restoring...",
+    "scopeNotFound": "The information was not found in the selected documents/sections. Try searching all documents.",
+    "keywords": "Keywords",
+    "subcategories": "subcategories",
+    "matched": "matched",
+    "categories": "categories"
+  }
+}

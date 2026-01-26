@@ -1,0 +1,607 @@
+{
+  "appName": "KMS Portal",
+  "loading": "Loading...",
+  "error": "Error",
+  "success": "Success",
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "save": "Save",
+  "delete": "Delete",
+  "edit": "Edit",
+  "create": "Create",
+  "search": "Search",
+  "filter": "Filter",
+  "sort": "Sort",
+  "refresh": "Refresh",
+  "close": "Close",
+  "back": "Back",
+  "next": "Next",
+  "previous": "Previous",
+  "submit": "Submit",
+  "reset": "Reset",
+  "viewAll": "View All",
+  "noData": "No data available",
+  "actions": "Actions",
+  "copy": "Copy",
+  "copied": "Copied",
+  "collapseSidebar": "Collapse sidebar",
+  "expandSidebar": "Expand sidebar",
+  "nav": {
+    "home": "Home",
+    "knowledge": "Knowledge Base",
+    "productManual": "Product Manual",
+    "installGuide": "Install Guide",
+    "faq": "FAQ",
+    "ims": "IMS",
+    "mindmap": "AI Studio",
+    "agent": "AI Agent",
+    "documents": "Documents",
+    "analytics": "Analytics",
+    "improvements": "Improvements",
+    "admin": "Admin",
+    "settings": "Settings",
+    "logout": "Logout",
+    "externalPortal": "External Portal",
+    "apikeys": "API Keys",
+    "mainNavigation": "Main navigation"
+  },
+  "products": {
+    "tmax": "Tmax",
+    "jeus": "JEUS",
+    "tibero": "Tibero",
+    "openframe": "OpenFrame",
+    "openframeCobol": "OpenFrame COBOL",
+    "openframeAsm": "OpenFrame ASM"
+  },
+  "settings": {
+    "language": "Language / 언어 / 言語",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System"
+  },
+  "agent": {
+    "status": {
+      "crawling": "Searching knowledge base (crawl). Please wait while data is being extracted.",
+      "ready": "Data is ready. How can I help you?",
+      "searching": "Searching database...",
+      "processing": "Processing your request...",
+      "analyzing": "Analyzing your request...",
+      "thinking": "Thinking...",
+      "credentials_required": "IMS login required. Please enter your IMS credentials to search."
+    },
+    "credentials": {
+      "title": "IMS Login Required",
+      "description": "Please enter your IMS credentials to search the Issue Management System.",
+      "username": "Username",
+      "usernamePlaceholder": "Enter IMS username",
+      "password": "Password",
+      "passwordPlaceholder": "Enter IMS password",
+      "login": "Login",
+      "saving": "Saving...",
+      "emptyFields": "Please fill in all fields",
+      "saveError": "Failed to save credentials"
+    },
+    "clarification": {
+      "title": "Question Clarification",
+      "customInput": "Enter custom query...",
+      "customPlaceholder": "Type your specific question...",
+      "skip": "Search anyway",
+      "search": "Search"
+    },
+    "searchResults": "Search Results",
+    "expandAll": "Expand All",
+    "collapseAll": "Collapse All",
+    "textTab": "Text",
+    "imagesTab": "Images",
+    "tablesTab": "Tables",
+    "reliability": {
+      "title": "Source Reliability",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "factors": {
+        "sourceCount": "Source Count",
+        "similarity": "Similarity",
+        "diversity": "Diversity",
+        "quality": "Quality"
+      }
+    },
+    "compare": {
+      "title": "Compare Documents",
+      "button": "Compare",
+      "topic": "Comparison Topic",
+      "topicPlaceholder": "Enter a topic or question to compare...",
+      "selectedDocs": "Selected Documents",
+      "comparing": "Comparing...",
+      "summary": "Comparison Summary",
+      "commonalities": "Commonalities",
+      "differences": "Differences",
+      "docContent": "Document Content",
+      "noContent": "No relevant content found for this topic.",
+      "sections": "sections",
+      "minDocs": "At least 2 documents are required.",
+      "maxDocs": "Maximum {{count}} documents can be compared.",
+      "selectMode": "Compare Mode",
+      "exitMode": "Exit Compare Mode"
+    },
+    "clarification": {
+      "title": "Question Clarification",
+      "customInput": "Enter custom query...",
+      "customPlaceholder": "Type your specific question...",
+      "skip": "Search anyway",
+      "search": "Search"
+    },
+    "feedback": {
+      "thumbsUp": "Helpful",
+      "thumbsDown": "Not helpful",
+      "thumbsUpSubmitted": "Marked as helpful",
+      "thumbsDownSubmitted": "Marked as not helpful",
+      "clickToCancel": "Click to cancel",
+      "registerFAQ": "Register as FAQ",
+      "regenerate": "Regenerate"
+    },
+    "faq": {
+      "registerTitle": "Register as FAQ",
+      "question": "Question",
+      "questionPlaceholder": "Enter the question",
+      "answer": "Answer",
+      "answerPlaceholder": "Enter the answer",
+      "category": "Category",
+      "tags": "Tags",
+      "tagsHint": "comma-separated",
+      "tagsPlaceholder": "e.g., installation, error, config",
+      "register": "Register",
+      "registering": "Registering...",
+      "emptyFields": "Please fill in question and answer",
+      "createError": "Failed to register FAQ",
+      "categories": {
+        "general": "General",
+        "openframe": "OpenFrame",
+        "ofcobol": "OFCOBOL",
+        "ofasm": "OFASM",
+        "ims": "IMS Issues",
+        "rag": "Knowledge Search"
+      }
+    }
+  },
+  "externalConnectors": {
+    "title": "External Connectors",
+    "description": "Connect external services to use their content as context in your conversations.",
+    "connected": "Connected",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "connecting": "Connecting...",
+    "sync": "Sync",
+    "syncing": "Syncing resources...",
+    "syncingHint": "This may take a minute",
+    "lastSync": "Last synced",
+    "resources": "resources",
+    "noResources": "No resources found",
+    "selected": "selected",
+    "selectResources": "Select resources for chat context",
+    "selectHint": "Selected resources will be available as context in your conversations",
+    "resourcesSelected": "resources selected for context",
+    "comingSoon": "Coming Soon",
+    "plannedDescription": "This connector is planned for future development.",
+    "status": {
+      "available": "Available",
+      "inDevelopment": "In Development",
+      "planned": "Planned"
+    },
+    "fields": {
+      "accessToken": "Integration Token",
+      "accessTokenPlaceholder": "Enter integration token",
+      "workspaceId": "Workspace ID",
+      "workspaceIdPlaceholder": "Enter workspace ID",
+      "email": "Email",
+      "emailPlaceholder": "Enter your Atlassian email",
+      "apiKey": "API Token",
+      "apiKeyPlaceholder": "Enter Atlassian API token",
+      "siteUrl": "Site URL",
+      "siteUrlPlaceholder": "e.g., your-domain.atlassian.net (or full URL with /wiki)",
+      "notionHint": "Get your integration token from notion.so/my-integrations",
+      "confluenceHint": "Get your API token from id.atlassian.com/manage-profile/security/api-tokens"
+    },
+    "error": {
+      "missingFields": "Please fill in all required fields"
+    },
+    "sso": {
+      "signInWithNotion": "Sign in with Notion",
+      "signInWithAtlassian": "Sign in with Atlassian",
+      "signInWithGitHub": "Sign in with GitHub",
+      "signInWithGoogle": "Sign in with Google",
+      "signInWithMicrosoft": "Sign in with Microsoft",
+      "signIn": "Sign in",
+      "connectedAs": "Connected as",
+      "permissions": "Requested permissions",
+      "secureAuth": "Secure Authentication",
+      "secureAuthDesc": "We use OAuth 2.0 to securely connect to your account. We never store your password.",
+      "authorizing": "Authorizing...",
+      "authorizingDesc": "Please complete the login in the popup window.",
+      "cancel": "Cancel",
+      "securityInfo": "Your data is securely handled via OAuth 2.0. We only request the permissions necessary to access your content."
+    },
+    "apiToken": {
+      "label": "API Token",
+      "placeholder": "Enter your API token",
+      "hint": "You can generate an API token from your Atlassian account settings."
+    },
+    "docStatus": {
+      "ready": "Ready",
+      "processing": "Processing...",
+      "error": "Error",
+      "notProcessed": "Not processed",
+      "chunks": "chunks"
+    },
+    "needsProcessing": "documents need processing",
+    "processSelected": "Process selected",
+    "processDoc": "Process this document",
+    "selectAll": "Select All",
+    "deselectAll": "Deselect All"
+  },
+  "embeddingQuality": {
+    "title": "Embedding Quality Verification",
+    "verifyButton": "Verify Quality",
+    "reVerifyButton": "Re-verify",
+    "verifying": "Verifying...",
+    "score": "Score",
+    "verified": "Verified",
+    "levels": {
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor"
+    },
+    "metrics": {
+      "retrievalAccuracy": "Retrieval Accuracy",
+      "avgSimilarity": "Avg Similarity",
+      "coverage": "Coverage",
+      "chunksTested": "Chunks Tested"
+    },
+    "issues": {
+      "title": "Issues Found",
+      "lowAccuracy": "Low retrieval accuracy detected",
+      "lowSimilarity": "Average similarity scores are below expected threshold",
+      "highVariance": "High variance in similarity scores",
+      "lowCoverage": "Some chunks appear isolated from others"
+    },
+    "recommendations": {
+      "title": "Recommendations",
+      "adjustChunkSize": "Consider adjusting chunk size or overlap for better context preservation",
+      "reviewContent": "Review document content - it may contain very diverse topics",
+      "reprocess": "Some chunks may have poor embedding quality - consider re-processing",
+      "checkChunks": "Check for chunks with special characters or very short content",
+      "excellent": "Excellent embedding quality - no improvements needed",
+      "acceptable": "Embedding quality is acceptable"
+    },
+    "empty": {
+      "message": "Click \"Verify Quality\" to check embedding quality for this document."
+    },
+    "error": {
+      "notReady": "Embeddings are not ready yet",
+      "failed": "Quality verification failed"
+    }
+  },
+  "adaptive": {
+    "title": "Adaptive Embedding",
+    "tabLabel": "Adaptive",
+    "tabLabelFull": "Adaptive (PDF Only)",
+    "description": "Structure-preserving PDF chunking with semantic boundaries",
+    "table": {
+      "document": "Document",
+      "status": "Status",
+      "chunks": "Chunks",
+      "types": "Types",
+      "quality": "Quality",
+      "created": "Created",
+      "actions": "Actions",
+      "allStatus": "All Status",
+      "uploadPdf": "Upload PDF"
+    },
+    "upload": {
+      "title": "Upload PDF",
+      "dropzone": "Drop PDF file(s) here or click to upload",
+      "selectFolder": "Select folder with PDFs",
+      "processing": "Processing...",
+      "success": "Processing started",
+      "error": "Upload failed",
+      "noPdfInFolder": "No PDF files found in the selected folder"
+    },
+    "options": {
+      "language": "Language",
+      "languageAuto": "Auto-detect",
+      "maxChunkSize": "Max Chunk Size",
+      "minChunkSize": "Min Chunk Size",
+      "preserveTables": "Preserve Tables",
+      "preserveSections": "Preserve Sections",
+      "forceReprocess": "Force Reprocess"
+    },
+    "status": {
+      "pending": "Pending",
+      "analyzing": "Analyzing structure...",
+      "chunking": "Creating chunks...",
+      "embedding": "Generating embeddings...",
+      "validating": "Validating coverage...",
+      "completed": "Completed",
+      "failed": "Failed",
+      "partial": "Partially completed"
+    },
+    "chunks": {
+      "title": "Chunks",
+      "noChunks": "No chunks found",
+      "types": {
+        "TEXT_CHUNK": "Text",
+        "TABLE_CHUNK": "Table",
+        "IMAGE_CHUNK": "Image",
+        "OCR_CHUNK": "OCR"
+      },
+      "pages": "Pages",
+      "section": "Section",
+      "embedded": "Embedded",
+      "notEmbedded": "Not embedded"
+    },
+    "coverage": {
+      "title": "Coverage Report",
+      "overall": "Overall Coverage",
+      "text": "Text Coverage",
+      "table": "Table Coverage",
+      "image": "Image Coverage",
+      "ocr": "OCR Coverage",
+      "totalChunks": "Total Chunks",
+      "embeddedChunks": "Embedded Chunks"
+    },
+    "quality": {
+      "title": "Quality Metrics",
+      "topKRecall": "Top-K Recall",
+      "sectionPrecision": "Section Precision",
+      "avgSimilarity": "Avg Similarity",
+      "hallucination": "Hallucination Detected",
+      "issues": "Issues",
+      "recommendations": "Recommendations",
+      "levels": {
+        "excellent": "Excellent",
+        "good": "Good",
+        "fair": "Fair",
+        "poor": "Poor"
+      }
+    },
+    "structure": {
+      "title": "Document Structure",
+      "documentType": "Document Type",
+      "totalPages": "Total Pages",
+      "totalSections": "Total Sections",
+      "totalImages": "Total Images",
+      "totalTables": "Total Tables",
+      "hierarchy": "Section Hierarchy",
+      "types": {
+        "manual": "Manual",
+        "report": "Report",
+        "paper": "Paper",
+        "contract": "Contract",
+        "presentation": "Presentation",
+        "form": "Form",
+        "other": "Other"
+      }
+    },
+    "search": {
+      "title": "Search Chunks",
+      "placeholder": "Enter search query...",
+      "results": "Results",
+      "noResults": "No results found",
+      "similarity": "Similarity"
+    },
+    "actions": {
+      "viewChunks": "View Chunks",
+      "viewCoverage": "View Coverage",
+      "viewQuality": "View Quality",
+      "viewStructure": "View Structure",
+      "evaluateQuality": "Run Quality Evaluation",
+      "delete": "Delete",
+      "refresh": "Refresh"
+    },
+    "qualityEvaluation": {
+      "completed": "Quality Evaluation Complete",
+      "failed": "Quality evaluation failed",
+      "running": "Running quality evaluation..."
+    },
+    "documents": {
+      "title": "Adaptive Documents",
+      "empty": "No adaptive documents yet",
+      "uploadFirst": "Upload a PDF to get started"
+    },
+    "batchDelete": {
+      "title": "Delete Selected Documents",
+      "button": "Delete Selected",
+      "confirmMessage": "Are you sure you want to delete {{count}} document(s)?",
+      "confirm": "Delete All",
+      "deleting": "Deleting...",
+      "error": "Batch deletion failed",
+      "partialError": "document(s) failed to delete"
+    },
+    "deleteConfirm": {
+      "single": "Are you sure you want to delete",
+      "warning": "This will permanently delete the document and all associated data including chunks, embeddings, and metadata from the database."
+    },
+    "pending": {
+      "title": "Pending Uploads",
+      "filename": "Filename",
+      "size": "Size",
+      "uploadedAt": "Uploaded At",
+      "deleteConfirm": "Are you sure you want to delete this pending file?"
+    },
+    "embed": {
+      "button": "Start Embedding",
+      "optionsTitle": "Embedding Options",
+      "selectedFiles": "{{count}} file(s) selected for embedding",
+      "start": "Start Embedding",
+      "processing": "Processing...",
+      "error": "Embedding failed",
+      "progressTitle": "Embedding Progress",
+      "statusPending": "Waiting",
+      "statusProcessing": "Processing",
+      "statusCompleted": "Completed",
+      "statusFailed": "Failed"
+    }
+  },
+  "webPages": {
+    "title": "Web Pages",
+    "tabLabel": "Web Pages",
+    "description": "Add web pages as knowledge sources",
+    "addUrl": "Add URL",
+    "search": {
+      "placeholder": "Search by URL, title, or domain..."
+    },
+    "filter": {
+      "allStatus": "All Status"
+    },
+    "table": {
+      "url": "URL",
+      "status": "Status",
+      "chunks": "Chunks",
+      "words": "Words",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "status": {
+      "pending": "Pending",
+      "fetching": "Fetching...",
+      "extracting": "Extracting...",
+      "chunking": "Chunking...",
+      "embedding": "Embedding...",
+      "ready": "Ready",
+      "error": "Error"
+    },
+    "actions": {
+      "viewContent": "View Content",
+      "viewLinks": "View Links",
+      "viewImages": "View Images",
+      "refresh": "Refresh",
+      "openUrl": "Open URL"
+    },
+    "addModal": {
+      "title": "Add Web Page",
+      "singleUrl": "Single URL",
+      "bulkUrls": "Bulk URLs",
+      "urlLabel": "URL",
+      "urlPlaceholder": "https://example.com/page",
+      "urlsLabel": "URLs (one per line)",
+      "urlsPlaceholder": "https://example.com/page1\nhttps://example.com/page2",
+      "tagsLabel": "Tags (optional)",
+      "tagsPlaceholder": "tag1, tag2, tag3",
+      "add": "Add",
+      "adding": "Adding..."
+    },
+    "detail": {
+      "content": "Content",
+      "links": "Links",
+      "images": "Images",
+      "wordCount": "Words",
+      "charCount": "Characters",
+      "linkCount": "Links",
+      "imageCount": "Images",
+      "noContent": "No content available"
+    },
+    "deleteConfirm": {
+      "message": "Are you sure you want to delete",
+      "warning": "This will permanently delete the web page and all associated data including chunks and embeddings."
+    },
+    "batchDelete": {
+      "title": "Delete Selected",
+      "button": "Delete Selected",
+      "message": "Are you sure you want to delete {{count}} web page(s)?",
+      "confirm": "Delete All",
+      "deleting": "Deleting..."
+    },
+    "empty": {
+      "title": "No Web Pages",
+      "description": "Add web pages to use their content as RAG knowledge sources"
+    },
+    "errors": {
+      "loadFailed": "Failed to load web pages",
+      "addFailed": "Failed to add web page",
+      "deleteFailed": "Failed to delete web page",
+      "refreshFailed": "Failed to refresh web page",
+      "invalidUrl": "Please enter a valid URL starting with http:// or https://"
+    }
+  },
+  "searchProgress": {
+    "title": "Knowledge Search Progress",
+    "query": "Query",
+    "results": "results",
+    "totalResults": "total results",
+    "searching": "Searching...",
+    "expandAll": "Expand All",
+    "collapseAll": "Collapse All",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "waiting": "Waiting to start...",
+    "running": "Searching...",
+    "noResults": "No results found",
+    "unknownError": "An unknown error occurred",
+    "queryCorrected": "Query was auto-corrected",
+    "queryCorrectedNotice": "Query was auto-corrected due to encoding issues",
+    "tools": {
+      "adaptive_search": "Adaptive PDF Search",
+      "vector_search": "Vector Search",
+      "graph_query": "Graph Query",
+      "document_read": "Document Read"
+    }
+  },
+  "ragProgress": {
+    "queryAnalysis": "Keyword Analysis",
+    "keywords": "keywords",
+    "intent": "Intent",
+    "extractedKeywords": "Extracted Keywords",
+    "searchStrategy": "Search Strategy",
+    "tokenCount": "Token Count",
+    "chunkStructure": "Document Chunk Structure",
+    "chunks": "chunks",
+    "chunkTypes": "Chunk Types",
+    "pageDistribution": "Page Distribution",
+    "avgChunkSize": "Avg Chunk Size",
+    "preview": "Preview",
+    "embeddingInfo": "Embedding Information",
+    "scoreDistribution": "Score Distribution",
+    "topMatches": "Top Matches",
+    "toolProgress": "Tool Processing",
+    "generationProgress": "Answer Generation",
+    "completed": "Completed",
+    "sourcesUsed": "Sources Used",
+    "toolsUsed": "Tools Used",
+    "answerLength": "Answer Length",
+    "chunkProgress": "Chunk Progress",
+    "preparingAnswer": "Preparing answer..."
+  },
+  "displayMode": {
+    "inline": "Switch to inline mode",
+    "floating": "Switch to floating mode",
+    "inlineDescription": "Show results in chat",
+    "floatingDescription": "Show results in floating panels"
+  },
+  "minimize": "Minimize",
+  "closeAll": "Close all",
+  "query": "Query",
+  "clarification": {
+    "title": "Clarify Your Search",
+    "query": "Your query",
+    "infoMessage": "Your query contains terms that could have multiple meanings. Please select the intended meaning for each term to get more accurate results.",
+    "selected": "selected",
+    "confirm": "Confirm & Search",
+    "remember": "Remember this choice for future searches",
+    "autoResolved": "Auto-resolved",
+    "preferenceSaved": "preference saved",
+    "preferencesSaved": "preferences saved"
+  },
+  "home": {
+    "stats": {
+      "documentsIndexed": "Documents indexed",
+      "queriesThisMonth": "Queries this month",
+      "activeUsers": "Active users",
+      "avgResponseTime": "Avg response time"
+    },
+    "recentActivity": "Recent Activity",
+    "noRecentActivity": "No recent activity yet",
+    "startConversation": "Start a conversation"
+  }
+}

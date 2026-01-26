@@ -1,0 +1,147 @@
+{
+  "title": "IMS 지식 서비스",
+  "subtitle": "AI 기반 하이브리드 검색으로 IMS 시스템의 이슈를 검색하고 분석하세요",
+  "tabs": {
+    "search": "검색"
+  },
+  "credentials": {
+    "title": "IMS 인증정보",
+    "subtitle": "IMS 연결을 위한 로그인 정보를 입력하세요",
+    "imsUrl": "IMS URL",
+    "username": "사용자명",
+    "usernamePlaceholder": "사용자명을 입력하세요",
+    "password": "비밀번호",
+    "passwordPlaceholder": "비밀번호를 입력하세요",
+    "save": "저장 및 검증",
+    "validating": "검증 중...",
+    "success": "인증정보가 성공적으로 검증되었습니다!",
+    "error": "인증정보 검증에 실패했습니다",
+    "connected": "IMS에 연결됨"
+  },
+  "search": {
+    "placeholder": "자연어로 검색어를 입력하세요...",
+    "button": "AI 검색",
+    "searching": "검색 중...",
+    "analyzing": "분석 중...",
+    "crawling": "크롤링 중...",
+    "loading": "로딩 중...",
+    "includeAttachments": "첨부파일 포함",
+    "includeRelated": "관련 이슈 포함",
+    "deepSearch": "딥서치",
+    "maxIssues": "최대 이슈 수",
+    "allProducts": "전체 제품",
+    "noProducts": "제품 선택",
+    "productsSelected": "제품 선택됨",
+    "selectAll": "전체 선택",
+    "clearAll": "초기화",
+    "otherProducts": "기타"
+  },
+  "progress": {
+    "connecting": "연결 중...",
+    "connected": "연결됨",
+    "disconnected": "연결 끊김",
+    "reconnecting": "재연결 중...",
+    "authenticating": "인증 중...",
+    "authenticated": "인증 성공",
+    "searching": "이슈 검색 중...",
+    "searchCompleted": "검색 완료",
+    "crawling": "검색도구 실행 중",
+    "crawlingIssue": "이슈 수집 중",
+    "relatedFound": "관련 이슈 발견",
+    "processing": "첨부파일 처리 중...",
+    "embedding": "임베딩 생성 중...",
+    "completed": "성공적으로 완료",
+    "failed": "실패",
+    "jobStarted": "작업 시작됨",
+    "viewResults": "결과 보기",
+    "activityLog": "활동 로그"
+  },
+  "results": {
+    "found": "발견",
+    "crawled": "수집됨",
+    "related": "관련",
+    "issues": "이슈",
+    "table": "테이블",
+    "cards": "카드",
+    "graph": "그래프",
+    "noResults": "검색 결과가 없습니다"
+  },
+  "table": {
+    "id": "ID",
+    "title": "제목",
+    "category": "카테고리",
+    "product": "제품",
+    "version": "버전",
+    "module": "모듈",
+    "customer": "고객사",
+    "issuedDate": "등록일",
+    "status": "상태",
+    "priority": "우선순위",
+    "reporter": "보고자",
+    "assignee": "담당자",
+    "created": "생성일",
+    "score": "점수",
+    "allStatuses": "전체 상태",
+    "allPriorities": "전체 우선순위",
+    "columns": "컬럼",
+    "selectColumns": "컬럼 선택"
+  },
+  "status": {
+    "open": "열림",
+    "in_progress": "진행 중",
+    "resolved": "해결됨",
+    "closed": "닫힘",
+    "pending": "대기 중",
+    "rejected": "거부됨"
+  },
+  "priority": {
+    "critical": "치명적",
+    "high": "높음",
+    "medium": "보통",
+    "low": "낮음",
+    "trivial": "사소함"
+  },
+  "snapshot": {
+    "success": "성공적으로 완료",
+    "partial": "부분적으로 완료",
+    "failed": "실패"
+  },
+  "graph": {
+    "legend": "링크 유형",
+    "similarity": "유사도 점수",
+    "sameProject": "같은 프로젝트",
+    "relatedIssue": "관련 이슈",
+    "sharedLabels": "공유 레이블"
+  },
+  "empty": {
+    "title": "검색을 시작하세요",
+    "description": "IMS 시스템의 이슈를 검색하려면 자연어 쿼리를 입력하세요"
+  },
+  "chat": {
+    "title": "AI 어시스턴트",
+    "description": "지식 베이스에 대해 무엇이든 물어보세요",
+    "tabs": {
+      "chat": "채팅",
+      "history": "대화 기록",
+      "sources": "출처",
+      "notes": "노트"
+    },
+    "inputPlaceholder": "질문을 입력하세요...",
+    "noIssuesPlaceholder": "먼저 이슈를 검색해주세요",
+    "noIssuesContext": "채팅할 이슈가 없습니다. 먼저 이슈를 검색해주세요.",
+    "suggestedQuestions": "추천 질문:",
+    "contextInfo": "{{count}}개의 이슈가 컨텍스트로 사용됩니다",
+    "thinking": "생각 중...",
+    "send": "전송",
+    "minimize": "최소화",
+    "maximize": "최대화",
+    "close": "닫기",
+    "clear": "대화 지우기",
+    "historyPlaceholder": "대화 기록이 여기에 표시됩니다",
+    "sourcesTitle": "{{count}}개의 참조 이슈",
+    "noSourcesPlaceholder": "검색된 이슈가 여기에 표시됩니다",
+    "notesPlaceholder": "노트 기능은 준비 중입니다",
+    "moreIssues": "개 더 있음",
+    "openAssistant": "AI 어시스턴트 열기"
+  }
+}

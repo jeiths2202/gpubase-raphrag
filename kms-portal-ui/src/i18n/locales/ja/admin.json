@@ -1,0 +1,92 @@
+{
+  "tabs": {
+    "executive": "ダッシュボード",
+    "users": "ユーザー",
+    "tokens": "トークン",
+    "agents": "エージェント",
+    "health": "ヘルス",
+    "enhance": "改善リクエスト",
+    "learning": "学習",
+    "rag": "RAG",
+    "audit": "監査"
+  },
+  "learning": {
+    "title": "Smarter RAG - 学習管理",
+    "refresh": "更新",
+    "manualTraining": "手動学習開始",
+    "stats": {
+      "activeKnowledge": "アクティブな知識",
+      "trained": "学習済み",
+      "pendingTraining": "学習待ち",
+      "pendingUnlearn": "削除待ち",
+      "avgFeedbackScore": "平均フィードバックスコア",
+      "totalUsage": "総使用量"
+    },
+    "schedule": {
+      "title": "学習スケジュール",
+      "schedule": "スケジュール",
+      "status": "ステータス",
+      "enabled": "有効",
+      "disabled": "無効",
+      "nextRun": "次回実行",
+      "lastRun": "最終実行",
+      "dailyMidnight": "毎日00:00"
+    },
+    "batches": {
+      "title": "最近の学習バッチ",
+      "batchId": "バッチID",
+      "status": "ステータス",
+      "samples": "サンプル数",
+      "adapter": "アダプター",
+      "loss": "損失",
+      "started": "開始",
+      "completed": "完了",
+      "empty": "学習バッチがありません"
+    },
+    "dailyStats": {
+      "title": "日別統計（過去14日間）",
+      "noData": "データがありません",
+      "newEntries": "新規登録",
+      "trained": "学習済み"
+    },
+    "howItWorks": {
+      "title": "Smarter RAGの仕組み",
+      "step1": {
+        "title": "ユーザーフィードバック収集",
+        "description": "ユーザーが応答にフィードバックを提供します。"
+      },
+      "step2": {
+        "title": "Verified Knowledge Store",
+        "description": "ポジティブなフィードバックを受けた応答は自動的に検証済み知識ストアに登録されます。"
+      },
+      "step3": {
+        "title": "QLoRA学習",
+        "description": "毎日00:00または手動トリガーで検証済み知識を学習します。"
+      },
+      "step4": {
+        "title": "スマート応答",
+        "description": "学習した知識でより正確な応答を提供します。"
+      }
+    },
+    "messages": {
+      "trainingStarted": "学習を開始しました。バッチID: {{batchId}}",
+      "loadFailed": "データの読み込みに失敗しました",
+      "triggerFailed": "学習の開始に失敗しました",
+      "scheduleFailed": "スケジュールの更新に失敗しました",
+      "adapterReloaded": "Learning LLMアダプターをリロードしました: {{adapterName}}"
+    },
+    "learningLLM": {
+      "title": "Learning LLMステータス",
+      "service": "サービス",
+      "modelLoaded": "モデルロード",
+      "loaded": "ロード済み",
+      "notLoaded": "未ロード",
+      "baseModel": "ベースモデル",
+      "currentAdapter": "現在のアダプター",
+      "noAdapter": "なし",
+      "availableAdapters": "利用可能なアダプター",
+      "reloadAdapter": "アダプターリロード",
+      "recentAdapters": "最近のアダプター"
+    }
+  }
+}

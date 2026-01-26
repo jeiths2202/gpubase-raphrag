@@ -1,0 +1,40 @@
+{
+  "title": "AI Studio",
+  "subtitle": "Visualize and explore knowledge connections",
+  "createNew": "Create New Mindmap",
+  "addNode": "Add Node",
+  "deleteNode": "Delete Node",
+  "editNode": "Edit Node",
+  "sidebar": {
+    "title": "AI Studio",
+    "subtitle": "Generate and explore mindmaps",
+    "newMindmap": "New Mindmap",
+    "titlePlaceholder": "Enter title...",
+    "topicPlaceholder": "Enter topic to analyze...",
+    "maxNodes": "Max Nodes",
+    "generating": "Generating...",
+    "generate": "Generate",
+    "cancel": "Cancel",
+    "savedMindmaps": "Saved Mindmaps",
+    "noMindmaps": "No mindmaps yet"
+  },
+  "panel": {
+    "importance": "Importance",
+    "expand": "Expand",
+    "summarize": "Summarize",
+    "sourceDocuments": "Source Documents",
+    "askPlaceholder": "Ask about this concept...",
+    "ask": "Ask",
+    "answer": "Answer",
+    "relatedConcepts": "Related Concepts"
+  },
+  "header": {
+    "nodes": "Nodes",
+    "edges": "Edges",
+    "processing": "Processing..."
+  },
+  "empty": {
+    "title": "No Mindmap Selected",
+    "description": "Create a new mindmap or select an existing one"
+  }
+}

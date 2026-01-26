@@ -1,0 +1,306 @@
+version: '3.8'
+
+# =============================================================================
+# KMS Local Development Environment
+# =============================================================================
+# Usage:
+#   GPU 있는 경우:    docker-compose -f docker-compose-local.yml --profile gpu up -d
+#   GPU 없는 경우:    docker-compose -f docker-compose-local.yml --profile cpu up -d
+#   전체 서비스:      docker-compose -f docker-compose-local.yml --profile all up -d
+# =============================================================================
+
+services:
+  # ============================================================
+  # KMS Backend Application
+  # ============================================================
+  kms-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: kms-backend-local
+    restart: unless-stopped
+    ports:
+      - "9000:9000"    # Backend API
+      - "9022:22"      # SSH (optional)
+    volumes:
+      - .:/opt/kms
+      - kms-venv:/opt/kms/venv
+      - kms-data:/opt/kms/data
+      - kms-uploads:/opt/kms/uploads
+      - kms-logs:/opt/kms/logs
+    environment:
+      - APP_ENV=development
+      - DEBUG=true
+    env_file:
+      - .env.local
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres-kms:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    networks:
+      kms-network:
+        aliases:
+          - backend
+    profiles:
+      - cpu
+      - gpu
+      - all
+
+  # ============================================================
+  # KMS Frontend Application
+  # ============================================================
+  kms-frontend:
+    build:
+      context: ./kms-portal-ui
+      dockerfile: Dockerfile
+    container_name: kms-frontend-local
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - kms-backend
+    networks:
+      - kms-network
+    profiles:
+      - cpu
+      - gpu
+      - all
+
+  # ============================================================
+  # PostgreSQL with pgvector
+  # ============================================================
+  postgres-kms:
+    container_name: postgres-kms
+    image: pgvector/pgvector:pg15
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-raguser}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ragpassword123}
+      - POSTGRES_DB=${POSTGRES_DB:-ragdb}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raguser} -d ${POSTGRES_DB:-ragdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - kms-network
+    profiles:
+      - cpu
+      - gpu
+      - all
+
+  # ============================================================
+  # pgAdmin (Optional - PostgreSQL Web UI)
+  # ============================================================
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@example.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD:-admin123}
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres-kms
+    networks:
+      - kms-network
+    profiles:
+      - all
+
+  # ============================================================
+  # Neo4j Graph Database
+  # ============================================================
+  neo4j:
+    container_name: neo4j-graphrag
+    image: neo4j:5.15.0
+    restart: unless-stopped
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-graphrag2024}
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_plugins:/plugins
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - kms-network
+    profiles:
+      - cpu
+      - gpu
+      - all
+
+  # ============================================================
+  # Ollama - Local LLM (CPU/GPU)
+  # ============================================================
+  ollama:
+    container_name: ollama-local
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - kms-network
+    profiles:
+      - cpu
+      - all
+
+  # GPU 버전 Ollama
+  ollama-gpu:
+    container_name: ollama-gpu
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - kms-network
+    profiles:
+      - gpu
+
+  # ============================================================
+  # NVIDIA NIM Services (GPU Only)
+  # ============================================================
+
+  # Text LLM - Nemotron (GPU 0)
+  nemotron-llm:
+    container_name: nemotron-local
+    image: nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2:latest
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "12800:8000"
+    environment:
+      - NGC_API_KEY=${NGC_API_KEY}
+      - NVIDIA_VISIBLE_DEVICES=0
+      - CUDA_VISIBLE_DEVICES=0
+      - NIM_MAX_NUM_SEQS=16
+      - NIM_MAX_MODEL_LEN=4096
+    volumes:
+      - nim_llm_cache:/opt/nim/.cache
+    shm_size: '8gb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+    networks:
+      - kms-network
+    profiles:
+      - gpu
+
+  # Embedding - NeMo (GPU 1 or shared)
+  nemo-embedding:
+    container_name: nemo-embedding-local
+    image: nvcr.io/nim/nvidia/nv-embedqa-mistral-7b-v2:1.0.1
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "12801:8000"
+    environment:
+      - NGC_API_KEY=${NGC_API_KEY}
+      - NIM_TRITON_PERFORMANCE_MODE=latency
+      - NVIDIA_VISIBLE_DEVICES=1
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - nim_embed_cache:/opt/nim/.cache
+    shm_size: '8gb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+    networks:
+      - kms-network
+    profiles:
+      - gpu
+
+  # Code LLM - Mistral NeMo (vLLM)
+  mistral-nemo-coder:
+    container_name: mistral-coder-local
+    image: vllm/vllm-openai:latest
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "12802:8000"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+      - NVIDIA_VISIBLE_DEVICES=2
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+    command: >
+      --model mistralai/Mistral-Nemo-Instruct-2407
+      --max-model-len 4096
+      --gpu-memory-utilization 0.8
+    shm_size: '8gb'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+    networks:
+      - kms-network
+    profiles:
+      - gpu
+
+# ============================================================
+# Volumes
+# ============================================================
+volumes:
+  kms-venv:
+  kms-data:
+  kms-uploads:
+  kms-logs:
+  postgres_data:
+  pgadmin_data:
+  neo4j_data:
+  neo4j_logs:
+  neo4j_plugins:
+  ollama_data:
+  nim_llm_cache:
+  nim_embed_cache:
+  huggingface_cache:
+
+# ============================================================
+# Networks
+# ============================================================
+networks:
+  kms-network:
+    driver: bridge

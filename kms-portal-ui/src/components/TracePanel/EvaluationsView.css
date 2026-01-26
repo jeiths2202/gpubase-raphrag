@@ -1,0 +1,269 @@
+/**
+ * EvaluationsView Component Styles
+ *
+ * Styles for evaluation results display.
+ */
+
+.eval-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Empty state */
+.eval-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-secondary, #a0a0b0);
+  text-align: center;
+}
+
+.eval-empty svg {
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.eval-empty p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.eval-empty-hint {
+  margin-top: 8px !important;
+  font-size: 11px !important;
+  opacity: 0.7;
+}
+
+/* Summary bar */
+.eval-summary {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-secondary, #16162a);
+  border-radius: 8px;
+}
+
+.eval-summary__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-tertiary, #121228);
+  border-radius: 6px;
+  flex: 1;
+}
+
+.eval-summary__item svg {
+  flex-shrink: 0;
+}
+
+.eval-summary__item--passed svg {
+  color: var(--color-success, #10b981);
+}
+
+.eval-summary__item--failed svg {
+  color: var(--color-error, #ef4444);
+}
+
+.eval-summary__item--avg svg {
+  color: var(--color-info, #3b82f6);
+}
+
+.eval-summary__count {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary, #fff);
+}
+
+.eval-summary__label {
+  font-size: 10px;
+  color: var(--text-secondary, #a0a0b0);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Evaluation list */
+.eval-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Evaluation card */
+.eval-card {
+  background: var(--bg-secondary, #16162a);
+  border: 1px solid var(--border-color, #2a2a4a);
+  border-radius: 8px;
+  padding: 14px;
+  transition: all 0.2s ease;
+}
+
+.eval-card--passed {
+  border-left: 3px solid var(--color-success, #10b981);
+}
+
+.eval-card--failed {
+  border-left: 3px solid var(--color-error, #ef4444);
+}
+
+.eval-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.eval-card__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.eval-icon--passed {
+  color: var(--color-success, #10b981);
+}
+
+.eval-icon--failed {
+  color: var(--color-error, #ef4444);
+}
+
+.eval-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.eval-badge--passed {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.eval-badge--failed {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.eval-card__task-id {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-tertiary, #6b7280);
+}
+
+/* Task info */
+.eval-card__task {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--border-color, #2a2a4a);
+}
+
+.eval-card__agent {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  background: var(--color-primary, #6366f1);
+  color: white;
+  border-radius: 3px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.eval-card__description {
+  font-size: 11px;
+  color: var(--text-secondary, #a0a0b0);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Score bar */
+.eval-card__score {
+  margin-bottom: 10px;
+}
+
+.eval-card__score-label {
+  display: block;
+  font-size: 10px;
+  color: var(--text-tertiary, #6b7280);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.eval-score-bar {
+  position: relative;
+  height: 20px;
+  background: var(--bg-tertiary, #121228);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.eval-score-bar__fill {
+  height: 100%;
+  border-radius: 10px;
+  transition: width 0.3s ease;
+}
+
+.eval-score-bar__label {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Issues */
+.eval-card__issues {
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.eval-card__issues-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-warning, #f59e0b);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.eval-card__issues-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 11px;
+  color: var(--text-secondary, #a0a0b0);
+  line-height: 1.6;
+}
+
+.eval-card__issues-list li {
+  margin-bottom: 2px;
+}
+
+.eval-card__issues-list li:last-child {
+  margin-bottom: 0;
+}
+
+/* Retry recommendation */
+.eval-card__retry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--color-info, #3b82f6);
+}
+
+.eval-card__retry svg {
+  flex-shrink: 0;
+}

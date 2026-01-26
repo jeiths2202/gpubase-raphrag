@@ -1,0 +1,1854 @@
+"""
+Hybrid RAG Module for GraphRAG System
+Orchestrates Vector RAG and Graph RAG based on query classification
+"""
+import os
+import re
+from typing import List, Dict, Any, Optional
+from langchain_openai import ChatOpenAI
+from langchain_neo4j import Neo4jGraph
+from config import config
+from embeddings import NeMoEmbeddingService
+from query_router import QueryRouter, QueryType
+from vector_rag import VectorRAG
+from query_analyzer import get_query_analyzer, QueryIntent
+
+
+class HybridRAG:
+    """
+    Hybrid RAG system combining Vector and Graph-based retrieval
+
+    - Automatically routes queries to appropriate strategy
+    - Merges and reranks results from multiple sources
+    - Generates unified responses
+    """
+
+    def __init__(
+        self,
+        neo4j_uri: Optional[str] = None,
+        neo4j_user: Optional[str] = None,
+        neo4j_password: Optional[str] = None,
+        llm_url: Optional[str] = None,
+        llm_model: Optional[str] = None,
+        embedding_url: Optional[str] = None
+    ):
+        """
+        Initialize HybridRAG system
+
+        Args:
+            neo4j_uri: Neo4j connection URI
+            neo4j_user: Neo4j username
+            neo4j_password: Neo4j password
+            llm_url: LLM API URL
+            llm_model: LLM model name
+            embedding_url: Embedding API URL
+        """
+        # Neo4j connection
+        self.graph = Neo4jGraph(
+            url=neo4j_uri or config.neo4j.uri,
+            username=neo4j_user or config.neo4j.user,
+            password=neo4j_password or config.neo4j.password
+        )
+
+        # LLM (Nemotron for RAG)
+        llm_max_tokens = int(os.getenv("LLM_MAX_TOKENS", "1024"))
+        self.llm = ChatOpenAI(
+            base_url=(llm_url or config.llm.api_url).replace("/chat/completions", ""),
+            model=llm_model or config.llm.model,
+            api_key="not-needed",
+            temperature=0.1,
+            max_tokens=llm_max_tokens
+        )
+
+        # Code LLM (Mistral NeMo for code generation/analysis)
+        self.code_llm = ChatOpenAI(
+            base_url=config.code_llm.api_url.replace("/chat/completions", ""),
+            model=config.code_llm.model,
+            api_key="not-needed",
+            temperature=config.code_llm.temperature,
+            max_tokens=config.code_llm.max_tokens
+        )
+
+        # Embedding service
+        self.embedding_service = NeMoEmbeddingService(
+            base_url=embedding_url or config.embedding.api_url
+        )
+
+        # Query router
+        self.router = QueryRouter(self.llm)
+
+        # Vector RAG
+        self.vector_rag = VectorRAG(
+            graph=self.graph,
+            embedding_service=self.embedding_service,
+            llm=self.llm
+        )
+
+        # Configuration
+        self.vector_weight = config.rag.vector_weight
+        self.top_k = config.rag.top_k
+
+    def query(
+        self,
+        question: str,
+        strategy: str = "auto",
+        language: str = "auto",
+        k: int = None,
+        conversation_history: List[Dict] = None
+    ) -> Dict[str, Any]:
+        """
+        Answer a question using hybrid RAG
+
+        Args:
+            question: The user's question
+            strategy: RAG strategy (auto, vector, graph, hybrid)
+            language: Response language (auto, ko, ja, en)
+            k: Number of results to retrieve
+            conversation_history: List of previous Q&A pairs for context
+
+        Returns:
+            Dictionary with answer and metadata
+        """
+        # Detect if query needs comprehensive answer (listing multiple items)
+        is_comprehensive = self._is_comprehensive_query(question)
+
+        # Detect if query needs deep analysis (detailed, thorough response)
+        is_deep_analysis = self._is_deep_analysis_query(question)
+
+        # Adjust k based on query type
+        if k is None:
+            if is_deep_analysis:
+                k = self.top_k * 4  # 20 results for deep analysis
+            elif is_comprehensive:
+                k = self.top_k * 2  # 10 results for comprehensive
+            else:
+                k = self.top_k      # 5 results for normal
+
+        # Detect language if auto
+        if language == "auto":
+            language = self._detect_language(question)
+
+        # Determine strategy
+        if strategy == "auto":
+            query_type = self.router.classify_query(question)
+            strategy = query_type.value
+
+        # Handle CODE strategy separately (direct to Code LLM)
+        if strategy == "code":
+            answer = self._generate_code_response(question, language, conversation_history)
+            return {
+                "answer": answer,
+                "strategy": strategy,
+                "language": language,
+                "sources": 0,  # No RAG sources for code generation
+                "results": []
+            }
+
+        # Execute appropriate RAG strategy
+        if strategy == "vector":
+            results = self._vector_search(question, k)
+        elif strategy == "graph":
+            results = self._graph_search(question, k)
+        else:  # hybrid
+            results = self._hybrid_search(question, k)
+
+        # Generate answer with conversation context
+        answer = self._generate_answer(
+            question, results, language,
+            conversation_history=conversation_history,
+            is_comprehensive=is_comprehensive,
+            is_deep_analysis=is_deep_analysis
+        )
+
+        return {
+            "answer": answer,
+            "strategy": strategy,
+            "language": language,
+            "sources": len(results),
+            "results": results  # Return all results for agent use
+        }
+
+    def _vector_search(self, query: str, k: int) -> List[Dict]:
+        """
+        Execute vector similarity search with deep query analysis.
+
+        Uses QueryAnalyzer for:
+        - Intent classification (comparison, definition, troubleshooting, etc.)
+        - Entity extraction (products, error codes)
+        - Document-scoped search based on extracted entities
+        """
+        # Step 1: Deep query analysis
+        analyzer = get_query_analyzer()
+        analysis = analyzer.analyze(query)
+
+        print(f"    [QueryAnalyzer] Intent: {analysis.intent.value}, "
+              f"Entities: {[e.name for e in analysis.entities]}, "
+              f"Confidence: {analysis.confidence:.2f}")
+
+        # Step 2: Apply query expansion for better retrieval
+        search_query = query
+        try:
+            from app.api.services.llm_query_expansion_service import get_llm_query_expansion_service
+            llm_expansion = get_llm_query_expansion_service()
+            expanded = llm_expansion.expand_sync(query)
+            search_query = expanded.get_expanded_query()
+            if search_query != query:
+                cache_info = " (cached)" if expanded.cached else ""
+                print(f"    [LLM Query Expansion]{cache_info} '{query[:50]}' -> '{search_query[:80]}...'")
+        except Exception as e:
+            print(f"    [LLM Query Expansion] Failed: {e}")
+
+        # Step 3: Topic density search for key concepts
+        topic_density_results = []
+        product_entities = [e for e in analysis.entities if e.type.value == "product"]
+
+        if product_entities:
+            concepts = [e.name for e in product_entities]
+            print(f"    [Topic Density] Key concepts: {concepts}")
+            seen_chunks = set()
+            topic_k = k * 3
+
+            for concept in concepts:
+                results = self._search_by_topic_density(concept, topic_k)
+                for r in results:
+                    chunk_id = r.get("chunk_id")
+                    if chunk_id and chunk_id not in seen_chunks:
+                        topic_density_results.append(r)
+                        seen_chunks.add(chunk_id)
+
+            if topic_density_results:
+                print(f"    [Topic Density] Found {len(topic_density_results)} results")
+
+        # Step 4: Execute search based on intent
+        hints = analysis.retrieval_hints
+        is_multi_entity = analysis.is_multi_entity()
+
+        if hints.get("use_doc_filter") and is_multi_entity:
+            # Comparison/multi-entity query: search each entity's docs separately
+            print(f"    [Doc-Scoped Search] Filters: {hints.get('doc_filters', [])}")
+            vector_results = self._document_scoped_search(
+                analysis, search_query, k
+            )
+        elif hints.get("search_glossary"):
+            # Definition query: search both product docs AND glossary
+            print(f"    [Glossary Search] Searching product docs and common glossary")
+            vector_results = self._glossary_enhanced_search(
+                analysis, search_query, k
+            )
+        else:
+            # Standard search
+            vector_results = self.vector_rag.search_similar(search_query, k=k)
+
+        # Step 5: Merge results
+        merge_strategy = hints.get("merge_strategy", "score")
+        if topic_density_results:
+            merged = self._merge_topic_density_with_vector(
+                topic_density_results, vector_results,
+                preserve_order=(merge_strategy == "interleave")
+            )
+            final_results = merged[:k]
+        else:
+            final_results = vector_results
+
+        # Step 6: Intent verification (Stage 2 of Auto Agent)
+        # Verify that results actually match the user's query intent
+        intent_value = analysis.intent.value
+        if intent_value in ["definition", "troubleshooting", "comparison", "howto"]:
+            print(f"    [Auto Agent] Stage 2: Verifying results match intent '{intent_value}'")
+            final_results = self._verify_results_by_intent(
+                query=query,
+                intent=intent_value,
+                results=final_results,
+                max_to_verify=5
+            )
+
+        return final_results
+
+    def _document_scoped_search(
+        self,
+        analysis: 'QueryAnalysisResult',
+        search_query: str,
+        k: int
+    ) -> List[Dict]:
+        """
+        Perform document-scoped searches based on query analysis.
+
+        This is the fundamental solution for multi-entity queries:
+        - For each entity (product), search only within that entity's documentation
+        - Uses doc_filter to scope search (e.g., "OF_OSC" for OSC documents)
+        - No hardcoded query patterns - uses analyzer-generated sub-queries
+
+        Args:
+            analysis: Query analysis result with entities and sub-queries
+            search_query: Expanded search query
+            k: Total number of results to return
+
+        Returns:
+            Balanced results from each entity's documentation
+        """
+        from query_analyzer import QueryAnalysisResult, EntityType
+
+        product_entities = [e for e in analysis.entities if e.type == EntityType.PRODUCT]
+
+        if not product_entities:
+            # No product entities - fall back to standard search
+            return self.vector_rag.search_similar(search_query, k=k)
+
+        per_entity_k = max(k, 5)
+        all_results = []
+        seen_chunks = set()
+        entity_counts = {e.name: 0 for e in product_entities}
+
+        # Content filter - skip document listing sections
+        SKIP_PREFIXES = ["関連文書", "目次", "Copyright", "文書情報"]
+
+        for entity in product_entities:
+            doc_filter = entity.doc_filter  # e.g., "OF_OSC" for OSC
+
+            # Use analyzer-generated sub-queries, or fall back to basic pattern
+            sub_queries = [sq for sq in analysis.sub_queries if entity.name in sq.upper()]
+            if not sub_queries:
+                # Generate basic sub-queries for this entity
+                sub_queries = [
+                    f"{entity.name} 概要 特徴 紹介",
+                    f"OpenFrame/{entity.name} システム 構成"
+                ]
+
+            entity_results = []
+            for sub_query in sub_queries:
+                try:
+                    # Document-scoped search using doc_filter
+                    results = self.vector_rag.search_similar(
+                        sub_query,
+                        k=per_entity_k,
+                        doc_filter=doc_filter
+                    )
+
+                    for r in results:
+                        chunk_id = r.get("chunk_id")
+                        content = r.get("content", "")
+
+                        # Skip non-content sections
+                        if any(content.strip().startswith(prefix) for prefix in SKIP_PREFIXES):
+                            continue
+
+                        if chunk_id and chunk_id not in seen_chunks:
+                            r["source_concept"] = entity.name
+                            entity_results.append(r)
+                            seen_chunks.add(chunk_id)
+                            entity_counts[entity.name] += 1
+
+                except Exception as e:
+                    print(f"    [Doc-Scoped] Search for '{entity.name}' failed: {e}")
+
+            all_results.extend(entity_results)
+            print(f"    [Doc-Scoped] '{entity.name}' (filter={doc_filter}): "
+                  f"found {entity_counts[entity.name]} chunks")
+
+        # Interleave results for balanced representation
+        concepts = [e.name for e in product_entities]
+        balanced_results = self._interleave_concept_results(all_results, concepts, k)
+
+        return balanced_results
+
+    # Keep old method as alias for backward compatibility
+    def _separate_searches_for_comparison(
+        self,
+        concepts: List[str],
+        original_query: str,
+        k: int
+    ) -> List[Dict]:
+        """Legacy method - redirects to _document_scoped_search"""
+        from query_analyzer import ExtractedEntity, EntityType, QueryAnalysisResult, QueryIntent
+
+        # Create a minimal analysis result for backward compatibility
+        entities = [ExtractedEntity(name=c, type=EntityType.PRODUCT) for c in concepts]
+        analysis = QueryAnalysisResult(
+            original_query=original_query,
+            intent=QueryIntent.COMPARISON,
+            confidence=0.8,
+            entities=entities,
+            sub_queries=[],
+            retrieval_hints={"use_doc_filter": True}
+        )
+        return self._document_scoped_search(analysis, original_query, k)
+
+    def _interleave_concept_results(
+        self,
+        results: List[Dict],
+        concepts: List[str],
+        k: int
+    ) -> List[Dict]:
+        """
+        Interleave results from different concepts to ensure balanced representation.
+
+        Args:
+            results: All search results with 'source_concept' tag
+            concepts: List of concepts
+            k: Number of results to return
+
+        Returns:
+            Interleaved list of results
+        """
+        # Group results by concept
+        by_concept = {c: [] for c in concepts}
+        for r in results:
+            concept = r.get("source_concept")
+            if concept in by_concept:
+                by_concept[concept].append(r)
+
+        # Sort each group by score
+        for concept in concepts:
+            by_concept[concept].sort(key=lambda x: x.get("score", 0), reverse=True)
+
+        # Interleave: take top from each concept in round-robin
+        interleaved = []
+        indices = {c: 0 for c in concepts}
+        target_per_concept = k // len(concepts)
+
+        while len(interleaved) < k:
+            added_any = False
+            for concept in concepts:
+                idx = indices[concept]
+                if idx < len(by_concept[concept]) and idx < target_per_concept + 2:
+                    interleaved.append(by_concept[concept][idx])
+                    indices[concept] += 1
+                    added_any = True
+                    if len(interleaved) >= k:
+                        break
+            if not added_any:
+                break
+
+        # If we haven't filled k results, add remaining by score
+        if len(interleaved) < k:
+            remaining = [r for r in results if r not in interleaved]
+            remaining.sort(key=lambda x: x.get("score", 0), reverse=True)
+            interleaved.extend(remaining[:k - len(interleaved)])
+
+        # Log the balanced distribution
+        final_counts = {c: 0 for c in concepts}
+        for r in interleaved[:k]:
+            concept = r.get("source_concept")
+            if concept in final_counts:
+                final_counts[concept] += 1
+        print(f"    [Interleave] Final balanced distribution: {final_counts}")
+
+        return interleaved[:k]
+
+    def _glossary_enhanced_search(
+        self,
+        analysis: 'QueryAnalysisResult',
+        search_query: str,
+        k: int
+    ) -> List[Dict]:
+        """
+        Enhanced search for definition queries that includes glossary lookup.
+
+        For definition/abbreviation queries:
+        1. Search product-specific documents
+        2. Search common glossary (OF_Common/Getting-Started guides)
+        3. Merge results prioritizing glossary definitions
+        """
+        all_results = []
+        seen_chunks = set()
+
+        product_entities = [e for e in analysis.entities if e.type.value == "product"]
+
+        # Step 1: Search glossary in Common documents with enhanced query
+        glossary_query = search_query
+        if product_entities:
+            entity_names = " ".join([e.name for e in product_entities])
+            glossary_query = f"{entity_names} 用語集 略語 定義 {search_query}"
+        else:
+            # No recognized entities - still enhance with glossary keywords
+            # Extract potential acronym/term from query (e.g., "BMS" from "BMS란")
+            import re
+            acronym_match = re.match(r'^([A-Za-z0-9_]+)', search_query)
+            if acronym_match:
+                acronym = acronym_match.group(1)
+                glossary_query = f"{acronym} 용어 정의 약어 개요 {search_query}"
+            else:
+                glossary_query = f"용어 정의 약어 {search_query}"
+
+        print(f"    [Glossary] Query: '{glossary_query[:60]}...'")
+        glossary_results = self.vector_rag.search_similar(
+            glossary_query,
+            k=k,
+            doc_filter="OF_Common"
+        )
+
+        for r in glossary_results:
+            chunk_id = r.get("chunk_id")
+            if chunk_id and chunk_id not in seen_chunks:
+                r["source_type"] = "glossary"
+                all_results.append(r)
+                seen_chunks.add(chunk_id)
+
+        # Step 2: Search product-specific documents
+        for entity in product_entities:
+            doc_filter = entity.doc_filter
+            if not doc_filter:
+                continue
+
+            product_results = self.vector_rag.search_similar(
+                search_query,
+                k=k // 2,
+                doc_filter=doc_filter
+            )
+
+            for r in product_results:
+                chunk_id = r.get("chunk_id")
+                if chunk_id and chunk_id not in seen_chunks:
+                    r["source_type"] = "product"
+                    all_results.append(r)
+                    seen_chunks.add(chunk_id)
+
+        # Sort by score, but prioritize glossary results slightly
+        def sort_key(r):
+            score = r.get("score", 0)
+            if r.get("source_type") == "glossary":
+                score *= 1.1  # 10% boost for glossary
+            return score
+
+        all_results.sort(key=sort_key, reverse=True)
+        print(f"    [Glossary Search] Found {len(all_results)} total results")
+
+        return all_results[:k]
+
+    def _verify_results_by_intent(
+        self,
+        query: str,
+        intent: str,
+        results: List[Dict],
+        max_to_verify: int = 5
+    ) -> List[Dict]:
+        """
+        Verify search results match the user's intent using LLM.
+
+        Stage 2 of Auto Agent: After similarity search, verify each result
+        actually answers the user's question type.
+
+        Args:
+            query: Original user query
+            intent: Detected intent (definition, troubleshooting, comparison, etc.)
+            results: Search results to verify
+            max_to_verify: Maximum number of results to verify (for performance)
+
+        Returns:
+            Filtered results that match the intent
+        """
+        if not results:
+            return results
+
+        # Intent-specific verification criteria
+        intent_criteria = {
+            "definition": "용어의 정의, 설명, 개요, 약어 풀이를 포함하는가",
+            "troubleshooting": "에러 해결 방법, 원인, 조치 방법을 포함하는가",
+            "comparison": "비교 대상 간의 차이점, 공통점을 설명하는가",
+            "howto": "절차, 방법, 단계별 가이드를 포함하는가",
+            "factual": "사실적인 정보, 수치, 데이터를 포함하는가",
+        }
+
+        criteria = intent_criteria.get(intent, "질문에 대한 답변을 포함하는가")
+
+        # Build verification prompt
+        results_to_verify = results[:max_to_verify]
+
+        verification_prompt = f"""사용자 질문: "{query}"
+질문 유형: {intent}
+검증 기준: {criteria}
+
+아래 검색 결과들이 사용자의 질문 유형에 적합한지 검증하세요.
+각 결과에 대해 "YES" 또는 "NO"로만 답하세요.
+
+"""
+        for i, r in enumerate(results_to_verify, 1):
+            content = r.get("content", "")[:300]
+            verification_prompt += f"[결과 {i}]\n{content}\n\n"
+
+        verification_prompt += f"""
+각 결과가 "{intent}" 유형의 질문에 적합한 답변을 포함하는지 판단하세요.
+형식: 결과1:YES/NO, 결과2:YES/NO, ...
+"""
+
+        try:
+            response = self.llm.invoke(verification_prompt)
+            verification_text = response.content.upper()
+
+            print(f"    [Intent Verify] Query intent: {intent}, Criteria: {criteria[:30]}...")
+
+            # Parse verification results
+            verified_results = []
+            for i, r in enumerate(results_to_verify, 1):
+                # Check if this result was verified as matching
+                pattern = f"결과{i}:YES|결과 {i}:YES|{i}:YES|\\[{i}\\].*YES"
+                if re.search(pattern, verification_text) or f"YES" in verification_text.split(',')[i-1] if i <= len(verification_text.split(',')) else False:
+                    r["intent_verified"] = True
+                    r["score"] = r.get("score", 0) * 1.5  # Boost verified results
+                    verified_results.append(r)
+                    print(f"    [Intent Verify] Result {i}: VERIFIED ✓")
+                else:
+                    print(f"    [Intent Verify] Result {i}: NOT MATCHED ✗")
+
+            # If no results verified, return original results with lower scores
+            if not verified_results:
+                print(f"    [Intent Verify] No results matched intent, returning unverified")
+                return results
+
+            # Add remaining unverified results at the end
+            for r in results[max_to_verify:]:
+                if r not in verified_results:
+                    verified_results.append(r)
+
+            return verified_results
+
+        except Exception as e:
+            print(f"    [Intent Verify] Error: {e}")
+            return results
+
+    def _merge_topic_density_with_vector(
+        self,
+        topic_density_results: List[Dict],
+        vector_results: List[Dict],
+        preserve_order: bool = False
+    ) -> List[Dict]:
+        """Merge topic density results with vector results for VECTOR strategy.
+
+        IMPORTANT: Vector similarity scores are the primary ranking factor.
+        Topic density only provides a small boost when chunks also match.
+        This prevents table-of-contents chunks from outranking actual content.
+
+        Args:
+            topic_density_results: Results from topic density search
+            vector_results: Results from vector search (may be balanced for comparison queries)
+            preserve_order: If True, preserve the order of vector_results (for comparison queries
+                          where balanced interleaving is important)
+        """
+        seen_chunks = set()
+        merged = []
+
+        # Build a lookup for topic density scores
+        topic_density_lookup = {}
+        for result in topic_density_results:
+            topic_density_lookup[result["chunk_id"]] = result.get("topic_density", 0.0)
+
+        # Vector results first (semantic similarity is the primary signal)
+        for result in vector_results:
+            chunk_id = result["chunk_id"]
+            if chunk_id not in seen_chunks:
+                # Start with vector score as base
+                base_score = result["score"]
+
+                # Add small boost if also found by topic density
+                if chunk_id in topic_density_lookup:
+                    topic_boost = topic_density_lookup[chunk_id] * config.rag.topic_density_boost
+                    result["combined_score"] = base_score + topic_boost
+                    result["source"] = "vector_topic"
+                else:
+                    result["combined_score"] = base_score
+                    result["source"] = "vector"
+
+                merged.append(result)
+                seen_chunks.add(chunk_id)
+
+        # Add topic density results that weren't in vector results (lower priority)
+        for result in topic_density_results:
+            chunk_id = result["chunk_id"]
+            if chunk_id not in seen_chunks:
+                topic_score = result.get("topic_density", 0.5)
+                # Topic-only results get lower scores than vector results
+                result["combined_score"] = (
+                    config.rag.topic_only_base_score +
+                    (topic_score * config.rag.topic_only_weight)
+                )
+                result["source"] = "topic_density"
+                merged.append(result)
+                seen_chunks.add(chunk_id)
+
+        # For comparison queries, preserve the balanced order from interleaving
+        # Only re-sort for non-comparison queries
+        if preserve_order:
+            print(f"    [Merge] Preserving balanced order for comparison query ({len(merged)} results)")
+            return merged
+        else:
+            # Sort by combined score for regular queries
+            return sorted(merged, key=lambda x: x.get("combined_score", 0), reverse=True)
+
+    def _graph_search(self, query: str, k: int) -> List[Dict]:
+        """Execute graph-based search with entity traversal"""
+        # Step 0: Check for product entities and fetch glossary definitions first
+        analyzer = get_query_analyzer()
+        analysis = analyzer.analyze(query)
+        product_entities = [e for e in analysis.entities if e.type.value == "product"]
+
+        glossary_results = []
+        if product_entities:
+            # For any query with product entities, fetch glossary definitions
+            entity_names = " ".join([e.name for e in product_entities])
+            glossary_query = f"{entity_names} 用語集 略語 定義 概要"
+            print(f"    [Graph+Glossary] Fetching definitions for: {[e.name for e in product_entities]}")
+
+            glossary_results = self.vector_rag.search_similar(
+                glossary_query,
+                k=min(k, len(product_entities) * 2),
+                doc_filter="OF_Common"
+            )
+            for r in glossary_results:
+                r["source"] = "glossary"
+
+        # Extract keywords for search
+        keywords = self._extract_keywords(query)
+
+        if not keywords:
+            # Fallback to simple content search
+            results = self.graph.query(
+                """
+                MATCH (c:Chunk)
+                OPTIONAL MATCH (c)-[:MENTIONS]->(e:Entity)
+                OPTIONAL MATCH (d:Document)-[:CONTAINS]->(c)
+                RETURN
+                    c.id AS chunk_id,
+                    c.content AS content,
+                    c.index AS chunk_index,
+                    d.id AS doc_id,
+                    collect(DISTINCT e.name)[..5] AS entities
+                ORDER BY c.index
+                LIMIT $k
+                """,
+                {"k": k}
+            )
+        else:
+            # First try: Search entities that match keywords
+            entity_results = self.graph.query(
+                """
+                UNWIND $keywords AS keyword
+                MATCH (e:Entity)
+                WHERE toLower(e.name) CONTAINS toLower(keyword)
+                MATCH (c:Chunk)-[:MENTIONS]->(e)
+                OPTIONAL MATCH (d:Document)-[:CONTAINS]->(c)
+                WITH c, d, collect(DISTINCT e.name)[..5] AS entities, count(e) AS match_count
+                RETURN DISTINCT
+                    c.id AS chunk_id,
+                    c.content AS content,
+                    c.index AS chunk_index,
+                    d.id AS doc_id,
+                    entities,
+                    match_count
+                ORDER BY match_count DESC, c.index
+                LIMIT $k
+                """,
+                {"keywords": keywords, "k": k}
+            )
+
+            # If entity search found results, use them
+            if entity_results:
+                results = entity_results
+            else:
+                # Fallback: Search content with case-insensitive match
+                keyword = keywords[0]
+                results = self.graph.query(
+                    """
+                    MATCH (c:Chunk)
+                    WHERE toLower(c.content) CONTAINS toLower($keyword)
+                    OPTIONAL MATCH (c)-[:MENTIONS]->(e:Entity)
+                    OPTIONAL MATCH (d:Document)-[:CONTAINS]->(c)
+                    WITH c, d, collect(DISTINCT e.name)[..5] AS entities
+                    RETURN
+                        c.id AS chunk_id,
+                        c.content AS content,
+                        c.index AS chunk_index,
+                        d.id AS doc_id,
+                        entities
+                    ORDER BY c.index
+                    LIMIT $k
+                    """,
+                    {"keyword": keyword, "k": k}
+                )
+
+        graph_results = [
+            {
+                "chunk_id": r["chunk_id"],
+                "content": r["content"],
+                "chunk_index": r["chunk_index"],
+                "doc_id": r["doc_id"],
+                "entities": r["entities"] or [],
+                "score": r.get("match_count", 1.0),  # Use match count as score
+                "source": "graph"
+            }
+            for r in results
+        ]
+
+        # Merge glossary definitions with graph results (glossary first)
+        if glossary_results:
+            seen_chunks = set(r.get("chunk_id") for r in glossary_results)
+            # Filter out duplicates from graph results
+            unique_graph = [r for r in graph_results if r.get("chunk_id") not in seen_chunks]
+            merged = glossary_results + unique_graph
+            print(f"    [Graph+Glossary] Merged {len(glossary_results)} glossary + {len(unique_graph)} graph results")
+            return merged[:k]
+
+        return graph_results
+
+    def _hybrid_search(self, query: str, k: int) -> List[Dict]:
+        """Execute both vector and graph search, merge results"""
+        # Check for numeric error codes (e.g., -5212)
+        error_code_results = self._search_numeric_error_code(query, k)
+
+        # Extract key concept and search by topic density (Option 1+3)
+        key_concept = self._extract_key_concept(query)
+        topic_density_results = []
+        if key_concept:
+            print(f"    [Topic Density] Key concept: '{key_concept}'")
+            topic_density_results = self._search_by_topic_density(key_concept, k)
+            if topic_density_results:
+                print(f"    [Topic Density] Found {len(topic_density_results)} results from topic-central documents")
+
+        # Get results from both sources
+        vector_results = self._vector_search(query, k)
+        graph_results = self._graph_search(query, k)
+
+        # Merge and deduplicate
+        # Priority: error_code > topic_density > vector/graph hybrid
+        merged = self._merge_results_with_topic_density(
+            vector_results, graph_results, error_code_results, topic_density_results
+        )
+
+        # Rerank
+        reranked = self._rerank_results(merged, query)
+
+        return reranked[:k]
+
+    def _search_numeric_error_code(self, query: str, k: int) -> List[Dict]:
+        """Search for numeric error codes like -5212 directly in content"""
+        # Find numeric error codes in query
+        error_codes = re.findall(r'-\d{3,5}', query)
+
+        if not error_codes:
+            return []
+
+        results = []
+        for error_code in error_codes:
+            # Direct content search for the error code
+            search_results = self.graph.query(
+                """
+                MATCH (c:Chunk)
+                WHERE c.content CONTAINS $error_code
+                OPTIONAL MATCH (c)-[:MENTIONS]->(e:Entity)
+                OPTIONAL MATCH (d:Document)-[:CONTAINS]->(c)
+                RETURN
+                    c.id AS chunk_id,
+                    c.content AS content,
+                    d.id AS doc_id,
+                    collect(DISTINCT e.name)[..5] AS entities
+                LIMIT $k
+                """,
+                {"error_code": error_code, "k": k}
+            )
+
+            for r in search_results:
+                results.append({
+                    "chunk_id": r["chunk_id"],
+                    "content": r["content"],
+                    "chunk_index": None,
+                    "doc_id": r["doc_id"],
+                    "entities": r["entities"] or [],
+                    "score": 1.0,  # High score for exact match
+                    "source": "error_code"
+                })
+
+        return results
+
+    def _merge_results(
+        self,
+        vector_results: List[Dict],
+        graph_results: List[Dict],
+        error_code_results: List[Dict] = None
+    ) -> List[Dict]:
+        """Merge results from vector, graph, and error code search"""
+        seen_chunks = set()
+        merged = []
+
+        # Process error code results first (highest priority)
+        if error_code_results:
+            for result in error_code_results:
+                chunk_id = result["chunk_id"]
+                if chunk_id not in seen_chunks:
+                    result["combined_score"] = 1.0  # Highest priority
+                    merged.append(result)
+                    seen_chunks.add(chunk_id)
+
+        # Process vector results (with similarity scores)
+        for result in vector_results:
+            chunk_id = result["chunk_id"]
+            if chunk_id not in seen_chunks:
+                result["combined_score"] = result["score"] * self.vector_weight
+                merged.append(result)
+                seen_chunks.add(chunk_id)
+
+        # Process graph results
+        graph_weight = 1.0 - self.vector_weight
+        for result in graph_results:
+            chunk_id = result["chunk_id"]
+            if chunk_id not in seen_chunks:
+                result["combined_score"] = result.get("score", 0.5) * graph_weight
+                merged.append(result)
+                seen_chunks.add(chunk_id)
+            else:
+                # Boost score for chunks found by both methods
+                for m in merged:
+                    if m["chunk_id"] == chunk_id:
+                        m["combined_score"] += result.get("score", 0.5) * graph_weight
+                        m["source"] = "hybrid"
+                        break
+
+        return merged
+
+    def _merge_results_with_topic_density(
+        self,
+        vector_results: List[Dict],
+        graph_results: List[Dict],
+        error_code_results: List[Dict] = None,
+        topic_density_results: List[Dict] = None
+    ) -> List[Dict]:
+        """
+        Merge results with topic density prioritization
+
+        Priority order:
+        1. Error code results (exact match, highest priority)
+        2. Topic density results (documents where concept is central)
+        3. Vector + Graph hybrid results
+        """
+        seen_chunks = set()
+        merged = []
+
+        # 1. Process error code results first (highest priority)
+        if error_code_results:
+            for result in error_code_results:
+                chunk_id = result["chunk_id"]
+                if chunk_id not in seen_chunks:
+                    result["combined_score"] = 1.0  # Highest priority
+                    merged.append(result)
+                    seen_chunks.add(chunk_id)
+
+        # 2. Process topic density results (concept-central documents)
+        if topic_density_results:
+            for result in topic_density_results:
+                chunk_id = result["chunk_id"]
+                if chunk_id not in seen_chunks:
+                    # Score based on topic density (0.0 to 1.0) + base boost
+                    topic_score = result.get("topic_density", 0.5)
+                    result["combined_score"] = 0.9 + (topic_score * 0.1)  # 0.9 ~ 1.0 range
+                    merged.append(result)
+                    seen_chunks.add(chunk_id)
+                else:
+                    # Boost existing chunk if also found by topic density
+                    for m in merged:
+                        if m["chunk_id"] == chunk_id:
+                            m["combined_score"] += 0.2  # Boost
+                            m["source"] = "topic_density_boosted"
+                            break
+
+        # 3. Process vector results
+        for result in vector_results:
+            chunk_id = result["chunk_id"]
+            if chunk_id not in seen_chunks:
+                result["combined_score"] = result["score"] * self.vector_weight * 0.8  # Slightly lower priority
+                merged.append(result)
+                seen_chunks.add(chunk_id)
+            else:
+                # Boost if also found by vector
+                for m in merged:
+                    if m["chunk_id"] == chunk_id:
+                        m["combined_score"] += result["score"] * 0.1
+                        break
+
+        # 4. Process graph results
+        graph_weight = 1.0 - self.vector_weight
+        for result in graph_results:
+            chunk_id = result["chunk_id"]
+            if chunk_id not in seen_chunks:
+                result["combined_score"] = result.get("score", 0.5) * graph_weight * 0.8
+                merged.append(result)
+                seen_chunks.add(chunk_id)
+            else:
+                # Boost if also found by graph
+                for m in merged:
+                    if m["chunk_id"] == chunk_id:
+                        m["combined_score"] += result.get("score", 0.5) * 0.1
+                        if "hybrid" not in m.get("source", ""):
+                            m["source"] = m.get("source", "") + "_hybrid"
+                        break
+
+        return merged
+
+    def _rerank_results(self, results: List[Dict], query: str) -> List[Dict]:
+        """Rerank merged results"""
+        # Sort by combined score
+        sorted_results = sorted(
+            results,
+            key=lambda x: x.get("combined_score", 0),
+            reverse=True
+        )
+
+        # Boost results with query keywords in content
+        keywords = self._extract_keywords(query)
+        for result in sorted_results:
+            content_lower = result["content"].lower()
+            keyword_matches = sum(1 for kw in keywords if kw.lower() in content_lower)
+            if keyword_matches > 0:
+                result["combined_score"] *= (1 + 0.1 * keyword_matches)
+
+        # Re-sort after boosting
+        return sorted(sorted_results, key=lambda x: x.get("combined_score", 0), reverse=True)
+
+    def _generate_answer(
+        self,
+        question: str,
+        results: List[Dict],
+        language: str,
+        conversation_history: List[Dict] = None,
+        is_comprehensive: bool = False,
+        is_deep_analysis: bool = False
+    ) -> str:
+        """Generate answer using LLM with optional conversation context"""
+        if not results:
+            return self._no_results_message(language)
+
+        # Filter out low-quality results to prevent hallucination
+        MIN_RELEVANCE_SCORE = float(os.getenv("RAG_MIN_RELEVANCE_SCORE", "0.3"))
+        relevant_results = [r for r in results if r.get("score", 0) >= MIN_RELEVANCE_SCORE]
+
+        # If no relevant results after filtering, return no-info message
+        if not relevant_results:
+            print(f"    [HybridRAG] No relevant results (all scores < {MIN_RELEVANCE_SCORE})")
+            return self._no_results_message(language)
+
+        # Use filtered results for answer generation
+        results = relevant_results
+
+        # Adjust context size based on query type
+        if is_deep_analysis:
+            max_results = 20
+            max_content_length = 1500  # Much more content for deep analysis
+        elif is_comprehensive:
+            max_results = 10
+            max_content_length = 800
+        else:
+            max_results = 5
+            max_content_length = 500
+
+        # Build document context
+        context_parts = []
+        for i, r in enumerate(results[:max_results], 1):
+            content = r["content"][:max_content_length]
+            context_parts.append(f"[{i}] {content}")
+            if r.get("entities"):
+                context_parts.append(f"    Related entities: {', '.join(r['entities'])}")
+
+        context = "\n\n".join(context_parts)
+
+        # Truncate context to prevent LLM token limit errors
+        max_context_len = int(os.getenv("LLM_MAX_CONTEXT_LENGTH", "3000"))
+        if len(context) > max_context_len:
+            context = context[:max_context_len] + "\n...[truncated]"
+
+        # Language instruction
+        lang_instruction = self._get_language_instruction(language)
+
+        # Build conversation history section
+        conversation_context = ""
+        if conversation_history:
+            # Limit to last 3 turns to avoid token overflow
+            recent_history = conversation_history[-3:]
+            history_parts = []
+            for turn in recent_history:
+                q = turn.get("query", "")[:200]
+                a = turn.get("answer", "")[:300]
+                history_parts.append(f"User: {q}\nAssistant: {a}")
+
+            if history_parts:
+                conversation_context = f"""
+Previous conversation:
+{chr(10).join(history_parts)}
+
+"""
+
+        # Comprehensive instruction for list-type queries
+        comprehensive_instruction = ""
+        if is_comprehensive:
+            if language == "ko":
+                comprehensive_instruction = "\n중요: 문서에서 찾은 모든 관련 항목을 빠짐없이 나열해주세요. 하나만 언급하지 말고 전체 목록을 제공하세요.\n"
+            elif language == "ja":
+                comprehensive_instruction = "\n重要: ドキュメントで見つかったすべての関連項目を漏れなくリストアップしてください。\n"
+            else:
+                comprehensive_instruction = "\nIMPORTANT: List ALL relevant items found in the documents. Do not mention just one item if there are multiple.\n"
+
+        # Deep analysis instruction for thorough, detailed responses
+        deep_analysis_instruction = ""
+        if is_deep_analysis:
+            if language == "ko":
+                deep_analysis_instruction = """
+[심층 분석 모드]
+사용자가 자세하고 깊이 있는 분석을 요청했습니다. 다음 지침을 따라주세요:
+1. 제공된 모든 문서를 철저히 분석하세요
+2. 관련된 모든 정보를 빠짐없이 포함하세요
+3. 개념, 원인, 해결방법, 예시 등을 상세하게 설명하세요
+4. 가능한 한 구체적이고 실용적인 정보를 제공하세요
+5. 관련 배경 정보와 맥락도 함께 설명하세요
+6. 길고 상세한 답변을 제공하세요 - 간략하게 답하지 마세요
+
+"""
+            elif language == "ja":
+                deep_analysis_instruction = """
+[深層分析モード]
+ユーザーが詳細で深い分析を要求しています。以下の指針に従ってください：
+1. 提供されたすべてのドキュメントを徹底的に分析してください
+2. 関連するすべての情報を漏れなく含めてください
+3. 概念、原因、解決方法、例などを詳しく説明してください
+4. できるだけ具体的で実用的な情報を提供してください
+5. 関連する背景情報とコンテキストも一緒に説明してください
+6. 長く詳細な回答を提供してください - 簡潔に答えないでください
+
+"""
+            else:
+                deep_analysis_instruction = """
+[DEEP ANALYSIS MODE]
+The user has requested a detailed, thorough analysis. Follow these guidelines:
+1. Thoroughly analyze ALL provided documents
+2. Include ALL relevant information without omission
+3. Explain concepts, causes, solutions, and examples in detail
+4. Provide specific and practical information
+5. Include related background information and context
+6. Provide a long, detailed response - do NOT be brief
+
+"""
+
+        # Generate answer with conversation context
+        prompt = f"""Based on the context below, answer the question.
+{lang_instruction}{comprehensive_instruction}{deep_analysis_instruction}
+IMPORTANT: Only answer based on information found in the Document Context below.
+If the documents do not contain relevant information about the question topic, respond with:
+- Korean: "관련 정보를 찾을 수 없습니다."
+- Japanese: "関連情報が見つかりません。"
+- English: "No relevant information found."
+
+Do NOT make up or hallucinate information that is not in the provided documents.
+
+{conversation_context}Document Context:
+{context}
+
+Current Question: {question}
+
+Answer (consider the previous conversation if relevant):"""
+
+        response = self.llm.invoke(prompt)
+        answer = response.content
+
+        # Clean thinking tokens
+        answer = self._clean_response(answer)
+
+        return answer
+
+    def _generate_code_response(
+        self,
+        question: str,
+        language: str,
+        conversation_history: List[Dict] = None
+    ) -> str:
+        """
+        Generate code response using Code LLM (Mistral NeMo)
+
+        Args:
+            question: The user's question (code-related)
+            language: Response language (ko, ja, en)
+            conversation_history: Previous Q&A pairs
+
+        Returns:
+            Generated code or code analysis
+        """
+        # Build conversation context
+        conversation_context = ""
+        if conversation_history:
+            recent_history = conversation_history[-3:]
+            history_parts = []
+            for turn in recent_history:
+                q = turn.get("query", "")[:200]
+                a = turn.get("answer", "")[:300]
+                history_parts.append(f"User: {q}\nAssistant: {a}")
+
+            if history_parts:
+                conversation_context = f"""
+Previous conversation:
+{chr(10).join(history_parts)}
+
+"""
+
+        # Language instruction for response
+        lang_instruction = ""
+        if language == "ko":
+            lang_instruction = "Please respond in Korean. Provide explanations in Korean but keep code comments in English for readability.\n"
+        elif language == "ja":
+            lang_instruction = "日本語で回答してください。説明は日本語で、コードコメントは可読性のため英語で記述してください。\n"
+
+        # Build prompt for code generation
+        prompt = f"""{lang_instruction}{conversation_context}You are an expert programmer. Help the user with their code-related request.
+
+User Request: {question}
+
+Provide:
+1. Clear, well-commented code
+2. Brief explanation of how it works
+3. Usage examples if applicable
+
+Response:"""
+
+        try:
+            response = self.code_llm.invoke(prompt)
+            answer = response.content
+
+            # Clean thinking tokens if any
+            answer = self._clean_response(answer)
+
+            return answer
+
+        except Exception as e:
+            error_msg = {
+                "ko": f"코드 생성 중 오류가 발생했습니다: {e}",
+                "ja": f"コード生成中にエラーが発生しました: {e}",
+                "en": f"Error generating code: {e}"
+            }
+            return error_msg.get(language, error_msg["en"])
+
+    def _extract_key_concept(self, query: str) -> str:
+        """
+        Extract the central/key concept from a query using LLM
+
+        This helps identify the main topic to prioritize documents
+        where that topic is central, not just mentioned.
+
+        Changed: Now extracts compound keywords (2-gram) for better query differentiation.
+        Example: "MFSバイナリの関係" → "MFSバイナリ", "MFSの処理手順" → "MFS処理"
+
+        Args:
+            query: User's query
+
+        Returns:
+            The key concept/keyword phrase that is most central to the query
+        """
+        prompt = f"""다음 질문에서 핵심 주제를 나타내는 복합 키워드(2단어)를 추출하세요.
+
+규칙:
+- 주요 명사 + 동작/대상을 조합하여 2단어로 추출 (예: MFS처리, 데이터변환, 시스템설치)
+- 단일 단어로는 구분되지 않는 경우 반드시 2단어 조합 사용
+- 조사(을/를/이/가/의/에서/으로/の/を/が)는 제외
+- 영어+한글, 영어+일본어 조합도 가능
+- 공백 없이 붙여서 반환
+
+예시:
+- "MFSバイナリの関係" → "MFSバイナリ"
+- "MFSの処理手順" → "MFS処理"
+- "데이터 마이그레이션 방법" → "데이터마이그레이션"
+- "IMS 에러 해결" → "IMS에러"
+
+질문: {query}
+
+복합 키워드(2단어, 공백없이):"""
+
+        # First try fallback for compound keywords
+        fallback_concept = self._fallback_key_concept_compound(query)
+
+        try:
+            response = self.llm.invoke(prompt)
+            concept = response.content.strip()
+
+            # Clean up - remove quotes, periods, particles, etc.
+            concept = re.sub(r'["\'.。、:：\s]', '', concept)
+            concept = concept.split('\n')[0].strip()  # Take first line only
+
+            # Remove Japanese/Korean particles if at the end
+            concept = re.sub(r'(을|를|이|가|의|에서|으로|에|와|과|도|만|の|を|が|に|で|と)$', '', concept)
+
+            # Validate: concept should be in the original query (partially)
+            if concept and len(concept) >= 3:
+                # Check if concept is in query (allowing for particles between words)
+                query_normalized = re.sub(r'[의の를を이가]', '', query.lower())
+                concept_normalized = concept.lower()
+                if concept_normalized in query_normalized or any(part in query_normalized for part in [concept_normalized[:len(concept_normalized)//2], concept_normalized[len(concept_normalized)//2:]]):
+                    return concept
+
+            # Return fallback result if LLM extraction failed
+            return fallback_concept if fallback_concept else self._fallback_key_concept(query)
+
+        except Exception as e:
+            print(f"Key concept extraction error: {e}")
+            return fallback_concept if fallback_concept else self._fallback_key_concept(query)
+
+    def _extract_key_concepts_for_comparison(self, query: str) -> List[str]:
+        """
+        Extract multiple key concepts for comparison queries.
+
+        For queries like "OSC와 OSI 비교" or "MFS vs BMS", extracts both product names
+        to ensure both are boosted in topic density search.
+
+        Args:
+            query: User's query
+
+        Returns:
+            List of key concepts (1-3 items)
+        """
+        # Comparison patterns in Korean, Japanese, English
+        comparison_patterns = [
+            r'와\s*', r'과\s*', r'と\s*', r'\s+vs\.?\s+', r'\s+and\s+',
+            r'비교', r'比較', r'compare', r'차이', r'違い', r'difference'
+        ]
+
+        # Check if this is a comparison query
+        is_comparison = any(re.search(p, query, re.IGNORECASE) for p in comparison_patterns)
+
+        if not is_comparison:
+            # Not a comparison query, use single concept extraction
+            concept = self._extract_key_concept(query)
+            return [concept] if concept else []
+
+        # Extract product/acronym names for comparison
+        # Look for uppercase acronyms (2-5 letters)
+        # Note: \b doesn't work with CJK characters, use lookbehind/ahead instead
+        acronyms = re.findall(r'(?<![A-Za-z])([A-Z]{2,5})(?![A-Za-z])', query)
+
+        if len(acronyms) >= 2:
+            # Found multiple acronyms, return them as concepts
+            return list(set(acronyms[:3]))  # Limit to 3 concepts
+
+        # Try to find Japanese/Korean product names
+        # Pattern: OpenFrame/XXX or XXX製品 or XXX제품
+        product_patterns = [
+            r'OpenFrame[/]?(\w+)',
+            r'(\w+)製品',
+            r'(\w+)제품',
+            r'(\w+)システム',
+            r'(\w+)시스템',
+        ]
+
+        products = []
+        for pattern in product_patterns:
+            matches = re.findall(pattern, query)
+            products.extend(matches)
+
+        if products:
+            return list(set(products[:3]))
+
+        # Fallback to single concept
+        concept = self._extract_key_concept(query)
+        return [concept] if concept else []
+
+    def _fallback_key_concept_compound(self, query: str) -> str:
+        """
+        Fallback compound keyword extraction using heuristics.
+        Extracts 2-word combinations for better query differentiation.
+        """
+        # Action/process words patterns (for matching in query)
+        action_patterns = [
+            (r'バイナリ', 'バイナリ'),
+            (r'処理', '処理'),
+            (r'手順', '手順'),
+            (r'関係', '関係'),
+            (r'変換', '変換'),
+            (r'設定', '設定'),
+            (r'構成', '構成'),
+            (r'実行', '実行'),
+            (r'生成', '生成'),
+            (r'マイグレーション', 'マイグレーション'),
+            (r'エラー', 'エラー'),
+            (r'인스톨|설치', '설치'),
+            (r'마이그레이션', '마이그레이션'),
+            (r'에러|오류', '에러'),
+            (r'처리', '처리'),
+            (r'변환', '변환'),
+            (r'설정', '설정'),
+            (r'구성', '구성'),
+            (r'실행', '실행'),
+            (r'생성', '생성'),
+            (r'관계', '관계'),
+            (r'절차|순서', '절차'),
+            (r'해결', '해결'),
+            (r'binary', 'binary'),
+            (r'processing', 'processing'),
+            (r'migration', 'migration'),
+            (r'error', 'error'),
+        ]
+
+        # Find main subject (uppercase acronym like MFS, IMS, DFS)
+        # Also capture any attached word (e.g., MFSバイナリ)
+        main_subject_match = re.search(r'\b([A-Z]{2,}[A-Za-z0-9]*[ぁ-んァ-ン一-龥가-힣]*)\b', query)
+        main_subject = main_subject_match.group(1) if main_subject_match else None
+
+        # If no acronym, try to find first significant word (Korean/Japanese)
+        if not main_subject:
+            # Remove particles and split by spaces
+            normalized = re.sub(r'\s+', ' ', query)
+            words = normalized.strip().split()
+            if words:
+                # Get first word that's not a stop word
+                stop_words = {'방법', '하는', '대해', '대해서', '알려', '주세요', '무엇', '어떻게', 'の', 'を', 'が'}
+                for w in words:
+                    # Clean particles from word
+                    w_clean = re.sub(r'(の|を|が|に|で|と|은|는|이|가|을|를|의|에서|으로|에)$', '', w)
+                    if len(w_clean) >= 2 and w_clean not in stop_words:
+                        main_subject = w_clean
+                        break
+
+        if not main_subject:
+            return ""
+
+        # Find the action/modifier word from patterns (not already in main_subject)
+        action_word = None
+        for pattern, replacement in action_patterns:
+            # Only match if not already part of main_subject
+            if re.search(pattern, query, re.IGNORECASE) and replacement not in main_subject:
+                action_word = replacement
+                break
+
+        # If no action word found, get the word right after the main subject
+        if not action_word:
+            # Find position of main_subject and get next word
+            idx = query.find(main_subject)
+            if idx >= 0:
+                after_subject = query[idx + len(main_subject):]
+                # Remove leading particles
+                after_subject = re.sub(r'^(の|を|が|に|で|と|은|는|이|가|을|를|의|에서|으로|에|\s)+', '', after_subject)
+                # Get first word
+                next_word_match = re.match(r'([A-Za-z]+|[가-힣]+|[ぁ-んァ-ン一-龥]+)', after_subject)
+                if next_word_match:
+                    candidate = next_word_match.group(1)
+                    # Don't use stop words as action
+                    if candidate not in {'방법', '하는', '대해', '알려', '주세요'}:
+                        action_word = candidate
+
+        if main_subject and action_word:
+            return f"{main_subject}{action_word}"
+
+        # If only main_subject found, return it alone
+        return main_subject if main_subject else ""
+
+    def _fallback_key_concept(self, query: str) -> str:
+        """Fallback key concept extraction using simple heuristics (single word)"""
+        # Priority action/process words (these are likely the central topic)
+        action_patterns = [
+            r'마이그레이션', r'변환', r'이동', r'전환', r'이관',
+            r'설치', r'설정', r'구성', r'배포', r'실행',
+            r'생성', r'삭제', r'수정', r'업데이트', r'업그레이드',
+            r'migration', r'convert', r'install', r'setup', r'deploy',
+            r'에러', r'오류', r'error', r'해결', r'처리'
+        ]
+
+        # First, check for action words
+        for pattern in action_patterns:
+            if re.search(pattern, query, re.IGNORECASE):
+                match = re.search(pattern, query, re.IGNORECASE)
+                return match.group()
+
+        # Remove common question/filler words
+        stop_words = {
+            '방법', '하는', '에서', '으로', '대해', '대해서', '알려', '주세요',
+            '무엇', '어떻게', '왜', '언제', 'what', 'how', 'why', 'when',
+            '상세', '자세', '하게', '히', '을', '를', '이', '가', '의',
+            '데이터셋을', '데이터셋으로', '데이터셋'
+        }
+
+        # Split into words and find meaningful ones
+        words = re.findall(r'[A-Za-z가-힣]+', query)
+        meaningful = [w for w in words if len(w) >= 2 and w.lower() not in stop_words]
+
+        if meaningful:
+            # Return the longest meaningful word (likely the key concept)
+            return max(meaningful, key=len)
+
+        return ""
+
+    def _search_by_topic_density(self, concept: str, k: int) -> List[Dict]:
+        """
+        Search documents where the concept is central (high topic density)
+
+        Topic density = number of chunks containing concept / total chunks in document
+        Documents with higher density have the concept as a more central topic.
+
+        Args:
+            concept: The key concept to search for
+            k: Number of results to return
+
+        Returns:
+            List of chunks from documents where the concept is most central
+        """
+        if not concept:
+            return []
+
+        # Find documents and score by topic density
+        results = self.graph.query(
+            """
+            // First, find all documents containing the concept
+            MATCH (d:Document)-[:CONTAINS]->(c:Chunk)
+            WHERE c.content CONTAINS $concept
+            WITH d, count(c) AS concept_chunks
+
+            // Get total chunks per document
+            MATCH (d)-[:CONTAINS]->(all_chunks:Chunk)
+            WITH d, concept_chunks, count(all_chunks) AS total_chunks
+
+            // Calculate topic density
+            WITH d, concept_chunks, total_chunks,
+                 toFloat(concept_chunks) / toFloat(total_chunks) AS topic_density
+
+            // Order by density (concept centrality) then by absolute count
+            ORDER BY topic_density DESC, concept_chunks DESC
+
+            // Get chunks from top documents
+            MATCH (d)-[:CONTAINS]->(c:Chunk)
+            WHERE c.content CONTAINS $concept
+            OPTIONAL MATCH (c)-[:MENTIONS]->(e:Entity)
+
+            RETURN
+                c.id AS chunk_id,
+                c.content AS content,
+                c.index AS chunk_index,
+                d.id AS doc_id,
+                collect(DISTINCT e.name)[..5] AS entities,
+                topic_density,
+                concept_chunks AS doc_concept_count
+            ORDER BY topic_density DESC, c.index
+            LIMIT $k
+            """,
+            {"concept": concept, "k": k}
+        )
+
+        return [
+            {
+                "chunk_id": r["chunk_id"],
+                "content": r["content"],
+                "chunk_index": r["chunk_index"],
+                "doc_id": r["doc_id"],
+                "entities": r["entities"] or [],
+                "score": r["topic_density"],  # Use topic density as score
+                "topic_density": r["topic_density"],
+                "doc_concept_count": r["doc_concept_count"],
+                "source": "topic_density"
+            }
+            for r in results
+        ]
+
+    def _extract_keywords(self, text: str) -> List[str]:
+        """Extract keywords from text"""
+        keywords = []
+
+        # Error codes (high priority)
+        error_codes = re.findall(r'[A-Z_]+ERR[A-Z_]*|[A-Z]+-\d+', text)
+        keywords.extend(error_codes)
+
+        # Product/technical names (OF*, Open*, etc.)
+        product_names = re.findall(r'\b(?:OF[A-Za-z]+|Open[A-Za-z]+|OFCOBOL|OFASM|PROSORT|JEUS|Tibero|Neo4j)\b', text, re.IGNORECASE)
+        keywords.extend(product_names)
+
+        # Technical terms (capitalized words like GraphRAG, Neo4j)
+        tech_terms = re.findall(r'\b[A-Z][a-zA-Z]*[A-Z][a-zA-Z]*\b', text)
+        keywords.extend(tech_terms)
+
+        # Korean comparison patterns: "A와 B", "A과 B"
+        korean_compare = re.findall(r'([A-Za-z가-힣]+)[와과]\s*([A-Za-z가-힣]+)', text)
+        for match in korean_compare:
+            keywords.extend(match)
+
+        # Deduplicate while preserving order
+        seen = set()
+        unique_keywords = []
+        for kw in keywords:
+            kw_lower = kw.lower()
+            if kw_lower not in seen and len(kw) >= 2:
+                seen.add(kw_lower)
+                unique_keywords.append(kw)
+
+        if unique_keywords:
+            return unique_keywords[:5]
+
+        # Fallback: Regular nouns (basic extraction)
+        words = text.split()
+        stop_words = {"the", "a", "an", "is", "are", "was", "were", "what", "how", "why", "which",
+                      "이란", "무엇", "어떻게", "뭐야", "뭔가요", "인가요", "이에요"}
+        keywords = [w for w in words if len(w) > 2 and w.lower() not in stop_words]
+
+        return keywords[:3]
+
+    def _detect_language(self, text: str) -> str:
+        """Detect language of text"""
+        korean_count = len(re.findall(r'[\uac00-\ud7af]', text))
+        japanese_count = len(re.findall(r'[\u3040-\u309f\u30a0-\u30ff]', text))
+
+        if korean_count > japanese_count and korean_count > len(text) * 0.1:
+            return "ko"
+        elif japanese_count > korean_count and japanese_count > len(text) * 0.1:
+            return "ja"
+        return "en"
+
+    def _is_comprehensive_query(self, text: str) -> bool:
+        """
+        Detect if query requires comprehensive answer (listing multiple items)
+
+        Patterns that indicate comprehensive queries:
+        - Asking for tools, options, methods (plural or list-type)
+        - Korean: ~들, 목록, 종류, 알려주세요, 무엇이 있나요
+        - Japanese: ~たち, 一覧, 種類, 教えてください
+        - English: all, list, what are, types of
+        """
+        text_lower = text.lower()
+
+        # Korean patterns for comprehensive queries
+        korean_patterns = [
+            r'알려주세요',      # Tell me (about)
+            r'알려줘',          # Tell me (casual)
+            r'무엇이\s*있',     # What are there
+            r'뭐가\s*있',       # What's there (casual)
+            r'어떤\s*것들?이',  # What kinds of
+            r'종류',            # Types/kinds
+            r'목록',            # List
+            r'들이?\s*(있|뭐)', # Plural marker + existence
+            r'모든',            # All
+            r'전체',            # Entire/whole
+            r'옵션',            # Options
+            r'방법들',          # Methods (plural)
+            r'툴|도구',         # Tools
+        ]
+
+        # Japanese patterns
+        japanese_patterns = [
+            r'教えてください',   # Please tell me
+            r'何がありますか',   # What is there
+            r'どんな.*があり',   # What kinds are there
+            r'種類',            # Types
+            r'一覧',            # List
+            r'すべて',          # All
+            r'全て',            # All (kanji)
+            r'オプション',      # Options
+            r'ツール',          # Tools
+        ]
+
+        # English patterns
+        english_patterns = [
+            r'\ball\b',         # all
+            r'\blist\b',        # list
+            r'what are',        # what are
+            r'types of',        # types of
+            r'kinds of',        # kinds of
+            r'options',         # options
+            r'tools',           # tools
+            r'methods',         # methods
+            r'which.*are',      # which ... are
+        ]
+
+        all_patterns = korean_patterns + japanese_patterns + english_patterns
+
+        for pattern in all_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
+
+        return False
+
+    def _is_deep_analysis_query(self, text: str) -> bool:
+        """
+        Detect if query requests deep, detailed analysis
+
+        Triggers thorough search with more results and detailed response.
+
+        Patterns:
+        - Korean: 자세하게, 상세하게, 소상히, 깊이, 심층
+        - Japanese: 詳しく, 詳細に, 深く
+        - English: deep think, ultra deep think, in detail, thoroughly
+        """
+        text_lower = text.lower()
+
+        # Korean patterns for deep analysis
+        korean_patterns = [
+            r'자세하게',        # In detail
+            r'자세히',          # In detail
+            r'상세하게',        # In detail (formal)
+            r'상세히',          # In detail (formal)
+            r'소상히',          # In detail (literary)
+            r'소상하게',        # In detail (literary)
+            r'깊이',            # Deeply
+            r'깊게',            # Deeply
+            r'심층',            # In-depth
+            r'심도\s*있게',     # In-depth
+            r'철저하게',        # Thoroughly
+            r'철저히',          # Thoroughly
+            r'구체적으로',      # Specifically
+            r'면밀하게',        # Meticulously
+            r'면밀히',          # Meticulously
+        ]
+
+        # Japanese patterns
+        japanese_patterns = [
+            r'詳しく',          # In detail
+            r'詳細に',          # In detail
+            r'深く',            # Deeply
+            r'徹底的に',        # Thoroughly
+            r'具体的に',        # Specifically
+            r'綿密に',          # Meticulously
+        ]
+
+        # English patterns
+        english_patterns = [
+            r'deep\s*think',        # deep think
+            r'ultra\s*deep',        # ultra deep
+            r'in\s*detail',         # in detail
+            r'detailed',            # detailed
+            r'thorough',            # thorough
+            r'thoroughly',          # thoroughly
+            r'in[\s-]*depth',       # in-depth
+            r'comprehensive',       # comprehensive
+            r'exhaustive',          # exhaustive
+            r'elaborate',           # elaborate
+        ]
+
+        all_patterns = korean_patterns + japanese_patterns + english_patterns
+
+        for pattern in all_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
+
+        return False
+
+    def _get_language_instruction(self, language: str) -> str:
+        """Get language instruction for prompt"""
+        if language == "ko":
+            return "Please respond in Korean (한국어로 답변해주세요)."
+        elif language == "ja":
+            return "Please respond in Japanese (日本語で回答してください)."
+        return ""
+
+    def _no_results_message(self, language: str) -> str:
+        """Get no results message in appropriate language"""
+        if language == "ko":
+            return "관련 정보를 찾을 수 없습니다."
+        elif language == "ja":
+            return "関連情報が見つかりません。"
+        return "No relevant information found."
+
+    def _clean_response(self, text: str) -> str:
+        """Clean LLM response - remove thinking tokens and normalize whitespace"""
+        # Remove complete thinking blocks: <think>...</think>, <thinking>...</thinking>
+        text = re.sub(r'<think(?:ing)?>\s*.*?\s*</think(?:ing)?>', '', text, flags=re.DOTALL | re.IGNORECASE)
+
+        # Remove incomplete thinking blocks (opening tag without closing)
+        text = re.sub(r'<think(?:ing)?>\s*.*', '', text, flags=re.DOTALL | re.IGNORECASE)
+
+        # Remove content before closing tag (closing tag without opening)
+        text = re.sub(r'^.*?</think(?:ing)?>\s*', '', text, flags=re.DOTALL | re.IGNORECASE)
+
+        # Clean up multiple newlines and whitespace
+        text = re.sub(r'\n{3,}', '\n\n', text)
+
+        return text.strip()
+
+    def init_system(self) -> Dict[str, bool]:
+        """
+        Initialize the hybrid RAG system
+
+        Returns:
+            Status of each component
+        """
+        status = {}
+
+        # Check embedding service
+        status["embedding_service"] = self.embedding_service.health_check()
+
+        # Initialize vector index
+        status["vector_index"] = self.vector_rag.init_vector_index()
+
+        # Check graph connection
+        try:
+            self.graph.query("RETURN 1")
+            status["graph_connection"] = True
+        except Exception:
+            status["graph_connection"] = False
+
+        return status
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get system statistics"""
+        # Vector stats
+        vector_stats = self.vector_rag.get_vector_stats()
+
+        # Graph stats
+        try:
+            graph_stats = self.graph.query(
+                """
+                MATCH (d:Document) WITH count(d) as docs
+                MATCH (c:Chunk) WITH docs, count(c) as chunks
+                MATCH (e:Entity) WITH docs, chunks, count(e) as entities
+                MATCH ()-[r]->() WITH docs, chunks, entities, count(r) as rels
+                RETURN docs, chunks, entities, rels
+                """
+            )
+            if graph_stats:
+                graph_stats = graph_stats[0]
+            else:
+                graph_stats = {"docs": 0, "chunks": 0, "entities": 0, "rels": 0}
+        except Exception:
+            graph_stats = {"docs": 0, "chunks": 0, "entities": 0, "rels": 0}
+
+        return {
+            "documents": graph_stats["docs"],
+            "chunks": graph_stats["chunks"],
+            "entities": graph_stats["entities"],
+            "relationships": graph_stats["rels"],
+            "embeddings": vector_stats["with_embedding"],
+            "embedding_coverage": f"{vector_stats['coverage']:.1f}%"
+        }
+
+
+def get_hybrid_rag() -> HybridRAG:
+    """Get a configured HybridRAG instance"""
+    return HybridRAG()
+
+
+if __name__ == "__main__":
+    # Test HybridRAG
+    print("Testing Hybrid RAG System...")
+    print("=" * 50)
+
+    rag = HybridRAG()
+
+    # Initialize system
+    print("\n1. Initializing system...")
+    status = rag.init_system()
+    for component, ok in status.items():
+        print(f"   {component}: {'OK' if ok else 'FAILED'}")
+
+    # Get stats
+    print("\n2. System statistics:")
+    stats = rag.get_stats()
+    for key, value in stats.items():
+        print(f"   {key}: {value}")
+
+    # Test queries
+    print("\n3. Testing queries...")
+
+    test_queries = [
+        ("What is GraphRAG?", "vector"),
+        ("What is the relationship between Document and Chunk?", "graph"),
+        ("Explain how entity extraction works in detail", "hybrid"),
+    ]
+
+    for question, expected_strategy in test_queries:
+        print(f"\n   Q: {question}")
+
+        # Classify
+        query_type = rag.router.classify_query(question)
+        print(f"   Classified as: {query_type.value} (expected: {expected_strategy})")
+
+        # Query (if system is ready)
+        if all(status.values()) and stats["chunks"] > 0:
+            result = rag.query(question, strategy="auto")
+            print(f"   Strategy used: {result['strategy']}")
+            print(f"   Sources: {result['sources']}")
+            print(f"   Answer: {result['answer'][:100]}...")
+
+    print("\n" + "=" * 50)
+    print("Hybrid RAG test completed!")

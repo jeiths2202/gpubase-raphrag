@@ -1,0 +1,1 @@
+export { LearningManagementTab } from './LearningManagementTab';

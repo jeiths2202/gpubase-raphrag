@@ -1,0 +1,263 @@
+/**
+ * DAGView Component Styles
+ *
+ * Styles for task DAG visualization.
+ */
+
+.dag-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Parallelism badge */
+.dag-view__parallelism {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.dag-parallelism-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dag-parallelism-badge--full {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.dag-parallelism-badge--partial {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.dag-parallelism-badge--pipeline {
+  background: rgba(99, 102, 241, 0.15);
+  color: #6366f1;
+}
+
+.dag-parallelism-badge--none {
+  background: rgba(107, 114, 128, 0.15);
+  color: #9ca3af;
+}
+
+/* Flow container */
+.dag-flow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 0;
+}
+
+/* Batch container */
+.dag-batch {
+  flex-shrink: 0;
+  min-width: 180px;
+  max-width: 240px;
+  background: var(--bg-secondary, #16162a);
+  border: 1px solid var(--border-color, #2a2a4a);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.dag-batch__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-tertiary, #121228);
+  border-bottom: 1px solid var(--border-color, #2a2a4a);
+}
+
+.dag-batch__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #a0a0b0);
+  text-transform: uppercase;
+}
+
+.dag-batch__count {
+  font-size: 10px;
+  color: var(--text-tertiary, #6b7280);
+}
+
+.dag-batch__tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+/* Arrow between batches */
+.dag-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-secondary, #a0a0b0);
+  opacity: 0.5;
+}
+
+/* Task card */
+.dag-task {
+  background: var(--bg-primary, #1a1a2e);
+  border: 1px solid var(--border-color, #2a2a4a);
+  border-radius: 6px;
+  padding: 10px;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.dag-task::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--agent-color, #6b7280);
+}
+
+.dag-task--current {
+  border-color: var(--color-primary, #6366f1);
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+}
+
+.dag-task--completed {
+  opacity: 0.85;
+}
+
+.dag-task--failed {
+  border-color: var(--color-error, #ef4444);
+}
+
+.dag-task__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.dag-task__agent-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  background: var(--agent-color, #6b7280);
+  color: white;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.dag-task__body {
+  margin-bottom: 8px;
+}
+
+.dag-task__description {
+  font-size: 11px;
+  color: var(--text-secondary, #a0a0b0);
+  line-height: 1.4;
+  margin: 0;
+  word-break: break-word;
+}
+
+.dag-task__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: var(--text-tertiary, #6b7280);
+}
+
+.dag-task__id {
+  font-family: monospace;
+}
+
+.dag-task__latency {
+  color: var(--color-info, #3b82f6);
+}
+
+/* Dependencies indicator */
+.dag-task__deps {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-color, #2a2a4a);
+  font-size: 9px;
+  color: var(--text-tertiary, #6b7280);
+}
+
+/* Error message */
+.dag-task__error {
+  margin-top: 6px;
+  padding: 4px 6px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--color-error, #ef4444);
+  word-break: break-word;
+}
+
+/* Status icons */
+.dag-status-icon {
+  flex-shrink: 0;
+}
+
+.dag-status-icon--completed {
+  color: var(--color-success, #10b981);
+}
+
+.dag-status-icon--failed {
+  color: var(--color-error, #ef4444);
+}
+
+.dag-status-icon--running {
+  color: var(--color-warning, #f59e0b);
+}
+
+.dag-status-icon--pending {
+  color: var(--text-tertiary, #6b7280);
+}
+
+.dag-status-icon--skipped {
+  color: var(--text-tertiary, #6b7280);
+  opacity: 0.5;
+}
+
+/* Legend */
+.dag-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-secondary, #16162a);
+  border-radius: 6px;
+}
+
+.dag-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary, #a0a0b0);
+}
+
+/* Scrollbar */
+.dag-flow::-webkit-scrollbar {
+  height: 6px;
+}
+
+.dag-flow::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dag-flow::-webkit-scrollbar-thumb {
+  background: var(--border-color, #2a2a4a);
+  border-radius: 3px;
+}

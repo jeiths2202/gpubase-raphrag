@@ -1,0 +1,147 @@
+{
+  "title": "IMSナレッジサービス",
+  "subtitle": "AI搭載ハイブリッド検索でIMSシステムの課題を検索・分析",
+  "tabs": {
+    "search": "検索"
+  },
+  "credentials": {
+    "title": "IMS認証情報",
+    "subtitle": "IMS接続用のログイン情報を入力してください",
+    "imsUrl": "IMS URL",
+    "username": "ユーザー名",
+    "usernamePlaceholder": "ユーザー名を入力",
+    "password": "パスワード",
+    "passwordPlaceholder": "パスワードを入力",
+    "save": "保存して検証",
+    "validating": "検証中...",
+    "success": "認証情報の検証に成功しました！",
+    "error": "認証情報の検証に失敗しました",
+    "connected": "IMSに接続済み"
+  },
+  "search": {
+    "placeholder": "自然言語で検索クエリを入力...",
+    "button": "AI検索",
+    "searching": "検索中...",
+    "analyzing": "分析中...",
+    "crawling": "クロール中...",
+    "loading": "読込中...",
+    "includeAttachments": "添付ファイルを含める",
+    "includeRelated": "関連課題を含める",
+    "deepSearch": "ディープサーチ",
+    "maxIssues": "最大課題数",
+    "allProducts": "全製品",
+    "noProducts": "製品を選択",
+    "productsSelected": "製品選択済み",
+    "selectAll": "全選択",
+    "clearAll": "クリア",
+    "otherProducts": "その他"
+  },
+  "progress": {
+    "connecting": "接続中...",
+    "connected": "接続済み",
+    "disconnected": "切断されました",
+    "reconnecting": "再接続中...",
+    "authenticating": "認証中...",
+    "authenticated": "認証成功",
+    "searching": "課題を検索中...",
+    "searchCompleted": "検索完了",
+    "crawling": "検索ツール実行中",
+    "crawlingIssue": "課題を収集中",
+    "relatedFound": "関連課題が見つかりました",
+    "processing": "添付ファイルを処理中...",
+    "embedding": "エンベディングを生成中...",
+    "completed": "正常に完了",
+    "failed": "失敗",
+    "jobStarted": "ジョブ開始",
+    "viewResults": "結果を表示",
+    "activityLog": "アクティビティログ"
+  },
+  "results": {
+    "found": "発見",
+    "crawled": "収集済み",
+    "related": "関連",
+    "issues": "課題",
+    "table": "テーブル",
+    "cards": "カード",
+    "graph": "グラフ",
+    "noResults": "結果が見つかりません"
+  },
+  "table": {
+    "id": "ID",
+    "title": "タイトル",
+    "category": "カテゴリ",
+    "product": "製品",
+    "version": "バージョン",
+    "module": "モジュール",
+    "customer": "顧客",
+    "issuedDate": "登録日",
+    "status": "ステータス",
+    "priority": "優先度",
+    "reporter": "報告者",
+    "assignee": "担当者",
+    "created": "作成日",
+    "score": "スコア",
+    "allStatuses": "全ステータス",
+    "allPriorities": "全優先度",
+    "columns": "カラム",
+    "selectColumns": "カラムを選択"
+  },
+  "status": {
+    "open": "オープン",
+    "in_progress": "進行中",
+    "resolved": "解決済み",
+    "closed": "クローズ",
+    "pending": "保留中",
+    "rejected": "却下"
+  },
+  "priority": {
+    "critical": "緊急",
+    "high": "高",
+    "medium": "中",
+    "low": "低",
+    "trivial": "軽微"
+  },
+  "snapshot": {
+    "success": "正常に完了",
+    "partial": "一部完了",
+    "failed": "失敗"
+  },
+  "graph": {
+    "legend": "リンクタイプ",
+    "similarity": "類似スコア",
+    "sameProject": "同一プロジェクト",
+    "relatedIssue": "関連イシュー",
+    "sharedLabels": "共有ラベル"
+  },
+  "empty": {
+    "title": "検索を開始",
+    "description": "IMSシステムの課題を検索するには自然言語クエリを入力してください"
+  },
+  "chat": {
+    "title": "AIアシスタント",
+    "description": "ナレッジベースについて何でも質問してください",
+    "tabs": {
+      "chat": "チャット",
+      "history": "履歴",
+      "sources": "参照元",
+      "notes": "ノート"
+    },
+    "inputPlaceholder": "質問を入力してください...",
+    "noIssuesPlaceholder": "まず課題を検索してください",
+    "noIssuesContext": "チャットする課題がありません。まず課題を検索してください。",
+    "suggestedQuestions": "おすすめの質問:",
+    "contextInfo": "{{count}}件の課題がコンテキストとして利用可能",
+    "thinking": "考え中...",
+    "send": "送信",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "close": "閉じる",
+    "clear": "チャットをクリア",
+    "historyPlaceholder": "会話履歴がここに表示されます",
+    "sourcesTitle": "{{count}}件の参照課題",
+    "noSourcesPlaceholder": "検索された課題がここに表示されます",
+    "notesPlaceholder": "ノート機能は準備中です",
+    "moreIssues": "件以上",
+    "openAssistant": "AIアシスタントを開く"
+  }
+}

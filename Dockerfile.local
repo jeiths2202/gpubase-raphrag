@@ -1,0 +1,61 @@
+# ============================================================================
+# KMS Backend - Local Development Dockerfile
+# ============================================================================
+# Usage: docker build -f Dockerfile.local -t kms-backend-local .
+# ============================================================================
+
+FROM python:3.11-slim-bookworm
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/opt/kms \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Set working directory
+WORKDIR /opt/kms
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    libpq-dev \
+    openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements-pinned.txt .
+
+# Install PyTorch CPU-only first (avoids downloading 3GB+ CUDA libraries)
+# GPU computation happens on remote server (192.168.8.11), not locally
+RUN pip install --no-cache-dir --default-timeout=300 \
+    torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+
+# Install other Python dependencies
+RUN pip install --no-cache-dir --default-timeout=300 -r requirements-pinned.txt
+
+# Copy application code
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p /opt/kms/logs /opt/kms/uploads /opt/kms/data
+
+# Copy and setup entrypoint script (convert Windows line endings to Unix)
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh && chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Expose port
+EXPOSE 9000
+
+# Set entrypoint
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+
+# Health check (use /live endpoint - always returns 200 if app is running)
+# /health returns 503 when any service is degraded, which is too strict for Docker
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:9000/api/v1/health/live || exit 1
+
+# Default command (can be overridden)
+CMD ["python", "-m", "app.api.main", "--mode", "develop"]

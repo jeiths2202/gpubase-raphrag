@@ -1,0 +1,147 @@
+{
+  "title": "IMS Knowledge Service",
+  "subtitle": "Search and analyze issues from your IMS system using AI-powered hybrid search",
+  "tabs": {
+    "search": "Search"
+  },
+  "credentials": {
+    "title": "IMS Credentials",
+    "subtitle": "Enter your IMS login credentials to connect",
+    "imsUrl": "IMS URL",
+    "username": "Username",
+    "usernamePlaceholder": "Enter your username",
+    "password": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "save": "Save & Validate",
+    "validating": "Validating...",
+    "success": "Credentials validated successfully!",
+    "error": "Failed to validate credentials",
+    "connected": "Connected to IMS"
+  },
+  "search": {
+    "placeholder": "Enter your search query in natural language...",
+    "button": "AI Search",
+    "searching": "Searching...",
+    "analyzing": "Analyzing...",
+    "crawling": "Crawling...",
+    "loading": "Loading...",
+    "includeAttachments": "Include attachments",
+    "includeRelated": "Include related issues",
+    "deepSearch": "Deep Search",
+    "maxIssues": "Max issues",
+    "allProducts": "All Products",
+    "noProducts": "Select Products",
+    "productsSelected": "products selected",
+    "selectAll": "Select All",
+    "clearAll": "Clear",
+    "otherProducts": "Other"
+  },
+  "progress": {
+    "connecting": "Connecting...",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "reconnecting": "Reconnecting...",
+    "authenticating": "Authenticating...",
+    "authenticated": "Authenticated successfully",
+    "searching": "Searching issues...",
+    "searchCompleted": "Search completed",
+    "crawling": "Running search tool",
+    "crawlingIssue": "Collecting issues",
+    "relatedFound": "Related issues found",
+    "processing": "Processing attachments...",
+    "embedding": "Generating embeddings...",
+    "completed": "Completed successfully",
+    "failed": "Failed",
+    "jobStarted": "Job started",
+    "viewResults": "View Results",
+    "activityLog": "Activity Log"
+  },
+  "results": {
+    "found": "Found",
+    "crawled": "Collected",
+    "related": "Related",
+    "issues": "issues",
+    "table": "Table",
+    "cards": "Cards",
+    "graph": "Graph",
+    "noResults": "No results found"
+  },
+  "table": {
+    "id": "ID",
+    "title": "Title",
+    "category": "Category",
+    "product": "Product",
+    "version": "Version",
+    "module": "Module",
+    "customer": "Customer",
+    "issuedDate": "Issued Date",
+    "status": "Status",
+    "priority": "Priority",
+    "reporter": "Reporter",
+    "assignee": "Assignee",
+    "created": "Created",
+    "score": "Score",
+    "allStatuses": "All Statuses",
+    "allPriorities": "All Priorities",
+    "columns": "Columns",
+    "selectColumns": "Select Columns"
+  },
+  "status": {
+    "open": "Open",
+    "in_progress": "In Progress",
+    "resolved": "Resolved",
+    "closed": "Closed",
+    "pending": "Pending",
+    "rejected": "Rejected"
+  },
+  "priority": {
+    "critical": "Critical",
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low",
+    "trivial": "Trivial"
+  },
+  "snapshot": {
+    "success": "Completed Successfully",
+    "partial": "Partially Completed",
+    "failed": "Failed"
+  },
+  "graph": {
+    "legend": "Link Types",
+    "similarity": "Similar Score",
+    "sameProject": "Same Project",
+    "relatedIssue": "Related Issue",
+    "sharedLabels": "Shared Labels"
+  },
+  "empty": {
+    "title": "Start Your Search",
+    "description": "Enter a natural language query to search for issues in your IMS system"
+  },
+  "chat": {
+    "title": "AI Assistant",
+    "description": "Ask me anything about the knowledge base",
+    "tabs": {
+      "chat": "Chat",
+      "history": "History",
+      "sources": "Sources",
+      "notes": "Notes"
+    },
+    "inputPlaceholder": "Type your question...",
+    "noIssuesPlaceholder": "Search for issues first",
+    "noIssuesContext": "No issues to chat about. Please search for issues first.",
+    "suggestedQuestions": "Suggested questions:",
+    "contextInfo": "{{count}} issues available as context",
+    "thinking": "Thinking...",
+    "send": "Send",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "close": "Close",
+    "clear": "Clear chat",
+    "historyPlaceholder": "Conversation history will appear here",
+    "sourcesTitle": "{{count}} referenced issues",
+    "noSourcesPlaceholder": "Searched issues will appear here",
+    "notesPlaceholder": "Notes feature coming soon",
+    "moreIssues": "more",
+    "openAssistant": "Open AI Assistant"
+  }
+}

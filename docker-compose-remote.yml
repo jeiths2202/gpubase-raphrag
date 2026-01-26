@@ -1,0 +1,86 @@
+version: '3.8'
+
+# =============================================================================
+# KMS Local Development with Remote GPU/DB Services
+# =============================================================================
+# Usage:
+#   docker-compose -f docker-compose-remote.yml up -d
+#
+# Remote Services (192.168.8.11):
+#   - PostgreSQL: 5432
+#   - Neo4j: 7474 (HTTP), 7687 (Bolt)
+#   - Nemotron LLM: 12800
+#   - Embedding: 12801
+#   - Code LLM: 12802
+#   - Ollama: 11434
+# =============================================================================
+
+services:
+  # ============================================================
+  # KMS Backend Application
+  # ============================================================
+  kms-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: kms-backend-local
+    restart: unless-stopped
+    ports:
+      - "9000:9000"    # Backend API
+      - "9022:22"      # SSH (optional)
+    volumes:
+      - .:/opt/kms
+      - kms-venv:/opt/kms/venv
+      - kms-data:/opt/kms/data
+      - kms-uploads:/opt/kms/uploads
+      - kms-logs:/opt/kms/logs
+      # SSH key source (will be copied with proper permissions by entrypoint)
+      - ~/.ssh:/tmp/.ssh-source:ro
+    environment:
+      - APP_ENV=development
+      - DEBUG=true
+    env_file:
+      - .env.local
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      # Remote server alias
+      - "remote-gpu:192.168.8.11"
+    command: ["python", "-m", "app.api.main", "--mode", "develop"]
+    networks:
+      kms-network:
+        aliases:
+          - backend
+
+  # ============================================================
+  # KMS Frontend Application
+  # ============================================================
+  kms-frontend:
+    build:
+      context: ./kms-portal-ui
+      dockerfile: Dockerfile
+    container_name: kms-frontend-local
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:9000
+    depends_on:
+      - kms-backend
+    networks:
+      - kms-network
+
+# ============================================================
+# Volumes (Local cache only)
+# ============================================================
+volumes:
+  kms-venv:
+  kms-data:
+  kms-uploads:
+  kms-logs:
+
+# ============================================================
+# Networks
+# ============================================================
+networks:
+  kms-network:
+    driver: bridge

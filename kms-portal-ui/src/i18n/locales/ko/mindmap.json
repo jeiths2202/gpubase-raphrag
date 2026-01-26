@@ -1,0 +1,40 @@
+{
+  "title": "AI 스튜디오",
+  "subtitle": "지식 연결을 시각화하고 탐색하세요",
+  "createNew": "새 마인드맵 만들기",
+  "addNode": "노드 추가",
+  "deleteNode": "노드 삭제",
+  "editNode": "노드 편집",
+  "sidebar": {
+    "title": "AI 스튜디오",
+    "subtitle": "마인드맵을 생성하고 탐색하세요",
+    "newMindmap": "새 마인드맵",
+    "titlePlaceholder": "제목을 입력하세요...",
+    "topicPlaceholder": "분석할 주제를 입력하세요...",
+    "maxNodes": "최대 노드 수",
+    "generating": "생성 중...",
+    "generate": "생성",
+    "cancel": "취소",
+    "savedMindmaps": "저장된 마인드맵",
+    "noMindmaps": "아직 마인드맵이 없습니다"
+  },
+  "panel": {
+    "importance": "중요도",
+    "expand": "확장",
+    "summarize": "요약",
+    "sourceDocuments": "원본 문서",
+    "askPlaceholder": "이 개념에 대해 질문하세요...",
+    "ask": "질문",
+    "answer": "답변",
+    "relatedConcepts": "관련 개념"
+  },
+  "header": {
+    "nodes": "노드",
+    "edges": "엣지",
+    "processing": "처리 중..."
+  },
+  "empty": {
+    "title": "마인드맵이 선택되지 않았습니다",
+    "description": "새 마인드맵을 만들거나 기존 마인드맵을 선택하세요"
+  }
+}

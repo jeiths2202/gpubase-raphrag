@@ -1,0 +1,607 @@
+{
+  "appName": "KMSポータル",
+  "loading": "読み込み中...",
+  "error": "エラー",
+  "success": "成功",
+  "cancel": "キャンセル",
+  "confirm": "確認",
+  "save": "保存",
+  "delete": "削除",
+  "edit": "編集",
+  "create": "作成",
+  "search": "検索",
+  "filter": "フィルター",
+  "sort": "並び替え",
+  "refresh": "更新",
+  "close": "閉じる",
+  "back": "戻る",
+  "next": "次へ",
+  "previous": "前へ",
+  "submit": "送信",
+  "reset": "リセット",
+  "viewAll": "すべて表示",
+  "noData": "データがありません",
+  "actions": "アクション",
+  "copy": "コピー",
+  "copied": "コピーしました",
+  "collapseSidebar": "サイドバーを閉じる",
+  "expandSidebar": "サイドバーを開く",
+  "nav": {
+    "home": "ホーム",
+    "knowledge": "ナレッジベース",
+    "productManual": "製品マニュアル",
+    "installGuide": "インストールガイド",
+    "faq": "FAQ",
+    "ims": "IMS",
+    "mindmap": "AIスタジオ",
+    "agent": "AIエージェント",
+    "documents": "ドキュメント",
+    "analytics": "分析",
+    "improvements": "改善要求",
+    "admin": "管理者",
+    "settings": "設定",
+    "logout": "ログアウト",
+    "externalPortal": "外部ポータル",
+    "apikeys": "APIキー",
+    "mainNavigation": "メインナビゲーション"
+  },
+  "products": {
+    "tmax": "Tmax",
+    "jeus": "JEUS",
+    "tibero": "Tibero",
+    "openframe": "OpenFrame",
+    "openframeCobol": "OpenFrame COBOL",
+    "openframeAsm": "OpenFrame ASM"
+  },
+  "settings": {
+    "language": "Language / 언어 / 言語",
+    "theme": "テーマ",
+    "themeLight": "ライト",
+    "themeDark": "ダーク",
+    "themeSystem": "システム"
+  },
+  "agent": {
+    "status": {
+      "crawling": "ナレッジ検索（クロール）で回答します。データ抽出に時間がかかりますので、しばらくお待ちください。",
+      "ready": "データに基づいて回答する準備ができました。何をお手伝いしましょうか？",
+      "searching": "データベース検索中...",
+      "processing": "リクエストを処理中...",
+      "analyzing": "リクエストを分析中...",
+      "thinking": "考え中...",
+      "credentials_required": "IMSログインが必要です。IMS認証情報を入力してください。"
+    },
+    "credentials": {
+      "title": "IMSログインが必要",
+      "description": "課題管理システム（IMS）を検索するには、IMS認証情報を入力してください。",
+      "username": "ユーザー名",
+      "usernamePlaceholder": "IMSユーザー名を入力",
+      "password": "パスワード",
+      "passwordPlaceholder": "IMSパスワードを入力",
+      "login": "ログイン",
+      "saving": "保存中...",
+      "emptyFields": "すべてのフィールドに入力してください",
+      "saveError": "認証情報の保存に失敗しました"
+    },
+    "clarification": {
+      "title": "質問の明確化",
+      "customInput": "カスタム入力...",
+      "customPlaceholder": "具体的な質問を入力してください...",
+      "skip": "そのまま検索",
+      "search": "検索する"
+    },
+    "searchResults": "検索結果",
+    "expandAll": "すべて展開",
+    "collapseAll": "すべて折りたたむ",
+    "textTab": "テキスト",
+    "imagesTab": "画像",
+    "tablesTab": "表",
+    "reliability": {
+      "title": "出典の信頼性",
+      "high": "高",
+      "medium": "中",
+      "low": "低",
+      "factors": {
+        "sourceCount": "出典数",
+        "similarity": "類似度",
+        "diversity": "多様性",
+        "quality": "品質"
+      }
+    },
+    "compare": {
+      "title": "文書比較",
+      "button": "比較する",
+      "topic": "比較トピック",
+      "topicPlaceholder": "比較するトピックや質問を入力してください...",
+      "selectedDocs": "選択した文書",
+      "comparing": "比較中...",
+      "summary": "比較要約",
+      "commonalities": "共通点",
+      "differences": "相違点",
+      "docContent": "文書別内容",
+      "noContent": "このトピックに関連するコンテンツが見つかりませんでした。",
+      "sections": "セクション",
+      "minDocs": "少なくとも2つの文書が必要です。",
+      "maxDocs": "最大{{count}}個の文書まで比較できます。",
+      "selectMode": "比較モード",
+      "exitMode": "比較モードを終了"
+    },
+    "clarification": {
+      "title": "質問の明確化",
+      "customInput": "自由入力...",
+      "customPlaceholder": "具体的な質問を入力してください...",
+      "skip": "そのまま検索",
+      "search": "検索する"
+    },
+    "feedback": {
+      "thumbsUp": "役に立った",
+      "thumbsDown": "役に立たなかった",
+      "thumbsUpSubmitted": "役に立ったと評価済み",
+      "thumbsDownSubmitted": "役に立たなかったと評価済み",
+      "clickToCancel": "クリックしてキャンセル",
+      "registerFAQ": "FAQとして登録",
+      "regenerate": "再生成"
+    },
+    "faq": {
+      "registerTitle": "FAQとして登録",
+      "question": "質問",
+      "questionPlaceholder": "質問を入力してください",
+      "answer": "回答",
+      "answerPlaceholder": "回答を入力してください",
+      "category": "カテゴリー",
+      "tags": "タグ",
+      "tagsHint": "カンマ区切り",
+      "tagsPlaceholder": "例: インストール, エラー, 設定",
+      "register": "登録",
+      "registering": "登録中...",
+      "emptyFields": "質問と回答を入力してください",
+      "createError": "FAQの登録に失敗しました",
+      "categories": {
+        "general": "一般",
+        "openframe": "OpenFrame",
+        "ofcobol": "OFCOBOL",
+        "ofasm": "OFASM",
+        "ims": "IMS課題",
+        "rag": "ナレッジ検索"
+      }
+    }
+  },
+  "externalConnectors": {
+    "title": "外部コネクタ",
+    "description": "外部サービスを接続して、会話のコンテキストとして使用します。",
+    "connected": "接続済み",
+    "connect": "接続",
+    "disconnect": "切断",
+    "connecting": "接続中...",
+    "sync": "同期",
+    "syncing": "リソースを同期中...",
+    "syncingHint": "1分ほどかかる場合があります",
+    "lastSync": "最終同期",
+    "resources": "リソース",
+    "noResources": "リソースが見つかりません",
+    "selected": "選択済み",
+    "selectResources": "チャットコンテキストに使用するリソースを選択",
+    "selectHint": "選択したリソースは会話のコンテキストとして利用できます",
+    "resourcesSelected": "リソースがコンテキストとして選択されました",
+    "comingSoon": "近日公開",
+    "plannedDescription": "このコネクタは今後開発予定です。",
+    "status": {
+      "available": "利用可能",
+      "inDevelopment": "開発中",
+      "planned": "予定"
+    },
+    "fields": {
+      "accessToken": "統合トークン",
+      "accessTokenPlaceholder": "統合トークンを入力してください",
+      "workspaceId": "ワークスペースID",
+      "workspaceIdPlaceholder": "ワークスペースIDを入力してください",
+      "email": "メールアドレス",
+      "emailPlaceholder": "Atlassianメールアドレスを入力してください",
+      "apiKey": "APIトークン",
+      "apiKeyPlaceholder": "Atlassian APIトークンを入力してください",
+      "siteUrl": "サイトURL",
+      "siteUrlPlaceholder": "例: your-domain.atlassian.net（または/wiki付きの完全URL）",
+      "notionHint": "notion.so/my-integrationsから統合トークンを取得してください",
+      "confluenceHint": "id.atlassian.com/manage-profile/security/api-tokensからAPIトークンを取得してください"
+    },
+    "error": {
+      "missingFields": "すべての必須フィールドに入力してください"
+    },
+    "sso": {
+      "signInWithNotion": "Notionでサインイン",
+      "signInWithAtlassian": "Atlassianでサインイン",
+      "signInWithGitHub": "GitHubでサインイン",
+      "signInWithGoogle": "Googleでサインイン",
+      "signInWithMicrosoft": "Microsoftでサインイン",
+      "signIn": "サインイン",
+      "connectedAs": "接続済みアカウント",
+      "permissions": "要求される権限",
+      "secureAuth": "セキュア認証",
+      "secureAuthDesc": "OAuth 2.0を使用してアカウントに安全に接続します。パスワードは保存されません。",
+      "authorizing": "認証中...",
+      "authorizingDesc": "ポップアップウィンドウでログインを完了してください。",
+      "cancel": "キャンセル",
+      "securityInfo": "お客様のデータはOAuth 2.0により安全に処理されます。コンテンツへのアクセスに必要な権限のみを要求します。"
+    },
+    "apiToken": {
+      "label": "APIトークン",
+      "placeholder": "APIトークンを入力してください",
+      "hint": "Atlassianアカウント設定からAPIトークンを生成できます。"
+    },
+    "docStatus": {
+      "ready": "準備完了",
+      "processing": "処理中...",
+      "error": "エラー",
+      "notProcessed": "未処理",
+      "chunks": "チャンク"
+    },
+    "needsProcessing": "件のドキュメントを処理が必要",
+    "processSelected": "選択項目を処理",
+    "processDoc": "このドキュメントを処理",
+    "selectAll": "すべて選択",
+    "deselectAll": "すべて解除"
+  },
+  "embeddingQuality": {
+    "title": "エンベディング品質検証",
+    "verifyButton": "品質検証",
+    "reVerifyButton": "再検証",
+    "verifying": "検証中...",
+    "score": "スコア",
+    "verified": "検証完了",
+    "levels": {
+      "excellent": "優秀",
+      "good": "良好",
+      "fair": "普通",
+      "poor": "要改善"
+    },
+    "metrics": {
+      "retrievalAccuracy": "検索精度",
+      "avgSimilarity": "平均類似度",
+      "coverage": "カバレッジ",
+      "chunksTested": "テスト済みチャンク"
+    },
+    "issues": {
+      "title": "検出された問題",
+      "lowAccuracy": "検索精度が低いです",
+      "lowSimilarity": "平均類似度スコアが期待値を下回っています",
+      "highVariance": "類似度スコアの分散が高いです",
+      "lowCoverage": "一部のチャンクが他のチャンクから孤立しています"
+    },
+    "recommendations": {
+      "title": "推奨事項",
+      "adjustChunkSize": "より良いコンテキスト保持のため、チャンクサイズまたはオーバーラップを調整してください",
+      "reviewContent": "ドキュメント内容を確認してください - 非常に多様なトピックが含まれている可能性があります",
+      "reprocess": "一部のチャンクのエンベディング品質が低い可能性があります - 再処理を検討してください",
+      "checkChunks": "特殊文字を含むチャンクや非常に短いチャンクを確認してください",
+      "excellent": "エンベディング品質は優秀です - 改善は不要です",
+      "acceptable": "エンベディング品質は許容範囲内です"
+    },
+    "empty": {
+      "message": "「品質検証」ボタンをクリックして、このドキュメントのエンベディング品質を確認してください。"
+    },
+    "error": {
+      "notReady": "エンベディングがまだ準備されていません",
+      "failed": "品質検証に失敗しました"
+    }
+  },
+  "adaptive": {
+    "title": "適応型エンベディング",
+    "tabLabel": "適応型",
+    "tabLabelFull": "適応型 (PDF専用)",
+    "description": "意味的境界に基づく構造保持PDFチャンキング",
+    "table": {
+      "document": "ドキュメント",
+      "status": "ステータス",
+      "chunks": "チャンク",
+      "types": "タイプ",
+      "quality": "品質",
+      "created": "作成日",
+      "actions": "操作",
+      "allStatus": "全ステータス",
+      "uploadPdf": "PDFアップロード"
+    },
+    "upload": {
+      "title": "PDFアップロード",
+      "dropzone": "PDFファイルをここにドロップまたはクリックしてアップロード",
+      "selectFolder": "PDFを含むフォルダを選択",
+      "processing": "処理中...",
+      "success": "処理が開始されました",
+      "error": "アップロード失敗",
+      "noPdfInFolder": "選択したフォルダにPDFファイルがありません"
+    },
+    "options": {
+      "language": "言語",
+      "languageAuto": "自動検出",
+      "maxChunkSize": "最大チャンクサイズ",
+      "minChunkSize": "最小チャンクサイズ",
+      "preserveTables": "テーブル保持",
+      "preserveSections": "セクション保持",
+      "forceReprocess": "強制再処理"
+    },
+    "status": {
+      "pending": "待機中",
+      "analyzing": "構造分析中...",
+      "chunking": "チャンク作成中...",
+      "embedding": "エンベディング生成中...",
+      "validating": "カバレッジ検証中...",
+      "completed": "完了",
+      "failed": "失敗",
+      "partial": "部分完了"
+    },
+    "chunks": {
+      "title": "チャンク",
+      "noChunks": "チャンクがありません",
+      "types": {
+        "TEXT_CHUNK": "テキスト",
+        "TABLE_CHUNK": "テーブル",
+        "IMAGE_CHUNK": "画像",
+        "OCR_CHUNK": "OCR"
+      },
+      "pages": "ページ",
+      "section": "セクション",
+      "embedded": "エンベディング済み",
+      "notEmbedded": "未エンベディング"
+    },
+    "coverage": {
+      "title": "カバレッジレポート",
+      "overall": "全体カバレッジ",
+      "text": "テキストカバレッジ",
+      "table": "テーブルカバレッジ",
+      "image": "画像カバレッジ",
+      "ocr": "OCRカバレッジ",
+      "totalChunks": "全チャンク数",
+      "embeddedChunks": "エンベディング済みチャンク"
+    },
+    "quality": {
+      "title": "品質メトリクス",
+      "topKRecall": "Top-K再現率",
+      "sectionPrecision": "セクション精度",
+      "avgSimilarity": "平均類似度",
+      "hallucination": "ハルシネーション検出",
+      "issues": "問題点",
+      "recommendations": "推奨事項",
+      "levels": {
+        "excellent": "優秀",
+        "good": "良好",
+        "fair": "普通",
+        "poor": "改善必要"
+      }
+    },
+    "structure": {
+      "title": "ドキュメント構造",
+      "documentType": "ドキュメントタイプ",
+      "totalPages": "総ページ数",
+      "totalSections": "総セクション数",
+      "totalImages": "総画像数",
+      "totalTables": "総テーブル数",
+      "hierarchy": "セクション階層",
+      "types": {
+        "manual": "マニュアル",
+        "report": "レポート",
+        "paper": "論文",
+        "contract": "契約書",
+        "presentation": "プレゼンテーション",
+        "form": "フォーム",
+        "other": "その他"
+      }
+    },
+    "search": {
+      "title": "チャンク検索",
+      "placeholder": "検索キーワードを入力...",
+      "results": "結果",
+      "noResults": "結果がありません",
+      "similarity": "類似度"
+    },
+    "actions": {
+      "viewChunks": "チャンク表示",
+      "viewCoverage": "カバレッジ表示",
+      "viewQuality": "品質表示",
+      "viewStructure": "構造表示",
+      "evaluateQuality": "品質評価を実行",
+      "delete": "削除",
+      "refresh": "更新"
+    },
+    "qualityEvaluation": {
+      "completed": "品質評価完了",
+      "failed": "品質評価に失敗しました",
+      "running": "品質評価中..."
+    },
+    "documents": {
+      "title": "適応型ドキュメント",
+      "empty": "適応型ドキュメントがありません",
+      "uploadFirst": "PDFをアップロードして開始してください"
+    },
+    "batchDelete": {
+      "title": "選択したドキュメントを削除",
+      "button": "選択を削除",
+      "confirmMessage": "{{count}}件のドキュメントを削除しますか？",
+      "confirm": "すべて削除",
+      "deleting": "削除中...",
+      "error": "一括削除に失敗しました",
+      "partialError": "件のドキュメントの削除に失敗しました"
+    },
+    "deleteConfirm": {
+      "single": "次のドキュメントを削除しますか：",
+      "warning": "この操作により、ドキュメントと関連するすべてのデータ（チャンク、エンベディング、メタデータ）がデータベースから完全に削除されます。"
+    },
+    "pending": {
+      "title": "アップロード待ち",
+      "filename": "ファイル名",
+      "size": "サイズ",
+      "uploadedAt": "アップロード日時",
+      "deleteConfirm": "このアップロード待ちファイルを削除しますか？"
+    },
+    "embed": {
+      "button": "エンベディング開始",
+      "optionsTitle": "エンベディング設定",
+      "selectedFiles": "{{count}}件のファイルを選択中",
+      "start": "エンベディング開始",
+      "processing": "処理中...",
+      "error": "エンベディング失敗",
+      "progressTitle": "エンベディング進捗",
+      "statusPending": "待機中",
+      "statusProcessing": "処理中",
+      "statusCompleted": "完了",
+      "statusFailed": "失敗"
+    }
+  },
+  "webPages": {
+    "title": "ウェブページ",
+    "tabLabel": "ウェブページ",
+    "description": "ウェブページを知識ソースとして追加",
+    "addUrl": "URL追加",
+    "search": {
+      "placeholder": "URL、タイトル、ドメインで検索..."
+    },
+    "filter": {
+      "allStatus": "全てのステータス"
+    },
+    "table": {
+      "url": "URL",
+      "status": "ステータス",
+      "chunks": "チャンク",
+      "words": "単語数",
+      "created": "作成日",
+      "actions": "アクション"
+    },
+    "status": {
+      "pending": "待機中",
+      "fetching": "取得中...",
+      "extracting": "抽出中...",
+      "chunking": "チャンク作成中...",
+      "embedding": "エンベディング中...",
+      "ready": "完了",
+      "error": "エラー"
+    },
+    "actions": {
+      "viewContent": "内容を表示",
+      "viewLinks": "リンクを表示",
+      "viewImages": "画像を表示",
+      "refresh": "更新",
+      "openUrl": "URLを開く"
+    },
+    "addModal": {
+      "title": "ウェブページ追加",
+      "singleUrl": "単一URL",
+      "bulkUrls": "一括URL",
+      "urlLabel": "URL",
+      "urlPlaceholder": "https://example.com/page",
+      "urlsLabel": "URL一覧（1行に1つ）",
+      "urlsPlaceholder": "https://example.com/page1\nhttps://example.com/page2",
+      "tagsLabel": "タグ（任意）",
+      "tagsPlaceholder": "タグ1, タグ2, タグ3",
+      "add": "追加",
+      "adding": "追加中..."
+    },
+    "detail": {
+      "content": "内容",
+      "links": "リンク",
+      "images": "画像",
+      "wordCount": "単語数",
+      "charCount": "文字数",
+      "linkCount": "リンク数",
+      "imageCount": "画像数",
+      "noContent": "内容がありません"
+    },
+    "deleteConfirm": {
+      "message": "本当に削除しますか？",
+      "warning": "この操作により、ウェブページと関連するすべてのデータ（チャンク、エンベディングを含む）が完全に削除されます。"
+    },
+    "batchDelete": {
+      "title": "選択項目を削除",
+      "button": "選択削除",
+      "message": "{{count}}件のウェブページを削除しますか？",
+      "confirm": "すべて削除",
+      "deleting": "削除中..."
+    },
+    "empty": {
+      "title": "ウェブページなし",
+      "description": "ウェブページを追加してRAG知識ソースとして活用してください"
+    },
+    "errors": {
+      "loadFailed": "ウェブページの読み込みに失敗しました",
+      "addFailed": "ウェブページの追加に失敗しました",
+      "deleteFailed": "ウェブページの削除に失敗しました",
+      "refreshFailed": "ウェブページの更新に失敗しました",
+      "invalidUrl": "http://またはhttps://で始まる有効なURLを入力してください"
+    }
+  },
+  "searchProgress": {
+    "title": "ナレッジ検索進捗",
+    "query": "検索クエリ",
+    "results": "件",
+    "totalResults": "合計検索結果",
+    "searching": "検索中...",
+    "expandAll": "すべて展開",
+    "collapseAll": "すべて折りたたむ",
+    "showMore": "もっと見る",
+    "showLess": "閉じる",
+    "waiting": "待機中...",
+    "running": "検索中...",
+    "noResults": "検索結果なし",
+    "unknownError": "不明なエラーが発生しました",
+    "queryCorrected": "クエリが自動修正されました",
+    "queryCorrectedNotice": "エンコーディングの問題によりクエリが自動修正されました",
+    "tools": {
+      "adaptive_search": "適応型PDF検索",
+      "vector_search": "ベクター検索",
+      "graph_query": "グラフクエリ",
+      "document_read": "ドキュメント読み取り"
+    }
+  },
+  "ragProgress": {
+    "queryAnalysis": "キーワード分析",
+    "keywords": "キーワード",
+    "intent": "意図",
+    "extractedKeywords": "抽出されたキーワード",
+    "searchStrategy": "検索戦略",
+    "tokenCount": "トークン数",
+    "chunkStructure": "ドキュメントチャンク構造",
+    "chunks": "チャンク",
+    "chunkTypes": "チャンクタイプ",
+    "pageDistribution": "ページ分布",
+    "avgChunkSize": "平均チャンクサイズ",
+    "preview": "プレビュー",
+    "embeddingInfo": "エンベディング情報",
+    "scoreDistribution": "スコア分布",
+    "topMatches": "上位マッチ",
+    "toolProgress": "ツール処理過程",
+    "generationProgress": "回答生成過程",
+    "completed": "完了",
+    "sourcesUsed": "使用したソース",
+    "toolsUsed": "使用したツール",
+    "answerLength": "回答の長さ",
+    "chunkProgress": "チャンク進行",
+    "preparingAnswer": "回答を準備中..."
+  },
+  "displayMode": {
+    "inline": "インラインモードに切替",
+    "floating": "フローティングモードに切替",
+    "inlineDescription": "チャットで結果を表示",
+    "floatingDescription": "フローティングパネルで結果を表示"
+  },
+  "minimize": "最小化",
+  "closeAll": "すべて閉じる",
+  "query": "クエリ",
+  "clarification": {
+    "title": "検索語の明確化",
+    "query": "入力したクエリ",
+    "infoMessage": "クエリに複数の意味を持つ可能性のある用語が含まれています。より正確な検索結果を得るために、各用語の意図された意味を選択してください。",
+    "selected": "選択済み",
+    "confirm": "確認して検索",
+    "remember": "この選択を今後の検索にも適用する",
+    "autoResolved": "自動解決",
+    "preferenceSaved": "件の設定が保存されました",
+    "preferencesSaved": "件の設定が保存されました"
+  },
+  "home": {
+    "stats": {
+      "documentsIndexed": "インデックス済み文書",
+      "queriesThisMonth": "今月のクエリ",
+      "activeUsers": "アクティブユーザー",
+      "avgResponseTime": "平均応答時間"
+    },
+    "recentActivity": "最近のアクティビティ",
+    "noRecentActivity": "最近のアクティビティがありません",
+    "startConversation": "会話を始める"
+  }
+}

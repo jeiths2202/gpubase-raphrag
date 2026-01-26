@@ -1,0 +1,69 @@
+/**
+ * AgentChat Module Exports
+ */
+
+// Components
+export { MessageBubble } from './MessageBubble';
+export { MessageContent } from './MessageContent';
+export { IMSCredentialsModal, type IMSCredentialsModalProps } from './IMSCredentialsModal';
+export {
+  ExternalConnectorsModal,
+  type ExternalConnectorsModalProps,
+} from './ExternalConnectorsModal';
+export {
+  FAQRegistrationModal,
+  type FAQRegistrationModalProps,
+} from './FAQRegistrationModal';
+export {
+  SearchProgressModal,
+  type SearchToolResult,
+  type SearchResultItem,
+} from './SearchProgressModal';
+export {
+  DirectModeFloatingPanel,
+  type FloatingPanelData,
+} from './DirectModeFloatingPanel';
+export {
+  ScopeSelectionModal,
+  type ScopeSelectionModalProps,
+} from './ScopeSelectionModal';
+export {
+  ClarificationModal,
+  type ClarificationModalProps,
+} from './ClarificationModal';
+
+// Hooks
+export { useFileAttachment, type UseFileAttachmentReturn } from './hooks';
+export { useUrlAttachment, type UseUrlAttachmentReturn } from './hooks';
+export {
+  useStreamingChat,
+  type UseStreamingChatReturn,
+  type StreamingChatDependencies,
+} from './hooks';
+export {
+  useClarification,
+  type UseClarificationReturn,
+  type ClarificationCheckResult,
+} from './hooks/useClarification';
+
+// Types
+export type {
+  ChatMessage,
+  ToolCallInfo,
+  AttachedFile,
+  AttachedUrl,
+  AgentLocalState,
+  AgentSource,
+} from './types';
+
+// Constants
+export {
+  AGENT_CONFIGS,
+  SUGGESTED_QUESTIONS,
+  URL_REGEX,
+  TEXT_EXTENSIONS,
+  BINARY_EXTENSIONS,
+  SUPPORTED_EXTENSIONS,
+  MAX_TEXT_FILE_SIZE,
+  MAX_BINARY_FILE_SIZE,
+} from './constants';

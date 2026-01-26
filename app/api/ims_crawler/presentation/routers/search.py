@@ -1,0 +1,476 @@
+"""
+IMS Search Router - Natural language search with hybrid BM25 + semantic search
+
+Endpoints for searching IMS issues using NL queries with hybrid search support.
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel, Field
+from typing import List, Optional, Literal
+from uuid import UUID
+import time
+
+from ....core.deps import get_current_user
+from ...application.use_cases import SearchIssuesUseCase
+from ...infrastructure.dependencies import get_search_issues_use_case, get_issue_repository
+from ...infrastructure.adapters import PostgreSQLIssueRepository
+
+
+router = APIRouter(prefix="/ims-search", tags=["IMS Crawler"])
+
+
+# ============================================================================
+# Request/Response Models
+# ============================================================================
+
+class SearchRequest(BaseModel):
+    """Request model for IMS issue search"""
+    query: str = Field(..., min_length=1, description="Natural language search query")
+    max_results: int = Field(default=50, ge=1, le=500, description="Maximum results")
+    include_attachments: bool = Field(default=True, description="Include attachment text in search")
+    include_related: bool = Field(default=False, description="Crawl related issues")
+    search_strategy: Literal['semantic', 'hybrid', 'recent'] = Field(
+        default='hybrid',
+        description="Search strategy: 'hybrid' (BM25 30% + Semantic 70%, default), 'semantic' (pure vector), 'recent' (chronological)"
+    )
+    use_semantic_search: Optional[bool] = Field(
+        default=None,
+        description="Deprecated: use search_strategy instead"
+    )
+
+
+class IssueSearchResult(BaseModel):
+    """Single issue search result"""
+    id: UUID
+    ims_id: str
+    title: str
+    description: str
+    status: str
+    priority: str
+    # IMS-specific fields
+    category: Optional[str] = None
+    product: Optional[str] = None
+    version: Optional[str] = None
+    module: Optional[str] = None
+    customer: Optional[str] = None
+    issued_date: Optional[str] = None
+    # Metadata
+    reporter: str
+    assignee: Optional[str]
+    project_key: str
+    labels: List[str]
+    created_at: str
+    updated_at: str
+    similarity_score: Optional[float] = None  # For semantic search results
+    hybrid_score: Optional[float] = None  # For hybrid search results (BM25 30% + Semantic 70%)
+    # Related issues (IMS IDs from Related Issue tab)
+    related_issue_ids: List[str] = []  # List of related IMS issue IDs
+
+
+class IssueRelation(BaseModel):
+    """Issue relationship for graph visualization"""
+    source_ims_id: str
+    target_ims_id: str
+    relation_type: str
+
+
+class RelationsResponse(BaseModel):
+    """Response model for issue relations"""
+    total_relations: int
+    relations: List[IssueRelation]
+
+
+class SearchResponse(BaseModel):
+    """Response model for search results"""
+    total_results: int
+    query_used: str
+    search_intent: Optional[str] = None
+    results: List[IssueSearchResult]
+    execution_time_ms: float
+
+
+# ============================================================================
+# Endpoints
+# ============================================================================
+
+@router.post("/", response_model=SearchResponse)
+async def search_issues(
+    request: SearchRequest,
+    current_user: dict = Depends(get_current_user),
+    use_case: SearchIssuesUseCase = Depends(get_search_issues_use_case),
+    repository: PostgreSQLIssueRepository = Depends(get_issue_repository)
+):
+    """
+    Search IMS issues using natural language query with hybrid search.
+
+    Workflow:
+    1. Parse NL query using NVIDIA NIM → SearchIntent
+    2. Execute search based on strategy:
+       - 'hybrid' (default): BM25 30% + Semantic 70% with CJK tokenization
+       - 'semantic': Pure vector similarity search
+       - 'recent': Chronological order
+    3. Optionally crawl related issues
+    4. Return ranked results
+
+    **Example Queries**:
+    - "Show me critical bugs from last week"
+    - "Find issues assigned to John with status open"
+    - "Search for authentication problems in mobile project"
+    - "인증 문제" (Korean: authentication problems with hybrid search)
+    """
+    start_time = time.time()
+    user_id = UUID(current_user["id"])
+
+    try:
+        # Execute search via use case
+        intent, issues = await use_case.search(
+            query=request.query,
+            user_id=user_id,
+            max_results=request.max_results,
+            search_strategy=request.search_strategy,
+            use_semantic=request.use_semantic_search  # Backward compatibility
+        )
+
+        # Fetch related issue IDs for each issue (for graph visualization)
+        issue_related_map = {}
+        for issue in issues:
+            related_ids = await repository.get_related_issue_ids(issue.id)
+            issue_related_map[issue.id] = related_ids
+
+        # Convert domain entities to response models
+        results = [
+            IssueSearchResult(
+                id=issue.id,
+                ims_id=issue.ims_id,
+                title=issue.title,
+                description=issue.description,
+                status=issue.status.value,
+                priority=issue.priority.value,
+                # IMS-specific fields
+                category=issue.category or None,
+                product=issue.product or None,
+                version=issue.version or None,
+                module=issue.module or None,
+                customer=issue.customer or None,
+                issued_date=issue.issued_date.isoformat() if issue.issued_date else None,
+                # Metadata
+                reporter=issue.reporter,
+                assignee=issue.assignee,
+                project_key=issue.project_key,
+                labels=issue.labels,
+                created_at=issue.created_at.isoformat(),
+                updated_at=issue.updated_at.isoformat(),
+                similarity_score=getattr(issue, 'similarity_score', None),
+                hybrid_score=issue.custom_fields.get('hybrid_score') if hasattr(issue, 'custom_fields') else None,
+                # Related issues for graph visualization
+                related_issue_ids=issue_related_map.get(issue.id, [])
+            )
+            for issue in issues
+        ]
+
+        execution_time_ms = (time.time() - start_time) * 1000
+
+        return SearchResponse(
+            total_results=len(results),
+            query_used=request.query,
+            search_intent=intent.raw_query,
+            results=results,
+            execution_time_ms=execution_time_ms
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Search failed: {str(e)}"
+        )
+
+
+@router.get("/recent", response_model=List[IssueSearchResult])
+async def get_recent_issues(
+    limit: int = Query(default=20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user),
+    repository: PostgreSQLIssueRepository = Depends(get_issue_repository)
+):
+    """
+    Get recently crawled issues for the current user.
+
+    Returns most recently crawled issues sorted by crawl_date descending.
+    """
+    user_id = UUID(current_user["id"])
+
+    try:
+        # Query repository for recent issues
+        issues = await repository.find_by_user_id(user_id, limit)
+
+        # Fetch related issue IDs for each issue (for graph visualization)
+        issue_related_map = {}
+        for issue in issues:
+            related_ids = await repository.get_related_issue_ids(issue.id)
+            issue_related_map[issue.id] = related_ids
+
+        # Convert domain entities to response models
+        results = [
+            IssueSearchResult(
+                id=issue.id,
+                ims_id=issue.ims_id,
+                title=issue.title,
+                description=issue.description,
+                status=issue.status.value,
+                priority=issue.priority.value,
+                # IMS-specific fields
+                category=issue.category or None,
+                product=issue.product or None,
+                version=issue.version or None,
+                module=issue.module or None,
+                customer=issue.customer or None,
+                issued_date=issue.issued_date.isoformat() if issue.issued_date else None,
+                # Metadata
+                reporter=issue.reporter,
+                assignee=issue.assignee,
+                project_key=issue.project_key,
+                labels=issue.labels,
+                created_at=issue.created_at.isoformat(),
+                updated_at=issue.updated_at.isoformat(),
+                # Related issues for graph visualization
+                related_issue_ids=issue_related_map.get(issue.id, [])
+            )
+            for issue in issues
+        ]
+
+        return results
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve recent issues: {str(e)}"
+        )
+
+
+class GetByIdsRequest(BaseModel):
+    """Request model for getting issues by IDs"""
+    issue_ids: List[UUID] = Field(..., min_length=1, max_length=2000, description="List of issue UUIDs to fetch")
+
+
+class GetByImsIdsRequest(BaseModel):
+    """Request model for getting issues by IMS IDs"""
+    ims_ids: List[str] = Field(..., min_length=1, max_length=2000, description="List of IMS IDs (strings like '304640') to fetch")
+
+
+@router.post("/by-ids", response_model=List[IssueSearchResult])
+async def get_issues_by_ids(
+    request: GetByIdsRequest,
+    current_user: dict = Depends(get_current_user),
+    repository: PostgreSQLIssueRepository = Depends(get_issue_repository)
+):
+    """
+    Get multiple issues by their IDs.
+
+    Use this endpoint to fetch specific issues that were just crawled.
+    Returns issues in the same order as the input IDs.
+    """
+    user_id = UUID(current_user["id"])
+
+    try:
+        results = []
+        for issue_id in request.issue_ids:
+            issue = await repository.find_by_id(issue_id)
+            if issue and issue.user_id == user_id:
+                # Fetch related issue IDs for graph visualization
+                related_ids = await repository.get_related_issue_ids(issue.id)
+                results.append(
+                    IssueSearchResult(
+                        id=issue.id,
+                        ims_id=issue.ims_id,
+                        title=issue.title,
+                        description=issue.description,
+                        status=issue.status.value,
+                        priority=issue.priority.value,
+                        # IMS-specific fields
+                        category=issue.category or None,
+                        product=issue.product or None,
+                        version=issue.version or None,
+                        module=issue.module or None,
+                        customer=issue.customer or None,
+                        issued_date=issue.issued_date.isoformat() if issue.issued_date else None,
+                        # Metadata
+                        reporter=issue.reporter,
+                        assignee=issue.assignee,
+                        project_key=issue.project_key,
+                        labels=issue.labels,
+                        created_at=issue.created_at.isoformat(),
+                        updated_at=issue.updated_at.isoformat(),
+                        # Related issues for graph visualization
+                        related_issue_ids=related_ids
+                    )
+                )
+
+        return results
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve issues by IDs: {str(e)}"
+        )
+
+
+@router.post("/by-ims-ids", response_model=List[IssueSearchResult])
+async def get_issues_by_ims_ids(
+    request: GetByImsIdsRequest,
+    current_user: dict = Depends(get_current_user),
+    repository: PostgreSQLIssueRepository = Depends(get_issue_repository)
+):
+    """
+    Get multiple issues by their IMS IDs.
+
+    Use this endpoint to fetch specific issues by their IMS IDs (e.g., "304640", "278109").
+    Returns issues that belong to the current user.
+    """
+    user_id = UUID(current_user["id"])
+
+    try:
+        # Find issues by IMS IDs
+        issues = await repository.find_by_ims_ids(request.ims_ids, user_id)
+
+        # Fetch related issue IDs for each issue (for graph visualization)
+        results = []
+        for issue in issues:
+            related_ids = await repository.get_related_issue_ids(issue.id)
+            results.append(
+                IssueSearchResult(
+                    id=issue.id,
+                    ims_id=issue.ims_id,
+                    title=issue.title,
+                    description=issue.description,
+                    status=issue.status.value,
+                    priority=issue.priority.value,
+                    # IMS-specific fields
+                    category=issue.category or None,
+                    product=issue.product or None,
+                    version=issue.version or None,
+                    module=issue.module or None,
+                    customer=issue.customer or None,
+                    issued_date=issue.issued_date.isoformat() if issue.issued_date else None,
+                    # Metadata
+                    reporter=issue.reporter,
+                    assignee=issue.assignee,
+                    project_key=issue.project_key,
+                    labels=issue.labels,
+                    created_at=issue.created_at.isoformat(),
+                    updated_at=issue.updated_at.isoformat(),
+                    # Related issues for graph visualization
+                    related_issue_ids=related_ids
+                )
+            )
+
+        return results
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve issues by IMS IDs: {str(e)}"
+        )
+
+
+@router.get("/{issue_id}", response_model=IssueSearchResult)
+async def get_issue_details(
+    issue_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    repository: PostgreSQLIssueRepository = Depends(get_issue_repository)
+):
+    """
+    Get detailed information for a specific issue.
+
+    Includes full description, comments, attachments, and related issues.
+    """
+    user_id = UUID(current_user["id"])
+
+    try:
+        # Query repository for issue
+        issue = await repository.find_by_id(issue_id)
+
+        if not issue:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Issue {issue_id} not found"
+            )
+
+        # Validate user owns this issue
+        if issue.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to access this issue"
+            )
+
+        # Fetch related issue IDs for graph visualization
+        related_ids = await repository.get_related_issue_ids(issue.id)
+
+        # Convert domain entity to response model
+        return IssueSearchResult(
+            id=issue.id,
+            ims_id=issue.ims_id,
+            title=issue.title,
+            description=issue.description,
+            status=issue.status.value,
+            priority=issue.priority.value,
+            # IMS-specific fields
+            category=issue.category or None,
+            product=issue.product or None,
+            version=issue.version or None,
+            module=issue.module or None,
+            customer=issue.customer or None,
+            issued_date=issue.issued_date.isoformat() if issue.issued_date else None,
+            # Metadata
+            reporter=issue.reporter,
+            assignee=issue.assignee,
+            project_key=issue.project_key,
+            labels=issue.labels,
+            created_at=issue.created_at.isoformat(),
+            updated_at=issue.updated_at.isoformat(),
+            # Related issues for graph visualization
+            related_issue_ids=related_ids
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve issue details: {str(e)}"
+        )
+
+
+@router.get("/relations/all", response_model=RelationsResponse)
+async def get_all_issue_relations(
+    current_user: dict = Depends(get_current_user),
+    repository: PostgreSQLIssueRepository = Depends(get_issue_repository)
+):
+    """
+    Get all issue relations for the current user.
+
+    Used by the graph visualization to show relationships between issues.
+    Returns all relations where either source or target belongs to the user.
+    """
+    user_id = UUID(current_user["id"])
+
+    try:
+        relations_data = await repository.get_all_relations_for_user(user_id)
+
+        relations = [
+            IssueRelation(
+                source_ims_id=rel['source_ims_id'],
+                target_ims_id=rel['target_ims_id'],
+                relation_type=rel['relation_type']
+            )
+            for rel in relations_data
+        ]
+
+        return RelationsResponse(
+            total_relations=len(relations),
+            relations=relations
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve issue relations: {str(e)}"
+        )

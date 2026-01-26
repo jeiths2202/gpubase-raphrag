@@ -1,0 +1,121 @@
+{
+  "title": "지식 베이스",
+  "searchPlaceholder": "지식 검색...",
+  "reembed": {
+    "title": "문서 재임베딩",
+    "configureButton": "설정 및 재임베딩",
+    "hideParameters": "파라미터 숨기기",
+    "chunkSize": "청크 크기 (100-4000)",
+    "chunkSizeHint": "청크당 문자 수",
+    "chunkOverlap": "청크 오버랩 (0-500)",
+    "chunkOverlapHint": "청크 간 중복 문자 수",
+    "processingMode": "처리 모드",
+    "processingModes": {
+      "textOnly": "텍스트만",
+      "imageOnly": "이미지만 (OCR)",
+      "vlmEnhanced": "VLM 향상"
+    },
+    "enableVlm": "VLM 분석 활성화",
+    "extractTables": "테이블 추출",
+    "extractImages": "이미지 추출",
+    "warning": "재임베딩은 기존 청크와 임베딩을 삭제하고 지정된 파라미터로 새로 생성합니다. 이 과정은 몇 분이 소요될 수 있습니다.",
+    "hint": "임베딩 품질이 낮은 경우, 다른 청크 크기와 처리 옵션으로 문서를 재임베딩하여 검색 정확도를 향상시킬 수 있습니다.",
+    "startButton": "재임베딩 시작",
+    "processing": "처리 중...",
+    "cancel": "취소",
+    "started": "재임베딩이 시작되었습니다!"
+  },
+  "askQuestion": "질문하기",
+  "noResults": "결과가 없습니다",
+  "sources": "출처",
+  "relevance": "관련도",
+  "newConversation": "새 대화",
+  "conversationHistory": "대화 기록",
+  "relatedDocuments": "관련 문서",
+  "categories": {
+    "all": "전체",
+    "documents": "문서",
+    "faqs": "FAQ",
+    "guides": "가이드",
+    "policies": "정책"
+  },
+  "filters": {
+    "date": "날짜",
+    "type": "유형",
+    "status": "상태",
+    "author": "작성자"
+  },
+  "article": {
+    "views": "조회수",
+    "lastUpdated": "최종 수정",
+    "helpful": "도움이 되셨나요?",
+    "yes": "예",
+    "no": "아니오",
+    "relatedArticles": "관련 문서",
+    "notHelpful": "도움이 안 됨"
+  },
+  "chat": {
+    "title": "AI 어시스턴트",
+    "subtitle": "지식 베이스에 대해 무엇이든 물어보세요",
+    "inputPlaceholder": "질문을 입력하세요...",
+    "send": "전송",
+    "thinking": "생각 중...",
+    "suggestions": "추천 질문",
+    "searchSyntax": {
+      "title": "검색 구문 사용법",
+      "description": "특수 접두사와 기호를 사용하여 검색을 세밀하게 제어할 수 있습니다",
+      "examples": [
+        {"syntax": "검색어", "description": "모든 소스에서 시맨틱 검색"},
+        {"syntax": "@검색어", "description": "웹 소스에서만 검색"},
+        {"syntax": "\"정확한 문구\"", "description": "모든 소스에서 정확한 문구 우선 검색"},
+        {"syntax": "@\"정확한 문구\"", "description": "웹 소스에서만 정확한 문구 검색"}
+      ]
+    },
+    "clearHistory": "기록 삭제",
+    "deleteHistory": "기록 삭제",
+    "confirmDeleteAll": "모든 대화 기록을 삭제하시겠습니까?",
+    "errorMessage": "죄송합니다. 오류가 발생했습니다. 다시 시도해 주세요.",
+    "noConversations": "대화 기록이 없습니다",
+    "startNewConversation": "새 대화를 시작하세요",
+    "noSourcesYet": "채팅 후 참조된 소스가 여기에 표시됩니다",
+    "addNote": "노트 추가",
+    "noNotesYet": "노트가 여기에 표시됩니다",
+    "messages": "개 메시지"
+  },
+  "sidebar": {
+    "chat": "채팅",
+    "documents": "문서",
+    "sources": "출처",
+    "notes": "노트"
+  },
+  "agentNav": {
+    "selectScope": "검색 범위 선택",
+    "searchQuery": "검색어",
+    "loading": "문서 후보 로딩 중...",
+    "loadError": "문서 후보를 불러오지 못했습니다",
+    "noCandidates": "관련 문서를 찾을 수 없습니다",
+    "suggested": "추천",
+    "documents": "개 문서",
+    "sections": "개 섹션",
+    "pages": "페이지",
+    "selected": "개 선택됨",
+    "clear": "선택 해제",
+    "selectAll": "전체 선택",
+    "searchAll": "전체 검색",
+    "searchSelected": "선택 범위 검색",
+    "restoreSession": "이전 세션 복원",
+    "lastQuery": "마지막 검색어",
+    "searchScope": "검색 범위",
+    "minutesAgo": "분 전",
+    "hoursAgo": "시간 전",
+    "daysAgo": "일 전",
+    "startFresh": "새로 시작",
+    "continue": "이어서 작업",
+    "restoring": "복원 중...",
+    "scopeNotFound": "선택한 문서/섹션에서 해당 정보를 찾을 수 없습니다. 전체 검색을 시도해보세요.",
+    "keywords": "키워드",
+    "subcategories": "개 하위 카테고리",
+    "matched": "일치",
+    "categories": "개 카테고리"
+  }
+}
