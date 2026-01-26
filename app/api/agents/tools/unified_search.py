@@ -1154,6 +1154,7 @@ Returns relevant document chunks with full context and source information."""
                     has_scope = False  # Fall back to normal search
 
             # Execute normal searches if no scope or scope failed
+            print(f"[UnifiedSearch] DEBUG: has_scope={has_scope}, search_mode={search_mode}", flush=True)
             if not has_scope:
                 # Execute searches based on mode (use search_query which has quotes removed)
                 if search_mode in ("hybrid", "vector_only"):
