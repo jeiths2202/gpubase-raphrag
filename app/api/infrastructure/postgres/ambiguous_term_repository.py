@@ -6,6 +6,7 @@ user clarification before database search.
 """
 import json
 import logging
+import re
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
 
@@ -143,16 +144,19 @@ class PostgresAmbiguousTermRepository:
                         matches.append(term_data)
                         continue
 
-                # match_patterns 확인
+                # match_patterns 확인 - word boundary 검사 포함
                 for pattern in term_data.get('match_patterns', []):
                     pattern_lower = pattern.lower()
-                    if pattern_lower in query_lower:
-                        pos = query_lower.find(pattern_lower)
-                        if pos >= 0:
-                            term_data['position_start'] = pos
-                            term_data['position_end'] = pos + len(pattern_lower)
-                            matches.append(term_data)
-                            break
+                    # Use regex for word boundary matching to avoid partial matches
+                    # e.g., "mgr" should NOT match "tjesmgr" (part of command name)
+                    # Match pattern as whole word or at word boundaries
+                    pattern_regex = re.compile(r'\b' + re.escape(pattern_lower) + r'\b', re.IGNORECASE)
+                    match = pattern_regex.search(query_lower)
+                    if match:
+                        term_data['position_start'] = match.start()
+                        term_data['position_end'] = match.end()
+                        matches.append(term_data)
+                        break
 
             return matches
 

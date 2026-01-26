@@ -2076,7 +2076,17 @@ User Query:"""
             response = await self._call_llm(messages, tool_definitions, tool_choice=current_tool_choice)
 
             if response is None:
-                yield AgentStreamChunk(chunk_type="error", content="LLM call failed")
+                # LLM connection failed - return user-friendly error message
+                lang = context.language or "en"
+                if lang == "ja":
+                    error_msg = "申し訳ございません。AI サービスに一時的に接続できません。しばらくしてからもう一度お試しください。"
+                elif lang == "ko":
+                    error_msg = "죄송합니다. AI 서비스에 일시적으로 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."
+                else:
+                    error_msg = "Sorry, the AI service is temporarily unavailable. Please try again shortly."
+                logger.error(f"[Executor.stream] LLM call failed at step {step}")
+                yield AgentStreamChunk(chunk_type="text", content=error_msg)
+                yield AgentStreamChunk(chunk_type="done", metadata={"llm_connection_failed": True})
                 return
 
             messages.append(response)
@@ -2630,7 +2640,31 @@ User Query:"""
                     content="LLM adapter not configured. This is a mock response."
                 )
 
-            # Format messages for LLM
+            # Format messages for LLM with size limiting
+            # NIM/vLLM can fail with 400 error if request is too large
+            MAX_TOTAL_CONTENT_CHARS = 30000  # ~7500 tokens
+            total_chars = sum(len(msg.content or "") for msg in messages)
+
+            if total_chars > MAX_TOTAL_CONTENT_CHARS:
+                logger.warning(f"[Executor] Message content too large ({total_chars} chars), truncating older messages")
+                # Keep system prompt (first) and user query (last), truncate middle
+                truncated_messages = []
+                remaining_chars = MAX_TOTAL_CONTENT_CHARS
+
+                # Always keep first (system) and last (user) messages
+                for i, msg in enumerate(messages):
+                    if i == 0 or i == len(messages) - 1:
+                        truncated_messages.append(msg)
+                        remaining_chars -= len(msg.content or "")
+                    elif remaining_chars > 2000:  # Keep some middle messages if space allows
+                        content_len = len(msg.content or "")
+                        if content_len <= remaining_chars:
+                            truncated_messages.insert(-1, msg)
+                            remaining_chars -= content_len
+
+                messages = truncated_messages
+                logger.info(f"[Executor] Truncated to {len(messages)} messages, {sum(len(m.content or '') for m in messages)} chars")
+
             formatted_messages = []
             for msg in messages:
                 formatted = {"role": msg.role.value, "content": msg.content}
@@ -2676,6 +2710,14 @@ User Query:"""
 
             # Parse response
             content = response.get("content", "")
+
+            # Check for LLM errors (adapter returns error in content)
+            if (content.startswith("Connection error:") or
+                content.startswith("Timeout error:") or
+                content.startswith("LLM error:") or
+                content.startswith("Error:")):
+                logger.error(f"[Executor] LLM request failed: {content}")
+                return None  # Signal LLM failure to caller
             tool_calls = []
 
             if "tool_calls" in response:

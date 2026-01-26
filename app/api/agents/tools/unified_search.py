@@ -86,7 +86,7 @@ Returns relevant document chunks with full context and source information."""
                 },
                 "doc_filter": {
                     "type": "string",
-                    "description": "Optional document ID to filter results"
+                    "description": "Optional filter: document ID (doc_xxx) or partial filename/product name to narrow search scope"
                 },
                 "include_images": {
                     "type": "boolean",
@@ -233,10 +233,18 @@ Returns relevant document chunks with full context and source information."""
                     CASE WHEN ({error_patterns}) THEN 1.5 ELSE 1.0 END as error_boost,
                 """
 
-            # Build document filter
+            # Build document filter - support both doc_id and document name patterns
             doc_filter_sql = ""
             if doc_filter:
-                doc_filter_sql = f"AND pdf_id = '{doc_filter}'"
+                # Sanitize input to prevent SQL injection
+                safe_filter = doc_filter.replace("'", "''")
+                if doc_filter.startswith("doc_"):
+                    # Exact document ID match
+                    doc_filter_sql = f"AND pdf_id = '{safe_filter}'"
+                else:
+                    # Fuzzy match against document name (for category/product names)
+                    doc_filter_sql = f"AND pdf_id IN (SELECT pdf_id FROM pdf_documents WHERE filename ILIKE '%{safe_filter}%')"
+                    logger.info(f"[UnifiedSearch] doc_filter '{doc_filter}' is not a doc_id, using fuzzy filename match")
 
             # PostgreSQL full-text search with ts_rank
             sql = f"""
@@ -562,24 +570,28 @@ Returns relevant document chunks with full context and source information."""
             image_repo = PostgresImageRepository(pool)
 
             # Search similar images by CLIP embedding
+            # Use higher threshold (0.25) for better relevance filtering
+            min_sim = 0.25
             clip_results = await image_repo.search_by_clip_embedding(
                 query_embedding=clip_query_embedding,
                 document_id=doc_id,
                 limit=limit * 3,
-                min_similarity=0.20
+                min_similarity=min_sim
             )
 
-            # Filter by relevant pages
+            # Filter by relevant pages - REQUIRE page match for technical queries
             clip_images = []
             seen_pages = set()
 
             for img in clip_results:
-                if img.get('similarity', 0) < 0.20:
+                similarity = img.get('similarity', 0)
+                if similarity < min_sim:
                     continue
 
                 page_num = img.get('page_number')
-                # Only include images from pages that matched text chunks
-                if relevant_pages and page_num not in relevant_pages:
+                # STRICT: Only include images from pages that matched text chunks
+                # This prevents unrelated images from appearing
+                if not relevant_pages or page_num not in relevant_pages:
                     continue
 
                 if page_num not in seen_pages:

@@ -32,15 +32,18 @@ services:
       - .:/opt/kms
       - kms-venv:/opt/kms/venv
       - kms-data:/opt/kms/data
-      - kms-uploads:/opt/kms/uploads
+      - ./uploads:/opt/kms/uploads
       - kms-logs:/opt/kms/logs
       # SSH key source (will be copied with proper permissions by entrypoint)
       - ~/.ssh:/tmp/.ssh-source:ro
     environment:
       - APP_ENV=development
       - DEBUG=true
+      - REDIS_URL=redis://redis:6379
     env_file:
       - .env.local
+    depends_on:
+      - redis
     extra_hosts:
       - "host.docker.internal:host-gateway"
       # Remote server alias
@@ -50,6 +53,21 @@ services:
       kms-network:
         aliases:
           - backend
+
+  # ============================================================
+  # Redis Cache
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    container_name: kms-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - kms-network
 
   # ============================================================
   # KMS Frontend Application
@@ -75,8 +93,8 @@ services:
 volumes:
   kms-venv:
   kms-data:
-  kms-uploads:
   kms-logs:
+  redis-data:
 
 # ============================================================
 # Networks

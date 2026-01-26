@@ -391,8 +391,8 @@ class PostgresVerifiedKnowledgeRepository:
         Uses PostgreSQL full-text search as fallback when no embedding available.
         """
         async with self._pool.acquire() as conn:
-            params = [query, limit]
-            param_idx = 3
+            params = [query, limit, status]
+            param_idx = 4
 
             query_sql = """
                 SELECT *,
@@ -401,12 +401,10 @@ class PostgresVerifiedKnowledgeRepository:
                         plainto_tsquery('simple', $1)
                     ) as rank
                 FROM verified_knowledge
-                WHERE status = $4
+                WHERE status = $3
                     AND to_tsvector('simple', question || ' ' || answer)
                         @@ plainto_tsquery('simple', $1)
             """
-            params.append(status)
-            param_idx += 1
 
             if language:
                 query_sql += f" AND language = ${param_idx}"
