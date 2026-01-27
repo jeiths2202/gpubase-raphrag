@@ -112,14 +112,13 @@ Returns relevant document chunks with full context and source information."""
     def rag_service(self):
         """Lazy load RAG service for Neo4j vector search"""
         if self._rag_service is None:
-            print(f"[UnifiedSearch.rag_service] Lazy loading RAG service...", flush=True)
+            logger.debug("Lazy loading RAG service...")
             try:
                 from ...core.deps import get_rag_service
                 self._rag_service = get_rag_service()
-                print(f"[UnifiedSearch.rag_service] RAG service loaded: {self._rag_service is not None}", flush=True)
+                logger.debug(f"RAG service loaded: {self._rag_service is not None}")
             except Exception as e:
                 logger.error(f"Failed to get RAG service: {e}")
-                print(f"[UnifiedSearch.rag_service] ERROR loading: {e}", flush=True)
         return self._rag_service
 
     async def _get_adaptive_service(self):
@@ -177,10 +176,10 @@ Returns relevant document chunks with full context and source information."""
         context: AgentContext
     ) -> List[Dict[str, Any]]:
         """Execute vector search via Neo4j using RAGService"""
-        print(f"[UnifiedSearch._neo4j_vector_search] Entered, rag_service={self.rag_service is not None}", flush=True)
+        logger.debug(f"Neo4j vector search: rag_service={self.rag_service is not None}")
         try:
             if self.rag_service is None:
-                print("[UnifiedSearch._neo4j_vector_search] ERROR: rag_service is None!", flush=True)
+                logger.error("RAG service is None - cannot execute Neo4j search")
                 return []
             result = await self.rag_service.query(
                 question=query,
@@ -209,15 +208,11 @@ Returns relevant document chunks with full context and source information."""
                     "source_url": source.get("source_url", "")
                 })
 
-            logger.info(f"[UnifiedSearch] Neo4j returned {len(neo4j_results)} results")
-            print(f"[UnifiedSearch._neo4j_vector_search] Success: {len(neo4j_results)} results", flush=True)
+            logger.info(f"Neo4j returned {len(neo4j_results)} results")
             return neo4j_results
 
         except Exception as e:
-            logger.error(f"Neo4j vector search error: {e}")
-            print(f"[UnifiedSearch._neo4j_vector_search] EXCEPTION: {e}", flush=True)
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Neo4j vector search error: {e}", exc_info=True)
             return []
 
     async def _postgres_keyword_search(
@@ -405,8 +400,7 @@ Returns relevant document chunks with full context and source information."""
 
             driver.close()
 
-            logger.info(f"[UnifiedSearch] Exact phrase search found {len(results)} results for phrases: {exact_phrases}")
-            print(f"[UnifiedSearch] Exact phrase search found {len(results)} direct matches", flush=True)
+            logger.info(f"Exact phrase search found {len(results)} results for phrases: {exact_phrases}")
             return results
 
         except Exception as e:
@@ -547,8 +541,7 @@ Returns relevant document chunks with full context and source information."""
             driver.close()
 
             if linked_chunks:
-                logger.info(f"[UnifiedSearch] Fetched {len(linked_chunks)} linked chunks")
-                print(f"[UnifiedSearch] Chunk linking: added {len(linked_chunks)} subsequent chunks", flush=True)
+                logger.debug(f"Fetched {len(linked_chunks)} linked chunks")
 
             # Append linked chunks to results (they will be sorted by RRF later)
             return results + linked_chunks
@@ -814,15 +807,9 @@ Returns relevant document chunks with full context and source information."""
         # Combine: exact matches first, then partial, then others
         combined = exact_match_results + partial_match_results + no_match_results
 
-        logger.info(
-            f"[UnifiedSearch] Exact phrase priority: "
-            f"{len(exact_match_results)} exact, {len(partial_match_results)} partial, "
-            f"{len(no_match_results)} no match (phrases: {exact_phrases})"
-        )
-        print(
-            f"[UnifiedSearch] Exact phrase matching: "
-            f"{len(exact_match_results)} exact matches for {exact_phrases}",
-            flush=True
+        logger.debug(
+            f"Exact phrase priority: {len(exact_match_results)} exact, "
+            f"{len(partial_match_results)} partial, {len(no_match_results)} no match"
         )
 
         return combined
@@ -1036,7 +1023,6 @@ Returns relevant document chunks with full context and source information."""
         Returns:
             ToolResult with fused search results
         """
-        print(f"[UnifiedSearch.execute] ENTERED with kwargs keys: {list(kwargs.keys())}", flush=True)
         query = kwargs.get("query", "")
         top_k = kwargs.get("top_k", DEFAULT_TOP_K)
         doc_filter = kwargs.get("doc_filter")
@@ -1059,8 +1045,7 @@ Returns relevant document chunks with full context and source information."""
             prioritize_web_sources = True
 
         if prioritize_web_sources:
-            print(f"[UnifiedSearch] Web source priority mode activated", flush=True)
-            logger.info(f"[UnifiedSearch] Web source priority mode activated for query: {query[:50]}...")
+            logger.info(f"Web source priority mode activated for query: {query[:50]}...")
 
         # Feature: Exact phrase matching with double quotes
         # Example: '"정확한 문구"' → prioritize results containing exact phrase
@@ -1079,8 +1064,7 @@ Returns relevant document chunks with full context and source information."""
             exact_phrases = [phrase.strip() for phrase in quote_matches if phrase.strip()]
             # Remove quotes from query for normal search, but keep the phrase
             search_query = re.sub(quote_pattern, r'\1', query)
-            print(f"[UnifiedSearch] Exact phrase mode: {exact_phrases}", flush=True)
-            logger.info(f"[UnifiedSearch] Exact phrase matching enabled: {exact_phrases}")
+            logger.info(f"Exact phrase matching enabled: {exact_phrases}")
         else:
             search_query = query
 
@@ -1091,21 +1075,70 @@ Returns relevant document chunks with full context and source information."""
         # Phase 1: Preprocessing - Validate query against original
         original_query = context.metadata.get('original_query', '') if context.metadata else ''
         if original_query and query != original_query:
+            # Check 1: Character corruption (e.g., Japanese → Chinese substitution)
             validated_query, was_corrupted = _validate_query(query, original_query)
             if was_corrupted:
-                print(f"[UnifiedSearch] Query corruption fixed: '{query}' → '{validated_query}'", flush=True)
+                logger.info(f"Query corruption fixed: '{query}' → '{validated_query}'")
                 query = validated_query
+                search_query = validated_query
                 query_was_corrected = True
+
+            # Check 2: LLM query expansion detection (AGGRESSIVE)
+            # LLM often "improves" queries which HURTS vector search accuracy
+            # Examples of bad expansions:
+            #   "tjesmgr" → "tjesmgr 제품 소개 및 주요 기능 설명" (0 results)
+            #   "tjesmgr 설명" → works fine
+            else:
+                # Strategy: Extract key term and use simpler query for better vector match
+                # Key terms are usually: product names, commands, error codes, technical terms
+
+                # Extract key term from original (first word that looks like a product/command)
+                key_term_match = re.search(r'([a-zA-Z][a-zA-Z0-9_\-\.]+)', original_query)
+                key_term = key_term_match.group(1) if key_term_match else None
+
+                # Also check for error codes
+                error_match = re.search(r'(-?\d{4,5})', original_query)
+                error_code = error_match.group(1) if error_match else None
+
+                should_use_original = False
+
+                # Rule 1: If LLM query is >20% longer, likely bad expansion
+                if len(query) > len(original_query) * 1.2:
+                    should_use_original = True
+                    logger.debug(f"LLM expanded query by {len(query)/len(original_query)*100-100:.0f}%")
+
+                # Rule 2: If LLM added Korean filler words that hurt search
+                filler_patterns = ['제품 소개', '주요 기능', '상세 설명', '에 대해', '에 관해', '관련 정보']
+                for filler in filler_patterns:
+                    if filler in query and filler not in original_query:
+                        should_use_original = True
+                        logger.debug(f"LLM added filler phrase: '{filler}'")
+                        break
+
+                # Rule 3: If key term exists, use simplified query: "{key_term}"
+                if should_use_original:
+                    if key_term:
+                        # Use just the key term for best vector match
+                        simplified_query = key_term
+                        if error_code:
+                            simplified_query = f"{key_term} {error_code}"
+                        logger.info(f"Simplified query for better vector match: '{simplified_query}' (from LLM: '{query[:40]}...')")
+                        query = simplified_query
+                        search_query = simplified_query
+                    else:
+                        # No key term found, use original
+                        logger.info(f"Reverted to original query: {original_query[:40]}...")
+                        query = original_query
+                        search_query = original_query
+                    query_was_corrected = True
 
         # Agent-Driven RAG: Check for search scope from context
         search_scope = getattr(context, 'search_scope', None) if context else None
         has_scope = search_scope and (search_scope.documents or search_scope.sections)
         if has_scope:
-            print(f"[UnifiedSearch] Scoped search: {len(search_scope.documents)} docs, {len(search_scope.sections)} sections", flush=True)
-            logger.info(f"[UnifiedSearch] Using scoped search: {len(search_scope.documents)} docs, {len(search_scope.sections)} sections")
+            logger.info(f"Using scoped search: {len(search_scope.documents)} docs, {len(search_scope.sections)} sections")
 
-        print(f"[UnifiedSearch] Called with query: {query[:50]}..., mode={search_mode}, web_priority={prioritize_web_sources}, scoped={has_scope}", flush=True)
-        logger.info(f"[UnifiedSearch] Called with query: {query[:50]}..., mode={search_mode}, web_priority={prioritize_web_sources}, scoped={has_scope}")
+        logger.info(f"Search request: query='{query[:50]}...', mode={search_mode}, web_priority={prioritize_web_sources}, scoped={has_scope}")
 
         if not query:
             return self.create_error_result("Query is required")
@@ -1113,8 +1146,7 @@ Returns relevant document chunks with full context and source information."""
         # Extract error codes for boosting
         error_codes = _extract_error_codes(query)
         if error_codes:
-            print(f"[UnifiedSearch] Detected error codes: {error_codes}", flush=True)
-            logger.info(f"[UnifiedSearch] Detected error codes: {error_codes}")
+            logger.info(f"Detected error codes: {error_codes}")
 
         try:
             # Phase 2: Parallel Search
@@ -1147,35 +1179,34 @@ Returns relevant document chunks with full context and source information."""
                             }
                             for i, src in enumerate(scoped_result.get("sources", []))
                         ]
-                        print(f"[UnifiedSearch] Scoped search returned {len(neo4j_results)} results", flush=True)
-                        logger.info(f"[UnifiedSearch] Scoped search returned {len(neo4j_results)} results")
+                        logger.info(f"Scoped search returned {len(neo4j_results)} results")
                 except Exception as scope_err:
                     logger.warning(f"[UnifiedSearch] Scoped search failed, falling back to normal: {scope_err}")
                     has_scope = False  # Fall back to normal search
 
             # Execute normal searches if no scope or scope failed
-            print(f"[UnifiedSearch] DEBUG: has_scope={has_scope}, search_mode={search_mode}", flush=True)
+            logger.debug(f"Search execution: has_scope={has_scope}, search_mode={search_mode}")
             if not has_scope:
                 # Execute searches based on mode (use search_query which has quotes removed)
                 if search_mode in ("hybrid", "vector_only"):
-                    print(f"[UnifiedSearch] DEBUG: Calling Neo4j search with query='{search_query[:50]}...'", flush=True)
+                    logger.debug(f"Calling Neo4j search with query='{search_query[:50]}...'")
                     neo4j_results = await self._neo4j_vector_search(
                         query=search_query,
                         top_k=top_k,
                         language=language,
                         context=context
                     )
-                    print(f"[UnifiedSearch] DEBUG: Neo4j returned {len(neo4j_results)} results", flush=True)
+                    logger.debug(f"Neo4j returned {len(neo4j_results)} results")
 
                 if search_mode in ("hybrid", "keyword_only"):
-                    print(f"[UnifiedSearch] DEBUG: Calling PostgreSQL search with doc_filter='{doc_filter}'", flush=True)
+                    logger.debug(f"Calling PostgreSQL search with doc_filter='{doc_filter}'")
                     postgres_results = await self._postgres_keyword_search(
                         query=search_query,
                         top_k=top_k,
                         doc_filter=doc_filter,
                         error_codes=error_codes
                     )
-                    print(f"[UnifiedSearch] DEBUG: PostgreSQL returned {len(postgres_results)} results", flush=True)
+                    logger.debug(f"PostgreSQL returned {len(postgres_results)} results")
 
             # Phase 2.5: Exact phrase search (if quotes were used)
             exact_phrase_results = []
@@ -1202,12 +1233,34 @@ Returns relevant document chunks with full context and source information."""
                     web_only=prioritize_web_sources
                 )
 
-            # Check if we got any results
+            # Check if we got any results - with RETRY using key term
             if not neo4j_results and not postgres_results:
-                return self.create_success_result(
-                    "No relevant content found. Try rephrasing your query or using different keywords.",
-                    metadata={"results_count": 0, "query": query}
-                )
+                # Retry with key term only if original query was different
+                key_term_match = re.search(r'([a-zA-Z][a-zA-Z0-9_\-\.]+)', original_query or query)
+                retry_query = key_term_match.group(1) if key_term_match else None
+
+                if retry_query and retry_query.lower() != query.lower():
+                    logger.info(f"Retrying search with key term: '{retry_query}' (original: '{query[:30]}...')")
+
+                    # Retry Neo4j search with key term
+                    try:
+                        neo4j_results = await self._neo4j_vector_search(
+                            query=retry_query,
+                            top_k=top_k * 2,
+                            doc_filter=doc_filter,
+                            search_scope=search_scope
+                        )
+                        logger.debug(f"Retry returned {len(neo4j_results)} results with key term")
+                    except Exception as retry_e:
+                        logger.warning(f"[UnifiedSearch] Retry Neo4j search failed: {retry_e}")
+                        neo4j_results = []
+
+                # Still no results after retry
+                if not neo4j_results and not postgres_results:
+                    return self.create_success_result(
+                        "No relevant content found. Try rephrasing your query or using different keywords.",
+                        metadata={"results_count": 0, "query": query, "retry_attempted": bool(retry_query)}
+                    )
 
             # Phase 3: RRF Fusion
             if search_mode == "hybrid":

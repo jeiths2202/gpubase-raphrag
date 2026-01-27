@@ -587,7 +587,6 @@ User Query: {task}"""
             # Yield sources before done (if available)
             if sources:
                 logger.info(f"[{self.name}] Yielding {len(sources)} sources from Deep Agent")
-                print(f"[DeepAgentAdapter] Yielding {len(sources)} sources", flush=True)
                 yield AgentStreamChunk(
                     chunk_type="sources",
                     sources=sources[:10]  # Limit to 10 sources

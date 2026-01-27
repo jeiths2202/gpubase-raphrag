@@ -109,7 +109,7 @@ class LLMAgentAdapter:
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
         temperature: Optional[float] = None,
-        tool_choice: Optional[str] = "auto"
+        tool_choice: Optional[Any] = "auto"  # str or dict for specific tool
     ) -> Dict[str, Any]:
         """
         Generate a response using LLM with tool calling support.
@@ -118,7 +118,7 @@ class LLMAgentAdapter:
             messages: List of messages in OpenAI format
             tools: Optional list of tools for function calling
             temperature: Optional temperature override
-            tool_choice: Tool selection mode - "auto", "required", or "none"
+            tool_choice: "auto", "none", or {"type": "function", "function": {"name": "tool_name"}}
 
         Returns:
             Dict with 'content' and optionally 'tool_calls'
@@ -134,12 +134,14 @@ class LLMAgentAdapter:
             tool_choice=tool_choice
         )
 
-        # Check if we need fallback (only for connection/timeout errors, not 400 errors)
+        # Check if we need fallback (connection/timeout/400 errors)
         if self._is_error_response(result) and self.use_nim and not DISABLE_OLLAMA_FALLBACK:
             error_content = result.get("content", "")
-            # Only fallback on connection/timeout errors, not on context length errors
-            if "Connection error:" in error_content or "Timeout error:" in error_content:
-                logger.warning(f"NIM request failed, falling back to Ollama")
+            # Fallback on connection, timeout, or 400 errors (NIM payload issues)
+            if ("Connection error:" in error_content or
+                "Timeout error:" in error_content or
+                "LLM error: 400" in error_content):
+                logger.warning(f"NIM request failed, falling back to Ollama: {error_content[:100]}")
                 result = await self._generate_internal(
                     base_url=self._fallback_base_url,
                     model=self._fallback_model,
@@ -150,7 +152,7 @@ class LLMAgentAdapter:
                     tool_choice=tool_choice
                 )
             else:
-                # Don't fallback for 400/context errors - return the error directly
+                # Don't fallback for other errors
                 logger.warning(f"NIM request failed with non-recoverable error: {error_content[:100]}")
 
         return result
@@ -173,12 +175,13 @@ class LLMAgentAdapter:
         tools: Optional[List[Dict[str, Any]]] = None,
         temperature: Optional[float] = None,
         backend_name: str = "unknown",
-        tool_choice: Optional[str] = "auto"
+        tool_choice: Optional[Any] = "auto"  # str or dict for specific tool
     ) -> Dict[str, Any]:
         """
         Internal generation method for a specific backend.
 
         Both NIM and Ollama use OpenAI-compatible API format.
+        tool_choice can be: "auto", "none", or {"type": "function", "function": {"name": "tool_name"}}
         """
         url = f"{base_url}/v1/chat/completions"
 
@@ -194,6 +197,20 @@ class LLMAgentAdapter:
             payload["tool_choice"] = tool_choice or "auto"
 
         try:
+            # Log payload metrics (size, message count) for monitoring
+            payload_size = len(json.dumps(payload, ensure_ascii=False))
+            message_count = len(payload.get('messages', []))
+            logger.debug(
+                f"LLM request to {backend_name}: {payload_size} chars, {message_count} messages"
+            )
+
+            # Warn on very large payloads that may cause issues
+            if payload_size > 50000:
+                logger.warning(
+                    f"Large payload ({payload_size} chars) to {backend_name} - "
+                    "may cause timeout or truncation"
+                )
+
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     url,

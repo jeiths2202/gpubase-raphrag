@@ -73,7 +73,7 @@ Use this tool FIRST for any knowledge base queries."""
         if original_query and query != original_query:
             validated_query, was_corrupted = _validate_query(query, original_query)
             if was_corrupted:
-                print(f"[VectorSearch] Query corruption fixed: '{query}' → '{validated_query}'", flush=True)
+                logger.info(f"Query corruption fixed: '{query}' → '{validated_query}'")
                 query = validated_query
 
         if not query:

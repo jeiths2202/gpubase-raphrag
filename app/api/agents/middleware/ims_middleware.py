@@ -185,13 +185,7 @@ class IMSToolsProvider:
                     "created_at": row["created_at"].isoformat() if row["created_at"] else ""
                 })
 
-            logger.info(f"[IMSTools] Found {len(formatted_issues)} issues for query: {query}")
-
-            # Windows 콘솔 인코딩 문제 방지를 위해 ASCII로 출력
-            try:
-                print(f"[IMSTools] Found {len(formatted_issues)} issues", flush=True)
-            except UnicodeEncodeError:
-                pass
+            logger.info(f"Found {len(formatted_issues)} issues for query: {query}")
 
             return formatted_issues
 
@@ -403,12 +397,15 @@ def get_ims_tools() -> List[Callable]:
     Returns:
         List of IMS tools for use with create_deep_agent
     """
-    print(f"[get_ims_tools] LANGCHAIN_TOOLS_AVAILABLE={LANGCHAIN_TOOLS_AVAILABLE}, PSYCOPG2_AVAILABLE={PSYCOPG2_AVAILABLE}", flush=True)
-    print(f"[get_ims_tools] POSTGRES_HOST={os.getenv('POSTGRES_HOST', 'localhost')}, POSTGRES_DB={os.getenv('POSTGRES_DB', 'kms')}", flush=True)
+    logger.debug(
+        f"get_ims_tools: LANGCHAIN={LANGCHAIN_TOOLS_AVAILABLE}, "
+        f"PSYCOPG2={PSYCOPG2_AVAILABLE}, "
+        f"POSTGRES_HOST={os.getenv('POSTGRES_HOST', 'localhost')}"
+    )
 
     provider = IMSToolsProvider()
     tools = provider.get_tools()
-    print(f"[get_ims_tools] Returning {len(tools)} tools", flush=True)
+    logger.debug(f"Returning {len(tools)} tools")
     return tools
 
 

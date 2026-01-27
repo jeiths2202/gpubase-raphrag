@@ -60,16 +60,12 @@ Provide structured summaries for detail requests."""
         context: AgentContext
     ) -> AsyncGenerator[AgentStreamChunk, None]:
         """Stream execution of IMS search"""
-        import sys
-        print(f"[IMSAgent] stream called: task={task[:50]}...", file=sys.stderr, flush=True)
-        print(f"[IMSAgent] executor={self.executor}", file=sys.stderr, flush=True)
+        logger.debug(f"Stream called: task={task[:50]}..., executor={self.executor}")
 
         try:
             async for chunk in self.executor.stream(self, task, context):
-                print(f"[IMSAgent] chunk={chunk.chunk_type}", file=sys.stderr, flush=True)
+                logger.debug(f"Yielding chunk: {chunk.chunk_type}")
                 yield chunk
         except Exception as e:
-            print(f"[IMSAgent] ERROR: {e}", file=sys.stderr, flush=True)
-            import traceback
-            traceback.print_exc(file=sys.stderr)
+            logger.error(f"IMS Agent stream error: {e}", exc_info=True)
             raise

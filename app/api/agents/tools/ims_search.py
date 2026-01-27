@@ -290,15 +290,14 @@ Requires IMS credentials for crawling."""
         """
         params.append(int(limit))  # Ensure limit is integer
 
-        print(f"[IMS_SEARCH] list_all SQL: {sql}", flush=True)
-        print(f"[IMS_SEARCH] list_all params: {params}", flush=True)
+        logger.debug(f"list_all SQL params: {params}")
 
         try:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 rows = await conn.fetch(sql, *params)
 
-            print(f"[IMS_SEARCH] list_all DB returned {len(rows)} rows", flush=True)
+            logger.debug(f"list_all DB returned {len(rows)} rows")
 
             # Format results
             formatted_issues = []
@@ -315,7 +314,7 @@ Requires IMS credentials for crawling."""
                     "created_at": row["created_at"].isoformat() if row["created_at"] else ""
                 })
 
-            print(f"[IMS_SEARCH] list_all found {len(formatted_issues)} issues for user {user_id}", flush=True)
+            logger.info(f"list_all found {len(formatted_issues)} issues for user {user_id}")
             return formatted_issues
         except Exception as e:
             logger.error(f"[IMS_SEARCH] list_all error: {e}")
@@ -351,29 +350,29 @@ Requires IMS credentials for crawling."""
                 crawl_related=False,
                 force_refresh=force_refresh
             )
-            print(f"[IMS_SEARCH] crawl job created: is_cached={is_cached}, force_refresh={force_refresh}", flush=True)
+            logger.debug(f"Crawl job created: is_cached={is_cached}, force_refresh={force_refresh}")
 
             if is_cached:
-                print(f"[IMS_SEARCH] Using cached crawl results for query: {query}", flush=True)
+                logger.debug(f"Using cached crawl results for query: {query}")
             else:
                 # Execute the crawl job
-                print(f"[IMS_SEARCH] Starting new crawl for query: {query}", flush=True)
+                logger.info(f"Starting new crawl for query: {query}")
                 issues_found = 0
                 issues_crawled = 0
                 async for progress in crawl_use_case.execute_crawl_job(job.id):
                     event_type = progress.get("event", "")
                     if event_type == "search_completed":
                         issues_found = progress.get("total_issues", 0)
-                        print(f"[IMS_SEARCH] Search found {issues_found} issues from IMS", flush=True)
+                        logger.debug(f"Search found {issues_found} issues from IMS")
                     elif event_type == "crawl_fetch_completed":
                         issues_crawled = progress.get("fetched_count", 0)
-                        print(f"[IMS_SEARCH] Crawl fetched {issues_crawled} issue details", flush=True)
+                        logger.debug(f"Crawl fetched {issues_crawled} issue details")
                     elif event_type == "job_completed":
                         saved = progress.get("issues_crawled", 0)
-                        print(f"[IMS_SEARCH] Crawl completed: found={issues_found}, crawled={issues_crawled}, saved={saved}", flush=True)
+                        logger.info(f"Crawl completed: found={issues_found}, crawled={issues_crawled}, saved={saved}")
                         break
                     elif event_type == "job_failed":
-                        print(f"[IMS_SEARCH] Crawl failed: {progress.get('error', 'unknown')}", flush=True)
+                        logger.error(f"Crawl failed: {progress.get('error', 'unknown')}")
                         break
 
             # After crawl, search DB again for results
@@ -502,7 +501,7 @@ Requires IMS credentials for crawling."""
             if keyword:
                 # Check credentials before crawling
                 has_credentials = await self._check_credentials(user_id)
-                print(f"[IMS_SEARCH] list_all: checking credentials for crawl, has_credentials={has_credentials}", flush=True)
+                logger.debug(f"list_all: checking credentials for crawl, has_credentials={has_credentials}")
 
                 if not has_credentials:
                     # No credentials - emit status to prompt user
@@ -522,11 +521,11 @@ Requires IMS credentials for crawling."""
 
                 # Emit crawling status to show in chat
                 await self._emit_status("crawling")
-                print(f"[IMS_SEARCH] list_all: starting crawl for keyword={keyword}", flush=True)
+                logger.info(f"list_all: starting crawl for keyword={keyword}")
 
                 # Perform crawl to get fresh data (force_refresh=True for list_all)
                 await self._crawl_and_search(keyword, user_id, limit, force_refresh=True)
-                print(f"[IMS_SEARCH] list_all: crawl completed for keyword={keyword}", flush=True)
+                logger.info(f"list_all: crawl completed for keyword={keyword}")
 
             # After crawl, list issues from DB
             formatted_issues = await self._list_all_issues(
@@ -639,9 +638,9 @@ Requires IMS credentials for crawling."""
         # Extract product from intent if not provided in kwargs
         if not product and intent and intent.extracted_params.get("product"):
             product = intent.extracted_params["product"]
-            print(f"[IMS_SEARCH] Extracted product from intent: {product}", flush=True)
+            logger.debug(f"Extracted product from intent: {product}")
 
-        print(f"[IMS_SEARCH] Intent: {intent_type.value}, query: {query}", flush=True)
+        logger.info(f"Intent: {intent_type.value}, query: {query}")
 
         # Handle list_all intent - list all matching issues (with keyword filter, no limit)
         if intent_type == IntentType.LIST_ALL:
@@ -655,13 +654,13 @@ Requires IMS credentials for crawling."""
             keyword = product if product else query
 
             # For list_all, ignore status/priority filters - return ALL matching issues
-            print(f"[IMS_SEARCH] Executing list_all with keyword={keyword}, limit={list_all_limit}, user_specific={user_specific}", flush=True)
+            logger.info(f"Executing list_all with keyword={keyword}, limit={list_all_limit}, user_specific={user_specific}")
             return await self._execute_list_all(context, "all", "all", list_all_limit, keyword=keyword, user_specific=user_specific)
 
         # Handle DETAIL or ANALYZE intent with specific issue ID
         issue_id = intent.extracted_params.get("issue_id") if intent else None
         if issue_id and intent_type in (IntentType.DETAIL, IntentType.ANALYZE):
-            print(f"[IMS_SEARCH] Getting detail for issue_id={issue_id}", flush=True)
+            logger.debug(f"Getting detail for issue_id={issue_id}")
 
             issue_detail = await self._get_issue_detail(issue_id, context)
 

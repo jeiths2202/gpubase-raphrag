@@ -1362,6 +1362,13 @@ class AgentExecutor:
         """
         start_time = time.time()
 
+        # Store original task in context for query validation in tools
+        # This prevents LLM from corrupting/expanding queries in tool calls
+        if context.metadata is None:
+            context.metadata = {}
+        context.metadata['original_query'] = task
+        logger.info(f"[Executor.run] Stored original_query: {task[:50]}...")
+
         # ========================================================================
         # MASTER SYSTEM CONSTRAINT INJECTION (HIGHEST PRIORITY)
         # This constraint MUST be prepended to ALL agent prompts
@@ -1583,11 +1590,12 @@ User Query:"""
             logger.debug(f"Step {step}/{context.max_steps}")
 
             # Think: Get LLM response
-            # For RAG agents on step 1, force tool usage to prevent hallucination
+            # For RAG agents on step 1, force unified_search tool call
             current_tool_choice = "auto"
             if step == 1 and agent.agent_type.value == "rag":
-                current_tool_choice = "required"
-                logger.info(f"[Executor] Forcing tool_choice=required for RAG agent step 1")
+                # Force specific tool call to prevent hallucination
+                current_tool_choice = {"type": "function", "function": {"name": "unified_search"}}
+                logger.info(f"[Executor] RAG agent step 1: forcing unified_search")
 
             response = await self._call_llm(messages, tool_definitions, tool_choice=current_tool_choice)
 
@@ -1634,6 +1642,7 @@ User Query:"""
                         agent.agent_type,
                         context.user_id
                     ):
+                        logger.warning(f"[Executor] Permission denied for tool: {tool_call.tool_name}")
                         result = ToolResult(
                             success=False,
                             output="",
@@ -1994,18 +2003,15 @@ User Query:"""
         # This prevents LLM from corrupting Japanese/Korean queries in tool calls
         context.metadata['original_query'] = task
 
-        print(f"[Executor] Starting stream for task: {task}", flush=True)
-        print(f"[Executor] Agent: {agent.name}, Tools: {[t.name for t in available_tools]}", flush=True)
-        logger.info(f"[Executor] Starting stream for task: {task[:50]}...")
-        logger.info(f"[Executor] Agent: {agent.name}, Tools: {[t.name for t in available_tools]}")
+        logger.info(f"Starting stream for task: {task[:50]}...")
+        logger.info(f"Agent: {agent.name}, Tools: {[t.name for t in available_tools]}")
         logger.debug(f"[Executor] LLM adapter: {self.llm_adapter}")
 
         # ========================================================================
         # DEVELOP MODE: Execute all tools and show aggregated results
         # ========================================================================
         if is_develop_mode():
-            print(f"[Executor] DEVELOP MODE: Executing all tools for analysis", flush=True)
-            logger.info("[Executor] DEVELOP MODE: Executing all tools for analysis")
+            logger.info("DEVELOP MODE: Executing all tools for analysis")
 
             yield AgentStreamChunk(chunk_type="status", content="[개발모드] 모든 검색 도구 실행 중...")
 
@@ -2067,11 +2073,13 @@ User Query:"""
             step += 1
 
             # Think
-            # For RAG agents on step 1, force tool usage to prevent hallucination
+            # For RAG agents on step 1, force unified_search tool call
+            # Note: "required" causes 400 error on NIM/vLLM, use specific tool format instead
             current_tool_choice = "auto"
             if step == 1 and agent.agent_type.value == "rag":
-                current_tool_choice = "required"
-                logger.info(f"[Executor.stream] Forcing tool_choice=required for RAG agent step 1")
+                # Force specific tool call to prevent hallucination
+                current_tool_choice = {"type": "function", "function": {"name": "unified_search"}}
+                logger.info(f"[Executor.stream] RAG agent step 1: forcing unified_search")
 
             response = await self._call_llm(messages, tool_definitions, tool_choice=current_tool_choice)
 
@@ -2101,7 +2109,7 @@ User Query:"""
                     )
 
                     # Execute tool (may emit status messages)
-                    print(f"[Executor] Calling tool: {tool_call.tool_name}", flush=True)
+                    logger.debug(f"Calling tool: {tool_call.tool_name}")
                     result = await self._execute_tool(tool_call, context)
                     tool_results.append(result)  # Collect for validation
 
@@ -2169,7 +2177,7 @@ User Query:"""
                         individual_results = result["metadata"].get("individual_results", [])
                         if individual_results:
                             total = len(individual_results)
-                            print(f"[Executor] Streaming {total} individual search results", flush=True)
+                            logger.debug(f"Streaming {total} individual search results")
                             for idx, ind_result in enumerate(individual_results):
                                 yield AgentStreamChunk(
                                     chunk_type="search_result",
@@ -2232,8 +2240,7 @@ User Query:"""
                     # Collect sources
                     if result.get("metadata") and "sources" in result["metadata"]:
                         result_sources = result["metadata"]["sources"]
-                        print(f"[Executor] Collected {len(result_sources)} sources from {tool_call.tool_name}", flush=True)
-                        logger.info(f"[Executor] Collected {len(result_sources)} sources from {tool_call.tool_name}")
+                        logger.info(f"Collected {len(result_sources)} sources from {tool_call.tool_name}")
                         sources.extend(result_sources)
 
                 # ================================================================
@@ -2262,12 +2269,7 @@ User Query:"""
 
                         if use_structured and search_results:
                             logger.info(
-                                f"[Executor.stream] Using STRUCTURED OUTPUT mode "
-                                f"(reason={decision.reason})"
-                            )
-                            print(
-                                f"[Executor.stream] STRUCTURED OUTPUT mode: {decision.reason}",
-                                flush=True
+                                f"Using STRUCTURED OUTPUT mode (reason={decision.reason})"
                             )
 
                             # Stream structured answer blocks
@@ -2304,13 +2306,8 @@ User Query:"""
                         # FALLBACK: LLM language adaptation (existing behavior)
                         # ================================================================
                         logger.info(
-                            f"[Executor.stream] Using DIRECT mode with LLM language adaptation "
+                            f"Using DIRECT mode with LLM language adaptation "
                             f"(reason={decision.reason}, confidence={decision.confidence:.2f})"
-                        )
-                        print(
-                            f"[Executor.stream] DIRECT mode + LLM language adapt: {decision.reason} "
-                            f"(confidence={decision.confidence:.2f}, lang={context.language})",
-                            flush=True
                         )
 
                         # Start generation
@@ -2394,18 +2391,15 @@ User Query:"""
                 # STRIP THINKING TAGS: Remove internal reasoning from response
                 # ========================================================================
                 original_answer = answer
-                # DEBUG: Log original LLM response
-                print(f"[Executor.stream] DEBUG Original LLM response ({len(original_answer)} chars):", flush=True)
-                print(f"[Executor.stream] DEBUG >>> {original_answer[:500]}{'...' if len(original_answer) > 500 else ''}", flush=True)
+                logger.debug(f"Original LLM response ({len(original_answer)} chars): {original_answer[:200]}...")
 
                 answer = strip_thinking_tags(answer)
                 if answer != original_answer:
-                    logger.info(f"[Executor.stream] Stripped thinking tags from answer. Original: {len(original_answer)} chars, Cleaned: {len(answer)} chars")
-                    print(f"[Executor.stream] DEBUG Cleaned answer: {answer[:200] if answer else '(empty)'}", flush=True)
+                    logger.info(f"Stripped thinking tags from answer. Original: {len(original_answer)} chars, Cleaned: {len(answer)} chars")
+                    logger.debug(f"Cleaned answer: {answer[:200] if answer else '(empty)'}")
                     if not answer:
                         # If all content was thinking, request a new response
-                        logger.warning("[Executor.stream] All content was internal reasoning - returning generic message")
-                        print(f"[Executor.stream] DEBUG All content stripped! Returning fallback message.", flush=True)
+                        logger.warning("All content was internal reasoning - returning generic message")
                         answer = get_insufficient_info_response(context.language or "en")
 
                 # ========================================================================
@@ -2490,8 +2484,7 @@ User Query:"""
 
         # Yield sources and done
         if sources:
-            print(f"[Executor] Yielding {len(sources)} sources to client", flush=True)
-            logger.info(f"[Executor] Yielding {len(sources)} sources to client: {[s.get('source', 'unknown') for s in sources[:5]]}")
+            logger.info(f"Yielding {len(sources)} sources to client: {[s.get('source', 'unknown') for s in sources[:5]]}")
             yield AgentStreamChunk(chunk_type="sources", sources=sources[:10])
 
             # Calculate and yield source reliability
@@ -2569,9 +2562,9 @@ User Query:"""
                                 f"level={evaluation.overall_level.value}"
                             )
                 except Exception as eval_error:
-                    logger.warning(f"[Executor] RAG evaluation failed (non-fatal): {eval_error}")
+                    logger.warning(f"RAG evaluation failed (non-fatal): {eval_error}")
         else:
-            print(f"[Executor] No sources to yield", flush=True)
+            logger.debug("No sources to yield")
 
         # User Feedback Prompt: message_id와 함께 피드백 UI 표시 요청
         # 프론트엔드에서 이 chunk를 받으면 👍/👎 버튼을 표시
@@ -2662,7 +2655,7 @@ User Query:"""
                 return size
 
             total_chars = sum(_estimate_message_size(msg) for msg in messages)
-            logger.debug(f"[Executor] Total message payload size: {total_chars} chars, {len(messages)} messages")
+            logger.debug(f"Total message payload size: {total_chars} chars, {len(messages)} messages")
 
             if total_chars > MAX_TOTAL_CHARS:
                 logger.warning(f"[Executor] Message payload too large ({total_chars} chars), truncating")
@@ -2694,7 +2687,7 @@ User Query:"""
 
                 messages = truncated_messages
                 final_size = sum(_estimate_message_size(m) for m in messages)
-                logger.info(f"[Executor] Truncated to {len(messages)} messages, {final_size} chars (from {total_chars})")
+                logger.info(f"Truncated to {len(messages)} messages, {final_size} chars (from {total_chars})")
 
             formatted_messages = []
             for msg in messages:
@@ -2735,9 +2728,9 @@ User Query:"""
             payload_size = len(json.dumps(formatted_messages, ensure_ascii=False))
             tools_size = len(json.dumps(formatted_tools, ensure_ascii=False)) if formatted_tools else 0
             total_payload = payload_size + tools_size
-            logger.info(f"[Executor] Calling LLM: {len(formatted_messages)} messages ({payload_size} chars), {len(formatted_tools)} tools ({tools_size} chars), total={total_payload} chars, tool_choice={tool_choice}")
+            logger.info(f"Calling LLM: {len(formatted_messages)} messages ({payload_size} chars), {len(formatted_tools)} tools ({tools_size} chars), total={total_payload} chars, tool_choice={tool_choice}")
             if total_payload > 30000:
-                logger.warning(f"[Executor] ⚠️ Large payload detected: {total_payload} chars may cause NIM 400 error")
+                logger.warning(f"Large payload detected: {total_payload} chars may cause NIM 400 error")
             response = await self.llm_adapter.generate(
                 messages=formatted_messages,
                 tools=formatted_tools if formatted_tools else None,
@@ -2764,7 +2757,7 @@ User Query:"""
                     if isinstance(args, str):
                         args = json.loads(args)
 
-                    print(f"[Executor] LLM tool_call: {func.get('name')} args={args}", flush=True)
+                    logger.debug(f"LLM tool_call: {func.get('name')} args={args}")
                     tool_calls.append(ToolCall(
                         tool_name=func.get("name", ""),
                         arguments=args,
@@ -2790,6 +2783,7 @@ User Query:"""
         tool = self.tool_registry.get(tool_call.tool_name)
 
         if tool is None:
+            logger.warning(f"[Executor] Tool not found in registry: {tool_call.tool_name}")
             return ToolResult(
                 success=False,
                 output="",
@@ -2800,6 +2794,7 @@ User Query:"""
         # Validate parameters
         is_valid, error = tool.validate_params(tool_call.arguments)
         if not is_valid:
+            logger.warning(f"[Executor] Parameter validation failed: {error}")
             return ToolResult(
                 success=False,
                 output="",
@@ -2811,7 +2806,7 @@ User Query:"""
             result = await tool.execute(context, **tool_call.arguments)
             return result
         except Exception as e:
-            logger.error(f"Tool execution failed: {e}")
+            logger.error(f"Tool execution failed: {e}", exc_info=True)
             return ToolResult(
                 success=False,
                 output="",

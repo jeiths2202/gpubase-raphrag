@@ -19,6 +19,7 @@ DEFAULT_AGENT_PERMISSIONS: Dict[AgentType, AgentPermissions] = {
             PermissionRule(tool="vector_search", pattern="*", action=PermissionAction.ALLOW),
             PermissionRule(tool="graph_query", pattern="*", action=PermissionAction.ALLOW),
             PermissionRule(tool="document_read", pattern="*", action=PermissionAction.ALLOW),
+            PermissionRule(tool="unified_search", pattern="*", action=PermissionAction.ALLOW),  # Combined Neo4j+PostgreSQL search
             PermissionRule(tool="*", pattern="*", action=PermissionAction.DENY),
         ],
         default_action=PermissionAction.DENY

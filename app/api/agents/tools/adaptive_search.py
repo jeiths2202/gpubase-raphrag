@@ -149,12 +149,10 @@ def _validate_query(query: str, original_query: str) -> Tuple[str, bool]:
         # If 30% or more characters differ, consider it corrupted
         # LLM sometimes substitutes similar-looking characters
         if diff_count >= max(1, len(query) * 0.3):
-            print(
-                f"[QueryValidation] Character substitution detected! "
-                f"{diff_count}/{len(query)} chars differ", flush=True
+            logger.info(
+                f"Character substitution detected! {diff_count}/{len(query)} chars differ. "
+                f"LLM query: {query}, Original: {original_query}"
             )
-            print(f"[QueryValidation] LLM query: {query}", flush=True)
-            print(f"[QueryValidation] Original: {original_query}", flush=True)
             return original_query, True
 
     # Even if lengths differ, check if query doesn't match original at all
@@ -164,12 +162,10 @@ def _validate_query(query: str, original_query: str) -> Tuple[str, bool]:
         common_chars = sum(1 for c in query if c in original_query)
         similarity = common_chars / max(len(query), len(original_query))
         if similarity < 0.5:  # Less than 50% character overlap
-            print(
-                f"[QueryValidation] Low similarity detected! "
-                f"similarity={similarity:.2f}", flush=True
+            logger.info(
+                f"Low similarity detected! similarity={similarity:.2f}. "
+                f"LLM query: {query}, Original: {original_query}"
             )
-            print(f"[QueryValidation] LLM query: {query}", flush=True)
-            print(f"[QueryValidation] Original: {original_query}", flush=True)
             return original_query, True
 
     # Check for length mismatch with similar semantic content
@@ -437,12 +433,11 @@ class AdaptiveSearchTool(BaseTool):
         if original_query and query != original_query:
             validated_query, was_corrupted = _validate_query(query, original_query)
             if was_corrupted:
-                print(f"[AdaptiveSearch] Query corruption fixed: '{query}' → '{validated_query}'", flush=True)
+                logger.info(f"Query corruption fixed: '{query}' → '{validated_query}'")
                 query = validated_query
                 query_was_corrected = True
 
-        print(f"[AdaptiveSearch] Called with query: {query[:50]}...", flush=True)
-        logger.info(f"[AdaptiveSearch] Called with query: {query[:50]}...")
+        logger.info(f"Called with query: {query[:50]}...")
 
         if not query:
             return self.create_error_result("Query is required")
@@ -452,8 +447,7 @@ class AdaptiveSearchTool(BaseTool):
         keyword_filter = error_codes[0] if error_codes else None
 
         if error_codes:
-            print(f"[AdaptiveSearch] Detected error codes: {error_codes}", flush=True)
-            logger.info(f"[AdaptiveSearch] Detected error codes: {error_codes}, using keyword filter")
+            logger.info(f"Detected error codes: {error_codes}, using keyword filter")
 
         try:
             # Get services
@@ -481,13 +475,12 @@ class AdaptiveSearchTool(BaseTool):
             # - Detects "what is" intent (이란, とは, what is patterns)
             # - Boosts introduction/overview sections for definitional queries
             # - Combines vector similarity (60%) with keyword boost (40%)
-            print(f"[AdaptiveSearch] Using hybrid search for query: {query}", flush=True)
-            logger.info(f"[AdaptiveSearch] Using hybrid search for query: {query}")
+            logger.info(f"Using hybrid search for query: {query}")
 
             # Check if cross-encoder re-ranking is enabled
             use_reranker = os.getenv("ENABLE_CROSS_ENCODER_RERANKER", "false").lower() in ("true", "1", "yes")
             if use_reranker:
-                print(f"[AdaptiveSearch] Cross-encoder re-ranking enabled", flush=True)
+                logger.debug("Cross-encoder re-ranking enabled")
 
             results = await adaptive_service.search_chunks_hybrid(
                 query_embedding=query_embedding,
@@ -498,8 +491,7 @@ class AdaptiveSearchTool(BaseTool):
                 use_reranker=use_reranker,
             )
 
-            print(f"[AdaptiveSearch] Found {len(results) if results else 0} chunks", flush=True)
-            logger.info(f"[AdaptiveSearch] Found {len(results) if results else 0} chunks")
+            logger.info(f"Found {len(results) if results else 0} chunks")
 
             if not results:
                 return self.create_success_result(
@@ -526,7 +518,7 @@ class AdaptiveSearchTool(BaseTool):
                 if not relevant_doc_id:
                     relevant_doc_id = result.get('pdf_id')
 
-            print(f"[AdaptiveSearch] Relevant pages from chunks: {sorted(relevant_pages)}", flush=True)
+            logger.debug(f"Relevant pages from chunks: {sorted(relevant_pages)}")
 
             # Image search - only from pages that matched the query
             clip_images = []
@@ -558,9 +550,7 @@ class AdaptiveSearchTool(BaseTool):
                                     limit=image_limit * 3,
                                     min_similarity=0.20
                                 )
-                                print(f"[CLIP] Raw results: {len(clip_results)} images from doc={search_doc_id}", flush=True)
-                                for r in clip_results[:5]:
-                                    print(f"[CLIP]   raw: page={r.get('page_number')}, sim={r.get('similarity', 0):.3f}", flush=True)
+                                logger.debug(f"CLIP raw results: {len(clip_results)} images from doc={search_doc_id}")
                                 # Filter by relevant pages and deduplicate
                                 seen_pages = set()
                                 for img in clip_results:
@@ -569,19 +559,14 @@ class AdaptiveSearchTool(BaseTool):
                                     page_num = img.get('page_number')
                                     # Only include images from pages that matched text chunks
                                     if page_num not in relevant_pages:
-                                        print(f"[CLIP] Skipping image from page {page_num} (not in relevant pages)", flush=True)
                                         continue
                                     if page_num not in seen_pages:
                                         seen_pages.add(page_num)
                                         clip_images.append(img)
                                     if len(clip_images) >= image_limit:
                                         break
-                                print(f"[CLIP] Found {len(clip_images)} images for query: {query[:30]}", flush=True)
-                                for img in clip_images:
-                                    print(f"[CLIP]   - {img.get('image_id')}: similarity={img.get('similarity', 0):.3f}, page={img.get('page_number')}", flush=True)
-                                logger.info(f"[CLIP] Found {len(clip_images)} images for query: {query[:30]}")
+                                logger.info(f"CLIP found {len(clip_images)} images for query: {query[:30]}")
                         except Exception as clip_err:
-                            print(f"[CLIP] Error: {clip_err}", flush=True)
                             logger.debug(f"CLIP image search failed: {clip_err}")
 
                 except Exception as img_err:
@@ -627,7 +612,7 @@ class AdaptiveSearchTool(BaseTool):
                     end = min(len(content), kw_pos + len(keyword_filter) + 400)  # 400 chars after
                     original_len = len(content)
                     content = ("..." if start > 0 else "") + content[start:end] + ("..." if end < len(content) else "")
-                    print(f"[AdaptiveSearch] Extracted keyword context: {original_len} -> {len(content)} chars", flush=True)
+                    logger.debug(f"Extracted keyword context: {original_len} -> {len(content)} chars")
                     # Add keyword match indicator - THIS IS THE ANSWER!
                     chunk_info += f"   🎯 **KEYWORD '{keyword_filter}' FOUND - ANSWER IS IN CONTENT BELOW:**\n"
                     chunk_info += f"   Content:\n   {content}\n"
@@ -753,9 +738,9 @@ class AdaptiveSearchTool(BaseTool):
                                 "section_title": tr.get('section_title')
                             })
                         if related_tables_by_page:
-                            print(f"[AdaptiveSearch] Found {sum(len(v) for v in related_tables_by_page.values())} related TABLE chunks", flush=True)
+                            logger.debug(f"Found {sum(len(v) for v in related_tables_by_page.values())} related TABLE chunks")
                 except Exception as e:
-                    print(f"[AdaptiveSearch] Error fetching related tables: {e}", flush=True)
+                    logger.debug(f"Error fetching related tables: {e}")
 
             # Build individual search results for expandable card display
             # Each result includes: text, images, tables, source info
@@ -796,7 +781,7 @@ class AdaptiveSearchTool(BaseTool):
                     # Fix markdown tables missing separator line
                     fixed_content = self._fix_markdown_table_separators(content)
                     tables.append({"markdown": fixed_content})
-                    print(f"[AdaptiveSearch] Found TABLE chunk: {len(content)} chars", flush=True)
+                    logger.debug(f"Found TABLE chunk: {len(content)} chars")
                 else:
                     # Extract markdown tables from text content
                     import re
@@ -805,7 +790,7 @@ class AdaptiveSearchTool(BaseTool):
                     for table_match in table_matches:
                         tables.append({"markdown": table_match.strip()})
                     if table_matches:
-                        print(f"[AdaptiveSearch] Found {len(table_matches)} markdown tables in TEXT chunk", flush=True)
+                        logger.debug(f"Found {len(table_matches)} markdown tables in TEXT chunk")
 
                     # Add related TABLE_CHUNKs from the same pages
                     if related_tables_by_page and pdf_id_r and page_start:
@@ -816,7 +801,6 @@ class AdaptiveSearchTool(BaseTool):
                                     # Avoid duplicate tables
                                     if not any(t.get('markdown') == related_table['markdown'] for t in tables):
                                         tables.append(related_table)
-                                        print(f"[AdaptiveSearch] Added related TABLE from page {p}", flush=True)
 
                 individual_results.append({
                     "index": i + 1,

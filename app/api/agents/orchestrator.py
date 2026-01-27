@@ -519,8 +519,8 @@ class AgentOrchestrator:
         else:
             use_deep_agent = request.use_deep_agent
 
-        # Debug: Log use_deep_agent value
-        print(f"[Orchestrator] use_deep_agent={use_deep_agent} (env={env_deep_agent or 'not set'})", flush=True)
+        # Log use_deep_agent value
+        logger.debug(f"use_deep_agent={use_deep_agent} (env={env_deep_agent or 'not set'})")
 
         # =====================================================================
         # Two-Stage Retrieval: Enrich query with summary context
@@ -574,24 +574,25 @@ class AgentOrchestrator:
             agent_type=agent_type.value
         )
         context.intent = intent_result
-        print(f"[Orchestrator] Intent: {intent_result.intent.value} "
-              f"(confidence={intent_result.confidence:.2f}, method={intent_result.method}, "
-              f"params={intent_result.extracted_params})", flush=True)
-
-        print(f"[Orchestrator] agent_type={agent_type.value}", flush=True)
+        logger.info(
+            f"Intent: {intent_result.intent.value} "
+            f"(confidence={intent_result.confidence:.2f}, method={intent_result.method}, "
+            f"params={intent_result.extracted_params})"
+        )
+        logger.debug(f"agent_type={agent_type.value}")
 
         # Get agent - use Deep Agent if enabled (use env-modified value, not request value)
         if use_deep_agent:
             try:
                 agent = get_deep_agent(agent_type)
-                print(f"[Orchestrator] Using Deep Agent: {agent.name}", flush=True)
+                logger.info(f"Using Deep Agent: {agent.name}")
             except Exception as e:
-                logger.warning(f"[Orchestrator] Failed to create Deep Agent, falling back: {e}")
+                logger.warning(f"Failed to create Deep Agent, falling back: {e}")
                 agent = self.agent_registry.get(agent_type)
-                print(f"[Orchestrator] Fallback to regular agent: {agent.name}", flush=True)
+                logger.info(f"Fallback to regular agent: {agent.name}")
         else:
             agent = self.agent_registry.get(agent_type)
-            print(f"[Orchestrator] Using regular agent: {agent.name}", flush=True)
+            logger.info(f"Using regular agent: {agent.name}")
 
         # ========================================================================
         # ORCHESTRATOR-LEVEL CONSTRAINT VALIDATION (Stream)
@@ -606,9 +607,9 @@ class AgentOrchestrator:
                 session_id=request.session_id,
                 details={"step": "orchestrator_pre_stream"}
             )
-            print(f"[Orchestrator] CRITICAL: Master constraint not present for {agent_type.value} agent", flush=True)
+            logger.error(f"CRITICAL: Master constraint not present for {agent_type.value} agent")
         else:
-            print(f"[Orchestrator] Master constraint validated for {agent_type.value} agent", flush=True)
+            logger.debug(f"Master constraint validated for {agent_type.value} agent")
 
         # Collect response text for logging
         response_text_parts = []
@@ -1123,8 +1124,7 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
         )
         context.intent = intent_result
 
-        # Debug: Log enable_multi_agent and use_deep_agent values
-        print(f"[stream_enterprise] enable_multi_agent={request.enable_multi_agent}, use_deep_agent={request.use_deep_agent}", flush=True)
+        logger.debug(f"stream_enterprise: enable_multi_agent={request.enable_multi_agent}, use_deep_agent={request.use_deep_agent}")
 
         # Check if multi-agent is needed
         if not request.enable_multi_agent:
@@ -1395,10 +1395,10 @@ Respond with only the category name (rag, ims, vision, code, or planner):"""
         Yields:
             AgentStreamChunk with incremental results
         """
-        print(f"[_stream_deep_agent] Starting Deep Agent streaming: type={agent_type.value}", flush=True)
+        logger.info(f"Starting Deep Agent streaming: type={agent_type.value}")
 
         deep_agent = self.get_deep_agent(agent_type)
-        print(f"[_stream_deep_agent] deep_agent={deep_agent}", flush=True)
+        logger.debug(f"deep_agent={deep_agent}")
         if deep_agent is None:
             yield AgentStreamChunk(
                 chunk_type="error",
