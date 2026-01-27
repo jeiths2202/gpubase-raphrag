@@ -52,6 +52,98 @@ if DEFAULT_SEARCH_MODE not in ("hybrid", "vector_only", "keyword_only"):
 ENABLE_RRF_FUSION = os.getenv("ENABLE_RRF_FUSION", "false").lower() == "true"
 
 
+# =============================================================
+# INTENT-RESULT MATCHING FOR SUMMARY-FIRST SEARCH
+# =============================================================
+
+# Query intent patterns
+_ERROR_INTENT_PATTERNS = re.compile(
+    r'에러|error|오류|エラー|실패|fail|exception|장애|障害|원인|cause|이유|reason|해결|solution|fix|대처|対処',
+    re.IGNORECASE
+)
+_COMMAND_INTENT_PATTERNS = re.compile(
+    r'명령|command|cmd|사용법|usage|how\s*to|방법|옵션|option|파라미터|parameter|argument|구문|syntax|실행|execute|run',
+    re.IGNORECASE
+)
+_GLOSSARY_INTENT_PATTERNS = re.compile(
+    r'뭐|what\s*is|무엇|정의|definition|의미|mean|약어|abbreviation|용어|term|설명|explain|概要',
+    re.IGNORECASE
+)
+
+
+def _detect_query_intent(query: str) -> set:
+    """
+    Detect the intent of a query based on keyword patterns.
+
+    Returns a set of intents: 'error', 'command', 'glossary', 'general'
+    """
+    intents = set()
+
+    if _ERROR_INTENT_PATTERNS.search(query):
+        intents.add('error')
+    if _COMMAND_INTENT_PATTERNS.search(query):
+        intents.add('command')
+    if _GLOSSARY_INTENT_PATTERNS.search(query):
+        intents.add('glossary')
+
+    # If no specific intent detected, it's general
+    if not intents:
+        intents.add('general')
+
+    return intents
+
+
+def _check_intent_result_match(query_intents: set, summary_results: list, query: str = "") -> bool:
+    """
+    Check if summary results match the detected query intent.
+
+    Returns True if results are relevant to the query intent.
+    """
+    if not summary_results:
+        return False
+
+    # Get result types from summary results
+    result_types = set()
+    for result in summary_results:
+        result_type = result.get("type", "").lower()
+        if "error" in result_type:
+            result_types.add('error')
+        elif "command" in result_type:
+            result_types.add('command')
+        elif "glossary" in result_type or "term" in result_type:
+            result_types.add('glossary')
+        else:
+            result_types.add('general')
+
+    # ENCODING ISSUE WORKAROUND:
+    # Korean/Japanese characters often get corrupted to "?" in the pipeline.
+    # If query has "?" after a keyword and results are ONLY commands,
+    # user likely asked about error/usage/etc - fall back to vector search.
+    if query and '?' in query and result_types == {'command'}:
+        # Query has corrupted characters and only command results
+        # This suggests user asked about command + something else (error, usage details, etc.)
+        # Fall back to vector search for better results
+        return False
+
+    # If general intent, any results are fine
+    if 'general' in query_intents:
+        return True
+
+    # Check if any query intent matches result types
+    # Error intent should match error results
+    if 'error' in query_intents and 'error' not in result_types:
+        return False
+
+    # Command intent can match command results, but if user asks about
+    # command errors specifically, we need error info too
+    if 'error' in query_intents and 'command' in query_intents:
+        # User asking about command errors - need error results
+        if 'error' not in result_types:
+            return False
+
+    return True
+
+
 class UnifiedSearchTool(BaseTool):
     """
     Unified Search Tool combining Neo4j accuracy with PostgreSQL structure.
@@ -1579,21 +1671,33 @@ Returns relevant document chunks with full context and source information."""
             confidence = summary_first_result.get("confidence", "low")
             summary_results = summary_first_result.get("results", [])
 
-            if confidence == "high" and summary_results:
-                # High confidence: return summary results directly
-                logger.info(f"[SummaryFirst] High confidence match, returning {len(summary_results)} summary results")
+            # Detect query intent and check if results match
+            # Use original_user_query for intent detection to avoid encoding issues
+            intent_query = original_user_query if original_user_query else query
+            query_intents = _detect_query_intent(intent_query)
+            result_types = set(r.get("type", "") for r in summary_results)
+            intent_matches = _check_intent_result_match(query_intents, summary_results, intent_query)
+            print(f"[SummaryFirst] Intent detection: intent_query='{intent_query[:50]}', intents={query_intents}, result_types={result_types}, matches={intent_matches}")
+
+            if confidence == "high" and summary_results and intent_matches:
+                # High confidence AND intent matches: return summary results directly
+                logger.info(f"[SummaryFirst] High confidence match, intent={query_intents}, returning {len(summary_results)} summary results")
                 return await self._build_response_from_summaries(
                     summary_result=summary_first_result,
                     query=query,
                     context=context,
                 )
+            elif confidence == "high" and summary_results and not intent_matches:
+                # High confidence but intent mismatch: fall back to vector search
+                result_types = set(r.get("type", "") for r in summary_results)
+                logger.info(f"[SummaryFirst] Intent mismatch - query_intent={query_intents}, result_types={result_types}, falling back to vector search")
 
-            elif confidence == "medium" and summary_results:
-                # Medium confidence: enrich query with summary context for vector search
+            elif confidence == "medium" and summary_results and intent_matches:
+                # Medium confidence with intent match: enrich query with summary context for vector search
                 context_string = summary_first_result.get("context_string", "")
                 if context_string:
                     search_query = f"{search_query}\n\n컨텍스트: {context_string}"
-                    logger.info(f"[SummaryFirst] Medium confidence, enriching query with summary context")
+                    logger.info(f"[SummaryFirst] Medium confidence, intent={query_intents}, enriching query with summary context")
 
         # Extract error codes for boosting
         error_codes = _extract_error_codes(query)
