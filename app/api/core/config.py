@@ -385,7 +385,7 @@ class APISettings(BaseSettings):
         description="Enable ChatGPT-style structured answer blocks for improved rendering"
     )
     STRUCTURED_ANSWER_MIN_CONFIDENCE: float = Field(
-        default=0.3,
+        default=0.01,  # RRF scores typically range 0.01-0.05
         description="Minimum confidence threshold for structured answer sources"
     )
     RAG_EVALUATION_TIMEOUT: float = Field(
@@ -399,6 +399,32 @@ class APISettings(BaseSettings):
     RAG_EVALUATION_AUTO_EVALUATE: bool = Field(
         default=False,
         description="Automatically evaluate RAG responses in agent stream"
+    )
+
+    # Summary-First Search Configuration
+    SUMMARY_SEARCH_ENABLED: bool = Field(
+        default=True,
+        description="Enable Summary-First RAG search (BM25 over summaries before vector search)"
+    )
+    SUMMARY_HIGH_CONFIDENCE_THRESHOLD: float = Field(
+        default=0.7,
+        description="Score threshold for high confidence (use summary directly)"
+    )
+    SUMMARY_MEDIUM_CONFIDENCE_THRESHOLD: float = Field(
+        default=0.4,
+        description="Score threshold for medium confidence (combine summary + vector)"
+    )
+    PDF_PAGE_CACHE_SIZE: int = Field(
+        default=100,
+        description="LRU cache size for PDF page content"
+    )
+    VECTOR_FALLBACK_ENABLED: bool = Field(
+        default=True,
+        description="Enable vector search fallback when summary confidence is low"
+    )
+    SUMMARY_SEARCH_TOP_K: int = Field(
+        default=5,
+        description="Number of summary results to fetch"
     )
 
     # Corporate SSO

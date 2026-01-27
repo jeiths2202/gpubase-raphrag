@@ -768,6 +768,191 @@ class SummarySearchService:
 
         return "\n".join(ctx_parts)
 
+    async def extract_page_references(self, content: str) -> List[Dict[str, Any]]:
+        """Extract PDF page references from summary content.
+
+        Parses patterns like:
+        - 출처: OpenFrame_Base.pdf, p.123
+        - 참조: OpenFrame_TJES.pdf p.45-50
+        - (Source: Manual.pdf, page 100)
+
+        Args:
+            content: Summary content text
+
+        Returns:
+            List of page reference dicts with pdf_path and page_numbers
+        """
+        references = []
+
+        # Pattern 1: 출처/참조: filename.pdf, p.123 or p.123-125
+        patterns = [
+            r'(?:출처|참조|Source|Reference):\s*([^,\n]+\.pdf)[,\s]+p\.?\s*(\d+)(?:-(\d+))?',
+            r'([A-Za-z_]+\.pdf)[,\s]+(?:p|page)\.?\s*(\d+)(?:-(\d+))?',
+            r'\(([^)]+\.pdf)[,\s]+p\.?\s*(\d+)(?:-(\d+))?\)',
+        ]
+
+        for pattern in patterns:
+            matches = re.findall(pattern, content, re.IGNORECASE)
+            for match in matches:
+                pdf_name = match[0].strip()
+                page_start = int(match[1])
+                page_end = int(match[2]) if len(match) > 2 and match[2] else page_start
+
+                pages = list(range(page_start, page_end + 1))
+
+                ref = {
+                    "pdf_path": pdf_name,
+                    "page_numbers": pages,
+                    "page_start": page_start,
+                    "page_end": page_end,
+                }
+
+                # Avoid duplicates
+                if ref not in references:
+                    references.append(ref)
+
+        return references
+
+    async def comprehensive_search(self, query: str) -> Dict[str, Any]:
+        """Unified search across all summary types.
+
+        Used by Summary-First RAG to get all relevant context from summaries.
+
+        Args:
+            query: User query
+
+        Returns:
+            Dict containing:
+            - results: List of matched items with scores
+            - confidence: high/medium/low based on scores
+            - page_references: PDF page references for loading original content
+            - context_string: Formatted string for RAG enrichment
+        """
+        results = []
+        page_references = []
+
+        # 1. Error code search
+        error_context = await self.get_error_context_for_agent(query)
+        if error_context:
+            # Extract error codes from query
+            error_codes = re.findall(r"-?\d{4,5}", query)
+            for code in error_codes[:3]:
+                error_result = await self.search_error_code(code)
+                if error_result:
+                    results.append({
+                        "type": "error_code",
+                        "code": error_result.get("code"),
+                        "name": error_result.get("name"),
+                        "description": error_result.get("description"),
+                        "solution": error_result.get("solution"),
+                        "score": 1.0,  # Exact match
+                        "source_file": error_result.get("source_file"),
+                    })
+                    # Extract page references
+                    refs = await self.extract_page_references(
+                        f"출처: {error_result.get('source_file', '')}"
+                    )
+                    page_references.extend(refs)
+
+        # 2. Command search
+        cmd_context = await self.get_command_context_for_agent(query)
+        if cmd_context:
+            # Extract commands from query
+            cmd_patterns = [
+                r'\b([a-z][a-z0-9]{2,}(?:init|boot|down|start|stop|run|exec|ctl|mgr|adm|cmd))\b',
+                r'\b(tjes\w+|osc\w+|tac\w+|ofm\w+)\b',
+            ]
+            commands = []
+            for pattern in cmd_patterns:
+                commands.extend(re.findall(pattern, query, re.IGNORECASE))
+
+            for cmd in set(commands)[:3]:
+                cmd_result = await self.search_command(cmd.lower())
+                if cmd_result:
+                    results.append({
+                        "type": "command",
+                        "command": cmd_result.get("command"),
+                        "description": cmd_result.get("description"),
+                        "syntax": cmd_result.get("syntax"),
+                        "products": cmd_result.get("products", []),
+                        "score": 1.0,
+                        "source_file": cmd_result.get("source_file"),
+                    })
+
+        # 3. Term/glossary search
+        term_context = await self.get_term_context_for_agent(query)
+        if term_context:
+            terms = re.findall(r"\b[A-Z]{2,}[A-Z0-9]*\b", query)
+            for term in set(terms)[:3]:
+                term_result = await self.search_glossary(term)
+                if term_result:
+                    results.append({
+                        "type": "glossary",
+                        "term": term_result.get("term"),
+                        "full_name": term_result.get("full_name"),
+                        "description": term_result.get("description"),
+                        "score": 1.0,
+                        "source_file": term_result.get("source_file"),
+                    })
+
+        # 4. API search
+        api_context = await self.get_api_context_for_agent(query)
+        if api_context:
+            api_patterns = [
+                r'(?:^|[^a-z_])([a-z]{2,4}_[a-z_]+)',
+            ]
+            apis = []
+            for pattern in api_patterns:
+                apis.extend(re.findall(pattern, query, re.IGNORECASE))
+
+            for api in set(apis)[:3]:
+                api_result = await self.search_api(api.lower())
+                if api_result:
+                    results.append({
+                        "type": "api",
+                        "api": api_result.get("api"),
+                        "description": api_result.get("description"),
+                        "syntax": api_result.get("syntax"),
+                        "product": api_result.get("product"),
+                        "score": 1.0,
+                        "source_file": api_result.get("source_file"),
+                    })
+
+        # Determine confidence level
+        if results:
+            max_score = max(r.get("score", 0) for r in results)
+            if max_score >= 0.7:
+                confidence = "high"
+            elif max_score >= 0.4:
+                confidence = "medium"
+            else:
+                confidence = "low"
+        else:
+            confidence = "low"
+
+        # Build context string
+        context_parts = []
+        for r in results[:5]:
+            if r["type"] == "error_code":
+                ctx = f"[에러 {r.get('code')}: {r.get('name')} - {r.get('description', '')}]"
+            elif r["type"] == "command":
+                ctx = f"[명령어 {r.get('command')}: {r.get('description', '')}]"
+            elif r["type"] == "glossary":
+                ctx = f"[{r.get('term')}: {r.get('full_name', '')} - {r.get('description', '')}]"
+            elif r["type"] == "api":
+                ctx = f"[API {r.get('api')}: {r.get('description', '')}]"
+            else:
+                ctx = f"[{r.get('type')}: {str(r)[:100]}]"
+            context_parts.append(ctx)
+
+        return {
+            "results": results,
+            "confidence": confidence,
+            "page_references": page_references,
+            "context_string": "\n".join(context_parts) if context_parts else "",
+            "total_results": len(results),
+        }
+
 
 # 싱글톤 인스턴스
 _summary_service: Optional[SummarySearchService] = None

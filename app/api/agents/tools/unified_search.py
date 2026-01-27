@@ -41,6 +41,16 @@ logger = logging.getLogger(__name__)
 _USE_LARGE_CONTEXT = os.getenv("RAG_LLM_USE_LARGE_CONTEXT", "false").lower() == "true"
 DEFAULT_TOP_K = 5 if _USE_LARGE_CONTEXT else 3
 
+# Search mode: "hybrid", "vector_only", "keyword_only"
+DEFAULT_SEARCH_MODE = os.getenv("UNIFIED_SEARCH_MODE", "hybrid").lower()
+if DEFAULT_SEARCH_MODE not in ("hybrid", "vector_only", "keyword_only"):
+    logger.warning(f"Invalid UNIFIED_SEARCH_MODE '{DEFAULT_SEARCH_MODE}', using 'hybrid'")
+    DEFAULT_SEARCH_MODE = "hybrid"
+
+# RRF (Reciprocal Rank Fusion) toggle
+# When disabled, hybrid mode returns Neo4j results with PostgreSQL boost markers only
+ENABLE_RRF_FUSION = os.getenv("ENABLE_RRF_FUSION", "false").lower() == "true"
+
 
 class UnifiedSearchTool(BaseTool):
     """
@@ -100,9 +110,9 @@ Returns relevant document chunks with full context and source information."""
                 },
                 "search_mode": {
                     "type": "string",
-                    "description": "Search mode: hybrid, vector_only, or keyword_only",
+                    "description": f"Search mode: hybrid (Neo4j+PostgreSQL), vector_only, keyword_only. RRF fusion controlled by ENABLE_RRF_FUSION env (default: false). Default mode: {DEFAULT_SEARCH_MODE}",
                     "enum": ["hybrid", "vector_only", "keyword_only"],
-                    "default": "hybrid"
+                    "default": DEFAULT_SEARCH_MODE
                 }
             },
             "required": ["query"]
@@ -150,6 +160,269 @@ Returns relevant document chunks with full context and source information."""
             except Exception as e:
                 logger.error(f"Failed to get CLIP service: {e}")
         return self._clip_service
+
+    # =============================================================
+    # SUMMARY-FIRST SEARCH METHODS
+    # =============================================================
+
+    async def _summary_first_search(
+        self,
+        query: str,
+        context: AgentContext,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Execute Summary-First search using BM25 over summaries.
+
+        This is Phase 0 of the search pipeline, executing before
+        expensive vector search operations.
+
+        Args:
+            query: Search query
+            context: Agent context
+
+        Returns:
+            Dict with results, confidence, and context_string or None if disabled
+        """
+        try:
+            from ...core.config import api_settings
+
+            # Check if Summary-First search is enabled
+            if not getattr(api_settings, 'SUMMARY_SEARCH_ENABLED', True):
+                return None
+
+            # Import services
+            from ...services.summary_bm25_service import get_summary_bm25_service
+            from ...services.summary_search_service import get_summary_search_service
+
+            # Try BM25 service first (faster, more comprehensive)
+            bm25_service = get_summary_bm25_service()
+            if bm25_service.is_initialized:
+                result = await bm25_service.comprehensive_search(
+                    query=query,
+                    top_k=getattr(api_settings, 'SUMMARY_SEARCH_TOP_K', 5)
+                )
+
+                if result.total_results > 0:
+                    # Convert to dict format
+                    return {
+                        "results": [
+                            {
+                                "type": sr.document.doc_type.value,
+                                "name": sr.document.name,
+                                "description": sr.document.description,
+                                "content": sr.document.content[:500],
+                                "score": sr.score,
+                                "source_file": sr.document.source_file,
+                                "source_pdf": sr.document.source_pdf,
+                                "page_numbers": sr.document.page_numbers,
+                                "matched_terms": sr.matched_terms,
+                            }
+                            for sr in result.results
+                        ],
+                        "confidence": result.confidence.value,
+                        "context_string": result.get_context_string(),
+                        "page_references": [
+                            {"pdf_path": ref.pdf_path, "page_number": ref.page_number}
+                            for ref in result.page_references
+                        ],
+                        "detected_error_codes": result.detected_error_codes,
+                        "detected_commands": result.detected_commands,
+                        "detected_terms": result.detected_terms,
+                    }
+
+            # Fall back to legacy summary service
+            legacy_service = get_summary_search_service()
+            legacy_result = await legacy_service.comprehensive_search(query)
+
+            if legacy_result.get("total_results", 0) > 0:
+                return legacy_result
+
+            return None
+
+        except Exception as e:
+            logger.warning(f"[SummaryFirst] Search failed, continuing to vector search: {e}")
+            return None
+
+    async def _build_response_from_summaries(
+        self,
+        summary_result: Dict[str, Any],
+        query: str,
+        context: AgentContext,
+    ) -> ToolResult:
+        """
+        Build a ToolResult from summary search results.
+
+        Called when Summary-First search has HIGH confidence.
+
+        Args:
+            summary_result: Result from _summary_first_search
+            query: Original query
+            context: Agent context
+
+        Returns:
+            ToolResult with formatted summary results
+        """
+        results = summary_result.get("results", [])
+        confidence = summary_result.get("confidence", "high")
+        page_references = summary_result.get("page_references", [])
+
+        # Build output text
+        output_parts = [
+            f"📚 [Summary-First Search] Found {len(results)} direct match(es) with {confidence} confidence:\n"
+        ]
+
+        enriched_results = []
+
+        for i, result in enumerate(results[:5]):
+            result_type = result.get("type", "unknown")
+            name = result.get("name", "Unknown")
+            description = result.get("description", "")
+            content = result.get("content", "")
+            source_file = result.get("source_file", "")
+            source_pdf = result.get("source_pdf", "")
+            page_numbers = result.get("page_numbers", [])
+            score = result.get("score", 0)
+
+            # Format based on type
+            if result_type == "error-codes":
+                chunk_info = f"\n{i+1}. [ERROR CODE] {name}\n"
+                chunk_info += f"   Score: {score:.2f}\n"
+                if description:
+                    chunk_info += f"   설명: {description}\n"
+                solution = result.get("solution") or ""
+                if solution:
+                    chunk_info += f"   대처방법: {solution}\n"
+
+            elif result_type == "commands":
+                chunk_info = f"\n{i+1}. [COMMAND] {name}\n"
+                chunk_info += f"   Score: {score:.2f}\n"
+                if description:
+                    chunk_info += f"   설명: {description[:200]}\n"
+                syntax = result.get("syntax") or ""
+                if syntax:
+                    chunk_info += f"   구문: {syntax}\n"
+                products = result.get("products") or result.get("product") or ""
+                if products:
+                    if isinstance(products, list):
+                        products = ", ".join(products)
+                    chunk_info += f"   제품: {products}\n"
+
+            elif result_type == "glossary":
+                chunk_info = f"\n{i+1}. [TERM] {name}\n"
+                chunk_info += f"   Score: {score:.2f}\n"
+                full_name = result.get("full_name") or ""
+                if full_name:
+                    chunk_info += f"   정식명칭: {full_name}\n"
+                if description:
+                    chunk_info += f"   설명: {description}\n"
+
+            elif result_type == "apis":
+                chunk_info = f"\n{i+1}. [API] {name}\n"
+                chunk_info += f"   Score: {score:.2f}\n"
+                if description:
+                    chunk_info += f"   설명: {description[:200]}\n"
+                syntax = result.get("syntax") or ""
+                if syntax:
+                    chunk_info += f"   프로토타입: {syntax}\n"
+
+            else:
+                chunk_info = f"\n{i+1}. [{result_type.upper()}] {name}\n"
+                chunk_info += f"   Score: {score:.2f}\n"
+                if content:
+                    chunk_info += f"   Content: {content[:300]}...\n"
+
+            # Add source info
+            if source_file:
+                chunk_info += f"   Source: {source_file}"
+                if page_numbers:
+                    pages_str = ", ".join(str(p) for p in page_numbers[:3])
+                    chunk_info += f" (p.{pages_str})"
+                chunk_info += "\n"
+
+            output_parts.append(chunk_info)
+
+            # Build enriched result for metadata
+            enriched_results.append({
+                "index": i + 1,
+                "chunk_type": result_type.upper(),
+                "title": name,
+                "content": content or description or "",
+                "rrf_score": score,
+                "source": {
+                    "document_name": source_pdf or source_file,
+                    "source_file": source_file,
+                    "page_start": page_numbers[0] if page_numbers else None,
+                    "page_end": page_numbers[-1] if page_numbers else None,
+                    "source_type": "summary",
+                },
+                "summary_match": True,
+                "tables": [],
+                "images": [],
+            })
+
+        # Add page reference info if available
+        if page_references:
+            output_parts.append(f"\n📄 Page References ({len(page_references)} page(s)):")
+            seen_refs = set()
+            for ref in page_references[:5]:
+                ref_key = f"{ref.get('pdf_path')}:{ref.get('page_number')}"
+                if ref_key not in seen_refs:
+                    seen_refs.add(ref_key)
+                    output_parts.append(f"  - {ref.get('pdf_path')} p.{ref.get('page_number')}")
+
+        # Build sources list for metadata
+        sources = []
+        seen_sources = set()
+        for result in results[:5]:
+            source_file = result.get("source_file", "")
+            source_pdf = result.get("source_pdf", source_file)
+            page_numbers = result.get("page_numbers", [])
+
+            source_key = f"{source_pdf}:{page_numbers}"
+            if source_key not in seen_sources:
+                seen_sources.add(source_key)
+
+                page_display = ""
+                if page_numbers:
+                    if len(page_numbers) == 1:
+                        page_display = f"p.{page_numbers[0]}"
+                    else:
+                        page_display = f"p.{page_numbers[0]}-{page_numbers[-1]}"
+
+                sources.append({
+                    "source": f"{source_pdf} ({page_display})" if page_display else source_file,
+                    "score": result.get("score", 0),
+                    "page_number": page_numbers[0] if page_numbers else None,
+                    "content": (result.get("description") or result.get("content") or "")[:200],
+                    "doc_id": source_pdf,
+                    "source_type": "summary",
+                })
+
+        # Store sources in context metadata
+        if context.metadata is None:
+            context.metadata = {}
+        if 'sources' not in context.metadata:
+            context.metadata['sources'] = []
+        context.metadata['sources'].extend(sources)
+
+        # Build result metadata
+        result_metadata = {
+            "results_count": len(enriched_results),
+            "query": query,
+            "search_mode": "summary_first",
+            "confidence": confidence,
+            "summary_search": True,
+            "sources": sources,
+            "individual_results": enriched_results,
+            "detected_error_codes": summary_result.get("detected_error_codes", []),
+            "detected_commands": summary_result.get("detected_commands", []),
+            "detected_terms": summary_result.get("detected_terms", []),
+        }
+
+        return self.create_success_result(
+            "\n".join(output_parts),
+            metadata=result_metadata
+        )
 
     async def _execute_pg_query(self, query: str) -> List[Dict]:
         """Execute a raw SQL query on PostgreSQL"""
@@ -619,6 +892,113 @@ Returns relevant document chunks with full context and source information."""
             logger.error(f"CLIP image search error: {e}")
             return []
 
+    async def _graph_traversal_search(
+        self,
+        query: str,
+        top_k: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Graph-based search using Entity relationships.
+
+        Strategy:
+        1. Extract keywords from query
+        2. Find Chunks containing those keywords (full-text in content)
+        3. Find Entities related to those keywords
+        4. Return chunks connected via MENTIONS relationships
+
+        This complements vector search by finding exact keyword matches
+        that semantic search might miss.
+        """
+        try:
+            from neo4j import GraphDatabase
+
+            uri = os.getenv("NEO4J_URI", "bolt://192.168.8.11:7687")
+            user = os.getenv("NEO4J_USER", "neo4j")
+            password = os.getenv("NEO4J_PASSWORD", "graphrag2024")
+
+            driver = GraphDatabase.driver(uri, auth=(user, password))
+
+            # Extract keywords from query (technical terms, product names)
+            keywords = []
+            # Pattern 1: Technical terms (alphanumeric with possible underscore/dash)
+            tech_terms = re.findall(r'\b([a-zA-Z][a-zA-Z0-9_\-\.]{2,})\b', query)
+            keywords.extend([t.lower() for t in tech_terms])
+
+            # Pattern 2: Error codes
+            error_codes = re.findall(r'-?\d{4,5}', query)
+            keywords.extend(error_codes)
+
+            # Remove common stopwords
+            stopwords = {'about', 'what', 'how', 'the', 'for', 'and', 'with', 'this', 'that'}
+            keywords = [k for k in keywords if k.lower() not in stopwords and len(k) > 2]
+
+            if not keywords:
+                driver.close()
+                return []
+
+            logger.info(f"[GraphSearch] Keywords: {keywords}")
+
+            results = []
+            with driver.session() as session:
+                # Search for chunks containing keywords in content
+                for keyword in keywords[:3]:  # Limit to top 3 keywords
+                    cypher = """
+                    MATCH (c:Chunk)-[:CONTAINS]-(d:Document)
+                    WHERE toLower(c.content) CONTAINS toLower($keyword)
+                    RETURN c.chunk_id as chunk_id,
+                           c.content as content,
+                           d.filename as doc_filename,
+                           d.doc_id as doc_id,
+                           c.page_number as page_number,
+                           c.section_path as section_path
+                    LIMIT $limit
+                    """
+                    result = session.run(cypher, keyword=keyword, limit=top_k)
+
+                    for record in result:
+                        # Calculate simple relevance based on keyword frequency
+                        content = record["content"] or ""
+                        keyword_count = content.lower().count(keyword.lower())
+
+                        results.append({
+                            "chunk_id": record["chunk_id"],
+                            "content": content,
+                            "doc_filename": record["doc_filename"],
+                            "doc_id": record["doc_id"],
+                            "page_number": record["page_number"],
+                            "section_path": record["section_path"],
+                            "source_type": "graph",
+                            "graph_keyword": keyword,
+                            "keyword_frequency": keyword_count,
+                            "rank": 1  # Will be re-ranked in RRF
+                        })
+
+            driver.close()
+
+            # Deduplicate by chunk_id
+            seen = set()
+            unique_results = []
+            for r in results:
+                cid = r.get("chunk_id")
+                if cid and cid not in seen:
+                    seen.add(cid)
+                    unique_results.append(r)
+
+            # Sort by keyword frequency
+            unique_results.sort(key=lambda x: x.get("keyword_frequency", 0), reverse=True)
+
+            # Assign ranks
+            for i, r in enumerate(unique_results):
+                r["rank"] = i + 1
+                r["graph_rank"] = i + 1
+
+            logger.info(f"[GraphSearch] Found {len(unique_results)} results via graph traversal")
+            return unique_results[:top_k * 2]
+
+        except Exception as e:
+            logger.error(f"[GraphSearch] Error: {e}")
+            return []
+
     def _rrf_fusion(
         self,
         neo4j_results: List[Dict],
@@ -724,6 +1104,73 @@ Returns relevant document chunks with full context and source information."""
 
         logger.info(f"[UnifiedSearch] RRF fusion produced {len(sorted_chunks)} unique results")
         return sorted_chunks
+
+    def _simple_hybrid_merge(
+        self,
+        neo4j_results: List[Dict],
+        postgres_results: List[Dict],
+        error_codes: List[str]
+    ) -> List[Dict]:
+        """
+        Simple hybrid merge WITHOUT RRF score calculation.
+
+        Uses Neo4j vector scores directly, but marks results that also
+        appear in PostgreSQL keyword search (for confidence indicator).
+
+        This avoids RRF score inflation issues while still benefiting
+        from both search sources.
+        """
+        # Build set of chunk_ids from PostgreSQL for quick lookup
+        postgres_chunk_ids = set()
+        for result in postgres_results:
+            chunk_id = result.get("chunk_id")
+            if chunk_id:
+                postgres_chunk_ids.add(chunk_id)
+
+        # Process Neo4j results (primary source)
+        merged = []
+        for result in neo4j_results:
+            chunk_id = result.get("chunk_id")
+
+            # Mark if also found in keyword search
+            if chunk_id in postgres_chunk_ids:
+                result["keyword_match"] = True
+                result["source_type"] = "hybrid"  # Found in both
+            else:
+                result["keyword_match"] = False
+                result["source_type"] = "vector"
+
+            # Keep original Neo4j score (no RRF inflation)
+            # Score is already in result from Neo4j
+            merged.append(result)
+
+        # Add PostgreSQL-only results (not in Neo4j)
+        neo4j_chunk_ids = {r.get("chunk_id") for r in neo4j_results if r.get("chunk_id")}
+        for result in postgres_results:
+            chunk_id = result.get("chunk_id")
+            if chunk_id and chunk_id not in neo4j_chunk_ids:
+                result["keyword_match"] = True
+                result["source_type"] = "keyword"
+                # Use a low default score for keyword-only results
+                if "score" not in result:
+                    result["score"] = 0.1
+                merged.append(result)
+
+        # Sort by score (Neo4j scores are primary)
+        merged.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+        # Error code boost (apply simple boost, not RRF)
+        if error_codes:
+            for result in merged:
+                content = result.get("content", "").lower()
+                for code in error_codes:
+                    if code.lower() in content:
+                        result["error_match"] = True
+                        break
+
+        logger.info(f"[UnifiedSearch] Simple hybrid merge: {len(merged)} results "
+                   f"({sum(1 for r in merged if r.get('keyword_match'))} with keyword match)")
+        return merged
 
     def _apply_web_priority(self, results: List[Dict]) -> List[Dict]:
         """
@@ -1028,10 +1475,34 @@ Returns relevant document chunks with full context and source information."""
         doc_filter = kwargs.get("doc_filter")
         include_images = kwargs.get("include_images", True)
         include_tables = kwargs.get("include_tables", True)
-        search_mode = kwargs.get("search_mode", "hybrid")
+        search_mode = kwargs.get("search_mode", DEFAULT_SEARCH_MODE)
 
         # Get original_query early for fallback checks (LLM may strip special characters)
         original_user_query = context.metadata.get('original_query', '') if context.metadata else ''
+
+        # =============================================================
+        # OPTION C: FORCE ORIGINAL QUERY (Block LLM modifications)
+        # =============================================================
+        # LLM often "improves" queries which HURTS search accuracy:
+        #   "tjesmgr 에러" → "Tibero tjesmgr エラー" (adds wrong product)
+        #   "VSAM 설명" → "OpenFrame VSAM 제품 소개 및 주요 기능" (adds filler)
+        #
+        # Solution: Always use the original user query for search.
+        # Cross-language translation (Korean→Japanese) is handled separately
+        # by LLMQueryExpansionService in hybrid_rag.py.
+        # =============================================================
+        llm_modified_query = query  # Save for logging
+        if original_user_query:
+            # Strip @ prefix from original for comparison
+            original_clean = original_user_query.lstrip('@').strip()
+            query_clean = query.lstrip('@').strip()
+
+            if query_clean != original_clean:
+                logger.warning(
+                    f"[OPTION C] Blocking LLM query modification: "
+                    f"'{query_clean[:50]}' → forced back to '{original_clean[:50]}'"
+                )
+                query = original_user_query  # Force use original
 
         # Feature: "@" prefix for web source priority search
         # Example: "@어셈블러 자산 수정 방법" → prioritize web sources
@@ -1068,69 +1539,20 @@ Returns relevant document chunks with full context and source information."""
         else:
             search_query = query
 
-        # Track query correction
-        llm_query = query
-        query_was_corrected = False
+        # Track query correction (Option C already handled LLM modification blocking above)
+        llm_query = llm_modified_query  # The query LLM tried to use
+        query_was_corrected = (llm_modified_query != query)
 
-        # Phase 1: Preprocessing - Validate query against original
+        # Phase 1: Character corruption check only (Option C handles LLM expansion)
         original_query = context.metadata.get('original_query', '') if context.metadata else ''
         if original_query and query != original_query:
-            # Check 1: Character corruption (e.g., Japanese → Chinese substitution)
+            # Check for character corruption (e.g., Japanese → Chinese substitution)
             validated_query, was_corrupted = _validate_query(query, original_query)
             if was_corrupted:
                 logger.info(f"Query corruption fixed: '{query}' → '{validated_query}'")
                 query = validated_query
                 search_query = validated_query
                 query_was_corrected = True
-
-            # Check 2: LLM query expansion detection (AGGRESSIVE)
-            # LLM often "improves" queries which HURTS vector search accuracy
-            # Examples of bad expansions:
-            #   "tjesmgr" → "tjesmgr 제품 소개 및 주요 기능 설명" (0 results)
-            #   "tjesmgr 설명" → works fine
-            else:
-                # Strategy: Extract key term and use simpler query for better vector match
-                # Key terms are usually: product names, commands, error codes, technical terms
-
-                # Extract key term from original (first word that looks like a product/command)
-                key_term_match = re.search(r'([a-zA-Z][a-zA-Z0-9_\-\.]+)', original_query)
-                key_term = key_term_match.group(1) if key_term_match else None
-
-                # Also check for error codes
-                error_match = re.search(r'(-?\d{4,5})', original_query)
-                error_code = error_match.group(1) if error_match else None
-
-                should_use_original = False
-
-                # Rule 1: If LLM query is >20% longer, likely bad expansion
-                if len(query) > len(original_query) * 1.2:
-                    should_use_original = True
-                    logger.debug(f"LLM expanded query by {len(query)/len(original_query)*100-100:.0f}%")
-
-                # Rule 2: If LLM added Korean filler words that hurt search
-                filler_patterns = ['제품 소개', '주요 기능', '상세 설명', '에 대해', '에 관해', '관련 정보']
-                for filler in filler_patterns:
-                    if filler in query and filler not in original_query:
-                        should_use_original = True
-                        logger.debug(f"LLM added filler phrase: '{filler}'")
-                        break
-
-                # Rule 3: If key term exists, use simplified query: "{key_term}"
-                if should_use_original:
-                    if key_term:
-                        # Use just the key term for best vector match
-                        simplified_query = key_term
-                        if error_code:
-                            simplified_query = f"{key_term} {error_code}"
-                        logger.info(f"Simplified query for better vector match: '{simplified_query}' (from LLM: '{query[:40]}...')")
-                        query = simplified_query
-                        search_query = simplified_query
-                    else:
-                        # No key term found, use original
-                        logger.info(f"Reverted to original query: {original_query[:40]}...")
-                        query = original_query
-                        search_query = original_query
-                    query_was_corrected = True
 
         # Agent-Driven RAG: Check for search scope from context
         search_scope = getattr(context, 'search_scope', None) if context else None
@@ -1142,6 +1564,36 @@ Returns relevant document chunks with full context and source information."""
 
         if not query:
             return self.create_error_result("Query is required")
+
+        # =============================================================
+        # SUMMARY-FIRST SEARCH: BM25 over summaries before vector search
+        # =============================================================
+        # Phase 0: Summary-first search for error codes, commands, terms
+        # This provides fast (<50ms) accurate retrieval before expensive vector search
+        summary_first_result = await self._summary_first_search(
+            query=search_query,
+            context=context,
+        )
+
+        if summary_first_result:
+            confidence = summary_first_result.get("confidence", "low")
+            summary_results = summary_first_result.get("results", [])
+
+            if confidence == "high" and summary_results:
+                # High confidence: return summary results directly
+                logger.info(f"[SummaryFirst] High confidence match, returning {len(summary_results)} summary results")
+                return await self._build_response_from_summaries(
+                    summary_result=summary_first_result,
+                    query=query,
+                    context=context,
+                )
+
+            elif confidence == "medium" and summary_results:
+                # Medium confidence: enrich query with summary context for vector search
+                context_string = summary_first_result.get("context_string", "")
+                if context_string:
+                    search_query = f"{search_query}\n\n컨텍스트: {context_string}"
+                    logger.info(f"[SummaryFirst] Medium confidence, enriching query with summary context")
 
         # Extract error codes for boosting
         error_codes = _extract_error_codes(query)
@@ -1208,6 +1660,24 @@ Returns relevant document chunks with full context and source information."""
                     )
                     logger.debug(f"PostgreSQL returned {len(postgres_results)} results")
 
+                # Phase 2.4: Graph traversal search (keyword-based)
+                if search_mode == "hybrid":
+                    graph_results = await self._graph_traversal_search(
+                        query=original_query or query,
+                        top_k=top_k
+                    )
+                    logger.debug(f"Graph traversal returned {len(graph_results)} results")
+
+                    # Merge graph results into neo4j_results for RRF fusion
+                    if graph_results:
+                        existing_ids = {r.get("chunk_id") for r in neo4j_results if r.get("chunk_id")}
+                        for gr in graph_results:
+                            if gr.get("chunk_id") not in existing_ids:
+                                # Add graph results with adjusted rank
+                                gr["neo4j_rank"] = len(neo4j_results) + gr.get("graph_rank", 1)
+                                neo4j_results.append(gr)
+                        logger.info(f"[UnifiedSearch] Merged {len(graph_results)} graph results")
+
             # Phase 2.5: Exact phrase search (if quotes were used)
             exact_phrase_results = []
             if exact_phrases:
@@ -1262,14 +1732,24 @@ Returns relevant document chunks with full context and source information."""
                         metadata={"results_count": 0, "query": query, "retry_attempted": bool(retry_query)}
                     )
 
-            # Phase 3: RRF Fusion
+            # Phase 3: Result Fusion
             if search_mode == "hybrid":
-                fused_results = self._rrf_fusion(
-                    neo4j_results=neo4j_results,
-                    postgres_results=postgres_results,
-                    error_codes=error_codes,
-                    prioritize_web=prioritize_web_sources
-                )
+                if ENABLE_RRF_FUSION:
+                    # Full RRF fusion with score calculation
+                    fused_results = self._rrf_fusion(
+                        neo4j_results=neo4j_results,
+                        postgres_results=postgres_results,
+                        error_codes=error_codes,
+                        prioritize_web=prioritize_web_sources
+                    )
+                else:
+                    # RRF disabled: Use Neo4j results, mark keyword matches from PostgreSQL
+                    fused_results = self._simple_hybrid_merge(
+                        neo4j_results=neo4j_results,
+                        postgres_results=postgres_results,
+                        error_codes=error_codes
+                    )
+                    logger.info(f"[UnifiedSearch] RRF disabled, using simple hybrid merge")
             elif search_mode == "vector_only":
                 fused_results = neo4j_results
                 # Apply web source filter/boost for vector_only mode

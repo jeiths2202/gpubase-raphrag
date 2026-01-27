@@ -438,6 +438,39 @@ async def lifespan(app: FastAPI):
                 category=LogCategory.BUSINESS
             )
 
+        # ==================== Summary BM25 Service Initialization ====================
+        # Initialize Summary-First RAG search service (BM25 over pre-processed summaries)
+        # This provides fast (<50ms) retrieval for error codes, commands, glossary terms
+        if api_settings.SUMMARY_SEARCH_ENABLED:
+            from .services.summary_bm25_service import initialize_summary_bm25_service
+            try:
+                bm25_initialized = await initialize_summary_bm25_service()
+                if bm25_initialized:
+                    logger.info(
+                        "[OK] Summary BM25 service initialized (Summary-First RAG enabled)",
+                        category=LogCategory.BUSINESS,
+                        extra_data={
+                            "high_confidence_threshold": api_settings.SUMMARY_HIGH_CONFIDENCE_THRESHOLD,
+                            "medium_confidence_threshold": api_settings.SUMMARY_MEDIUM_CONFIDENCE_THRESHOLD,
+                        }
+                    )
+                else:
+                    logger.warning(
+                        "Summary BM25 service initialization returned False (summaries may not exist)",
+                        category=LogCategory.BUSINESS
+                    )
+            except Exception as bm25_e:
+                # Non-fatal: Summary-First is optional, falls back to vector search
+                logger.warning(
+                    f"Summary BM25 service initialization failed (non-fatal, using vector fallback): {bm25_e}",
+                    category=LogCategory.BUSINESS
+                )
+        else:
+            logger.info(
+                "Summary-First RAG disabled via SUMMARY_SEARCH_ENABLED=false",
+                category=LogCategory.BUSINESS
+            )
+
     except Exception as e:
         logger.error(
             f"FATAL: PostgreSQL pool initialization failed: {e}",
