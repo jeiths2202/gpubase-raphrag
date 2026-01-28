@@ -1077,20 +1077,24 @@ class SummaryBM25Service:
             return cached.get('commands', []), cached.get('error_codes', []), cached.get('terms', [])
 
         # Prepare prompt for keyword extraction
-        prompt = f"""Extract technical keywords from the following query.
+        # More explicit prompt with common OpenFrame command patterns
+        prompt = f"""Extract the technical keyword from this query. The keyword is the technical term the user is asking about.
 
 Query: {query}
 
-Instructions:
-- Extract ONLY the technical terms (commands, error codes, product names)
-- Commands are lowercase (e.g., tjesmgr, osctdlrm, hidbmgr, obmjinit)
-- Error codes are negative numbers (e.g., -5212, -21001)
-- Terms are uppercase acronyms (e.g., TJES, TACF, OSC, VSAM)
-- Return ONLY the extracted keywords, not the full query
-- If no keywords found, return empty arrays
+Rules:
+1. COMMANDS (lowercase): OpenFrame commands ending with mgr/init/boot/down/run/ctl
+   Examples: tjesmgr, ndbmgr, hidbmgr, oscmgr, volmgr, catmgr, osimgr, tacfmgr, obmjinit, osctdlrm
+   Pattern: The alphanumeric word BEFORE Japanese/Korean text is usually the command
 
-Output ONLY valid JSON:
-{{"commands": ["cmd1", "cmd2"], "error_codes": ["-5212"], "terms": ["TERM1"]}}"""
+2. ERROR CODES: Negative numbers like -5212, -21001, or ABEND codes like S0C7, S0C4
+
+3. TERMS (uppercase): Acronyms like TJES, TACF, OSC, VSAM, JCL, GDG
+
+Extract the EXACT keyword from the query. Do not modify or guess.
+
+Output ONLY valid JSON (no explanation):
+{{"commands": ["ndbmgr"], "error_codes": [], "terms": []}}"""
 
         try:
             async with aiohttp.ClientSession() as session:
