@@ -10,6 +10,81 @@ This file provides guidance to Claude Code when working with this repository.
 
 > **Context Management**: 50+ tool calls → new session, 60% context → `/compact`
 
+---
+
+## 🔑 API Login & Testing (IMPORTANT - READ FIRST)
+
+> **Claude Code가 API 테스트 시 반드시 참조할 것!**
+
+### 로그인 정보
+| 항목 | 값 |
+|------|-----|
+| API URL | `http://localhost:9000` |
+| 인증 파일 | `scripts/login.json` |
+| Admin 계정 | `admin` / `SecureAdm1nP@ss2024!` |
+
+### API 테스트 명령어
+```bash
+# 1. 로그인 토큰 획득
+TOKEN=$(curl -s -X POST http://localhost:9000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d @scripts/login.json | python -c "import sys,json; print(json.load(sys.stdin)['data']['access_token'])")
+
+# 2. RAG 쿼리 테스트
+curl -s -X POST http://localhost:9000/api/v1/agents/stream \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"task": "쿼리 내용", "agent_type": "rag"}'
+
+# 또는 스크립트 사용
+./scripts/api_test.sh "tjesmgr 기능"
+./scripts/api_test.sh "에러코드 -5212" rag
+```
+
+### Docker 컨테이너 관리
+```bash
+docker ps | grep kms                    # 상태 확인
+docker restart kms-backend-local        # 백엔드 재시작
+docker logs kms-backend-local --tail 50 # 로그 확인
+```
+
+### Windows 직접 실행 (Docker 없이)
+
+> **PowerShell 스크립트로 Backend/Frontend 직접 실행**
+
+```powershell
+# 서버 관리 스크립트
+.\scripts\server.ps1 all start       # 전체 시작
+.\scripts\server.ps1 all stop        # 전체 중지
+.\scripts\server.ps1 all restart     # 전체 재시작
+.\scripts\server.ps1 status          # 상태 확인
+
+# 개별 서비스
+.\scripts\server.ps1 backend start   # 백엔드만 시작
+.\scripts\server.ps1 frontend start  # 프론트엔드만 시작
+.\scripts\server.ps1 backend logs 100  # 백엔드 로그 (최근 100줄)
+```
+
+### 환경 파일 구성
+
+| 파일 | 용도 | 사용 시점 |
+|------|------|----------|
+| `.env` | 현재 활성 설정 | 항상 참조됨 |
+| `.env.local` | Windows 직접 실행용 (원격 서버 192.168.8.11) | `copy .env.local .env` |
+| `.env.docker` | Docker 컨테이너용 (컨테이너명 사용) | `copy .env.docker .env` |
+
+```powershell
+# Windows 직접 실행으로 전환
+copy .env.local .env
+.\scripts\server.ps1 all start
+
+# Docker 실행으로 전환
+copy .env.docker .env
+docker-compose -f docker-compose-local.yml --profile cpu up -d
+```
+
+---
+
 ## Project Overview
 
 **HybridRAG KMS** - A multilingual GPU-based Hybrid RAG (Retrieval-Augmented Generation) Knowledge Management System combining graph-based and vector-based retrieval with NVIDIA NIM containers.
@@ -31,7 +106,8 @@ This file provides guidance to Claude Code when working with this repository.
 gpubase-raphrag/
 ├── app/api/                  # FastAPI backend (325 files) → see app/api/CLAUDE.md
 ├── kms-portal-ui/            # React frontend (132 files) → see kms-portal-ui/CLAUDE.md
-├── tests/                    # Test suite (pytest)
+├── e2e/                      # E2E tests (Playwright) → see E2E Testing section
+├── tests/                    # Unit/Integration tests (pytest)
 ├── scripts/                  # Utility scripts
 ├── docker/                   # Docker configuration
 ├── docs/                     # Documentation
@@ -66,8 +142,9 @@ npm run build        # Production build
 ### Testing
 ```bash
 ./scripts/run_local_tests.sh                           # All tests
-python -m pytest tests/api/test_auth_endpoints.py -v   # Backend
-cd kms-portal-ui && npm run test:run                   # Frontend
+python -m pytest tests/api/test_auth_endpoints.py -v   # Backend unit tests
+cd kms-portal-ui && npm run test:run                   # Frontend unit tests
+cd e2e && node e2e_sentence_test.js                    # E2E Hallucination test
 ```
 
 ## Port Allocations
@@ -192,10 +269,31 @@ uploads/summaries/
 │   ├── BASE-5000.md         # 5000번대 에러
 │   ├── AIM-21000.md         # AIM 모듈 에러
 │   └── ...
-└── glossary/                # 용어 사전 (26개 파일, A-Z)
-    ├── T.md                 # TJES, TACF, TSO 등
-    └── ...
+├── glossary/                # 용어 사전 (26개 파일, A-Z)
+│   ├── T.md                 # TJES, TACF, TSO 등
+│   └── ...
+├── commands/                # 📌 OpenFrame 명령어 사전
+│   ├── OpenFrame_TJES_MVS.md    # tjesmgr, tjesmgr BOOT 등
+│   ├── OpenFrame_HIDB.md        # hidbmgr 명령어
+│   └── ...
+├── configs/                 # 설정 파라미터 사전
+│   └── OpenFrame_*.md
+├── apis/                    # API 함수 사전
+│   └── OpenFrame_*.md
+└── terms/                   # 기술 용어 정의
+    └── OpenFrame_*.md
 ```
+
+### Summaries Content Types
+
+| 폴더 | 내용 | 예시 |
+|------|------|------|
+| error-codes/ | 에러 코드, 원인, 해결방법 | `-5212: DATASET_NOT_FOUND` |
+| glossary/ | 약어, 전문용어 정의 | `TJES: Tmax Job Entry Subsystem` |
+| **commands/** | **OpenFrame 관리 명령어** | `tjesmgr BOOT`, `hidbmgr START` |
+| configs/ | 설정 파라미터 상세 | `oframe.conf 옵션` |
+| apis/ | 프로그래밍 API 함수 | `DSALC_*` 함수 목록 |
+| terms/ | 도메인 전문 용어 | `Batch Processing`, `JCL` |
 
 ### Key Files
 
@@ -235,9 +333,50 @@ python -m scripts.manual_processor.main process-all
 # 에러 코드만 추출
 python -m scripts.manual_processor.main extract-errors
 
+# 📌 포괄적 정보 추출 (Commands, Configs, APIs, Terms)
+python -m scripts.manual_processor.main extract-comprehensive
+
 # 인덱스 재생성
 python -m scripts.manual_processor.main rebuild-index
 ```
+
+### OpenFrame 명령어 요약본 예시 (commands/OpenFrame_TJES_MVS.md)
+
+```markdown
+## tjesmgr 명령어
+
+### BOOT
+- **구문**: `tjesmgr BOOT [node_name]`
+- **설명**: TJES 노드를 초기화합니다
+- **출처**: OpenFrame_TJES_MVS.pdf, p.45
+
+### CANCEL
+- **구문**: `tjesmgr CANCEL jobname`
+- **설명**: 실행 중인 Job을 취소합니다
+```
+
+> **중요**: 이 요약본들은 Graph DB Entity 추출의 소스로도 활용됩니다.
+
+### Graph DB Entity 연동 (Summary → Entity)
+
+요약본의 명령어/용어를 Graph DB Entity로 변환하여 검색 정확도를 향상시킵니다.
+
+```
+uploads/summaries/commands/OpenFrame_TJES_MVS.md
+    ↓ (parse & extract)
+Entity 노드 생성: tjesmgr, BOOT, CANCEL, CHANGE...
+    ↓
+Chunk 노드와 MENTIONS 관계 연결
+    ↓
+Graph 검색에서 "tjesmgr 에러" → 관련 Chunk 탐색 가능
+```
+
+**관련 파일:**
+| 파일 | 역할 |
+|------|------|
+| `app/api/services/knowledge_graph_service.py` | ENTITY_PATTERNS 정의, Entity 추출 |
+| `scripts/manual_processor/extractors/` | 요약본 생성 |
+| `scripts/populate_entities_from_summaries.py` | 요약본 → Entity 변환 스크립트 |
 
 ### RAG Agent Integration
 
@@ -311,6 +450,114 @@ else:
 - [ ] file_context가 있을 때 우선 처리되는지 확인
 - [ ] 세션 종료 시 첨부 컨텍스트가 정리되는지 확인
 - [ ] Deep Agent에서도 file_context를 올바르게 처리하는지 확인
+
+---
+
+## 🧪 E2E Testing (Playwright)
+
+> **목적**: RAG 검색 품질 검증 및 Hallucination(환각) 감지를 위한 브라우저 자동화 테스트
+
+### Framework & Setup
+
+| 항목 | 값 |
+|------|-----|
+| Framework | Playwright (Chromium) |
+| Language | JavaScript (Node.js) |
+| Location | `e2e/` |
+| Prerequisites | `npm install playwright` |
+
+### Test Files
+
+| 파일 | 용도 |
+|------|------|
+| `e2e_sentence_test.js` | **메인 테스트** - 45개 문장 기반 Hallucination 감지 |
+| `e2e_keyword_test.js` | 키워드 기반 RAG 검색 테스트 |
+| `e2e_tjesmgr.js` | tjesmgr 명령어 전용 테스트 |
+| `e2e_tacfmgr.js` | tacfmgr 명령어 전용 테스트 |
+| `e2e_hidbmgr.js` | hidbmgr 명령어 전용 테스트 |
+| `e2e_close_modal.js` | UI 모달 상호작용 테스트 |
+| `debug_nav.js` | 네비게이션 디버깅 헬퍼 |
+| `extract_keywords.py` | 테스트용 키워드 추출 스크립트 |
+
+### Running E2E Tests
+
+```bash
+cd e2e
+
+# 메인 Hallucination 테스트 (45개 케이스)
+node e2e_sentence_test.js
+
+# 키워드 검색 테스트
+node e2e_keyword_test.js
+
+# 개별 명령어 테스트
+node e2e_tjesmgr.js
+node e2e_tacfmgr.js
+node e2e_hidbmgr.js
+```
+
+### Test Coverage
+
+테스트 대상 OpenFrame 컴포넌트:
+
+| 카테고리 | 테스트 항목 |
+|----------|------------|
+| Manager 명령어 | `tjesmgr`, `tacfmgr`, `hidbmgr`, `ndbmgr`, `oscmgr`, `osimgr`, `volmgr`, `catmgr` |
+| Utilities | `idcams`, `iebgener`, `iebcopy`, `dfsort`, `dsmigin`, `dsmigout` |
+| JCL | `JOB`, `EXEC`, `DD` statements |
+| Config 파일 | `tjes.conf`, `osc.conf`, `tacf.conf`, `ds.conf` |
+| Error Codes | `ABEND S0C7`, `S0C4`, `S806` |
+| VSAM Types | `KSDS`, `ESDS`, `GDG`, `PDS` |
+| System 명령어 | `tmboot`, `tmdown`, `ofboot`, `ofdown`, `jesinit`, `jesdown` |
+
+### Hallucination Detection
+
+테스트는 다음 패턴으로 Hallucination을 감지합니다:
+
+```javascript
+// 예: "tjesmgr"를 질문했는데 "oscmgr"가 응답에 포함되면 Hallucination
+{
+  keyword: 'tjesmgr',
+  query: 'tjesmgrについて説明してください。',
+  expected: ['tjesmgr', 'TJES'],      // 기대 키워드
+  notExpected: ['oscmgr', 'osimgr']   // 있으면 안되는 키워드 (Hallucination)
+}
+```
+
+### Test Results
+
+결과 파일:
+- `sentence_test_results.json` - 문장 테스트 결과
+- `test_results.json` - 키워드 테스트 결과
+- `keywords.json` - 추출된 키워드 목록 (300개)
+- `hallucination_*.png` - Hallucination 발생 시 스크린샷
+
+결과 형식:
+```json
+{
+  "total": 45,
+  "passed": 24,
+  "failed": 21,
+  "hallucinations": [...],
+  "noResults": [...],
+  "errors": []
+}
+```
+
+### Test Improvement Workflow
+
+1. E2E 테스트 실행 → Hallucination 케이스 확인
+2. `hallucination_*.png` 스크린샷 분석
+3. RAG 검색 로직 또는 Summary 데이터 개선
+4. 재테스트로 검증
+
+### Key Files
+
+| 파일 | 역할 |
+|------|------|
+| `e2e/e2e_sentence_test.js` | 메인 테스트 로직 |
+| `e2e/keywords.json` | 테스트 키워드 목록 |
+| `e2e/sentence_test_results.json` | 최신 테스트 결과 |
 
 ---
 
