@@ -869,7 +869,8 @@ async def _adapt_language_with_llm_stream(
     query: str,
     language: str,
     llm_adapter,
-    decision: Optional[HybridModeDecision] = None
+    decision: Optional[HybridModeDecision] = None,
+    multi_product_results: Optional[List[Dict[str, Any]]] = None
 ) -> AsyncGenerator[str, None]:
     """
     검색 결과를 LLM을 통해 사용자 언어로 적응하여 스트리밍.
@@ -884,12 +885,15 @@ async def _adapt_language_with_llm_stream(
         language: 대상 언어 (ko, en, ja)
         llm_adapter: LLM 어댑터
         decision: 하이브리드 모드 결정 정보
+        multi_product_results: Multi-product aggregated results
 
     Yields:
         적응된 응답 텍스트 청크
     """
     # 검색 결과가 없으면 "정보 없음" 메시지 반환
-    if not search_results or (decision and decision.reason in ("no_results", "very_low_score")):
+    # But if we have multi_product_results, use those instead
+    has_results = search_results or multi_product_results
+    if not has_results or (decision and decision.reason in ("no_results", "very_low_score")):
         not_found = {
             "ko": f"죄송합니다. **\"{query}\"**에 대한 정보를 지식 베이스에서 찾을 수 없습니다.",
             "en": f"Sorry, I couldn't find information about **\"{query}\"** in the knowledge base.",
@@ -900,21 +904,51 @@ async def _adapt_language_with_llm_stream(
 
     # 검색 결과를 텍스트로 포맷
     results_text = []
-    for i, result in enumerate(search_results, 1):
-        source = result.get("source", {})
-        content = result.get("content", "")
-        doc_name = source.get("document_name", "Unknown")
-        page = source.get("page_start", "")
-        section = source.get("section_title", "")
 
-        result_entry = f"### Result {i}\n"
-        result_entry += f"- Document: {doc_name}\n"
-        if page:
-            result_entry += f"- Page: {page}\n"
-        if section:
-            result_entry += f"- Section: {section}\n"
-        result_entry += f"- Content:\n{content}\n"
-        results_text.append(result_entry)
+    # If we have multi_product_results but no search_results, format multi_product instead
+    if not search_results and multi_product_results:
+        for i, mpr in enumerate(multi_product_results, 1):
+            result_entry = f"### {mpr.get('name', 'Unknown')} ({mpr.get('doc_type', 'unknown')})\n"
+            if mpr.get('has_differences'):
+                result_entry += f"**Note:** Platform-specific differences exist\n"
+            result_entry += f"Available platforms: {', '.join(mpr.get('available_platforms', []))}\n\n"
+
+            for variant in mpr.get('variants', []):
+                platform = variant.get('platform', 'Unknown')
+                version = variant.get('product_version', '')
+                desc = variant.get('description', '')
+                syntax = variant.get('syntax', '')
+                source = variant.get('source_pdf', '')
+
+                result_entry += f"#### {platform}"
+                if version:
+                    result_entry += f" (v{version})"
+                result_entry += "\n"
+                if desc:
+                    result_entry += f"- Description: {desc}\n"
+                if syntax:
+                    result_entry += f"- Syntax: `{syntax}`\n"
+                if source:
+                    result_entry += f"- Source: {source}\n"
+                result_entry += "\n"
+
+            results_text.append(result_entry)
+    else:
+        for i, result in enumerate(search_results, 1):
+            source = result.get("source", {})
+            content = result.get("content", "")
+            doc_name = source.get("document_name", "Unknown")
+            page = source.get("page_start", "")
+            section = source.get("section_title", "")
+
+            result_entry = f"### Result {i}\n"
+            result_entry += f"- Document: {doc_name}\n"
+            if page:
+                result_entry += f"- Page: {page}\n"
+            if section:
+                result_entry += f"- Section: {section}\n"
+            result_entry += f"- Content:\n{content}\n"
+            results_text.append(result_entry)
 
     formatted_results = "\n".join(results_text)
 
@@ -984,7 +1018,8 @@ async def _adapt_language_with_llm(
     query: str,
     language: str,
     llm_adapter,
-    decision: Optional[HybridModeDecision] = None
+    decision: Optional[HybridModeDecision] = None,
+    multi_product_results: Optional[List[Dict[str, Any]]] = None
 ) -> str:
     """
     검색 결과를 LLM을 통해 사용자 언어로 적응 (non-streaming 버전).
@@ -995,6 +1030,7 @@ async def _adapt_language_with_llm(
         language: 대상 언어 (ko, en, ja)
         llm_adapter: LLM 어댑터
         decision: 하이브리드 모드 결정 정보
+        multi_product_results: Multi-product aggregated results
 
     Returns:
         적응된 응답 텍스트
@@ -1002,7 +1038,7 @@ async def _adapt_language_with_llm(
     # 스트리밍 버전을 사용하여 전체 응답 수집
     chunks = []
     async for chunk in _adapt_language_with_llm_stream(
-        search_results, query, language, llm_adapter, decision
+        search_results, query, language, llm_adapter, decision, multi_product_results
     ):
         chunks.append(chunk)
     return "".join(chunks)
@@ -2379,7 +2415,8 @@ User Query:"""
                             query=task,
                             language=context.language or "ko",
                             llm_adapter=self.llm_adapter,
-                            decision=decision
+                            decision=decision,
+                            multi_product_results=multi_product_results
                         ):
                             chunk_count += 1
                             # 진행 상태 업데이트 (매 10청크마다)

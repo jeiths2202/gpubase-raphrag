@@ -1061,10 +1061,21 @@ class SummaryBM25Service:
 
         # Look for parent tool matches
         parent_tool_match = None
+
+        # First, try token-based matching (works for space-separated queries)
         for token in query_tokens:
             if token in self._parent_tool_index:
                 parent_tool_match = token
                 break
+
+        # If no match found, try substring matching for CJK queries
+        # (Japanese/Korean/Chinese don't use spaces between words)
+        if not parent_tool_match:
+            for tool_name in self._parent_tool_index.keys():
+                if tool_name in query_lower:
+                    parent_tool_match = tool_name
+                    logger.info(f"[MultiProduct] Substring match: '{tool_name}' in query '{query_lower[:50]}'")
+                    break
 
         if parent_tool_match and len(self._parent_tool_index.get(parent_tool_match, [])) > 0:
             # Aggregate subcommands by platform for this parent tool
