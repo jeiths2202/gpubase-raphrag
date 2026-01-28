@@ -85,8 +85,9 @@ class SummaryBM25Service:
 
         # LLM-based keyword extraction config
         self._llm_url = os.getenv("LLM_API_URL", "http://localhost:12800/v1/chat/completions")
+        self._llm_model = os.getenv("LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
         self._llm_keyword_cache: Dict[str, List[str]] = {}  # query -> extracted keywords
-        self._llm_timeout = 5.0  # Quick timeout for keyword extraction
+        self._llm_timeout = 10.0  # Timeout for keyword extraction (increased for reliability)
 
     def _extract_version_from_source(self, source_pdf: str) -> tuple:
         """
@@ -925,31 +926,35 @@ class SummaryBM25Service:
 
         result = ComprehensiveSearchResult(query=query)
 
-        # Analyze query for patterns using rule-based detection (fast)
-        result.detected_error_codes = self._detect_error_codes(query)
-        result.detected_commands = self._detect_commands(query)
-        result.detected_terms = self._detect_terms(query)
-
         # Check if query contains CJK characters (Japanese/Korean/Chinese)
-        # If so, rule-based detection may have failed - use LLM extraction
         has_cjk = bool(re.search(r'[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]', query))
 
-        # Use LLM extraction if:
-        # 1. Query has CJK characters AND
-        # 2. Rule-based detection found nothing useful
-        if has_cjk and not (result.detected_error_codes or result.detected_commands):
-            logger.debug(f"[LLM Extraction] CJK query detected, using LLM for keyword extraction: '{query}'")
+        # ================================================================
+        # LLM-FIRST KEYWORD EXTRACTION
+        # For CJK queries, rule-based regex fails due to lack of word boundaries
+        # Use LLM as PRIMARY method for accurate keyword extraction
+        # ================================================================
+        if has_cjk:
+            logger.info(f"[LLM-First] CJK query detected, using LLM for keyword extraction: '{query}'")
             llm_commands, llm_errors, llm_terms = await self._extract_keywords_llm(query)
 
-            # Merge LLM results with rule-based (LLM takes priority for CJK)
-            if llm_commands:
-                result.detected_commands = list(set(result.detected_commands + llm_commands))
-            if llm_errors:
-                result.detected_error_codes = list(set(result.detected_error_codes + llm_errors))
-            if llm_terms:
-                result.detected_terms = list(set(result.detected_terms + llm_terms))
+            result.detected_commands = llm_commands
+            result.detected_error_codes = llm_errors
+            result.detected_terms = llm_terms
 
-            logger.info(f"[LLM Extraction] Extracted: commands={result.detected_commands}, errors={result.detected_error_codes}, terms={result.detected_terms}")
+            logger.info(f"[LLM-First] Extracted: commands={result.detected_commands}, errors={result.detected_error_codes}, terms={result.detected_terms}")
+
+            # Fallback to rule-based ONLY if LLM returned nothing
+            if not (llm_commands or llm_errors or llm_terms):
+                logger.debug("[LLM-First] LLM returned nothing, falling back to rule-based")
+                result.detected_error_codes = self._detect_error_codes(query)
+                result.detected_commands = self._detect_commands(query)
+                result.detected_terms = self._detect_terms(query)
+        else:
+            # Non-CJK queries: use rule-based detection (fast, reliable for English)
+            result.detected_error_codes = self._detect_error_codes(query)
+            result.detected_commands = self._detect_commands(query)
+            result.detected_terms = self._detect_terms(query)
 
         # Priority 1: Error code direct lookup
         for code in result.detected_error_codes:
@@ -1090,11 +1095,12 @@ Output ONLY valid JSON:
         try:
             async with aiohttp.ClientSession() as session:
                 payload = {
-                    "model": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+                    "model": self._llm_model,
                     "messages": [{"role": "user", "content": prompt}],
                     "max_tokens": 200,
                     "temperature": 0.1,
                 }
+                logger.debug(f"[LLM Keyword] Calling {self._llm_url} with model={self._llm_model}")
 
                 async with session.post(
                     self._llm_url,
@@ -1125,9 +1131,11 @@ Output ONLY valid JSON:
                             return commands, error_codes, terms
 
         except asyncio.TimeoutError:
-            logger.debug(f"[LLM Keyword Extraction] Timeout for query: {query}")
+            logger.warning(f"[LLM Keyword] Timeout ({self._llm_timeout}s) for query: {query}")
+        except aiohttp.ClientConnectorError as e:
+            logger.warning(f"[LLM Keyword] Connection error to {self._llm_url}: {e}")
         except Exception as e:
-            logger.debug(f"[LLM Keyword Extraction] Error: {e}")
+            logger.warning(f"[LLM Keyword] Error: {type(e).__name__}: {e}")
 
         # Return empty on failure (fall back to rule-based)
         return [], [], []
