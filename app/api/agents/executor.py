@@ -686,6 +686,21 @@ def _should_use_direct_mode(
     if response_mode == ResponseMode.LLM:
         return False, None, None
 
+    # ================================================================
+    # Check for Learning LLM result (verified knowledge)
+    # If we have a successful Learning LLM response, bypass normal search flow
+    # ================================================================
+    for result in tool_results:
+        if not result.get("success"):
+            continue
+        metadata = result.get("metadata", {})
+        if metadata.get("source") == "learning_llm":
+            confidence = metadata.get("confidence", 0)
+            verification_score = metadata.get("verification_score", 0)
+            logger.info(f"[HybridMode] Learning LLM result found - confidence={confidence:.2f}, verification={verification_score:.2f}")
+            # Return None to let the LLM stream the output directly (not direct mode)
+            return False, None, None
+
     # 검색 결과 추출
     search_results = _extract_search_results_from_tool_results(tool_results)
 

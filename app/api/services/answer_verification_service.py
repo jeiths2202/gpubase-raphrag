@@ -157,17 +157,17 @@ class AnswerVerificationService:
         if all_codes and service and service.is_initialized:
             for code in all_codes:
                 try:
+                    # search_error_code returns Optional[SummarySearchResult]
                     result = await service.search_error_code(code)
-                    if result and result.results:
+                    if result:
                         verified_codes.append(code)
-                        # Add source reference
-                        for r in result.results[:1]:
-                            source_references.append({
-                                "type": "error_code",
-                                "code": code,
-                                "source_pdf": r.document.source_pdf,
-                                "page_numbers": r.document.page_numbers,
-                            })
+                        # Add source reference from the single result
+                        source_references.append({
+                            "type": "error_code",
+                            "code": code,
+                            "source_pdf": result.document.source_pdf,
+                            "page_numbers": result.document.page_numbers,
+                        })
                     else:
                         unverified_codes.append(code)
                 except Exception as e:
@@ -178,16 +178,18 @@ class AnswerVerificationService:
         if all_commands and service and service.is_initialized:
             for cmd in all_commands:
                 try:
-                    result = await service.search_command(cmd)
-                    if result and result.results:
+                    # search_command returns List[SummarySearchResult]
+                    results = await service.search_command(cmd)
+                    if results:
                         verified_commands.append(cmd)
-                        for r in result.results[:1]:
-                            source_references.append({
-                                "type": "command",
-                                "name": cmd,
-                                "source_pdf": r.document.source_pdf,
-                                "page_numbers": r.document.page_numbers,
-                            })
+                        # Add source reference from first result
+                        r = results[0]
+                        source_references.append({
+                            "type": "command",
+                            "name": cmd,
+                            "source_pdf": r.document.source_pdf,
+                            "page_numbers": r.document.page_numbers,
+                        })
                 except Exception as e:
                     logger.warning(f"Error verifying command {cmd}: {e}")
 
@@ -195,15 +197,15 @@ class AnswerVerificationService:
         if all_terms and service and service.is_initialized:
             for term in all_terms:
                 try:
-                    result = await service.search_glossary(term)
-                    if result and result.results:
+                    # search_term returns Optional[SummarySearchResult]
+                    result = await service.search_term(term)
+                    if result:
                         verified_terms.append(term)
-                        for r in result.results[:1]:
-                            source_references.append({
-                                "type": "term",
-                                "name": term,
-                                "source_pdf": r.document.source_pdf,
-                            })
+                        source_references.append({
+                            "type": "term",
+                            "name": term,
+                            "source_pdf": result.document.source_pdf,
+                        })
                     else:
                         unverified_terms.append(term)
                 except Exception as e:
@@ -374,11 +376,13 @@ class AnswerVerificationService:
         # Add verified error code details
         for code in verified_codes[:2]:
             try:
+                # search_error_code returns Optional[SummarySearchResult]
                 result = await service.search_error_code(code)
-                if result and result.results:
-                    doc = result.results[0].document
+                if result:
+                    doc = result.document
+                    desc = doc.description[:200] if doc.description else ""
                     context_parts.append(
-                        f"[Error {code}] {doc.name}: {doc.description[:200]}"
+                        f"[Error {code}] {doc.name}: {desc}"
                     )
             except Exception:
                 pass
@@ -386,11 +390,13 @@ class AnswerVerificationService:
         # Add verified command details
         for cmd in verified_commands[:2]:
             try:
-                result = await service.search_command(cmd)
-                if result and result.results:
-                    doc = result.results[0].document
+                # search_command returns List[SummarySearchResult]
+                results = await service.search_command(cmd)
+                if results:
+                    doc = results[0].document
+                    desc = doc.description[:200] if doc.description else ""
                     context_parts.append(
-                        f"[Command {cmd}] {doc.description[:200]}"
+                        f"[Command {cmd}] {desc}"
                     )
             except Exception:
                 pass

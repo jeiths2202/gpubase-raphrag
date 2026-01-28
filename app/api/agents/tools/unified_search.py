@@ -1683,19 +1683,24 @@ Returns relevant document chunks with full context and source information."""
                         learning_llm_result=learning_llm_result,
                         context=context,
                     )
+                    logger.debug(f"[LearningLLM] Verification result: {verification_result}")
 
                     if verification_result and verification_result.get("is_valid"):
                         verification_score = verification_result.get("verification_score", 0.0)
-                        logger.info(f"[LearningLLM] Verified answer, score={verification_score:.2f}")
+                        logger.info(f"[LearningLLM] Verified answer: score={verification_score:.2f}, threshold={LEARNING_LLM_VERIFICATION_THRESHOLD}")
 
                         if verification_score >= LEARNING_LLM_VERIFICATION_THRESHOLD:
+                            logger.info(f"[LearningLLM] Score >= threshold, returning verified response")
                             # High confidence, verified answer - return directly
-                            return await self._build_learning_llm_response(
+                            verified_response = await self._build_learning_llm_response(
                                 learning_llm_result=learning_llm_result,
                                 verification_result=verification_result,
                                 query=query,
                                 context=context,
                             )
+                            output_len = len(verified_response.get('output', '')) if isinstance(verified_response, dict) else len(verified_response.output or '')
+                            logger.info(f"[LearningLLM] Built verified response, output_len={output_len}")
+                            return verified_response
                         else:
                             # Medium confidence - will continue to Summary-First/Vector search
                             # but enrich with Learning LLM context
@@ -2123,12 +2128,17 @@ Returns relevant document chunks with full context and source information."""
             or None if LLM is not available
         """
         try:
-            # Lazy import to avoid circular dependencies
-            from app.api.adapters.learning_llm.vllm_adapter import get_vllm_adapter
+            # Use Learning LLM service (which manages the adapter lifecycle)
+            from app.api.services.learning_llm_service import get_learning_llm_service
 
-            adapter = get_vllm_adapter()
-            if not adapter or not adapter.is_loaded:
-                logger.debug("[LearningLLM] Adapter not available")
+            service = get_learning_llm_service()
+            if not service or not service.enabled:
+                logger.debug("[LearningLLM] Service not available or disabled")
+                return None
+
+            # Check if service is initialized and has adapter
+            if not service._is_initialized or not service._adapter:
+                logger.debug("[LearningLLM] Service not initialized")
                 return None
 
             # Build context string from conversation history (if available)
@@ -2143,8 +2153,9 @@ Returns relevant document chunks with full context and source information."""
                         for msg in recent
                     ])
 
-            # Call Learning LLM with confidence scoring
-            result = await adapter.generate_with_confidence(
+            # Call Learning LLM with confidence scoring via adapter
+            logger.info(f"[LearningLLM] Generating answer for: {query[:50]}...")
+            result = await service._adapter.generate_with_confidence(
                 question=query,
                 context=context_str,
                 max_new_tokens=1024,
@@ -2152,7 +2163,10 @@ Returns relevant document chunks with full context and source information."""
             )
 
             if not result or not result.answer:
+                logger.debug("[LearningLLM] No result or empty answer")
                 return None
+
+            logger.info(f"[LearningLLM] Generated: answer_len={len(result.answer)}, confidence={result.confidence:.2f}")
 
             return {
                 "answer": result.answer,
@@ -2164,10 +2178,10 @@ Returns relevant document chunks with full context and source information."""
             }
 
         except ImportError as e:
-            logger.debug(f"[LearningLLM] Import error: {e}")
+            logger.warning(f"[LearningLLM] Import error: {e}")
             return None
         except Exception as e:
-            logger.warning(f"[LearningLLM] Error: {e}")
+            logger.warning(f"[LearningLLM] Exception: {e}")
             return None
 
     async def _verify_with_summaries(
