@@ -939,8 +939,12 @@ class SummaryBM25Service:
             llm_commands, llm_errors, llm_terms = await self._extract_keywords_llm(query)
 
             result.detected_commands = llm_commands
-            result.detected_error_codes = llm_errors
             result.detected_terms = llm_terms
+
+            # For error codes, ALWAYS use rule-based detection as well since pattern is clear
+            # This ensures -5212 is detected even if LLM misses the minus sign
+            rule_based_errors = self._detect_error_codes(query)
+            result.detected_error_codes = list(set(llm_errors + rule_based_errors))
 
             logger.info(f"[LLM-First] Extracted: commands={result.detected_commands}, errors={result.detected_error_codes}, terms={result.detected_terms}")
 
@@ -1087,14 +1091,21 @@ Rules:
    Examples: tjesmgr, ndbmgr, hidbmgr, oscmgr, volmgr, catmgr, osimgr, tacfmgr, obmjinit, osctdlrm
    Pattern: The alphanumeric word BEFORE Japanese/Korean text is usually the command
 
-2. ERROR CODES: Negative numbers like -5212, -21001, or ABEND codes like S0C7, S0C4
+2. ERROR CODES: Negative numbers with minus sign MUST be preserved!
+   Examples: -5212, -21001, -1234 (ALWAYS include the minus sign!)
+   ABEND codes: S0C7, S0C4, S806
+   IMPORTANT: If you see "-5212", output "-5212" NOT "5212"
 
 3. TERMS (uppercase): Acronyms like TJES, TACF, OSC, VSAM, JCL, GDG
 
 Extract the EXACT keyword from the query. Do not modify or guess.
 
-Output ONLY valid JSON (no explanation):
-{{"commands": ["ndbmgr"], "error_codes": [], "terms": []}}"""
+Examples:
+- "ndbmgrについて" → {{"commands": ["ndbmgr"], "error_codes": [], "terms": []}}
+- "-5212 에러" → {{"commands": [], "error_codes": ["-5212"], "terms": []}}
+- "TJES機能" → {{"commands": [], "error_codes": [], "terms": ["TJES"]}}
+
+Output ONLY valid JSON (no explanation):"""
 
         try:
             async with aiohttp.ClientSession() as session:

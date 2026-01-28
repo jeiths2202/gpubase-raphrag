@@ -337,7 +337,12 @@ def _analyze_query_keywords(query: str, language: str = "ko") -> Dict[str, Any]:
     stopwords_ja = {'の', 'に', 'は', 'を', 'た', 'が', 'で', 'て', 'と', 'し', 'れ', 'さ', 'ある', 'いる', 'も', 'する', 'から', 'な', 'こと', 'として', 'い', 'や', 'など', 'なっ', 'ない', 'この', 'ため', 'その', 'あっ', 'よう', 'また', 'もの', 'という', 'あり', 'まで', 'られ', 'なる', 'へ', 'か', 'だ', 'これ', 'によって', 'により', 'おり', 'より', 'による', 'ず', 'なり', 'られる', 'において', 'ば', 'なかっ', 'なく', 'しかし', 'について', 'せ', 'だっ', 'でき', 'それ', 'お', 'ほど', 'ものの', 'に対して', 'ほとんど', 'と共に', 'といった', 'です', 'ます', 'でした'}
 
     # 토큰화 (알파벳, 숫자, 한글, 일본어 히라가나/카타카나/한자)
-    tokens = re.findall(r'[a-zA-Z0-9가-힣ぁ-んァ-ン一-龥]+', query.lower())
+    # First, extract error codes with minus sign (e.g., -5212, -21001) to preserve them
+    error_codes = re.findall(r'-\d{4,5}', query)
+    # Then extract other tokens
+    other_tokens = re.findall(r'[a-zA-Z0-9가-힣ぁ-んァ-ン一-龥]+', query.lower())
+    # Combine: error codes first (preserving case), then other tokens
+    tokens = error_codes + other_tokens
 
     # 키워드 추출 (stopwords 제외, 2글자 이상)
     all_stopwords = stopwords_ko | stopwords_en | stopwords_ja

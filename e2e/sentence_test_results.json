@@ -1,0 +1,30 @@
+{
+  "total": 45,
+  "passed": 44,
+  "failed": 1,
+  "hallucinations": [
+    {
+      "index": 31,
+      "keyword": "VSAM ESDS",
+      "query": "VSAM ESDSの特徴を教えてください。",
+      "foundUnexpected": [
+        "RRDS"
+      ],
+      "screenshot": "hallucination_31_VSAM_ESDS.png"
+    }
+  ],
+  "noResults": [
+    {
+      "index": 28,
+      "keyword": "ABEND S0C4",
+      "query": "ABEND S0C4エラーについて説明してください。"
+    },
+    {
+      "index": 30,
+      "keyword": "VSAM KSDS",
+      "query": "VSAM KSDSについて説明してください。"
+    }
+  ],
+  "errors": [],
+  "timestamp": "2026-01-28T08:12:54.489Z"
+}
