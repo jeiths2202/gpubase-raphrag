@@ -12,10 +12,13 @@ This is the core of the Summary-First RAG architecture:
 
 import re
 import logging
+import os
+import asyncio
 from pathlib import Path
-from typing import List, Dict, Optional, Set, Any
+from typing import List, Dict, Optional, Set, Any, Tuple
 import hashlib
 import json
+import aiohttp
 
 from rank_bm25 import BM25Okapi
 import numpy as np
@@ -79,6 +82,11 @@ class SummaryBM25Service:
 
         # Cache for file hashes (detect changes)
         self._file_hashes: Dict[str, str] = {}
+
+        # LLM-based keyword extraction config
+        self._llm_url = os.getenv("LLM_API_URL", "http://localhost:12800/v1/chat/completions")
+        self._llm_keyword_cache: Dict[str, List[str]] = {}  # query -> extracted keywords
+        self._llm_timeout = 5.0  # Quick timeout for keyword extraction
 
     def _extract_version_from_source(self, source_pdf: str) -> tuple:
         """
@@ -917,10 +925,31 @@ class SummaryBM25Service:
 
         result = ComprehensiveSearchResult(query=query)
 
-        # Analyze query for patterns
+        # Analyze query for patterns using rule-based detection (fast)
         result.detected_error_codes = self._detect_error_codes(query)
         result.detected_commands = self._detect_commands(query)
         result.detected_terms = self._detect_terms(query)
+
+        # Check if query contains CJK characters (Japanese/Korean/Chinese)
+        # If so, rule-based detection may have failed - use LLM extraction
+        has_cjk = bool(re.search(r'[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]', query))
+
+        # Use LLM extraction if:
+        # 1. Query has CJK characters AND
+        # 2. Rule-based detection found nothing useful
+        if has_cjk and not (result.detected_error_codes or result.detected_commands):
+            logger.debug(f"[LLM Extraction] CJK query detected, using LLM for keyword extraction: '{query}'")
+            llm_commands, llm_errors, llm_terms = await self._extract_keywords_llm(query)
+
+            # Merge LLM results with rule-based (LLM takes priority for CJK)
+            if llm_commands:
+                result.detected_commands = list(set(result.detected_commands + llm_commands))
+            if llm_errors:
+                result.detected_error_codes = list(set(result.detected_error_codes + llm_errors))
+            if llm_terms:
+                result.detected_terms = list(set(result.detected_terms + llm_terms))
+
+            logger.info(f"[LLM Extraction] Extracted: commands={result.detected_commands}, errors={result.detected_error_codes}, terms={result.detected_terms}")
 
         # Priority 1: Error code direct lookup
         for code in result.detected_error_codes:
@@ -1002,10 +1031,10 @@ class SummaryBM25Service:
         patterns = [
             # Commands ending with common suffixes (init, boot, mgr, etc.)
             r'(?:^|[^a-zA-Z0-9])([a-z][a-z0-9]{2,}(?:init|boot|down|start|stop|run|exec|ctl|mgr|adm|cmd))(?:[^a-zA-Z0-9]|$)',
-            # TJES/OSC/TACF family commands
-            r'(?:^|[^a-zA-Z0-9])(tjes\w*|osc\w*|tac\w*|ofm\w*|osci\w*|obm\w*)(?:[^a-zA-Z0-9]|$)',
+            # TJES/OSC/TACF family commands - use [a-zA-Z0-9]* instead of \w* to avoid CJK matching
+            r'(?:^|[^a-zA-Z0-9])(tjes[a-zA-Z0-9]*|osc[a-zA-Z0-9]*|tac[a-zA-Z0-9]*|ofm[a-zA-Z0-9]*|osci[a-zA-Z0-9]*|obm[a-zA-Z0-9]*)(?:[^a-zA-Z0-9]|$)',
             # Specific known commands
-            r'(?:^|[^a-zA-Z0-9])(tjesmgr|oscboot|tjadmin|tacfadm|dsload|dsunload|obmjinit|hidbmgr|ndbmgr)(?:[^a-zA-Z0-9]|$)',
+            r'(?:^|[^a-zA-Z0-9])(tjesmgr|oscboot|tjadmin|tacfadm|dsload|dsunload|obmjinit|hidbmgr|ndbmgr|osctdlrm|osctdlinit|osctdlupdate)(?:[^a-zA-Z0-9]|$)',
         ]
         commands = []
         for pattern in patterns:
@@ -1021,6 +1050,87 @@ class SummaryBM25Service:
         # Filter common words
         stopwords = {'THE', 'AND', 'FOR', 'NOT', 'WITH', 'THIS', 'FROM', 'ARE', 'WAS', 'PDF', 'API'}
         return [t for t in terms if t not in stopwords and len(t) >= 2]
+
+    async def _extract_keywords_llm(self, query: str) -> Tuple[List[str], List[str], List[str]]:
+        """
+        Extract keywords from query using LLM.
+
+        For CJK queries (Japanese/Korean/Chinese), rule-based regex often fails
+        because word boundaries don't exist. LLM can understand the semantic
+        structure and extract the actual technical terms.
+
+        Args:
+            query: User query in any language
+
+        Returns:
+            Tuple of (commands, error_codes, terms)
+        """
+        # Check cache first
+        cache_key = hashlib.md5(query.encode()).hexdigest()
+        if cache_key in self._llm_keyword_cache:
+            cached = self._llm_keyword_cache[cache_key]
+            return cached.get('commands', []), cached.get('error_codes', []), cached.get('terms', [])
+
+        # Prepare prompt for keyword extraction
+        prompt = f"""Extract technical keywords from the following query.
+
+Query: {query}
+
+Instructions:
+- Extract ONLY the technical terms (commands, error codes, product names)
+- Commands are lowercase (e.g., tjesmgr, osctdlrm, hidbmgr, obmjinit)
+- Error codes are negative numbers (e.g., -5212, -21001)
+- Terms are uppercase acronyms (e.g., TJES, TACF, OSC, VSAM)
+- Return ONLY the extracted keywords, not the full query
+- If no keywords found, return empty arrays
+
+Output ONLY valid JSON:
+{{"commands": ["cmd1", "cmd2"], "error_codes": ["-5212"], "terms": ["TERM1"]}}"""
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    "model": "nvidia/llama-3.1-nemotron-nano-8b-v1",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 200,
+                    "temperature": 0.1,
+                }
+
+                async with session.post(
+                    self._llm_url,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=self._llm_timeout)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+                        # Parse JSON from response
+                        # Handle cases where LLM wraps JSON in markdown
+                        json_match = re.search(r'\{[^{}]*\}', content)
+                        if json_match:
+                            result = json.loads(json_match.group())
+                            commands = [c.lower() for c in result.get("commands", []) if c]
+                            error_codes = result.get("error_codes", [])
+                            terms = [t.upper() for t in result.get("terms", []) if t]
+
+                            # Cache result
+                            self._llm_keyword_cache[cache_key] = {
+                                'commands': commands,
+                                'error_codes': error_codes,
+                                'terms': terms
+                            }
+
+                            logger.debug(f"[LLM Keyword Extraction] Query: '{query}' -> commands={commands}, errors={error_codes}, terms={terms}")
+                            return commands, error_codes, terms
+
+        except asyncio.TimeoutError:
+            logger.debug(f"[LLM Keyword Extraction] Timeout for query: {query}")
+        except Exception as e:
+            logger.debug(f"[LLM Keyword Extraction] Error: {e}")
+
+        # Return empty on failure (fall back to rule-based)
+        return [], [], []
 
     @property
     def is_initialized(self) -> bool:
