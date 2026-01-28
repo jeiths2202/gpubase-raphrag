@@ -326,13 +326,13 @@ class SummaryBM25Service:
                     if syntax and syntax not in syntaxes:
                         syntaxes.append(syntax)
 
-                # Extract page reference
-                page_match = re.search(r'참조:.*?\(p\.?(\d+)\)', subsection)
+                # Extract page reference (소스: file.pdf (p.XX))
+                page_match = re.search(r'소스:.*?\(p\.?(\d+)\)', subsection)
                 if page_match:
                     pages.append(int(page_match.group(1)))
 
                 # Extract source PDF
-                pdf_match = re.search(r'참조:\s*([^\(\n]+\.pdf)', subsection, re.IGNORECASE)
+                pdf_match = re.search(r'소스:\s*([^\(\n]+\.pdf)', subsection, re.IGNORECASE)
                 if pdf_match:
                     pdf_name = pdf_match.group(1).strip()
                     if pdf_name and pdf_name not in source_pdfs:
@@ -348,6 +348,16 @@ class SummaryBM25Service:
                 syntax_match = re.search(r'\*\*구문\*\*:\s*`([^`]+)`', details, re.DOTALL)
                 if syntax_match:
                     syntaxes.append(syntax_match.group(1).strip().split('\n')[0])
+
+            # Also check for source/page directly under ## (without subsection)
+            if not source_pdfs:
+                pdf_match = re.search(r'소스:\s*([^\(\n]+\.pdf)', details, re.IGNORECASE)
+                if pdf_match:
+                    source_pdfs.append(pdf_match.group(1).strip())
+            if not pages:
+                page_match = re.search(r'소스:.*?\(p\.?(\d+)\)', details)
+                if page_match:
+                    pages.append(int(page_match.group(1)))
 
             description = descriptions[0] if descriptions else None
             syntax = syntaxes[0] if syntaxes else None
@@ -419,11 +429,22 @@ class SummaryBM25Service:
                         if feature:
                             features.append(feature)
 
+            # Extract source PDFs from 참조매뉴얼
+            source_pdf = None
+            ref_match = re.search(r'\*\*참조매뉴얼\*\*:\s*([^\n]+)', details)
+            if ref_match:
+                # Get first PDF from the list
+                pdf_list = ref_match.group(1).strip()
+                pdf_match = re.search(r'([^\s,]+\.pdf)', pdf_list, re.IGNORECASE)
+                if pdf_match:
+                    source_pdf = pdf_match.group(1).strip()
+
             doc = SummaryDocument(
                 id=f"term_{term_name.lower().replace('/', '_')}",
                 content=details.strip()[:800],
                 doc_type=doc_type,
                 source_file=source_file,
+                source_pdf=source_pdf,
                 name=term_name.upper(),
                 description=description,
                 metadata={
