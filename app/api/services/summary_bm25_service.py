@@ -326,13 +326,13 @@ class SummaryBM25Service:
                     if syntax and syntax not in syntaxes:
                         syntaxes.append(syntax)
 
-                # Extract page reference (소스: file.pdf (p.XX))
-                page_match = re.search(r'소스:.*?\(p\.?(\d+)\)', subsection)
+                # Extract page reference (소스: or 참조: file.pdf (p.XX))
+                page_match = re.search(r'(?:소스|참조)\**:\s*.*?\(p\.?(\d+)\)', subsection)
                 if page_match:
                     pages.append(int(page_match.group(1)))
 
-                # Extract source PDF
-                pdf_match = re.search(r'소스:\s*([^\(\n]+\.pdf)', subsection, re.IGNORECASE)
+                # Extract source PDF (handle both 소스: and 참조: formats)
+                pdf_match = re.search(r'(?:소스|참조)\**:\s*([^\(\n]+\.pdf)', subsection, re.IGNORECASE)
                 if pdf_match:
                     pdf_name = pdf_match.group(1).strip()
                     if pdf_name and pdf_name not in source_pdfs:
@@ -350,12 +350,13 @@ class SummaryBM25Service:
                     syntaxes.append(syntax_match.group(1).strip().split('\n')[0])
 
             # Also check for source/page directly under ## (without subsection)
+            # Handle both 소스: and 참조: formats
             if not source_pdfs:
-                pdf_match = re.search(r'소스:\s*([^\(\n]+\.pdf)', details, re.IGNORECASE)
+                pdf_match = re.search(r'(?:소스|참조)\**:\s*([^\(\n]+\.pdf)', details, re.IGNORECASE)
                 if pdf_match:
                     source_pdfs.append(pdf_match.group(1).strip())
             if not pages:
-                page_match = re.search(r'소스:.*?\(p\.?(\d+)\)', details)
+                page_match = re.search(r'(?:소스|참조)\**:.*?\(p\.?(\d+)\)', details)
                 if page_match:
                     pages.append(int(page_match.group(1)))
 
