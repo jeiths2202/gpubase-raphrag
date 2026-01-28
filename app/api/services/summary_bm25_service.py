@@ -997,10 +997,15 @@ class SummaryBM25Service:
     def _detect_commands(self, query: str) -> List[str]:
         """Detect command patterns in query"""
         # OpenFrame command patterns
+        # Note: Use (?:^|[^a-zA-Z0-9]) instead of \b for CJK language support
+        # Japanese/Korean/Chinese don't have word boundaries like English
         patterns = [
-            r'\b([a-z][a-z0-9]{2,}(?:init|boot|down|start|stop|run|exec|ctl|mgr|adm|cmd))\b',
-            r'\b(tjes\w*|osc\w*|tac\w*|ofm\w*|osci\w*)\b',
-            r'\b(tjesmgr|oscboot|tjadmin|tacfadm|dsload|dsunload)\b',
+            # Commands ending with common suffixes (init, boot, mgr, etc.)
+            r'(?:^|[^a-zA-Z0-9])([a-z][a-z0-9]{2,}(?:init|boot|down|start|stop|run|exec|ctl|mgr|adm|cmd))(?:[^a-zA-Z0-9]|$)',
+            # TJES/OSC/TACF family commands
+            r'(?:^|[^a-zA-Z0-9])(tjes\w*|osc\w*|tac\w*|ofm\w*|osci\w*|obm\w*)(?:[^a-zA-Z0-9]|$)',
+            # Specific known commands
+            r'(?:^|[^a-zA-Z0-9])(tjesmgr|oscboot|tjadmin|tacfadm|dsload|dsunload|obmjinit|hidbmgr|ndbmgr)(?:[^a-zA-Z0-9]|$)',
         ]
         commands = []
         for pattern in patterns:
@@ -1140,14 +1145,47 @@ class SummaryBM25Service:
         search_result = await self.comprehensive_search(query, top_k=top_k * 4)
 
         if search_result.results:
+            # ================================================================
+            # ANTI-HALLUCINATION: Filter results by score and relevance
+            # Only include results that are actually related to the query
+            # ================================================================
+            MIN_MULTI_PRODUCT_SCORE = 0.3  # Minimum BM25 score threshold
+
+            # Extract query keywords for relevance check
+            query_keywords = set(query_lower.split())
+            # Add query as a whole for substring matching
+            query_normalized = re.sub(r'[^\w]', '', query_lower)
+
             # Group results by entity name (case-insensitive)
             by_name: Dict[str, List[SummarySearchResult]] = defaultdict(list)
             for sr in search_result.results:
+                # Filter 1: Minimum score threshold
+                if sr.score < MIN_MULTI_PRODUCT_SCORE:
+                    logger.debug(f"[MultiProduct] Skipping '{sr.document.name}' - score {sr.score:.2f} < {MIN_MULTI_PRODUCT_SCORE}")
+                    continue
+
                 name_key = (sr.document.name or "").lower()
+
                 # Skip if name matches the parent tool we already processed
                 if parent_tool_match and name_key == parent_tool_match:
                     continue
+
+                # Filter 2: Relevance check - name should be related to query
                 if name_key:
+                    name_normalized = re.sub(r'[^\w]', '', name_key)
+
+                    # Check if query keyword appears in name OR name appears in query
+                    is_relevant = (
+                        query_normalized in name_normalized or
+                        name_normalized in query_normalized or
+                        any(kw in name_key for kw in query_keywords if len(kw) >= 3) or
+                        any(part in query_lower for part in name_key.split() if len(part) >= 3)
+                    )
+
+                    if not is_relevant:
+                        logger.debug(f"[MultiProduct] Skipping '{sr.document.name}' - not relevant to query '{query}'")
+                        continue
+
                     by_name[name_key].append(sr)
 
             # Build MultiProductResult for each unique entity

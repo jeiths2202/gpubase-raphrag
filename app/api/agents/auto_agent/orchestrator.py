@@ -43,6 +43,7 @@ from .verifier_agent import get_verifier_agent
 from .answer_composer import get_answer_composer
 from .memory_manager import get_memory_manager
 from .confidence_scorer import get_confidence_scorer
+from ...core.config import api_settings
 
 logger = logging.getLogger(__name__)
 
@@ -274,7 +275,9 @@ class AutoAgentOrchestrator:
 
         try:
             # 0. Query Clarification Check (Human-in-the-loop)
-            if not skip_clarification:
+            # Controlled by ENABLE_QUERY_CLARIFICATION environment variable
+            should_skip_clarification = skip_clarification or not api_settings.ENABLE_QUERY_CLARIFICATION
+            if not should_skip_clarification:
                 clarification = await self.planner.check_query_clarity(task, context)
 
                 if clarification:

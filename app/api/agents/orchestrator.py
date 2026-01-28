@@ -8,6 +8,8 @@ import logging
 import re
 import time
 
+from ..core.config import api_settings
+
 from .types import (
     AgentType, AgentContext, AgentResult, AgentRequest, AgentResponse,
     AgentStreamChunk,
@@ -410,8 +412,12 @@ class AgentOrchestrator:
         # =====================================================================
         # Query Clarification Check (Human-in-the-loop)
         # Only for 'auto' agent type and when not skipped
+        # Controlled by ENABLE_QUERY_CLARIFICATION environment variable
         # =====================================================================
-        skip_clarification = getattr(request, 'skip_clarification', False)
+        skip_clarification = (
+            getattr(request, 'skip_clarification', False) or
+            not api_settings.ENABLE_QUERY_CLARIFICATION
+        )
         agent_type_str = request.agent_type.value if request.agent_type else None
 
         if not skip_clarification and (agent_type_str is None or agent_type_str == 'auto'):

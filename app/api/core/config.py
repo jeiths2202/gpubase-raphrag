@@ -379,6 +379,12 @@ class APISettings(BaseSettings):
         description="Enable RAG response quality evaluation"
     )
 
+    # Query Clarification (Human-in-the-Loop)
+    ENABLE_QUERY_CLARIFICATION: bool = Field(
+        default=False,
+        description="Enable query clarification for ambiguous queries (Human-in-the-Loop)"
+    )
+
     # Structured Answer Settings (ChatGPT-style Output)
     ENABLE_STRUCTURED_ANSWER: bool = Field(
         default=True,
