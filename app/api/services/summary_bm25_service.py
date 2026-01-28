@@ -20,6 +20,7 @@ import json
 from rank_bm25 import BM25Okapi
 import numpy as np
 
+from collections import defaultdict
 from ..models.summary import (
     SummaryDocument,
     SummaryDocType,
@@ -27,6 +28,8 @@ from ..models.summary import (
     ComprehensiveSearchResult,
     ConfidenceLevel,
     PageReference,
+    ProductVariant,
+    MultiProductResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,9 +75,117 @@ class SummaryBM25Service:
         self._error_code_index: Dict[str, SummaryDocument] = {}  # "-5212" -> doc
         self._command_index: Dict[str, List[SummaryDocument]] = {}  # "tjesmgr" -> [docs]
         self._term_index: Dict[str, SummaryDocument] = {}  # "TJES" -> doc
+        self._parent_tool_index: Dict[str, List[SummaryDocument]] = {}  # "tjesmgr" -> [BOOT, CANCEL, ...]
 
         # Cache for file hashes (detect changes)
         self._file_hashes: Dict[str, str] = {}
+
+    def _extract_version_from_source(self, source_pdf: str) -> tuple:
+        """
+        Extract version information from PDF filename.
+
+        Parses filenames like:
+        OF_Common_MSP_7.3_Tool-Reference-Guide_v3.3.1_ja.pdf
+        -> platform=MSP, product_version=7.3, doc_version=v3.3.1
+
+        Args:
+            source_pdf: PDF filename
+
+        Returns:
+            tuple (platform, product_version, doc_version) or (None, None, None)
+        """
+        if not source_pdf:
+            return None, None, None
+
+        # Pattern for OpenFrame PDFs: OF_<type>_<platform>_<version>_..._<doc_version>_<lang>.pdf
+        pattern = r'OF_\w+_(\w+)_(\d+\.\d+)_.*?_(v[\d.]+)_\w+\.pdf'
+        match = re.search(pattern, source_pdf, re.IGNORECASE)
+        if match:
+            return match.group(1).upper(), match.group(2), match.group(3)
+
+        # Alternative pattern: OpenFrame_<category>_<platform>.md or similar
+        alt_pattern = r'OpenFrame_\w+_(\w+)(?:_(\d+\.\d+))?'
+        alt_match = re.search(alt_pattern, source_pdf, re.IGNORECASE)
+        if alt_match:
+            platform = alt_match.group(1).upper()
+            version = alt_match.group(2) if alt_match.lastindex >= 2 else None
+            return platform, version, None
+
+        return None, None, None
+
+    def _extract_platform_from_source_file(self, source_file: str) -> Optional[str]:
+        """
+        Extract platform from summary source file name.
+
+        Args:
+            source_file: Summary markdown file name (e.g., OpenFrame_TJES_MVS.md)
+
+        Returns:
+            Platform identifier (MVS, MSP, XSP, VOS3) or None
+        """
+        if not source_file:
+            return None
+
+        # Pattern: OpenFrame_<category>_<platform>.md
+        pattern = r'OpenFrame_\w+_(\w+)\.md'
+        match = re.search(pattern, source_file, re.IGNORECASE)
+        if match:
+            platform = match.group(1).upper()
+            # Validate known platforms
+            if platform in ('MVS', 'MSP', 'XSP', 'VOS3'):
+                return platform
+
+        return None
+
+    def _extract_parent_tool_from_syntax(self, syntax: Optional[str], content: Optional[str] = None) -> Optional[str]:
+        """
+        Extract parent tool name from command syntax.
+
+        For example:
+        - "tjesmgr BOOT" -> "tjesmgr"
+        - "hidbmgr START" -> "hidbmgr"
+        - "$ tjesmgr -h" -> "tjesmgr"
+
+        Args:
+            syntax: Command syntax string
+            content: Optional content to search if syntax is None
+
+        Returns:
+            Parent tool name or None
+        """
+        # Known OpenFrame tool prefixes (command tools)
+        KNOWN_TOOLS = {
+            'tjesmgr', 'hidbmgr', 'tjesedit', 'tacfmgr', 'ofminer',
+            'oscmgr', 'tmadmin', 'fdlc', 'cobrun', 'ofcob',
+            'ofasm', 'ofutil', 'ofdebug', 'osmgr', 'oprmgr',
+            'tsam', 'vsam', 'jcl', 'sort', 'iebgener',
+            'cics', 'dbmgr', 'ofrunner', 'ofstudio'
+        }
+
+        text_to_check = syntax or content or ""
+        text_lower = text_to_check.lower()
+
+        # Pattern 1: Look for known tool at start of syntax
+        # e.g., "tjesmgr BOOT", "$ tjesmgr -h"
+        for tool in KNOWN_TOOLS:
+            if tool in text_lower:
+                # Verify it's the tool, not a substring
+                pattern = rf'(?:^|\$\s*|^\s*){tool}\b'
+                if re.search(pattern, text_lower):
+                    return tool
+
+        # Pattern 2: Extract first word from syntax if it looks like a tool name
+        if syntax:
+            # Remove leading $ and whitespace
+            clean_syntax = re.sub(r'^[\$\s]+', '', syntax)
+            first_word_match = re.match(r'^([a-z][a-z0-9_]+)', clean_syntax.lower())
+            if first_word_match:
+                first_word = first_word_match.group(1)
+                # Check if it ends with 'mgr' or 'run' pattern (common in OpenFrame tools)
+                if re.match(r'.*(?:mgr|run|edit|admin|miner)$', first_word):
+                    return first_word
+
+        return None
 
     def _tokenize(self, text: str) -> List[str]:
         """
@@ -287,7 +398,13 @@ class SummaryBM25Service:
         - **설명**: Description
         - **구문**: `syntax`
         - **참조**: file.pdf (p.123)
+
+        For multi-product search, we create separate documents per platform/subsection
+        to enable platform-specific grouping in search results.
         """
+        # Extract platform from source file name (e.g., OpenFrame_TJES_MVS.md)
+        file_platform = self._extract_platform_from_source_file(source_file)
+
         # Pattern: ## command_name followed by content until next ## or end
         pattern = r'^## ([a-zA-Z][a-zA-Z0-9_\-\.]*)\n(.*?)(?=^## [a-zA-Z]|\Z)'
         matches = re.findall(pattern, content, re.DOTALL | re.MULTILINE)
@@ -299,95 +416,169 @@ class SummaryBM25Service:
             if products_match:
                 products = [p.strip() for p in products_match.group(1).split(",")]
 
-            # Collect descriptions from all ### subsections
-            descriptions = []
-            syntaxes = []
-            pages = []
-            source_pdfs = []
-
             # Parse each product subsection (### ProductName)
             subsection_pattern = r'### ([^\n]+)\n(.*?)(?=### |\Z)'
             subsections = re.findall(subsection_pattern, details, re.DOTALL)
 
+            # Track if we created platform-specific documents
+            created_platform_docs = False
+
             for product_name, subsection in subsections:
-                # Extract description
+                # Try to identify platform from subsection header
+                subsection_platform = None
+                for known_platform in ('MVS', 'MSP', 'XSP', 'VOS3'):
+                    if known_platform in product_name.upper():
+                        subsection_platform = known_platform
+                        break
+
+                # Extract description - try **설명**: first, then first paragraph
                 desc_match = re.search(r'\*\*설명\*\*:\s*(.+?)(?=\n-|\n\*\*|$)', subsection, re.DOTALL)
+                if not desc_match:
+                    # Description is first paragraph before **구문** or **지원
+                    desc_match = re.search(r'^(.+?)(?=\n\n\*\*|\n\*\*)', subsection.strip(), re.DOTALL)
+                description = None
                 if desc_match:
-                    desc_text = desc_match.group(1).strip()
-                    # Clean up and truncate
-                    desc_clean = ' '.join(desc_text.split())[:200]
-                    if desc_clean and desc_clean not in descriptions:
-                        descriptions.append(desc_clean)
+                    description = ' '.join(desc_match.group(1).strip().split())[:200]
 
-                # Extract syntax
-                syntax_match = re.search(r'\*\*구문\*\*:\s*`([^`]+)`', subsection, re.DOTALL)
+                # Extract syntax (handle both single backticks and code blocks)
+                # Try code block first: ```\n...\n```
+                syntax_match = re.search(r'\*\*구문[:\*]*\s*\n```\n?([^`]+?)```', subsection, re.DOTALL)
+                if not syntax_match:
+                    # Try single backticks: `...`
+                    syntax_match = re.search(r'\*\*구문\*\*:\s*`([^`]+)`', subsection, re.DOTALL)
+                syntax = None
                 if syntax_match:
-                    syntax = syntax_match.group(1).strip().split('\n')[0]  # First line only
-                    if syntax and syntax not in syntaxes:
-                        syntaxes.append(syntax)
+                    syntax = syntax_match.group(1).strip().split('\n')[0]
 
-                # Extract page reference (소스: or 참조: file.pdf (p.XX))
+                # Extract page reference
                 page_match = re.search(r'(?:소스|참조)\**:\s*.*?\(p\.?(\d+)\)', subsection)
-                if page_match:
-                    pages.append(int(page_match.group(1)))
+                page_numbers = [int(page_match.group(1))] if page_match else []
 
-                # Extract source PDF (handle both 소스: and 참조: formats)
+                # Extract source PDF
                 pdf_match = re.search(r'(?:소스|참조)\**:\s*([^\(\n]+\.pdf)', subsection, re.IGNORECASE)
-                if pdf_match:
-                    pdf_name = pdf_match.group(1).strip()
-                    if pdf_name and pdf_name not in source_pdfs:
-                        source_pdfs.append(pdf_name)
+                source_pdf = pdf_match.group(1).strip() if pdf_match else None
 
-            # Also check for description/syntax directly under ## (without subsection)
-            if not descriptions:
+                # Extract version from source PDF
+                platform, product_version, doc_version = self._extract_version_from_source(source_pdf)
+
+                # Determine final platform (subsection > pdf > file > product_name)
+                final_platform = subsection_platform or platform or file_platform or product_name.strip()
+
+                if final_platform and (description or syntax):
+                    created_platform_docs = True
+
+                    # Extract parent tool from syntax (e.g., "tjesmgr BOOT" -> "tjesmgr")
+                    parent_tool = self._extract_parent_tool_from_syntax(syntax, subsection)
+
+                    doc_id = f"cmd_{cmd_name.lower()}_{final_platform.lower()}"
+                    doc = SummaryDocument(
+                        id=doc_id,
+                        content=subsection.strip()[:1000],
+                        doc_type=doc_type,
+                        source_file=source_file,
+                        source_pdf=source_pdf,
+                        page_numbers=page_numbers,
+                        name=cmd_name,
+                        description=description,
+                        syntax=syntax,
+                        product=product_name.strip(),
+                        platform=final_platform,
+                        product_version=product_version,
+                        document_version=doc_version,
+                        parent_tool=parent_tool,
+                        metadata={
+                            "products": products,
+                            "subsection_header": product_name.strip()
+                        }
+                    )
+
+                    self._documents.append(doc)
+                    # Include parent_tool in searchable content
+                    search_content = f"{cmd_name} {final_platform} {description or ''} {syntax or ''} {parent_tool or ''}"
+                    self._doc_contents.append(search_content)
+
+                    # Index by command name
+                    cmd_lower = cmd_name.lower()
+                    if cmd_lower not in self._command_index:
+                        self._command_index[cmd_lower] = []
+                    self._command_index[cmd_lower].append(doc)
+
+                    # Index by parent tool (for grouping subcommands)
+                    if parent_tool:
+                        parent_lower = parent_tool.lower()
+                        if parent_lower not in self._parent_tool_index:
+                            self._parent_tool_index[parent_lower] = []
+                        self._parent_tool_index[parent_lower].append(doc)
+
+            # If no subsections found, create a single document with file-level platform
+            if not created_platform_docs:
+                # Check for description - try **설명**: first, then first paragraph
                 desc_match = re.search(r'\*\*설명\*\*:\s*(.+?)(?=\n-|\n\*\*|$)', details, re.DOTALL)
-                if desc_match:
-                    descriptions.append(' '.join(desc_match.group(1).strip().split())[:200])
+                if not desc_match:
+                    # Description is first paragraph before **구문** or **지원
+                    # Match everything from start until we hit \n\n** or \n**
+                    desc_match = re.search(r'^(.+?)(?=\n\n\*\*|\n\*\*)', details.strip(), re.DOTALL)
+                description = ' '.join(desc_match.group(1).strip().split())[:200] if desc_match else None
 
-            if not syntaxes:
-                syntax_match = re.search(r'\*\*구문\*\*:\s*`([^`]+)`', details, re.DOTALL)
-                if syntax_match:
-                    syntaxes.append(syntax_match.group(1).strip().split('\n')[0])
+                # Extract syntax (handle both single backticks and code blocks)
+                # Try code block first: ```\n...\n```
+                syntax_match = re.search(r'\*\*구문[:\*]*\s*\n```\n?([^`]+?)```', details, re.DOTALL)
+                if not syntax_match:
+                    # Try single backticks: `...`
+                    syntax_match = re.search(r'\*\*구문\*\*:\s*`([^`]+)`', details, re.DOTALL)
+                syntax = syntax_match.group(1).strip().split('\n')[0] if syntax_match else None
 
-            # Also check for source/page directly under ## (without subsection)
-            # Handle both 소스: and 참조: formats
-            if not source_pdfs:
                 pdf_match = re.search(r'(?:소스|참조)\**:\s*([^\(\n]+\.pdf)', details, re.IGNORECASE)
-                if pdf_match:
-                    source_pdfs.append(pdf_match.group(1).strip())
-            if not pages:
+                source_pdf = pdf_match.group(1).strip() if pdf_match else None
+
                 page_match = re.search(r'(?:소스|참조)\**:.*?\(p\.?(\d+)\)', details)
-                if page_match:
-                    pages.append(int(page_match.group(1)))
+                pages = [int(page_match.group(1))] if page_match else []
 
-            description = descriptions[0] if descriptions else None
-            syntax = syntaxes[0] if syntaxes else None
-            source_pdf = source_pdfs[0] if source_pdfs else None
+                # Extract version from source PDF
+                platform, product_version, doc_version = self._extract_version_from_source(source_pdf)
+                final_platform = platform or file_platform
 
-            doc = SummaryDocument(
-                id=f"cmd_{cmd_name.lower()}",
-                content=details.strip()[:1000],  # Limit content size
-                doc_type=doc_type,
-                source_file=source_file,
-                source_pdf=source_pdf,
-                page_numbers=list(set(pages)),  # Deduplicate
-                name=cmd_name,
-                description=description,
-                syntax=syntax,
-                product=", ".join(products) if products else None,
-                metadata={"products": products, "all_descriptions": descriptions}
-            )
+                # Extract parent tool from syntax
+                parent_tool = self._extract_parent_tool_from_syntax(syntax, details)
 
-            self._documents.append(doc)
-            # Create searchable content including all descriptions
-            search_content = f"{cmd_name} {' '.join(descriptions)} {syntax or ''} {' '.join(products)}"
-            self._doc_contents.append(search_content)
+                doc_id = f"cmd_{cmd_name.lower()}"
+                if final_platform:
+                    doc_id = f"cmd_{cmd_name.lower()}_{final_platform.lower()}"
 
-            # Index by command name
-            cmd_lower = cmd_name.lower()
-            if cmd_lower not in self._command_index:
-                self._command_index[cmd_lower] = []
-            self._command_index[cmd_lower].append(doc)
+                doc = SummaryDocument(
+                    id=doc_id,
+                    content=details.strip()[:1000],
+                    doc_type=doc_type,
+                    source_file=source_file,
+                    source_pdf=source_pdf,
+                    page_numbers=list(set(pages)),
+                    name=cmd_name,
+                    description=description,
+                    syntax=syntax,
+                    product=", ".join(products) if products else None,
+                    platform=final_platform,
+                    product_version=product_version,
+                    document_version=doc_version,
+                    parent_tool=parent_tool,
+                    metadata={"products": products}
+                )
+
+                self._documents.append(doc)
+                search_content = f"{cmd_name} {final_platform or ''} {description or ''} {syntax or ''} {' '.join(products)} {parent_tool or ''}"
+                self._doc_contents.append(search_content)
+
+                # Index by command name
+                cmd_lower = cmd_name.lower()
+                if cmd_lower not in self._command_index:
+                    self._command_index[cmd_lower] = []
+                self._command_index[cmd_lower].append(doc)
+
+                # Index by parent tool (for grouping subcommands)
+                if parent_tool:
+                    parent_lower = parent_tool.lower()
+                    if parent_lower not in self._parent_tool_index:
+                        self._parent_tool_index[parent_lower] = []
+                    self._parent_tool_index[parent_lower].append(doc)
 
     async def _parse_glossary(self, content: str, source_file: str, doc_type: SummaryDocType):
         """Parse glossary summary file
@@ -835,6 +1026,176 @@ class SummaryBM25Service:
     def document_count(self) -> int:
         """Get total document count"""
         return len(self._documents)
+
+    async def search_multi_product(
+        self,
+        query: str,
+        top_k: int = 10
+    ) -> List[MultiProductResult]:
+        """
+        Search and aggregate results by command/error name across all platforms.
+
+        This method groups search results by entity name (command, error code, term)
+        and returns one MultiProductResult per unique entity, with platform-specific
+        variants.
+
+        Special handling for parent tools (e.g., "tjesmgr"):
+        - If query matches a parent tool, aggregates all subcommands by platform
+        - Creates a combined description with key subcommand info
+
+        Args:
+            query: Search query
+            top_k: Maximum number of aggregated results to return
+
+        Returns:
+            List of MultiProductResult, each containing platform variants
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        multi_results: List[MultiProductResult] = []
+
+        # Check if query is a parent tool name (e.g., "tjesmgr", "hidbmgr")
+        query_lower = query.lower().strip()
+        query_tokens = query_lower.split()
+
+        # Look for parent tool matches
+        parent_tool_match = None
+        for token in query_tokens:
+            if token in self._parent_tool_index:
+                parent_tool_match = token
+                break
+
+        if parent_tool_match and len(self._parent_tool_index.get(parent_tool_match, [])) > 0:
+            # Aggregate subcommands by platform for this parent tool
+            subcommands = self._parent_tool_index[parent_tool_match]
+            logger.info(f"[MultiProduct] Found {len(subcommands)} subcommands for tool: {parent_tool_match}")
+
+            # Group subcommands by platform
+            by_platform: Dict[str, List[SummaryDocument]] = defaultdict(list)
+            for doc in subcommands:
+                platform = doc.platform or self._extract_platform_from_source_file(doc.source_file)
+                if not platform:
+                    platform, _, _ = self._extract_version_from_source(doc.source_pdf or "")
+                if not platform:
+                    platform = "Common"
+                by_platform[platform].append(doc)
+
+            # Create variants for each platform
+            variants: List[ProductVariant] = []
+            for platform, docs in by_platform.items():
+                # Sort docs by name for consistent ordering
+                docs.sort(key=lambda d: d.name or "")
+
+                # Build combined description from top subcommands
+                subcommand_info = []
+                for doc in docs[:5]:  # Top 5 subcommands
+                    if doc.description:
+                        subcommand_info.append(f"• {doc.name}: {doc.description[:80]}")
+                    elif doc.syntax:
+                        subcommand_info.append(f"• {doc.name}: {doc.syntax[:50]}")
+
+                combined_desc = f"{parent_tool_match.upper()} 관리 유틸리티 ({platform})"
+                if subcommand_info:
+                    combined_desc += "\n주요 명령어:\n" + "\n".join(subcommand_info)
+
+                # Get version from first doc
+                first_doc = docs[0]
+                variant = ProductVariant(
+                    platform=platform,
+                    product_version=first_doc.product_version,
+                    description=combined_desc,
+                    syntax=f"{parent_tool_match} <command> [options]",
+                    source_pdf=first_doc.source_pdf,
+                    page_numbers=first_doc.page_numbers,
+                    document_version=first_doc.document_version
+                )
+                variants.append(variant)
+
+            if variants:
+                # Sort variants by platform priority
+                platform_order = {"MVS": 0, "MSP": 1, "XSP": 2, "VOS3": 3, "Common": 4}
+                variants.sort(key=lambda v: platform_order.get(v.platform, 99))
+
+                multi_result = MultiProductResult(
+                    name=parent_tool_match,
+                    doc_type=SummaryDocType.COMMANDS,
+                    variants=variants,
+                    score=1.0  # High score for direct tool match
+                )
+                multi_results.append(multi_result)
+
+        # Also do regular comprehensive search
+        search_result = await self.comprehensive_search(query, top_k=top_k * 4)
+
+        if search_result.results:
+            # Group results by entity name (case-insensitive)
+            by_name: Dict[str, List[SummarySearchResult]] = defaultdict(list)
+            for sr in search_result.results:
+                name_key = (sr.document.name or "").lower()
+                # Skip if name matches the parent tool we already processed
+                if parent_tool_match and name_key == parent_tool_match:
+                    continue
+                if name_key:
+                    by_name[name_key].append(sr)
+
+            # Build MultiProductResult for each unique entity
+            for name_key, docs in by_name.items():
+                if not docs:
+                    continue
+
+                # Get the canonical name and doc_type from first result
+                first_doc = docs[0].document
+                canonical_name = first_doc.name or name_key
+
+                # Build variants from all matching documents
+                variants: List[ProductVariant] = []
+                seen_platforms: Set[str] = set()
+
+                for sr in docs:
+                    doc = sr.document
+
+                    # Determine platform
+                    platform = doc.platform or self._extract_platform_from_source_file(doc.source_file)
+                    if not platform:
+                        # Try to extract from source PDF
+                        platform, _, _ = self._extract_version_from_source(doc.source_pdf or "")
+                    if not platform:
+                        platform = "Common"  # Default for documents without platform info
+
+                    # Skip duplicate platforms (keep highest scoring one)
+                    if platform in seen_platforms:
+                        continue
+                    seen_platforms.add(platform)
+
+                    variant = ProductVariant(
+                        platform=platform,
+                        product_version=doc.product_version,
+                        description=doc.description,
+                        syntax=doc.syntax,
+                        source_pdf=doc.source_pdf,
+                        page_numbers=doc.page_numbers,
+                        solution=doc.solution,
+                        document_version=doc.document_version
+                    )
+                    variants.append(variant)
+
+                if variants:
+                    # Sort variants by platform priority
+                    platform_order = {"MVS": 0, "MSP": 1, "XSP": 2, "VOS3": 3, "Common": 4}
+                    variants.sort(key=lambda v: platform_order.get(v.platform, 99))
+
+                    multi_result = MultiProductResult(
+                        name=canonical_name,
+                        doc_type=first_doc.doc_type,
+                        variants=variants,
+                        score=max(sr.score for sr in docs)
+                    )
+                    multi_results.append(multi_result)
+
+        # Sort by score and limit
+        multi_results.sort(key=lambda r: r.score, reverse=True)
+        return multi_results[:top_k]
 
 
 # Singleton instance

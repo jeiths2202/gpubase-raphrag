@@ -17,6 +17,7 @@ import { ImageBlock } from './ImageBlock';
 import { SourceCitationBlock } from './SourceCitationBlock';
 import { NoAnswerBlock } from './NoAnswerBlock';
 import { SkeletonBlock } from './SkeletonBlock';
+import { ProductVersionBlock } from './ProductVersionBlock';
 
 /**
  * Renders a single block based on its type
@@ -61,6 +62,9 @@ const renderBlock = (
 
     case 'no_answer':
       return <NoAnswerBlock key={key} block={block} />;
+
+    case 'product_version':
+      return <ProductVersionBlock key={key} block={block} />;
 
     default:
       // Fallback: render as text

@@ -12,7 +12,8 @@ export type BlockType =
   | 'quote'
   | 'image'
   | 'source_citation'
-  | 'no_answer';
+  | 'no_answer'
+  | 'product_version';
 
 /**
  * Individual content block in a structured answer
@@ -44,6 +45,27 @@ export interface AnswerBlock {
   page?: number;
   chunk_id?: string;
   score?: number;
+
+  // Product version block fields
+  name?: string;  // Command/error/term name
+  doc_type?: string;  // commands, error-codes, glossary
+  variants?: ProductVariantData[];
+  has_differences?: boolean;
+  available_platforms?: string[];
+}
+
+/**
+ * Product variant data for ProductVersionBlock
+ */
+export interface ProductVariantData {
+  platform: string;        // MVS, MSP, XSP, VOS3
+  product_version?: string; // 7.1, 7.3
+  description?: string;
+  syntax?: string;
+  source_pdf?: string;
+  page_numbers?: number[];
+  solution?: string;
+  document_version?: string;
 }
 
 /**

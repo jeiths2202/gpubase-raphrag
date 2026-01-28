@@ -69,8 +69,61 @@ class SummaryDocument:
     solution: Optional[str] = None  # For error codes
     product: Optional[str] = None  # Product name (OpenFrame, Tibero, etc.)
 
+    # Platform/Version fields for multi-product search
+    platform: Optional[str] = None  # MVS, MSP, XSP, VOS3
+    product_version: Optional[str] = None  # 7.1, 7.3
+    document_version: Optional[str] = None  # v3.3.1
+
+    # Parent tool field for subcommand grouping (e.g., "tjesmgr" for "BOOT" command)
+    parent_tool: Optional[str] = None
+
     def __hash__(self):
         return hash(self.id)
+
+
+@dataclass
+class ProductVariant:
+    """
+    Single product/version variant of a command or error code.
+
+    Represents how a specific command or error behaves on a particular
+    platform (MVS, MSP, XSP, VOS3) and version.
+    """
+    platform: str  # MVS, MSP, XSP, VOS3
+    product_version: Optional[str] = None  # 7.1, 7.3
+    description: Optional[str] = None
+    syntax: Optional[str] = None
+    source_pdf: Optional[str] = None
+    page_numbers: List[int] = field(default_factory=list)
+    solution: Optional[str] = None  # For error codes
+    document_version: Optional[str] = None  # v3.3.1
+
+
+@dataclass
+class MultiProductResult:
+    """
+    Aggregated result across multiple platforms/versions.
+
+    Groups the same command or error code across different platforms
+    to show platform-specific differences.
+    """
+    name: str  # Command/error name
+    doc_type: SummaryDocType
+    variants: List[ProductVariant] = field(default_factory=list)
+    score: float = 0.0
+
+    @property
+    def has_differences(self) -> bool:
+        """Check if variants have different descriptions (platform-specific behavior)"""
+        if len(self.variants) <= 1:
+            return False
+        descriptions = [v.description for v in self.variants if v.description]
+        return len(set(descriptions)) > 1
+
+    @property
+    def available_platforms(self) -> List[str]:
+        """Get list of platforms where this command/error exists"""
+        return [v.platform for v in self.variants]
 
 
 @dataclass
@@ -243,6 +296,77 @@ class ComprehensiveSearchResultResponse(BaseModel):
                 "detected_commands": [],
                 "detected_terms": [],
                 "context_string": "[에러 DSALC_ERR_DATASET_NOT_FOUND: 데이터셋을 찾을 수 없습니다]"
+            }
+        }
+    }
+
+
+class ProductVariantResponse(BaseModel):
+    """API response model for a single product/version variant"""
+    platform: str = Field(..., description="Platform identifier (MVS, MSP, XSP, VOS3)")
+    product_version: Optional[str] = Field(None, description="Product version (e.g., 7.1, 7.3)")
+    description: Optional[str] = Field(None, description="Platform-specific description")
+    syntax: Optional[str] = Field(None, description="Platform-specific syntax")
+    source_pdf: Optional[str] = Field(None, description="Source PDF filename")
+    page_numbers: List[int] = Field(default_factory=list, description="Page numbers in source PDF")
+    solution: Optional[str] = Field(None, description="Platform-specific solution (for error codes)")
+    document_version: Optional[str] = Field(None, description="Document version (e.g., v3.3.1)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "platform": "MVS",
+                "product_version": "7.3",
+                "description": "TJES 노드를 초기화합니다",
+                "syntax": "tjesmgr BOOT [node_name]",
+                "source_pdf": "OF_Common_MVS_7.3_Tool-Reference-Guide_v3.3.1_ja.pdf",
+                "page_numbers": [45, 46],
+                "document_version": "v3.3.1"
+            }
+        }
+    }
+
+
+class MultiProductResultResponse(BaseModel):
+    """API response model for aggregated multi-product search result"""
+    name: str = Field(..., description="Command/error/term name")
+    doc_type: str = Field(..., description="Document type (error-codes, commands, glossary, etc.)")
+    variants: List[ProductVariantResponse] = Field(
+        default_factory=list,
+        description="Platform-specific variants"
+    )
+    has_differences: bool = Field(
+        default=False,
+        description="True if variants have different behavior across platforms"
+    )
+    available_platforms: List[str] = Field(
+        default_factory=list,
+        description="List of platforms where this item exists"
+    )
+    score: float = Field(default=0.0, description="Best match score across variants")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "name": "tjesmgr",
+                "doc_type": "commands",
+                "variants": [
+                    {
+                        "platform": "MVS",
+                        "product_version": "7.3",
+                        "description": "TJES 관리자 유틸리티 (MVS)",
+                        "syntax": "tjesmgr [command] [options]"
+                    },
+                    {
+                        "platform": "MSP",
+                        "product_version": "7.3",
+                        "description": "TJES 관리자 유틸리티 (MSP)",
+                        "syntax": "tjesmgr [command] [options]"
+                    }
+                ],
+                "has_differences": True,
+                "available_platforms": ["MVS", "MSP", "XSP", "VOS3"],
+                "score": 0.95
             }
         }
     }

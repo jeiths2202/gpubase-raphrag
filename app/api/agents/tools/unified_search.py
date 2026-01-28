@@ -340,6 +340,61 @@ Returns relevant document chunks with full context and source information."""
             logger.warning(f"[SummaryFirst] Search failed, continuing to vector search: {e}")
             return None
 
+    async def _get_multi_product_results(
+        self,
+        query: str,
+        top_k: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Get multi-product aggregated results for platform comparison.
+
+        Args:
+            query: Search query
+            top_k: Maximum number of aggregated results
+
+        Returns:
+            List of multi-product result dicts with platform variants
+        """
+        try:
+            from ...services.summary_bm25_service import get_summary_bm25_service
+
+            bm25_service = get_summary_bm25_service()
+            if not bm25_service.is_initialized:
+                await bm25_service.initialize()
+
+            multi_results = await bm25_service.search_multi_product(query, top_k=top_k)
+
+            # Convert to serializable dict format
+            result_dicts = []
+            for mr in multi_results:
+                variants_list = []
+                for v in mr.variants:
+                    variants_list.append({
+                        "platform": v.platform,
+                        "product_version": v.product_version,
+                        "description": v.description,
+                        "syntax": v.syntax,
+                        "source_pdf": v.source_pdf,
+                        "page_numbers": v.page_numbers,
+                        "solution": v.solution,
+                        "document_version": v.document_version
+                    })
+
+                result_dicts.append({
+                    "name": mr.name,
+                    "doc_type": mr.doc_type.value,
+                    "variants": variants_list,
+                    "has_differences": mr.has_differences,
+                    "available_platforms": mr.available_platforms,
+                    "score": mr.score
+                })
+
+            return result_dicts
+
+        except Exception as e:
+            logger.warning(f"[MultiProduct] Search failed: {e}")
+            return []
+
     async def _build_response_from_summaries(
         self,
         summary_result: Dict[str, Any],
@@ -350,6 +405,7 @@ Returns relevant document chunks with full context and source information."""
         Build a ToolResult from summary search results.
 
         Called when Summary-First search has HIGH confidence.
+        Now includes multi-product aggregation for platform comparison.
 
         Args:
             summary_result: Result from _summary_first_search
@@ -357,11 +413,14 @@ Returns relevant document chunks with full context and source information."""
             context: Agent context
 
         Returns:
-            ToolResult with formatted summary results
+            ToolResult with formatted summary results and multi-product info
         """
         results = summary_result.get("results", [])
         confidence = summary_result.get("confidence", "high")
         page_references = summary_result.get("page_references", [])
+
+        # Get multi-product aggregated results for platform comparison
+        multi_product_results = await self._get_multi_product_results(query, top_k=5)
 
         # Build output text
         output_parts = [
@@ -502,7 +561,45 @@ Returns relevant document chunks with full context and source information."""
             context.metadata['sources'] = []
         context.metadata['sources'].extend(sources)
 
-        # Build result metadata
+        # Check if any multi-product results have platform differences
+        has_platform_differences = any(
+            mpr.get("has_differences", False) for mpr in multi_product_results
+        )
+
+        # Build product sections for frontend display
+        product_sections = []
+        for mpr in multi_product_results:
+            if mpr.get("has_differences"):
+                # Create separate sections for each platform variant
+                for variant in mpr.get("variants", []):
+                    section_content = f"## {variant['platform']}"
+                    if variant.get("product_version"):
+                        section_content += f" (v{variant['product_version']})"
+                    section_content += f"\n{variant.get('description', '')}"
+                    if variant.get("syntax"):
+                        section_content += f"\n구문: `{variant['syntax']}`"
+
+                    product_sections.append({
+                        "platform": variant["platform"],
+                        "version": variant.get("product_version"),
+                        "content": section_content,
+                        "source": variant.get("source_pdf"),
+                        "page_numbers": variant.get("page_numbers", [])
+                    })
+            else:
+                # Common content - use first variant
+                variants = mpr.get("variants", [])
+                if variants:
+                    first_variant = variants[0]
+                    product_sections.append({
+                        "platform": "공통",
+                        "content": first_variant.get("description", ""),
+                        "available_platforms": mpr.get("available_platforms", []),
+                        "source": first_variant.get("source_pdf"),
+                        "page_numbers": first_variant.get("page_numbers", [])
+                    })
+
+        # Build result metadata with multi-product info
         result_metadata = {
             "results_count": len(enriched_results),
             "query": query,
@@ -514,6 +611,11 @@ Returns relevant document chunks with full context and source information."""
             "detected_error_codes": summary_result.get("detected_error_codes", []),
             "detected_commands": summary_result.get("detected_commands", []),
             "detected_terms": summary_result.get("detected_terms", []),
+            # Multi-product information for frontend
+            "multi_product": len(multi_product_results) > 0,
+            "multi_product_results": multi_product_results,
+            "product_sections": product_sections,
+            "has_platform_differences": has_platform_differences,
         }
 
         return self.create_success_result(
@@ -1691,12 +1793,19 @@ Returns relevant document chunks with full context and source information."""
 
                         if verification_score >= LEARNING_LLM_VERIFICATION_THRESHOLD:
                             logger.info(f"[LearningLLM] Score >= threshold, returning verified response")
+
+                            # Get multi-product results for platform comparison
+                            multi_product_results = await self._get_multi_product_results(search_query, top_k=5)
+                            if multi_product_results:
+                                logger.info(f"[LearningLLM] Added {len(multi_product_results)} multi-product results")
+
                             # High confidence, verified answer - return directly
                             verified_response = await self._build_learning_llm_response(
                                 learning_llm_result=learning_llm_result,
                                 verification_result=verification_result,
                                 query=query,
                                 context=context,
+                                multi_product_results=multi_product_results,
                             )
                             output_len = len(verified_response.get('output', '')) if isinstance(verified_response, dict) else len(verified_response.output or '')
                             logger.info(f"[LearningLLM] Built verified response, output_len={output_len}")
@@ -2099,6 +2208,19 @@ Returns relevant document chunks with full context and source information."""
                 result_metadata["original_llm_query"] = llm_query
                 result_metadata["corrected_query"] = query
 
+            # Add multi-product results for platform comparison
+            try:
+                multi_product_results = await self._get_multi_product_results(query, top_k=5)
+                if multi_product_results:
+                    result_metadata["multi_product"] = True
+                    result_metadata["multi_product_results"] = multi_product_results
+                    result_metadata["has_platform_differences"] = any(
+                        mpr.get("has_differences", False) for mpr in multi_product_results
+                    )
+                    logger.info(f"[UnifiedSearch] Added {len(multi_product_results)} multi-product results")
+            except Exception as mpr_err:
+                logger.warning(f"[UnifiedSearch] Failed to get multi-product results: {mpr_err}")
+
             return self.create_success_result(
                 "\n".join(output_parts),
                 metadata=result_metadata
@@ -2234,6 +2356,7 @@ Returns relevant document chunks with full context and source information."""
         verification_result: Dict[str, Any],
         query: str,
         context: Optional[AgentContext] = None,
+        multi_product_results: Optional[List[Dict[str, Any]]] = None,
     ) -> ToolResult:
         """
         검증된 Learning LLM 응답을 ToolResult로 변환
@@ -2300,6 +2423,15 @@ Returns relevant document chunks with full context and source information."""
                 for ref in source_references
             ],
         }
+
+        # Add multi-product results for platform comparison
+        if multi_product_results:
+            result_metadata["multi_product"] = True
+            result_metadata["multi_product_results"] = multi_product_results
+            result_metadata["has_platform_differences"] = any(
+                mpr.get("has_differences", False) for mpr in multi_product_results
+            )
+            logger.info(f"[LearningLLM] Added {len(multi_product_results)} multi-product results to metadata")
 
         # Store sources in context metadata
         if context and context.metadata is not None:

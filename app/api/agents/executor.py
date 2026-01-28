@@ -666,7 +666,7 @@ def _should_use_direct_mode(
     task: str,
     context: AgentContext,
     response_mode: ResponseMode = ResponseMode.HYBRID
-) -> tuple[bool, Optional[List[Dict[str, Any]]], Optional[HybridModeDecision]]:
+) -> tuple[bool, Optional[List[Dict[str, Any]]], Optional[HybridModeDecision], Optional[List[Dict[str, Any]]]]:
     """
     Direct 모드 사용 여부 결정.
 
@@ -677,18 +677,33 @@ def _should_use_direct_mode(
         response_mode: 응답 모드 설정
 
     Returns:
-        (use_direct, search_results, decision)
+        (use_direct, search_results, decision, multi_product_results)
         - use_direct: Direct 모드 사용 여부
         - search_results: 검색 결과 (Direct 모드일 때)
         - decision: 하이브리드 모드 결정 정보
+        - multi_product_results: Multi-product aggregated results for platform comparison
     """
     # 명시적 LLM 모드면 스킵
     if response_mode == ResponseMode.LLM:
-        return False, None, None
+        return False, None, None, None
+
+    # 검색 결과 추출 (먼저 추출해야 multi_product_results도 함께 사용 가능)
+    search_results = _extract_search_results_from_tool_results(tool_results)
+
+    # Extract multi_product_results from tool result metadata (do this BEFORE Learning LLM check)
+    multi_product_results = None
+    for result in tool_results:
+        if result.get("success") and result.get("metadata"):
+            mpr = result["metadata"].get("multi_product_results")
+            if mpr:
+                multi_product_results = mpr
+                logger.info(f"[HybridMode] Found {len(mpr)} multi-product results")
+                break
 
     # ================================================================
     # Check for Learning LLM result (verified knowledge)
-    # If we have a successful Learning LLM response, bypass normal search flow
+    # If we have a successful Learning LLM response with multi-product results,
+    # use DIRECT mode to trigger structured output
     # ================================================================
     for result in tool_results:
         if not result.get("success"):
@@ -698,17 +713,27 @@ def _should_use_direct_mode(
             confidence = metadata.get("confidence", 0)
             verification_score = metadata.get("verification_score", 0)
             logger.info(f"[HybridMode] Learning LLM result found - confidence={confidence:.2f}, verification={verification_score:.2f}")
-            # Return None to let the LLM stream the output directly (not direct mode)
-            return False, None, None
 
-    # 검색 결과 추출
-    search_results = _extract_search_results_from_tool_results(tool_results)
+            # If we have multi-product results, use direct mode for structured output
+            if multi_product_results:
+                logger.info(f"[HybridMode] Learning LLM with multi-product results - using direct mode for structured output")
+                decision = HybridModeDecision(
+                    use_direct=True,
+                    reason="learning_llm_with_multi_product",
+                    confidence=confidence,
+                    top_score=verification_score,
+                    result_count=len(multi_product_results)
+                )
+                return True, search_results or [], decision, multi_product_results
+
+            # No multi-product results, let LLM stream the output directly (not direct mode)
+            return False, None, None, None
 
     # ================================================================
     # 검색 결과 없음 → Direct 모드로 "정보 없음" 반환 (할루시네이션 방지)
     # LLM에게 맡기면 일반 지식으로 답변할 수 있으므로 강제로 Direct 모드 사용
     # ================================================================
-    if not search_results:
+    if not search_results and not multi_product_results:
         logger.info("[HybridMode] No search results - forcing Direct mode to prevent hallucination")
         decision = HybridModeDecision(
             use_direct=True,
@@ -717,7 +742,7 @@ def _should_use_direct_mode(
             top_score=0.0,
             result_count=0
         )
-        return True, [], decision  # 빈 리스트 반환 (None 대신)
+        return True, [], decision, None  # 빈 리스트 반환 (None 대신)
 
     # 명시적 Direct 모드
     if response_mode == ResponseMode.DIRECT:
@@ -728,7 +753,7 @@ def _should_use_direct_mode(
             top_score=search_results[0].get("rrf_score", 0) if search_results else 0,
             result_count=len(search_results)
         )
-        return True, search_results, decision
+        return True, search_results, decision, multi_product_results
 
     # 하이브리드 모드: 자동 결정
     formatter = _get_direct_formatter()
@@ -740,7 +765,7 @@ def _should_use_direct_mode(
         f"top_score={decision.top_score:.4f}, results={decision.result_count}"
     )
 
-    return decision.use_direct, search_results, decision
+    return decision.use_direct, search_results, decision, multi_product_results
 
 
 def _format_direct_response(
@@ -1259,7 +1284,8 @@ async def _build_and_stream_structured_answer(
     search_results: List[Dict[str, Any]],
     query: str,
     language: str,
-    sources: List[Dict[str, Any]]
+    sources: List[Dict[str, Any]],
+    multi_product_results: Optional[List[Dict[str, Any]]] = None
 ) -> AsyncGenerator[AgentStreamChunk, None]:
     """
     Build structured answer from search results and stream it.
@@ -1269,6 +1295,7 @@ async def _build_and_stream_structured_answer(
         query: User's original query
         language: Response language
         sources: Source list for citation
+        multi_product_results: Optional multi-product aggregated results for platform comparison
 
     Yields:
         AgentStreamChunk for structured answer
@@ -1282,7 +1309,8 @@ async def _build_and_stream_structured_answer(
         answer = await builder.build_answer(
             query=query,
             search_results=search_results,
-            language=language
+            language=language,
+            multi_product_results=multi_product_results
         )
 
         logger.info(
@@ -1691,7 +1719,7 @@ User Query:"""
                     response_mode = ResponseMode(
                         context.metadata.get("response_mode", "hybrid")
                     )
-                    use_direct, search_results, decision = _should_use_direct_mode(
+                    use_direct, search_results, decision, multi_product_results = _should_use_direct_mode(
                         tool_results, task, context, response_mode
                     )
 
@@ -2266,7 +2294,7 @@ User Query:"""
                     response_mode = ResponseMode(
                         context.metadata.get("response_mode", "hybrid")
                     )
-                    use_direct, search_results, decision = _should_use_direct_mode(
+                    use_direct, search_results, decision, multi_product_results = _should_use_direct_mode(
                         tool_results, task, context, response_mode
                     )
 
@@ -2282,9 +2310,12 @@ User Query:"""
                             getattr(api_settings, 'ENABLE_STRUCTURED_ANSWER', False)
                         )
 
-                        if use_structured and search_results:
+                        # Trigger structured output if we have search_results OR multi_product_results
+                        if use_structured and (search_results or multi_product_results):
                             logger.info(
-                                f"Using STRUCTURED OUTPUT mode (reason={decision.reason})"
+                                f"Using STRUCTURED OUTPUT mode (reason={decision.reason}, "
+                                f"search_results={len(search_results) if search_results else 0}, "
+                                f"multi_product={len(multi_product_results) if multi_product_results else 0})"
                             )
 
                             # Stream structured answer blocks
@@ -2292,7 +2323,8 @@ User Query:"""
                                 search_results=search_results,
                                 query=task,
                                 language=context.language or "ko",
-                                sources=sources
+                                sources=sources,
+                                multi_product_results=multi_product_results
                             ):
                                 yield chunk
 

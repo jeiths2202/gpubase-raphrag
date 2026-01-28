@@ -5,6 +5,7 @@
 
 // Styles
 import './blocks.css';
+import './ProductVersionBlock.css';
 
 // Types
 export type {
@@ -14,6 +15,7 @@ export type {
   BlockRendererProps,
   SourceCitationInfo,
   BaseBlockProps,
+  ProductVariantData,
 } from './types';
 
 // Main renderer
@@ -32,3 +34,4 @@ export { SourceCitationBlock } from './SourceCitationBlock';
 export { NoAnswerBlock } from './NoAnswerBlock';
 export { SkeletonBlock } from './SkeletonBlock';
 export { ClarificationBlock } from './ClarificationBlock';
+export { ProductVersionBlock } from './ProductVersionBlock';

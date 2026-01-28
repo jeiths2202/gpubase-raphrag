@@ -1,0 +1,396 @@
+/**
+ * ProductVersionBlock Styles
+ * Multi-product search results with collapsible platform sections
+ */
+
+/* ============================================
+   Main Container
+   ============================================ */
+
+.product-version-block {
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  margin: var(--space-3, 12px) 0;
+  background: var(--color-bg-primary, #fff);
+  overflow: hidden;
+}
+
+/* ============================================
+   Header Section
+   ============================================ */
+
+.pv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  background: var(--color-bg-secondary, #f9fafb);
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.pv-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+}
+
+.pv-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 12px);
+  flex-wrap: wrap;
+}
+
+.pv-doc-type {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-secondary, #666);
+  letter-spacing: 0.05em;
+}
+
+.pv-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-primary, #333);
+  font-family: 'Fira Code', 'Monaco', 'Menlo', monospace;
+}
+
+/* ============================================
+   Platform Badges
+   ============================================ */
+
+.pv-badges {
+  display: flex;
+  gap: var(--space-1, 4px);
+}
+
+.platform-badge {
+  padding: 2px 8px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.platform-badge.small {
+  padding: 1px 6px;
+  font-size: 0.7rem;
+}
+
+/* Platform-specific colors */
+.platform-badge.platform-mvs {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.platform-badge.platform-msp {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.platform-badge.platform-xsp {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+.platform-badge.platform-vos3 {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.platform-badge.platform-common {
+  background: var(--color-bg-tertiary, #e5e7eb);
+  color: var(--color-text-secondary, #666);
+}
+
+/* ============================================
+   Warning Badge
+   ============================================ */
+
+.warning-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff3cd;
+  color: #856404;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.warning-badge svg {
+  flex-shrink: 0;
+}
+
+/* ============================================
+   Expand/Collapse Controls
+   ============================================ */
+
+.pv-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1, 4px);
+  font-size: 0.75rem;
+}
+
+.pv-control-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-primary, #2563eb);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 0.75rem;
+}
+
+.pv-control-btn:hover {
+  text-decoration: underline;
+}
+
+.pv-control-sep {
+  color: var(--color-text-secondary, #888);
+}
+
+/* ============================================
+   Section List
+   ============================================ */
+
+.pv-sections {
+  display: flex;
+  flex-direction: column;
+}
+
+.pv-section {
+  border-top: 1px solid var(--color-border, #e5e7eb);
+}
+
+.pv-section:first-child {
+  border-top: none;
+}
+
+/* ============================================
+   Section Header (Collapsible)
+   ============================================ */
+
+.pv-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  width: 100%;
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.pv-section-header:hover {
+  background: var(--color-bg-hover, #f3f4f6);
+}
+
+.pv-section-header.expanded {
+  background: var(--color-bg-secondary, #f9fafb);
+}
+
+.pv-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary, #666);
+}
+
+/* ============================================
+   Version Tags
+   ============================================ */
+
+.version-tag {
+  background: var(--color-primary, #2563eb);
+  color: white;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.doc-version-tag {
+  background: var(--color-bg-tertiary, #e5e7eb);
+  color: var(--color-text-secondary, #666);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.65rem;
+}
+
+/* ============================================
+   Section Content
+   ============================================ */
+
+.pv-section-content {
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  padding-left: calc(var(--space-4, 16px) + 24px);
+  background: var(--color-bg-primary, #fff);
+  animation: slideDown 0.15s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   Field Display
+   ============================================ */
+
+.pv-field {
+  margin-bottom: var(--space-3, 12px);
+}
+
+.pv-field:last-child {
+  margin-bottom: 0;
+}
+
+.pv-field-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary, #666);
+  margin-bottom: var(--space-1, 4px);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pv-field-value {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text-primary, #333);
+}
+
+/* ============================================
+   Syntax Display
+   ============================================ */
+
+.pv-syntax {
+  display: block;
+  background: var(--color-bg-tertiary, #1e1e1e);
+  color: var(--color-text-primary, #d4d4d4);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border-radius: var(--radius-sm, 4px);
+  font-family: 'Fira Code', 'Monaco', 'Menlo', monospace;
+  font-size: 0.8125rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ============================================
+   Source Reference
+   ============================================ */
+
+.pv-source {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1, 4px);
+  margin-top: var(--space-2, 8px);
+  padding: var(--space-1, 4px) var(--space-2, 8px);
+  background: var(--color-bg-secondary, #f9fafb);
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.75rem;
+  color: var(--color-text-secondary, #666);
+}
+
+.pv-source svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+/* ============================================
+   Dark Mode Overrides
+   ============================================ */
+
+[data-theme="dark"] .product-version-block {
+  background: var(--color-bg-secondary, #1f2937);
+  border-color: var(--color-border, #374151);
+}
+
+[data-theme="dark"] .pv-header {
+  background: var(--color-bg-tertiary, #374151);
+  border-color: var(--color-border, #4b5563);
+}
+
+[data-theme="dark"] .pv-name {
+  color: var(--color-text-primary, #e5e7eb);
+}
+
+[data-theme="dark"] .pv-section {
+  border-color: var(--color-border, #374151);
+}
+
+[data-theme="dark"] .pv-section-header:hover {
+  background: var(--color-bg-hover, #374151);
+}
+
+[data-theme="dark"] .pv-section-header.expanded {
+  background: var(--color-bg-tertiary, #374151);
+}
+
+[data-theme="dark"] .pv-section-content {
+  background: var(--color-bg-secondary, #1f2937);
+}
+
+[data-theme="dark"] .pv-field-value {
+  color: var(--color-text-primary, #e5e7eb);
+}
+
+[data-theme="dark"] .pv-source {
+  background: var(--color-bg-tertiary, #374151);
+}
+
+/* Platform badge dark mode adjustments */
+[data-theme="dark"] .platform-badge.platform-mvs {
+  background: rgba(21, 101, 192, 0.2);
+  color: #64b5f6;
+}
+
+[data-theme="dark"] .platform-badge.platform-msp {
+  background: rgba(46, 125, 50, 0.2);
+  color: #81c784;
+}
+
+[data-theme="dark"] .platform-badge.platform-xsp {
+  background: rgba(239, 108, 0, 0.2);
+  color: #ffb74d;
+}
+
+[data-theme="dark"] .platform-badge.platform-vos3 {
+  background: rgba(123, 31, 162, 0.2);
+  color: #ce93d8;
+}
+
+[data-theme="dark"] .platform-badge.platform-common {
+  background: var(--color-bg-tertiary, #374151);
+  color: var(--color-text-secondary, #9ca3af);
+}
+
+[data-theme="dark"] .warning-badge {
+  background: rgba(255, 243, 205, 0.15);
+  color: #ffc107;
+}
+
+[data-theme="dark"] .version-tag {
+  background: var(--color-primary, #3b82f6);
+}
+
+[data-theme="dark"] .doc-version-tag {
+  background: var(--color-bg-tertiary, #374151);
+  color: var(--color-text-secondary, #9ca3af);
+}
