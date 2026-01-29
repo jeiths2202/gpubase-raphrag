@@ -507,9 +507,9 @@ class SummarySearchService:
         # 명령어 패턴 감지
         cmd_patterns = [
             r"\b([a-z][a-z0-9]{2,}(?:init|boot|down|start|stop|run|exec|ctl|mgr|adm|cmd))\b",
-            r"\b(tjes[a-z0-9]+|osc[a-z0-9]+|tac[a-z0-9]+|ofm[a-z0-9]+|hidb[a-z0-9]+|ndb[a-z0-9]+|vol[a-z0-9]+|cat[a-z0-9]+)\b",  # OF 계열 명령어 (ASCII only)
+            r"\b(tjes[a-z0-9]+|osc[a-z0-9]+|tac[a-z0-9]+|ofm[a-z0-9]+|hidb[a-z0-9]+|ndb[a-z0-9]+|vol[a-z0-9]+|cat[a-z0-9]+|hd[a-z0-9]+|dsm[a-z0-9]+)\b",  # OF 계열 명령어 (added hd*, dsm* for HiDB tools)
             r"([a-z][a-z0-9_-]{3,})(?:이|가|을|를|에|의|란|뭐|무엇)",  # 한국어 질문 패턴
-            r"([a-z][a-z0-9_-]{3,})(?:コマンド|について|とは|の説明|を説明)",  # 일본어 질문 패턴
+            r"([a-z][a-z0-9_-]{3,})(?:コマンド|について|とは|の説明|を説明|標準|フォーマット)",  # 일본어 질문 패턴 (added 標準, フォーマット)
             r"\b(DFS[A-Z0-9]{3,}|IDB[A-Z0-9]{3,}|IDCAMS|IEBGENER|IEBCOPY|DFSORT)\b",  # 대문자 유틸리티/프로그램명
             r"\b([A-Z]{3,}[A-Z0-9]{2,})(?:에|이|가|을|를|란|뭐|무엇|について|とは)",  # 대문자 + CJK 질문 패턴
         ]
@@ -1090,6 +1090,168 @@ class SummarySearchService:
 
         return references
 
+    def _extract_cjk_key_terms(self, query: str) -> List[str]:
+        """Extract key terms from CJK queries by removing question particles.
+
+        Japanese/Korean queries often contain question particles like:
+        - について、とは、を説明、ください、について説明してください
+        - 에 대해서, 설명해줘, 알려줘
+
+        We extract the key term (what they're asking about) by removing these.
+        """
+        # Japanese question particles to remove
+        jp_particles = [
+            r"について説明してください$",
+            r"について教えてください$",
+            r"について詳しく$",
+            r"について$",
+            r"とは何ですか$",
+            r"とは$",
+            r"を説明してください$",
+            r"を教えてください$",
+            r"を説明$",
+            r"の説明$",
+            r"ください$",
+            r"ですか$",
+            r"ってなに$",
+            r"って何$",
+        ]
+
+        # Korean question particles to remove
+        ko_particles = [
+            r"에 대해서 설명해줘$",
+            r"에 대해서 알려줘$",
+            r"에 대해서$",
+            r"에 대해$",
+            r"설명해줘$",
+            r"알려줘$",
+            r"이 뭐야$",
+            r"가 뭐야$",
+            r"란$",
+            r"이란$",
+        ]
+
+        all_particles = jp_particles + ko_particles
+
+        # Try removing particles to get key term
+        key_terms = []
+        clean_query = query.strip()
+
+        for particle in all_particles:
+            cleaned = re.sub(particle, "", clean_query, flags=re.IGNORECASE)
+            if cleaned != clean_query and len(cleaned) >= 2:
+                key_terms.append(cleaned.strip())
+
+        # Also include the original query
+        if clean_query not in key_terms:
+            key_terms.append(clean_query)
+
+        # Return unique terms, prioritizing shorter (more specific) ones
+        unique_terms = list(dict.fromkeys(key_terms))
+        return unique_terms[:3]  # Max 3 terms
+
+    async def fulltext_search_summaries(
+        self, query: str, max_results: int = 5
+    ) -> List[Dict[str, Any]]:
+        """Full-text search across all summary markdown files.
+
+        Searches for Japanese/CJK and other text that doesn't match
+        pattern-based searches (commands, errors, etc.).
+
+        For CJK queries, automatically extracts key terms by removing
+        question particles (について、とは、에 대해서, etc.).
+
+        Args:
+            query: Search query (can be Japanese, Korean, English)
+            max_results: Maximum number of results to return
+
+        Returns:
+            List of matching results with file path and context
+        """
+        results = []
+        if not query or len(query) < 2:
+            return results
+
+        # Extract key terms for CJK queries
+        has_cjk = bool(re.search(r'[\u3000-\u9fff\uac00-\ud7af]', query))
+        if has_cjk:
+            search_terms = self._extract_cjk_key_terms(query)
+            logger.debug(f"Extracted CJK key terms: {search_terms}")
+        else:
+            search_terms = [query]
+
+        # Search directories (commands has most detailed content)
+        search_dirs = [
+            self.commands_dir,
+            self.terms_dir,
+            self.glossary_dir,
+            self.configs_dir,
+        ]
+
+        # Try each search term
+        for search_term in search_terms:
+            if len(results) >= max_results:
+                break
+
+            # Escape special regex characters in query
+            escaped_query = re.escape(search_term)
+
+            for search_dir in search_dirs:
+                if not search_dir.exists():
+                    continue
+
+                for md_file in search_dir.glob("*.md"):
+                    if md_file.name == "index.md":
+                        continue
+
+                    try:
+                        content = md_file.read_text(encoding="utf-8")
+
+                        # Case-insensitive search
+                        if re.search(escaped_query, content, re.IGNORECASE):
+                            # Extract context around the match
+                            matches = list(re.finditer(
+                                escaped_query, content, re.IGNORECASE
+                            ))
+
+                            for match in matches[:2]:  # Max 2 contexts per file
+                                start = max(0, match.start() - 200)
+                                end = min(len(content), match.end() + 500)
+                                context = content[start:end]
+
+                                # Find section header (## heading)
+                                header_match = re.search(
+                                    r"^## (.+?)$",
+                                    content[:match.start()],
+                                    re.MULTILINE
+                                )
+                                section = header_match.group(1) if header_match else ""
+
+                                # Find last header before this match
+                                all_headers = list(re.finditer(
+                                    r"^## (.+?)$", content[:match.start()], re.MULTILINE
+                                ))
+                                if all_headers:
+                                    section = all_headers[-1].group(1)
+
+                                results.append({
+                                    "type": "fulltext",
+                                    "query": query,
+                                    "section": section,
+                                    "context": context.strip(),
+                                    "score": 0.8,  # High score for exact match
+                                    "source_file": md_file.name,
+                                    "source_dir": search_dir.name,
+                                })
+
+                                if len(results) >= max_results:
+                                    return results
+
+                    except Exception as e:
+                        logger.debug(f"Error searching {md_file}: {e}")
+
+        return results
+
     async def comprehensive_search(self, query: str) -> Dict[str, Any]:
         """Unified search across all summary types.
 
@@ -1137,8 +1299,8 @@ class SummarySearchService:
             # Extract commands from query (소문자 + 대문자 유틸리티 패턴)
             cmd_patterns = [
                 r'\b([a-z][a-z0-9]{2,}(?:init|boot|down|start|stop|run|exec|ctl|mgr|adm|cmd))\b',
-                r'\b(tjes[a-z0-9]+|osc[a-z0-9]+|tac[a-z0-9]+|ofm[a-z0-9]+|hidb[a-z0-9]+|ndb[a-z0-9]+|vol[a-z0-9]+|cat[a-z0-9]+)\b',  # ASCII only
-                r'([a-z][a-z0-9_-]{3,})(?:コマンド|について|とは|の説明|を説明)',  # 일본어 질문 패턴
+                r'\b(tjes[a-z0-9]+|osc[a-z0-9]+|tac[a-z0-9]+|ofm[a-z0-9]+|hidb[a-z0-9]+|ndb[a-z0-9]+|vol[a-z0-9]+|cat[a-z0-9]+|hd[a-z0-9]+|dsm[a-z0-9]+)\b',  # ASCII only (added hd*, dsm* for HiDB tools)
+                r'([a-z][a-z0-9_-]{3,})(?:コマンド|について|とは|の説明|を説明|標準|フォーマット)',  # 일본어 질문 패턴 (added 標準, フォーマット)
                 r'\b(DFS[A-Z0-9]{3,}|IDB[A-Z0-9]{3,}|IDCAMS|IEBGENER|IEBCOPY|DFSORT)\b',
                 r'\b([A-Z]{3,}[A-Z0-9]{2,})(?:에|이|가|을|를|란|뭐|무엇|について|とは)',
             ]
@@ -1258,6 +1420,42 @@ class SummarySearchService:
                         "source_file": term_result.get("source_file"),
                     })
 
+        # 7. Full-text search for CJK/Japanese queries
+        # Always run for CJK queries to find specific content
+        # Pattern-based searches might find generic terms but miss specific content
+        has_cjk = bool(re.search(r'[\u3000-\u9fff\uac00-\ud7af]', query))
+
+        if has_cjk:
+            fulltext_results = await self.fulltext_search_summaries(query, max_results=3)
+            for ft_result in fulltext_results:
+                results.append({
+                    "type": "fulltext",
+                    "section": ft_result.get("section", ""),
+                    "context": ft_result.get("context", ""),
+                    "description": ft_result.get("context", "")[:300],
+                    "score": ft_result.get("score", 0.8),
+                    "source_file": ft_result.get("source_file", ""),
+                    "source_dir": ft_result.get("source_dir", ""),
+                })
+            if fulltext_results:
+                logger.info(f"CJK full-text search found {len(fulltext_results)} results for: {query[:50]}")
+
+        # Fallback: full-text search for non-CJK queries with no pattern matches
+        elif not results and len(query) > 5:
+            fulltext_results = await self.fulltext_search_summaries(query, max_results=3)
+            for ft_result in fulltext_results:
+                results.append({
+                    "type": "fulltext",
+                    "section": ft_result.get("section", ""),
+                    "context": ft_result.get("context", ""),
+                    "description": ft_result.get("context", "")[:300],
+                    "score": ft_result.get("score", 0.8),
+                    "source_file": ft_result.get("source_file", ""),
+                    "source_dir": ft_result.get("source_dir", ""),
+                })
+            if fulltext_results:
+                logger.info(f"Fallback full-text search found {len(fulltext_results)} results for: {query[:50]}")
+
         # Determine confidence level
         if results:
             max_score = max(r.get("score", 0) for r in results)
@@ -1285,6 +1483,12 @@ class SummarySearchService:
                 ctx = f"[설정 {r.get('config')}: {r.get('description', '')}]"
             elif r["type"] == "term":
                 ctx = f"[용어 {r.get('term')}: {r.get('description', '')}]"
+            elif r["type"] == "fulltext":
+                # Full-text search result - include more context
+                section = r.get("section", "")
+                context_text = r.get("context", "")[:500]  # Limit context length
+                source = r.get("source_file", "")
+                ctx = f"[참조: {section} ({source})]\n{context_text}"
             else:
                 ctx = f"[{r.get('type')}: {str(r)[:100]}]"
             context_parts.append(ctx)
