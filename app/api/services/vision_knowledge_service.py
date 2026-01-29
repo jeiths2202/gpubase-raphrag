@@ -205,6 +205,8 @@ class VisionKnowledgeService:
         query: str,
         language: str = "ja",
         max_pages: int = MAX_PAGES_PER_PDF,
+        pdf_filter: Optional[str] = None,
+        page_numbers: Optional[List[int]] = None,
     ) -> Dict[str, Any]:
         """
         키워드 기반 요약 검색 + Vision LLM 분석 통합
@@ -213,6 +215,8 @@ class VisionKnowledgeService:
             query: 사용자 질문
             language: 응답 언어 ("ja", "ko", "en")
             max_pages: PDF당 최대 페이지 수
+            pdf_filter: 특정 PDF 파일명 (구조 검색에서 전달)
+            page_numbers: 특정 페이지 번호 리스트 (구조 검색에서 전달)
 
         Returns:
             {
@@ -231,6 +235,58 @@ class VisionKnowledgeService:
                 "message": "Vision Knowledge Service is disabled",
             }
 
+        # Direct page access mode: Skip summary search, use specified PDF and pages
+        if pdf_filter and page_numbers:
+            logger.info(f"[VisionKnowledge] Direct mode: {pdf_filter} pages {page_numbers}")
+
+            # Build page_refs directly from provided parameters
+            page_refs = [
+                {"pdf_name": pdf_filter, "page_num": p}
+                for p in page_numbers[:max_pages]
+            ]
+
+            # Collect images for specified pages
+            images, sources, page_metadata = await self._collect_page_images(page_refs, max_pages)
+
+            if not images:
+                return {
+                    "type": "text_only",
+                    "summary_context": "",
+                    "message": f"Could not load pages {page_numbers} from {pdf_filter}",
+                }
+
+            # Skip to Vision analysis
+            try:
+                vision_response, relevant_sources, relevant_images = await self._analyze_with_vision(
+                    query=query,
+                    images=images,
+                    page_metadata=page_metadata,
+                    context="",  # No summary context in direct mode
+                    language=language,
+                )
+
+                filtered_sources = [
+                    f"{s['pdf_name']}, p.{s['page_num']}" for s in relevant_sources
+                ]
+
+                return {
+                    "type": "vision_enriched",
+                    "answer": vision_response,
+                    "summary_context": "",
+                    "sources": filtered_sources or [f"{pdf_filter}, p.{p}" for p in page_numbers],
+                    "image_count": len(images),
+                    "page_references": page_refs,
+                    "page_images": relevant_images,
+                }
+            except Exception as e:
+                logger.error(f"[VisionKnowledge] Direct mode analysis failed: {e}")
+                return {
+                    "type": "text_only",
+                    "summary_context": "",
+                    "message": f"Vision analysis failed: {e}",
+                }
+
+        # Standard mode: Summary search + page reference collection
         # Step 1: Summary 검색
         summary_results = await self.summary_service.comprehensive_search(query)
 

@@ -18,7 +18,7 @@ The RAG flow:
 import os
 import re
 import logging
-from typing import Optional, AsyncGenerator, List, Dict, Any
+from typing import Optional, AsyncGenerator, List, Dict, Any, Tuple
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -49,16 +49,15 @@ async def _search_document_structure(
     page_numbers: Optional[List[int]] = None,
 ) -> Dict[str, Any]:
     """
-    Search document structures for hierarchical context.
+    Two-Stage Document Structure Search with Visual Content Detection.
 
-    Uses the PDF structure extraction system to find:
-    - Chapter/Section/Subsection context
-    - Page ranges for precise source citations
-    - Image/table references within sections
+    Stage 1: Find all documents matching product name (e.g., OSC)
+    Stage 2: Select best document based on query keywords (e.g., マップ → Mapping-Support-Guide)
+    Stage 3: Find relevant sections and detect visual content (tables/images/figures)
 
     Args:
         query: User query for keyword extraction
-        doc_name: Document name pattern (e.g., "OF_TJES", "HiDB")
+        doc_name: Product name pattern (e.g., "OSC", "TJES", "HiDB")
         page_numbers: Specific page numbers to search
 
     Returns:
@@ -66,29 +65,32 @@ async def _search_document_structure(
         - structure_context: Formatted section hierarchy
         - sections: List of matching sections with page ranges
         - images: Image references from matching sections
+        - has_visual_content: Whether section contains tables/images/figures
+        - recommended_pages: Page numbers for Vision LLM
     """
     result = {
         "structure_context": "",
         "sections": [],
         "images": [],
         "doc_name": None,
+        "has_visual_content": False,
+        "recommended_pages": [],
+        "matched_section": None,
     }
 
     try:
         from .summary_search_service import get_summary_search_service
         summary_service = get_summary_search_service()
 
-        # Step 1: Find document by name pattern or query keywords
-        if doc_name:
-            # Search for structure matching document name
-            structure = await summary_service.search_structure(doc_name)
-        else:
-            # Try to extract document reference from query
-            # Patterns: HiDB, TJES, OSC, TACF, Base, etc.
-            doc_patterns = [
-                (r"(HiDB|HIDB)", "HiDB"),
-                (r"(TJES|tjes)", "TJES"),
+        # ========================================
+        # Stage 1: Extract product name from query
+        # ========================================
+        product_name = doc_name
+        if not product_name:
+            product_patterns = [
                 (r"(OSC|osc)", "OSC"),
+                (r"(TJES|tjes)", "TJES"),
+                (r"(HiDB|HIDB|hidb)", "HiDB"),
                 (r"(TACF|tacf)", "TACF"),
                 (r"(OSI|osi)", "OSI"),
                 (r"(NDB|ndb)", "NDB"),
@@ -96,37 +98,111 @@ async def _search_document_structure(
                 (r"(Batch|BATCH|batch)", "Batch"),
                 (r"(COBOL|cobol)", "COBOL"),
                 (r"(ASM|asm)", "ASM"),
-                (r"(Tibero|tibero)", "Tibero"),
+                (r"(Tibero|tibero|TIBERO)", "Tibero"),
+                (r"(GW|gw|Gateway)", "GW"),
             ]
-
-            structure = None
-            for pattern, name in doc_patterns:
+            for pattern, name in product_patterns:
                 if re.search(pattern, query):
-                    structure = await summary_service.search_structure(name)
-                    if structure:
-                        result["doc_name"] = name
-                        break
+                    product_name = name
+                    break
 
-        if not structure:
+        if not product_name:
+            logger.debug("No product name found in query")
             return result
 
-        result["doc_name"] = structure.get("file_name", "")
+        # ========================================
+        # Stage 2: Find all documents for product, then select best match
+        # ========================================
+        # Query keyword → Document type mapping
+        keyword_to_doctype = {
+            # Japanese keywords
+            "マップ": "Mapping",
+            "マッピング": "Mapping",
+            "リソース": "Resource",
+            "定義": "Definition",
+            "開発": "Developer",
+            "インストール": "Installation",
+            "設定": "Configuration",
+            "管理": "Administrator",
+            "エラー": "Error",
+            "コマンド": "Command",
+            "ユーティリティ": "Utility",
+            "ツール": "Tool",
+            "JCL": "JCL",
+            "バッチ": "Batch",
+            "CTG": "CTG",
+            "MFS": "MFS",
+            # English keywords
+            "map": "Mapping",
+            "mapping": "Mapping",
+            "resource": "Resource",
+            "definition": "Definition",
+            "develop": "Developer",
+            "install": "Installation",
+            "config": "Configuration",
+            "admin": "Administrator",
+            "error": "Error",
+            "command": "Command",
+            "utility": "Utility",
+            "tool": "Tool",
+        }
 
-        # Step 2: If specific pages requested, get sections for those pages
-        if page_numbers:
-            pdf_name = structure.get("file_name", "")
-            for page in page_numbers[:3]:  # Limit to 3 pages
-                page_structure = await summary_service.get_structure_for_pages(
-                    pdf_name, page, page
-                )
-                if page_structure and page_structure.get("sections"):
-                    result["sections"].extend(page_structure["sections"])
+        # Find matching document type from query
+        target_doctype = None
+        query_lower = query.lower()
+        for keyword, doctype in keyword_to_doctype.items():
+            if keyword.lower() in query_lower or keyword in query:
+                target_doctype = doctype
+                logger.debug(f"Query keyword '{keyword}' → doctype '{doctype}'")
+                break
 
-        # Step 3: Build structure context string
-        hierarchy = structure.get("hierarchy", [])
+        # List all structure files for this product
+        structures_dir = summary_service.summaries_dir / "structures"
+        product_files = list(structures_dir.glob(f"*{product_name}*_structure.json"))
+
+        if not product_files:
+            # Fallback: try case-insensitive search
+            product_files = [
+                f for f in structures_dir.glob("*_structure.json")
+                if product_name.lower() in f.stem.lower()
+            ]
+
+        if not product_files:
+            logger.debug(f"No structure files found for product: {product_name}")
+            return result
+
+        logger.info(f"Found {len(product_files)} documents for product '{product_name}'")
+
+        # Select best matching document
+        selected_file = None
+        if target_doctype and len(product_files) > 1:
+            # Try to find document matching the doctype
+            for f in product_files:
+                if target_doctype.lower() in f.stem.lower():
+                    selected_file = f
+                    logger.info(f"Selected document by doctype '{target_doctype}': {f.name}")
+                    break
+
+        # Fallback to first file if no specific match
+        if not selected_file:
+            selected_file = product_files[0]
+            logger.info(f"Selected first document: {selected_file.name}")
+
+        # Load the selected structure
+        import json
+        structure_data = json.loads(selected_file.read_text(encoding="utf-8"))
+        result["doc_name"] = structure_data.get("file_name", "")
+
+        # ========================================
+        # Stage 3: Find relevant sections and detect visual content
+        # ========================================
+        hierarchy = structure_data.get("hierarchy", [])
+        images_index = structure_data.get("images_index", [])
+
+        # Build structure context
         if hierarchy:
             context_parts = []
-            for node in hierarchy[:10]:  # Limit to top 10 chapters
+            for node in hierarchy[:10]:
                 title = node.get("title", "")
                 page_start = node.get("page_start", 0)
                 page_end = node.get("page_end", 0)
@@ -134,8 +210,6 @@ async def _search_document_structure(
 
                 if node_type == "chapter":
                     context_parts.append(f"## {title} (p.{page_start}-{page_end})")
-
-                    # Add top-level sections
                     for child in node.get("children", [])[:5]:
                         child_title = child.get("title", "")
                         child_start = child.get("page_start", 0)
@@ -143,21 +217,115 @@ async def _search_document_structure(
 
             result["structure_context"] = "\n".join(context_parts)
 
-        # Step 4: Get image references for the document
-        pdf_name = structure.get("file_name", "")
-        if pdf_name:
-            images = await summary_service.get_image_references(pdf_name)
-            result["images"] = images[:10]  # Limit to 10 images
+        # Search for relevant section based on query keywords
+        matched_section = _find_matching_section(hierarchy, query)
+        if matched_section:
+            result["matched_section"] = matched_section
+            result["sections"].append(matched_section)
+
+            # Check if section has visual content (images/tables/figures)
+            section_start = matched_section.get("page_start", 0)
+            section_end = matched_section.get("page_end", section_start + 5)
+
+            # Find images in the section's page range
+            section_images = [
+                img for img in images_index
+                if section_start <= img.get("page_number", 0) <= section_end
+            ]
+
+            if section_images:
+                result["has_visual_content"] = True
+                result["images"] = section_images[:5]
+                result["recommended_pages"] = list(set(
+                    img.get("page_number") for img in section_images
+                ))[:3]
+                logger.info(
+                    f"Visual content found: {len(section_images)} images in pages {result['recommended_pages']}"
+                )
+            else:
+                # No images in section, recommend section pages for text RAG
+                result["recommended_pages"] = list(range(section_start, min(section_end + 1, section_start + 5)))
+
+        # Also add document-level images
+        if not result["images"] and images_index:
+            result["images"] = images_index[:10]
 
         logger.info(
             f"Structure search: doc={result['doc_name']}, "
-            f"sections={len(result['sections'])}, images={len(result['images'])}"
+            f"has_visual={result['has_visual_content']}, "
+            f"pages={result['recommended_pages']}"
         )
 
     except Exception as e:
         logger.warning(f"Document structure search failed: {e}")
 
     return result
+
+
+def _find_matching_section(hierarchy: List[Dict], query: str) -> Optional[Dict]:
+    """
+    Find section in hierarchy that best matches query keywords.
+
+    Scoring algorithm:
+    - More keyword matches = higher score
+    - Deeper sections (more specific) get slight bonus
+    - Product name alone (TJES, OSC) gets lower score than content keywords
+    """
+    # Extract keywords from query
+    # Separate product names from content keywords
+    product_names = {"tjes", "osc", "tacf", "hidb", "osi", "ndb", "tibero", "cobol", "asm", "batch", "base", "gw"}
+
+    all_keywords = re.findall(r'[A-Za-z]{3,}|[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff]{2,}', query)
+    content_keywords = [kw for kw in all_keywords if kw.lower() not in product_names]
+    product_keywords = [kw for kw in all_keywords if kw.lower() in product_names]
+
+    logger.debug(f"Section search: content_keywords={content_keywords}, product_keywords={product_keywords}")
+
+    best_match = None
+    best_score = 0
+
+    def score_node(node: Dict, depth: int = 0) -> Tuple[int, Dict]:
+        """Score a node based on keyword matches."""
+        title = node.get("title", "").lower()
+        score = 0
+
+        # Content keywords are more important (weight 3)
+        for kw in content_keywords:
+            if kw.lower() in title:
+                score += 3
+
+        # Product keywords get lower weight (weight 1)
+        for kw in product_keywords:
+            if kw.lower() in title:
+                score += 1
+
+        # Depth bonus: deeper sections are more specific
+        if depth > 0 and score > 0:
+            score += 0.5
+
+        return score, node
+
+    def search_all_nodes(nodes: List[Dict], depth: int = 0) -> None:
+        """Recursively search all nodes and track best match."""
+        nonlocal best_match, best_score
+
+        for node in nodes:
+            score, matched_node = score_node(node, depth)
+
+            if score > best_score:
+                best_score = score
+                best_match = matched_node
+
+            # Search children for potentially better matches
+            search_all_nodes(node.get("children", []), depth + 1)
+
+    # Search through all nodes
+    search_all_nodes(hierarchy)
+
+    if best_match:
+        logger.debug(f"Best section match: score={best_score}, title={best_match.get('title', '')[:30]}")
+
+    return best_match
 
 
 @dataclass
@@ -881,59 +1049,101 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
         structure_sections = []
         structure_images = []
         try:
-            # Extract document name from sources if available
+            # PRIORITY 1: Extract product name from USER QUERY first (most reliable)
             doc_name_hint = None
-            for src in sources:
-                src_file = src.get("file", "")
-                # Extract product name from file path (e.g., "commands/OpenFrame_TJES_MVS.md")
-                if "TJES" in src_file:
-                    doc_name_hint = "TJES"
+            query_product_patterns = [
+                (r"(OSC|osc)", "OSC"),
+                (r"(TJES|tjes)", "TJES"),
+                (r"(HiDB|HIDB|hidb)", "HiDB"),
+                (r"(TACF|tacf)", "TACF"),
+                (r"(OSI|osi)", "OSI"),
+                (r"(NDB|ndb)", "NDB"),
+                (r"(Tibero|tibero|TIBERO)", "Tibero"),
+                (r"(COBOL|cobol)", "COBOL"),
+                (r"(ASM|asm)", "ASM"),
+            ]
+            for pattern, name in query_product_patterns:
+                if re.search(pattern, message):
+                    doc_name_hint = name
+                    logger.debug(f"Structure search: extracted product '{name}' from query")
                     break
-                elif "HiDB" in src_file or "HIDB" in src_file:
-                    doc_name_hint = "HiDB"
-                    break
-                elif "OSC" in src_file:
-                    doc_name_hint = "OSC"
-                    break
-                elif "TACF" in src_file:
-                    doc_name_hint = "TACF"
-                    break
-                elif "OSI" in src_file:
-                    doc_name_hint = "OSI"
-                    break
+
+            # PRIORITY 2: If not found in query, try sources
+            if not doc_name_hint:
+                for src in sources:
+                    src_file = src.get("file", "")
+                    # Extract product name from file path (e.g., "commands/OpenFrame_TJES_MVS.md")
+                    if "TJES" in src_file:
+                        doc_name_hint = "TJES"
+                        break
+                    elif "HiDB" in src_file or "HIDB" in src_file:
+                        doc_name_hint = "HiDB"
+                        break
+                    elif "OSC" in src_file:
+                        doc_name_hint = "OSC"
+                        break
+                    elif "TACF" in src_file:
+                        doc_name_hint = "TACF"
+                        break
+                    elif "OSI" in src_file:
+                        doc_name_hint = "OSI"
+                        break
 
             structure_result = await _search_document_structure(
                 query=message,
                 doc_name=doc_name_hint,
             )
 
-            if structure_result.get("structure_context"):
-                structure_context = structure_result["structure_context"]
+            if structure_result.get("doc_name"):
+                structure_context = structure_result.get("structure_context", "")
                 structure_sections = structure_result.get("sections", [])
                 structure_images = structure_result.get("images", [])
+                structure_has_visual = structure_result.get("has_visual_content", False)
+                structure_pages = structure_result.get("recommended_pages", [])
 
                 # Add structure source to references
-                if structure_result.get("doc_name"):
-                    sources.append({
-                        "type": "document_structure",
-                        "file": structure_result["doc_name"],
-                    })
+                sources.append({
+                    "type": "document_structure",
+                    "file": structure_result["doc_name"],
+                })
 
                 logger.info(
                     f"Structure RAG: doc={structure_result.get('doc_name')}, "
+                    f"has_visual={structure_has_visual}, pages={structure_pages}, "
                     f"sections={len(structure_sections)}, images={len(structure_images)}"
                 )
 
         except Exception as e:
             logger.warning(f"Document structure search failed: {e}")
+            structure_has_visual = False
+            structure_pages = []
 
         # Step 2: Route query to determine Vision vs Text LLM
         routing_decision = await self._route_query(message)
         selected_llm = routing_decision.get("selected_llm", "text")
+
+        # Structure-based routing override:
+        # If structure search found visual content (tables/images/figures) → Force Vision LLM
+        structure_routing_override = None
+        if structure_has_visual and structure_pages:
+            selected_llm = "vision"
+            structure_routing_override = "structure_visual"
+            logger.info(
+                f"Structure routing override: visual content detected, "
+                f"forcing Vision LLM for pages {structure_pages}"
+            )
+        elif structure_result.get("doc_name") and not structure_has_visual:
+            # Structure found but no visual content → Use Text LLM with structure context
+            structure_routing_override = "structure_text"
+            logger.info(
+                f"Structure routing: no visual content, "
+                f"using Text LLM with structure context"
+            )
+
         logger.info(
             f"Query routing: selected_llm={selected_llm}, "
             f"is_visual={routing_decision.get('is_visual_query')}, "
-            f"confidence={routing_decision.get('confidence')}"
+            f"structure_override={structure_routing_override}"
         )
 
         # Step 3: Search for related tables and images (needed for both Vision and Text paths)
@@ -1109,27 +1319,44 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
             logger.warning(f"Table/image search failed: {e}")
 
         # Step 3.5: Vision Knowledge Service - Dynamic PDF page analysis
-        # When no indexed images found, try to render PDF pages from summary references
+        # Priority 1: Use structure-detected pages with visual content
+        # Priority 2: Fallback to summary references when no indexed images found
         vision_knowledge_result = None
-        if not images and sources and confidence in ("high", "medium"):
-            try:
-                from .vision_knowledge_service import get_vision_knowledge_service, ENABLE_VISION_KNOWLEDGE
+        try:
+            from .vision_knowledge_service import get_vision_knowledge_service, ENABLE_VISION_KNOWLEDGE
 
-                if ENABLE_VISION_KNOWLEDGE:
-                    vision_service = get_vision_knowledge_service()
+            if ENABLE_VISION_KNOWLEDGE:
+                vision_service = get_vision_knowledge_service()
+
+                # Priority 1: Structure-based Visual Content (tables/images/figures detected)
+                if structure_has_visual and structure_pages and structure_result.get("doc_name"):
+                    pdf_name = structure_result["doc_name"]
+                    logger.info(
+                        f"Structure-based Vision: rendering {pdf_name} pages {structure_pages}"
+                    )
+                    vision_knowledge_result = await vision_service.search_with_vision(
+                        query=message,
+                        language=language,
+                        max_pages=3,
+                        pdf_filter=pdf_name,
+                        page_numbers=structure_pages,
+                    )
+
+                # Priority 2: Fallback to summary-based search
+                elif not images and sources and confidence in ("high", "medium"):
                     vision_knowledge_result = await vision_service.search_with_vision(
                         query=message,
                         language=language,
                         max_pages=3,
                     )
 
-                    if vision_knowledge_result.get("type") == "vision_enriched":
-                        logger.info(
-                            f"VisionKnowledge enrichment: {vision_knowledge_result.get('image_count', 0)} images analyzed, "
-                            f"sources={vision_knowledge_result.get('sources', [])}"
-                        )
-            except Exception as vk_error:
-                logger.warning(f"VisionKnowledge enrichment failed: {vk_error}")
+                if vision_knowledge_result and vision_knowledge_result.get("type") == "vision_enriched":
+                    logger.info(
+                        f"VisionKnowledge enrichment: {vision_knowledge_result.get('image_count', 0)} images analyzed, "
+                        f"sources={vision_knowledge_result.get('sources', [])}"
+                    )
+        except Exception as vk_error:
+            logger.warning(f"VisionKnowledge enrichment failed: {vk_error}")
 
         # Step 4: Call appropriate LLM based on routing decision and available images
         model_used = "text/qwen"
@@ -1329,22 +1556,38 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
         # Step 1.5: Search document structures for hierarchical context
         structure_context = ""
         try:
-            # Extract document name hint from sources
+            # PRIORITY 1: Extract product name from USER QUERY first
             doc_name_hint = None
-            for src in sources:
-                src_file = src.get("file", "")
-                if "TJES" in src_file:
-                    doc_name_hint = "TJES"
+            query_product_patterns = [
+                (r"(OSC|osc)", "OSC"),
+                (r"(TJES|tjes)", "TJES"),
+                (r"(HiDB|HIDB|hidb)", "HiDB"),
+                (r"(TACF|tacf)", "TACF"),
+                (r"(OSI|osi)", "OSI"),
+                (r"(NDB|ndb)", "NDB"),
+                (r"(Tibero|tibero|TIBERO)", "Tibero"),
+            ]
+            for pattern, name in query_product_patterns:
+                if re.search(pattern, message):
+                    doc_name_hint = name
                     break
-                elif "HiDB" in src_file or "HIDB" in src_file:
-                    doc_name_hint = "HiDB"
-                    break
-                elif "OSC" in src_file:
-                    doc_name_hint = "OSC"
-                    break
-                elif "TACF" in src_file:
-                    doc_name_hint = "TACF"
-                    break
+
+            # PRIORITY 2: If not found in query, try sources
+            if not doc_name_hint:
+                for src in sources:
+                    src_file = src.get("file", "")
+                    if "TJES" in src_file:
+                        doc_name_hint = "TJES"
+                        break
+                    elif "HiDB" in src_file or "HIDB" in src_file:
+                        doc_name_hint = "HiDB"
+                        break
+                    elif "OSC" in src_file:
+                        doc_name_hint = "OSC"
+                        break
+                    elif "TACF" in src_file:
+                        doc_name_hint = "TACF"
+                        break
 
             structure_result = await _search_document_structure(
                 query=message,
