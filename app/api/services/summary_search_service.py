@@ -1609,7 +1609,9 @@ class SummarySearchService:
                 "file_name": data.get("file_name"),
                 "total_pages": data.get("total_pages"),
                 "language": data.get("language"),
+                "hierarchy": data.get("hierarchy", []),  # Full hierarchy for processing
                 "hierarchy_count": self._count_hierarchy_nodes(data.get("hierarchy", [])),
+                "images_index": data.get("images_index", []),  # Full image index
                 "images_count": len(data.get("images_index", [])),
                 "validation": data.get("validation", {}),
                 "top_level_sections": [

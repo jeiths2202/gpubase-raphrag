@@ -43,6 +43,123 @@ async def _get_metadata_service():
     return _metadata_service
 
 
+async def _search_document_structure(
+    query: str,
+    doc_name: Optional[str] = None,
+    page_numbers: Optional[List[int]] = None,
+) -> Dict[str, Any]:
+    """
+    Search document structures for hierarchical context.
+
+    Uses the PDF structure extraction system to find:
+    - Chapter/Section/Subsection context
+    - Page ranges for precise source citations
+    - Image/table references within sections
+
+    Args:
+        query: User query for keyword extraction
+        doc_name: Document name pattern (e.g., "OF_TJES", "HiDB")
+        page_numbers: Specific page numbers to search
+
+    Returns:
+        Dict containing:
+        - structure_context: Formatted section hierarchy
+        - sections: List of matching sections with page ranges
+        - images: Image references from matching sections
+    """
+    result = {
+        "structure_context": "",
+        "sections": [],
+        "images": [],
+        "doc_name": None,
+    }
+
+    try:
+        from .summary_search_service import get_summary_search_service
+        summary_service = get_summary_search_service()
+
+        # Step 1: Find document by name pattern or query keywords
+        if doc_name:
+            # Search for structure matching document name
+            structure = await summary_service.search_structure(doc_name)
+        else:
+            # Try to extract document reference from query
+            # Patterns: HiDB, TJES, OSC, TACF, Base, etc.
+            doc_patterns = [
+                (r"(HiDB|HIDB)", "HiDB"),
+                (r"(TJES|tjes)", "TJES"),
+                (r"(OSC|osc)", "OSC"),
+                (r"(TACF|tacf)", "TACF"),
+                (r"(OSI|osi)", "OSI"),
+                (r"(NDB|ndb)", "NDB"),
+                (r"(BASE|Base|base)", "Base"),
+                (r"(Batch|BATCH|batch)", "Batch"),
+                (r"(COBOL|cobol)", "COBOL"),
+                (r"(ASM|asm)", "ASM"),
+                (r"(Tibero|tibero)", "Tibero"),
+            ]
+
+            structure = None
+            for pattern, name in doc_patterns:
+                if re.search(pattern, query):
+                    structure = await summary_service.search_structure(name)
+                    if structure:
+                        result["doc_name"] = name
+                        break
+
+        if not structure:
+            return result
+
+        result["doc_name"] = structure.get("file_name", "")
+
+        # Step 2: If specific pages requested, get sections for those pages
+        if page_numbers:
+            pdf_name = structure.get("file_name", "")
+            for page in page_numbers[:3]:  # Limit to 3 pages
+                page_structure = await summary_service.get_structure_for_pages(
+                    pdf_name, page, page
+                )
+                if page_structure and page_structure.get("sections"):
+                    result["sections"].extend(page_structure["sections"])
+
+        # Step 3: Build structure context string
+        hierarchy = structure.get("hierarchy", [])
+        if hierarchy:
+            context_parts = []
+            for node in hierarchy[:10]:  # Limit to top 10 chapters
+                title = node.get("title", "")
+                page_start = node.get("page_start", 0)
+                page_end = node.get("page_end", 0)
+                node_type = node.get("node_type", "")
+
+                if node_type == "chapter":
+                    context_parts.append(f"## {title} (p.{page_start}-{page_end})")
+
+                    # Add top-level sections
+                    for child in node.get("children", [])[:5]:
+                        child_title = child.get("title", "")
+                        child_start = child.get("page_start", 0)
+                        context_parts.append(f"  - {child_title} (p.{child_start})")
+
+            result["structure_context"] = "\n".join(context_parts)
+
+        # Step 4: Get image references for the document
+        pdf_name = structure.get("file_name", "")
+        if pdf_name:
+            images = await summary_service.get_image_references(pdf_name)
+            result["images"] = images[:10]  # Limit to 10 images
+
+        logger.info(
+            f"Structure search: doc={result['doc_name']}, "
+            f"sections={len(result['sections'])}, images={len(result['images'])}"
+        )
+
+    except Exception as e:
+        logger.warning(f"Document structure search failed: {e}")
+
+    return result
+
+
 @dataclass
 class OpenAgentConfig:
     """Configuration for OpenAgent vLLM connection."""
@@ -759,6 +876,57 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
             except Exception as e:
                 logger.warning(f"Summary search failed: {e}")
 
+        # Step 1.5: Search document structures for hierarchical context
+        structure_context = ""
+        structure_sections = []
+        structure_images = []
+        try:
+            # Extract document name from sources if available
+            doc_name_hint = None
+            for src in sources:
+                src_file = src.get("file", "")
+                # Extract product name from file path (e.g., "commands/OpenFrame_TJES_MVS.md")
+                if "TJES" in src_file:
+                    doc_name_hint = "TJES"
+                    break
+                elif "HiDB" in src_file or "HIDB" in src_file:
+                    doc_name_hint = "HiDB"
+                    break
+                elif "OSC" in src_file:
+                    doc_name_hint = "OSC"
+                    break
+                elif "TACF" in src_file:
+                    doc_name_hint = "TACF"
+                    break
+                elif "OSI" in src_file:
+                    doc_name_hint = "OSI"
+                    break
+
+            structure_result = await _search_document_structure(
+                query=message,
+                doc_name=doc_name_hint,
+            )
+
+            if structure_result.get("structure_context"):
+                structure_context = structure_result["structure_context"]
+                structure_sections = structure_result.get("sections", [])
+                structure_images = structure_result.get("images", [])
+
+                # Add structure source to references
+                if structure_result.get("doc_name"):
+                    sources.append({
+                        "type": "document_structure",
+                        "file": structure_result["doc_name"],
+                    })
+
+                logger.info(
+                    f"Structure RAG: doc={structure_result.get('doc_name')}, "
+                    f"sections={len(structure_sections)}, images={len(structure_images)}"
+                )
+
+        except Exception as e:
+            logger.warning(f"Document structure search failed: {e}")
+
         # Step 2: Route query to determine Vision vs Text LLM
         routing_decision = await self._route_query(message)
         selected_llm = routing_decision.get("selected_llm", "text")
@@ -994,10 +1162,12 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
                     "response": vision_result["response"],
                     "sources": sources,
                     "summary_context": summary_context,
+                    "structure_context": structure_context,
                     "confidence": confidence,
                     "token_usage": vision_result.get("token_usage", {}),
                     "tables": tables,
                     "images": images,
+                    "structure_images": structure_images,
                     "model": model_used,
                     "routing": routing_decision,
                 }
@@ -1046,10 +1216,12 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
                 "response": combined_response,
                 "sources": sources,
                 "summary_context": summary_context,
+                "structure_context": structure_context,
                 "confidence": "high",  # VisionKnowledge analysis is high confidence
                 "token_usage": {},  # Vision LLM doesn't return token usage in same format
                 "tables": tables,
                 "images": vision_images if vision_images else images,  # Vision 이미지 우선
+                "structure_images": structure_images,
                 "model": "vision/minicpm-v",
                 "routing": routing_decision,
                 "vision_enriched": True,
@@ -1058,8 +1230,13 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
             }
 
         # Text LLM path (default or fallback)
+        # Combine summary_context with structure_context for enriched prompt
+        combined_context = summary_context
+        if structure_context:
+            combined_context = f"{summary_context}\n\n## Document Structure\n{structure_context}"
+
         system_prompt = self._build_rag_system_prompt(
-            summary_context, confidence, message, language
+            combined_context, confidence, message, language
         )
 
         chat_result = await self._chat_with_usage(
@@ -1080,10 +1257,12 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
             "response": chat_result["response"],
             "sources": sources,
             "summary_context": summary_context,
+            "structure_context": structure_context,
             "confidence": confidence,
             "token_usage": chat_result["token_usage"],
             "tables": tables,
             "images": images,
+            "structure_images": structure_images,
             "model": model_used,
             "routing": routing_decision,
         }
@@ -1147,9 +1326,50 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
             except Exception as e:
                 logger.warning(f"Summary search failed: {e}")
 
+        # Step 1.5: Search document structures for hierarchical context
+        structure_context = ""
+        try:
+            # Extract document name hint from sources
+            doc_name_hint = None
+            for src in sources:
+                src_file = src.get("file", "")
+                if "TJES" in src_file:
+                    doc_name_hint = "TJES"
+                    break
+                elif "HiDB" in src_file or "HIDB" in src_file:
+                    doc_name_hint = "HiDB"
+                    break
+                elif "OSC" in src_file:
+                    doc_name_hint = "OSC"
+                    break
+                elif "TACF" in src_file:
+                    doc_name_hint = "TACF"
+                    break
+
+            structure_result = await _search_document_structure(
+                query=message,
+                doc_name=doc_name_hint,
+            )
+
+            if structure_result.get("structure_context"):
+                structure_context = structure_result["structure_context"]
+                if structure_result.get("doc_name"):
+                    sources.append({
+                        "type": "document_structure",
+                        "file": structure_result["doc_name"],
+                    })
+
+        except Exception as e:
+            logger.warning(f"Structure search in stream failed: {e}")
+
         # Step 2: Build system prompt and stream response
+        # Combine summary_context with structure_context
+        combined_context = summary_context
+        if structure_context:
+            combined_context = f"{summary_context}\n\n## Document Structure\n{structure_context}"
+
         system_prompt = self._build_rag_system_prompt(
-            summary_context, confidence, message, language
+            combined_context, confidence, message, language
         )
 
         token_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
@@ -1172,6 +1392,7 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
             "data": {
                 "sources": sources,
                 "summary_context": summary_context,
+                "structure_context": structure_context,
                 "confidence": confidence,
                 "token_usage": token_usage,
             }
