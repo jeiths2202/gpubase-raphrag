@@ -1185,46 +1185,27 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
         language: str = "ja",
     ) -> str:
         """Build RAG-enhanced system prompt with anti-hallucination rules and domain knowledge."""
+        from .language_policy import get_language_policy_service
 
-        # Language mapping for strict language enforcement
-        lang_config = {
-            "ja": {
-                "name": "Japanese",
-                "native": "日本語",
-                "forbidden": "English, Korean (한국어), Chinese (中文/简体中文/繁體中文)",
-                "no_info": "この情報はコンテキストに含まれていません",
-            },
-            "ko": {
-                "name": "Korean",
-                "native": "한국어",
-                "forbidden": "English, Japanese (日本語), Chinese (中文)",
-                "no_info": "이 정보는 컨텍스트에 포함되어 있지 않습니다",
-            },
-            "en": {
-                "name": "English",
-                "native": "English",
-                "forbidden": "Korean (한국어), Japanese (日本語), Chinese (中文)",
-                "no_info": "This information is not included in the context",
-            },
+        # 중앙화된 언어 정책 서비스 사용
+        lang_service = get_language_policy_service()
+        language_instruction = lang_service.get_language_instruction(language)
+
+        # Language-specific "no info" messages (still needed for error responses)
+        lang_no_info = {
+            "ja": "この情報はコンテキストに含まれていません",
+            "ko": "이 정보는 컨텍스트에 포함되어 있지 않습니다",
+            "en": "This information is not included in the context",
         }
+        no_info_msg = lang_no_info.get(language, lang_no_info["ja"])
 
-        lang = lang_config.get(language, lang_config["ja"])
-
-        # Build strict language instruction
-        language_instruction = f"""
-🔴🔴🔴 ABSOLUTE LANGUAGE REQUIREMENT 🔴🔴🔴
-MANDATORY RESPONSE LANGUAGE: {lang["name"]} ({lang["native"]})
-
-CRITICAL LANGUAGE RULES:
-1. You MUST respond ONLY in {lang["name"]} ({lang["native"]})
-2. NEVER use {lang["forbidden"]} in your response
-3. Every sentence, word, and character must be in {lang["name"]}
-4. Technical terms may remain in English but explanations must be in {lang["name"]}
-5. If user explicitly requests another language in their query, follow that request only
-
-This is a STRICT requirement. Language violations are CRITICAL errors.
-🔴🔴🔴 END LANGUAGE REQUIREMENT 🔴🔴🔴
-"""
+        # Language names for the prompt (still needed for anti-hallucination rules)
+        lang_names = {
+            "ja": {"name": "Japanese", "native": "日本語"},
+            "ko": {"name": "Korean", "native": "한국어"},
+            "en": {"name": "English", "native": "English"},
+        }
+        lang = lang_names.get(language, lang_names["ja"])
 
         # Section 1: Identity + Anti-Hallucination rules (최우선)
         identity_prompt = (
@@ -1234,7 +1215,7 @@ This is a STRICT requirement. Language violations are CRITICAL errors.
             "### CRITICAL RULES:\n"
             "1. ONLY answer based on the provided context below. "
             "If the context does not contain the answer, say "
-            f'"{lang["no_info"]}".\n'
+            f'"{no_info_msg}".\n'
             "2. NEVER guess or invent abbreviation meanings. "
             "Use ONLY the definitions provided below.\n"
             "3. NEVER fabricate command options, parameters, or syntax "

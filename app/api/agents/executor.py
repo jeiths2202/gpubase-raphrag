@@ -128,12 +128,60 @@ def strip_thinking_tags(text: str) -> str:
 # ============================================================================
 
 # Tools that can be executed with just a query (no required doc_id etc.)
-DEVELOP_MODE_SEARCHABLE_TOOLS = ["adaptive_search", "vector_search", "graph_query"]
+# unified_search is the primary search tool that combines Neo4j vector + PostgreSQL structure
+DEVELOP_MODE_SEARCHABLE_TOOLS = ["adaptive_search", "unified_search", "vector_search", "graph_query"]
+
+# Language-aware translations for develop mode UI text
+DEVELOP_MODE_TRANSLATIONS = {
+    "ko": {
+        "title": "개발 모드 검색 결과",
+        "summary": "검색키워드 **'{query}'**에 대해 총 **{count}건**을 찾았습니다.",
+        "error": "오류",
+        "more": "외",
+        "similarity": "유사도",
+        "detail_title": "각 Tool별 상세 검색 결과",
+        "no_result": "결과 없음",
+        "status_running": "[개발모드] 모든 검색 도구 실행 중...",
+        "found": "건 발견",
+    },
+    "ja": {
+        "title": "開発モード検索結果",
+        "summary": "検索キーワード **'{query}'** に対して合計 **{count}件** が見つかりました。",
+        "error": "エラー",
+        "more": "他",
+        "similarity": "類似度",
+        "detail_title": "各ツール別の詳細検索結果",
+        "no_result": "結果なし",
+        "status_running": "[開発モード] すべての検索ツールを実行中...",
+        "found": "件発見",
+    },
+    "en": {
+        "title": "Development Mode Search Results",
+        "summary": "Found **{count} results** for search keyword **'{query}'**.",
+        "error": "Error",
+        "more": "more",
+        "similarity": "Similarity",
+        "detail_title": "Detailed Results by Tool",
+        "no_result": "No results",
+        "status_running": "[Dev Mode] Running all search tools...",
+        "found": "found",
+    },
+}
+
+
+def _get_develop_mode_text(key: str, lang: str = "ko", **kwargs) -> str:
+    """Get language-aware text for develop mode UI."""
+    translations = DEVELOP_MODE_TRANSLATIONS.get(lang, DEVELOP_MODE_TRANSLATIONS["en"])
+    text = translations.get(key, DEVELOP_MODE_TRANSLATIONS["en"].get(key, key))
+    if kwargs:
+        text = text.format(**kwargs)
+    return text
 
 
 def _format_develop_mode_summary(
     query: str,
-    tool_results: Dict[str, Dict[str, Any]]
+    tool_results: Dict[str, Dict[str, Any]],
+    language: str = "ko"
 ) -> str:
     """
     Format develop mode results summary.
@@ -146,11 +194,15 @@ def _format_develop_mode_summary(
         Formatted markdown summary
     """
     total_count = sum(r.get("count", 0) for r in tool_results.values())
+    lang = language if language and language != "auto" else "ko"
+
+    # Get translated text
+    t = lambda key, **kw: _get_develop_mode_text(key, lang, **kw)
 
     lines = [
-        f"## 🔍 개발 모드 검색 결과",
+        f"## 🔍 {t('title')}",
         f"",
-        f"검색키워드 **'{query}'**에 대해 총 **{total_count}건**을 찾았습니다.",
+        t('summary', query=query, count=total_count),
         f"",
     ]
 
@@ -159,33 +211,33 @@ def _format_develop_mode_summary(
         error = result.get("error")
 
         if error:
-            lines.append(f"- **{tool_name}**: ❌ 오류 - {error}")
+            lines.append(f"- **{tool_name}**: ❌ {t('error')} - {error}")
         elif count == 0:
-            lines.append(f"- **{tool_name}**: 0건")
+            lines.append(f"- **{tool_name}**: 0")
         else:
             # Format similarity scores
             scores = result.get("scores", [])
             if scores:
                 score_str = ", ".join([f"{s*100:.1f}%" for s in scores[:5]])
                 if len(scores) > 5:
-                    score_str += f" ... 외 {len(scores)-5}건"
-                lines.append(f"- **{tool_name}**: {count}건 (유사도: {score_str})")
+                    score_str += f" ... {t('more')} {len(scores)-5}"
+                lines.append(f"- **{tool_name}**: {count} ({t('similarity')}: {score_str})")
             else:
-                lines.append(f"- **{tool_name}**: {count}건")
+                lines.append(f"- **{tool_name}**: {count}")
 
     lines.append("")
     lines.append("---")
     lines.append("")
-    lines.append("### 📋 각 Tool별 상세 검색 결과")
+    lines.append(f"### 📋 {t('detail_title')}")
     lines.append("")
 
     for tool_name, result in tool_results.items():
         lines.append(f"#### {tool_name}")
 
         if result.get("error"):
-            lines.append(f"오류: {result['error']}")
+            lines.append(f"{t('error')}: {result['error']}")
         elif result.get("count", 0) == 0:
-            lines.append("결과 없음")
+            lines.append(t('no_result'))
         else:
             results_data = result.get("results", [])
             for i, item in enumerate(results_data[:5], 1):
@@ -193,7 +245,7 @@ def _format_develop_mode_summary(
                 content_preview = item.get("content", "")[:200]
                 source = item.get("source", "Unknown")
 
-                lines.append(f"**{i}. [{source}]** (유사도: {score*100:.1f}%)")
+                lines.append(f"**{i}. [{source}]** ({t('similarity')}: {score*100:.1f}%)")
                 lines.append(f"> {content_preview}...")
                 lines.append("")
 
@@ -225,6 +277,8 @@ async def _execute_all_tools_develop_mode(
         try:
             if tool_name == "adaptive_search":
                 result = await tool.execute(context, query=query, top_k=10, include_images=True)
+            elif tool_name == "unified_search":
+                result = await tool.execute(context, query=query, top_k=10)
             elif tool_name == "vector_search":
                 result = await tool.execute(context, query=query, top_k=10)
             elif tool_name == "graph_query":
@@ -244,7 +298,7 @@ async def _execute_all_tools_develop_mode(
             count = metadata.get("results_count", 0)
 
             if sources:
-                # Use sources from metadata (adaptive_search, vector_search)
+                # Use sources from metadata (adaptive_search, unified_search, vector_search)
                 scores = [float(s.get("score", 0) or s.get("similarity", 0) or 0) for s in sources]
                 items = sources
             else:
@@ -1485,30 +1539,14 @@ class AgentExecutor:
 
         # Build system prompt with language preference - INJECT AT BEGINNING for stronger effect
         if context.language and context.language != "auto":
-            language_names = {"en": "English", "ko": "Korean", "ja": "Japanese"}
-            lang_name = language_names.get(context.language, context.language)
-            # Language names in their own language for stronger emphasis
-            lang_native = {"en": "English", "ko": "한국어", "ja": "日本語"}
-            native_name = lang_native.get(context.language, lang_name)
+            # 중앙화된 언어 정책 서비스 사용
+            from app.api.services.language_policy import get_language_policy_service
+            lang_service = get_language_policy_service()
+            language_instruction = lang_service.get_language_instruction(context.language)
 
             # PREPEND language instruction at the BEGINNING of system prompt for maximum effect
-            language_instruction = f"""🔴 MANDATORY RESPONSE LANGUAGE: {lang_name} ({native_name})
-
-You MUST respond ONLY in {lang_name} ({native_name}).
-This is the user's configured UI language setting - NOT negotiable.
-The query language does NOT determine your response language.
-IGNORE the language of the user's question. ALWAYS respond in {lang_name}.
-
-Exception: ONLY switch language if user EXPLICITLY writes:
-- "Answer in English" / "영어로 답변해줘" / "英語で答えて"
-- "한국어로 답변해줘" / "Answer in Korean" / "韓国語で答えて"
-- "日本語で答えて" / "일본어로 답변해줘" / "Answer in Japanese"
-
-═══════════════════════════════════════════════════════════════
-
-"""
-            system_prompt = language_instruction + system_prompt
-            logger.info(f"[Executor.run] Language instruction PREPENDED: {lang_name}")
+            system_prompt = f"{language_instruction}\n\n{system_prompt}"
+            logger.info(f"[Executor.run] Language instruction PREPENDED: {context.language}")
 
         # Add UI context if available (context-aware AI)
         if context.metadata.get('ui_context_prompt'):
@@ -1890,30 +1928,14 @@ User Query:"""
         # Build system prompt with language preference - INJECT AT BEGINNING for stronger effect
         logger.debug(f"[Executor.stream] context.language = '{context.language}'")
         if context.language and context.language != "auto":
-            language_names = {"en": "English", "ko": "Korean", "ja": "Japanese"}
-            lang_name = language_names.get(context.language, context.language)
-            # Language names in their own language for stronger emphasis
-            lang_native = {"en": "English", "ko": "한국어", "ja": "日本語"}
-            native_name = lang_native.get(context.language, lang_name)
+            # 중앙화된 언어 정책 서비스 사용
+            from app.api.services.language_policy import get_language_policy_service
+            lang_service = get_language_policy_service()
+            language_instruction = lang_service.get_language_instruction(context.language)
 
             # PREPEND language instruction at the BEGINNING of system prompt for maximum effect
-            language_instruction = f"""🔴 MANDATORY RESPONSE LANGUAGE: {lang_name} ({native_name})
-
-You MUST respond ONLY in {lang_name} ({native_name}).
-This is the user's configured UI language setting - NOT negotiable.
-The query language does NOT determine your response language.
-IGNORE the language of the user's question. ALWAYS respond in {lang_name}.
-
-Exception: ONLY switch language if user EXPLICITLY writes:
-- "Answer in English" / "영어로 답변해줘" / "英語で答えて"
-- "한국어로 답변해줘" / "Answer in Korean" / "韓国語で答えて"
-- "日本語で答えて" / "일본어로 답변해줘" / "Answer in Japanese"
-
-═══════════════════════════════════════════════════════════════
-
-"""
-            system_prompt = language_instruction + system_prompt
-            logger.info(f"[Executor.stream] Language instruction PREPENDED: {lang_name}")
+            system_prompt = f"{language_instruction}\n\n{system_prompt}"
+            logger.info(f"[Executor.stream] Language instruction PREPENDED: {context.language}")
 
         # Add UI context if available (context-aware AI)
         if context.metadata.get('ui_context_prompt'):
@@ -2097,7 +2119,11 @@ User Query:"""
         if is_develop_mode():
             logger.info("DEVELOP MODE: Executing all tools for analysis")
 
-            yield AgentStreamChunk(chunk_type="status", content="[개발모드] 모든 검색 도구 실행 중...")
+            # Get user's language setting for UI text
+            user_lang = context.language if context.language and context.language != "auto" else "ko"
+            t = lambda key, **kw: _get_develop_mode_text(key, user_lang, **kw)
+
+            yield AgentStreamChunk(chunk_type="status", content=t('status_running'))
 
             # Execute all searchable tools in parallel
             develop_results = await _execute_all_tools_develop_mode(
@@ -2116,10 +2142,10 @@ User Query:"""
                 error = result.get("error")
 
                 if error:
-                    output_summary = f"오류: {error}"
+                    output_summary = f"{t('error')}: {error}"
                 else:
                     score_preview = ", ".join([f"{s*100:.1f}%" for s in scores[:3]]) if scores else "N/A"
-                    output_summary = f"{count}건 발견 (유사도: {score_preview})"
+                    output_summary = f"{count} {t('found')} ({t('similarity')}: {score_preview})"
 
                 yield AgentStreamChunk(
                     chunk_type="tool_result",
@@ -2127,8 +2153,8 @@ User Query:"""
                     tool_output=output_summary
                 )
 
-            # Format and stream the summary
-            summary = _format_develop_mode_summary(task, develop_results)
+            # Format and stream the summary with language support
+            summary = _format_develop_mode_summary(task, develop_results, language=user_lang)
 
             # Stream the summary in chunks
             chunk_size = 50
@@ -2229,7 +2255,7 @@ User Query:"""
                     # ========================================================================
                     # RAG Analysis: Send chunk structure and embedding info for search tools
                     # ========================================================================
-                    if result.get("success") and tool_call.tool_name in ["adaptive_search", "vector_search", "graph_query"]:
+                    if result.get("success") and tool_call.tool_name in ["adaptive_search", "unified_search", "vector_search", "graph_query"]:
                         # Chunk structure info
                         chunk_structure = _extract_chunk_structure(result, tool_call.tool_name)
                         yield AgentStreamChunk(

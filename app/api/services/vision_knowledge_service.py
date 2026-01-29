@@ -659,9 +659,15 @@ class VisionKnowledgeService:
             pdf_name = meta.get("pdf_name", "Unknown")
             page_num = meta.get("page_num", i + 1)
 
-            # 페이지별 프롬프트 구성
+            # 페이지별 프롬프트 구성 (중앙화된 언어 정책 사용)
+            from .language_policy import get_language_policy_service
+            lang_service = get_language_policy_service()
+            lang_instruction = lang_service.get_language_instruction(language)
+
             if language == "ja":
-                prompt = f"""この画像は「{pdf_name}」のページ{page_num}です。
+                prompt = f"""{lang_instruction}
+
+この画像は「{pdf_name}」のページ{page_num}です。
 以下の質問に、この画像の内容を参照して回答してください。
 表やチャートがあれば、その内容を詳しく説明してください。
 
@@ -672,7 +678,9 @@ class VisionKnowledgeService:
 
 重要: 画像に表示されている具体的な情報（属性名、パラメータ、値など）を箇条書きで列挙してください。"""
             elif language == "ko":
-                prompt = f"""이 이미지는 「{pdf_name}」의 {page_num}페이지입니다.
+                prompt = f"""{lang_instruction}
+
+이 이미지는 「{pdf_name}」의 {page_num}페이지입니다.
 다음 질문에 이 이미지 내용을 참고하여 답변해주세요.
 표나 차트가 있으면 그 내용을 상세히 설명해주세요.
 
@@ -683,7 +691,9 @@ class VisionKnowledgeService:
 
 중요: 이미지에 표시된 구체적인 정보(속성명, 파라미터, 값 등)를 목록으로 나열해주세요."""
             else:
-                prompt = f"""This image is page {page_num} from "{pdf_name}".
+                prompt = f"""{lang_instruction}
+
+This image is page {page_num} from "{pdf_name}".
 Please answer the following question by referencing this image content.
 If there are tables or charts, explain their content in detail.
 
@@ -909,17 +919,22 @@ Important: List the specific information shown in the image (attribute names, pa
             통합된 응답 문자열
         """
         from app.api.ports.vision_llm_port import VisionTask
+        from .language_policy import get_language_policy_service
+
+        # 중앙화된 언어 정책 적용
+        lang_service = get_language_policy_service()
+        lang_instruction = lang_service.get_language_instruction(language)
 
         # 페이지별 분석 결과를 텍스트로 구성
         per_page_text = ""
         for i, p in enumerate(filtered_analyses, 1):
-            per_page_text += f"\n--- ページ {i}: {p['pdf_name']} (p.{p['page_num']}) ---\n"
+            per_page_text += f"\n--- Page {i}: {p['pdf_name']} (p.{p['page_num']}) ---\n"
             per_page_text += p["analysis"]
             per_page_text += "\n"
 
-        # 언어별 통합 프롬프트
+        # 언어별 통합 프롬프트 (언어 정책 먼저 주입)
         if language == "ja":
-            consolidation_prompt = f"""以下のPDFページ分析結果から、質問に最も関連性の高い情報を抽出・統合してください。
+            task_prompt = f"""以下のPDFページ分析結果から、質問に最も関連性の高い情報を抽出・統合してください。
 
 質問: {query}
 
@@ -938,7 +953,7 @@ Important: List the specific information shown in the image (attribute names, pa
 - [内容] (出典: ファイル名, p.XX)"""
 
         elif language == "ko":
-            consolidation_prompt = f"""다음 PDF 페이지 분석 결과에서 질문과 가장 관련 높은 정보를 추출・통합하세요.
+            task_prompt = f"""다음 PDF 페이지 분석 결과에서 질문과 가장 관련 높은 정보를 추출・통합하세요.
 
 질문: {query}
 
@@ -957,7 +972,7 @@ Important: List the specific information shown in the image (attribute names, pa
 - [내용] (출처: 파일명, p.XX)"""
 
         else:
-            consolidation_prompt = f"""Extract and consolidate the most relevant information from the following PDF page analyses.
+            task_prompt = f"""Extract and consolidate the most relevant information from the following PDF page analyses.
 
 Question: {query}
 
@@ -974,6 +989,9 @@ Instructions:
 Output Format:
 ### Relevant Information
 - [Content] (Source: filename, p.XX)"""
+
+        # 언어 정책을 최상단에 주입
+        consolidation_prompt = f"{lang_instruction}\n\n{task_prompt}"
 
         try:
             # 텍스트 기반 통합 (이미지 없이)

@@ -67,20 +67,30 @@ ROLE_LANGUAGE_POLICIES = {
 
 
 # Language enforcement instructions for LLM prompts
+# Policy: Use UI language setting by default, but honor explicit user language requests
 LANGUAGE_INSTRUCTIONS = {
     "en": {
-        "instruction": "You MUST respond in English only. Do not use any other language in your response.",
-        "reminder": "Remember: English only.",
+        "instruction": """[Language Policy]
+- Default response language: English
+- If the user explicitly requests a response in a different language (e.g., "답변을 한국어로", "日本語で回答して"), respond in that requested language.
+- Otherwise, respond in English only. Do not mix other languages.""",
+        "reminder": "Respond in English unless user explicitly requested another language.",
         "system_prefix": "[Response Language: English]"
     },
     "ko": {
-        "instruction": "반드시 한국어로만 응답하세요. 다른 언어를 사용하지 마세요.",
-        "reminder": "중요: 한국어로만 답변하세요.",
+        "instruction": """[언어 정책]
+- 기본 응답 언어: 한국어
+- 사용자가 프롬프트에서 특정 언어로 답변을 요청하면 (예: "Please answer in English", "日本語で回答して"), 해당 언어로 응답하세요.
+- 그렇지 않으면 한국어로만 응답하세요. 다른 언어를 섞지 마세요.""",
+        "reminder": "사용자가 다른 언어를 요청하지 않는 한 한국어로 답변하세요.",
         "system_prefix": "[응답 언어: 한국어]"
     },
     "ja": {
-        "instruction": "必ず日本語のみで回答してください。他の言語は使用しないでください。",
-        "reminder": "重要：日本語のみで回答してください。",
+        "instruction": """[言語ポリシー]
+- デフォルトの回答言語：日本語
+- ユーザーがプロンプトで特定の言語での回答を要求した場合（例：「Please answer in English」「한국어로 답변해주세요」）、その言語で回答してください。
+- それ以外は日本語のみで回答してください。他の言語を混ぜないでください。""",
+        "reminder": "ユーザーが他の言語を要求しない限り、日本語で回答してください。",
         "system_prefix": "[回答言語：日本語]"
     },
 }

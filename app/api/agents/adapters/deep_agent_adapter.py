@@ -365,29 +365,14 @@ class DeepAgentAdapter(BaseAgent):
         final_system_prompt = self.system_prompt or ""
 
         if language and language != "auto":
-            language_names = {"en": "English", "ko": "Korean", "ja": "Japanese"}
-            lang_native = {"en": "English", "ko": "한국어", "ja": "日本語"}
-            lang_name = language_names.get(language, language)
-            native_name = lang_native.get(language, lang_name)
+            # 중앙화된 언어 정책 서비스 사용
+            from app.api.services.language_policy import get_language_policy_service
+            lang_service = get_language_policy_service()
+            language_instruction = lang_service.get_language_instruction(language)
 
             # 언어 지시를 system_prompt 최상단에 PREPEND
-            language_instruction = f"""🔴 MANDATORY RESPONSE LANGUAGE: {lang_name} ({native_name})
-
-You MUST respond ONLY in {lang_name} ({native_name}).
-This is the user's configured UI language setting - NOT negotiable.
-The query language does NOT determine your response language.
-IGNORE the language of the user's question. ALWAYS respond in {lang_name}.
-
-Exception: ONLY switch language if user EXPLICITLY writes:
-- "Answer in English" / "영어로 답변해줘" / "英語で答えて"
-- "한국어로 답변해줘" / "Answer in Korean" / "韓国語で答えて"
-- "日本語で答えて" / "일본어로 답변해줘" / "Answer in Japanese"
-
-═══════════════════════════════════════════════════════════════
-
-"""
-            final_system_prompt = language_instruction + final_system_prompt
-            logger.info(f"[{self.name}] Language instruction PREPENDED to system_prompt: {lang_name}")
+            final_system_prompt = f"{language_instruction}\n\n{final_system_prompt}"
+            logger.info(f"[{self.name}] Language instruction PREPENDED to system_prompt: {language}")
 
         # Create Deep Agent with optional long-term memory
         agent_kwargs = {
