@@ -884,26 +884,84 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
 
                 logger.info(f"Table/image search: doc={doc_name}, pages={pages}, found tables={len(tables)}, images={len(images)}")
 
-                # Post-filter tables to ensure relevance to user's query product
-                # This prevents returning generic/unrelated tables from other documents
-                if query_product_filter and tables:
+                # Post-filter tables to ensure relevance to user's query
+                # Two-stage filtering: product name AND query keywords
+                if tables:
                     original_count = len(tables)
                     filtered_tables = []
+
+                    # Extract query keywords for content relevance check
+                    # Focus on meaningful terms (nouns, commands) not particles
+                    query_keywords = []
+                    # Japanese/English keywords from query
+                    import re as filter_re
+                    # Extract alphanumeric terms (commands, product names)
+                    alpha_terms = filter_re.findall(r'[A-Za-z]{3,}', message)
+                    query_keywords.extend([t.lower() for t in alpha_terms])
+                    # Extract CJK meaningful terms (longer than 2 chars to skip particles)
+                    cjk_terms = filter_re.findall(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]{2,}', message)
+                    # Filter out common Japanese particles and question words
+                    stop_words = {'について', 'ください', 'できる', 'ある', 'する', 'です', 'ます', 'こと', 'もの', 'なに', 'どの'}
+                    query_keywords.extend([t for t in cjk_terms if t not in stop_words])
+
+                    logger.debug(f"Table filter keywords: {query_keywords}")
+
                     for tbl in tables:
                         doc_filename = tbl.get("doc_filename", "").lower()
                         content = tbl.get("content", "").lower()
-                        product_lower = query_product_filter.lower()
 
-                        # Include if: doc filename contains product OR content mentions product
-                        if product_lower in doc_filename or product_lower in content:
+                        # Stage 1: Product filter (if available)
+                        product_match = True
+                        if query_product_filter:
+                            product_lower = query_product_filter.lower()
+                            product_match = product_lower in doc_filename or product_lower in content
+
+                        # Stage 2: Content relevance check - at least one query keyword must match
+                        keyword_match = False
+                        if query_keywords:
+                            for kw in query_keywords:
+                                if kw.lower() in content:
+                                    keyword_match = True
+                                    break
+                        else:
+                            # No keywords extracted, pass through
+                            keyword_match = True
+
+                        # Include if: product matches AND at least one keyword matches in content
+                        if product_match and keyword_match:
                             filtered_tables.append(tbl)
+                        else:
+                            logger.debug(f"Filtered out table: {doc_filename} (product={product_match}, keyword={keyword_match})")
 
                     tables = filtered_tables
                     if len(tables) != original_count:
-                        logger.info(f"Filtered tables: {original_count} -> {len(tables)} (kept only {query_product_filter}-related)")
+                        logger.info(f"Filtered tables: {original_count} -> {len(tables)} (product + keyword relevance)")
 
         except Exception as e:
             logger.warning(f"Table/image search failed: {e}")
+
+        # Step 3.5: Vision Knowledge Service - Dynamic PDF page analysis
+        # When no indexed images found, try to render PDF pages from summary references
+        vision_knowledge_result = None
+        if not images and sources and confidence in ("high", "medium"):
+            try:
+                from .vision_knowledge_service import get_vision_knowledge_service, ENABLE_VISION_KNOWLEDGE
+
+                if ENABLE_VISION_KNOWLEDGE:
+                    vision_service = get_vision_knowledge_service()
+                    vision_knowledge_result = await vision_service.search_with_vision(
+                        query=message,
+                        language=language,
+                        max_pages=3,
+                    )
+
+                    if vision_knowledge_result.get("type") == "vision_enriched":
+                        logger.info(
+                            f"VisionKnowledge enrichment: {vision_knowledge_result.get('image_count', 0)} images analyzed, "
+                            f"sources={vision_knowledge_result.get('sources', [])}"
+                        )
+            except Exception as vk_error:
+                logger.warning(f"VisionKnowledge enrichment failed: {vk_error}")
 
         # Step 4: Call appropriate LLM based on routing decision and available images
         model_used = "text/qwen"
@@ -947,6 +1005,57 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
                 # Vision LLM failed, fallback to Text LLM
                 logger.warning("Vision LLM failed, falling back to Text LLM")
                 selected_llm = "text"
+
+        # Check if VisionKnowledge enrichment is available
+        if vision_knowledge_result and vision_knowledge_result.get("type") == "vision_enriched":
+            # Use VisionKnowledge analysis result directly
+            vision_answer = vision_knowledge_result.get("answer", "")
+            vision_sources = vision_knowledge_result.get("sources", [])
+
+            # Combine summary context with vision answer
+            combined_response = f"{vision_answer}"
+
+            # Add vision sources to source list
+            for vs in vision_sources:
+                sources.append({
+                    "type": "vision_analysis",
+                    "file": vs,
+                })
+
+            logger.info(
+                f"[RAG_CHAT_RESULT] Using VisionKnowledge: {vision_knowledge_result.get('image_count', 0)} images, "
+                f"sources={vision_sources}"
+            )
+
+            # Get page images for UI display
+            page_images = vision_knowledge_result.get("page_images", [])
+
+            # Convert to UI-compatible image format
+            vision_images = []
+            for pi in page_images:
+                vision_images.append({
+                    "chunk_id": f"vision_{pi.get('pdf_name', '')}_{pi.get('page_num', 0)}",
+                    "content": "",
+                    "page_start": pi.get("page_num", 0),
+                    "page_end": pi.get("page_num", 0),
+                    "doc_filename": pi.get("pdf_name", ""),
+                    "image_url": f"data:image/png;base64,{pi.get('image_base64', '')}",
+                })
+
+            return {
+                "response": combined_response,
+                "sources": sources,
+                "summary_context": summary_context,
+                "confidence": "high",  # VisionKnowledge analysis is high confidence
+                "token_usage": {},  # Vision LLM doesn't return token usage in same format
+                "tables": tables,
+                "images": vision_images if vision_images else images,  # Vision 이미지 우선
+                "model": "vision/minicpm-v",
+                "routing": routing_decision,
+                "vision_enriched": True,
+                "vision_image_count": vision_knowledge_result.get("image_count", 0),
+                "vision_sources": vision_sources,
+            }
 
         # Text LLM path (default or fallback)
         system_prompt = self._build_rag_system_prompt(
