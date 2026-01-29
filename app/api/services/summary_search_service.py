@@ -22,12 +22,24 @@ class SummarySearchService:
     """
 
     def __init__(self, summaries_dir: Optional[Path] = None):
-        self.summaries_dir = summaries_dir or Path("/opt/kms/uploads/summaries")
+        if summaries_dir:
+            self.summaries_dir = summaries_dir
+        else:
+            # /opt/kms 경로 우선, 로컬 경로 폴백
+            opt_path = Path("/opt/kms/uploads/summaries")
+            local_path = Path("uploads/summaries")
+            # 실제 데이터(error-codes 등)가 있는 경로를 선택
+            if opt_path.exists() and (opt_path / "error-codes").exists():
+                self.summaries_dir = opt_path
+            elif local_path.exists():
+                self.summaries_dir = local_path
+            else:
+                self.summaries_dir = opt_path
         self.error_codes_dir = self.summaries_dir / "error-codes"
         self.glossary_dir = self.summaries_dir / "glossary"
         self.commands_dir = self.summaries_dir / "commands"
         self.configs_dir = self.summaries_dir / "configs"
-        self.concepts_dir = self.summaries_dir / "concepts"
+        self.terms_dir = self.summaries_dir / "terms"
         self._index_cache: Optional[Dict] = None
 
     def _load_index(self) -> Dict:
@@ -261,7 +273,10 @@ class SummarySearchService:
         return None
 
     async def _search_all_commands(self, cmd: str) -> Optional[Dict[str, Any]]:
-        """모든 명령어 파일에서 검색 (폴백)"""
+        """모든 명령어 파일에서 검색 (폴백)
+
+        단일 문자 파일(D.md 등)뿐만 아니라 OpenFrame_*.md 파일도 검색
+        """
         if not self.commands_dir.exists():
             return None
 
@@ -271,13 +286,64 @@ class SummarySearchService:
 
             try:
                 content = file_path.read_text(encoding="utf-8")
-                pattern = rf"## {re.escape(cmd)}\n"
-                if re.search(pattern, content, re.IGNORECASE):
-                    return await self.search_command(cmd)
-            except:
+                # 명령어 섹션 전체 추출
+                pattern = rf"## {re.escape(cmd)}\n(.*?)(?=\n## [a-zA-Z]|\Z)"
+                match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
+                if match:
+                    details = match.group(1).strip()
+                    return self._parse_command_section(cmd, details, file_path.name)
+            except Exception:
                 pass
 
         return None
+
+    def _parse_command_section(self, cmd: str, details: str, source_file: str) -> Dict[str, Any]:
+        """명령어 섹션 텍스트를 파싱하여 구조화된 딕셔너리 반환"""
+        # 구조화된 형식 (**설명**: ...) 우선 시도
+        desc_match = re.search(r"\*\*설명\*\*:\s*(.+?)(?:\n-|\n\*\*|$)", details, re.DOTALL)
+        syntax_match = re.search(r"\*\*구문\*\*:\s*`(.+?)`", details, re.DOTALL)
+        ref_match = re.search(r"\*\*참조\*\*:\s*(.+?)(?:\n|$)", details)
+        source_match = re.search(r"소스:\s*(.+?)(?:\n|$)", details)
+
+        description = ""
+        if desc_match:
+            description = ' '.join(desc_match.group(1).strip().split())
+        else:
+            # 비구조화 형식: ## 명령어 다음 첫 줄이 설명
+            lines = [l.strip() for l in details.split("\n") if l.strip() and not l.strip().startswith("-") and not l.strip().startswith("```") and not l.strip().startswith("**")]
+            if lines:
+                description = lines[0][:300]
+
+        syntax = ""
+        if syntax_match:
+            syntax = syntax_match.group(1).strip()
+        else:
+            # ```...``` 블록에서 구문 추출
+            code_match = re.search(r"```\n?(.*?)```", details, re.DOTALL)
+            if code_match:
+                syntax = code_match.group(1).strip()[:200]
+
+        reference = ""
+        if ref_match:
+            reference = ref_match.group(1).strip()
+        elif source_match:
+            reference = source_match.group(1).strip()
+
+        # 지원 제품 추출
+        products_match = re.search(r"\*\*지원 제품\*\*:\s*(.+?)(?:\n|$)", details)
+        products = []
+        if products_match:
+            products = [p.strip() for p in products_match.group(1).split(",")]
+
+        return {
+            "command": cmd.lower(),
+            "products": products,
+            "multi_product": len(products) > 1,
+            "description": description,
+            "syntax": syntax,
+            "reference": reference,
+            "source_file": source_file,
+        }
 
     async def search_glossary(self, term: str) -> Optional[Dict[str, Any]]:
         """용어 검색
@@ -394,10 +460,22 @@ class SummarySearchService:
         return "\n\n".join(contexts) if contexts else None
 
     async def get_term_context_for_agent(self, query: str) -> Optional[str]:
-        """Agent용 용어 컨텍스트 생성"""
-        terms = re.findall(r"\b[A-Z]{2,}[A-Z0-9]*\b", query)
+        """Agent용 용어 컨텍스트 생성
+
+        특정 VSAM 타입(ESDS, KSDS 등)이 언급되면 일반 'VSAM' 용어는 스킵하여
+        혼동을 방지합니다.
+        """
+        # \b가 CJK 문자와 함께 동작하지 않으므로 커스텀 패턴 사용
+        terms = re.findall(r"(?:^|[^A-Za-z])([A-Z]{2,}[A-Z0-9]*)(?=[^A-Za-z]|$)", query)
         if not terms:
             return None
+
+        # VSAM 서브타입이 명시되면 일반 'VSAM' 용어는 스킵 (혼동 방지)
+        vsam_subtypes = {"ESDS", "KSDS", "RRDS", "LDS"}
+        has_specific_vsam_type = any(t in vsam_subtypes for t in terms)
+
+        # 스킵할 일반 용어들 (서브타입이 명시된 경우)
+        generic_parent_terms = {"VSAM"} if has_specific_vsam_type else set()
 
         contexts = []
         seen = set()
@@ -405,6 +483,10 @@ class SummarySearchService:
             if term in seen:
                 continue
             seen.add(term)
+
+            # 일반 부모 용어 스킵
+            if term in generic_parent_terms:
+                continue
 
             result = await self.search_glossary(term)
             if result and result.get("full_name"):
@@ -422,11 +504,14 @@ class SummarySearchService:
         소문자 명령어 패턴 감지 (tjesinit, oscboot 등)
         여러 제품에서 동일 명령어가 있으면 모두 표시하고 사용자에게 확인 요청
         """
-        # 소문자 명령어 패턴 감지
+        # 명령어 패턴 감지
         cmd_patterns = [
             r"\b([a-z][a-z0-9]{2,}(?:init|boot|down|start|stop|run|exec|ctl|mgr|adm|cmd))\b",
-            r"\b(tjes\w+|osc\w+|tac\w+|ofm\w+)\b",  # OF 계열 명령어
+            r"\b(tjes[a-z0-9]+|osc[a-z0-9]+|tac[a-z0-9]+|ofm[a-z0-9]+|hidb[a-z0-9]+|ndb[a-z0-9]+|vol[a-z0-9]+|cat[a-z0-9]+)\b",  # OF 계열 명령어 (ASCII only)
             r"([a-z][a-z0-9_-]{3,})(?:이|가|을|를|에|의|란|뭐|무엇)",  # 한국어 질문 패턴
+            r"([a-z][a-z0-9_-]{3,})(?:コマンド|について|とは|の説明|を説明)",  # 일본어 질문 패턴
+            r"\b(DFS[A-Z0-9]{3,}|IDB[A-Z0-9]{3,}|IDCAMS|IEBGENER|IEBCOPY|DFSORT)\b",  # 대문자 유틸리티/프로그램명
+            r"\b([A-Z]{3,}[A-Z0-9]{2,})(?:에|이|가|을|를|란|뭐|무엇|について|とは)",  # 대문자 + CJK 질문 패턴
         ]
 
         commands = []
@@ -582,6 +667,198 @@ class SummarySearchService:
                     ctx += f"\n  프로토타입: {result['syntax']}"
                 if result.get('reference'):
                     ctx += f"\n  참조: {result['reference']}"
+                contexts.append(ctx)
+
+        return "\n\n".join(contexts) if contexts else None
+
+    async def search_config(self, config_name: str) -> Optional[Dict[str, Any]]:
+        """설정 파라미터 검색
+
+        Args:
+            config_name: 설정 파라미터 이름 (예: "ACCOUNT_LOCK_PERIOD", "AIM")
+
+        Returns:
+            설정 정보 딕셔너리 또는 None
+        """
+        if not config_name or not self.configs_dir.exists():
+            return None
+
+        # 모든 설정 파일 검색
+        for config_file in self.configs_dir.glob("*.md"):
+            if config_file.name == "index.md":
+                continue
+
+            try:
+                content = config_file.read_text(encoding="utf-8")
+
+                # 설정 파라미터 패턴: ## CONFIG_NAME
+                pattern = rf"## {re.escape(config_name)}\n(.*?)(?=\n## [A-Z]|\Z)"
+                match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
+
+                if match:
+                    details = match.group(1)
+
+                    product_match = re.search(r"\*\*제품\*\*:\s*(.+?)(?:\n|$)", details)
+                    desc_match = re.search(r"\*\*설명\*\*:\s*(.+?)(?:\n-|\n\*\*|$)", details, re.DOTALL)
+                    ref_match = re.search(r"\*\*참조\*\*:\s*(.+?)(?:\n|$)", details)
+
+                    description = ""
+                    if desc_match:
+                        description = ' '.join(desc_match.group(1).strip().split())
+
+                    return {
+                        "config": config_name.upper(),
+                        "product": product_match.group(1).strip() if product_match else "",
+                        "description": description[:300],
+                        "reference": ref_match.group(1).strip() if ref_match else "",
+                        "source_file": config_file.name,
+                    }
+
+            except Exception as e:
+                logger.debug(f"설정 파일 파싱 실패: {config_file} - {e}")
+
+        return None
+
+    async def get_config_context_for_agent(self, query: str) -> Optional[str]:
+        """Agent용 설정 파라미터 컨텍스트 생성
+
+        설정 파라미터 패턴 감지 (대문자_대문자 형식)
+        """
+        # 설정 파라미터 패턴 감지
+        config_patterns = [
+            r"\b([A-Z][A-Z0-9_]{2,})\b",  # 대문자+숫자+언더스코어 (3자 이상)
+        ]
+
+        # 설정 관련 키워드가 있는지 확인
+        config_keywords = ["설정", "파라미터", "config", "parameter", "設定", "パラメータ"]
+        query_lower = query.lower()
+        has_config_keyword = any(kw in query_lower for kw in config_keywords)
+
+        if not has_config_keyword:
+            return None
+
+        configs = []
+        for pattern in config_patterns:
+            matches = re.findall(pattern, query)
+            configs.extend(matches)
+
+        if not configs:
+            return None
+
+        contexts = []
+        seen = set()
+        for config in configs[:3]:
+            config_upper = config.upper()
+            if config_upper in seen:
+                continue
+            # 너무 일반적인 약어 제외
+            if config_upper in {"THE", "AND", "FOR", "NOT", "ARE", "ALL"}:
+                continue
+            seen.add(config_upper)
+
+            result = await self.search_config(config_upper)
+            if result:
+                ctx = f"설정 파라미터 {result['config']}"
+                if result.get('product'):
+                    ctx += f" ({result['product']})"
+                if result.get('description'):
+                    ctx += f": {result['description'][:200]}"
+                if result.get('reference'):
+                    ctx += f"\n  참조: {result['reference']}"
+                contexts.append(ctx)
+
+        return "\n\n".join(contexts) if contexts else None
+
+    async def search_term(self, term_name: str) -> Optional[Dict[str, Any]]:
+        """도메인 용어 검색 (terms/ 디렉토리)
+
+        glossary와 다른 형식의 용어 정의를 검색합니다.
+        terms/는 OpenFrame_*.md 파일에 저장됩니다.
+
+        Args:
+            term_name: 용어 이름 (예: "BOOT_STATUS", "ColdBoot", "FLUSH")
+
+        Returns:
+            용어 정보 딕셔너리 또는 None
+        """
+        if not term_name or not self.terms_dir.exists():
+            return None
+
+        # 모든 용어 파일 검색
+        for term_file in self.terms_dir.glob("*.md"):
+            if term_file.name == "index.md":
+                continue
+
+            try:
+                content = term_file.read_text(encoding="utf-8")
+
+                # 용어 패턴: ## TERM_NAME
+                pattern = rf"## {re.escape(term_name)}\n(.*?)(?=\n## |\Z)"
+                match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
+
+                if match:
+                    details = match.group(1).strip()
+
+                    # 설명은 첫 줄 (- 소스: 전까지)
+                    desc_lines = []
+                    source = ""
+                    for line in details.split("\n"):
+                        line = line.strip()
+                        if line.startswith("- 소스:"):
+                            source = line.replace("- 소스:", "").strip()
+                            break
+                        elif line and not line.startswith("-"):
+                            desc_lines.append(line)
+
+                    description = " ".join(desc_lines)
+
+                    return {
+                        "term": term_name,
+                        "description": description[:300],
+                        "reference": source,
+                        "source_file": term_file.name,
+                    }
+
+            except Exception as e:
+                logger.debug(f"용어 파일 파싱 실패: {term_file} - {e}")
+
+        return None
+
+    async def get_domain_term_context_for_agent(self, query: str) -> Optional[str]:
+        """Agent용 도메인 용어 컨텍스트 생성 (terms/ 디렉토리)
+
+        glossary와 별도로 OpenFrame 도메인 용어 검색
+        """
+        # 용어 패턴 감지 (CamelCase 또는 대문자_언더스코어)
+        # \b가 CJK 문자와 함께 동작하지 않으므로 boundary 제거
+        term_patterns = [
+            r"([A-Z][a-z]+[A-Z][a-zA-Z]*)",  # CamelCase (e.g., ColdBoot, WarmBoot)
+            r"(?:^|[^A-Za-z])([A-Z][A-Z0-9_]+)(?=[^A-Za-z]|$)",  # 대문자_언더스코어 (e.g., BOOT_STATUS)
+        ]
+
+        terms = []
+        for pattern in term_patterns:
+            matches = re.findall(pattern, query)
+            terms.extend(matches)
+
+        if not terms:
+            return None
+
+        contexts = []
+        seen = set()
+        for term in terms[:3]:
+            if term in seen:
+                continue
+            # 너무 일반적인 단어 제외
+            if term.upper() in {"THE", "AND", "FOR", "NOT", "ARE", "ALL", "WITH", "THIS", "THAT"}:
+                continue
+            seen.add(term)
+
+            result = await self.search_term(term)
+            if result:
+                ctx = f"용어 {result['term']}: {result['description'][:150]}"
+                if result.get('reference'):
+                    ctx += f" (출처: {result['reference']})"
                 contexts.append(ctx)
 
         return "\n\n".join(contexts) if contexts else None
@@ -857,23 +1134,35 @@ class SummarySearchService:
         # 2. Command search
         cmd_context = await self.get_command_context_for_agent(query)
         if cmd_context:
-            # Extract commands from query
+            # Extract commands from query (소문자 + 대문자 유틸리티 패턴)
             cmd_patterns = [
                 r'\b([a-z][a-z0-9]{2,}(?:init|boot|down|start|stop|run|exec|ctl|mgr|adm|cmd))\b',
-                r'\b(tjes\w+|osc\w+|tac\w+|ofm\w+)\b',
+                r'\b(tjes[a-z0-9]+|osc[a-z0-9]+|tac[a-z0-9]+|ofm[a-z0-9]+|hidb[a-z0-9]+|ndb[a-z0-9]+|vol[a-z0-9]+|cat[a-z0-9]+)\b',  # ASCII only
+                r'([a-z][a-z0-9_-]{3,})(?:コマンド|について|とは|の説明|を説明)',  # 일본어 질문 패턴
+                r'\b(DFS[A-Z0-9]{3,}|IDB[A-Z0-9]{3,}|IDCAMS|IEBGENER|IEBCOPY|DFSORT)\b',
+                r'\b([A-Z]{3,}[A-Z0-9]{2,})(?:에|이|가|을|를|란|뭐|무엇|について|とは)',
             ]
             commands = []
             for pattern in cmd_patterns:
                 commands.extend(re.findall(pattern, query, re.IGNORECASE))
 
-            for cmd in set(commands)[:3]:
+            for cmd in list(set(commands))[:3]:
                 cmd_result = await self.search_command(cmd.lower())
+                if not cmd_result:
+                    cmd_result = await self._search_all_commands(cmd.lower())
                 if cmd_result:
+                    # Multi-product 명령어의 경우 product_info에서 description/syntax 추출
+                    description = cmd_result.get("description")
+                    syntax = cmd_result.get("syntax")
+                    if not description and cmd_result.get("product_info"):
+                        first_product = cmd_result["product_info"][0]
+                        description = first_product.get("description")
+                        syntax = first_product.get("syntax")
                     results.append({
                         "type": "command",
                         "command": cmd_result.get("command"),
-                        "description": cmd_result.get("description"),
-                        "syntax": cmd_result.get("syntax"),
+                        "description": description,
+                        "syntax": syntax,
                         "products": cmd_result.get("products", []),
                         "score": 1.0,
                         "source_file": cmd_result.get("source_file"),
@@ -882,8 +1171,9 @@ class SummarySearchService:
         # 3. Term/glossary search
         term_context = await self.get_term_context_for_agent(query)
         if term_context:
-            terms = re.findall(r"\b[A-Z]{2,}[A-Z0-9]*\b", query)
-            for term in set(terms)[:3]:
+            # \b가 CJK 문자와 함께 동작하지 않으므로 커스텀 패턴 사용
+            terms = re.findall(r"(?:^|[^A-Za-z])([A-Z]{2,}[A-Z0-9]*)(?=[^A-Za-z]|$)", query)
+            for term in list(set(terms))[:3]:
                 term_result = await self.search_glossary(term)
                 if term_result:
                     results.append({
@@ -905,7 +1195,7 @@ class SummarySearchService:
             for pattern in api_patterns:
                 apis.extend(re.findall(pattern, query, re.IGNORECASE))
 
-            for api in set(apis)[:3]:
+            for api in list(set(apis))[:3]:
                 api_result = await self.search_api(api.lower())
                 if api_result:
                     results.append({
@@ -916,6 +1206,56 @@ class SummarySearchService:
                         "product": api_result.get("product"),
                         "score": 1.0,
                         "source_file": api_result.get("source_file"),
+                    })
+
+        # 5. Config search (설정 파라미터)
+        config_context = await self.get_config_context_for_agent(query)
+        if config_context:
+            config_patterns = [
+                r"\b([A-Z][A-Z0-9_]{2,})\b",
+            ]
+            configs = []
+            for pattern in config_patterns:
+                configs.extend(re.findall(pattern, query))
+
+            for config in list(set(configs))[:3]:
+                if config.upper() in {"THE", "AND", "FOR", "NOT", "ARE", "ALL"}:
+                    continue
+                config_result = await self.search_config(config.upper())
+                if config_result:
+                    results.append({
+                        "type": "config",
+                        "config": config_result.get("config"),
+                        "description": config_result.get("description"),
+                        "product": config_result.get("product"),
+                        "score": 1.0,
+                        "source_file": config_result.get("source_file"),
+                    })
+
+        # 6. Domain term search (terms/ 디렉토리 - glossary와 별도)
+        domain_term_context = await self.get_domain_term_context_for_agent(query)
+        if domain_term_context:
+            # \b가 CJK 문자와 함께 동작하지 않으므로 boundary 제거
+            term_patterns = [
+                r"([A-Z][a-z]+[A-Z][a-zA-Z]*)",  # CamelCase
+                r"(?:^|[^A-Za-z])([A-Z][A-Z0-9_]+)(?=[^A-Za-z]|$)",  # UPPER_CASE
+            ]
+            domain_terms = []
+            for pattern in term_patterns:
+                domain_terms.extend(re.findall(pattern, query))
+
+            for term in list(set(domain_terms))[:3]:
+                if term.upper() in {"THE", "AND", "FOR", "NOT", "ARE", "ALL", "WITH", "THIS", "THAT"}:
+                    continue
+                term_result = await self.search_term(term)
+                if term_result:
+                    results.append({
+                        "type": "term",
+                        "term": term_result.get("term"),
+                        "description": term_result.get("description"),
+                        "reference": term_result.get("reference"),
+                        "score": 1.0,
+                        "source_file": term_result.get("source_file"),
                     })
 
         # Determine confidence level
@@ -932,7 +1272,7 @@ class SummarySearchService:
 
         # Build context string
         context_parts = []
-        for r in results[:5]:
+        for r in results[:7]:  # 최대 7개 컨텍스트
             if r["type"] == "error_code":
                 ctx = f"[에러 {r.get('code')}: {r.get('name')} - {r.get('description', '')}]"
             elif r["type"] == "command":
@@ -941,6 +1281,10 @@ class SummarySearchService:
                 ctx = f"[{r.get('term')}: {r.get('full_name', '')} - {r.get('description', '')}]"
             elif r["type"] == "api":
                 ctx = f"[API {r.get('api')}: {r.get('description', '')}]"
+            elif r["type"] == "config":
+                ctx = f"[설정 {r.get('config')}: {r.get('description', '')}]"
+            elif r["type"] == "term":
+                ctx = f"[용어 {r.get('term')}: {r.get('description', '')}]"
             else:
                 ctx = f"[{r.get('type')}: {str(r)[:100]}]"
             context_parts.append(ctx)
