@@ -7,6 +7,7 @@ from .ims_agent import IMSAgent
 from .vision_agent import VisionAgent
 from .code_agent import CodeAgent
 from .planner_agent import PlannerAgent
+from .opencode_agent import OpenCodeAgent
 from .enhancement_analyst_agent import EnhancementAnalystAgent, get_analyst_agent
 from .enhancement_architect_agent import EnhancementArchitectAgent, get_architect_agent
 from .enhancement_coder_agent import EnhancementCoderAgent, get_coder_agent
@@ -18,6 +19,7 @@ __all__ = [
     "VisionAgent",
     "CodeAgent",
     "PlannerAgent",
+    "OpenCodeAgent",
     "EnhancementAnalystAgent",
     "EnhancementArchitectAgent",
     "EnhancementCoderAgent",

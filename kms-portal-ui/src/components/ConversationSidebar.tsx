@@ -69,6 +69,7 @@ function getAgentDisplayName(agentType: AgentType): string {
     vision: 'Vision',
     code: 'Code',
     planner: 'Planner',
+    opencode: 'OpenCode',
   };
   return names[agentType];
 }

@@ -14,7 +14,7 @@ import apiClient from './client';
 /**
  * Agent types available in the system
  */
-export type AgentType = 'auto' | 'rag' | 'ims' | 'vision' | 'code' | 'planner';
+export type AgentType = 'auto' | 'rag' | 'ims' | 'vision' | 'code' | 'planner' | 'opencode';
 
 /**
  * Search scope for Agent-Driven RAG

@@ -20,6 +20,8 @@ class AgentType(str, Enum):
     VISION = "vision"
     CODE = "code"
     PLANNER = "planner"
+    # OpenCode Agent - Document-grounded with hallucination detection
+    OPENCODE = "opencode"
     # Enhancement agents
     ENHANCEMENT_ANALYST = "enhancement_analyst"
     ENHANCEMENT_ARCHITECT = "enhancement_architect"
@@ -199,6 +201,7 @@ class BlockType(str, Enum):
     IMAGE = "image"
     SOURCE_CITATION = "source_citation"
     NO_ANSWER = "no_answer"
+    PRODUCT_VERSION = "product_version"  # Multi-product platform comparison block
 
 
 class AnswerBlock(BaseModel):
@@ -232,6 +235,13 @@ class AnswerBlock(BaseModel):
     page: Optional[int] = Field(None, description="Page number for SOURCE_CITATION")
     chunk_id: Optional[str] = Field(None, description="Chunk ID for SOURCE_CITATION")
     score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Relevance score")
+
+    # Product version block fields (for multi-product platform comparison)
+    name: Optional[str] = Field(None, description="Command/error/term name for PRODUCT_VERSION")
+    doc_type: Optional[str] = Field(None, description="Document type: commands, error-codes, glossary, apis")
+    variants: Optional[List[Dict[str, Any]]] = Field(None, description="Platform variants for PRODUCT_VERSION")
+    has_differences: Optional[bool] = Field(None, description="Whether variants differ across platforms")
+    available_platforms: Optional[List[str]] = Field(None, description="List of available platforms (MVS, MSP, XSP, VOS3)")
 
     class Config:
         json_schema_extra = {
@@ -284,6 +294,30 @@ class StructuredAnswer(BaseModel):
                 lines.append(f"📎 {block.doc_name or 'Unknown'}{page_info}{score_info}")
             elif block.type == BlockType.NO_ANSWER:
                 lines.append(block.content or "No relevant information found.")
+            elif block.type == BlockType.PRODUCT_VERSION:
+                # Format product version block as markdown
+                name = block.name or "Unknown"
+                doc_type = block.doc_type or "commands"
+                platforms = ", ".join(block.available_platforms or [])
+                lines.append(f"### [{doc_type.upper()}] {name}")
+                if platforms:
+                    lines.append(f"**플랫폼**: {platforms}")
+                if block.has_differences:
+                    lines.append("⚠️ **플랫폼별 차이 있음**")
+                for variant in block.variants or []:
+                    platform = variant.get("platform", "Unknown")
+                    version = variant.get("product_version", "")
+                    description = variant.get("description", "")
+                    syntax = variant.get("syntax", "")
+                    source_pdf = variant.get("source_pdf", "")
+                    version_str = f" (v{version})" if version else ""
+                    lines.append(f"\n#### {platform}{version_str}")
+                    if description:
+                        lines.append(description)
+                    if syntax:
+                        lines.append(f"```\n{syntax}\n```")
+                    if source_pdf:
+                        lines.append(f"📄 출처: {source_pdf}")
             lines.append("")
         return "\n".join(lines)
 

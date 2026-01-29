@@ -223,6 +223,7 @@ export function useStreamingChat(
     vision: createInitialAgentState(),
     code: createInitialAgentState(),
     planner: createInitialAgentState(),
+    opencode: createInitialAgentState(),
   });
 
   // Current agent's state (React state for UI updates)

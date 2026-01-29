@@ -344,3 +344,41 @@ export interface ClarificationState {
   selectedOptionId: string | null;
   customInput: string;
 }
+
+/**
+ * Product variant for multi-product search results
+ */
+export interface ProductVariant {
+  platform: string;        // MVS, MSP, XSP, VOS3
+  productVersion?: string; // 7.1, 7.3
+  description?: string;
+  syntax?: string;
+  sourcePdf?: string;
+  pageNumbers: number[];
+  solution?: string;       // For error codes
+  documentVersion?: string; // v3.3.1
+}
+
+/**
+ * Multi-product aggregated search result
+ */
+export interface MultiProductResult {
+  name: string;
+  docType: string;
+  variants: ProductVariant[];
+  hasDifferences: boolean;
+  availablePlatforms: string[];
+  score: number;
+}
+
+/**
+ * Product section for UI display
+ */
+export interface ProductSection {
+  platform: string;
+  version?: string;
+  content: string;
+  source?: string;
+  pageNumbers?: number[];
+  availablePlatforms?: string[];
+}

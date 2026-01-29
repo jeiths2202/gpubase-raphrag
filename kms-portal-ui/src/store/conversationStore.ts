@@ -105,6 +105,7 @@ const initialAgentStates: Record<AgentType, AgentConversationState> = {
   vision: createInitialAgentState(),
   code: createInitialAgentState(),
   planner: createInitialAgentState(),
+  opencode: createInitialAgentState(),
 };
 
 // =============================================================================

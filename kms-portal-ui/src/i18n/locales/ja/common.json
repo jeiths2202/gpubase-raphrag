@@ -43,6 +43,7 @@
     "logout": "ログアウト",
     "externalPortal": "外部ポータル",
     "apikeys": "APIキー",
+    "openAgent": "OpenAgent",
     "mainNavigation": "メインナビゲーション"
   },
   "products": {
@@ -592,6 +593,54 @@
     "autoResolved": "自動解決",
     "preferenceSaved": "件の設定が保存されました",
     "preferencesSaved": "件の設定が保存されました"
+  },
+  "openAgent": {
+    "title": "OF KMS",
+    "connected": "接続済み",
+    "disconnected": "切断",
+    "clearChat": "チャットをクリア",
+    "configuration": "設定",
+    "welcomeTitle": "OF KMSへようこそ",
+    "welcomeMessage": "OpenFrameについて何でもお聞きください！コマンド、エラーコード、設定についてお手伝いします。",
+    "suggestion1": "tjesmgrコマンドを説明してください",
+    "suggestion2": "エラーコード-5212の原因",
+    "suggestion3": "TACFとは何ですか？",
+    "thinking": "考え中...",
+    "attachFile": "ファイルを添付",
+    "placeholder": "メッセージを入力..."
+  },
+  "opencode": {
+    "title": "OpenCodeエージェント",
+    "description": "5ステップ検証ワークフローを持つドキュメント基盤AI",
+    "steps": {
+      "keywordExtraction": "キーワード抽出",
+      "summarySearch": "要約検索",
+      "pdfVerification": "PDF検証",
+      "toolSelection": "ツール選択",
+      "answerGeneration": "回答生成"
+    },
+    "status": {
+      "extractingKeywords": "クエリからキーワードを抽出中...",
+      "searchingSummaries": "要約ドキュメントを検索中...",
+      "verifyingPdf": "PDFソースをページレベルで検証中...",
+      "selectingTools": "適切なツールを選択中...",
+      "generatingAnswer": "ドキュメントに基づく回答を生成中...",
+      "checkingHallucination": "回答の根拠を検証中...",
+      "retrying": "ハルシネーションを検出。リトライ中 ({{attempt}}/{{max}})...",
+      "verified": "検証: 合格",
+      "failed": "検証: 失敗"
+    },
+    "verification": {
+      "title": "検証チェックリスト",
+      "allKeywordsExtracted": "全キーワード抽出済み",
+      "allSummariesSearched": "全要約検索済み",
+      "allPdfsVerified": "全PDF検証済み",
+      "pagesVerified": "ページ検証済み",
+      "correctToolsUsed": "正しいツール使用済み",
+      "allClaimsSourced": "全主張に出典あり",
+      "noHallucination": "ハルシネーション未検出"
+    },
+    "noSources": "この情報はナレッジベースで見つかりませんでした。"
   },
   "home": {
     "stats": {

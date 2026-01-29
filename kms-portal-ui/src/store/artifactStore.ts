@@ -106,6 +106,7 @@ const initialAgentArtifacts: Record<AgentType, AgentArtifactState> = {
   vision: createInitialAgentArtifactState(),
   code: createInitialAgentArtifactState(),
   planner: createInitialAgentArtifactState(),
+  opencode: createInitialAgentArtifactState(),
 };
 
 // =============================================================================

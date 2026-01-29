@@ -58,6 +58,7 @@ export function useFileAttachment(
     vision: createInitialAgentFileState(),
     code: createInitialAgentFileState(),
     planner: createInitialAgentFileState(),
+    opencode: createInitialAgentFileState(),
   });
 
   // Current agent's state (React state for UI updates)

@@ -43,6 +43,7 @@
     "logout": "Logout",
     "externalPortal": "External Portal",
     "apikeys": "API Keys",
+    "openAgent": "OpenAgent",
     "mainNavigation": "Main navigation"
   },
   "products": {
@@ -592,6 +593,54 @@
     "autoResolved": "Auto-resolved",
     "preferenceSaved": "preference saved",
     "preferencesSaved": "preferences saved"
+  },
+  "openAgent": {
+    "title": "OF KMS",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "clearChat": "Clear Chat",
+    "configuration": "Configuration",
+    "welcomeTitle": "Welcome to OF KMS",
+    "welcomeMessage": "Ask me anything about OpenFrame! I can help with commands, error codes, and configurations.",
+    "suggestion1": "Explain tjesmgr command",
+    "suggestion2": "What is error code -5212?",
+    "suggestion3": "What is TACF?",
+    "thinking": "Thinking...",
+    "attachFile": "Attach file",
+    "placeholder": "Type your message..."
+  },
+  "opencode": {
+    "title": "OpenCode Agent",
+    "description": "Document-grounded AI with 5-step verification workflow",
+    "steps": {
+      "keywordExtraction": "Keyword Extraction",
+      "summarySearch": "Summary Search",
+      "pdfVerification": "PDF Verification",
+      "toolSelection": "Tool Selection",
+      "answerGeneration": "Answer Generation"
+    },
+    "status": {
+      "extractingKeywords": "Extracting keywords from query...",
+      "searchingSummaries": "Searching summary documents...",
+      "verifyingPdf": "Verifying PDF sources at page level...",
+      "selectingTools": "Selecting appropriate tools...",
+      "generatingAnswer": "Generating document-grounded answer...",
+      "checkingHallucination": "Verifying answer grounding...",
+      "retrying": "Hallucination detected. Retrying (attempt {{attempt}}/{{max}})...",
+      "verified": "Verification: PASSED",
+      "failed": "Verification: FAILED"
+    },
+    "verification": {
+      "title": "Verification Checklist",
+      "allKeywordsExtracted": "All keywords extracted",
+      "allSummariesSearched": "All summaries searched",
+      "allPdfsVerified": "All PDFs verified",
+      "pagesVerified": "Pages verified",
+      "correctToolsUsed": "Correct tools used",
+      "allClaimsSourced": "All claims sourced",
+      "noHallucination": "No hallucination detected"
+    },
+    "noSources": "I cannot find information about this in the knowledge base."
   },
   "home": {
     "stats": {

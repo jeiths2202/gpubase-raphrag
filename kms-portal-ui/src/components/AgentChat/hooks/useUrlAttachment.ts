@@ -49,6 +49,7 @@ export function useUrlAttachment(
     vision: createInitialAgentUrlState(),
     code: createInitialAgentUrlState(),
     planner: createInitialAgentUrlState(),
+    opencode: createInitialAgentUrlState(),
   });
 
   // Current agent's state (React state for UI updates)

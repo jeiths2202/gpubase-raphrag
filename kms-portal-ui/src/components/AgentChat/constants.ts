@@ -9,6 +9,7 @@ import {
   FileText,
   Globe,
   Brain,
+  Shield,
 } from 'lucide-react';
 import type { AgentType } from '../../api/agent.api';
 
@@ -46,6 +47,11 @@ export const AGENT_CONFIGS: Record<AgentType, { icon: React.ElementType; label: 
     label: 'Planner',
     description: 'Task planning and decomposition',
   },
+  opencode: {
+    icon: Shield,
+    label: 'OpenCode',
+    description: 'Document-grounded AI with 5-step verification',
+  },
 };
 
 /**
@@ -81,6 +87,11 @@ export const SUGGESTED_QUESTIONS: Record<AgentType, string[]> = {
     'Plan a new feature implementation',
     'Break down this complex task',
     'Create a project roadmap',
+  ],
+  opencode: [
+    'tjesmgr 명령어 설명해주세요',
+    'What is error code -5212?',
+    'TACF란 무엇인가요?',
   ],
 };
 

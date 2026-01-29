@@ -103,6 +103,8 @@ class ToolRegistry:
             AgentType.VISION: ["document_read", "unified_search"],
             AgentType.CODE: ["document_read", "bash", "unified_search"],
             AgentType.PLANNER: ["unified_search", "graph_query", "ims_search", "document_read"],
+            # OpenCode Agent - Document-grounded with 5-step verification workflow
+            AgentType.OPENCODE: ["unified_search", "graph_query", "document_read", "image_search"],
             # Enhancement agents - need document_read and unified_search to analyze codebase
             AgentType.ENHANCEMENT_ANALYST: ["unified_search", "document_read", "graph_query"],
             AgentType.ENHANCEMENT_ARCHITECT: ["unified_search", "document_read", "graph_query", "bash"],
@@ -139,7 +141,7 @@ class AgentRegistry:
         """Register default agents"""
         # Lazy import to avoid circular dependencies
         from .agents import (
-            RAGAgent, IMSAgent, VisionAgent, CodeAgent, PlannerAgent
+            RAGAgent, IMSAgent, VisionAgent, CodeAgent, PlannerAgent, OpenCodeAgent
         )
 
         self._agent_classes = {
@@ -148,6 +150,7 @@ class AgentRegistry:
             AgentType.VISION: VisionAgent,
             AgentType.CODE: CodeAgent,
             AgentType.PLANNER: PlannerAgent,
+            AgentType.OPENCODE: OpenCodeAgent,
         }
 
         logger.info(f"Registered {len(self._agent_classes)} agent types")
