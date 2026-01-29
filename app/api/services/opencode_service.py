@@ -1048,6 +1048,9 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
         structure_context = ""
         structure_sections = []
         structure_images = []
+        structure_has_visual = False
+        structure_pages = []
+        structure_result = {}
         try:
             # PRIORITY 1: Extract product name from USER QUERY first (most reliable)
             doc_name_hint = None
