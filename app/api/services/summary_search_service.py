@@ -13,6 +13,21 @@ from typing import Optional, Dict, List, Any
 
 logger = logging.getLogger(__name__)
 
+# MetadataConfigService lazy import to avoid circular dependencies
+_metadata_config_service = None
+
+async def _get_metadata_config_service():
+    """Lazy load MetadataConfigService."""
+    global _metadata_config_service
+    if _metadata_config_service is None:
+        try:
+            from .metadata_config_service import get_metadata_config_service
+            _metadata_config_service = await get_metadata_config_service()
+            logger.info("MetadataConfigService loaded for SummarySearchService")
+        except Exception as e:
+            logger.warning(f"Failed to load MetadataConfigService: {e}")
+    return _metadata_config_service
+
 
 class SummarySearchService:
     """매뉴얼 요약본 검색 서비스
@@ -73,52 +88,64 @@ class SummarySearchService:
 
         code_int = int(code_num)
 
-        # 모듈 범위 매핑
-        module_ranges = {
-            (0, 999): "BASE-0.md",
-            (1000, 1999): "BASE-1000.md",
-            (2000, 2999): "BASE-2000.md",
-            (3000, 3999): "BASE-3000.md",
-            (4000, 4999): "BASE-4000.md",
-            (5000, 5999): "BASE-5000.md",
-            (6000, 6999): "BASE-6000.md",
-            (7000, 7999): "BASE-7000.md",
-            (8000, 8999): "BASE-8000.md",
-            (9000, 9999): "BATCH-9000.md",
-            (10000, 10999): "BASE-10000.md",
-            (11000, 11999): "BASE-11000.md",
-            (12000, 12999): "BASE-12000.md",
-            (13000, 13999): "BATCH-13000.md",
-            (15000, 15999): "BASE-15000.md",
-            (16000, 16999): "BATCH-16000.md",
-            (17000, 17999): "BASE-17000.md",
-            (18000, 18999): "TACF-18000.md",
-            (21000, 21999): "AIM-21000.md",
-            (22000, 22999): "BASE-22000.md",
-            (32000, 32999): "BASE-32000.md",
-            (34000, 34499): "BASE-34000.md",
-            (34500, 34999): "BASE-34500.md",
-            (36000, 36999): "BASE-36000.md",
-            (38000, 38999): "NDB-38000.md",
-            (80000, 80999): "AIM-80000.md",
-            (82000, 82999): "AIM-82000.md",
-            (84000, 84999): "AIM-84000.md",
-            (85000, 85999): "AIM-85000.md",
-            (86000, 86999): "AIM-86000.md",
-            (87000, 87999): "AIM-87000.md",
-            (88000, 88999): "AIM-88000.md",
-            (89000, 89999): "AIM-89000.md",
-            (92000, 92999): "BATCH-92000.md",
-            (93000, 93999): "BASE-93000.md",
-            (99000, 99999): "NDB-99000.md",
-        }
-
-        # 적합한 파일 찾기
+        # Try to get error file from MetadataConfigService first
         target_file = None
-        for (start, end), filename in module_ranges.items():
-            if start <= code_int <= end:
-                target_file = self.error_codes_dir / filename
-                break
+        try:
+            metadata_service = await _get_metadata_config_service()
+            if metadata_service:
+                file_path = await metadata_service.get_error_file(code_int)
+                if file_path:
+                    target_file = self.error_codes_dir / file_path
+                    logger.debug(f"Error file from metadata: {file_path}")
+        except Exception as e:
+            logger.debug(f"Metadata error lookup failed: {e}")
+
+        # Fallback to hardcoded module_ranges if metadata lookup failed
+        if not target_file:
+            module_ranges = {
+                (0, 999): "BASE-0.md",
+                (1000, 1999): "BASE-1000.md",
+                (2000, 2999): "BASE-2000.md",
+                (3000, 3999): "BASE-3000.md",
+                (4000, 4999): "BASE-4000.md",
+                (5000, 5999): "BASE-5000.md",
+                (6000, 6999): "BASE-6000.md",
+                (7000, 7999): "BASE-7000.md",
+                (8000, 8999): "BASE-8000.md",
+                (9000, 9999): "BATCH-9000.md",
+                (10000, 10999): "BASE-10000.md",
+                (11000, 11999): "BASE-11000.md",
+                (12000, 12999): "BASE-12000.md",
+                (13000, 13999): "BATCH-13000.md",
+                (15000, 15999): "BASE-15000.md",
+                (16000, 16999): "BATCH-16000.md",
+                (17000, 17999): "BASE-17000.md",
+                (18000, 18999): "TACF-18000.md",
+                (21000, 21999): "AIM-21000.md",
+                (22000, 22999): "BASE-22000.md",
+                (32000, 32999): "BASE-32000.md",
+                (34000, 34499): "BASE-34000.md",
+                (34500, 34999): "BASE-34500.md",
+                (36000, 36999): "BASE-36000.md",
+                (38000, 38999): "NDB-38000.md",
+                (80000, 80999): "AIM-80000.md",
+                (82000, 82999): "AIM-82000.md",
+                (84000, 84999): "AIM-84000.md",
+                (85000, 85999): "AIM-85000.md",
+                (86000, 86999): "AIM-86000.md",
+                (87000, 87999): "AIM-87000.md",
+                (88000, 88999): "AIM-88000.md",
+                (89000, 89999): "AIM-89000.md",
+                (92000, 92999): "BATCH-92000.md",
+                (93000, 93999): "BASE-93000.md",
+                (99000, 99999): "NDB-99000.md",
+            }
+
+            # 적합한 파일 찾기
+            for (start, end), filename in module_ranges.items():
+                if start <= code_int <= end:
+                    target_file = self.error_codes_dir / filename
+                    break
 
         if not target_file or not target_file.exists():
             # 대체: 모든 에러 파일에서 검색
@@ -875,34 +902,53 @@ class SummarySearchService:
         # 제품명 정규화
         product_lower = product_name.lower().strip()
 
-        # 제품명 매핑
-        product_map = {
-            "base": "OpenFrame_Base",
-            "openframe base": "OpenFrame_Base",
-            "batch": "OpenFrame_Batch",
-            "openframe batch": "OpenFrame_Batch",
-            "common": "OpenFrame_Common",
-            "openframe common": "OpenFrame_Common",
-            "tacf": "OpenFrame_TACF",
-            "openframe tacf": "OpenFrame_TACF",
-            "osc": "OpenFrame_OSC",
-            "openframe osc": "OpenFrame_OSC",
-            "osi": "OpenFrame_OSI",
-            "openframe osi": "OpenFrame_OSI",
-            "tjes": "OpenFrame_TJES",
-            "openframe tjes": "OpenFrame_TJES",
-            "hidb": "OpenFrame_HiDB",
-            "openframe hidb": "OpenFrame_HiDB",
-            "tmax": "Tmax",
-            "tibero": "Tibero",
-        }
-
-        # 제품명 찾기
+        # Try to get product mapping from MetadataConfigService first
         product_key = None
-        for key, value in product_map.items():
-            if key in product_lower:
-                product_key = value
-                break
+        try:
+            metadata_service = await _get_metadata_config_service()
+            if metadata_service:
+                # Extract keyword from product name
+                keywords_to_try = [
+                    product_lower.replace("openframe ", "").strip().upper(),
+                    product_name.upper(),
+                ]
+                for kw in keywords_to_try:
+                    doc_pattern = await metadata_service.get_document_pattern(kw)
+                    if doc_pattern:
+                        product_key = f"OpenFrame_{doc_pattern}"
+                        logger.debug(f"Product mapping from metadata: {kw} -> {product_key}")
+                        break
+        except Exception as e:
+            logger.debug(f"Metadata product lookup failed: {e}")
+
+        # Fallback to hardcoded product_map if metadata lookup failed
+        if not product_key:
+            product_map = {
+                "base": "OpenFrame_Base",
+                "openframe base": "OpenFrame_Base",
+                "batch": "OpenFrame_Batch",
+                "openframe batch": "OpenFrame_Batch",
+                "common": "OpenFrame_Common",
+                "openframe common": "OpenFrame_Common",
+                "tacf": "OpenFrame_TACF",
+                "openframe tacf": "OpenFrame_TACF",
+                "osc": "OpenFrame_OSC",
+                "openframe osc": "OpenFrame_OSC",
+                "osi": "OpenFrame_OSI",
+                "openframe osi": "OpenFrame_OSI",
+                "tjes": "OpenFrame_TJES",
+                "openframe tjes": "OpenFrame_TJES",
+                "hidb": "OpenFrame_HiDB",
+                "openframe hidb": "OpenFrame_HiDB",
+                "tmax": "Tmax",
+                "tibero": "Tibero",
+            }
+
+            # 제품명 찾기
+            for key, value in product_map.items():
+                if key in product_lower:
+                    product_key = value
+                    break
 
         if not product_key:
             return None
@@ -1500,6 +1546,266 @@ class SummarySearchService:
             "context_string": "\n".join(context_parts) if context_parts else "",
             "total_results": len(results),
         }
+
+    # =========================================================================
+    # Structure Search Methods (Two-Stage Retrieval용)
+    # =========================================================================
+
+    async def search_structure(
+        self, pdf_name: str, section_title: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """PDF 문서의 계층 구조 검색
+
+        Args:
+            pdf_name: PDF 파일명 (확장자 포함 또는 미포함)
+            section_title: 특정 섹션 제목 (선택사항)
+
+        Returns:
+            구조 정보 딕셔너리 또는 None
+        """
+        structures_dir = self.summaries_dir / "structures"
+        if not structures_dir.exists():
+            logger.debug("structures 디렉토리가 없습니다")
+            return None
+
+        # 파일명 정규화
+        base_name = Path(pdf_name).stem
+
+        # 구조 파일 찾기
+        structure_file = structures_dir / f"{base_name}_structure.json"
+        if not structure_file.exists():
+            # 부분 매칭 시도
+            for f in structures_dir.glob("*_structure.json"):
+                if base_name.lower() in f.stem.lower():
+                    structure_file = f
+                    break
+            else:
+                logger.debug(f"구조 파일을 찾을 수 없습니다: {base_name}")
+                return None
+
+        try:
+            data = json.loads(structure_file.read_text(encoding="utf-8"))
+
+            # 특정 섹션 검색
+            if section_title:
+                node = self._find_node_in_structure(data.get("hierarchy", []), section_title)
+                if node:
+                    return {
+                        "found": True,
+                        "document": data.get("title"),
+                        "file_name": data.get("file_name"),
+                        "node": node,
+                        "page_start": node.get("page_start"),
+                        "page_end": node.get("page_end"),
+                        "summary": node.get("summary"),
+                        "keywords": node.get("keywords", []),
+                    }
+                return None
+
+            # 전체 구조 반환
+            return {
+                "found": True,
+                "title": data.get("title"),
+                "file_name": data.get("file_name"),
+                "total_pages": data.get("total_pages"),
+                "language": data.get("language"),
+                "hierarchy_count": self._count_hierarchy_nodes(data.get("hierarchy", [])),
+                "images_count": len(data.get("images_index", [])),
+                "validation": data.get("validation", {}),
+                "top_level_sections": [
+                    {
+                        "title": node.get("title"),
+                        "page_start": node.get("page_start"),
+                        "page_end": node.get("page_end"),
+                        "type": node.get("node_type"),
+                    }
+                    for node in data.get("hierarchy", [])
+                ],
+            }
+
+        except Exception as e:
+            logger.warning(f"구조 파일 파싱 실패: {structure_file} - {e}")
+            return None
+
+    def _find_node_in_structure(
+        self, hierarchy: List[Dict], title: str, exact: bool = False
+    ) -> Optional[Dict]:
+        """계층 구조에서 노드 검색 (재귀적)"""
+        for node in hierarchy:
+            if exact:
+                if node.get("title") == title:
+                    return node
+            else:
+                if title.lower() in node.get("title", "").lower():
+                    return node
+
+            # 자식 노드 검색
+            children = node.get("children", [])
+            if children:
+                found = self._find_node_in_structure(children, title, exact)
+                if found:
+                    return found
+
+        return None
+
+    def _count_hierarchy_nodes(self, hierarchy: List[Dict]) -> int:
+        """계층 구조의 전체 노드 수 계산"""
+        count = 0
+        for node in hierarchy:
+            count += 1
+            count += self._count_hierarchy_nodes(node.get("children", []))
+        return count
+
+    async def get_image_references(
+        self, pdf_name: str, ref_type: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """PDF 문서의 이미지/테이블 참조 목록 반환
+
+        Args:
+            pdf_name: PDF 파일명
+            ref_type: "figure" 또는 "table" (선택사항)
+
+        Returns:
+            이미지 참조 목록
+        """
+        structures_dir = self.summaries_dir / "structures"
+        if not structures_dir.exists():
+            return []
+
+        # 파일명 정규화
+        base_name = Path(pdf_name).stem
+
+        # 이미지 인덱스 파일 찾기
+        images_file = structures_dir / f"{base_name}_images.json"
+        if not images_file.exists():
+            # 부분 매칭 시도
+            for f in structures_dir.glob("*_images.json"):
+                if base_name.lower() in f.stem.lower():
+                    images_file = f
+                    break
+            else:
+                return []
+
+        try:
+            data = json.loads(images_file.read_text(encoding="utf-8"))
+
+            if ref_type == "figure":
+                return data.get("figures", [])
+            elif ref_type == "table":
+                return data.get("tables", [])
+            else:
+                # 모든 이미지 반환
+                return data.get("figures", []) + data.get("tables", [])
+
+        except Exception as e:
+            logger.warning(f"이미지 인덱스 파싱 실패: {images_file} - {e}")
+            return []
+
+    async def get_structure_for_pages(
+        self, pdf_name: str, start_page: int, end_page: int
+    ) -> Optional[Dict[str, Any]]:
+        """특정 페이지 범위에 해당하는 구조 정보 반환
+
+        Args:
+            pdf_name: PDF 파일명
+            start_page: 시작 페이지
+            end_page: 종료 페이지
+
+        Returns:
+            해당 범위의 섹션 정보
+        """
+        structures_dir = self.summaries_dir / "structures"
+        if not structures_dir.exists():
+            return None
+
+        base_name = Path(pdf_name).stem
+        structure_file = structures_dir / f"{base_name}_structure.json"
+
+        if not structure_file.exists():
+            # 부분 매칭 시도
+            for f in structures_dir.glob("*_structure.json"):
+                if base_name.lower() in f.stem.lower():
+                    structure_file = f
+                    break
+            else:
+                return None
+
+        try:
+            data = json.loads(structure_file.read_text(encoding="utf-8"))
+
+            # 해당 페이지 범위와 겹치는 노드 찾기
+            matching_nodes = []
+
+            def find_overlapping(hierarchy: List[Dict]):
+                for node in hierarchy:
+                    node_start = node.get("page_start", 0)
+                    node_end = node.get("page_end", 0)
+
+                    # 범위 겹침 확인
+                    if not (node_end < start_page or node_start > end_page):
+                        matching_nodes.append({
+                            "id": node.get("id"),
+                            "title": node.get("title"),
+                            "level": node.get("level"),
+                            "type": node.get("node_type"),
+                            "page_start": node_start,
+                            "page_end": node_end,
+                            "summary": node.get("summary"),
+                            "keywords": node.get("keywords", []),
+                        })
+
+                    # 자식 노드도 확인
+                    find_overlapping(node.get("children", []))
+
+            find_overlapping(data.get("hierarchy", []))
+
+            if matching_nodes:
+                return {
+                    "document": data.get("title"),
+                    "file_name": data.get("file_name"),
+                    "page_range": f"{start_page}-{end_page}",
+                    "matching_sections": matching_nodes,
+                    "section_count": len(matching_nodes),
+                }
+
+            return None
+
+        except Exception as e:
+            logger.warning(f"페이지 범위 검색 실패: {e}")
+            return None
+
+    async def list_available_structures(self) -> List[Dict[str, Any]]:
+        """사용 가능한 구조 파일 목록 반환"""
+        structures_dir = self.summaries_dir / "structures"
+        if not structures_dir.exists():
+            return []
+
+        structures = []
+
+        # 인덱스 파일 확인
+        index_file = structures_dir / "index.json"
+        if index_file.exists():
+            try:
+                data = json.loads(index_file.read_text(encoding="utf-8"))
+                return data.get("documents", [])
+            except Exception:
+                pass
+
+        # 개별 파일 스캔
+        for f in structures_dir.glob("*_structure.json"):
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+                structures.append({
+                    "file_name": data.get("file_name"),
+                    "title": data.get("title"),
+                    "pages": data.get("total_pages"),
+                    "nodes": self._count_hierarchy_nodes(data.get("hierarchy", [])),
+                    "valid": data.get("validation", {}).get("valid", False),
+                })
+            except Exception:
+                continue
+
+        return structures
 
 
 # 싱글톤 인스턴스
