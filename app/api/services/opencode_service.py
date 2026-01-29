@@ -43,6 +43,84 @@ async def _get_metadata_service():
     return _metadata_service
 
 
+async def _find_product_from_summaries(query: str, summary_service) -> Optional[str]:
+    """
+    Dynamically find product name by searching summaries for unknown keywords.
+
+    For example: "BMS" is found in OSC documents, "MFS" is found in OSI documents.
+    This avoids hardcoding keyword-to-product mappings.
+
+    Args:
+        query: User query containing unknown keywords
+        summary_service: SummarySearchService instance
+
+    Returns:
+        Product name if found (e.g., "OSC", "OSI"), None otherwise
+    """
+    import subprocess
+    from collections import Counter
+
+    # Extract potential keywords (uppercase 2-4 letter terms)
+    keywords = re.findall(r'\b([A-Z]{2,5})\b', query.upper())
+
+    # Filter out common non-product terms
+    exclude_terms = {"THE", "AND", "FOR", "WITH", "FROM", "THAT", "THIS", "WHAT", "HOW"}
+    keywords = [kw for kw in keywords if kw not in exclude_terms]
+
+    if not keywords:
+        return None
+
+    summaries_dir = summary_service.summaries_dir
+    product_counts = Counter()
+
+    # Product name patterns in filenames
+    product_patterns_in_filename = [
+        (r"_OSC_|OpenFrame_OSC", "OSC"),
+        (r"_OSI_|OpenFrame_OSI", "OSI"),
+        (r"_TJES_|OpenFrame_TJES", "TJES"),
+        (r"_TACF_|OpenFrame_TACF", "TACF"),
+        (r"_HiDB_|OpenFrame_HiDB", "HiDB"),
+        (r"_NDB_|OpenFrame_NDB", "NDB"),
+        (r"_Base_|OpenFrame_Base", "Base"),
+        (r"_Batch_|OpenFrame_Batch", "Batch"),
+        (r"_Common_|OpenFrame_Common", "Common"),
+    ]
+
+    for keyword in keywords:
+        # Search for keyword in summary files
+        for subdir in ["commands", "concepts", "configs", "glossary", "terms"]:
+            search_dir = summaries_dir / subdir
+            if not search_dir.exists():
+                continue
+
+            for md_file in search_dir.glob("*.md"):
+                try:
+                    content = md_file.read_text(encoding="utf-8")
+                    if keyword in content or keyword.lower() in content.lower():
+                        # Extract product from filename
+                        filename = md_file.name
+                        for pattern, product in product_patterns_in_filename:
+                            if re.search(pattern, filename):
+                                product_counts[product] += 1
+                                break
+
+                        # Also check content for PDF references
+                        pdf_refs = re.findall(r'OF_([A-Za-z]+)_', content)
+                        for ref in pdf_refs:
+                            ref_upper = ref.upper()
+                            if ref_upper in ["OSC", "OSI", "TJES", "TACF", "HIDB", "NDB", "BASE", "BATCH"]:
+                                product_counts[ref_upper] += 1
+                except Exception:
+                    continue
+
+    if product_counts:
+        most_common = product_counts.most_common(1)[0]
+        logger.info(f"Dynamic product lookup: keywords={keywords} → {most_common[0]} (count={most_common[1]})")
+        return most_common[0]
+
+    return None
+
+
 async def _search_document_structure(
     query: str,
     doc_name: Optional[str] = None,
@@ -87,6 +165,7 @@ async def _search_document_structure(
         # ========================================
         product_name = doc_name
         if not product_name:
+            # Known product name patterns
             product_patterns = [
                 (r"(OSC|osc)", "OSC"),
                 (r"(TJES|tjes)", "TJES"),
@@ -104,10 +183,15 @@ async def _search_document_structure(
             for pattern, name in product_patterns:
                 if re.search(pattern, query):
                     product_name = name
+                    logger.debug(f"Product pattern '{pattern}' matched → product '{name}'")
                     break
 
+        # Dynamic product lookup: Search summaries for unknown keywords
         if not product_name:
-            logger.debug("No product name found in query")
+            product_name = await _find_product_from_summaries(query, summary_service)
+
+        if not product_name:
+            logger.debug("No product name found in query or summaries")
             return result
 
         # ========================================
@@ -1055,6 +1139,7 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
             # PRIORITY 1: Extract product name from USER QUERY first (most reliable)
             doc_name_hint = None
             query_product_patterns = [
+                # Direct product names
                 (r"(OSC|osc)", "OSC"),
                 (r"(TJES|tjes)", "TJES"),
                 (r"(HiDB|HIDB|hidb)", "HiDB"),
@@ -1064,6 +1149,10 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
                 (r"(Tibero|tibero|TIBERO)", "Tibero"),
                 (r"(COBOL|cobol)", "COBOL"),
                 (r"(ASM|asm)", "ASM"),
+                # OSC-related keywords
+                (r"(BMS|bms)", "OSC"),  # Basic Mapping Support
+                (r"(MFS|mfs)", "OSC"),  # Message Format Service
+                (r"(CICS|cics)", "OSC"),  # CICS → OSC
             ]
             for pattern, name in query_product_patterns:
                 if re.search(pattern, message):
