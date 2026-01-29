@@ -42,6 +42,9 @@ ENABLE_LEARNING_LLM = os.getenv("ENABLE_LEARNING_LLM", "false").lower() == "true
 LEARNING_LLM_MIN_CONFIDENCE = float(os.getenv("LEARNING_LLM_MIN_CONFIDENCE", "0.6"))
 LEARNING_LLM_VERIFICATION_THRESHOLD = float(os.getenv("LEARNING_LLM_VERIFICATION_THRESHOLD", "0.7"))
 
+# Vision Knowledge Feature Toggle (MiniCPM-V enrichment for PDF pages)
+ENABLE_VISION_ENRICHMENT = os.getenv("ENABLE_VISION_ENRICHMENT", "true").lower() == "true"
+
 # Default top_k based on LLM context size
 _USE_LARGE_CONTEXT = os.getenv("RAG_LLM_USE_LARGE_CONTEXT", "false").lower() == "true"
 DEFAULT_TOP_K = 5 if _USE_LARGE_CONTEXT else 3
@@ -405,7 +408,8 @@ Returns relevant document chunks with full context and source information."""
         Build a ToolResult from summary search results.
 
         Called when Summary-First search has HIGH confidence.
-        Now includes multi-product aggregation for platform comparison.
+        Now includes multi-product aggregation for platform comparison
+        and Vision Knowledge enrichment for PDF pages with tables/charts.
 
         Args:
             summary_result: Result from _summary_first_search
@@ -418,6 +422,26 @@ Returns relevant document chunks with full context and source information."""
         results = summary_result.get("results", [])
         confidence = summary_result.get("confidence", "high")
         page_references = summary_result.get("page_references", [])
+
+        # =============================================================
+        # VISION KNOWLEDGE ENRICHMENT
+        # =============================================================
+        # If results have PDF page references, use MiniCPM-V to analyze
+        # the actual PDF pages for tables, charts, and detailed content.
+        vision_enrichment = None
+        if ENABLE_VISION_ENRICHMENT:
+            try:
+                vision_enrichment = await self._try_vision_enrichment(
+                    query=query,
+                    summary_results=results,
+                    context=context,
+                )
+                if vision_enrichment and vision_enrichment.get("type") == "vision_enriched":
+                    logger.info(
+                        f"[VisionEnrichment] Success: {vision_enrichment.get('image_count', 0)} images analyzed"
+                    )
+            except Exception as ve:
+                logger.warning(f"[VisionEnrichment] Failed: {ve}")
 
         # Get multi-product aggregated results for platform comparison
         multi_product_results = await self._get_multi_product_results(query, top_k=5)
@@ -599,6 +623,18 @@ Returns relevant document chunks with full context and source information."""
                         "page_numbers": first_variant.get("page_numbers", [])
                     })
 
+        # Add Vision enrichment to output if available
+        if vision_enrichment and vision_enrichment.get("type") == "vision_enriched":
+            vision_answer = vision_enrichment.get("answer", "")
+            vision_sources = vision_enrichment.get("sources", [])
+            image_count = vision_enrichment.get("image_count", 0)
+
+            if vision_answer:
+                output_parts.append(f"\n\n📊 [Vision Analysis] Analyzed {image_count} PDF page(s):\n")
+                output_parts.append(vision_answer)
+                if vision_sources:
+                    output_parts.append(f"\n\n📄 Vision Sources: {', '.join(vision_sources)}")
+
         # Build result metadata with multi-product info
         result_metadata = {
             "results_count": len(enriched_results),
@@ -616,12 +652,84 @@ Returns relevant document chunks with full context and source information."""
             "multi_product_results": multi_product_results,
             "product_sections": product_sections,
             "has_platform_differences": has_platform_differences,
+            # Vision enrichment information
+            "vision_enriched": vision_enrichment is not None and vision_enrichment.get("type") == "vision_enriched",
+            "vision_image_count": vision_enrichment.get("image_count", 0) if vision_enrichment else 0,
+            "vision_sources": vision_enrichment.get("sources", []) if vision_enrichment else [],
         }
 
         return self.create_success_result(
             "\n".join(output_parts),
             metadata=result_metadata
         )
+
+    async def _try_vision_enrichment(
+        self,
+        query: str,
+        summary_results: List[Dict[str, Any]],
+        context: AgentContext,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Try to enrich summary results with Vision LLM analysis.
+
+        Analyzes PDF pages referenced in summary results using MiniCPM-V
+        to extract tables, charts, and detailed visual content.
+
+        Args:
+            query: Original user query
+            summary_results: Results from summary search
+            context: Agent context
+
+        Returns:
+            Vision enrichment result or None if not applicable/failed
+        """
+        if not ENABLE_VISION_ENRICHMENT:
+            return None
+
+        # Check if results are suitable for vision analysis
+        # Vision is useful for: commands (tables), error codes (tables), configs (tables)
+        vision_worthy_types = {"command", "error_code", "config", "api", "glossary", "term"}
+        has_vision_worthy = any(
+            r.get("type") in vision_worthy_types or r.get("source_pdf") or r.get("page_numbers")
+            for r in summary_results
+        )
+
+        if not has_vision_worthy and not summary_results:
+            logger.debug("[VisionEnrichment] No vision-worthy results, skipping")
+            return None
+
+        try:
+            from ...services.vision_knowledge_service import get_vision_knowledge_service
+
+            vision_service = get_vision_knowledge_service()
+
+            # Detect language from context or query
+            language = "ja"  # Default to Japanese for Japanese documents
+            if context and context.language:
+                language = context.language
+            elif any(c in query for c in "가나다라마바사아자차카타파하"):
+                language = "ko"
+            elif all(ord(c) < 128 for c in query.replace(" ", "")):
+                language = "en"
+
+            # Call Vision Knowledge Service
+            result = await vision_service.search_with_vision(
+                query=query,
+                language=language,
+                max_pages=3,  # Limit pages per PDF for performance
+            )
+
+            if result.get("type") == "vision_enriched":
+                return result
+
+            return None
+
+        except ImportError as ie:
+            logger.warning(f"[VisionEnrichment] Service not available: {ie}")
+            return None
+        except Exception as e:
+            logger.error(f"[VisionEnrichment] Error: {e}")
+            return None
 
     async def _execute_pg_query(self, query: str) -> List[Dict]:
         """Execute a raw SQL query on PostgreSQL"""
@@ -1047,14 +1155,16 @@ Returns relevant document chunks with full context and source information."""
             image_repo = PostgresImageRepository(pool)
 
             # Search similar images by CLIP embedding
-            # Use higher threshold (0.25) for better relevance filtering
-            min_sim = 0.25
+            # Use higher threshold (0.30) for better relevance filtering - prevents loosely related images
+            min_sim = 0.30
             clip_results = await image_repo.search_by_clip_embedding(
                 query_embedding=clip_query_embedding,
                 document_id=doc_id,
                 limit=limit * 3,
                 min_similarity=min_sim
             )
+
+            logger.debug(f"[UnifiedSearch] CLIP search for doc_id={doc_id}, relevant_pages={relevant_pages}, got {len(clip_results)} raw results")
 
             # Filter by relevant pages - REQUIRE page match for technical queries
             clip_images = []
@@ -1063,12 +1173,20 @@ Returns relevant document chunks with full context and source information."""
             for img in clip_results:
                 similarity = img.get('similarity', 0)
                 if similarity < min_sim:
+                    logger.debug(f"[UnifiedSearch] Skipping image {img.get('image_id')} - similarity {similarity:.3f} < {min_sim}")
                     continue
 
                 page_num = img.get('page_number')
-                # STRICT: Only include images from pages that matched text chunks
+                img_doc_id = img.get('document_id')
+
+                # STRICT: Only include images from the target document AND matching pages
                 # This prevents unrelated images from appearing
+                if doc_id and img_doc_id and img_doc_id != doc_id:
+                    logger.debug(f"[UnifiedSearch] Skipping image - doc mismatch: {img_doc_id} != {doc_id}")
+                    continue
+
                 if not relevant_pages or page_num not in relevant_pages:
+                    logger.debug(f"[UnifiedSearch] Skipping image - page {page_num} not in relevant_pages {relevant_pages}")
                     continue
 
                 if page_num not in seen_pages:
@@ -1573,9 +1691,16 @@ Returns relevant document chunks with full context and source information."""
             content = result.get("content", "")
 
             # Find images related to this chunk
+            # MUST match both document ID AND page number to prevent unrelated images
             chunk_images = []
             for img in clip_images:
                 img_page = img.get('page_number')
+                img_doc_id = img.get('document_id')
+
+                # Check document ID match first (critical for multi-document results)
+                if img_doc_id and pdf_id and img_doc_id != pdf_id:
+                    continue  # Skip images from different documents
+
                 if img_page and page_start and page_end:
                     if page_start <= img_page <= page_end:
                         chunk_images.append(img)
@@ -1841,6 +1966,23 @@ Returns relevant document chunks with full context and source information."""
             intent_matches = _check_intent_result_match(query_intents, summary_results, intent_query)
             print(f"[SummaryFirst] Intent detection: intent_query='{intent_query[:50]}', intents={query_intents}, result_types={result_types}, matches={intent_matches}")
 
+            # PRIORITY: If BM25 detected specific keywords (commands, error codes, terms),
+            # ALWAYS return those results - they are exact matches that shouldn't fall back to vector search
+            detected_commands = summary_first_result.get("detected_commands", [])
+            detected_error_codes = summary_first_result.get("detected_error_codes", [])
+            detected_terms = summary_first_result.get("detected_terms", [])
+
+            has_bm25_detection = detected_commands or detected_error_codes or detected_terms
+
+            if has_bm25_detection and summary_results:
+                # BM25 detected specific keywords and found results - return immediately
+                logger.info(f"[SummaryFirst] BM25 detection success: commands={detected_commands}, errors={detected_error_codes}, terms={detected_terms}, returning {len(summary_results)} results directly")
+                return await self._build_response_from_summaries(
+                    summary_result=summary_first_result,
+                    query=query,
+                    context=context,
+                )
+
             if confidence == "high" and summary_results and intent_matches:
                 # High confidence AND intent matches: return summary results directly
                 logger.info(f"[SummaryFirst] High confidence match, intent={query_intents}, returning {len(summary_results)} summary results")
@@ -2028,25 +2170,31 @@ Returns relevant document chunks with full context and source information."""
             if exact_phrases:
                 fused_results = self._apply_exact_phrase_priority(fused_results, exact_phrases)
 
-            # Extract relevant pages for image search
-            relevant_pages = set()
+            # Extract relevant pages for image search - PER DOCUMENT to prevent cross-document image mixing
+            # Build a dict of doc_id -> set of relevant pages
+            relevant_pages_by_doc: Dict[str, Set[int]] = {}
             relevant_doc_id = None
             for result in fused_results[:top_k]:
+                doc_id_result = result.get("doc_id") or result.get("pdf_id")
                 page = result.get("page_start") or result.get("page_number")
-                if page:
-                    relevant_pages.add(page)
-                    relevant_pages.add(page - 1)
-                    relevant_pages.add(page + 1)
-                if not relevant_doc_id:
-                    relevant_doc_id = result.get("doc_id") or result.get("pdf_id")
+                if doc_id_result and page:
+                    if doc_id_result not in relevant_pages_by_doc:
+                        relevant_pages_by_doc[doc_id_result] = set()
+                    relevant_pages_by_doc[doc_id_result].add(page)
+                    # Only add adjacent pages for the same document
+                    relevant_pages_by_doc[doc_id_result].add(max(1, page - 1))
+                    relevant_pages_by_doc[doc_id_result].add(page + 1)
+                if not relevant_doc_id and doc_id_result:
+                    relevant_doc_id = doc_id_result
 
-            # CLIP image search (optional)
+            # CLIP image search (optional) - only search if we have a specific document
             clip_images = []
-            if include_images and relevant_pages:
+            target_doc_id = doc_filter or relevant_doc_id
+            if include_images and target_doc_id and target_doc_id in relevant_pages_by_doc:
                 clip_images = await self._clip_image_search(
                     query=query,
-                    relevant_pages=relevant_pages,
-                    doc_id=doc_filter or relevant_doc_id,
+                    relevant_pages=relevant_pages_by_doc[target_doc_id],
+                    doc_id=target_doc_id,
                     limit=5
                 )
 
