@@ -70,8 +70,9 @@ PRODUCT_KEYWORD_MAP = {
     "TACF": ["TACF", "tacfmgr", "RACF", "セキュリティ", "보안", "認証", "인증",
              "アクセス制御", "접근제어", "権限", "권한"],
 
-    # OSI 제품 (Online System Interface)
-    "OSI": ["OSI", "osimgr", "VTAM", "SNA", "ネットワーク", "네트워크"],
+    # OSI 제품 (Online System Interface / IMS DC equivalent)
+    "OSI": ["OSI", "osimgr", "MFS", "DL/I", "IMS DC", "メッセージフォーマット",
+            "메시지포맷", "VTAM", "SNA", "ネットワーク", "네트워크"],
 
     # NDB 제품 (Network Database)
     "NDB": ["NDB", "ndbmgr", "IDMS", "ネットワークDB", "네트워크DB"],

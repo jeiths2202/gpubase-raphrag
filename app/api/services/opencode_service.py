@@ -8,12 +8,15 @@ This service provides:
 1. Direct vLLM API connection
 2. Summary-based RAG for OpenFrame knowledge
 3. PDF reference extraction for detailed information
+4. Multi-product query support with intent classification
 
 The RAG flow:
-1. User query → SummarySearchService (search summaries)
-2. Enrich query with summary context
-3. Send enriched prompt to vLLM
-4. Return response with source references
+1. User query → QueryIntentClassifier (analyze intent)
+2. User query → MultiProductDetector (find products)
+3. Route to optimal strategy (vector, graph, comparison)
+4. Search relevant products and combine results
+5. Send enriched prompt to vLLM
+6. Return response with source references
 """
 import os
 import re
@@ -26,6 +29,20 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+# Import multi-product and intent services
+from .query_intent_classifier import (
+    QueryIntentClassifier,
+    QueryIntent,
+    RetrievalStrategy,
+    IntentResult,
+    get_query_intent_classifier,
+)
+from .multi_product_detector import (
+    MultiProductDetector,
+    ProductMatch,
+    get_multi_product_detector,
+)
 
 # MetadataConfigService lazy import to avoid circular dependencies
 _metadata_service = None
@@ -43,82 +60,115 @@ async def _get_metadata_service():
     return _metadata_service
 
 
-async def _find_product_from_summaries(query: str, summary_service) -> Optional[str]:
+async def _analyze_query_intent(query: str) -> Tuple[IntentResult, List[str]]:
     """
-    Dynamically find product name by searching summaries for unknown keywords.
-
-    For example: "BMS" is found in OSC documents, "MFS" is found in OSI documents.
-    This avoids hardcoding keyword-to-product mappings.
+    Analyze query intent and detect products using new services.
 
     Args:
-        query: User query containing unknown keywords
-        summary_service: SummarySearchService instance
+        query: User query string
 
     Returns:
-        Product name if found (e.g., "OSC", "OSI"), None otherwise
+        Tuple of (IntentResult, List of detected product names)
     """
-    import subprocess
-    from collections import Counter
+    # Get singleton instances
+    product_detector = get_multi_product_detector()
+    intent_classifier = get_query_intent_classifier()
 
-    # Extract potential keywords (uppercase 2-4 letter terms)
-    keywords = re.findall(r'\b([A-Z]{2,5})\b', query.upper())
+    # Detect products in query
+    product_matches = product_detector.detect(query)
+    products = [m.product for m in product_matches]
 
-    # Filter out common non-product terms
-    exclude_terms = {"THE", "AND", "FOR", "WITH", "FROM", "THAT", "THIS", "WHAT", "HOW"}
-    keywords = [kw for kw in keywords if kw not in exclude_terms]
+    # Classify intent with detected products
+    intent_result = intent_classifier.classify(query, products)
 
-    if not keywords:
-        return None
+    logger.info(
+        f"Query analysis: intent={intent_result.intent.value}, "
+        f"strategy={intent_result.strategy.value}, "
+        f"products={products}, is_multi={intent_result.is_multi_product}"
+    )
 
-    summaries_dir = summary_service.summaries_dir
-    product_counts = Counter()
+    return intent_result, products
 
-    # Product name patterns in filenames
-    product_patterns_in_filename = [
-        (r"_OSC_|OpenFrame_OSC", "OSC"),
-        (r"_OSI_|OpenFrame_OSI", "OSI"),
-        (r"_TJES_|OpenFrame_TJES", "TJES"),
-        (r"_TACF_|OpenFrame_TACF", "TACF"),
-        (r"_HiDB_|OpenFrame_HiDB", "HiDB"),
-        (r"_NDB_|OpenFrame_NDB", "NDB"),
-        (r"_Base_|OpenFrame_Base", "Base"),
-        (r"_Batch_|OpenFrame_Batch", "Batch"),
-        (r"_Common_|OpenFrame_Common", "Common"),
-    ]
 
-    for keyword in keywords:
-        # Search for keyword in summary files
-        for subdir in ["commands", "concepts", "configs", "glossary", "terms"]:
-            search_dir = summaries_dir / subdir
-            if not search_dir.exists():
-                continue
+async def _search_multi_product_structure(
+    query: str,
+    products: List[str],
+    intent_result: IntentResult,
+) -> Dict[str, Any]:
+    """
+    Search document structure for multiple products (comparison/relationship queries).
 
-            for md_file in search_dir.glob("*.md"):
-                try:
-                    content = md_file.read_text(encoding="utf-8")
-                    if keyword in content or keyword.lower() in content.lower():
-                        # Extract product from filename
-                        filename = md_file.name
-                        for pattern, product in product_patterns_in_filename:
-                            if re.search(pattern, filename):
-                                product_counts[product] += 1
-                                break
+    Args:
+        query: User query
+        products: List of products to search
+        intent_result: Query intent classification result
 
-                        # Also check content for PDF references
-                        pdf_refs = re.findall(r'OF_([A-Za-z]+)_', content)
-                        for ref in pdf_refs:
-                            ref_upper = ref.upper()
-                            if ref_upper in ["OSC", "OSI", "TJES", "TACF", "HIDB", "NDB", "BASE", "BATCH"]:
-                                product_counts[ref_upper] += 1
-                except Exception:
-                    continue
+    Returns:
+        Combined structure results from multiple products
+    """
+    from .summary_search_service import get_summary_search_service
 
-    if product_counts:
-        most_common = product_counts.most_common(1)[0]
-        logger.info(f"Dynamic product lookup: keywords={keywords} → {most_common[0]} (count={most_common[1]})")
-        return most_common[0]
+    combined_result = {
+        "structure_context": "",
+        "sections": [],
+        "images": [],
+        "doc_names": [],
+        "products": products,
+        "has_visual_content": False,
+        "recommended_pages": [],
+        "comparison_data": {},
+    }
 
-    return None
+    if not products:
+        return combined_result
+
+    summary_service = get_summary_search_service()
+    context_parts = []
+
+    for product in products:
+        # Search structure for each product
+        product_result = await _search_document_structure(query, doc_name=product)
+
+        if product_result.get("doc_name"):
+            combined_result["doc_names"].append(product_result["doc_name"])
+            combined_result["sections"].extend(product_result.get("sections", []))
+            combined_result["images"].extend(product_result.get("images", []))
+            combined_result["recommended_pages"].extend(product_result.get("recommended_pages", []))
+
+            if product_result.get("has_visual_content"):
+                combined_result["has_visual_content"] = True
+
+            # Build comparison data
+            combined_result["comparison_data"][product] = {
+                "doc_name": product_result["doc_name"],
+                "context": product_result.get("structure_context", ""),
+                "sections": product_result.get("sections", []),
+                "has_visual": product_result.get("has_visual_content", False),
+            }
+
+            # Add to combined context
+            context_parts.append(f"### {product}\n{product_result.get('structure_context', '')}")
+
+    # Combine contexts
+    if context_parts:
+        if intent_result.intent == QueryIntent.COMPARISON:
+            combined_result["structure_context"] = (
+                f"## 比較対象 / Comparison Targets\n\n" +
+                "\n\n".join(context_parts)
+            )
+        else:
+            combined_result["structure_context"] = "\n\n".join(context_parts)
+
+    # Deduplicate recommended pages
+    combined_result["recommended_pages"] = list(set(combined_result["recommended_pages"]))[:6]
+
+    logger.info(
+        f"Multi-product search: products={products}, "
+        f"docs={combined_result['doc_names']}, "
+        f"sections={len(combined_result['sections'])}"
+    )
+
+    return combined_result
 
 
 async def _search_document_structure(
@@ -161,37 +211,19 @@ async def _search_document_structure(
         summary_service = get_summary_search_service()
 
         # ========================================
-        # Stage 1: Extract product name from query
+        # Stage 1: Extract product name from query using MultiProductDetector
         # ========================================
         product_name = doc_name
         if not product_name:
-            # Known product name patterns
-            product_patterns = [
-                (r"(OSC|osc)", "OSC"),
-                (r"(TJES|tjes)", "TJES"),
-                (r"(HiDB|HIDB|hidb)", "HiDB"),
-                (r"(TACF|tacf)", "TACF"),
-                (r"(OSI|osi)", "OSI"),
-                (r"(NDB|ndb)", "NDB"),
-                (r"(BASE|Base|base)", "Base"),
-                (r"(Batch|BATCH|batch)", "Batch"),
-                (r"(COBOL|cobol)", "COBOL"),
-                (r"(ASM|asm)", "ASM"),
-                (r"(Tibero|tibero|TIBERO)", "Tibero"),
-                (r"(GW|gw|Gateway)", "GW"),
-            ]
-            for pattern, name in product_patterns:
-                if re.search(pattern, query):
-                    product_name = name
-                    logger.debug(f"Product pattern '{pattern}' matched → product '{name}'")
-                    break
-
-        # Dynamic product lookup: Search summaries for unknown keywords
-        if not product_name:
-            product_name = await _find_product_from_summaries(query, summary_service)
+            # Use MultiProductDetector for dynamic product detection
+            product_detector = get_multi_product_detector()
+            detected = product_detector.get_products(query)
+            if detected:
+                product_name = detected[0]  # Use first detected product
+                logger.debug(f"MultiProductDetector found product: {product_name}")
 
         if not product_name:
-            logger.debug("No product name found in query or summaries")
+            logger.debug("No product name found in query")
             return result
 
         # ========================================
@@ -1128,82 +1160,90 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
             except Exception as e:
                 logger.warning(f"Summary search failed: {e}")
 
-        # Step 1.5: Search document structures for hierarchical context
+        # Step 1.5: Analyze query intent and search document structures
         structure_context = ""
         structure_sections = []
         structure_images = []
         structure_has_visual = False
         structure_pages = []
         structure_result = {}
+        intent_result = None
+        detected_products = []
+
         try:
-            # PRIORITY 1: Extract product name from USER QUERY first (most reliable)
-            doc_name_hint = None
-            query_product_patterns = [
-                # Direct product names
-                (r"(OSC|osc)", "OSC"),
-                (r"(TJES|tjes)", "TJES"),
-                (r"(HiDB|HIDB|hidb)", "HiDB"),
-                (r"(TACF|tacf)", "TACF"),
-                (r"(OSI|osi)", "OSI"),
-                (r"(NDB|ndb)", "NDB"),
-                (r"(Tibero|tibero|TIBERO)", "Tibero"),
-                (r"(COBOL|cobol)", "COBOL"),
-                (r"(ASM|asm)", "ASM"),
-                # OSC-related keywords
-                (r"(BMS|bms)", "OSC"),  # Basic Mapping Support
-                (r"(MFS|mfs)", "OSC"),  # Message Format Service
-                (r"(CICS|cics)", "OSC"),  # CICS → OSC
-            ]
-            for pattern, name in query_product_patterns:
-                if re.search(pattern, message):
-                    doc_name_hint = name
-                    logger.debug(f"Structure search: extracted product '{name}' from query")
-                    break
+            # Analyze query intent and detect products
+            intent_result, detected_products = await _analyze_query_intent(message)
 
-            # PRIORITY 2: If not found in query, try sources
-            if not doc_name_hint:
-                for src in sources:
-                    src_file = src.get("file", "")
-                    # Extract product name from file path (e.g., "commands/OpenFrame_TJES_MVS.md")
-                    if "TJES" in src_file:
-                        doc_name_hint = "TJES"
-                        break
-                    elif "HiDB" in src_file or "HIDB" in src_file:
-                        doc_name_hint = "HiDB"
-                        break
-                    elif "OSC" in src_file:
-                        doc_name_hint = "OSC"
-                        break
-                    elif "TACF" in src_file:
-                        doc_name_hint = "TACF"
-                        break
-                    elif "OSI" in src_file:
-                        doc_name_hint = "OSI"
-                        break
+            # For comparison/relationship/migration queries, search multiple products
+            if intent_result.is_multi_product and intent_result.intent in [
+                QueryIntent.COMPARISON,
+                QueryIntent.RELATIONSHIP,
+                QueryIntent.MIGRATION,
+            ]:
+                # Multi-product search
+                multi_result = await _search_multi_product_structure(
+                    query=message,
+                    products=detected_products,
+                    intent_result=intent_result,
+                )
 
-            structure_result = await _search_document_structure(
-                query=message,
-                doc_name=doc_name_hint,
-            )
+                structure_context = multi_result.get("structure_context", "")
+                structure_sections = multi_result.get("sections", [])
+                structure_images = multi_result.get("images", [])
+                structure_has_visual = multi_result.get("has_visual_content", False)
+                structure_pages = multi_result.get("recommended_pages", [])
 
-            if structure_result.get("doc_name"):
-                structure_context = structure_result.get("structure_context", "")
-                structure_sections = structure_result.get("sections", [])
-                structure_images = structure_result.get("images", [])
-                structure_has_visual = structure_result.get("has_visual_content", False)
-                structure_pages = structure_result.get("recommended_pages", [])
-
-                # Add structure source to references
-                sources.append({
-                    "type": "document_structure",
-                    "file": structure_result["doc_name"],
-                })
+                # Add all docs as sources
+                for doc_name in multi_result.get("doc_names", []):
+                    sources.append({
+                        "type": "document_structure",
+                        "file": doc_name,
+                    })
 
                 logger.info(
-                    f"Structure RAG: doc={structure_result.get('doc_name')}, "
-                    f"has_visual={structure_has_visual}, pages={structure_pages}, "
-                    f"sections={len(structure_sections)}, images={len(structure_images)}"
+                    f"Multi-product RAG: intent={intent_result.intent.value}, "
+                    f"products={detected_products}, "
+                    f"docs={multi_result.get('doc_names', [])}"
                 )
+
+            else:
+                # Single product search (existing logic)
+                doc_name_hint = detected_products[0] if detected_products else None
+
+                # Fallback: try to extract from sources if no product detected
+                if not doc_name_hint:
+                    for src in sources:
+                        src_file = src.get("file", "")
+                        for product in ["TJES", "HiDB", "OSC", "TACF", "OSI", "NDB"]:
+                            if product in src_file or product.lower() in src_file.lower():
+                                doc_name_hint = product
+                                break
+                        if doc_name_hint:
+                            break
+
+                structure_result = await _search_document_structure(
+                    query=message,
+                    doc_name=doc_name_hint,
+                )
+
+                if structure_result.get("doc_name"):
+                    structure_context = structure_result.get("structure_context", "")
+                    structure_sections = structure_result.get("sections", [])
+                    structure_images = structure_result.get("images", [])
+                    structure_has_visual = structure_result.get("has_visual_content", False)
+                    structure_pages = structure_result.get("recommended_pages", [])
+
+                    # Add structure source to references
+                    sources.append({
+                        "type": "document_structure",
+                        "file": structure_result["doc_name"],
+                    })
+
+                    logger.info(
+                        f"Structure RAG: doc={structure_result.get('doc_name')}, "
+                        f"has_visual={structure_has_visual}, pages={structure_pages}, "
+                        f"sections={len(structure_sections)}, images={len(structure_images)}"
+                    )
 
         except Exception as e:
             logger.warning(f"Document structure search failed: {e}")
@@ -1648,37 +1688,20 @@ OpenFrame is TmaxSoft's mainframe rehosting solution that migrates IBM/Fujitsu m
         # Step 1.5: Search document structures for hierarchical context
         structure_context = ""
         try:
-            # PRIORITY 1: Extract product name from USER QUERY first
-            doc_name_hint = None
-            query_product_patterns = [
-                (r"(OSC|osc)", "OSC"),
-                (r"(TJES|tjes)", "TJES"),
-                (r"(HiDB|HIDB|hidb)", "HiDB"),
-                (r"(TACF|tacf)", "TACF"),
-                (r"(OSI|osi)", "OSI"),
-                (r"(NDB|ndb)", "NDB"),
-                (r"(Tibero|tibero|TIBERO)", "Tibero"),
-            ]
-            for pattern, name in query_product_patterns:
-                if re.search(pattern, message):
-                    doc_name_hint = name
-                    break
+            # Use MultiProductDetector for product detection
+            product_detector = get_multi_product_detector()
+            detected_products = product_detector.get_products(message)
+            doc_name_hint = detected_products[0] if detected_products else None
 
-            # PRIORITY 2: If not found in query, try sources
+            # Fallback: try to extract from sources if no product detected
             if not doc_name_hint:
                 for src in sources:
                     src_file = src.get("file", "")
-                    if "TJES" in src_file:
-                        doc_name_hint = "TJES"
-                        break
-                    elif "HiDB" in src_file or "HIDB" in src_file:
-                        doc_name_hint = "HiDB"
-                        break
-                    elif "OSC" in src_file:
-                        doc_name_hint = "OSC"
-                        break
-                    elif "TACF" in src_file:
-                        doc_name_hint = "TACF"
+                    for product in ["TJES", "HiDB", "OSC", "TACF", "OSI", "NDB"]:
+                        if product in src_file or product.lower() in src_file.lower():
+                            doc_name_hint = product
+                            break
+                    if doc_name_hint:
                         break
 
             structure_result = await _search_document_structure(
