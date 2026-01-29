@@ -159,6 +159,32 @@ class APISettings(BaseSettings):
         description="Embedding service URL"
     )
 
+    # Vision LLM Settings (MiniCPM-V)
+    VISION_API_URL: str = Field(
+        default="http://192.168.8.11:12803/v1",
+        description="Vision LLM API URL (vLLM server)"
+    )
+    VISION_LLM_MODEL: str = Field(
+        default="openbmb/MiniCPM-V-2_6",
+        description="Vision LLM model name"
+    )
+    VISION_LLM_PROVIDER: str = Field(
+        default="minicpm",
+        description="Vision LLM provider (minicpm, openai, anthropic)"
+    )
+    VISION_MAX_TOKENS: int = Field(
+        default=2048,
+        description="Maximum tokens for Vision LLM responses"
+    )
+    VISION_TIMEOUT: int = Field(
+        default=180,
+        description="Timeout for Vision LLM requests in seconds"
+    )
+    VISION_ENABLED: bool = Field(
+        default=True,
+        description="Enable Vision LLM integration in RAG"
+    )
+
     # Code Agent Settings
     CODE_AGENT_MODEL: str = Field(
         default="mistral-nemo-12b",
@@ -431,6 +457,20 @@ class APISettings(BaseSettings):
     SUMMARY_SEARCH_TOP_K: int = Field(
         default=5,
         description="Number of summary results to fetch"
+    )
+
+    # Vision Consolidation Settings (Response Filtering)
+    VISION_CONSOLIDATION_ENABLED: bool = Field(
+        default=True,
+        description="Enable post-analysis filtering and consolidation of vision responses"
+    )
+    VISION_MAX_RELEVANT_PAGES: int = Field(
+        default=3,
+        description="Maximum number of relevant pages to include in consolidated response"
+    )
+    VISION_MIN_KEYWORD_MATCH_RATIO: float = Field(
+        default=0.3,
+        description="Minimum keyword match ratio (0.0-1.0) for quick relevance check"
     )
 
     # Corporate SSO

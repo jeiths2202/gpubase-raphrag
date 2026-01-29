@@ -18,7 +18,16 @@ Architecture:
         │ - 페이지 이미지 렌더링 (PyMuPDF)
         │ - MiniCPM-V 호출
         ▼
-    Response with Tables/Charts/Images
+    [Stage 1] Quick Relevance Filter (키워드 기반, <10ms)
+        │ - 쿼리 키워드 포함 여부 확인
+        │ - 짧은 응답/에러 응답 제거
+        ▼
+    [Stage 2] LLM Consolidation (MiniCPM-V, ~3-5s)
+        │ - 관련 정보 추출 및 통합
+        │ - 중복 제거
+        │ - 출처 정보 유지
+        ▼
+    Consolidated Response with Tables/Charts/Images
 """
 
 import asyncio
@@ -168,7 +177,7 @@ class VisionKnowledgeService:
         logger.info(f"[VisionKnowledge] Found {len(page_refs)} page references for query: {query[:50]}")
 
         # Step 3: PDF 페이지 이미지 수집
-        images, sources = await self._collect_page_images(page_refs, max_pages)
+        images, sources, page_metadata = await self._collect_page_images(page_refs, max_pages)
 
         if not images:
             return {
@@ -181,22 +190,29 @@ class VisionKnowledgeService:
 
         logger.info(f"[VisionKnowledge] Collected {len(images)} page images from {len(sources)} sources")
 
-        # Step 4: MiniCPM-V 분석
+        # Step 4: MiniCPM-V 분석 + 필터링/통합
         try:
-            vision_response = await self._analyze_with_vision(
+            vision_response, relevant_sources, relevant_images = await self._analyze_with_vision(
                 query=query,
                 images=images,
+                page_metadata=page_metadata,  # 페이지 정보 전달
                 context=summary_context,
                 language=language,
             )
+
+            # 필터링된 소스 정보로 sources 업데이트
+            filtered_sources = [
+                f"{s['pdf_name']}, p.{s['page_num']}" for s in relevant_sources
+            ]
 
             return {
                 "type": "vision_enriched",
                 "answer": vision_response,
                 "summary_context": summary_context,
-                "sources": sources,
-                "image_count": len(images),
+                "sources": filtered_sources if filtered_sources else sources,
+                "image_count": len(relevant_images),
                 "page_references": page_refs,
+                "page_images": relevant_images if relevant_images else page_metadata,  # 필터링된 이미지만
                 "confidence": "high",
             }
 
@@ -467,15 +483,19 @@ class VisionKnowledgeService:
         self,
         page_refs: List[Dict],
         max_pages: int,
-    ) -> Tuple[List[bytes], List[str]]:
+    ) -> Tuple[List[bytes], List[str], List[Dict]]:
         """
         PDF 페이지를 이미지로 변환
 
         Returns:
-            (images, sources) tuple
+            (images, sources, page_metadata) tuple
+            page_metadata: List of {"pdf_name": str, "page_num": int, "image_base64": str}
         """
+        import base64
+
         images = []
         sources = []
+        page_metadata = []  # 각 이미지의 출처 정보
 
         for ref in page_refs:
             pdf_name = ref["pdf_name"]
@@ -490,7 +510,17 @@ class VisionKnowledgeService:
             # 페이지 렌더링
             try:
                 page_images = await self._render_pdf_pages(pdf_path, pages)
-                images.extend(page_images)
+
+                for i, img_bytes in enumerate(page_images):
+                    if len(images) >= MAX_TOTAL_IMAGES:
+                        break
+                    images.append(img_bytes)
+                    page_num = pages[i] if i < len(pages) else pages[-1]
+                    page_metadata.append({
+                        "pdf_name": pdf_path.name,
+                        "page_num": page_num,
+                        "image_base64": base64.b64encode(img_bytes).decode("utf-8"),
+                    })
 
                 if page_images:
                     page_str = ",".join(str(p) for p in pages[:len(page_images)])
@@ -503,7 +533,7 @@ class VisionKnowledgeService:
                 logger.error(f"[VisionKnowledge] Failed to render {pdf_path}: {e}")
                 continue
 
-        return images[:MAX_TOTAL_IMAGES], sources
+        return images[:MAX_TOTAL_IMAGES], sources, page_metadata[:MAX_TOTAL_IMAGES]
 
     async def _resolve_pdf_path(self, pdf_name: str) -> Optional[Path]:
         """
@@ -590,51 +620,27 @@ class VisionKnowledgeService:
         self,
         query: str,
         images: List[bytes],
+        page_metadata: List[Dict],
         context: str,
         language: str,
-    ) -> str:
+    ) -> Tuple[str, List[Dict], List[Dict]]:
         """
-        MiniCPM-V로 이미지 분석
+        MiniCPM-V로 이미지 분석 및 관련성 필터링
 
         Args:
             query: 사용자 질문
             images: PDF 페이지 이미지 목록
+            page_metadata: 각 이미지의 출처 정보 [{pdf_name, page_num, ...}]
             context: 요약 검색 컨텍스트
             language: 응답 언어
+
+        Returns:
+            Tuple of (consolidated_answer, relevant_sources, relevant_page_images)
         """
         from app.api.ports.vision_llm_port import ImageContent, VisionTask
+        from app.api.core.config import get_api_settings
 
-        # 프롬프트 구성
-        if language == "ja":
-            prompt = f"""以下の質問に、画像の内容を参照して詳しく回答してください。
-表やチャートがあれば、その内容も整理して説明してください。
-
-質問: {query}
-
-参照コンテキスト:
-{context}
-
-詳細に、できるだけ長く説明してください。箇条書きで整理してください。"""
-        elif language == "ko":
-            prompt = f"""다음 질문에 이미지 내용을 참고하여 상세히 답변해주세요.
-표나 차트가 있으면 그 내용도 정리해서 설명해주세요.
-
-질문: {query}
-
-참조 컨텍스트:
-{context}
-
-상세하게, 가능한 길게 설명해주세요. 목록 형식으로 정리해주세요."""
-        else:
-            prompt = f"""Please answer the following question by referencing the image content.
-If there are tables or charts, organize and explain their content.
-
-Question: {query}
-
-Reference Context:
-{context}
-
-Please provide a detailed, comprehensive explanation in bullet points."""
+        settings = get_api_settings()
 
         # 이미지를 ImageContent로 변환
         image_contents = [
@@ -642,19 +648,355 @@ Please provide a detailed, comprehensive explanation in bullet points."""
             for img in images
         ]
 
-        # 모든 이미지를 하나의 요청으로 분석 (최대 5개)
-        if len(image_contents) > 5:
-            # MiniCPM-V는 요청당 최대 5개 이미지
-            # 여러 번 호출하여 결과 통합
-            all_results = []
-            for i in range(0, len(image_contents), 5):
-                batch = image_contents[i:i+5]
-                result = await self._call_vision_batch(batch, prompt, language)
-                all_results.append(result)
+        # 쿼리 키워드 추출 (필터링용)
+        query_keywords = self._extract_query_keywords(query)
+        logger.info(f"[VisionKnowledge] Query keywords for filtering: {query_keywords}")
 
-            return "\n\n---\n\n".join(all_results)
+        # 각 이미지를 개별 분석 (페이지 정보 포함)
+        per_page_data = []
+
+        for i, (img_content, meta) in enumerate(zip(image_contents, page_metadata)):
+            pdf_name = meta.get("pdf_name", "Unknown")
+            page_num = meta.get("page_num", i + 1)
+
+            # 페이지별 프롬프트 구성
+            if language == "ja":
+                prompt = f"""この画像は「{pdf_name}」のページ{page_num}です。
+以下の質問に、この画像の内容を参照して回答してください。
+表やチャートがあれば、その内容を詳しく説明してください。
+
+質問: {query}
+
+参照コンテキスト:
+{context}
+
+重要: 画像に表示されている具体的な情報（属性名、パラメータ、値など）を箇条書きで列挙してください。"""
+            elif language == "ko":
+                prompt = f"""이 이미지는 「{pdf_name}」의 {page_num}페이지입니다.
+다음 질문에 이 이미지 내용을 참고하여 답변해주세요.
+표나 차트가 있으면 그 내용을 상세히 설명해주세요.
+
+질문: {query}
+
+참조 컨텍스트:
+{context}
+
+중요: 이미지에 표시된 구체적인 정보(속성명, 파라미터, 값 등)를 목록으로 나열해주세요."""
+            else:
+                prompt = f"""This image is page {page_num} from "{pdf_name}".
+Please answer the following question by referencing this image content.
+If there are tables or charts, explain their content in detail.
+
+Question: {query}
+
+Reference Context:
+{context}
+
+Important: List the specific information shown in the image (attribute names, parameters, values, etc.) in bullet points."""
+
+            try:
+                result = await self.vision_adapter.analyze_image(
+                    image=img_content,
+                    task=VisionTask.ANSWER_QUESTION,
+                    context=prompt,
+                    language=language,
+                )
+
+                per_page_data.append({
+                    "pdf_name": pdf_name,
+                    "page_num": page_num,
+                    "analysis": result.content,
+                    "image_base64": meta.get("image_base64", ""),
+                })
+
+                # GPU 과부하 방지
+                await asyncio.sleep(0.3)
+
+            except Exception as e:
+                logger.warning(f"[VisionKnowledge] Analysis failed for {pdf_name} p.{page_num}: {e}")
+                per_page_data.append({
+                    "pdf_name": pdf_name,
+                    "page_num": page_num,
+                    "analysis": f"[分析失敗: {str(e)}]",
+                    "image_base64": meta.get("image_base64", ""),
+                })
+
+        # 필터링 및 통합 수행
+        if settings.VISION_CONSOLIDATION_ENABLED and len(per_page_data) > 1:
+            return await self._filter_and_consolidate_responses(
+                query=query,
+                per_page_responses=per_page_data,
+                query_keywords=query_keywords,
+                language=language,
+                max_relevant_pages=settings.VISION_MAX_RELEVANT_PAGES,
+            )
         else:
-            return await self._call_vision_batch(image_contents, prompt, language)
+            # 통합 비활성화 또는 단일 페이지: 기존 동작
+            all_results = []
+            relevant_sources = []
+            relevant_images = []
+
+            for data in per_page_data:
+                all_results.append(f"### 📄 {data['pdf_name']} (p.{data['page_num']})\n{data['analysis']}")
+                relevant_sources.append({
+                    "pdf_name": data["pdf_name"],
+                    "page_num": data["page_num"],
+                })
+                relevant_images.append({
+                    "pdf_name": data["pdf_name"],
+                    "page_num": data["page_num"],
+                    "image_base64": data["image_base64"],
+                })
+
+            return "\n\n".join(all_results), relevant_sources, relevant_images
+
+    def _quick_relevance_check(
+        self,
+        query: str,
+        page_analysis: str,
+        query_keywords: List[str],
+    ) -> Tuple[bool, float]:
+        """
+        Stage 1: 빠른 키워드 기반 관련성 체크
+
+        Args:
+            query: 사용자 질문
+            page_analysis: 페이지 분석 결과
+            query_keywords: 쿼리에서 추출된 키워드
+
+        Returns:
+            (is_relevant, keyword_score)
+        """
+        from app.api.core.config import get_api_settings
+        settings = get_api_settings()
+
+        # 분석 결과가 너무 짧거나 에러인 경우 제외
+        if len(page_analysis) < 50:
+            return False, 0.0
+
+        if "分析失敗" in page_analysis or "[Error" in page_analysis:
+            return False, 0.0
+
+        # 키워드가 없으면 일단 관련있다고 판단
+        if not query_keywords:
+            return True, 0.5
+
+        # 키워드 매칭 점수 계산
+        analysis_upper = page_analysis.upper()
+        matched_count = 0
+
+        for kw in query_keywords:
+            if kw.upper() in analysis_upper:
+                matched_count += 1
+
+        keyword_score = matched_count / len(query_keywords) if query_keywords else 0.0
+
+        # 최소 매칭 비율 체크
+        is_relevant = keyword_score >= settings.VISION_MIN_KEYWORD_MATCH_RATIO
+
+        return is_relevant, keyword_score
+
+    async def _filter_and_consolidate_responses(
+        self,
+        query: str,
+        per_page_responses: List[Dict],
+        query_keywords: List[str],
+        language: str,
+        max_relevant_pages: int = 3,
+    ) -> Tuple[str, List[Dict], List[Dict]]:
+        """
+        Stage 1 + Stage 2: 관련성 필터링 및 LLM 통합
+
+        Args:
+            query: 사용자 질문
+            per_page_responses: 페이지별 분석 결과 [{pdf_name, page_num, analysis, image_base64}]
+            query_keywords: 쿼리 키워드
+            language: 응답 언어
+            max_relevant_pages: 최대 관련 페이지 수
+
+        Returns:
+            (consolidated_answer, relevant_sources, relevant_page_images)
+        """
+        # Stage 1: Quick Relevance Filter
+        scored_pages = []
+
+        for data in per_page_responses:
+            is_relevant, score = self._quick_relevance_check(
+                query, data["analysis"], query_keywords
+            )
+
+            if is_relevant:
+                scored_pages.append({
+                    **data,
+                    "relevance_score": score,
+                })
+            else:
+                logger.debug(
+                    f"[VisionKnowledge] Filtered out: {data['pdf_name']} p.{data['page_num']} "
+                    f"(score: {score:.2f})"
+                )
+
+        # 관련 페이지가 없으면 점수가 가장 높은 페이지 반환
+        if not scored_pages:
+            logger.warning("[VisionKnowledge] No relevant pages found, using top scored page")
+            # 원본에서 가장 긴 응답 선택 (대체 전략)
+            best_page = max(per_page_responses, key=lambda x: len(x.get("analysis", "")))
+            scored_pages = [{**best_page, "relevance_score": 0.1}]
+
+        # 점수 순으로 정렬하고 상위 N개 선택
+        scored_pages.sort(key=lambda x: x["relevance_score"], reverse=True)
+        filtered_pages = scored_pages[:max_relevant_pages]
+
+        logger.info(
+            f"[VisionKnowledge] Filtered {len(per_page_responses)} pages → {len(filtered_pages)} relevant pages"
+        )
+        for p in filtered_pages:
+            logger.info(f"  - {p['pdf_name']} p.{p['page_num']} (score: {p['relevance_score']:.2f})")
+
+        # Stage 2: LLM Consolidation (3개 이상일 때만)
+        if len(filtered_pages) >= 2:
+            try:
+                consolidated = await self._llm_consolidate(
+                    query=query,
+                    filtered_analyses=filtered_pages,
+                    language=language,
+                )
+            except Exception as e:
+                logger.warning(f"[VisionKnowledge] LLM consolidation failed: {e}, using simple concat")
+                consolidated = self._simple_concat_responses(filtered_pages)
+        else:
+            # 단일 페이지는 통합 불필요
+            consolidated = self._simple_concat_responses(filtered_pages)
+
+        # 관련 소스 및 이미지 수집
+        relevant_sources = [
+            {"pdf_name": p["pdf_name"], "page_num": p["page_num"]}
+            for p in filtered_pages
+        ]
+        relevant_images = [
+            {
+                "pdf_name": p["pdf_name"],
+                "page_num": p["page_num"],
+                "image_base64": p.get("image_base64", ""),
+            }
+            for p in filtered_pages
+        ]
+
+        return consolidated, relevant_sources, relevant_images
+
+    def _simple_concat_responses(self, pages: List[Dict]) -> str:
+        """단순 연결 (폴백용)"""
+        results = []
+        for p in pages:
+            results.append(f"### 📄 {p['pdf_name']} (p.{p['page_num']})\n{p['analysis']}")
+        return "\n\n".join(results)
+
+    async def _llm_consolidate(
+        self,
+        query: str,
+        filtered_analyses: List[Dict],
+        language: str,
+    ) -> str:
+        """
+        Stage 2: MiniCPM-V로 필터링된 응답 통합
+
+        Args:
+            query: 사용자 질문
+            filtered_analyses: 필터링된 페이지 분석 결과
+            language: 응답 언어
+
+        Returns:
+            통합된 응답 문자열
+        """
+        from app.api.ports.vision_llm_port import VisionTask
+
+        # 페이지별 분석 결과를 텍스트로 구성
+        per_page_text = ""
+        for i, p in enumerate(filtered_analyses, 1):
+            per_page_text += f"\n--- ページ {i}: {p['pdf_name']} (p.{p['page_num']}) ---\n"
+            per_page_text += p["analysis"]
+            per_page_text += "\n"
+
+        # 언어별 통합 프롬프트
+        if language == "ja":
+            consolidation_prompt = f"""以下のPDFページ分析結果から、質問に最も関連性の高い情報を抽出・統合してください。
+
+質問: {query}
+
+ページ分析結果:
+{per_page_text}
+
+指示:
+1. 質問に直接関連する情報のみを抽出
+2. 関連性の低い情報は除外
+3. 出典（ファイル名、ページ番号）を必ず含める
+4. 重複情報は統合
+5. 箇条書きで整理
+
+出力形式:
+### 関連情報
+- [内容] (出典: ファイル名, p.XX)"""
+
+        elif language == "ko":
+            consolidation_prompt = f"""다음 PDF 페이지 분석 결과에서 질문과 가장 관련 높은 정보를 추출・통합하세요.
+
+질문: {query}
+
+페이지 분석 결과:
+{per_page_text}
+
+지시:
+1. 질문과 직접 관련된 정보만 추출
+2. 관련성 낮은 정보는 제외
+3. 출처(파일명, 페이지)를 반드시 포함
+4. 중복 정보는 통합
+5. 목록 형식으로 정리
+
+출력 형식:
+### 관련 정보
+- [내용] (출처: 파일명, p.XX)"""
+
+        else:
+            consolidation_prompt = f"""Extract and consolidate the most relevant information from the following PDF page analyses.
+
+Question: {query}
+
+Page Analyses:
+{per_page_text}
+
+Instructions:
+1. Extract only information directly relevant to the question
+2. Exclude low-relevance information
+3. Always include source (filename, page number)
+4. Consolidate duplicate information
+5. Format as bullet points
+
+Output Format:
+### Relevant Information
+- [Content] (Source: filename, p.XX)"""
+
+        try:
+            # 텍스트 기반 통합 (이미지 없이)
+            # Vision Adapter의 텍스트 전용 호출
+            result = await self.vision_adapter.generate_text(
+                prompt=consolidation_prompt,
+                max_tokens=2048,
+            )
+
+            # 출처 정보 추가
+            source_info = "\n\n---\n📚 **参照ページ / Referenced Pages:**\n"
+            for p in filtered_analyses:
+                source_info += f"- {p['pdf_name']} (p.{p['page_num']})\n"
+
+            return result + source_info
+
+        except AttributeError:
+            # generate_text가 없으면 이미지 없이 analyze_image 호출 시도
+            logger.warning("[VisionKnowledge] generate_text not available, using simple concat")
+            return self._simple_concat_responses(filtered_analyses)
+        except Exception as e:
+            logger.error(f"[VisionKnowledge] LLM consolidation error: {e}")
+            return self._simple_concat_responses(filtered_analyses)
 
     async def _call_vision_batch(
         self,

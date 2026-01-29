@@ -246,6 +246,37 @@ class MiniCPMVisionAdapter(VisionLLMPort):
 
         return results
 
+    async def generate_text(
+        self,
+        prompt: str,
+        max_tokens: int = 2048,
+        temperature: float = 0.3,
+    ) -> str:
+        """
+        Generate text-only response (no images).
+
+        Used for consolidation and summarization tasks.
+
+        Args:
+            prompt: Text prompt
+            max_tokens: Maximum output tokens
+            temperature: Generation temperature
+
+        Returns:
+            Generated text
+        """
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=min(max_tokens, self.default_max_tokens),
+                temperature=temperature,
+            )
+            return response.choices[0].message.content or ""
+        except Exception as e:
+            logger.error(f"MiniCPM-V text generation error: {e}")
+            raise
+
     async def health_check(self) -> bool:
         """Check if MiniCPM-V vLLM server is available."""
         try:
