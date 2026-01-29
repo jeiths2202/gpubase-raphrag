@@ -48,6 +48,80 @@ MAX_PAGES_PER_PDF = 5   # Maximum pages per PDF
 MAX_TOTAL_IMAGES = 10   # Maximum total images to send to Vision LLM
 PDF_RENDER_DPI = 150    # DPI for PDF rendering
 
+# ============================================================
+# Product Keyword Mapping (쿼리 키워드 → 제품 매핑)
+# ============================================================
+# 키워드가 속한 제품을 식별하여 올바른 PDF 문서에서 검색
+
+PRODUCT_KEYWORD_MAP = {
+    # OSC 제품 (Online CICS)
+    "OSC": ["OSC", "oscmgr", "oscboot", "CICS", "BMS", "マップ", "맵", "map",
+            "DFHCOMMAREA", "EIBTRNID", "EIBCALEN", "トランザクション", "트랜잭션"],
+
+    # TJES 제품 (Job Entry Subsystem)
+    "TJES": ["TJES", "tjesmgr", "JES", "JCL", "JOB", "SPOOL", "SUBMIT",
+             "ジョブ", "잡", "スプール", "스풀", "JESINIT", "JESDOWN"],
+
+    # HiDB 제품 (Hierarchical Database)
+    "HiDB": ["HiDB", "hidbmgr", "IMS", "DL/I", "PSB", "DBD", "PCB",
+             "階層型", "계층형", "データベース", "데이터베이스"],
+
+    # TACF 제품 (Security)
+    "TACF": ["TACF", "tacfmgr", "RACF", "セキュリティ", "보안", "認証", "인증",
+             "アクセス制御", "접근제어", "権限", "권한"],
+
+    # OSI 제품 (Online System Interface)
+    "OSI": ["OSI", "osimgr", "VTAM", "SNA", "ネットワーク", "네트워크"],
+
+    # NDB 제품 (Network Database)
+    "NDB": ["NDB", "ndbmgr", "IDMS", "ネットワークDB", "네트워크DB"],
+
+    # Batch/Utility 제품 (공통 유틸리티)
+    "Utility": ["IDCAMS", "ALTER", "DEFINE", "DELETE", "LISTCAT", "REPRO", "PRINT",
+                "IEBGENER", "IEBCOPY", "DFSORT", "SYNCSORT", "ICETOOL",
+                "VSAM", "KSDS", "ESDS", "RRDS", "GDG", "PDS",
+                "ユーティリティ", "유틸리티", "データセット", "데이터셋"],
+
+    # Base 제품 (공통 기반)
+    "Base": ["OpenFrame", "tmboot", "tmdown", "ofboot", "ofdown",
+             "tmax", "構成", "구성", "設定", "설정", "インストール", "설치"],
+}
+
+# 제품별 PDF 파일명 패턴 (파일명에 포함되어야 하는 문자열)
+# 요약문서의 실제 PDF 파일명 기반:
+#   OF_OSC_*, OF_OSI_*, OF_HiDB_*, OF_TACF_*, OF_NDB_*, OF_AIM_*,
+#   OF_Base_*, OF_Batch_*, OF_Common_*, OF_VOS3_*, Tibero_*, Tmax_*
+PRODUCT_PDF_PATTERNS = {
+    # OpenFrame 제품별 패턴
+    "OSC": ["OF_OSC_", "OSC_"],                    # OpenFrame Server For CICS
+    "OSI": ["OF_OSI_", "OSI_"],                    # OpenFrame Server For IMS
+    "HiDB": ["OF_HiDB_", "HiDB_"],                 # Hierarchical Database
+    "TACF": ["OF_TACF_", "TACF_"],                 # Security (RACF 호환)
+    "NDB": ["OF_NDB_", "NDB_"],                    # Network Database
+    "AIM": ["OF_AIM_", "AIM_"],                    # Application Interface Manager
+
+    # TJES는 Batch 내 TJES-Guide에 있음
+    "TJES": ["TJES-Guide", "OF_Batch_"],
+
+    # 공통/유틸리티 (IDCAMS, VSAM 등)
+    "Utility": ["Utility-Reference", "OF_Common_"],
+
+    # 플랫폼별 공통
+    "MSP": ["_MSP_", "OF_Common_MSP_", "OF_Batch_MSP_"],   # Fujitsu MSP 호환
+    "XSP": ["_XSP_", "OF_Common_XSP_", "OF_Batch_XSP_"],   # Fujitsu XSP 호환
+    "VOS3": ["OF_VOS3_", "VOS3_"],                          # Hitachi VOS3 호환
+    "MVS": ["_MVS_", "OF_Common_MVS_", "OF_Batch_MVS_"],   # IBM MVS 호환
+
+    # 기본/공통 문서
+    "Base": ["OF_Base_", "Base-Guide", "Dataset-Guide"],
+    "Batch": ["OF_Batch_", "Batch-Guide", "JCL-Reference"],
+    "GW": ["OF_GW_"],
+
+    # 외부 제품
+    "Tibero": ["Tibero_"],
+    "Tmax": ["Tmax_"],
+}
+
 
 class VisionKnowledgeService:
     """
@@ -248,6 +322,11 @@ class VisionKnowledgeService:
         query_keywords = self._extract_query_keywords(query)
         logger.info(f"[VisionKnowledge] Query keywords: {query_keywords}")
 
+        # 제품 감지 (OSC, TJES, HiDB 등)
+        detected_product = self._detect_product_from_query(query, query_keywords)
+        if detected_product:
+            logger.info(f"[VisionKnowledge] Filtering PDFs for product: {detected_product}")
+
         for result in summary_results[:10]:  # 최대 10개 결과 처리
             source_file = result.get("source_file", "")
             result_type = result.get("type", "")
@@ -255,6 +334,11 @@ class VisionKnowledgeService:
             # 요약 파일에서 PDF 참조 추출
             # 형식: OF_Utility.md → OF_Common_MVS_7.1_Utility-Reference-Guide_v3.1.3_JP.pdf
             pdf_name = self._infer_pdf_from_summary(source_file, result_type)
+
+            # 제품 필터링: 감지된 제품과 관련 없는 PDF는 제외
+            if pdf_name and not self._filter_pdf_by_product(pdf_name, detected_product):
+                logger.debug(f"[VisionKnowledge] Skipping PDF '{pdf_name}' (not matching product '{detected_product}')")
+                continue
 
             if pdf_name and pdf_name not in seen_pdfs:
                 seen_pdfs.add(pdf_name)
@@ -265,7 +349,7 @@ class VisionKnowledgeService:
 
                 # 페이지 번호가 없으면 PDF 텍스트 검색으로 찾기
                 if not pages and query_keywords:
-                    pdf_path = await self._resolve_pdf_path(pdf_name)
+                    pdf_path = await self._resolve_pdf_path(pdf_name, detected_product)
                     if pdf_path:
                         logger.info(f"[VisionKnowledge] Searching PDF {pdf_path.name} for keywords...")
                         pages = await self._find_pages_by_keyword(
@@ -298,6 +382,48 @@ class VisionKnowledgeService:
                     "result_type": "explicit_reference",
                 })
 
+        # Step 3: 제품이 감지되었지만 page_refs가 비어있으면, 제품별 summary 파일 직접 검색
+        if detected_product and not page_refs:
+            logger.info(f"[VisionKnowledge] No refs found, searching product-specific summary for: {detected_product}")
+            product_summary_mapping = {
+                "OSC": ("commands/OpenFrame_OSC_MVS.md", "OF_OSC_"),
+                "OSI": ("commands/OpenFrame_OSI_MVS.md", "OF_OSI_"),
+                "TJES": ("commands/OpenFrame_TJES_MVS.md", "TJES-Guide"),
+                "HiDB": ("commands/OpenFrame_HiDB.md", "OF_HiDB_"),
+                "TACF": ("commands/OpenFrame_TACF_MVS.md", "OF_TACF_"),
+                "NDB": ("commands/OpenFrame_NDB.md", "OF_NDB_"),
+                "AIM": ("commands/OpenFrame_AIM.md", "OF_AIM_"),
+                "Utility": ("commands/OpenFrame_Utility.md", "Utility-Reference-Guide"),
+            }
+
+            if detected_product in product_summary_mapping:
+                summary_file, pdf_prefix = product_summary_mapping[detected_product]
+                summary_path = Path("uploads/summaries") / summary_file
+                if summary_path.exists():
+                    logger.info(f"[VisionKnowledge] Found product summary: {summary_file}")
+
+                    # PDF 경로 해결
+                    pdf_path = await self._resolve_pdf_path(pdf_prefix, detected_product)
+                    if pdf_path:
+                        logger.info(f"[VisionKnowledge] Resolved PDF: {pdf_path.name}")
+
+                        # 키워드로 페이지 검색
+                        pages = []
+                        if query_keywords:
+                            pages = await self._find_pages_by_keyword(
+                                pdf_path, query_keywords, max_pages=3
+                            )
+                            logger.info(f"[VisionKnowledge] Found pages via keyword: {pages}")
+
+                        page_refs.append({
+                            "pdf_name": pdf_path.name,
+                            "pages": pages or [1],
+                            "source_file": summary_file,
+                            "result_type": "product_specific",
+                        })
+                else:
+                    logger.debug(f"[VisionKnowledge] Product summary not found: {summary_path}")
+
         logger.info(f"[VisionKnowledge] Collected {len(page_refs)} page references")
         return page_refs
 
@@ -306,6 +432,7 @@ class VisionKnowledgeService:
         요약 파일명에서 원본 PDF 파일명 추론
 
         Mappings:
+        - commands/OpenFrame_OSC_MVS.md → OF_OSC_
         - commands/I.md, commands/T.md → Utility-Reference-Guide
         - error-codes/*.md → Error-Reference-Guide
         - glossary/*.md → 여러 가이드 (Base-Guide 우선)
@@ -313,28 +440,40 @@ class VisionKnowledgeService:
         if not source_file:
             return None
 
+        source_lower = source_file.lower()
+
         # 에러 코드 파일
-        if "error" in source_file.lower() or result_type == "error_code":
+        if "error" in source_lower or result_type == "error_code":
             return "Error-Reference-Guide"
 
-        # 명령어 파일
-        if source_file.endswith(".md") and len(source_file) <= 5:  # I.md, T.md 등
-            return "Utility-Reference-Guide"
-
-        # 특정 제품 명령어
-        product_patterns = {
-            "TJES": "TJES-Guide",
-            "OSC": "Administrator-Guide",
-            "OSI": "Administrator-Guide",
-            "TACF": "Administrator-Guide",
-            "HiDB": "HiDB-Guide",
-            "Batch": "Batch-Guide",
-            "Base": "Base-Guide",
+        # 제품별 명령어 요약 파일 → 제품별 PDF 패턴
+        # 요약문서 형식: commands/OpenFrame_OSC_MVS.md, OpenFrame_TJES_MVS.md 등
+        product_pdf_mapping = {
+            "openframe_osc": "OF_OSC_",           # OSC 제품 PDF
+            "openframe_osi": "OF_OSI_",           # OSI 제품 PDF
+            "openframe_hidb": "OF_HiDB_",         # HiDB 제품 PDF
+            "openframe_tacf": "OF_TACF_",         # TACF 제품 PDF
+            "openframe_tjes": "TJES-Guide",       # TJES는 Batch 내 TJES-Guide
+            "openframe_ndb": "OF_NDB_",           # NDB 제품 PDF
+            "openframe_aim": "OF_AIM_",           # AIM 제품 PDF
+            "openframe_base": "OF_Base_",         # Base 제품 PDF
+            "openframe_batch": "OF_Batch_",       # Batch 제품 PDF
+            "openframe_common": "OF_Common_",     # Common 유틸리티 PDF
+            "openframe_msp": "OF_Common_MSP_",    # MSP 플랫폼 PDF
+            "openframe_xsp": "OF_Common_XSP_",    # XSP 플랫폼 PDF
+            "openframe_vos3": "OF_VOS3_",         # VOS3 플랫폼 PDF
+            "openframe_mvs": "OF_Common_MVS_",    # MVS 플랫폼 PDF
+            "tibero": "Tibero_",                  # Tibero PDF
+            "tmax": "Tmax_",                      # Tmax PDF
         }
 
-        for product, guide in product_patterns.items():
-            if product.lower() in source_file.lower():
-                return guide
+        for pattern, pdf_prefix in product_pdf_mapping.items():
+            if pattern in source_lower:
+                return pdf_prefix
+
+        # 단일 글자 명령어 파일 (I.md, T.md 등) → 유틸리티 가이드
+        if source_file.endswith(".md") and len(source_file) <= 5:
+            return "Utility-Reference-Guide"
 
         # 기본값
         return "Utility-Reference-Guide"
@@ -372,11 +511,28 @@ class VisionKnowledgeService:
 
         # 소문자 명령어 (tjesmgr, oscboot 등)
         lower_keywords = re.findall(r'([a-z]{4,}[a-z0-9]*)', query)
-        stop_words = {'what', 'when', 'where', 'which', 'that', 'this', 'with',
-                      'about', 'from', 'into', 'have', 'does', 'できる', 'ください',
-                      'について', 'コマンド'}
+        en_stop_words = {'what', 'when', 'where', 'which', 'that', 'this', 'with',
+                         'about', 'from', 'into', 'have', 'does'}
         for kw in lower_keywords:
-            if kw.lower() not in stop_words:
+            if kw.lower() not in en_stop_words:
+                keywords.append(kw)
+
+        # 일본어 키워드 추출 (カタカナ + 漢字 조합)
+        # マップ, 構成, フローチャート 등
+        ja_keywords = re.findall(r'[\u30A0-\u30FF\u4E00-\u9FFF]{2,}', query)
+        ja_stop_words = {'について', 'ください', 'できる', 'コマンド', 'する', 'ある',
+                         'です', 'ます', 'こと', 'もの', 'なに', 'どの', 'これ', 'それ',
+                         'という', 'として'}
+        for kw in ja_keywords:
+            if kw not in ja_stop_words:
+                keywords.append(kw)
+
+        # 한국어 키워드 추출
+        ko_keywords = re.findall(r'[\uAC00-\uD7AF]{2,}', query)
+        ko_stop_words = {'에서', '에게', '으로', '대해', '해주세요', '합니다', '입니다',
+                         '것은', '것이', '무엇'}
+        for kw in ko_keywords:
+            if kw not in ko_stop_words:
                 keywords.append(kw)
 
         # 알려진 OpenFrame 명령어/유틸리티 직접 매칭
@@ -390,17 +546,91 @@ class VisionKnowledgeService:
             if cmd.upper() in query.upper():
                 keywords.append(cmd)
 
-        # 중복 제거 및 상위 5개
+        # 중복 제거 및 상위 7개 (일본어/한국어 키워드 포함으로 증가)
         seen = set()
         unique = []
         for kw in keywords:
-            kw_upper = kw.upper()
-            if kw_upper not in seen and len(kw) >= 2:
-                seen.add(kw_upper)
+            # CJK 문자는 원본 유지, 영어는 대문자로 비교
+            kw_normalized = kw if re.search(r'[\u3040-\u9FFF\uAC00-\uD7AF]', kw) else kw.upper()
+            if kw_normalized not in seen and len(kw) >= 2:
+                seen.add(kw_normalized)
                 unique.append(kw)
 
         logger.debug(f"[VisionKnowledge] Extracted keywords from query: {unique}")
-        return unique[:5]
+        return unique[:7]
+
+    def _detect_product_from_query(self, query: str, keywords: List[str]) -> Optional[str]:
+        """
+        쿼리와 키워드에서 제품 식별
+
+        Args:
+            query: 사용자 질문
+            keywords: 추출된 키워드 목록
+
+        Returns:
+            감지된 제품명 (OSC, TJES, HiDB, etc.) 또는 None
+        """
+        query_upper = query.upper()
+        detected_products = {}  # {product: match_count}
+
+        # 1. 키워드를 제품에 매핑
+        for product, product_keywords in PRODUCT_KEYWORD_MAP.items():
+            match_count = 0
+
+            # 쿼리에서 직접 매칭
+            for pk in product_keywords:
+                pk_upper = pk.upper()
+                if pk_upper in query_upper:
+                    match_count += 2  # 직접 매칭은 가중치 2
+
+            # 추출된 키워드와 매칭
+            for kw in keywords:
+                kw_upper = kw.upper()
+                for pk in product_keywords:
+                    pk_upper = pk.upper()
+                    if kw_upper == pk_upper or pk_upper in kw_upper:
+                        match_count += 1
+
+            if match_count > 0:
+                detected_products[product] = match_count
+
+        if not detected_products:
+            logger.debug("[VisionKnowledge] No specific product detected from query")
+            return None
+
+        # 가장 높은 매칭 점수를 가진 제품 선택
+        best_product = max(detected_products, key=detected_products.get)
+        logger.info(
+            f"[VisionKnowledge] Detected product: {best_product} "
+            f"(scores: {detected_products})"
+        )
+        return best_product
+
+    def _filter_pdf_by_product(self, pdf_name: str, product: Optional[str]) -> bool:
+        """
+        PDF 파일이 해당 제품과 관련 있는지 확인
+
+        Args:
+            pdf_name: PDF 파일명
+            product: 감지된 제품명
+
+        Returns:
+            관련있으면 True, 아니면 False
+        """
+        if not product:
+            return True  # 제품 미지정이면 모든 PDF 허용
+
+        pdf_upper = pdf_name.upper()
+
+        # 제품별 PDF 패턴 확인
+        product_patterns = PRODUCT_PDF_PATTERNS.get(product, [])
+        for pattern in product_patterns:
+            if pattern.upper() in pdf_upper:
+                logger.debug(f"[VisionKnowledge] PDF '{pdf_name}' matches product '{product}'")
+                return True
+
+        logger.debug(f"[VisionKnowledge] PDF '{pdf_name}' filtered out (not matching product '{product}')")
+        return False
 
     async def _find_pages_by_keyword(
         self,
@@ -535,17 +765,26 @@ class VisionKnowledgeService:
 
         return images[:MAX_TOTAL_IMAGES], sources, page_metadata[:MAX_TOTAL_IMAGES]
 
-    async def _resolve_pdf_path(self, pdf_name: str) -> Optional[Path]:
+    async def _resolve_pdf_path(
+        self,
+        pdf_name: str,
+        detected_product: Optional[str] = None,
+    ) -> Optional[Path]:
         """
         PDF 이름을 실제 파일 경로로 해석
 
         Args:
             pdf_name: PDF 파일 이름 또는 가이드 키워드
-                      (예: "Utility-Reference-Guide", "OF_Common_*.pdf")
+                      (예: "OF_OSC_", "Utility-Reference-Guide", "OF_Common_*.pdf")
+            detected_product: 감지된 제품 (필터링에 사용)
         """
+        cache_key = f"{pdf_name}:{detected_product or ''}"
+
         # 캐시 확인
-        if pdf_name in self._pdf_path_cache:
-            return self._pdf_path_cache[pdf_name]
+        if cache_key in self._pdf_path_cache:
+            return self._pdf_path_cache[cache_key]
+
+        matched_files = []
 
         # 모든 매뉴얼 디렉토리 검색
         for manuals_dir in self._manuals_dirs:
@@ -560,13 +799,37 @@ class VisionKnowledgeService:
                 for pdf_file in subdir.glob("*.pdf"):
                     # 정확한 이름 매칭
                     if pdf_file.name == pdf_name:
-                        self._pdf_path_cache[pdf_name] = pdf_file
+                        self._pdf_path_cache[cache_key] = pdf_file
                         return pdf_file
+
+                    # 프리픽스 매칭 (예: "OF_OSC_" → OF_OSC_7.1_Administrator-Guide_*.pdf)
+                    if pdf_file.name.startswith(pdf_name):
+                        matched_files.append(pdf_file)
+                        continue
 
                     # 키워드 매칭 (예: "Utility-Reference-Guide" → OF_Common_MVS_7.1_Utility-Reference-Guide_*.pdf)
                     if pdf_name.lower() in pdf_file.name.lower():
-                        self._pdf_path_cache[pdf_name] = pdf_file
-                        return pdf_file
+                        matched_files.append(pdf_file)
+
+        # 매칭된 파일 중 제품 필터링 및 선택
+        if matched_files:
+            # 제품 필터링 적용
+            if detected_product:
+                filtered = [f for f in matched_files if self._filter_pdf_by_product(f.name, detected_product)]
+                if filtered:
+                    matched_files = filtered
+
+            # 첫 번째 매칭 파일 반환 (우선순위: Administrator-Guide > 기타)
+            for pdf_file in matched_files:
+                if "administrator" in pdf_file.name.lower() or "mapping" in pdf_file.name.lower():
+                    self._pdf_path_cache[cache_key] = pdf_file
+                    logger.debug(f"[VisionKnowledge] Resolved '{pdf_name}' → {pdf_file.name}")
+                    return pdf_file
+
+            # 첫 번째 파일 반환
+            self._pdf_path_cache[cache_key] = matched_files[0]
+            logger.debug(f"[VisionKnowledge] Resolved '{pdf_name}' → {matched_files[0].name}")
+            return matched_files[0]
 
         return None
 
@@ -846,12 +1109,17 @@ Important: List the specific information shown in the image (attribute names, pa
                     f"(score: {score:.2f})"
                 )
 
-        # 관련 페이지가 없으면 점수가 가장 높은 페이지 반환
+        # 관련 페이지가 없으면 "정보 없음" 반환 (할루시네이션 방지)
         if not scored_pages:
-            logger.warning("[VisionKnowledge] No relevant pages found, using top scored page")
-            # 원본에서 가장 긴 응답 선택 (대체 전략)
-            best_page = max(per_page_responses, key=lambda x: len(x.get("analysis", "")))
-            scored_pages = [{**best_page, "relevance_score": 0.1}]
+            logger.warning(f"[VisionKnowledge] No relevant pages found for query: {query}")
+            logger.warning(f"[VisionKnowledge] Query keywords: {query_keywords}")
+            no_info_messages = {
+                "ja": f"申し訳ありませんが、「{query}」に関連する情報がPDF文書の画像から見つかりませんでした。",
+                "ko": f"죄송합니다. '{query}'와 관련된 정보를 PDF 문서 이미지에서 찾을 수 없습니다.",
+                "en": f"Sorry, no relevant information about '{query}' was found in the PDF document images.",
+            }
+            no_info_msg = no_info_messages.get(language, no_info_messages["ja"])
+            return no_info_msg, [], []
 
         # 점수 순으로 정렬하고 상위 N개 선택
         scored_pages.sort(key=lambda x: x["relevance_score"], reverse=True)
