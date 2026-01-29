@@ -1,0 +1,736 @@
+/**
+ * OpenAgent Page Styles
+ */
+
+.openagent-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: calc(100vh - 60px);
+  background: var(--bg-primary);
+}
+
+/* Header */
+.openagent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.openagent-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.openagent-icon {
+  color: var(--accent-color, #6366f1);
+}
+
+.openagent-header h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.openagent-subtitle {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-family: monospace;
+}
+
+.openagent-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.openagent-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.openagent-status.available {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+.openagent-status.unavailable {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.openagent-btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.openagent-btn-icon:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Settings Panel */
+.openagent-settings {
+  padding: 16px 24px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.openagent-settings h3 {
+  margin: 0 0 12px 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.openagent-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.openagent-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.openagent-setting label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.openagent-setting span {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  font-family: monospace;
+}
+
+/* Messages */
+.openagent-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.openagent-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 48px 24px;
+}
+
+.openagent-empty-icon {
+  color: var(--accent-color, #6366f1);
+  opacity: 0.5;
+  margin-bottom: 16px;
+}
+
+.openagent-empty h2 {
+  margin: 0 0 8px 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.openagent-empty p {
+  margin: 0 0 24px 0;
+  font-size: 0.875rem;
+}
+
+.openagent-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.openagent-suggestions button {
+  padding: 8px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.openagent-suggestions button:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-color, #6366f1);
+}
+
+/* Message Bubble */
+.openagent-message {
+  display: flex;
+  flex-direction: column;
+  max-width: 80%;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.openagent-message.user {
+  align-self: flex-end;
+}
+
+.openagent-message.assistant {
+  align-self: flex-start;
+}
+
+.openagent-message-content {
+  padding: 12px 16px;
+  border-radius: 16px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.openagent-message.user .openagent-message-content {
+  background: var(--accent-color, #6366f1);
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.openagent-message.assistant .openagent-message-content {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-bottom-left-radius: 4px;
+}
+
+.openagent-message-content p {
+  margin: 0;
+}
+
+.openagent-message-content pre {
+  background: var(--bg-tertiary);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.openagent-message-content code {
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 0.875rem;
+}
+
+.openagent-message-content ul,
+.openagent-message-content ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+/* Markdown table styles in assistant messages */
+.openagent-message-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 0.875rem;
+  overflow-x: auto;
+  display: block;
+}
+
+.openagent-message-content th,
+.openagent-message-content td {
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.openagent-message-content th {
+  background: var(--bg-tertiary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.openagent-message-content tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme='dark'] .openagent-message-content tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.openagent-message-time {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+  padding: 0 4px;
+}
+
+.openagent-message.user .openagent-message-time {
+  text-align: right;
+}
+
+.openagent-message.loading .openagent-message-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.openagent-file-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  margin-bottom: 8px;
+}
+
+.openagent-file-size {
+  opacity: 0.7;
+}
+
+/* Error */
+.openagent-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #ef4444;
+  font-size: 0.875rem;
+}
+
+.openagent-error button {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Input Area */
+.openagent-input-area {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.openagent-selected-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.openagent-selected-file button {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.openagent-selected-file button:hover {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.openagent-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.openagent-btn-attach {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.openagent-btn-attach:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--accent-color, #6366f1);
+}
+
+.openagent-btn-attach:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.openagent-input-row textarea {
+  flex: 1;
+  padding: 12px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: none;
+  min-height: 44px;
+  max-height: 200px;
+  transition: border-color 0.2s;
+}
+
+.openagent-input-row textarea:focus {
+  outline: none;
+  border-color: var(--accent-color, #6366f1);
+}
+
+.openagent-input-row textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+.openagent-btn-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent-color, #6366f1);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.openagent-btn-send:hover:not(:disabled) {
+  background: var(--accent-hover, #4f46e5);
+}
+
+.openagent-btn-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Animations */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Dark mode adjustments */
+[data-theme='dark'] .openagent-message.assistant .openagent-message-content pre {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] .openagent-message.user .openagent-file-badge {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* RAG Toggle Button */
+.openagent-btn-rag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.openagent-btn-rag:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.openagent-btn-rag.active {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.openagent-btn-label {
+  display: inline;
+}
+
+@media (max-width: 600px) {
+  .openagent-btn-label {
+    display: none;
+  }
+}
+
+/* Sources Display */
+.openagent-sources {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.openagent-sources-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.openagent-sources-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.openagent-source-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  color: var(--accent-color, #6366f1);
+  font-family: monospace;
+}
+
+/* Confidence Badge Colors */
+.openagent-sources-header[data-confidence="high"] {
+  color: #22c55e;
+}
+
+.openagent-sources-header[data-confidence="medium"] {
+  color: #f59e0b;
+}
+
+.openagent-sources-header[data-confidence="low"] {
+  color: var(--text-secondary);
+}
+
+/* Tables Display */
+.openagent-tables {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.openagent-tables-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.openagent-table-item {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.openagent-table-source {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  font-family: monospace;
+}
+
+.openagent-table-content {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.openagent-table-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  margin: 8px 0;
+}
+
+.openagent-table-content th,
+.openagent-table-content td {
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  text-align: left;
+  vertical-align: top;
+}
+
+.openagent-table-content th {
+  background: var(--bg-tertiary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.openagent-table-content td {
+  word-break: break-word;
+}
+
+.openagent-table-content tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme='dark'] .openagent-table-content tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Code block fallback for unformatted tables */
+.openagent-table-content pre {
+  background: var(--bg-tertiary);
+  padding: 12px 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  margin: 8px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.openagent-table-content code {
+  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+  font-size: 0.8125rem;
+}
+
+/* Images Display */
+.openagent-images {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.openagent-images-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.openagent-image-item {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.openagent-image-source {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  font-family: monospace;
+}
+
+.openagent-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.openagent-image-caption {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .openagent-header {
+    padding: 12px 16px;
+  }
+
+  .openagent-messages {
+    padding: 16px;
+  }
+
+  .openagent-message {
+    max-width: 90%;
+  }
+
+  .openagent-input-area {
+    padding: 12px 16px;
+  }
+
+  .openagent-suggestions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .openagent-suggestions button {
+    width: 100%;
+  }
+}
