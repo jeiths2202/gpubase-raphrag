@@ -1,0 +1,32 @@
+# KMS Application Configuration
+# Copy this file to config.yaml and modify as needed
+
+# Application mode: develop | product
+app_mode: develop
+
+# Mode-specific configuration overrides
+mode_config:
+  # Logging settings
+  log_level: DEBUG  # DEBUG, INFO, WARNING, ERROR
+  enable_token_logging: true  # Enable token-level logging (develop only)
+  enable_debug_logs: true  # Enable detailed debug logs
+  enable_stack_trace: true  # Include stack traces in errors
+  log_sampling_rate: 1.0  # 1.0 = log all, 0.1 = log 10%
+
+  # Performance settings
+  enable_performance_tracking: true
+  slow_request_threshold_ms: 500  # Log warning for slow requests
+
+  # Error handling
+  expose_internal_errors: true  # Show detailed errors (develop only)
+
+  # APM/Tracing settings
+  enable_tracing: false
+  trace_sampling_rate: 1.0
+
+# Environment variable alternatives:
+# APP_MODE=develop|product
+# LOG_LEVEL=DEBUG|INFO|WARNING|ERROR
+# ENABLE_TOKEN_LOGGING=true|false
+# ENABLE_TRACING=true|false
+# OTLP_ENDPOINT=http://localhost:4317  # For OpenTelemetry

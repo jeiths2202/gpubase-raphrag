@@ -1,0 +1,29 @@
+# mcp/orchestrator.yaml
+orchestrator:
+  type: rule_based
+  description: >
+    Controls agent invocation order and enforces policies.
+
+agents:
+  - develop-agent
+  - review-agent
+  - architect-agent
+
+artifact_flow:
+  develop-agent:
+    produces: code_artifact
+  review-agent:
+    consumes: code_artifact
+    produces: review_report
+
+decision_rules:
+  - if: review_report.level == "CRITICAL"
+    action: rerun
+    target: develop-agent
+
+  - if: review_report.level == "WARNING"
+    action: notify
+    target: human
+
+  - if: review_report.level == "OK"
+    action: approve_merge

@@ -1,0 +1,22 @@
+# mcp/agents/architect_agent.yaml
+agent:
+  id: architect-agent
+  role: ArchitectAgent
+  model: gpt-4.1
+  description: >
+    Guards system architecture consistency and design principles.
+
+capabilities:
+  - architecture_validation
+  - design_review
+
+restrictions:
+  - no_code_modification
+
+inputs:
+  allowed:
+    - design_change_request
+    - git_diff
+
+outputs:
+  - type: architecture_decision

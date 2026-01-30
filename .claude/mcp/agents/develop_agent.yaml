@@ -1,0 +1,40 @@
+# mcp/agents/develop_agent.yaml
+agent:
+  id: develop-agent
+  role: DevelopAgent
+  model: claude-3.5
+  description: >
+    Implements features and fixes based on task instructions.
+    Responsible for code creation and modification only.
+
+capabilities:
+  - write_code
+  - modify_files
+  - refactor_code
+
+restrictions:
+  - cannot_review
+  - cannot_merge
+  - cannot_approve
+
+inputs:
+  allowed:
+    - task_description
+    - architecture_docs
+    - coding_guidelines
+  denied:
+    - review_reports
+    - other_agent_outputs_raw
+
+outputs:
+  - type: code_artifact
+    format: git_diff
+
+workspace:
+  write_access: true
+  paths:
+    - src/**
+    - tests/**
+
+logging:
+  level: detailed
