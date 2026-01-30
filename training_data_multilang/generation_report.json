@@ -1,0 +1,943 @@
+{
+  "timestamp": "2026-01-30T14:27:20.082120",
+  "summary": {
+    "total_files": 38,
+    "success_count": 38,
+    "failed_count": 0,
+    "total_examples": 82051,
+    "total_time": 396.37,
+    "languages": [
+      "ja",
+      "ko",
+      "en"
+    ]
+  },
+  "language_stats": {
+    "ja": {
+      "files": 38,
+      "examples": 30388
+    },
+    "ko": {
+      "files": 38,
+      "examples": 30388
+    },
+    "en": {
+      "files": 38,
+      "examples": 21275
+    }
+  },
+  "results": [
+    {
+      "filename": "OF_Base_7.1_Base-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 259,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Base_7.1_Base-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 259,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Base_7.1_Base-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 139,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Base_7.1_Base-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 657,
+      "processing_time": 3.3,
+      "error": null
+    },
+    {
+      "filename": "OF_Base_7.1_Dataset-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 732,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Base_7.1_Dataset-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 732,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Base_7.1_Dataset-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 461,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Base_7.1_Dataset-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 1925,
+      "processing_time": 11.61,
+      "error": null
+    },
+    {
+      "filename": "OF_Base_7.1_Installation-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 294,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Base_7.1_Installation-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 294,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Base_7.1_Installation-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 163,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Base_7.1_Installation-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 751,
+      "processing_time": 4.62,
+      "error": null
+    },
+    {
+      "filename": "OF_Batch_MVS_7.1_Batch-Guide_v3.1.3_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 101,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_Batch-Guide_v3.1.3_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 101,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_Batch-Guide_v3.1.3_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 62,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_Batch-Guide_v3.1.3_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 264,
+      "processing_time": 1.09,
+      "error": null
+    },
+    {
+      "filename": "OF_Batch_MVS_7.1_IPF-Administrator-Guide_v3.1.3_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 304,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_IPF-Administrator-Guide_v3.1.3_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 304,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_IPF-Administrator-Guide_v3.1.3_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 186,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_IPF-Administrator-Guide_v3.1.3_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 794,
+      "processing_time": 2.11,
+      "error": null
+    },
+    {
+      "filename": "OF_Batch_MVS_7.1_Installation-Guide_v3.1.3_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 221,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_Installation-Guide_v3.1.3_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 221,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_Installation-Guide_v3.1.3_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 112,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_Installation-Guide_v3.1.3_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 554,
+      "processing_time": 3.15,
+      "error": null
+    },
+    {
+      "filename": "OF_Batch_MVS_7.1_JCL-Reference-Guide_v3.1.3_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 1517,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_JCL-Reference-Guide_v3.1.3_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 1517,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_JCL-Reference-Guide_v3.1.3_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 987,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_JCL-Reference-Guide_v3.1.3_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 4021,
+      "processing_time": 20.79,
+      "error": null
+    },
+    {
+      "filename": "OF_Batch_MVS_7.1_Sort-Utility-Guide_v3.1.3_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 573,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_Sort-Utility-Guide_v3.1.3_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 573,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_Sort-Utility-Guide_v3.1.3_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 420,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_Sort-Utility-Guide_v3.1.3_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 1566,
+      "processing_time": 8.59,
+      "error": null
+    },
+    {
+      "filename": "OF_Batch_MVS_7.1_TJES-Guide_v3.1.3_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 1188,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_TJES-Guide_v3.1.3_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 1188,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_TJES-Guide_v3.1.3_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 759,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_TJES-Guide_v3.1.3_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 3135,
+      "processing_time": 15.48,
+      "error": null
+    },
+    {
+      "filename": "OF_Batch_MVS_7.1_TSO-Administrator-Guide_v3.1.3_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 1777,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_TSO-Administrator-Guide_v3.1.3_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 1777,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_TSO-Administrator-Guide_v3.1.3_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 1359,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Batch_MVS_7.1_TSO-Administrator-Guide_v3.1.3_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 4913,
+      "processing_time": 13.44,
+      "error": null
+    },
+    {
+      "filename": "OF_Common_MVS_7.1_Configuration-Guide_v3.1.3_JP.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 3413,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Configuration-Guide_v3.1.3_JP_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 3413,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Configuration-Guide_v3.1.3_JP_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 2685,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Configuration-Guide_v3.1.3_JP_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 9511,
+      "processing_time": 32.82,
+      "error": null
+    },
+    {
+      "filename": "OF_Common_MVS_7.1_Error-Reference-Guide_v3.1.3_JP.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 4055,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Error-Reference-Guide_v3.1.3_JP_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 4055,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Error-Reference-Guide_v3.1.3_JP_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 3484,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Error-Reference-Guide_v3.1.3_JP_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 11594,
+      "processing_time": 69.77,
+      "error": null
+    },
+    {
+      "filename": "OF_Common_MVS_7.1_Getting-Strated-Guide_v3.1.3_JP.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 239,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Getting-Strated-Guide_v3.1.3_JP_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 239,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Getting-Strated-Guide_v3.1.3_JP_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 121,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Getting-Strated-Guide_v3.1.3_JP_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 599,
+      "processing_time": 2.41,
+      "error": null
+    },
+    {
+      "filename": "OF_Common_MVS_7.1_Migration-Guide_v3.1.3_JP.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 416,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Migration-Guide_v3.1.3_JP_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 416,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Migration-Guide_v3.1.3_JP_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 223,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Migration-Guide_v3.1.3_JP_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 1055,
+      "processing_time": 7.02,
+      "error": null
+    },
+    {
+      "filename": "OF_Common_MVS_7.1_Tool-Reference-Guide_v3.1.3_JP.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 2549,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Tool-Reference-Guide_v3.1.3_JP_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 2549,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Tool-Reference-Guide_v3.1.3_JP_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 1848,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Tool-Reference-Guide_v3.1.3_JP_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 6946,
+      "processing_time": 34.67,
+      "error": null
+    },
+    {
+      "filename": "OF_Common_MVS_7.1_Utility-Reference-Guide_v3.1.3_JP.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 1820,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Utility-Reference-Guide_v3.1.3_JP_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 1820,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Utility-Reference-Guide_v3.1.3_JP_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 1123,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Common_MVS_7.1_Utility-Reference-Guide_v3.1.3_JP_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 4763,
+      "processing_time": 25.22,
+      "error": null
+    },
+    {
+      "filename": "OF_GW_7.1_Administrator-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 367,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_GW_7.1_Administrator-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 367,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_GW_7.1_Administrator-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 222,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_GW_7.1_Administrator-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 956,
+      "processing_time": 5.01,
+      "error": null
+    },
+    {
+      "filename": "OF_GW_7.1_Installation-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 203,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_GW_7.1_Installation-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 203,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_GW_7.1_Installation-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 114,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_GW_7.1_Installation-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 520,
+      "processing_time": 3.74,
+      "error": null
+    },
+    {
+      "filename": "OF_GW_7.1_WebTerminal-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 201,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_GW_7.1_WebTerminal-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 201,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_GW_7.1_WebTerminal-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 128,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_GW_7.1_WebTerminal-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 530,
+      "processing_time": 2.3,
+      "error": null
+    },
+    {
+      "filename": "OF_HiDB_7.2_HiDB-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 412,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_HiDB_7.2_HiDB-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 412,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_HiDB_7.2_HiDB-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 263,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_HiDB_7.2_HiDB-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 1087,
+      "processing_time": 4.97,
+      "error": null
+    },
+    {
+      "filename": "OF_HiDB_7.2_Installation-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 160,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_HiDB_7.2_Installation-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 160,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_HiDB_7.2_Installation-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 86,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_HiDB_7.2_Installation-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 406,
+      "processing_time": 1.77,
+      "error": null
+    },
+    {
+      "filename": "OF_Manager_7.1Fix1_Installation-Guide_v3.1.3_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 260,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Manager_7.1Fix1_Installation-Guide_v3.1.3_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 260,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Manager_7.1Fix1_Installation-Guide_v3.1.3_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 145,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Manager_7.1Fix1_Installation-Guide_v3.1.3_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 665,
+      "processing_time": 6.74,
+      "error": null
+    },
+    {
+      "filename": "OF_Manager_7.1Fix1_User-Guide_v3.1.3_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 1975,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Manager_7.1Fix1_User-Guide_v3.1.3_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 1975,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Manager_7.1Fix1_User-Guide_v3.1.3_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 1479,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_Manager_7.1Fix1_User-Guide_v3.1.3_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 5429,
+      "processing_time": 23.16,
+      "error": null
+    },
+    {
+      "filename": "OF_OSC_7.1_Administrator-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 633,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Administrator-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 633,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Administrator-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 350,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Administrator-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 1616,
+      "processing_time": 7.47,
+      "error": null
+    },
+    {
+      "filename": "OF_OSC_7.1_CTG-User-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 335,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_CTG-User-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 335,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_CTG-User-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 215,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_CTG-User-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 885,
+      "processing_time": 3.84,
+      "error": null
+    },
+    {
+      "filename": "OF_OSC_7.1_Developer-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 2380,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Developer-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 2380,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Developer-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 1749,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Developer-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 6509,
+      "processing_time": 34.73,
+      "error": null
+    },
+    {
+      "filename": "OF_OSC_7.1_Installation-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 269,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Installation-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 269,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Installation-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 147,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Installation-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 685,
+      "processing_time": 3.83,
+      "error": null
+    },
+    {
+      "filename": "OF_OSC_7.1_Mapping-Support-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 224,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Mapping-Support-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 224,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Mapping-Support-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 130,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Mapping-Support-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 578,
+      "processing_time": 3.34,
+      "error": null
+    },
+    {
+      "filename": "OF_OSC_7.1_Resource-Definition-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 456,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Resource-Definition-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 456,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Resource-Definition-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 280,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSC_7.1_Resource-Definition-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 1192,
+      "processing_time": 5.22,
+      "error": null
+    },
+    {
+      "filename": "OF_OSI_7.2_Administrator-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 468,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Administrator-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 468,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Administrator-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 253,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Administrator-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 1189,
+      "processing_time": 5.97,
+      "error": null
+    },
+    {
+      "filename": "OF_OSI_7.2_Command-Reference-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 346,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Command-Reference-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 346,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Command-Reference-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 233,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Command-Reference-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 925,
+      "processing_time": 3.54,
+      "error": null
+    },
+    {
+      "filename": "OF_OSI_7.2_Developer-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 256,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Developer-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 256,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Developer-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 164,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Developer-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 676,
+      "processing_time": 3.62,
+      "error": null
+    },
+    {
+      "filename": "OF_OSI_7.2_Installation-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 239,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Installation-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 239,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Installation-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 126,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Installation-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 604,
+      "processing_time": 3.55,
+      "error": null
+    },
+    {
+      "filename": "OF_OSI_7.2_MFS-Reference-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 262,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_MFS-Reference-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 262,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_MFS-Reference-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 162,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_MFS-Reference-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 686,
+      "processing_time": 2.65,
+      "error": null
+    },
+    {
+      "filename": "OF_OSI_7.2_Release-Note_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 111,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Release-Note_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 111,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Release-Note_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 57,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_Release-Note_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 279,
+      "processing_time": 0.74,
+      "error": null
+    },
+    {
+      "filename": "OF_OSI_7.2_System-Definition-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 113,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_System-Definition-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 113,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_System-Definition-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 68,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_OSI_7.2_System-Definition-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 294,
+      "processing_time": 1.07,
+      "error": null
+    },
+    {
+      "filename": "OF_TACF_7.1_Administrator-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 1059,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_TACF_7.1_Administrator-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 1059,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_TACF_7.1_Administrator-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 671,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_TACF_7.1_Administrator-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 2789,
+      "processing_time": 10.54,
+      "error": null
+    },
+    {
+      "filename": "OF_TACF_7.1_Installation-Guide_v3.1.2_jp.pdf",
+      "status": "success",
+      "languages": {
+        "ja": {
+          "examples_count": 201,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_TACF_7.1_Installation-Guide_v3.1.2_jp_ja.jsonl",
+          "status": "success"
+        },
+        "ko": {
+          "examples_count": 201,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_TACF_7.1_Installation-Guide_v3.1.2_jp_ko.jsonl",
+          "status": "success"
+        },
+        "en": {
+          "examples_count": 101,
+          "output_file": "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130/training_data_multilang/OF_TACF_7.1_Installation-Guide_v3.1.2_jp_en.jsonl",
+          "status": "success"
+        }
+      },
+      "total_examples": 503,
+      "processing_time": 2.48,
+      "error": null
+    }
+  ]
+}
