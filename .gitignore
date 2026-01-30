@@ -21,5 +21,15 @@ Thumbs.db
 
 # Training outputs
 openframe_qlora_adapter/
+qlora_adapters/
 training_*.log
 *.log
+
+# PDF manual directories (large files)
+MSP_Openframe*/
+VOS3_Openframe*/
+Tibero*/
+OFAsm*/
+OFCOBOL*/
+XSP_Openframe*/
+Tmax*/
