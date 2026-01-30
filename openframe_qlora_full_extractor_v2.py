@@ -189,10 +189,20 @@ class TrainingExample:
 
     def to_openai_format(self) -> Dict[str, Any]:
         """OpenAI Fine-tuning 형식으로 변환"""
+        # 메타데이터에서 언어 정보 가져오기
+        language = self.metadata.get("language", "ja")
+
+        # 언어별 시스템 프롬프트
+        system_prompts = {
+            "ja": "あなたはOpenFrame技術サポートのアシスタントです。OpenFrameに関する質問に正確に回答してください。",
+            "ko": "당신은 OpenFrame 기술 지원 어시스턴트입니다. OpenFrame에 관한 질문에 정확하게 답변해 주세요.",
+            "en": "You are an OpenFrame technical support assistant. Please answer questions about OpenFrame accurately."
+        }
+
         messages = []
         messages.append({
             "role": "system",
-            "content": "あなたはOpenFrame技術サポートのアシスタントです。OpenFrameに関する質問に正確に回答してください。"
+            "content": system_prompts.get(language, system_prompts["ja"])
         })
 
         user_content = self.instruction
@@ -777,23 +787,133 @@ class QLoRADataGeneratorV2:
         ]
     }
 
-    # 표 관련 질문 템플릿
+    # 질문 템플릿 (한국어)
+    QUESTION_TEMPLATES_KO = {
+        ContentType.DEFINITION: [
+            "{title}이란 무엇인가요?",
+            "{title}에 대해 설명해 주세요.",
+            "{title}의 개요를 알려주세요.",
+            "{title}의 목적과 역할은 무엇인가요?"
+        ],
+        ContentType.CONFIGURATION: [
+            "{title}의 설정 방법을 알려주세요.",
+            "{title}은 어떻게 설정하나요?",
+            "{title}의 설정 예시를 보여주세요.",
+            "{title}의 설정 파라미터에 대해 설명해 주세요."
+        ],
+        ContentType.COMMAND: [
+            "{title} 명령어 사용법을 알려주세요.",
+            "{title}의 실행 방법을 설명해 주세요.",
+            "{title}의 옵션에 대해 알려주세요.",
+            "{title}의 사용 예시를 보여주세요."
+        ],
+        ContentType.PROCEDURE: [
+            "{title}의 절차를 알려주세요.",
+            "{title}을 실행하는 방법은?",
+            "{title}의 단계를 자세히 설명해 주세요.",
+            "{title}은 어떻게 수행하나요?"
+        ],
+        ContentType.CODE_EXAMPLE: [
+            "{title}의 코드 예시를 보여주세요.",
+            "{title}의 구현 예시를 알려주세요.",
+            "{title}의 샘플을 보여주세요."
+        ],
+        ContentType.TABLE: [
+            "{title}의 목록을 표 형식으로 보여주세요.",
+            "{title}의 상세 내용을 표로 정리해 주세요.",
+            "{title}의 파라미터 목록을 알려주세요."
+        ],
+        ContentType.LOG: [
+            "{title}에 대해 설명해 주세요.",
+            "{title}의 형식을 알려주세요.",
+            "{title}은 어디에 저장되나요?"
+        ],
+        ContentType.API: [
+            "{title}의 기능에 대해 설명해 주세요.",
+            "{title} 서버의 역할은 무엇인가요?",
+            "{title}의 설정 방법을 알려주세요."
+        ],
+        ContentType.IMAGE: [
+            "{title}의 구성도에 대해 설명해 주세요.",
+            "{title}의 아키텍처를 그림으로 보여주세요."
+        ],
+        ContentType.CHAPTER: [
+            "{title}에 대해 설명해 주세요.",
+            "{title}의 내용을 요약해 주세요.",
+            "{title}에서 다루는 주제는 무엇인가요?"
+        ],
+        ContentType.SECTION: [
+            "{title}에 대해 자세히 알려주세요.",
+            "{title}이란 무엇인가요?"
+        ],
+        ContentType.ERROR_MESSAGE: [
+            "{title} 에러의 원인과 해결 방법을 알려주세요.",
+            "{title} 에러가 발생했을 때 어떻게 해야 하나요?"
+        ]
+    }
+
+    # 표 관련 질문 템플릿 (일본어)
     TABLE_QUESTION_TEMPLATES_JA = [
         "{caption}の各項目について説明してください。",
         "{caption}の内容を教えてください。",
         "{caption}に含まれるパラメータは何ですか？"
     ]
 
-    # 이미지 관련 질문 템플릿
+    # 표 관련 질문 템플릿 (한국어)
+    TABLE_QUESTION_TEMPLATES_KO = [
+        "{caption}의 각 항목에 대해 설명해 주세요.",
+        "{caption}의 내용을 알려주세요.",
+        "{caption}에 포함된 파라미터는 무엇인가요?"
+    ]
+
+    # 표 관련 질문 템플릿 (영어)
+    TABLE_QUESTION_TEMPLATES_EN = [
+        "Explain each item in {caption}.",
+        "What are the contents of {caption}?",
+        "What parameters are included in {caption}?"
+    ]
+
+    # 이미지 관련 질문 템플릿 (일본어)
     IMAGE_QUESTION_TEMPLATES_JA = [
         "{caption}について説明してください。",
         "{caption}の構成要素を教えてください。",
         "{caption}が示している内容は何ですか？"
     ]
 
+    # 이미지 관련 질문 템플릿 (한국어)
+    IMAGE_QUESTION_TEMPLATES_KO = [
+        "{caption}에 대해 설명해 주세요.",
+        "{caption}의 구성 요소를 알려주세요.",
+        "{caption}이 보여주는 내용은 무엇인가요?"
+    ]
+
+    # 이미지 관련 질문 템플릿 (영어)
+    IMAGE_QUESTION_TEMPLATES_EN = [
+        "Describe {caption}.",
+        "What are the components shown in {caption}?",
+        "What does {caption} illustrate?"
+    ]
+
+    # 시스템 프롬프트
+    SYSTEM_PROMPTS = {
+        "ja": "あなたはOpenFrame技術サポートのアシスタントです。OpenFrameに関する質問に正確に回答してください。",
+        "ko": "당신은 OpenFrame 기술 지원 어시스턴트입니다. OpenFrame에 관한 질문에 정확하게 답변해 주세요.",
+        "en": "You are an OpenFrame technical support assistant. Please answer questions about OpenFrame accurately."
+    }
+
     def __init__(self, parser: OpenFrameManualParserV2):
         self.parser = parser
         self.training_data: List[TrainingExample] = []
+
+    def _get_templates_for_language(self, language: str) -> Dict:
+        """언어에 맞는 질문 템플릿 반환"""
+        if language == "ko":
+            return self.QUESTION_TEMPLATES_KO
+        elif language == "en":
+            from openframe_qlora_full_extractor import QLoRADataGenerator
+            return QLoRADataGenerator.QUESTION_TEMPLATES_EN
+        else:  # ja (default)
+            return self.QUESTION_TEMPLATES_JA
 
     def generate_training_data(self,
                                include_metadata: bool = True,
@@ -802,10 +922,14 @@ class QLoRADataGeneratorV2:
                                max_templates_per_section: int = 3,
                                include_tables: bool = True,
                                include_images: bool = True) -> List[TrainingExample]:
-        """학습 데이터 생성"""
+        """학습 데이터 생성
+
+        Args:
+            language: 질문 언어 (ja/ko/en)
+        """
         training_data = []
 
-        templates = self.QUESTION_TEMPLATES_JA
+        templates = self._get_templates_for_language(language)
 
         for section in self.parser.sections:
             # 콘텐츠 길이 체크
@@ -888,7 +1012,12 @@ class QLoRADataGeneratorV2:
 
         # 코드 블록 포함
         if section.code_blocks:
-            label = "使用例:" if language == "ja" else "Examples:"
+            if language == "ja":
+                label = "使用例:"
+            elif language == "ko":
+                label = "사용 예시:"
+            else:
+                label = "Examples:"
             response_parts.append(f"\n\n{label}")
             for code in section.code_blocks[:3]:
                 response_parts.append(f"```\n{code}\n```")
@@ -913,6 +1042,8 @@ class QLoRADataGeneratorV2:
 
         if language == "ja":
             instruction = f"{section.title}のコマンド例・設定例を教えてください。"
+        elif language == "ko":
+            instruction = f"{section.title}의 명령어 예시와 설정 예시를 알려주세요."
         else:
             instruction = f"Show me command and configuration examples for {section.title}."
 
@@ -953,6 +1084,8 @@ class QLoRADataGeneratorV2:
             # 표 내용 설명 질문
             if language == "ja":
                 instruction = f"{caption}の内容を表形式で教えてください。"
+            elif language == "ko":
+                instruction = f"{caption}의 내용을 표 형식으로 알려주세요."
             else:
                 instruction = f"Show me the {caption} in table format."
 
@@ -985,6 +1118,8 @@ class QLoRADataGeneratorV2:
 
                         if language == "ja":
                             row_instruction = f"{caption}における{key}について説明してください。"
+                        elif language == "ko":
+                            row_instruction = f"{caption}에서 {key}에 대해 설명해 주세요."
                         else:
                             row_instruction = f"Explain {key} in {caption}."
 
@@ -1015,6 +1150,8 @@ class QLoRADataGeneratorV2:
             # 이미지 설명 질문
             if language == "ja":
                 instruction = f"{caption}について説明してください。"
+            elif language == "ko":
+                instruction = f"{caption}에 대해 설명해 주세요."
             else:
                 instruction = f"Describe {caption}."
 
@@ -1022,7 +1159,12 @@ class QLoRADataGeneratorV2:
             output_parts = []
             if image.surrounding_text:
                 output_parts.append(image.surrounding_text)
-            output_parts.append(f"\nこの図は{section.title}に関連しています。")
+            if language == "ja":
+                output_parts.append(f"\nこの図は{section.title}に関連しています。")
+            elif language == "ko":
+                output_parts.append(f"\n이 그림은 {section.title}과(와) 관련이 있습니다.")
+            else:
+                output_parts.append(f"\nThis figure is related to {section.title}.")
             output_parts.append(section.content[:500])  # 섹션 내용 일부
 
             metadata = {}
@@ -1063,6 +1205,9 @@ class QLoRADataGeneratorV2:
                     if language == "ja":
                         instruction = f"{section.title}で扱うトピックは何ですか？"
                         output_prefix = f"{section.title}では以下のトピックを扱います："
+                    elif language == "ko":
+                        instruction = f"{section.title}에서 다루는 주제는 무엇인가요?"
+                        output_prefix = f"{section.title}에서는 다음 주제를 다룹니다:"
                     else:
                         instruction = f"What topics are covered in {section.title}?"
                         output_prefix = f"{section.title} covers the following topics:"
@@ -1084,12 +1229,18 @@ class QLoRADataGeneratorV2:
             if language == "ja":
                 instruction = "このマニュアルに含まれる表の一覧を教えてください。"
                 output = "このマニュアルには以下の表が含まれています：\n"
+                page_label = "ページ"
+            elif language == "ko":
+                instruction = "이 매뉴얼에 포함된 표 목록을 알려주세요."
+                output = "이 매뉴얼에는 다음 표가 포함되어 있습니다:\n"
+                page_label = "페이지"
             else:
                 instruction = "List all tables in this manual."
                 output = "This manual contains the following tables:\n"
+                page_label = "page"
 
             for i, table in enumerate(self.parser.all_tables[:20], 1):
-                output += f"{i}. {table.caption} (ページ {table.page_number})\n"
+                output += f"{i}. {table.caption} ({page_label} {table.page_number})\n"
 
             qa = TrainingExample(
                 instruction=instruction,
@@ -1229,9 +1380,9 @@ def main():
     )
     parser.add_argument(
         '--language', '-l',
-        choices=['ja', 'en'],
+        choices=['ja', 'ko', 'en'],
         default='ja',
-        help='질문 언어 (기본: ja)'
+        help='질문 언어 (ja: 일본어, ko: 한국어, en: 영어, 기본: ja)'
     )
     parser.add_argument(
         '--sample',
