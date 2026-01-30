@@ -18,3 +18,8 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Training outputs
+openframe_qlora_adapter/
+training_*.log
+*.log
