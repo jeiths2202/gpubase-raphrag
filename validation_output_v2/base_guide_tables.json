@@ -1,0 +1,651 @@
+[
+  {
+    "headers": [
+      "表記",
+      "意味"
+    ],
+    "rows": [
+      [
+        "<AaBbCc123>",
+        "プログラム・ソースコードのファイル名、ディレクトリ"
+      ],
+      [
+        "<Ctrl>+C",
+        "CtrlキーとCキーを同時に押す"
+      ],
+      [
+        "[Button]",
+        "GUIのボタン、メニュー名"
+      ],
+      [
+        "太字",
+        "強調"
+      ],
+      [
+        "「」、『』 (鍵カッコ)",
+        "関連文書、あるいはガイド内の他の章および節の表示"
+      ],
+      [
+        "「入力項目」",
+        "画面UI上の入力項目"
+      ],
+      [
+        "ハイパーリンク",
+        "メール・アカウント、Webサイト"
+      ],
+      [
+        ">",
+        "メニューの実行順"
+      ],
+      [
+        "+----",
+        "サブディレクトリ/ファイル有り"
+      ],
+      [
+        "|----",
+        "サブディレクトリ/ファイル無し"
+      ],
+      [
+        "参考",
+        "参照/注意事項"
+      ],
+      [
+        "[図 1.1]",
+        "図の名前"
+      ],
+      [
+        "AaBbCc123",
+        "コマンド、コマンド実行結果の画面出力、サンプル・コード"
+      ],
+      [
+        "",
+        ""
+      ],
+      [
+        "{ }",
+        "必須パラメータ値"
+      ],
+      [
+        "[ ]",
+        "オプション・パラメータ値"
+      ],
+      [
+        "|",
+        "選択パラメータ値"
+      ]
+    ],
+    "caption": "上の規則",
+    "page_number": 9,
+    "markdown": "**上の規則**\n\n| 表記 | 意味 |\n| --- | --- |\n| <AaBbCc123> | プログラム・ソースコードのファイル名、ディレクトリ |\n| <Ctrl>+C | CtrlキーとCキーを同時に押す |\n| [Button] | GUIのボタン、メニュー名 |\n| 太字 | 強調 |\n| 「」、『』 (鍵カッコ) | 関連文書、あるいはガイド内の他の章および節の表示 |\n| 「入力項目」 | 画面UI上の入力項目 |\n| ハイパーリンク | メール・アカウント、Webサイト |\n| > | メニューの実行順 |\n| +---- | サブディレクトリ/ファイル有り |\n| |---- | サブディレクトリ/ファイル無し |\n| 参考 | 参照/注意事項 |\n| [図 1.1] | 図の名前 |\n| AaBbCc123 | コマンド、コマンド実行結果の画面出力、サンプル・コード |\n|  |  |\n| { } | 必須パラメータ値 |\n| [ ] | オプション・パラメータ値 |\n| | | 選択パラメータ値 |"
+  },
+  {
+    "headers": [
+      "",
+      "要求事項"
+    ],
+    "rows": [
+      [
+        "プラットフォーム",
+        "Solaris 11 (SunOS 5.11)以上 (32bit, 64bit)"
+      ],
+      [
+        "",
+        "Linux x86 2.6以上 (32bit, 64bit)"
+      ],
+      [
+        "",
+        "Linux ia64 2.6以上 (32bit, 64bit)"
+      ],
+      [
+        "ハードウェア",
+        "5GB以上のハードディスク"
+      ],
+      [
+        "",
+        "8GB以上のメモリ"
+      ],
+      [
+        "データベース",
+        "Tibero 6 (Fixset07)"
+      ],
+      [
+        "コンパイラー",
+        "Micro Focus COBOL、NetCOBOL、OpenFrame COBOL"
+      ],
+      [
+        "",
+        "OpenFrame PL/I"
+      ],
+      [
+        "",
+        "OpenFrame ASM"
+      ]
+    ],
+    "caption": "テム要件",
+    "page_number": 10,
+    "markdown": "**テム要件**\n\n|  | 要求事項 |\n| --- | --- |\n| プラットフォーム | Solaris 11 (SunOS 5.11)以上 (32bit, 64bit) |\n|  | Linux x86 2.6以上 (32bit, 64bit) |\n|  | Linux ia64 2.6以上 (32bit, 64bit) |\n| ハードウェア | 5GB以上のハードディスク |\n|  | 8GB以上のメモリ |\n| データベース | Tibero 6 (Fixset07) |\n| コンパイラー | Micro Focus COBOL、NetCOBOL、OpenFrame COBOL |\n|  | OpenFrame PL/I |\n|  | OpenFrame ASM |"
+  },
+  {
+    "headers": [
+      "ガイド",
+      "説明"
+    ],
+    "rows": [
+      [
+        "OpenFrame\nスタートガイド",
+        "OpenFrameソリューションの概念的な理解を助けるために作成さ\nれています。"
+      ],
+      [
+        "OpenFrame\nBase インストールガイド",
+        "OpenFrame/Base製品のインストールと環境設定について説明し\nています。"
+      ],
+      [
+        "OpenFrame\nデータセットガイド",
+        "OpenFrameデータセットの紹介とデータセットの種類およびカタ\nログ方法などについて説明しています。"
+      ],
+      [
+        "OpenFrame\nユーティリティ\nリファレンスガイド",
+        "OpenFrameエンジンと一緒に提供される多様なユーティリティ・\nプログラムについて説明しています。"
+      ],
+      [
+        "OpenFrame\nツールリファレンスガイド",
+        "OpenFrameシステムの運用に使用する各種ツール・プログラムに\nついて説明しています。"
+      ],
+      [
+        "OpenFrame\nマイグレーションガイド",
+        "メインフレーム環境のリソースをOpenFrame環境に移行する際に\n必要な情報と移行手順および注意事項について説明しています。"
+      ],
+      [
+        "OpenFrame\nエラーメッセージ\nリファレンスガイド",
+        "製品の使用中に発生し得るエラーのタイプ、およびその解決方法\nについて説明しています。"
+      ],
+      [
+        "OpenFrame\n環境設定ガイド",
+        "OpenFrameシステムの運用に必要な環境設定について説明してい\nます。"
+      ]
+    ],
+    "caption": "文書",
+    "page_number": 11,
+    "markdown": "**文書**\n\n| ガイド | 説明 |\n| --- | --- |\n| OpenFrame\nスタートガイド | OpenFrameソリューションの概念的な理解を助けるために作成さ\nれています。 |\n| OpenFrame\nBase インストールガイド | OpenFrame/Base製品のインストールと環境設定について説明し\nています。 |\n| OpenFrame\nデータセットガイド | OpenFrameデータセットの紹介とデータセットの種類およびカタ\nログ方法などについて説明しています。 |\n| OpenFrame\nユーティリティ\nリファレンスガイド | OpenFrameエンジンと一緒に提供される多様なユーティリティ・\nプログラムについて説明しています。 |\n| OpenFrame\nツールリファレンスガイド | OpenFrameシステムの運用に使用する各種ツール・プログラムに\nついて説明しています。 |\n| OpenFrame\nマイグレーションガイド | メインフレーム環境のリソースをOpenFrame環境に移行する際に\n必要な情報と移行手順および注意事項について説明しています。 |\n| OpenFrame\nエラーメッセージ\nリファレンスガイド | 製品の使用中に発生し得るエラーのタイプ、およびその解決方法\nについて説明しています。 |\n| OpenFrame\n環境設定ガイド | OpenFrameシステムの運用に必要な環境設定について説明してい\nます。 |"
+  },
+  {
+    "headers": [
+      "コマンド",
+      "説明"
+    ],
+    "rows": [
+      [
+        "cc (Change Code Mapping)",
+        "現在のCPMデータにマッピングされているコードを指\n定されたマッピング・コードに変更します。"
+      ],
+      [
+        "cf (Convert File)",
+        "現在のCPMデータを使用して特定のファイルを変換し\nます。"
+      ],
+      [
+        "ct (Convert Text)",
+        "現在のCPMデータを使用して、指定された文字列また\nは16進の値を変換します。"
+      ],
+      [
+        "pd (Print Double-Byte Code Map- ping)",
+        "現在CPMデータに保存されている2バイトのコード・\nマッピング情報を表示します。"
+      ],
+      [
+        "ps (Print Single-Byte Code Map- ping)",
+        "現在CPMデータに保存されている1バイトのコード・\nマッピング情報を表示します。"
+      ],
+      [
+        "pr (Print Single/Double Byte Code Range)",
+        "現在CPMデータに保存されているコード・マッピング\n範囲を表示します。"
+      ],
+      [
+        "pc (Print Code Not Exist in CPM)",
+        "2バイトのコード情報をファイルとして受け取り、現在\nのCPMデータに保存されていない2バイトのマッピング\n情報を表示します。"
+      ],
+      [
+        "pt (Print Mapping Table)",
+        "現在CPMデータに保存されているコード・マッピング\n情報をファイルとして出力します。"
+      ],
+      [
+        "rr (Reset Single/Double Byte Code Range)",
+        "現在のコードページに基づいてバイト・コード範囲を\n再作成し、新しいコードページを表示します。"
+      ],
+      [
+        "cr (Change Single/Double Byte Code Range)",
+        "現在のコードページのバイト・コード範囲を変更し、\n新しいコードページを表示します。"
+      ]
+    ],
+    "caption": ">> help",
+    "page_number": 20,
+    "markdown": "**>> help**\n\n| コマンド | 説明 |\n| --- | --- |\n| cc (Change Code Mapping) | 現在のCPMデータにマッピングされているコードを指\n定されたマッピング・コードに変更します。 |\n| cf (Convert File) | 現在のCPMデータを使用して特定のファイルを変換し\nます。 |\n| ct (Convert Text) | 現在のCPMデータを使用して、指定された文字列また\nは16進の値を変換します。 |\n| pd (Print Double-Byte Code Map- ping) | 現在CPMデータに保存されている2バイトのコード・\nマッピング情報を表示します。 |\n| ps (Print Single-Byte Code Map- ping) | 現在CPMデータに保存されている1バイトのコード・\nマッピング情報を表示します。 |\n| pr (Print Single/Double Byte Code Range) | 現在CPMデータに保存されているコード・マッピング\n範囲を表示します。 |\n| pc (Print Code Not Exist in CPM) | 2バイトのコード情報をファイルとして受け取り、現在\nのCPMデータに保存されていない2バイトのマッピング\n情報を表示します。 |\n| pt (Print Mapping Table) | 現在CPMデータに保存されているコード・マッピング\n情報をファイルとして出力します。 |\n| rr (Reset Single/Double Byte Code Range) | 現在のコードページに基づいてバイト・コード範囲を\n再作成し、新しいコードページを表示します。 |\n| cr (Change Single/Double Byte Code Range) | 現在のコードページのバイト・コード範囲を変更し、\n新しいコードページを表示します。 |"
+  },
+  {
+    "headers": [
+      "構成要素",
+      "説明"
+    ],
+    "rows": [
+      [
+        "プログラム",
+        "PL/IまたはCOBOLで作成されたアプリケーション・プログラムまたはオンライン・\nサービスです。"
+      ],
+      [
+        "tconmgr",
+        "仮想のコンソール・デバイスです。"
+      ],
+      [
+        "ofrcmsvr",
+        "コンソール・メッセージを管理および表示するコンソール・サーバーです。"
+      ]
+    ],
+    "caption": "ます。",
+    "page_number": 21,
+    "markdown": "**ます。**\n\n| 構成要素 | 説明 |\n| --- | --- |\n| プログラム | PL/IまたはCOBOLで作成されたアプリケーション・プログラムまたはオンライン・\nサービスです。 |\n| tconmgr | 仮想のコンソール・デバイスです。 |\n| ofrcmsvr | コンソール・メッセージを管理および表示するコンソール・サーバーです。 |"
+  },
+  {
+    "headers": [
+      "項目",
+      "説明"
+    ],
+    "rows": [
+      [
+        "CONSOLE ID\n_",
+        "0から99まで指定できます。現在OpenFrameでは、0(ゼロ)のみ使用されており、\nCONSOLE IDが指定されていない場合は、0として処理されます。出力項目のす\n_\nべてのメッセージも0で出力されます。"
+      ]
+    ],
+    "caption": "入力項目",
+    "page_number": 24,
+    "markdown": "**入力項目**\n\n| 項目 | 説明 |\n| --- | --- |\n| CONSOLE ID\n_ | 0から99まで指定できます。現在OpenFrameでは、0(ゼロ)のみ使用されており、\nCONSOLE IDが指定されていない場合は、0として処理されます。出力項目のす\n_\nべてのメッセージも0で出力されます。 |"
+  },
+  {
+    "headers": [
+      "項目",
+      "説明"
+    ],
+    "rows": [
+      [
+        "Msg Source",
+        "メッセージのソース(発信元)です。COBOL、TCONMGRなどがあります。"
+      ],
+      [
+        "Date Time",
+        "メッセージが作成された日時(YYYYMMDD HHMMSS形式)です。\n_"
+      ],
+      [
+        "Length",
+        "メッセージの長さです。"
+      ],
+      [
+        "Console ID",
+        "メッセージのソースのコンソールIDです。現在は0のみ出力されます。"
+      ],
+      [
+        "User",
+        "一般的にメッセージのソースのジョブIDが出力されます。ジョブIDが存在しない\n場合は、ユーザー名が出力されることもあります。メッセージのソースが\nTCONMGRの場合は、応答対象のジョブIDが出力されます。"
+      ],
+      [
+        "Process ID",
+        "メッセージのソースのUNIX PIDが出力されます。メッセージのソースが\nTCONMGRの場合は、応答対象のUNIX PIDが出力されます。"
+      ]
+    ],
+    "caption": "れ、全体は角括弧([ ])で囲まれます。",
+    "page_number": 24,
+    "markdown": "**れ、全体は角括弧([ ])で囲まれます。**\n\n| 項目 | 説明 |\n| --- | --- |\n| Msg Source | メッセージのソース(発信元)です。COBOL、TCONMGRなどがあります。 |\n| Date Time | メッセージが作成された日時(YYYYMMDD HHMMSS形式)です。\n_ |\n| Length | メッセージの長さです。 |\n| Console ID | メッセージのソースのコンソールIDです。現在は0のみ出力されます。 |\n| User | 一般的にメッセージのソースのジョブIDが出力されます。ジョブIDが存在しない\n場合は、ユーザー名が出力されることもあります。メッセージのソースが\nTCONMGRの場合は、応答対象のジョブIDが出力されます。 |\n| Process ID | メッセージのソースのUNIX PIDが出力されます。メッセージのソースが\nTCONMGRの場合は、応答対象のUNIX PIDが出力されます。 |"
+  },
+  {
+    "headers": [
+      "項目",
+      "説明"
+    ],
+    "rows": [
+      [
+        "Process ID",
+        "UNIXのPIDです"
+      ],
+      [
+        "User",
+        "一般的にはジョブIDですが、ジョブIDがないメッセージの場合は、別の名前にな\nることがあります。"
+      ],
+      [
+        "Msg Source",
+        "メッセージのソースです。COBOL、TCONMGRなどがあります。"
+      ],
+      [
+        "Date",
+        "メッセージが作成された日付です。入力値がない場合は、当日に作成されたメッ\nセージを検索します。"
+      ],
+      [
+        "Time",
+        "メッセージが作成された時間です。指定した時間以降に作成されたメッセージの\nみ検索します。"
+      ]
+    ],
+    "caption": "を検索します。",
+    "page_number": 27,
+    "markdown": "**を検索します。**\n\n| 項目 | 説明 |\n| --- | --- |\n| Process ID | UNIXのPIDです |\n| User | 一般的にはジョブIDですが、ジョブIDがないメッセージの場合は、別の名前にな\nることがあります。 |\n| Msg Source | メッセージのソースです。COBOL、TCONMGRなどがあります。 |\n| Date | メッセージが作成された日付です。入力値がない場合は、当日に作成されたメッ\nセージを検索します。 |\n| Time | メッセージが作成された時間です。指定した時間以降に作成されたメッセージの\nみ検索します。 |"
+  },
+  {
+    "headers": [
+      "サーバー・モジュール",
+      "説明"
+    ],
+    "rows": [
+      [
+        "ofrcmsvr",
+        "コンソール・メッセージを管理および中継します。"
+      ],
+      [
+        "ofrdmsvr",
+        "データセットを管理します。期限切れのデータセットを自動的に削除し\nます。"
+      ],
+      [
+        "ofrdsedt",
+        "データセットを編集します。OFAdminなどのクライアントから特定のデー\nタセットへの編集要求を受け、データセットの割り当てを実行し、デー\nタセットのレコード・データをクライアントに返します。"
+      ],
+      [
+        "ofrlhsvr",
+        "データセットのロックを要求のためにロック・ハンドルを割り当てます。"
+      ],
+      [
+        "ofrsasvr",
+        "OpenFrameシステムのアクセス制御要求を受けて処理します。"
+      ],
+      [
+        "ofrsmlog",
+        "SMFログを管理します。"
+      ],
+      [
+        "ofruisvr",
+        "OFAdminやツールなどのクライアントからデータセットの作成および削\n除要求を受けて処理します。"
+      ]
+    ],
+    "caption": "されます。以下は、サーバー・モジュールの一覧です。",
+    "page_number": 29,
+    "markdown": "**されます。以下は、サーバー・モジュールの一覧です。**\n\n| サーバー・モジュール | 説明 |\n| --- | --- |\n| ofrcmsvr | コンソール・メッセージを管理および中継します。 |\n| ofrdmsvr | データセットを管理します。期限切れのデータセットを自動的に削除し\nます。 |\n| ofrdsedt | データセットを編集します。OFAdminなどのクライアントから特定のデー\nタセットへの編集要求を受け、データセットの割り当てを実行し、デー\nタセットのレコード・データをクライアントに返します。 |\n| ofrlhsvr | データセットのロックを要求のためにロック・ハンドルを割り当てます。 |\n| ofrsasvr | OpenFrameシステムのアクセス制御要求を受けて処理します。 |\n| ofrsmlog | SMFログを管理します。 |\n| ofruisvr | OFAdminやツールなどのクライアントからデータセットの作成および削\n除要求を受けて処理します。 |"
+  },
+  {
+    "headers": [
+      "サブジェクト",
+      "説明"
+    ],
+    "rows": [
+      [
+        "acs",
+        "ストレージ管理システムで使用されるSMSクラスの選択ルールを設定します。"
+      ],
+      [
+        "api3270",
+        "OpenFrameシステムで3270データ・ストリームの変換機能に関する一般的な\n設定を行います。"
+      ],
+      [
+        "console",
+        "OpenFrameシステムのコンソールとコマンドに関する設定を行います。"
+      ],
+      [
+        "cpm",
+        "OpenFrameシステムのコードページの変換に関する設定を行います。"
+      ],
+      [
+        "ds",
+        "OpenFrameシステムで使用されるデータセットの一般的な設定を行います。"
+      ],
+      [
+        "dstool",
+        "データセット関連のツール・プログラムで使用される設定を行います。"
+      ],
+      [
+        "ofsys",
+        "OpenFrameムのシステム・ ディレクトリ構造を含む全般的な設定を行いま\nす。"
+      ],
+      [
+        "saf",
+        "OpenFrameシステムのアクセス制御に関する設定を行います。"
+      ],
+      [
+        "smf",
+        "SMFで使用される設定を行います。"
+      ],
+      [
+        "sms",
+        "ストレージ管理システムで使用されるSMSクラスを定義します。"
+      ],
+      [
+        "sort",
+        "SORTユーティリティの一般的な設定を行います。"
+      ]
+    ],
+    "caption": "目を設定した後、ofconfigツールを使用してOpenFrameシステムに設定を保存する必要があります。",
+    "page_number": 35,
+    "markdown": "**目を設定した後、ofconfigツールを使用してOpenFrameシステムに設定を保存する必要があります。**\n\n| サブジェクト | 説明 |\n| --- | --- |\n| acs | ストレージ管理システムで使用されるSMSクラスの選択ルールを設定します。 |\n| api3270 | OpenFrameシステムで3270データ・ストリームの変換機能に関する一般的な\n設定を行います。 |\n| console | OpenFrameシステムのコンソールとコマンドに関する設定を行います。 |\n| cpm | OpenFrameシステムのコードページの変換に関する設定を行います。 |\n| ds | OpenFrameシステムで使用されるデータセットの一般的な設定を行います。 |\n| dstool | データセット関連のツール・プログラムで使用される設定を行います。 |\n| ofsys | OpenFrameムのシステム・ ディレクトリ構造を含む全般的な設定を行いま\nす。 |\n| saf | OpenFrameシステムのアクセス制御に関する設定を行います。 |\n| smf | SMFで使用される設定を行います。 |\n| sms | ストレージ管理システムで使用されるSMSクラスを定義します。 |\n| sort | SORTユーティリティの一般的な設定を行います。 |"
+  },
+  {
+    "headers": [
+      "項目",
+      "説明"
+    ],
+    "rows": [
+      [
+        "DATABASE",
+        "接続するデータベース名を指定します。"
+      ],
+      [
+        "USERNAME",
+        "データベースに接続するためのユーザー・パスワードを指定します。"
+      ],
+      [
+        "ENPASSWD",
+        "データベースに接続するための暗号化されたユーザー・パスワードを指定し\nます。"
+      ]
+    ],
+    "caption": "ENPASSWD=AA68690384C8042F154AEDF2A7B9F2A52B27EB63AF0777D67076195863248D2A",
+    "page_number": 36,
+    "markdown": "**ENPASSWD=AA68690384C8042F154AEDF2A7B9F2A52B27EB63AF0777D67076195863248D2A**\n\n| 項目 | 説明 |\n| --- | --- |\n| DATABASE | 接続するデータベース名を指定します。 |\n| USERNAME | データベースに接続するためのユーザー・パスワードを指定します。 |\n| ENPASSWD | データベースに接続するための暗号化されたユーザー・パスワードを指定し\nます。 |"
+  },
+  {
+    "headers": [
+      "ログ",
+      "説明"
+    ],
+    "rows": [
+      [
+        "サービス・ログ",
+        "Tmaxサーバーから作成され、OpenFrameエンジンによって出力されるメッ\nセージを記録します。"
+      ],
+      [
+        "システム・ログ",
+        "OpenFrame内部で重要なイベントを記録します。"
+      ],
+      [
+        "操作ログ",
+        "OpenFrameを運用するために、ユーザーがシェルまたはStudioを介して実\n行したコマンドを記録します。"
+      ],
+      [
+        "データ・ログ",
+        "保存される内容がデータ形式で他の分析ツールの入力値として使用されま\nす。"
+      ]
+    ],
+    "caption": "ログ、操作ログ、データ・ログの4タイプに分類されます。",
+    "page_number": 41,
+    "markdown": "**ログ、操作ログ、データ・ログの4タイプに分類されます。**\n\n| ログ | 説明 |\n| --- | --- |\n| サービス・ログ | Tmaxサーバーから作成され、OpenFrameエンジンによって出力されるメッ\nセージを記録します。 |\n| システム・ログ | OpenFrame内部で重要なイベントを記録します。 |\n| 操作ログ | OpenFrameを運用するために、ユーザーがシェルまたはStudioを介して実\n行したコマンドを記録します。 |\n| データ・ログ | 保存される内容がデータ形式で他の分析ツールの入力値として使用されま\nす。 |"
+  },
+  {
+    "headers": [
+      "項目",
+      "説明"
+    ],
+    "rows": [
+      [
+        "[YYYY-MM-\nDDTHH:MM:SS.ffffff]",
+        "メッセージの出力時間です。"
+      ],
+      [
+        "SERVICE-NAME",
+        "実行されたサービス名です。"
+      ],
+      [
+        "PID",
+        "サービスを実行したTmaxサーバーのPIDです。"
+      ],
+      [
+        "M",
+        "メッセージのタイプです。\n– M : Message\n– E : Error\n– W : Warning\n– D : Debug"
+      ],
+      [
+        "MSGCODE",
+        "8文字のメッセージ・コードです。"
+      ]
+    ],
+    "caption": "[YYYY-MM-DDTHH:MM:SS.ffffff] [SERVICE-NAME(PID)] [M] [MSGCODE] MESSAGE-CONTENTS",
+    "page_number": 42,
+    "markdown": "**[YYYY-MM-DDTHH:MM:SS.ffffff] [SERVICE-NAME(PID)] [M] [MSGCODE] MESSAGE-CONTENTS**\n\n| 項目 | 説明 |\n| --- | --- |\n| [YYYY-MM-\nDDTHH:MM:SS.ffffff] | メッセージの出力時間です。 |\n| SERVICE-NAME | 実行されたサービス名です。 |\n| PID | サービスを実行したTmaxサーバーのPIDです。 |\n| M | メッセージのタイプです。\n– M : Message\n– E : Error\n– W : Warning\n– D : Debug |\n| MSGCODE | 8文字のメッセージ・コードです。 |"
+  },
+  {
+    "headers": [
+      "項目",
+      "説明"
+    ],
+    "rows": [
+      [
+        "[YYYY-MM-\nDDTHH:MM:SS.ffffff]",
+        "メッセージの出力時間です。"
+      ],
+      [
+        "[EXECUTED-MODULE]",
+        "イベントが実行されたモジュールです。JOBID(JOBNAME)または\nSERVER(PID)が記録されます。"
+      ],
+      [
+        "[CODE]",
+        "1桁のメッセージ・タイプです。通常、[MSGCODE]の最終桁が記録さ\nれます。"
+      ],
+      [
+        "[MSGCODE]",
+        "8桁のメッセージ・コードです。"
+      ]
+    ],
+    "caption": "FREE-FORMAT-CONTENTS",
+    "page_number": 43,
+    "markdown": "**FREE-FORMAT-CONTENTS**\n\n| 項目 | 説明 |\n| --- | --- |\n| [YYYY-MM-\nDDTHH:MM:SS.ffffff] | メッセージの出力時間です。 |\n| [EXECUTED-MODULE] | イベントが実行されたモジュールです。JOBID(JOBNAME)または\nSERVER(PID)が記録されます。 |\n| [CODE] | 1桁のメッセージ・タイプです。通常、[MSGCODE]の最終桁が記録さ\nれます。 |\n| [MSGCODE] | 8桁のメッセージ・コードです。 |"
+  },
+  {
+    "headers": [
+      "項目",
+      "説明"
+    ],
+    "rows": [
+      [
+        "[YYYY-MM-\nDDTHH:MM:SS.ffffff]",
+        "メッセージの出力時間です。"
+      ],
+      [
+        "[EXECUTED-MODULE]",
+        "イベントが実行されたモジュールです。JOBID(JOBNAME)または\nSERVER(PID)が記録されます。"
+      ],
+      [
+        "[CODE]",
+        "1桁のメッセージ・タイプです。通常、[MSGCODE]の最終桁が記録さ\nれます。"
+      ],
+      [
+        "[MSGCODE]",
+        "8桁のメッセージ・コードです。"
+      ]
+    ],
+    "caption": "FREE-FORMAT-CONTENTS",
+    "page_number": 44,
+    "markdown": "**FREE-FORMAT-CONTENTS**\n\n| 項目 | 説明 |\n| --- | --- |\n| [YYYY-MM-\nDDTHH:MM:SS.ffffff] | メッセージの出力時間です。 |\n| [EXECUTED-MODULE] | イベントが実行されたモジュールです。JOBID(JOBNAME)または\nSERVER(PID)が記録されます。 |\n| [CODE] | 1桁のメッセージ・タイプです。通常、[MSGCODE]の最終桁が記録さ\nれます。 |\n| [MSGCODE] | 8桁のメッセージ・コードです。 |"
+  },
+  {
+    "headers": [
+      "ログ",
+      "説明"
+    ],
+    "rows": [
+      [
+        "ofrcmsvr$(DATE).out,\nofrcmsvr$(DATE).err",
+        "ofrcmsvrサーバーのサービス・ログです。"
+      ],
+      [
+        "ofrdmsvr$(DATE).out,\nofrdmsvr$(DATE).err",
+        "ofrdmsvrサーバーのサービス・ログです。"
+      ],
+      [
+        "ofrdsedt$(DATE).out,\nofrdsedt$(DATE).err",
+        "ofrdsedtサーバーのサービス・ログです。"
+      ],
+      [
+        "ofrlhsvr$(DATE).out,\nofrlhsvr$(DATE).err",
+        "ofrlhsvrサーバーのサービス・ログです。"
+      ],
+      [
+        "ofruisvr$(DATE).out,\nofruisvr$(DATE).err",
+        "ofruisvrサーバーのサービス・ログです。"
+      ],
+      [
+        "ofrsmlog$(DATE).out,\nofrsmlog$(DATE).err",
+        "ofrsmlogサーバーのサービス・ログです。"
+      ],
+      [
+        "ofrsasvr$(DATE).out,\nofrsasvr$(DATE).err",
+        "ofrsasvrサーバーのサービス・ログです。"
+      ],
+      [
+        "",
+        ""
+      ]
+    ],
+    "caption": "サービス・ログ",
+    "page_number": 45,
+    "markdown": "**サービス・ログ**\n\n| ログ | 説明 |\n| --- | --- |\n| ofrcmsvr$(DATE).out,\nofrcmsvr$(DATE).err | ofrcmsvrサーバーのサービス・ログです。 |\n| ofrdmsvr$(DATE).out,\nofrdmsvr$(DATE).err | ofrdmsvrサーバーのサービス・ログです。 |\n| ofrdsedt$(DATE).out,\nofrdsedt$(DATE).err | ofrdsedtサーバーのサービス・ログです。 |\n| ofrlhsvr$(DATE).out,\nofrlhsvr$(DATE).err | ofrlhsvrサーバーのサービス・ログです。 |\n| ofruisvr$(DATE).out,\nofruisvr$(DATE).err | ofruisvrサーバーのサービス・ログです。 |\n| ofrsmlog$(DATE).out,\nofrsmlog$(DATE).err | ofrsmlogサーバーのサービス・ログです。 |\n| ofrsasvr$(DATE).out,\nofrsasvr$(DATE).err | ofrsasvrサーバーのサービス・ログです。 |\n|  |  |"
+  },
+  {
+    "headers": [
+      "ログ",
+      "説明"
+    ],
+    "rows": [
+      [
+        "ams YYYYMMDD.log\n_",
+        "カタログ管理のシステム・ログです。"
+      ],
+      [
+        "dsalc YYYYMMDD.log\n_",
+        "データセット割り当てのシステム・ログです。"
+      ],
+      [
+        "saf YYYYMMDD.log\n_",
+        "システム・セキュリティのシステム・ログです。"
+      ]
+    ],
+    "caption": "システム・ログ",
+    "page_number": 45,
+    "markdown": "**システム・ログ**\n\n| ログ | 説明 |\n| --- | --- |\n| ams YYYYMMDD.log\n_ | カタログ管理のシステム・ログです。 |\n| dsalc YYYYMMDD.log\n_ | データセット割り当てのシステム・ログです。 |\n| saf YYYYMMDD.log\n_ | システム・セキュリティのシステム・ログです。 |"
+  },
+  {
+    "headers": [
+      "ログ",
+      "説明"
+    ],
+    "rows": [
+      [
+        "dstool YYYYMMDD.log\n_",
+        "データセット管理の操作ログです。"
+      ]
+    ],
+    "caption": "操作ログ",
+    "page_number": 45,
+    "markdown": "**操作ログ**\n\n| ログ | 説明 |\n| --- | --- |\n| dstool YYYYMMDD.log\n_ | データセット管理の操作ログです。 |"
+  },
+  {
+    "headers": [
+      "ログ",
+      "説明"
+    ],
+    "rows": [
+      [
+        "console YYYYMMDD.log\n_",
+        "コンソール・メッセージのデータ・ログです。"
+      ]
+    ],
+    "caption": "データ・ログ",
+    "page_number": 46,
+    "markdown": "**データ・ログ**\n\n| ログ | 説明 |\n| --- | --- |\n| console YYYYMMDD.log\n_ | コンソール・メッセージのデータ・ログです。 |"
+  }
+]
