@@ -6,6 +6,7 @@
   "cancel": "취소",
   "confirm": "확인",
   "save": "저장",
+  "saving": "저장 중...",
   "delete": "삭제",
   "edit": "편집",
   "create": "생성",
@@ -795,6 +796,32 @@
       "resetFailed": "설정을 재설정하지 못했습니다.",
       "rollbackFailed": "설정을 롤백하지 못했습니다.",
       "simulateFailed": "시뮬레이션을 실행하지 못했습니다."
+    }
+  },
+  "prompts": {
+    "title": "시스템 프롬프트",
+    "subtitle": "AI 에이전트 시스템 프롬프트 관리",
+    "selectPrompt": "편집할 프롬프트를 선택하세요",
+    "readonly": "읽기 전용",
+    "history": "이력",
+    "versionHistory": "버전 이력",
+    "noHistory": "버전 이력이 없습니다",
+    "rollback": "롤백",
+    "confirmRollback": "이 버전으로 롤백하시겠습니까?",
+    "unsavedChanges": "저장되지 않은 변경 사항",
+    "categories": {
+      "agent": "에이전트 프롬프트",
+      "middleware": "미들웨어",
+      "system": "시스템",
+      "persona": "페르소나",
+      "domain": "도메인"
+    },
+    "errors": {
+      "loadFailed": "프롬프트 목록을 불러오지 못했습니다",
+      "loadDetailFailed": "프롬프트 상세 정보를 불러오지 못했습니다",
+      "saveFailed": "프롬프트를 저장하지 못했습니다",
+      "loadHistoryFailed": "버전 이력을 불러오지 못했습니다",
+      "rollbackFailed": "롤백하지 못했습니다"
     }
   }
 }

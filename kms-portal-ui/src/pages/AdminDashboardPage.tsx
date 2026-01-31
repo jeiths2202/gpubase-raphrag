@@ -42,6 +42,7 @@ import {
   User,
   Settings,
   Eye,
+  MessageSquare,
 } from 'lucide-react';
 import {
   UserManagementTable,
@@ -54,6 +55,7 @@ import type { UserData } from '../components/admin';
 import { EnhanceRequestsTab } from '../components/admin/enhance';
 import { LearningManagementTab } from '../components/admin/learning';
 import { ScoringTab } from '../components/admin/scoring';
+import { PromptTab } from '../components/admin/prompts';
 import {
   LineChart,
   Line,
@@ -235,7 +237,7 @@ interface AuditStats {
 }
 
 // Tab configuration
-type TabId = 'executive' | 'users' | 'tokens' | 'agents' | 'health' | 'enhance' | 'learning' | 'rag' | 'audit' | 'scoring';
+type TabId = 'executive' | 'users' | 'tokens' | 'agents' | 'health' | 'enhance' | 'learning' | 'rag' | 'audit' | 'scoring' | 'prompts';
 
 interface TabConfig {
   id: TabId;
@@ -254,6 +256,7 @@ const TABS: TabConfig[] = [
   { id: 'rag', labelKey: 'RAG', icon: <Database size={18} /> },
   { id: 'audit', labelKey: 'Audit', icon: <Shield size={18} /> },
   { id: 'scoring', labelKey: 'Scoring', icon: <Settings size={18} /> },
+  { id: 'prompts', labelKey: 'Prompts', icon: <MessageSquare size={18} /> },
 ];
 
 // Chart colors
@@ -464,6 +467,9 @@ export const AdminDashboardPage: React.FC = () => {
         )}
         {activeTab === 'scoring' && (
           <ScoringTab />
+        )}
+        {activeTab === 'prompts' && (
+          <PromptTab />
         )}
       </main>
     </div>

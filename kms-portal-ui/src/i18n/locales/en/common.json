@@ -6,6 +6,7 @@
   "cancel": "Cancel",
   "confirm": "Confirm",
   "save": "Save",
+  "saving": "Saving...",
   "delete": "Delete",
   "edit": "Edit",
   "create": "Create",
@@ -795,6 +796,32 @@
       "resetFailed": "Failed to reset configuration.",
       "rollbackFailed": "Failed to rollback configuration.",
       "simulateFailed": "Failed to run simulation."
+    }
+  },
+  "prompts": {
+    "title": "System Prompts",
+    "subtitle": "Manage AI agent system prompts",
+    "selectPrompt": "Select a prompt to edit",
+    "readonly": "Read-only",
+    "history": "History",
+    "versionHistory": "Version History",
+    "rollback": "Rollback",
+    "confirmRollback": "Are you sure you want to rollback to this version?",
+    "noHistory": "No version history available",
+    "unsavedChanges": "Unsaved changes",
+    "categories": {
+      "agent": "Agent Prompts",
+      "middleware": "Middleware",
+      "system": "System",
+      "persona": "Persona",
+      "domain": "Domain"
+    },
+    "errors": {
+      "loadFailed": "Failed to load prompts",
+      "loadDetailFailed": "Failed to load prompt details",
+      "loadHistoryFailed": "Failed to load history",
+      "saveFailed": "Failed to save prompt",
+      "rollbackFailed": "Failed to rollback prompt"
     }
   }
 }

@@ -37,7 +37,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management, agent_navigation, agent_session, clarification, verified_knowledge
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management, agent_navigation, agent_session, clarification, verified_knowledge, openagent, openframe_rag, admin_scoring, admin_prompts
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 from .admin_dashboard.router import router as admin_dashboard_router
 
@@ -321,6 +321,51 @@ async def lifespan(app: FastAPI):
             f"[OK] Learning LLM service initialized (enabled={learning_llm_enabled}, mode=vLLM, url={learning_llm_url})",
             category=LogCategory.BUSINESS
         )
+
+        # ==================== OpenFrame RAG Service Initialization ====================
+        # Initialize OpenFrame RAG service for multi-product QLoRA-based RAG
+        from .services.openframe_rag_service import initialize_openframe_rag_service
+        from .services.deep_seek_service import initialize_deep_seek_service
+
+        openframe_rag_enabled = os.getenv("ENABLE_OPENFRAME_RAG", "true").lower() == "true"
+
+        if openframe_rag_enabled:
+            try:
+                # Initialize DeepSeek service first
+                deep_seek_service = await initialize_deep_seek_service(
+                    learning_llm_service=learning_llm_service if learning_llm_enabled else None,
+                    vector_search_service=None,  # Will be integrated with existing vector search
+                    graph_search_service=None,   # Will be integrated with existing graph search
+                )
+
+                # Initialize OpenFrame RAG service
+                openframe_rag_service = await initialize_openframe_rag_service(
+                    learning_llm_service=learning_llm_service if learning_llm_enabled else None,
+                    vector_search_service=None,
+                    graph_search_service=None,
+                )
+
+                container.register_singleton("deep_seek_service", deep_seek_service)
+                container.register_singleton("openframe_rag_service", openframe_rag_service)
+
+                logger.info(
+                    "[OK] OpenFrame RAG service initialized (Multi-Product QLoRA RAG)",
+                    category=LogCategory.BUSINESS,
+                    extra_data={
+                        "learning_llm_integrated": learning_llm_enabled,
+                        "products": ["openframe_mvs", "msp_openframe", "vos3_openframe", "tibero7", "ofasm", "ofcobol", "xsp_openframe", "tmax"],
+                    }
+                )
+            except Exception as openframe_e:
+                logger.warning(
+                    f"OpenFrame RAG service initialization failed (non-fatal): {openframe_e}",
+                    category=LogCategory.BUSINESS
+                )
+        else:
+            logger.info(
+                "OpenFrame RAG service disabled via ENABLE_OPENFRAME_RAG=false",
+                category=LogCategory.BUSINESS
+            )
 
         # ==================== User Feedback Service Initialization ====================
         from .repositories.user_feedback_repository import (
@@ -641,8 +686,10 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler_new(request: Request, exc: RequestValidationError):
     """Handle validation errors"""
+    # Log validation errors for debugging
+    logger.error(f"Validation errors: {exc.errors()}")
     validation_exc = ValidationException(
-        message="Request validation failed",
+        message=f"Request validation failed: {exc.errors()}",
         details={"errors": exc.errors()}
     )
     return await error_handler.handle_app_exception(request, validation_exc)
@@ -715,6 +762,10 @@ app.include_router(agent_navigation.router, prefix=API_PREFIX)  # Agent-Driven R
 app.include_router(agent_session.router, prefix=API_PREFIX)  # Agent-Driven RAG: Session management
 app.include_router(clarification.router, prefix=API_PREFIX)  # Query Clarification (ambiguous term detection)
 app.include_router(verified_knowledge.router, prefix=API_PREFIX)  # Verified Knowledge Store (Smarter RAG)
+app.include_router(openagent.router, prefix=API_PREFIX)  # OpenAgent: vLLM-based RAG via OpenCode CLI
+app.include_router(openframe_rag.router, prefix=API_PREFIX)  # OpenFrame RAG: QLoRA Learning LLM Multi-Product RAG
+app.include_router(admin_scoring.router, prefix=API_PREFIX)  # Admin Scoring Configuration (RRF, Boost, Confidence)
+app.include_router(admin_prompts.router, prefix=API_PREFIX)  # Admin Prompt Configuration (System Prompts Management)
 
 
 # Root endpoint

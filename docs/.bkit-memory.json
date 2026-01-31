@@ -1,14 +1,75 @@
 {
-  "sessionCount": 33,
+  "sessionCount": 50,
   "lastSession": {
-    "startedAt": "2026-01-31T03:09:39.404Z",
+    "startedAt": "2026-01-31T19:00:00.000Z",
     "platform": "claude",
     "level": "Enterprise"
   },
-  "activeFeature": null,
-  "pdcaPhase": "complete",
-  "matchRate": 92,
+  "activeFeature": "system-prompting",
+  "pdcaPhase": "do",
+  "designVersion": "v1.0",
+  "implementationProgress": {
+    "backend": {
+      "migration": "completed",
+      "models": "completed",
+      "cache": "completed",
+      "repository": "completed",
+      "service": "completed",
+      "router": "completed"
+    },
+    "frontend": {
+      "api": "completed",
+      "components": "completed",
+      "styles": "completed",
+      "translations": "completed",
+      "integration": "completed"
+    }
+  },
+  "matchRate": null,
+  "iterationCount": null,
+  "completedAt": null,
+  "reportPath": null,
+  "gaps": null,
+  "verifiedItems": null,
   "archivedFeatures": [
+    {
+      "feature": "hybrid-score-redesign",
+      "archivedAt": "2026-01-31T16:00:00.000Z",
+      "archivedTo": "docs/archive/2026-01/hybrid-score-redesign/",
+      "matchRate": 100,
+      "completedAt": "2026-01-31T16:00:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "hardcodingsRemoved": 21,
+        "configFieldsAdded": 24,
+        "envVarMappingsAdded": 24,
+        "newServicesCreated": 1
+      }
+    },
+    {
+      "feature": "rag-search-accuracy-improvement",
+      "archivedAt": "2026-01-31T06:35:00.000Z",
+      "archivedTo": "docs/archive/2026-01/rag-search-accuracy-improvement/",
+      "matchRate": 100,
+      "completedAt": "2026-01-31T06:25:00.000Z",
+      "designVersion": "v2.0",
+      "keyDeliverables": {
+        "hardcodingsRemoved": 14,
+        "configFieldsAdded": 18,
+        "envVarMappingsAdded": 17
+      }
+    },
+    {
+      "feature": "cjk-tokenization-improvement",
+      "archivedAt": "2026-01-31T04:45:00.000Z",
+      "archivedTo": "docs/04-report/features/cjk-tokenization-improvement.report.md",
+      "matchRate": 100,
+      "verifiedAt": "2026-01-31T04:44:00.000Z",
+      "testResults": {
+        "query1": "OSCサーバーの起動画面 → 5 docs found",
+        "query2": "マッピング・サポート・システム → Mapping Guide found"
+      }
+    },
     {
       "feature": "search-result-image-display",
       "archivedAt": "2026-01-31T12:15:00.000Z",

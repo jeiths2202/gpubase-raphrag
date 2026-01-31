@@ -6,6 +6,7 @@
   "cancel": "キャンセル",
   "confirm": "確認",
   "save": "保存",
+  "saving": "保存中...",
   "delete": "削除",
   "edit": "編集",
   "create": "作成",
@@ -795,6 +796,32 @@
       "resetFailed": "設定のリセットに失敗しました。",
       "rollbackFailed": "設定のロールバックに失敗しました。",
       "simulateFailed": "シミュレーションの実行に失敗しました。"
+    }
+  },
+  "prompts": {
+    "title": "システムプロンプト",
+    "subtitle": "AIエージェントシステムプロンプトの管理",
+    "selectPrompt": "編集するプロンプトを選択してください",
+    "readonly": "読み取り専用",
+    "history": "履歴",
+    "versionHistory": "バージョン履歴",
+    "noHistory": "バージョン履歴がありません",
+    "rollback": "ロールバック",
+    "confirmRollback": "このバージョンにロールバックしますか？",
+    "unsavedChanges": "未保存の変更",
+    "categories": {
+      "agent": "エージェントプロンプト",
+      "middleware": "ミドルウェア",
+      "system": "システム",
+      "persona": "ペルソナ",
+      "domain": "ドメイン"
+    },
+    "errors": {
+      "loadFailed": "プロンプト一覧の読み込みに失敗しました",
+      "loadDetailFailed": "プロンプト詳細の読み込みに失敗しました",
+      "saveFailed": "プロンプトの保存に失敗しました",
+      "loadHistoryFailed": "バージョン履歴の読み込みに失敗しました",
+      "rollbackFailed": "ロールバックに失敗しました"
     }
   }
 }
