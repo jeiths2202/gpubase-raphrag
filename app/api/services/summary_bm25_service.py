@@ -245,11 +245,14 @@ class SummaryBM25Service:
         Returns:
             True if initialization successful
         """
+        print(f"[BM25 Init] Starting initialization, summaries_dir={self.summaries_dir}")
         if not self.summaries_dir.exists():
+            print(f"[BM25 Init] ERROR: Summaries directory not found: {self.summaries_dir}")
             logger.warning(f"Summaries directory not found: {self.summaries_dir}")
             return False
 
         try:
+            print(f"[BM25 Init] Directory exists, loading categories...")
             logger.info(f"Initializing BM25 index from {self.summaries_dir}")
 
             # Load all summary files
@@ -267,14 +270,22 @@ class SummaryBM25Service:
                 ("terms", SummaryDocType.TERMS),
                 ("concepts", SummaryDocType.CONCEPTS),
                 ("procedures", SummaryDocType.PROCEDURES),
+                ("structures", SummaryDocType.STRUCTURES),  # Document structures with images
             ]
 
             for dir_name, doc_type in categories:
                 category_dir = self.summaries_dir / dir_name
                 if category_dir.exists():
+                    prev_count = len(self._documents)
                     await self._load_category(category_dir, doc_type)
+                    loaded = len(self._documents) - prev_count
+                    print(f"[BM25 Init] Loaded {loaded} docs from {dir_name}/")
+                else:
+                    print(f"[BM25 Init] Category {dir_name}/ not found")
 
+            print(f"[BM25 Init] Total documents loaded: {len(self._documents)}")
             if not self._documents:
+                print("[BM25 Init] ERROR: No summary documents found after loading all categories")
                 logger.warning("No summary documents found")
                 return False
 
@@ -315,6 +326,8 @@ class SummaryBM25Service:
                     await self._parse_glossary(content, md_file.name, doc_type)
                 elif doc_type == SummaryDocType.APIS:
                     await self._parse_apis(content, md_file.name, doc_type)
+                elif doc_type == SummaryDocType.STRUCTURES:
+                    await self._parse_structures(content, md_file.name, doc_type, category_dir)
                 else:
                     # Generic loading for other types
                     await self._parse_generic(content, md_file.name, doc_type)
@@ -724,6 +737,122 @@ class SummaryBM25Service:
 
             self._documents.append(doc)
             self._doc_contents.append(f"{title} {body}")
+
+    async def _parse_structures(
+        self, content: str, source_file: str, doc_type: SummaryDocType, category_dir: Path
+    ):
+        """Parse document structure files with image references
+
+        Structure files contain:
+        - Document metadata (title, pages, language)
+        - Hierarchical section structure
+        - Image/figure references
+        - Table of contents
+        """
+        import json
+
+        # Extract document metadata from YAML frontmatter
+        doc_title = None
+        pdf_file = None
+        if content.startswith("---"):
+            parts = content.split("---", 2)
+            if len(parts) >= 3:
+                frontmatter = parts[1]
+                for line in frontmatter.split('\n'):
+                    if line.startswith('title:'):
+                        doc_title = line.split(':', 1)[1].strip()
+                    elif line.startswith('file:'):
+                        pdf_file = line.split(':', 1)[1].strip()
+
+        # Load corresponding images.json if exists
+        images_data = []
+        images_file = source_file.replace('_structure.md', '_images.json')
+        images_path = category_dir / images_file
+        if images_path.exists():
+            try:
+                images_data = json.loads(images_path.read_text(encoding='utf-8')).get('figures', [])
+            except Exception as e:
+                logger.warning(f"Failed to load images file {images_file}: {e}")
+
+        # Parse sections by # headers
+        sections = re.split(r'\n(#{1,3} )', content)
+        current_section = None
+
+        for i in range(0, len(sections), 2):
+            if i + 1 >= len(sections):
+                section_content = sections[i]
+                level = 1
+            else:
+                level = len(sections[i].strip()) if sections[i].strip().startswith('#') else 1
+                section_content = sections[i] + (sections[i+1] if i+1 < len(sections) else '')
+
+            if not section_content.strip():
+                continue
+
+            lines = section_content.strip().split('\n')
+            section_title = lines[0].strip('#').strip()
+            section_body = '\n'.join(lines[1:]).strip()
+
+            if not section_title:
+                continue
+
+            # Extract page numbers if present
+            page_match = re.search(r'\*\*페이지\*\*:\s*(\d+(?:-\d+)?)', section_content)
+            page_info = page_match.group(1) if page_match else None
+
+            # Extract image references from this section
+            section_images = []
+            image_matches = re.findall(
+                r'\[(?:figure|image|표|図)\]\s*([^\n]+)',
+                section_content,
+                re.IGNORECASE
+            )
+            for img_ref in image_matches:
+                # Find matching image in images_data
+                for img in images_data:
+                    if img.get('caption') and img['caption'] in img_ref:
+                        section_images.append({
+                            'caption': img.get('caption'),
+                            'page': img.get('page_number'),
+                            'ref_id': img.get('ref_id'),
+                        })
+
+            # Parse page numbers from page_info (e.g., "13-16" -> [13, 14, 15, 16])
+            pages = []
+            if page_info:
+                if '-' in page_info:
+                    start, end = page_info.split('-')
+                    pages = list(range(int(start), int(end) + 1))
+                else:
+                    pages = [int(page_info)]
+
+            # Create document with rich metadata
+            doc = SummaryDocument(
+                id=f"structure_{source_file}_{i}",
+                content=section_body,
+                doc_type=doc_type,
+                source_file=source_file,
+                name=section_title,
+                description=section_body[:500] if section_body else None,
+                syntax=None,
+                product=doc_title,
+                page_numbers=pages,
+                source_pdf=pdf_file,
+            )
+
+            # Add image metadata
+            if section_images:
+                doc.metadata = doc.metadata or {}
+                doc.metadata['images'] = section_images
+
+            if pdf_file:
+                doc.metadata = doc.metadata or {}
+                doc.metadata['pdf_file'] = pdf_file
+
+            self._documents.append(doc)
+            # Include section title, body and image captions in search content
+            image_captions = ' '.join([img.get('caption', '') for img in section_images])
+            self._doc_contents.append(f"{section_title} {section_body} {image_captions}")
 
     async def search(
         self,
@@ -1388,7 +1517,42 @@ def get_summary_bm25_service() -> SummaryBM25Service:
     """Get or create singleton SummaryBM25Service instance"""
     global _bm25_service
     if _bm25_service is None:
-        _bm25_service = SummaryBM25Service()
+        import os
+        import sys
+        # Detect summaries directory - check multiple possible paths
+        # Use absolute paths to avoid Windows path interpretation issues
+        relative_path = (Path(__file__).parent.parent.parent.parent / "uploads" / "summaries").resolve()
+
+        # Order: env var > relative path (Windows dev) > Linux/Docker path
+        possible_paths = []
+        env_path = os.environ.get("KMS_SUMMARIES_DIR", "")
+        if env_path:
+            possible_paths.append(Path(env_path).resolve())
+
+        # Check relative path (works on Windows and Linux)
+        if relative_path.exists():
+            possible_paths.append(relative_path)
+
+        # Linux/Docker fallback - only check on non-Windows
+        if sys.platform != 'win32':
+            possible_paths.append(Path("/opt/kms/uploads/summaries"))
+
+        print(f"[SummaryBM25] Platform: {sys.platform}, relative path: {relative_path}")
+        summaries_dir = None
+        for path in possible_paths:
+            if path and path.exists() and path.is_dir():
+                # Verify it's a real directory with actual content
+                try:
+                    has_content = any(path.iterdir())
+                    if has_content:
+                        summaries_dir = path
+                        print(f"[SummaryBM25] Found summaries at: {summaries_dir}")
+                        break
+                except Exception:
+                    pass
+        if not summaries_dir:
+            print(f"[SummaryBM25] No valid summaries directory found. Checked: {possible_paths}")
+        _bm25_service = SummaryBM25Service(summaries_dir=summaries_dir)
     return _bm25_service
 
 

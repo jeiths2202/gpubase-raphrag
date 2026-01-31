@@ -47,9 +47,14 @@ class MiniCPMVisionAdapter(VisionLLMPort):
         - Max Context: 4096 tokens
     """
 
-    # MiniCPM-V has no per-token cost (local model)
+    # Local models have no per-token cost
     PRICING = {
         "openbmb/MiniCPM-V-2_6": {
+            "input": 0.0,
+            "output": 0.0,
+            "image_base": 0.0,
+        },
+        "Qwen/Qwen2-VL-2B-Instruct": {
             "input": 0.0,
             "output": 0.0,
             "image_base": 0.0,

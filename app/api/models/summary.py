@@ -21,6 +21,7 @@ class SummaryDocType(str, Enum):
     TERMS = "terms"
     CONCEPTS = "concepts"
     PROCEDURES = "procedures"
+    STRUCTURES = "structures"  # Document structure with images/tables
 
 
 class ConfidenceLevel(str, Enum):

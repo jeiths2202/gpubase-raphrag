@@ -2289,6 +2289,8 @@ User Query:"""
                             total = len(individual_results)
                             logger.debug(f"Streaming {total} individual search results")
                             for idx, ind_result in enumerate(individual_results):
+                                # Get score from multiple possible keys (similarity, rrf_score, score)
+                                result_score = ind_result.get("similarity") or ind_result.get("rrf_score") or ind_result.get("score") or 0
                                 yield AgentStreamChunk(
                                     chunk_type="search_result",
                                     result_index=idx + 1,
@@ -2298,7 +2300,7 @@ User Query:"""
                                     result_images=ind_result.get("images", []),
                                     result_tables=ind_result.get("tables", []),
                                     result_source=ind_result.get("source", {}),
-                                    result_score=ind_result.get("similarity", 0),
+                                    result_score=result_score,
                                     metadata={
                                         "chunk_id": ind_result.get("chunk_id"),
                                         "chunk_type": ind_result.get("chunk_type"),
