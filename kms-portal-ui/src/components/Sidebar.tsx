@@ -30,6 +30,8 @@ import {
   HelpCircle,
   Bot,
   Lightbulb,
+  Sparkles,
+  Cpu,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useAuthStore } from '../store/authStore';
@@ -60,6 +62,18 @@ const NAV_ITEMS: NavItem[] = [
     path: '/agent',
     icon: <Bot size={20} />,
     labelKey: 'common.nav.agent',
+  },
+  {
+    id: 'openAgent',
+    path: '/open-agent',
+    icon: <Sparkles size={20} />,
+    labelKey: 'common.nav.openAgent',
+  },
+  {
+    id: 'openframeRag',
+    path: '/openframe-rag',
+    icon: <Cpu size={20} />,
+    labelKey: 'common.nav.openframeRag',
   },
   {
     id: 'mindmap',

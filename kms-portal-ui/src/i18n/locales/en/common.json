@@ -44,6 +44,8 @@
     "externalPortal": "External Portal",
     "apikeys": "API Keys",
     "openAgent": "OpenAgent",
+    "openframeRag": "OpenFrame RAG",
+    "scoring": "Scoring Config",
     "mainNavigation": "Main navigation"
   },
   "products": {
@@ -607,7 +609,15 @@
     "suggestion3": "What is TACF?",
     "thinking": "Thinking...",
     "attachFile": "Attach file",
-    "placeholder": "Type your message..."
+    "placeholder": "Type your message...",
+    "modes": {
+      "rag": "RAG",
+      "ragDescription": "Summary-based retrieval augmented generation",
+      "direct": "Direct",
+      "directDescription": "Direct LLM response without retrieval",
+      "opencode": "OpenCode",
+      "opencodeDescription": "5-step workflow with hallucination detection"
+    }
   },
   "opencode": {
     "title": "OpenCode Agent",
@@ -642,6 +652,41 @@
     },
     "noSources": "I cannot find information about this in the knowledge base."
   },
+  "openframeRag": {
+    "title": "OpenFrame RAG",
+    "subtitle": "Learning LLM-based Multi-Product RAG",
+    "selectProduct": "Select Product",
+    "productRequired": "Please select a product for your query",
+    "deepSeek": "DeepSeek",
+    "deepSeekDescription": "Search across all 8 products and databases",
+    "deepSeekWarning": "DeepSeek searches all 8 products. This may take longer.",
+    "otherWarning": "Selecting 'Other' may result in lower accuracy and longer response times.",
+    "autoDetected": "Auto-detected",
+    "confidence": "Confidence",
+    "searching": "Searching...",
+    "searchingProduct": "Searching {{product}}...",
+    "noProductDetected": "Could not detect product automatically",
+    "welcomeTitle": "Welcome to OpenFrame RAG",
+    "welcomeMessage": "Select a product or let me auto-detect based on your query. I can help with commands, error codes, and configurations across 8 OpenFrame products.",
+    "products": {
+      "openframe_mvs": "OpenFrame MVS",
+      "msp_openframe": "MSP OpenFrame 7.3",
+      "vos3_openframe": "VOS3 OpenFrame 2.0",
+      "tibero7": "Tibero 7",
+      "ofasm": "OpenFrame ASM 4",
+      "ofcobol": "OpenFrame COBOL 4",
+      "xsp_openframe": "XSP OpenFrame 7.3",
+      "tmax": "Tmax 6.0",
+      "other": "Other",
+      "auto": "Auto-detect"
+    },
+    "sources": {
+      "learningLlm": "Learning LLM",
+      "vectorSearch": "Vector Search",
+      "graphSearch": "Graph Search"
+    },
+    "noResults": "No relevant information was found across the products. Please try a different query."
+  },
   "home": {
     "stats": {
       "documentsIndexed": "Documents indexed",
@@ -652,5 +697,104 @@
     "recentActivity": "Recent Activity",
     "noRecentActivity": "No recent activity yet",
     "startConversation": "Start a conversation"
+  },
+  "retry": "Retry",
+  "discard": "Discard",
+  "scoring": {
+    "title": "Scoring Configuration",
+    "subtitle": "Manage RAG search scoring parameters",
+    "loading": "Loading scoring configuration...",
+    "tabs": {
+      "config": "Configuration",
+      "simulate": "Simulation",
+      "history": "History"
+    },
+    "source": {
+      "runtime": "Runtime Override",
+      "cache": "Cached",
+      "database": "Database",
+      "environment": "Environment Default",
+      "rollback": "Rollback",
+      "unknown": "Unknown"
+    },
+    "sections": {
+      "rrf": "RRF (Reciprocal Rank Fusion)",
+      "bm25": "BM25 Search",
+      "boost": "Score Boosting",
+      "confidence": "Confidence Thresholds"
+    },
+    "params": {
+      "rrf": {
+        "k": "RRF K Parameter",
+        "k_desc": "Controls the ranking smoothness. Higher values give more weight to lower-ranked documents.",
+        "vector_weight": "Vector Search Weight",
+        "vector_weight_desc": "Weight for semantic vector search results in final fusion.",
+        "graph_weight": "Graph Search Weight",
+        "graph_weight_desc": "Weight for knowledge graph search results in final fusion.",
+        "bm25_weight": "BM25 Weight",
+        "bm25_weight_desc": "Weight for keyword-based BM25 search results in final fusion."
+      },
+      "bm25": {
+        "k1": "K1 (Term Frequency Saturation)",
+        "k1_desc": "Controls term frequency saturation. Higher values increase the impact of term frequency.",
+        "b": "B (Length Normalization)",
+        "b_desc": "Controls document length normalization. 0 = no normalization, 1 = full normalization.",
+        "avg_doc_length": "Average Document Length",
+        "avg_doc_length_desc": "Expected average document length in characters for normalization."
+      },
+      "boost": {
+        "title_match": "Title Match Boost",
+        "title_match_desc": "Multiplier applied when query terms match document title.",
+        "exact_phrase": "Exact Phrase Boost",
+        "exact_phrase_desc": "Multiplier applied when exact query phrase is found in document.",
+        "error_code": "Error Code Boost",
+        "error_code_desc": "Multiplier applied when query contains error code pattern.",
+        "source_count": "Source Count Bonus",
+        "source_count_desc": "Additional score bonus per relevant source document."
+      },
+      "confidence": {
+        "high": "High Confidence Threshold",
+        "high_desc": "Minimum score to classify result as high confidence.",
+        "medium": "Medium Confidence Threshold",
+        "medium_desc": "Minimum score to classify result as medium confidence.",
+        "low": "Low Confidence Threshold",
+        "low_desc": "Minimum score to include result in response."
+      }
+    },
+    "resetToDefaults": "Reset to Defaults",
+    "resetDescription": "Clears runtime override and reverts to environment/database configuration.",
+    "simulate": {
+      "title": "Search Simulation",
+      "description": "Test the current configuration with a sample query to see detailed scoring breakdown.",
+      "placeholder": "Enter a test query...",
+      "run": "Run Simulation",
+      "results": "Simulation Results",
+      "steps": "Processing Steps",
+      "topResults": "Top Ranked Results",
+      "docTitle": "Document",
+      "finalScore": "Final Score",
+      "vectorScore": "Vector",
+      "bm25Score": "BM25",
+      "boost": "Boost",
+      "totalTime": "Total Time"
+    },
+    "history": {
+      "title": "Configuration History",
+      "empty": "No configuration history available.",
+      "rollback": "Rollback"
+    },
+    "success": {
+      "saved": "Configuration saved successfully.",
+      "reset": "Configuration reset to defaults.",
+      "rollback": "Rolled back to previous configuration."
+    },
+    "errors": {
+      "title": "Error",
+      "loadFailed": "Failed to load scoring configuration.",
+      "saveFailed": "Failed to save configuration.",
+      "resetFailed": "Failed to reset configuration.",
+      "rollbackFailed": "Failed to rollback configuration.",
+      "simulateFailed": "Failed to run simulation."
+    }
   }
 }

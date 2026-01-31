@@ -41,6 +41,8 @@ import { ExternalPortalPage } from './pages/ExternalPortalPage';
 import { FAQPage } from './pages/FAQPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AgentPage } from './pages/AgentPage';
+import { OpenAgentPage } from './pages/OpenAgentPage';
+import { OpenFrameRAGPage } from './pages/OpenFrameRAGPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { ImprovementsPage, SubmitImprovementPage, ImprovementDetailPage } from './pages/improvements';
@@ -97,6 +99,12 @@ export const App: React.FC = () => {
 
               {/* AI Agent Chat */}
               <Route path="/agent" element={<AgentPage />} />
+
+              {/* OpenAgent (vLLM-based) */}
+              <Route path="/open-agent" element={<OpenAgentPage />} />
+
+              {/* OpenFrame RAG (Learning LLM-based Multi-Product RAG) */}
+              <Route path="/openframe-rag" element={<OpenFrameRAGPage />} />
 
               {/* FAQ */}
               <Route path="/faq" element={<FAQPage />} />

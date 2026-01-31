@@ -53,6 +53,7 @@ import {
 import type { UserData } from '../components/admin';
 import { EnhanceRequestsTab } from '../components/admin/enhance';
 import { LearningManagementTab } from '../components/admin/learning';
+import { ScoringTab } from '../components/admin/scoring';
 import {
   LineChart,
   Line,
@@ -234,7 +235,7 @@ interface AuditStats {
 }
 
 // Tab configuration
-type TabId = 'executive' | 'users' | 'tokens' | 'agents' | 'health' | 'enhance' | 'learning' | 'rag' | 'audit';
+type TabId = 'executive' | 'users' | 'tokens' | 'agents' | 'health' | 'enhance' | 'learning' | 'rag' | 'audit' | 'scoring';
 
 interface TabConfig {
   id: TabId;
@@ -252,6 +253,7 @@ const TABS: TabConfig[] = [
   { id: 'learning', labelKey: 'Learning', icon: <Brain size={18} /> },
   { id: 'rag', labelKey: 'RAG', icon: <Database size={18} /> },
   { id: 'audit', labelKey: 'Audit', icon: <Shield size={18} /> },
+  { id: 'scoring', labelKey: 'Scoring', icon: <Settings size={18} /> },
 ];
 
 // Chart colors
@@ -459,6 +461,9 @@ export const AdminDashboardPage: React.FC = () => {
         )}
         {activeTab === 'audit' && (
           <AuditTab />
+        )}
+        {activeTab === 'scoring' && (
+          <ScoringTab />
         )}
       </main>
     </div>
