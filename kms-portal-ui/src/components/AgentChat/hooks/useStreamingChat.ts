@@ -660,6 +660,44 @@ export function useStreamingChat(
             }
             break;
 
+          case 'images':
+            // Handle multiple figure images from backend (new chunk type)
+            // This contains an array of images with base64 data
+            if (chunk.images && Array.isArray(chunk.images)) {
+              for (const imgData of chunk.images) {
+                const imageId = imgData.id || `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+                // Skip duplicate images
+                if (images.some(img => img.imageId === imageId)) {
+                  console.log('[useStreamingChat] Skipping duplicate image:', imageId);
+                  continue;
+                }
+
+                const imageRef: ImageReference = {
+                  imageId,
+                  documentId: imgData.document_id || '',
+                  pageNumber: imgData.page_number,
+                  description: imgData.figure_caption || imgData.description,
+                  figureReference: imgData.figure_reference,
+                  figureCaption: imgData.figure_caption,
+                  imageBase64: imgData.data,  // Already in data:mime;base64,xxx format
+                  mimeType: imgData.mime_type,
+                  width: imgData.width,
+                  height: imgData.height,
+                };
+                images.push(imageRef);
+                console.log('[useStreamingChat] Received image from images chunk:', imageRef.figureReference);
+              }
+
+              // Update streaming message with all images
+              updateAgentStreamingMessage(requestingAgent,
+                agentLocalStatesRef.current[requestingAgent].streamingMessage
+                  ? { ...agentLocalStatesRef.current[requestingAgent].streamingMessage!, images: [...images] }
+                  : null
+              );
+            }
+            break;
+
           case 'search_result':
             // Individual search result for expandable card display
             {

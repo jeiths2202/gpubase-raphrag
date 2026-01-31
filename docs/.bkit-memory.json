@@ -1,8 +1,55 @@
 {
-  "sessionCount": 1,
+  "sessionCount": 33,
   "lastSession": {
-    "startedAt": "2026-01-30T11:33:36.283Z",
+    "startedAt": "2026-01-31T03:09:39.404Z",
     "platform": "claude",
     "level": "Enterprise"
-  }
+  },
+  "activeFeature": null,
+  "pdcaPhase": "complete",
+  "matchRate": 92,
+  "archivedFeatures": [
+    {
+      "feature": "search-result-image-display",
+      "archivedAt": "2026-01-31T12:15:00.000Z",
+      "archivedTo": "docs/04-report/features/search-result-image-display.report.md",
+      "matchRate": 92
+    },
+    {
+      "feature": "qlora-rag-system",
+      "archivedAt": "2026-01-30T14:30:00.000Z",
+      "archivedTo": "docs/archive/2026-01/qlora-rag-system/",
+      "matchRate": 95
+    },
+    {
+      "feature": "mindmap-analysis",
+      "archivedAt": "2026-01-30T16:20:00.000Z",
+      "archivedTo": "docs/archive/2026-01/mindmap-analysis/",
+      "matchRate": 100
+    },
+    {
+      "feature": "chunking-embedding-analysis",
+      "archivedAt": "2026-01-31T00:00:00.000Z",
+      "archivedTo": "docs/archive/2026-01/chunking-embedding-analysis/",
+      "matchRate": 91
+    },
+    {
+      "feature": "chunking-embedding-phase2",
+      "archivedAt": "2026-01-31T12:00:00.000Z",
+      "archivedTo": "docs/archive/2026-01/chunking-embedding-phase2/",
+      "matchRate": 95
+    },
+    {
+      "feature": "graph-db-quality-test",
+      "archivedAt": "2026-01-31T00:51:00.000Z",
+      "archivedTo": "docs/archive/2026-01/graph-db-quality-test/",
+      "matchRate": 100
+    },
+    {
+      "feature": "document-graph-integration",
+      "archivedAt": "2026-01-31T17:30:00.000Z",
+      "archivedTo": "docs/archive/2026-01/document-graph-integration/",
+      "matchRate": 100
+    }
+  ]
 }

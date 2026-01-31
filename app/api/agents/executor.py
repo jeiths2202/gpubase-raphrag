@@ -1434,6 +1434,102 @@ async def _build_and_stream_structured_answer(
         )
 
 
+# ============================================================================
+# FIGURE IMAGE RETRIEVAL: Fetch images related to search results
+# ============================================================================
+
+async def _fetch_images_for_sources(
+    sources: List[Dict[str, Any]],
+    max_images: int = 5,
+    max_image_size_kb: int = 500
+) -> List[Dict[str, Any]]:
+    """
+    Fetch figure images related to source documents.
+
+    Args:
+        sources: List of source dictionaries with doc_id and page_number
+        max_images: Maximum number of images to return
+        max_image_size_kb: Maximum size per image in KB
+
+    Returns:
+        List of image data dicts with base64 encoded data
+    """
+    if not sources:
+        print("[_fetch_images_for_sources] No sources provided", flush=True)
+        return []
+
+    print(f"[_fetch_images_for_sources] Starting with {len(sources)} sources", flush=True)
+    # Log first source's fields for debugging
+    if sources:
+        first = sources[0]
+        print(f"[_fetch_images_for_sources] First source keys: {list(first.keys())}", flush=True)
+        print(f"[_fetch_images_for_sources] First source doc_id: {first.get('doc_id')}, document_id: {first.get('document_id')}", flush=True)
+        print(f"[_fetch_images_for_sources] First source page_number: {first.get('page_number')}, page: {first.get('page')}", flush=True)
+
+    try:
+        import asyncpg
+        from ..services.figure_image_service import get_figure_image_service
+        from ..infrastructure.postgres.image_embedding_repository import PostgresImageEmbeddingRepository
+        from ..core.config import api_settings
+
+        # Create connection DSN
+        dsn = f"postgresql://{api_settings.POSTGRES_USER}:{api_settings.POSTGRES_PASSWORD}@{api_settings.POSTGRES_HOST}:{api_settings.POSTGRES_PORT}/{api_settings.POSTGRES_DB}"
+        print(f"[_fetch_images_for_sources] DSN: {dsn[:50]}...", flush=True)
+
+        # Create repository with pool
+        print("[_fetch_images_for_sources] Creating repository pool...", flush=True)
+        repo = await PostgresImageEmbeddingRepository.create_with_pool(
+            dsn,
+            min_size=1,
+            max_size=3
+        )
+        print(f"[_fetch_images_for_sources] Repository created: {repo}", flush=True)
+
+        try:
+            # Create fresh figure image service (don't use singleton to ensure new code is used)
+            from ..services.figure_image_service import FigureImageService, reset_figure_image_service
+            reset_figure_image_service()  # Reset singleton to pick up any code changes
+            figure_service = FigureImageService(repo)
+            print(f"[_fetch_images_for_sources] Figure service: {figure_service}", flush=True)
+
+            # Fetch images for sources
+            print("[_fetch_images_for_sources] Fetching images from service...", flush=True)
+            images = await figure_service.get_images_for_sources(
+                sources=sources,
+                include_data=True
+            )
+            print(f"[_fetch_images_for_sources] Got {len(images)} raw images", flush=True)
+
+            # Filter by size and limit count
+            filtered_images = []
+            for img in images:
+                if len(filtered_images) >= max_images:
+                    break
+                if img.get("data"):
+                    # Check base64 data size (rough estimate: base64 is ~33% larger)
+                    data_size_kb = len(img["data"]) / 1024 / 1.33
+                    if data_size_kb <= max_image_size_kb:
+                        filtered_images.append(img)
+                    else:
+                        logger.warning(f"Image {img.get('id')} exceeds size limit ({data_size_kb:.0f}KB > {max_image_size_kb}KB)")
+
+            print(f"[_fetch_images_for_sources] Returning {len(filtered_images)} filtered images", flush=True)
+            logger.info(f"[FigureImages] Retrieved {len(filtered_images)} images for {len(sources)} sources")
+            return filtered_images
+
+        finally:
+            # Close the repository pool
+            print("[_fetch_images_for_sources] Closing repository pool", flush=True)
+            await repo.close()
+
+    except Exception as e:
+        print(f"[_fetch_images_for_sources] ERROR: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        logger.error(f"[FigureImages] Failed to fetch images: {e}")
+        return []
+
+
 class AgentExecutor:
     """
     Executes agent tasks using the ReAct loop.
@@ -2399,7 +2495,14 @@ User Query:"""
 
                             # Send sources
                             if sources:
+                                print(f"[EXECUTOR.STREAM] Code path: STRUCTURED OUTPUT - {len(sources)} sources", flush=True)
                                 yield AgentStreamChunk(chunk_type="sources", sources=sources)
+
+                                # Fetch and send related images
+                                print(f"[EXECUTOR.STREAM] STRUCTURED: Calling _fetch_images_for_sources", flush=True)
+                                images = await _fetch_images_for_sources(sources)
+                                if images:
+                                    yield AgentStreamChunk(chunk_type="images", images=images)
 
                             # Clean up and finish
                             for tool in available_tools:
@@ -2463,7 +2566,14 @@ User Query:"""
 
                         # Send sources
                         if sources:
+                            print(f"[EXECUTOR.STREAM] Code path: DIRECT mode - {len(sources)} sources", flush=True)
                             yield AgentStreamChunk(chunk_type="sources", sources=sources)
+
+                            # Fetch and send related images
+                            print(f"[EXECUTOR.STREAM] DIRECT: Calling _fetch_images_for_sources", flush=True)
+                            images = await _fetch_images_for_sources(sources)
+                            if images:
+                                yield AgentStreamChunk(chunk_type="images", images=images)
 
                         # Clean up and finish
                         for tool in available_tools:
@@ -2601,8 +2711,16 @@ User Query:"""
 
         # Yield sources and done
         if sources:
+            print(f"[EXECUTOR.STREAM] Code path: Yielding {len(sources)} sources (main loop end)", flush=True)
             logger.info(f"Yielding {len(sources)} sources to client: {[s.get('source', 'unknown') for s in sources[:5]]}")
             yield AgentStreamChunk(chunk_type="sources", sources=sources[:10])
+
+            # Fetch and send related images
+            print(f"[EXECUTOR.STREAM] Calling _fetch_images_for_sources for {len(sources)} sources", flush=True)
+            images = await _fetch_images_for_sources(sources[:10])
+            if images:
+                yield AgentStreamChunk(chunk_type="images", images=images)
+                logger.info(f"[Executor] Yielded {len(images)} related images")
 
             # Calculate and yield source reliability
             language = context.language if context.language != "auto" else "ko"
