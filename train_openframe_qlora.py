@@ -269,6 +269,7 @@ def main():
     parser.add_argument("--limit", type=int, default=None, help="Limit number of training examples")
     parser.add_argument("--epochs", type=int, default=3, help="Number of training epochs")
     parser.add_argument("--batch_size", type=int, default=2, help="Batch size")
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=8, help="Gradient accumulation steps")
     parser.add_argument("--language", type=str, default="ko", choices=["ko", "ja", "en"], help="Language for system prompt")
     parser.add_argument("--eval_split", type=float, default=0.1, help="Evaluation split ratio")
 
@@ -280,6 +281,7 @@ def main():
 
     config = TrainingConfig()
     config.BATCH_SIZE = args.batch_size
+    config.GRADIENT_ACCUMULATION_STEPS = args.gradient_accumulation_steps
 
     # Load data
     training_data = load_jsonl_data(args.data, args.limit)
@@ -331,6 +333,7 @@ def main():
         "eval_examples": len(eval_dataset) if eval_dataset else 0,
         "epochs": args.epochs,
         "batch_size": args.batch_size,
+        "gradient_accumulation_steps": args.gradient_accumulation_steps,
         "gpu": args.gpu,
         "metrics": metrics,
         "completed_at": datetime.now().isoformat()

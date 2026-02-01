@@ -23,8 +23,8 @@ wait_for_ko_completion() {
     echo "[대기] 한국어 학습 완료 대기 중..."
 
     while true; do
-        # 프로세스 확인 (combined_ko.jsonl을 사용하는 python 프로세스)
-        if pgrep -f "combined_ko.jsonl" > /dev/null 2>&1; then
+        # 프로세스 확인 (python train_openframe_qlora.py 프로세스)
+        if pgrep -f "python.*train_openframe_qlora.py.*combined_ko" > /dev/null 2>&1; then
             # 로그에서 진행률 확인
             PROGRESS=$(tail -100 training_ko.log 2>/dev/null | grep -oP '\d+%' | tail -1 || echo "0%")
             echo "  $(date): 한국어 학습 진행 중... ($PROGRESS)"
@@ -66,7 +66,8 @@ python train_openframe_qlora.py \
     --data training_data_multilang/combined_ja.jsonl \
     --gpu 5,6 \
     --epochs 3 \
-    --batch_size 2 \
+    --batch_size 1 \
+    --gradient_accumulation_steps 16 \
     --language ja \
     --output ./openframe_qlora_adapter 2>&1 | tee training_ja.log
 
@@ -85,7 +86,8 @@ python train_openframe_qlora.py \
     --data training_data_multilang/combined_en.jsonl \
     --gpu 5,6 \
     --epochs 3 \
-    --batch_size 2 \
+    --batch_size 1 \
+    --gradient_accumulation_steps 16 \
     --language en \
     --output ./openframe_qlora_adapter 2>&1 | tee training_en.log
 
@@ -137,7 +139,8 @@ for i in "${!PRODUCTS[@]}"; do
         --data "$COMBINED" \
         --gpu 5,6 \
         --epochs 3 \
-        --batch_size 2 \
+        --batch_size 1 \
+        --gradient_accumulation_steps 16 \
         --language ko \
         --output "$OUTPUT_DIR" 2>&1 | tee "training_${PRODUCT}.log"
 
