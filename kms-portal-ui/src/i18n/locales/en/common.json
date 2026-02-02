@@ -681,10 +681,14 @@
       "other": "Other",
       "auto": "Auto-detect"
     },
-    "sources": {
+    "sources": "Sources",
+    "sourcesSection": {
       "learningLlm": "Learning LLM",
       "vectorSearch": "Vector Search",
-      "graphSearch": "Graph Search"
+      "graphSearch": "Graph Search",
+      "score": "Score",
+      "product": "Product",
+      "page": "Page"
     },
     "noResults": "No relevant information was found across the products. Please try a different query."
   },

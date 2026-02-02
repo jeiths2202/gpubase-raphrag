@@ -681,10 +681,14 @@
       "other": "その他",
       "auto": "自動検出"
     },
-    "sources": {
+    "sources": "参照元",
+    "sourcesSection": {
       "learningLlm": "Learning LLM",
       "vectorSearch": "ベクター検索",
-      "graphSearch": "グラフ検索"
+      "graphSearch": "グラフ検索",
+      "score": "スコア",
+      "product": "製品",
+      "page": "ページ"
     },
     "noResults": "全製品で関連情報が見つかりませんでした。別の質問をお試しください。"
   },

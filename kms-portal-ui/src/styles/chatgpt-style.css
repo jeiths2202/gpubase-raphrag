@@ -1,0 +1,534 @@
+/**
+ * ChatGPT-Style CSS
+ * Matches ChatGPT's visual design for a familiar user experience
+ */
+
+/* ============================================
+   1. CSS Variables - ChatGPT Color Palette
+   ============================================ */
+
+:root {
+  /* Background Colors */
+  --chatgpt-bg-primary: #ffffff;
+  --chatgpt-bg-secondary: #f7f7f8;
+  --chatgpt-bg-tertiary: #ececf1;
+  --chatgpt-bg-user: #f7f7f8;
+  --chatgpt-bg-assistant: #ffffff;
+
+  /* Text Colors */
+  --chatgpt-text-primary: #0d0d0d;
+  --chatgpt-text-secondary: #6e6e80;
+  --chatgpt-text-muted: #8e8ea0;
+
+  /* Border Colors */
+  --chatgpt-border: rgba(0, 0, 0, 0.1);
+  --chatgpt-border-light: rgba(0, 0, 0, 0.05);
+
+  /* Code Block Theme (Dark) */
+  --chatgpt-code-bg: #1e1e1e;
+  --chatgpt-code-header-bg: #2d2d2d;
+  --chatgpt-code-text: #d4d4d4;
+  --chatgpt-code-border: rgba(255, 255, 255, 0.1);
+
+  /* Accent Colors */
+  --chatgpt-accent: #10a37f;
+  --chatgpt-accent-hover: #0d8a6a;
+  --chatgpt-link: #2964aa;
+
+  /* Typography */
+  --chatgpt-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --chatgpt-font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Monaco, monospace;
+  --chatgpt-line-height: 1.75;
+  --chatgpt-content-width: 768px;
+
+  /* Spacing */
+  --chatgpt-spacing-xs: 4px;
+  --chatgpt-spacing-sm: 8px;
+  --chatgpt-spacing-md: 16px;
+  --chatgpt-spacing-lg: 24px;
+  --chatgpt-spacing-xl: 32px;
+
+  /* Transitions */
+  --chatgpt-transition: 0.2s ease;
+}
+
+/* Dark Theme */
+[data-theme="dark"] {
+  --chatgpt-bg-primary: #212121;
+  --chatgpt-bg-secondary: #2f2f2f;
+  --chatgpt-bg-tertiary: #444654;
+  --chatgpt-bg-user: #2f2f2f;
+  --chatgpt-bg-assistant: #212121;
+
+  --chatgpt-text-primary: #ececf1;
+  --chatgpt-text-secondary: #c5c5d2;
+  --chatgpt-text-muted: #8e8ea0;
+
+  --chatgpt-border: rgba(255, 255, 255, 0.1);
+  --chatgpt-border-light: rgba(255, 255, 255, 0.05);
+
+  --chatgpt-link: #7ab7ff;
+}
+
+/* ============================================
+   2. Message Container Styles
+   ============================================ */
+
+.chatgpt-message {
+  display: flex;
+  flex-direction: column;
+  padding: var(--chatgpt-spacing-lg) 0;
+  width: 100%;
+}
+
+.chatgpt-message-content {
+  max-width: var(--chatgpt-content-width);
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 var(--chatgpt-spacing-lg);
+  display: flex;
+  gap: var(--chatgpt-spacing-md);
+}
+
+.chatgpt-message-user {
+  background: var(--chatgpt-bg-user);
+}
+
+.chatgpt-message-assistant {
+  background: var(--chatgpt-bg-assistant);
+}
+
+.chatgpt-message-avatar {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--chatgpt-accent);
+  color: white;
+}
+
+.chatgpt-message-body {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* ============================================
+   3. Markdown Typography
+   ============================================ */
+
+.chatgpt-markdown {
+  font-family: var(--chatgpt-font-family);
+  font-size: 1rem;
+  line-height: var(--chatgpt-line-height);
+  color: var(--chatgpt-text-primary);
+}
+
+/* Paragraphs */
+.chatgpt-markdown p {
+  margin: 0 0 var(--chatgpt-spacing-md);
+  line-height: var(--chatgpt-line-height);
+}
+
+.chatgpt-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+/* Headers */
+.chatgpt-markdown h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: var(--chatgpt-spacing-xl) 0 var(--chatgpt-spacing-md);
+  line-height: 1.3;
+  color: var(--chatgpt-text-primary);
+}
+
+.chatgpt-markdown h1:first-child {
+  margin-top: 0;
+}
+
+.chatgpt-markdown h2 {
+  font-size: 1.375rem;
+  font-weight: 600;
+  margin: var(--chatgpt-spacing-lg) 0 var(--chatgpt-spacing-sm);
+  line-height: 1.4;
+  color: var(--chatgpt-text-primary);
+  border-bottom: 1px solid var(--chatgpt-border-light);
+  padding-bottom: var(--chatgpt-spacing-sm);
+}
+
+.chatgpt-markdown h2:first-child {
+  margin-top: 0;
+}
+
+.chatgpt-markdown h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: var(--chatgpt-spacing-md) 0 var(--chatgpt-spacing-xs);
+  line-height: 1.5;
+  color: var(--chatgpt-text-primary);
+}
+
+.chatgpt-markdown h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: var(--chatgpt-spacing-md) 0 var(--chatgpt-spacing-xs);
+  color: var(--chatgpt-text-primary);
+}
+
+/* Strong and Emphasis */
+.chatgpt-markdown strong {
+  font-weight: 600;
+  color: var(--chatgpt-text-primary);
+}
+
+.chatgpt-markdown em {
+  font-style: italic;
+}
+
+/* Links */
+.chatgpt-markdown a {
+  color: var(--chatgpt-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.chatgpt-markdown a:hover {
+  text-decoration: none;
+}
+
+/* ============================================
+   4. Lists
+   ============================================ */
+
+.chatgpt-markdown ul,
+.chatgpt-markdown ol {
+  margin: var(--chatgpt-spacing-sm) 0;
+  padding-left: var(--chatgpt-spacing-lg);
+}
+
+.chatgpt-markdown ul {
+  list-style-type: disc;
+}
+
+.chatgpt-markdown ol {
+  list-style-type: decimal;
+}
+
+.chatgpt-markdown li {
+  margin-bottom: var(--chatgpt-spacing-xs);
+  line-height: var(--chatgpt-line-height);
+}
+
+.chatgpt-markdown li > p {
+  margin-bottom: var(--chatgpt-spacing-xs);
+}
+
+/* Nested lists */
+.chatgpt-markdown ul ul,
+.chatgpt-markdown ol ol,
+.chatgpt-markdown ul ol,
+.chatgpt-markdown ol ul {
+  margin: var(--chatgpt-spacing-xs) 0;
+}
+
+.chatgpt-markdown ul ul {
+  list-style-type: circle;
+}
+
+.chatgpt-markdown ul ul ul {
+  list-style-type: square;
+}
+
+/* ============================================
+   5. Code Blocks
+   ============================================ */
+
+/* Inline code */
+.chatgpt-inline-code {
+  font-family: var(--chatgpt-font-mono);
+  font-size: 0.875em;
+  background: var(--chatgpt-bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--chatgpt-text-primary);
+  white-space: nowrap;
+}
+
+/* Code block container */
+.chatgpt-code-block {
+  background: var(--chatgpt-code-bg);
+  border-radius: 8px;
+  margin: var(--chatgpt-spacing-md) 0;
+  overflow: hidden;
+}
+
+/* Code block header */
+.chatgpt-code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--chatgpt-spacing-sm) var(--chatgpt-spacing-md);
+  background: var(--chatgpt-code-header-bg);
+  border-bottom: 1px solid var(--chatgpt-code-border);
+}
+
+.chatgpt-code-lang {
+  font-family: var(--chatgpt-font-mono);
+  font-size: 0.75rem;
+  color: var(--chatgpt-text-muted);
+  text-transform: lowercase;
+}
+
+/* Copy button */
+.chatgpt-code-copy {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  color: var(--chatgpt-text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-family: var(--chatgpt-font-family);
+  border-radius: 4px;
+  transition: all var(--chatgpt-transition);
+}
+
+.chatgpt-code-copy:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.chatgpt-code-copy.copied {
+  color: var(--chatgpt-accent);
+}
+
+/* Code content */
+.chatgpt-code-block pre {
+  margin: 0;
+  padding: var(--chatgpt-spacing-md);
+  overflow-x: auto;
+}
+
+.chatgpt-code-block code {
+  font-family: var(--chatgpt-font-mono);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--chatgpt-code-text);
+  white-space: pre;
+}
+
+/* ============================================
+   6. Tables
+   ============================================ */
+
+.chatgpt-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--chatgpt-spacing-md) 0;
+  font-size: 0.9375rem;
+}
+
+.chatgpt-markdown th,
+.chatgpt-markdown td {
+  padding: var(--chatgpt-spacing-sm) var(--chatgpt-spacing-md);
+  border: 1px solid var(--chatgpt-border);
+  text-align: left;
+}
+
+.chatgpt-markdown th {
+  background: var(--chatgpt-bg-tertiary);
+  font-weight: 600;
+}
+
+.chatgpt-markdown tr:nth-child(even) {
+  background: var(--chatgpt-bg-secondary);
+}
+
+/* ============================================
+   7. Blockquotes
+   ============================================ */
+
+.chatgpt-markdown blockquote {
+  margin: var(--chatgpt-spacing-md) 0;
+  padding: var(--chatgpt-spacing-sm) var(--chatgpt-spacing-md);
+  border-left: 4px solid var(--chatgpt-accent);
+  background: var(--chatgpt-bg-secondary);
+  color: var(--chatgpt-text-secondary);
+}
+
+.chatgpt-markdown blockquote p {
+  margin: 0;
+}
+
+/* ============================================
+   8. Horizontal Rule
+   ============================================ */
+
+.chatgpt-markdown hr {
+  border: none;
+  border-top: 1px solid var(--chatgpt-border);
+  margin: var(--chatgpt-spacing-lg) 0;
+}
+
+/* ============================================
+   9. Sources Accordion
+   ============================================ */
+
+.sources-accordion {
+  margin-top: var(--chatgpt-spacing-lg);
+  border-top: 1px solid var(--chatgpt-border);
+  padding-top: var(--chatgpt-spacing-md);
+}
+
+.sources-accordion-header {
+  display: flex;
+  align-items: center;
+  gap: var(--chatgpt-spacing-sm);
+  padding: var(--chatgpt-spacing-sm) 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--chatgpt-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: var(--chatgpt-font-family);
+  transition: color var(--chatgpt-transition);
+  width: 100%;
+  text-align: left;
+}
+
+.sources-accordion-header:hover {
+  color: var(--chatgpt-text-primary);
+}
+
+.sources-accordion-header svg {
+  transition: transform var(--chatgpt-transition);
+}
+
+.sources-accordion-header[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+
+.sources-accordion-content {
+  padding: var(--chatgpt-spacing-md) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--chatgpt-spacing-sm);
+}
+
+/* Source Card */
+.source-card {
+  padding: var(--chatgpt-spacing-md);
+  background: var(--chatgpt-bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--chatgpt-border);
+  transition: border-color var(--chatgpt-transition);
+}
+
+.source-card:hover {
+  border-color: var(--chatgpt-accent);
+}
+
+.source-card-title {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--chatgpt-text-primary);
+  margin-bottom: var(--chatgpt-spacing-xs);
+}
+
+.source-card-content {
+  font-size: 0.8125rem;
+  color: var(--chatgpt-text-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.source-card-meta {
+  display: flex;
+  gap: var(--chatgpt-spacing-md);
+  margin-top: var(--chatgpt-spacing-sm);
+  font-size: 0.75rem;
+  color: var(--chatgpt-text-muted);
+}
+
+.source-card-score {
+  color: var(--chatgpt-accent);
+  font-weight: 500;
+}
+
+/* ============================================
+   10. Typing Cursor
+   ============================================ */
+
+.typing-cursor {
+  display: inline-block;
+  color: var(--chatgpt-text-primary);
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+  font-weight: 400;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ============================================
+   11. Learning LLM Badge
+   ============================================ */
+
+.learning-llm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--chatgpt-spacing-sm);
+  margin-top: var(--chatgpt-spacing-md);
+  padding: var(--chatgpt-spacing-xs) var(--chatgpt-spacing-sm);
+  background: var(--chatgpt-bg-tertiary);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: var(--chatgpt-text-secondary);
+}
+
+.learning-llm-badge .model-name {
+  font-weight: 500;
+}
+
+.learning-llm-badge .confidence {
+  color: var(--chatgpt-accent);
+  font-weight: 600;
+}
+
+/* ============================================
+   12. Responsive Design
+   ============================================ */
+
+@media (max-width: 768px) {
+  .chatgpt-message-content {
+    padding: 0 var(--chatgpt-spacing-md);
+  }
+
+  .chatgpt-markdown h1 {
+    font-size: 1.5rem;
+  }
+
+  .chatgpt-markdown h2 {
+    font-size: 1.25rem;
+  }
+
+  .chatgpt-code-block pre {
+    padding: var(--chatgpt-spacing-sm);
+  }
+
+  .chatgpt-code-block code {
+    font-size: 0.8125rem;
+  }
+}
