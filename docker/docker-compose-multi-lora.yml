@@ -1,0 +1,127 @@
+version: '3.8'
+
+# Multi-LoRA LLM Service Configuration
+# 8개 TmaxSoft 제품 QLoRA 어댑터를 vLLM으로 서빙
+#
+# GPU Allocation:
+#   - GPU 5: Multi-LoRA vLLM (8개 어댑터)
+#   - GPU 6: Backup/Additional
+#
+# Usage:
+#   docker-compose -f docker-compose-multi-lora.yml up -d
+#   docker-compose -f docker-compose-multi-lora.yml logs -f multi-lora-llm
+
+services:
+  # ============================================================
+  # Multi-LoRA LLM - vLLM + 8 QLoRA Adapters (GPU 5, port 12810)
+  # ============================================================
+  multi-lora-llm:
+    container_name: multi-lora-llm
+    image: vllm/vllm-openai:latest
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "12810:8000"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+      - NVIDIA_VISIBLE_DEVICES=5
+      - CUDA_VISIBLE_DEVICES=0
+      - VLLM_LOGGING_LEVEL=INFO
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+      # 8개 어댑터 마운트
+      - /raid/users/ofuser/qlora/outputs/openframe_qlora_adapter/openframe_ko_20260130_150120:/opt/adapters/openframe_mvs
+      - /raid/users/ofuser/qlora/outputs/qlora_adapters/msp_openframe/openframe_ko_20260131_131057:/opt/adapters/msp_openframe
+      - /raid/users/ofuser/qlora/outputs/qlora_adapters/vos3_openframe/openframe_ko_20260131_173439:/opt/adapters/vos3_openframe
+      - /raid/users/ofuser/qlora/outputs/qlora_adapters/xsp_openframe/openframe_ko_20260201_092321:/opt/adapters/xsp_openframe
+      - /raid/users/ofuser/qlora/outputs/qlora_adapters/tibero7/openframe_ko_20260131_184925:/opt/adapters/tibero7
+      - /raid/users/ofuser/qlora/outputs/qlora_adapters/tmax/openframe_ko_20260201_135130:/opt/adapters/tmax
+      - /raid/users/ofuser/qlora/outputs/qlora_adapters/ofcobol/openframe_ko_20260201_085854:/opt/adapters/ofcobol
+      - /raid/users/ofuser/qlora/outputs/qlora_adapters/ofasm/openframe_ko_20260201_030623:/opt/adapters/ofasm
+    command: >
+      --model Qwen/Qwen2.5-7B-Instruct
+      --max-model-len 8192
+      --gpu-memory-utilization 0.9
+      --enable-lora
+      --max-loras 8
+      --max-lora-rank 64
+      --max-cpu-loras 16
+      --lora-modules
+        openframe_mvs=/opt/adapters/openframe_mvs
+        msp_openframe=/opt/adapters/msp_openframe
+        vos3_openframe=/opt/adapters/vos3_openframe
+        xsp_openframe=/opt/adapters/xsp_openframe
+        tibero7=/opt/adapters/tibero7
+        tmax=/opt/adapters/tmax
+        ofcobol=/opt/adapters/ofcobol
+        ofasm=/opt/adapters/ofasm
+      --dtype bfloat16
+      --trust-remote-code
+    shm_size: '16gb'
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['5']
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+
+  # ============================================================
+  # [ALTERNATIVE] TensorRT-LLM Triton Server
+  # 병합된 모델을 TRT-LLM 엔진으로 최적화하여 서빙
+  # ============================================================
+  # trtllm-tibero7:
+  #   container_name: trtllm-tibero7
+  #   image: nvcr.io/nvidia/tritonserver:24.08-trtllm-python-py3
+  #   restart: unless-stopped
+  #   runtime: nvidia
+  #   ports:
+  #     - "12811:8000"
+  #     - "12812:8001"  # gRPC
+  #     - "12813:8002"  # Metrics
+  #   environment:
+  #     - NVIDIA_VISIBLE_DEVICES=6
+  #     - CUDA_VISIBLE_DEVICES=0
+  #   volumes:
+  #     - /raid/users/ofuser/qlora/trtllm_engines/tibero7:/models/tibero7/1
+  #   command: >
+  #     tritonserver
+  #     --model-repository=/models
+  #     --http-port=8000
+  #     --grpc-port=8001
+  #     --metrics-port=8002
+  #   shm_size: '16gb'
+
+  # ============================================================
+  # [ALTERNATIVE] Individual NIM containers per product
+  # 제품별 독립 NIM 컨테이너 (더 많은 GPU 필요)
+  # ============================================================
+  # nim-tibero7:
+  #   container_name: nim-tibero7
+  #   image: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-vl-8b-v1:1.3.0
+  #   restart: unless-stopped
+  #   runtime: nvidia
+  #   ports:
+  #     - "12820:8000"
+  #   environment:
+  #     - NGC_API_KEY=${NGC_API_KEY}
+  #     - NVIDIA_VISIBLE_DEVICES=6
+  #     - NIM_MAX_MODEL_LEN=8192
+  #   volumes:
+  #     - nim_tibero7_cache:/opt/nim/.cache
+  #   shm_size: '16gb'
+
+volumes:
+  huggingface_cache:
+    name: multi_lora_huggingface_cache
+
+networks:
+  default:
+    name: graphrag_network
+    external: true

@@ -17,7 +17,7 @@ from datetime import datetime
 import shutil
 
 DOCKER_COMPOSE_PATH = Path("/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/docker/docker-compose.yml")
-ADAPTERS_BASE_PATH = "/home/ofuser/workspaces/ijswork/gpubase-raphrag-new/test_0130"
+ADAPTERS_BASE_PATH = "/raid/users/ofuser/qlora/outputs"
 
 # 등록할 어댑터 목록
 ADAPTERS = {
