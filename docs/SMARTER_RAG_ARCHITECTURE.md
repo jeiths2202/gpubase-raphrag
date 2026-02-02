@@ -230,7 +230,7 @@ response = await llm_generate(
 
 ### 4.2 실제 예시
 
-**질문**: "tjesmgr에서 -5212 에러가 발생했어요"
+**질문**: "tjesmgr에서 -5212 에러가 발생시 조처방법"
 
 #### RAG만 사용 시:
 ```
@@ -274,7 +274,7 @@ After QLoRA (Smarter RAG):
 # 사용자 피드백이 좋은 답변 → 학습 데이터로 변환
 verified_knowledge = {
     "question": "tjesmgr BOOT 절차",
-    "answer": "1. tmboot 실행 2. jesinit 3. tjesmgr BOOT",
+    "answer": "1. tmboot 실행 2. tjesmgr BOOT",
     "feedback_score": 0.95,
     "thumbs_up": 15
 }
@@ -460,14 +460,6 @@ curl -X POST http://localhost:9000/api/v1/openframe-rag/stream \
 3. **Hallucination 감소** (E2E 테스트에서 확인)
 4. **도메인 전문성** 강화 (8개 제품 특화)
 5. 반복 질문에 대한 **응답 속도/일관성** 향상
-
-### 11.3 권장 사항
-
-- **신규 도입 시**: RAG만으로 시작 → 피드백 축적 → QLoRA 학습 추가
-- **운영 중**: 주기적 QLoRA 재학습 (주 1회 권장)
-- **품질 관리**: Verified Knowledge 피드백 시스템 적극 활용
-
----
 
 ## 변경 이력
 
