@@ -511,3 +511,96 @@ class ComparisonSummary(BaseModel):
         default="ko",
         description="Response language"
     )
+
+
+# =============================================================================
+# Graph Processing Options (M1, M2, M3 Integration)
+# =============================================================================
+
+class GraphProcessingOptions(BaseModel):
+    """Options for Graph DB processing during document upload
+    문서 업로드 시 Graph DB 처리 옵션 (M1, M2, M3 통합)
+    """
+    # M1: Entity Confidence Filtering
+    extract_entities: bool = Field(
+        default=True,
+        description="Extract entities from document chunks"
+    )
+    confidence_threshold: float = Field(
+        default=0.70,
+        ge=0.0,
+        le=1.0,
+        description="Minimum confidence threshold for entities (M1)"
+    )
+    high_confidence_threshold: float = Field(
+        default=0.90,
+        ge=0.0,
+        le=1.0,
+        description="Threshold for HighConfidenceEntity labeling (M1)"
+    )
+
+    # M2: Chunk Relations
+    create_similar_relations: bool = Field(
+        default=True,
+        description="Create SIMILAR_TO relations between chunks (M2)"
+    )
+    similarity_threshold: float = Field(
+        default=0.85,
+        ge=0.0,
+        le=1.0,
+        description="Minimum similarity for SIMILAR_TO relations (M2)"
+    )
+    create_co_mention_relations: bool = Field(
+        default=True,
+        description="Create CO_MENTIONS relations for chunks sharing entities (M2)"
+    )
+    create_overlap_relations: bool = Field(
+        default=False,
+        description="Create OVERLAPS relations for overlapping chunks (M2)"
+    )
+
+    # M3: Section Hierarchy
+    build_section_hierarchy: bool = Field(
+        default=True,
+        description="Build Section hierarchy from document structure (M3)"
+    )
+
+    # Performance options
+    batch_size: int = Field(
+        default=50,
+        ge=10,
+        le=200,
+        description="Batch size for entity extraction"
+    )
+    max_entities_per_chunk: int = Field(
+        default=20,
+        ge=5,
+        le=100,
+        description="Maximum entities to extract per chunk"
+    )
+
+
+class GraphProcessingResult(BaseModel):
+    """Result of Graph DB processing
+    Graph DB 처리 결과
+    """
+    document_id: str
+    success: bool = True
+    error_message: Optional[str] = None
+
+    # M1 Results
+    entities_extracted: int = 0
+    entities_filtered: int = 0
+    high_confidence_entities: int = 0
+
+    # M2 Results
+    similar_relations_created: int = 0
+    co_mention_relations_created: int = 0
+    overlap_relations_created: int = 0
+
+    # M3 Results
+    sections_created: int = 0
+    section_chunk_links: int = 0
+
+    # Performance
+    processing_time_seconds: float = 0.0

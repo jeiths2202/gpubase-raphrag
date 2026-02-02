@@ -158,9 +158,12 @@ async def stream_agent(
 
     # Debug: log file_context presence
     file_context_len = len(request.file_context) if request.file_context else 0
-    print(f"[AgentsRouter] Request: task={request.task[:50]}..., file_context={file_context_len} chars", flush=True)
-    if file_context_len > 0:
-        print(f"[AgentsRouter] file_context preview: {request.file_context[:200]}...", flush=True)
+    try:
+        print(f"[AgentsRouter] Request: task={request.task[:50].encode('ascii', 'replace').decode()}..., file_context={file_context_len} chars", flush=True)
+        if file_context_len > 0:
+            print(f"[AgentsRouter] file_context preview: {request.file_context[:200].encode('ascii', 'replace').decode()}...", flush=True)
+    except Exception:
+        print(f"[AgentsRouter] Request received, file_context={file_context_len} chars", flush=True)
 
     async def generate():
         try:
@@ -168,8 +171,10 @@ async def stream_agent(
                 data = chunk.model_dump()
                 # Debug: log sources chunk
                 if chunk.chunk_type == "sources":
-                    print(f"[AgentsRouter] Sending sources chunk: {len(chunk.sources or [])} sources", flush=True)
-                    print(f"[AgentsRouter] Sources data: {data.get('sources', [])[:2]}", flush=True)
+                    try:
+                        print(f"[AgentsRouter] Sending sources chunk: {len(chunk.sources or [])} sources", flush=True)
+                    except Exception:
+                        pass
                 yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
         except Exception as e:
             logger.error(f"Agent streaming failed: {e}")

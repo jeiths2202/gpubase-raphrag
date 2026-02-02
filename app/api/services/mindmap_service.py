@@ -1,16 +1,28 @@
 """
 Mindmap Service - Concept extraction and mindmap generation
 LLM을 활용한 개념 추출 및 마인드맵 생성 서비스
+
+Phase 1 Improvements:
+- H1: MindmapHealthChecker 통합 (Vector Index 확인)
+- H2: LLMTimeoutWrapper 통합 (30초 타임아웃 + 재시도)
+- H3: 청크 동적 조정 (Vector Search 우선)
 """
 import asyncio
 import hashlib
 import re
 import json
+import logging
 from typing import Dict, List, Any, Optional, Tuple
 from functools import lru_cache
 from datetime import datetime, timezone
 import sys
 import os
+
+# Phase 1 imports
+from .mindmap_health_checker import MindmapHealthChecker, HealthStatus, HealthCheckResult
+from .llm_timeout_wrapper import LLMTimeoutWrapper, LLMTimeoutError, LLMError
+
+logger = logging.getLogger(__name__)
 
 # Add src directory to path for importing existing modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
@@ -55,9 +67,21 @@ class MindmapService:
     - LLM을 사용하여 문서에서 개념과 관계 추출
     - Neo4j에 마인드맵 데이터 저장
     - 마인드맵 조회, 확장, 질의 기능 제공
+
+    Phase 1 Features:
+    - 헬스 체크: Vector Index 확인, 자동 생성
+    - LLM 타임아웃: 30초 제한, 2회 재시도
+    - 청크 동적 조정: Vector Search 우선
     """
 
     _instance: Optional['MindmapService'] = None
+
+    # Phase 1 Configuration
+    LLM_TIMEOUT = 30       # LLM 타임아웃 (초)
+    LLM_MAX_RETRIES = 2    # 최대 재시도 횟수
+    MIN_CHUNKS = 10        # 최소 청크 수
+    MAX_CHUNKS = 100       # 최대 청크 수
+    PREFERRED_CHUNKS = 50  # 권장 청크 수
 
     def __init__(self):
         """Initialize mindmap service"""
@@ -65,6 +89,9 @@ class MindmapService:
         self._llm: Optional[ChatOpenAI] = None
         self._embedding_service = None
         self._initialized: bool = False
+        # Phase 1: Health checker and timeout wrapper
+        self._health_checker: Optional[MindmapHealthChecker] = None
+        self._llm_wrapper: Optional[LLMTimeoutWrapper] = None
 
     @classmethod
     def get_instance(cls) -> 'MindmapService':
@@ -101,12 +128,46 @@ class MindmapService:
                     else:
                         self._embedding_service = NeMoEmbeddingService()
                 except Exception as e:
-                    print(f"Warning: Failed to initialize embedding service: {e}")
+                    logger.warning(f"Failed to initialize embedding service: {e}")
                     self._embedding_service = None
+
+            # Phase 1: Initialize health checker
+            self._health_checker = MindmapHealthChecker(self._graph)
+
+            # Phase 1: Initialize LLM timeout wrapper with fallback
+            self._llm_wrapper = LLMTimeoutWrapper(
+                timeout=self.LLM_TIMEOUT,
+                max_retries=self.LLM_MAX_RETRIES,
+                fallback_fn=None  # 폴백은 각 호출에서 개별 설정
+            )
 
             # Initialize schema
             self._init_mindmap_schema()
             self._initialized = True
+
+    def _check_health(self) -> HealthCheckResult:
+        """
+        Phase 1 - H1: 서비스 상태 확인
+
+        Returns:
+            HealthCheckResult: 헬스 체크 결과
+        """
+        self._ensure_initialized()
+        return self._health_checker.check_all()
+
+    def get_health_status(self) -> dict:
+        """
+        외부에서 호출 가능한 헬스 상태 API
+
+        Returns:
+            dict: 상태 정보
+        """
+        result = self._check_health()
+        stats = self._health_checker.get_stats()
+        return {
+            **result.to_dict(),
+            "stats": stats
+        }
 
     def _init_mindmap_schema(self):
         """Initialize Neo4j schema for mindmap"""
@@ -151,24 +212,39 @@ class MindmapService:
         """Synchronous mindmap generation"""
         self._ensure_initialized()
 
+        # Phase 1 - H1: 헬스 체크 실행
+        health = self._health_checker.check_all()
+
+        if health.status == HealthStatus.UNHEALTHY:
+            error_msg = "; ".join(health.messages) if health.messages else "서비스를 사용할 수 없습니다"
+            raise ValueError(f"Mindmap service unavailable: {error_msg}")
+
+        if not health.can_proceed:
+            error_msg = health.messages[0] if health.messages else "필수 조건이 충족되지 않았습니다"
+            raise ValueError(error_msg)
+
+        # Phase 1 - H1: Vector Index 없으면 생성 시도
+        if not health.checks.get("vector_index"):
+            logger.info("Vector index not found, attempting to create...")
+            self._health_checker.ensure_vector_index()
+
         chunks = []
         search_method = "graph"
 
-        # 1. 먼저 그래프 검색 시도 (Document → Chunk 관계)
+        # Phase 1 - H3: 청크 동적 조정 - Vector Search 우선
         if request.document_ids:
             # 특정 문서 지정된 경우
             chunks = self._get_document_chunks(request.document_ids)
         else:
             # 문서 미지정: focus_topic이 있으면 Vector 검색 우선
             if request.focus_topic:
-                chunks = self._vector_search_chunks(
-                    query=request.focus_topic,
-                    k=30,  # 더 많은 청크 검색
-                    min_score=0.3
+                chunks = self._get_relevant_chunks(
+                    topic=request.focus_topic,
+                    max_chunks=self.PREFERRED_CHUNKS
                 )
                 if chunks:
                     search_method = "vector"
-                    print(f"Vector search found {len(chunks)} chunks for topic: {request.focus_topic}")
+                    logger.info(f"Dynamic chunk search found {len(chunks)} chunks for topic: {request.focus_topic}")
 
             # Vector 검색 결과 없으면 그래프 검색으로 폴백
             if not chunks:
@@ -335,7 +411,124 @@ class MindmapService:
             ]
 
         except Exception as e:
-            print(f"Vector search error: {e}")
+            logger.error(f"Vector search error: {e}")
+            return []
+
+    def _get_relevant_chunks(
+        self,
+        topic: str,
+        max_chunks: int = 50
+    ) -> List[Dict]:
+        """
+        Phase 1 - H3: 토픽 관련 청크를 동적으로 조회
+
+        Strategy:
+        1. 먼저 Vector Search로 관련 청크 검색 (우선순위 높음)
+        2. 관련 청크가 부족하면 Document→Chunk 관계로 보충
+        3. 최대 max_chunks 개로 제한
+
+        Args:
+            topic: 검색할 토픽
+            max_chunks: 최대 청크 수
+
+        Returns:
+            관련 청크 목록
+        """
+        relevant_chunks = []
+
+        # Step 1: Vector 유사도 검색 (우선순위 높음)
+        try:
+            vector_chunks = self._vector_search_chunks(
+                query=topic,
+                k=max_chunks,
+                min_score=0.3
+            )
+            relevant_chunks.extend(vector_chunks)
+            logger.info(f"Vector search returned {len(vector_chunks)} chunks for topic '{topic}'")
+        except Exception as e:
+            logger.warning(f"Vector search failed: {e}")
+
+        # Step 2: 부족하면 Document→Chunk로 보충
+        if len(relevant_chunks) < self.MIN_CHUNKS:
+            additional_needed = max_chunks - len(relevant_chunks)
+            existing_ids = {c.get('chunk_id') for c in relevant_chunks if c.get('chunk_id')}
+
+            try:
+                doc_chunks = self._get_document_chunks_excluding(
+                    exclude_ids=existing_ids,
+                    limit=additional_needed
+                )
+                relevant_chunks.extend(doc_chunks)
+                logger.info(f"Added {len(doc_chunks)} chunks from documents (total: {len(relevant_chunks)})")
+            except Exception as e:
+                logger.warning(f"Document chunk retrieval failed: {e}")
+
+        # Step 3: 최대 개수 제한
+        return relevant_chunks[:max_chunks]
+
+    def _get_document_chunks_excluding(
+        self,
+        exclude_ids: set,
+        limit: int = 50
+    ) -> List[Dict]:
+        """
+        특정 ID를 제외한 문서 청크 조회
+
+        Args:
+            exclude_ids: 제외할 청크 ID 집합
+            limit: 최대 반환 수
+
+        Returns:
+            청크 목록
+        """
+        try:
+            if exclude_ids:
+                query = """
+                MATCH (d:Document)-[:CONTAINS]->(c:Chunk)
+                WHERE NOT c.id IN $exclude_ids
+                OPTIONAL MATCH (c)-[:MENTIONS]->(e:Entity)
+                RETURN
+                    d.id AS doc_id,
+                    c.id AS chunk_id,
+                    c.content AS content,
+                    c.index AS chunk_index,
+                    collect(DISTINCT e.name)[..5] AS entities
+                ORDER BY d.created_at DESC, c.index
+                LIMIT $limit
+                """
+                results = self._graph.query(query, {
+                    "exclude_ids": list(exclude_ids),
+                    "limit": limit
+                })
+            else:
+                query = """
+                MATCH (d:Document)-[:CONTAINS]->(c:Chunk)
+                OPTIONAL MATCH (c)-[:MENTIONS]->(e:Entity)
+                RETURN
+                    d.id AS doc_id,
+                    c.id AS chunk_id,
+                    c.content AS content,
+                    c.index AS chunk_index,
+                    collect(DISTINCT e.name)[..5] AS entities
+                ORDER BY d.created_at DESC, c.index
+                LIMIT $limit
+                """
+                results = self._graph.query(query, {"limit": limit})
+
+            return [
+                {
+                    "doc_id": r["doc_id"] or "unknown",
+                    "chunk_id": r["chunk_id"],
+                    "content": r["content"],
+                    "chunk_index": r["chunk_index"] or 0,
+                    "entities": r["entities"] or [],
+                    "source": "document_graph"
+                }
+                for r in results
+                if r["content"]
+            ]
+        except Exception as e:
+            logger.error(f"Document chunks excluding query failed: {e}")
             return []
 
     def _extract_concepts_and_relations(
@@ -399,9 +592,24 @@ class MindmapService:
 
 JSON 응답:"""
 
-        try:
+        # Phase 1 - H2: LLM 타임아웃 래퍼 적용
+        def llm_call():
+            """타임아웃이 적용될 LLM 호출"""
             response = self._llm.invoke(prompt)
-            response_text = response.content.strip()
+            return response.content.strip()
+
+        def fallback_fn(*args):
+            """LLM 실패 시 폴백"""
+            return self._fallback_concepts(chunks, existing_entities)
+
+        try:
+            # 타임아웃 래퍼로 LLM 호출 실행
+            wrapper = LLMTimeoutWrapper(
+                timeout=self.LLM_TIMEOUT,
+                max_retries=self.LLM_MAX_RETRIES,
+                fallback_fn=fallback_fn
+            )
+            response_text = wrapper.execute_sync(llm_call)
 
             # JSON 추출
             json_match = re.search(r'\{[\s\S]*\}', response_text)
@@ -410,13 +618,18 @@ JSON 응답:"""
                 return concepts_data
             else:
                 # JSON 파싱 실패 시 기본값 반환
+                logger.warning("LLM response did not contain valid JSON, using fallback")
                 return self._fallback_concepts(chunks, existing_entities)
 
         except json.JSONDecodeError as e:
-            print(f"JSON parsing error: {e}")
+            logger.warning(f"JSON parsing error: {e}")
+            return self._fallback_concepts(chunks, existing_entities)
+        except (LLMTimeoutError, LLMError) as e:
+            logger.warning(f"LLM error (fallback already executed): {e}")
+            # 폴백이 이미 실행되었으면 결과가 반환됨, 그렇지 않으면 여기서 실행
             return self._fallback_concepts(chunks, existing_entities)
         except Exception as e:
-            print(f"Concept extraction error: {e}")
+            logger.error(f"Concept extraction error: {e}")
             return self._fallback_concepts(chunks, existing_entities)
 
     def _fallback_concepts(self, chunks: List[Dict], entities: set) -> Dict[str, Any]:
@@ -489,9 +702,21 @@ JSON 응답:"""
 
 JSON 응답:"""
 
-        try:
+        # Phase 1 - H2: LLM 타임아웃 래퍼 적용
+        def llm_topic_call():
             response = self._llm.invoke(prompt)
-            response_text = response.content.strip()
+            return response.content.strip()
+
+        def topic_fallback(*args):
+            return self._fallback_topic_concepts(topic)
+
+        try:
+            wrapper = LLMTimeoutWrapper(
+                timeout=self.LLM_TIMEOUT,
+                max_retries=self.LLM_MAX_RETRIES,
+                fallback_fn=topic_fallback
+            )
+            response_text = wrapper.execute_sync(llm_topic_call)
 
             # JSON 추출
             json_match = re.search(r'\{[\s\S]*\}', response_text)
@@ -503,13 +728,17 @@ JSON 응답:"""
                 return concepts_data
             else:
                 # JSON 파싱 실패 시 기본 구조 반환
+                logger.warning("Topic generation LLM response did not contain valid JSON")
                 return self._fallback_topic_concepts(topic)
 
         except json.JSONDecodeError as e:
-            print(f"JSON parsing error in topic generation: {e}")
+            logger.warning(f"JSON parsing error in topic generation: {e}")
+            return self._fallback_topic_concepts(topic)
+        except (LLMTimeoutError, LLMError) as e:
+            logger.warning(f"Topic generation LLM error: {e}")
             return self._fallback_topic_concepts(topic)
         except Exception as e:
-            print(f"Topic concept generation error: {e}")
+            logger.error(f"Topic concept generation error: {e}")
             return self._fallback_topic_concepts(topic)
 
     def _fallback_topic_concepts(self, topic: str) -> Dict[str, Any]:
@@ -935,17 +1164,29 @@ JSON 응답:"""
 
 JSON:"""
 
-        try:
+        # Phase 1 - H2: LLM 타임아웃 래퍼 적용
+        def llm_expand_call():
             response = self._llm.invoke(prompt)
-            json_match = re.search(r'\{[\s\S]*\}', response.content)
+            return response.content
+
+        try:
+            wrapper = LLMTimeoutWrapper(
+                timeout=self.LLM_TIMEOUT,
+                max_retries=self.LLM_MAX_RETRIES
+            )
+            response_content = wrapper.execute_sync(llm_expand_call)
+            json_match = re.search(r'\{[\s\S]*\}', response_content)
 
             if json_match:
                 sub_data = json.loads(json_match.group())
                 sub_concepts = sub_data.get("sub_concepts", [])
             else:
                 sub_concepts = []
+        except (LLMTimeoutError, LLMError) as e:
+            logger.warning(f"Node expansion LLM error: {e}")
+            sub_concepts = []
         except Exception as e:
-            print(f"Expansion error: {e}")
+            logger.error(f"Expansion error: {e}")
             sub_concepts = []
 
         # 새 노드와 엣지 생성
@@ -1110,10 +1351,22 @@ JSON:"""
 
 답변:"""
 
-        try:
+        # Phase 1 - H2: LLM 타임아웃 래퍼 적용
+        def llm_query_call():
             response = self._llm.invoke(prompt)
-            answer = response.content.strip()
+            return response.content.strip()
+
+        try:
+            wrapper = LLMTimeoutWrapper(
+                timeout=self.LLM_TIMEOUT,
+                max_retries=self.LLM_MAX_RETRIES
+            )
+            answer = wrapper.execute_sync(llm_query_call)
+        except (LLMTimeoutError, LLMError) as e:
+            logger.warning(f"Node query LLM error: {e}")
+            answer = "AI 응답 시간이 초과되었습니다. 다시 시도해주세요."
         except Exception as e:
+            logger.error(f"Query error: {e}")
             answer = f"Error generating answer: {e}"
 
         # 소스 정보

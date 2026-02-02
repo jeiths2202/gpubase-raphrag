@@ -11,6 +11,13 @@ rule-based extraction. It ensures:
 1. 검색 결과에서 직접 추출만 허용
 2. LLM은 포맷팅 전용 (선택적)
 3. 구조적으로 할루시네이션 차단
+
+Enhanced with RAG Accuracy Pipeline:
+- Faithfulness checking (ISSUP-style)
+- Relevance grading integration
+- Partial match handling
+
+Created as part of PDCA: rag-accuracy-improvement
 """
 import re
 import logging
@@ -23,6 +30,9 @@ from ..agents.types import (
     StructuredAnswer,
 )
 from ..core.config import api_settings
+from ..models.rag_accuracy import SupportLevel, QueryAnalysis
+from ..services.faithfulness_checker_service import get_faithfulness_checker_service
+from ..services.partial_match_handler import get_partial_match_handler
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +45,22 @@ class AnswerBuilderService:
     - Extractive QA: Only extract from source documents
     - No LLM Free Generation: Content comes from search results
     - Intent-based Structuring: Different intents get different block structures
+
+    Enhanced with RAG Accuracy:
+    - Faithfulness checking before answer generation
+    - Partial match handling for low-confidence results
+    - Support level classification (FULLY_SUPPORTED, PARTIALLY_SUPPORTED, NOT_SUPPORTED)
     """
 
     # Minimum confidence threshold for including sources
-    MIN_CONFIDENCE = 0.3
+    # Note: RRF scores typically range 0.01-0.05, not 0.0-1.0
+    MIN_CONFIDENCE = 0.01
 
     # Maximum sources to include in citations
     MAX_CITATIONS = 5
+
+    # Faithfulness threshold for answer acceptance
+    FAITHFULNESS_THRESHOLD = 0.5
 
     # Intent patterns for classification
     INTENT_PATTERNS = {
@@ -81,6 +100,8 @@ class AnswerBuilderService:
             'STRUCTURED_ANSWER_MIN_CONFIDENCE',
             self.MIN_CONFIDENCE
         )
+        self.faithfulness_checker = get_faithfulness_checker_service()
+        self.partial_match_handler = get_partial_match_handler()
 
     def classify_intent(self, query: str) -> str:
         """
@@ -106,7 +127,10 @@ class AnswerBuilderService:
         query: str,
         search_results: List[Dict[str, Any]],
         intent: Optional[str] = None,
-        language: str = "auto"
+        language: str = "auto",
+        multi_product_results: Optional[List[Dict[str, Any]]] = None,
+        query_analysis: Optional[QueryAnalysis] = None,
+        check_faithfulness: bool = True
     ) -> StructuredAnswer:
         """
         Build a structured answer from search results.
@@ -116,6 +140,9 @@ class AnswerBuilderService:
             search_results: List of search result dictionaries
             intent: Query intent (auto-classified if not provided)
             language: Response language
+            multi_product_results: Optional multi-product aggregated results for platform comparison
+            query_analysis: Optional QueryAnalysis from RAG accuracy pipeline
+            check_faithfulness: Whether to perform faithfulness checking
 
         Returns:
             StructuredAnswer with content blocks
@@ -133,40 +160,107 @@ class AnswerBuilderService:
         ]
 
         # No relevant results found
-        if not relevant:
+        if not relevant and not multi_product_results:
+            # Use partial match handler if query_analysis is available
+            if query_analysis:
+                partial_response = self.partial_match_handler.build_partial_response(
+                    query_analysis=query_analysis,
+                    graded_results=[],
+                    support_level=SupportLevel.NOT_SUPPORTED,
+                )
+                return StructuredAnswer(
+                    blocks=[
+                        AnswerBlock(
+                            type=BlockType.NO_ANSWER,
+                            content=partial_response
+                        )
+                    ],
+                    confidence=0.0,
+                    language=language,
+                    metadata={
+                        "intent": intent,
+                        "support_level": SupportLevel.NOT_SUPPORTED.value,
+                        "faithfulness_checked": False,
+                    }
+                )
             return self._no_answer_response(query, language)
 
         # Build blocks based on intent
         blocks: List[AnswerBlock] = []
 
+        # Add product_version blocks if multi-product results are available
+        if multi_product_results:
+            product_blocks = self._build_product_version_blocks(multi_product_results)
+            blocks.extend(product_blocks)
+            logger.info(f"[AnswerBuilder] Added {len(product_blocks)} product_version blocks")
+
         if intent == "definition":
-            blocks = self._build_definition_blocks(query, relevant, language)
+            blocks.extend(self._build_definition_blocks(query, relevant, language))
         elif intent == "troubleshooting":
-            blocks = self._build_troubleshooting_blocks(query, relevant, language)
+            blocks.extend(self._build_troubleshooting_blocks(query, relevant, language))
         elif intent == "howto":
-            blocks = self._build_howto_blocks(query, relevant, language)
+            blocks.extend(self._build_howto_blocks(query, relevant, language))
         elif intent == "comparison":
-            blocks = self._build_comparison_blocks(query, relevant, language)
+            blocks.extend(self._build_comparison_blocks(query, relevant, language))
         elif intent == "list":
-            blocks = self._build_list_blocks(query, relevant, language)
+            blocks.extend(self._build_list_blocks(query, relevant, language))
         else:
-            blocks = self._build_general_blocks(query, relevant, language)
+            # Only add general blocks if no product version blocks were added
+            if not multi_product_results:
+                blocks.extend(self._build_general_blocks(query, relevant, language))
 
         # Add source citations
         citation_blocks = self._build_citation_blocks(relevant[:self.MAX_CITATIONS])
         blocks.extend(citation_blocks)
 
         # Calculate overall confidence
-        confidence = self._calculate_confidence(relevant)
+        confidence = self._calculate_confidence(relevant) if relevant else 0.8
+
+        # Faithfulness checking (if enabled and context available)
+        support_level = SupportLevel.FULLY_SUPPORTED
+        faithfulness_confidence = 1.0
+
+        if check_faithfulness and relevant:
+            # Build context from search results
+            context = "\n\n".join([
+                self._get_content(r) for r in relevant[:5]
+            ])
+
+            # Build answer text from blocks for checking
+            answer_text = self._blocks_to_text(blocks)
+
+            if answer_text and context:
+                faithfulness_result = self.faithfulness_checker.check_faithfulness(
+                    answer=answer_text,
+                    context=context
+                )
+                support_level = faithfulness_result.support_level
+                faithfulness_confidence = faithfulness_result.confidence
+
+                logger.info(
+                    f"[AnswerBuilder] Faithfulness check: "
+                    f"support_level={support_level.value}, "
+                    f"confidence={faithfulness_confidence:.2f}"
+                )
+
+                # Add warning block if partially supported
+                if support_level == SupportLevel.PARTIALLY_SUPPORTED:
+                    blocks.insert(0, AnswerBlock(
+                        type=BlockType.WARNING,
+                        content=self._get_partial_support_warning(language)
+                    ))
 
         return StructuredAnswer(
             blocks=blocks,
-            confidence=confidence,
+            confidence=confidence * faithfulness_confidence,
             language=language,
             metadata={
                 "intent": intent,
                 "source_count": len(relevant),
                 "total_results": len(search_results),
+                "multi_product": bool(multi_product_results),
+                "support_level": support_level.value,
+                "faithfulness_confidence": faithfulness_confidence,
             }
         )
 
@@ -252,6 +346,46 @@ class AnswerBuilderService:
             language=language,
             metadata={"intent": "no_answer"}
         )
+
+    def _build_product_version_blocks(
+        self,
+        multi_product_results: List[Dict[str, Any]]
+    ) -> List[AnswerBlock]:
+        """
+        Build product_version blocks from multi-product aggregated results.
+
+        Args:
+            multi_product_results: List of multi-product result dictionaries
+                Each item has: name, doc_type, variants, has_differences, available_platforms
+
+        Returns:
+            List of AnswerBlock with type='product_version'
+        """
+        blocks = []
+
+        for mpr in multi_product_results:
+            name = mpr.get("name", "Unknown")
+            doc_type = mpr.get("doc_type", "commands")
+            variants = mpr.get("variants", [])
+            has_differences = mpr.get("has_differences", False)
+            available_platforms = mpr.get("available_platforms", [])
+
+            if not variants:
+                continue
+
+            # Create a product_version block
+            block = AnswerBlock(
+                type=BlockType.PRODUCT_VERSION,
+                name=name,
+                doc_type=doc_type,
+                variants=variants,
+                has_differences=has_differences,
+                available_platforms=available_platforms
+            )
+            blocks.append(block)
+            logger.debug(f"[AnswerBuilder] Created product_version block for '{name}' with {len(variants)} variants")
+
+        return blocks
 
     def _build_definition_blocks(
         self,
@@ -567,6 +701,31 @@ class AnswerBuilderService:
             total_weight += weight
 
         return weighted_sum / total_weight if total_weight > 0 else 0.0
+
+    def _blocks_to_text(self, blocks: List[AnswerBlock]) -> str:
+        """Convert answer blocks to plain text for faithfulness checking"""
+        text_parts = []
+        for block in blocks:
+            if block.type == BlockType.TEXT:
+                text_parts.append(block.content or "")
+            elif block.type == BlockType.LIST:
+                if block.items:
+                    text_parts.append("\n".join(block.items))
+            elif block.type == BlockType.CODE:
+                text_parts.append(block.content or "")
+            elif block.type == BlockType.HEADING:
+                text_parts.append(block.content or "")
+        return "\n".join(text_parts)
+
+    def _get_partial_support_warning(self, language: str) -> str:
+        """Get warning message for partially supported answers"""
+        warnings = {
+            "ko": "⚠️ 이 답변은 검색 결과에서 부분적으로만 지원됩니다. 추가 확인이 필요할 수 있습니다.",
+            "ja": "⚠️ この回答は検索結果によって部分的にのみサポートされています。追加の確認が必要な場合があります。",
+            "en": "⚠️ This answer is only partially supported by the search results. Additional verification may be needed.",
+        }
+        lang_key = language if language in warnings else "ko"
+        return warnings[lang_key]
 
 
 # Singleton instance

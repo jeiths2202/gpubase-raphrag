@@ -21,6 +21,9 @@ from typing import Dict, Any, List, Optional, Set
 from dataclasses import dataclass, field
 from enum import Enum
 
+from .scoring_config_service import get_scoring_config_sync
+from ..models.scoring_config import ScoringConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -215,6 +218,10 @@ class AnswerVerificationService:
         # Detect hallucination patterns
         hallucination_patterns = self.detect_hallucination(answer)
 
+        # Load config for threshold values
+        config = get_scoring_config_sync()
+        conf = config.confidence
+
         # Calculate verification score
         score = self.calculate_verification_score(
             verified_codes=verified_codes,
@@ -224,21 +231,22 @@ class AnswerVerificationService:
             verified_commands=verified_commands,
             hallucination_count=len(hallucination_patterns),
             answer_length=len(answer),
+            scoring_config=config,
         )
 
-        # Determine status
+        # Determine status using configurable thresholds
         if hallucination_patterns:
             status = VerificationStatus.HALLUCINATION
             is_valid = False
-        elif score >= 0.8:
+        elif score >= conf.score_high_threshold:
             status = VerificationStatus.VERIFIED
             is_valid = True
-        elif score >= 0.5:
+        elif score >= conf.score_medium_threshold:
             status = VerificationStatus.PARTIALLY_VERIFIED
             is_valid = True
         else:
             status = VerificationStatus.UNVERIFIED
-            is_valid = score >= 0.3  # Low threshold for unverified
+            is_valid = score >= conf.score_low_threshold  # Low threshold for unverified
 
         # Build additional context from verified sources
         additional_context = await self._build_additional_context(
@@ -268,43 +276,49 @@ class AnswerVerificationService:
         verified_commands: List[str],
         hallucination_count: int,
         answer_length: int,
+        scoring_config: Optional[ScoringConfig] = None,
     ) -> float:
         """
         검증 점수 계산 (0.0 ~ 1.0)
 
-        Scoring:
-        - 에러코드 존재 확인: +0.3 (per verified code)
-        - 설명 일치: +0.2 (per verified term)
-        - 명령어 검증: +0.2 (per verified command)
-        - 할루시네이션 패턴: -0.2 (per pattern)
+        Scoring weights are configurable via ScoringConfig:
+        - 에러코드 존재 확인: +code_ratio_weight (per verified code)
+        - 설명 일치: +term_ratio_weight (per verified term)
+        - 명령어 검증: +command_bonus (per verified command, max: command_bonus_max)
+        - 할루시네이션 패턴: -hallucination_penalty (per pattern)
         """
-        score = 0.5  # Base score
+        # Load config
+        config = scoring_config or get_scoring_config_sync()
+        eval_config = config.evaluation
+
+        score = eval_config.base_score
 
         total_codes = len(verified_codes) + len(unverified_codes)
         total_terms = len(verified_terms) + len(unverified_terms)
 
-        # Error code verification
+        # Error code verification (using configurable weight)
         if total_codes > 0:
             code_ratio = len(verified_codes) / total_codes
-            score += code_ratio * 0.3
+            score += code_ratio * eval_config.code_ratio_weight
 
-        # Term verification
+        # Term verification (using configurable weight)
         if total_terms > 0:
             term_ratio = len(verified_terms) / total_terms
-            score += term_ratio * 0.2
+            score += term_ratio * eval_config.term_ratio_weight
 
-        # Command verification bonus
+        # Command verification bonus (using configurable values)
         if verified_commands:
-            score += min(len(verified_commands) * 0.1, 0.2)
+            score += min(len(verified_commands) * eval_config.command_bonus, eval_config.command_bonus_max)
 
-        # Hallucination penalty
-        score -= hallucination_count * 0.15
+        # Hallucination penalty (using configurable value)
+        score -= hallucination_count * eval_config.hallucination_penalty
 
-        # Length bonus for detailed answers (but not too long)
-        if 100 < answer_length < 1000:
-            score += 0.05
-        elif answer_length > 2000:
-            score -= 0.05  # Penalty for overly verbose
+        # Length bonus for detailed answers (but not too long) - using length_score config
+        length_config = config.length_score
+        if length_config.short_threshold < answer_length < length_config.medium_threshold:
+            score += eval_config.length_bonus
+        elif answer_length > length_config.medium_threshold * 4:  # Overly verbose
+            score -= eval_config.length_penalty
 
         return max(0.0, min(1.0, score))
 

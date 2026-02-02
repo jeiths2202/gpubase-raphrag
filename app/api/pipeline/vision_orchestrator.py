@@ -711,7 +711,7 @@ def get_vision_pipeline_orchestrator() -> VisionPipelineOrchestrator:
     """
     Get or create singleton VisionPipelineOrchestrator instance.
 
-    Uses NIM Vision LLM (llama-3.1-nemotron-nano-vl-8b) via OpenAI-compatible API.
+    Uses MiniCPM-V 2.6 via vLLM OpenAI-compatible API.
 
     Returns:
         VisionPipelineOrchestrator instance
@@ -719,30 +719,35 @@ def get_vision_pipeline_orchestrator() -> VisionPipelineOrchestrator:
     global _vision_pipeline_orchestrator
 
     if _vision_pipeline_orchestrator is None:
-        import os
-        from app.api.adapters.vision.openai_vision_adapter import OpenAIVisionAdapter
+        settings = get_api_settings()
 
-        # NIM Vision LLM configuration
-        vision_base_url = os.getenv(
-            "NIM_VISION_BASE_URL",
-            "http://localhost:12803/v1"
-        )
-        vision_model = os.getenv(
-            "NIM_VISION_MODEL",
-            "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
-        )
+        # Use MiniCPM-V via config settings
+        vision_provider = settings.VISION_LLM_PROVIDER
+        vision_base_url = settings.VISION_API_URL
+        vision_model = settings.VISION_LLM_MODEL
 
-        # Create OpenAI-compatible adapter for NIM Vision LLM
-        vision_llm = OpenAIVisionAdapter(
-            api_key="nim-api-key",  # NIM doesn't require real API key
-            model=vision_model,
-            base_url=vision_base_url,
-        )
+        if vision_provider == "minicpm" or vision_provider == "vllm":
+            from app.api.adapters.vision.minicpm_vision_adapter import MiniCPMVisionAdapter
+            vision_llm = MiniCPMVisionAdapter(
+                base_url=vision_base_url,
+                model=vision_model,
+                max_tokens=settings.VISION_MAX_TOKENS,
+                timeout=settings.VISION_TIMEOUT,
+            )
+            logger.info(f"VisionPipelineOrchestrator initialized with MiniCPM-V at {vision_base_url}")
+        else:
+            # Fallback to OpenAI adapter for other providers
+            from app.api.adapters.vision.openai_vision_adapter import OpenAIVisionAdapter
+            vision_llm = OpenAIVisionAdapter(
+                api_key="nim-api-key",
+                model=vision_model,
+                base_url=vision_base_url,
+            )
+            logger.info(f"VisionPipelineOrchestrator initialized with OpenAI adapter at {vision_base_url}")
 
         _vision_pipeline_orchestrator = VisionPipelineOrchestrator(
             vision_llm=vision_llm,
             config=VisionPipelineConfig(),
         )
-        logger.info(f"VisionPipelineOrchestrator initialized with NIM VLM at {vision_base_url}")
 
     return _vision_pipeline_orchestrator

@@ -1,30 +1,40 @@
 {
-  "total": 45,
-  "passed": 44,
+  "total": 30,
+  "passed": 29,
   "failed": 1,
   "hallucinations": [
     {
-      "index": 31,
-      "keyword": "VSAM ESDS",
-      "query": "VSAM ESDSの特徴を教えてください。",
+      "index": 24,
+      "keyword": "osc.conf",
+      "query": "osc.confの設定方法を教えてください。",
       "foundUnexpected": [
-        "RRDS"
+        "tjes.conf"
       ],
-      "screenshot": "hallucination_31_VSAM_ESDS.png"
+      "screenshot": "hallucination_24_osc_conf.png"
     }
   ],
   "noResults": [
     {
+      "index": 17,
+      "keyword": "iebgener",
+      "query": "iebgenerの使用方法を教えてください。"
+    },
+    {
+      "index": 25,
+      "keyword": "tacf.conf",
+      "query": "tacf.confの設定について説明してください。"
+    },
+    {
+      "index": 27,
+      "keyword": "ABEND S0C7",
+      "query": "ABEND S0C7エラーの原因と対処方法を教えてください。"
+    },
+    {
       "index": 28,
       "keyword": "ABEND S0C4",
       "query": "ABEND S0C4エラーについて説明してください。"
-    },
-    {
-      "index": 30,
-      "keyword": "VSAM KSDS",
-      "query": "VSAM KSDSについて説明してください。"
     }
   ],
   "errors": [],
-  "timestamp": "2026-01-28T08:12:54.489Z"
+  "timestamp": "2026-01-31T09:17:03.320Z"
 }

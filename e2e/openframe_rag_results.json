@@ -1,0 +1,281 @@
+{
+  "timestamp": "2026-01-31T01:44:13.164Z",
+  "total": 20,
+  "passed": 20,
+  "failed": 0,
+  "passRate": "100.0",
+  "hallucinations": [],
+  "noResults": [],
+  "errors": [],
+  "details": [
+    {
+      "id": "TC-001",
+      "keyword": "tjesmgr",
+      "product": "openframe_mvs",
+      "category": "command",
+      "responseTime": 10919,
+      "foundExpected": [
+        "tjesmgr",
+        "TJES"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-002",
+      "keyword": "tacfmgr",
+      "product": "openframe_mvs",
+      "category": "command",
+      "responseTime": 10941,
+      "foundExpected": [
+        "tacfmgr",
+        "TACF"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-003",
+      "keyword": "hidbmgr",
+      "product": "openframe_mvs",
+      "category": "command",
+      "responseTime": 10921,
+      "foundExpected": [
+        "hidbmgr",
+        "HiDB"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-004",
+      "keyword": "oscmgr",
+      "product": "openframe_mvs",
+      "category": "command",
+      "responseTime": 10910,
+      "foundExpected": [
+        "oscmgr",
+        "OSC"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-005",
+      "keyword": "osimgr",
+      "product": "openframe_mvs",
+      "category": "command",
+      "responseTime": 10913,
+      "foundExpected": [
+        "osimgr",
+        "OSI"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-006",
+      "keyword": "idcams",
+      "product": "openframe_mvs",
+      "category": "utility",
+      "responseTime": 10900,
+      "foundExpected": [
+        "idcams"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-007",
+      "keyword": "iebgener",
+      "product": "openframe_mvs",
+      "category": "utility",
+      "responseTime": 10932,
+      "foundExpected": [
+        "iebgener"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-008",
+      "keyword": "iebcopy",
+      "product": "openframe_mvs",
+      "category": "utility",
+      "responseTime": 10913,
+      "foundExpected": [
+        "iebcopy"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-009",
+      "keyword": "ABEND S0C7",
+      "product": "openframe_mvs",
+      "category": "error",
+      "responseTime": 10907,
+      "foundExpected": [
+        "S0C7",
+        "data"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-010",
+      "keyword": "ABEND S0C4",
+      "product": "openframe_mvs",
+      "category": "error",
+      "responseTime": 10913,
+      "foundExpected": [
+        "S0C4"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-011",
+      "keyword": "tjes.conf",
+      "product": "openframe_mvs",
+      "category": "config",
+      "responseTime": 10913,
+      "foundExpected": [
+        "tjes.conf",
+        "TJES"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-012",
+      "keyword": "osc.conf",
+      "product": "openframe_mvs",
+      "category": "config",
+      "responseTime": 10964,
+      "foundExpected": [
+        "osc.conf",
+        "OSC"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-013",
+      "keyword": "JCL",
+      "product": "openframe_mvs",
+      "category": "jcl",
+      "responseTime": 10967,
+      "foundExpected": [
+        "JCL"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-014",
+      "keyword": "VSAM KSDS",
+      "product": "openframe_mvs",
+      "category": "dataset",
+      "responseTime": 10951,
+      "foundExpected": [
+        "KSDS"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-015",
+      "keyword": "GDG",
+      "product": "openframe_mvs",
+      "category": "dataset",
+      "responseTime": 10986,
+      "foundExpected": [
+        "GDG"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-016",
+      "keyword": "tbboot",
+      "product": "tibero7",
+      "category": "command",
+      "responseTime": 10908,
+      "foundExpected": [
+        "tbboot"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-017",
+      "keyword": "tbdown",
+      "product": "tibero7",
+      "category": "command",
+      "responseTime": 10932,
+      "foundExpected": [
+        "tbdown"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-018",
+      "keyword": "tbsql",
+      "product": "tibero7",
+      "category": "command",
+      "responseTime": 10937,
+      "foundExpected": [
+        "tbsql",
+        "SQL"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-019",
+      "keyword": "tablespace",
+      "product": "tibero7",
+      "category": "config",
+      "responseTime": 10914,
+      "foundExpected": [
+        "tablespace"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-020",
+      "keyword": "TAC",
+      "product": "tibero7",
+      "category": "feature",
+      "responseTime": 10940,
+      "foundExpected": [
+        "TAC"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    }
+  ]
+}

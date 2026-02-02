@@ -15,17 +15,21 @@
  */
 
 import React, { useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Header } from '../components/Header';
 import { Sidebar } from '../components/Sidebar';
 import { SidebarToggleButton } from '../components/SidebarToggleButton';
 import { AISidebar } from '../components/AISidebar';
 import { useUIStore } from '../store/uiStore';
 
+// Routes where AISidebar should be hidden (they have their own chat interface)
+const HIDE_AI_SIDEBAR_ROUTES = ['/openframe-rag', '/open-agent'];
+
 // Breakpoint for mobile/tablet detection
 const MOBILE_BREAKPOINT = 1024;
 
 export const MainLayout: React.FC = () => {
+  const location = useLocation();
   const {
     leftSidebarOpen,
     rightSidebarOpen,
@@ -33,6 +37,9 @@ export const MainLayout: React.FC = () => {
     isMobile,
     setLeftSidebarOpen,
   } = useUIStore();
+
+  // Check if current route should hide AISidebar
+  const hideAISidebar = HIDE_AI_SIDEBAR_ROUTES.some(route => location.pathname.startsWith(route));
 
   // Handle window resize and set initial state based on screen size
   useEffect(() => {
@@ -79,7 +86,7 @@ export const MainLayout: React.FC = () => {
   return (
     <div className={layoutClass}>
       {/* Header */}
-      <Header showAISidebarToggle={true} />
+      <Header showAISidebarToggle={!hideAISidebar} />
 
       {/* Sidebar Open Button - Shows when sidebar is closed */}
       <SidebarToggleButton />
@@ -94,8 +101,8 @@ export const MainLayout: React.FC = () => {
           <Outlet />
         </main>
 
-        {/* AI Sidebar (Right) */}
-        <AISidebar />
+        {/* AI Sidebar (Right) - Hidden on pages with their own chat interface */}
+        {!hideAISidebar && <AISidebar />}
       </div>
 
       {/* Mobile overlay backdrop - click to close sidebar */}

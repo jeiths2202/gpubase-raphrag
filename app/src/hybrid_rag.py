@@ -1,6 +1,8 @@
 """
 Hybrid RAG Module for GraphRAG System
 Orchestrates Vector RAG and Graph RAG based on query classification
+
+v1.1: Hardcoding elimination - All scoring parameters now loaded from HybridScoreConfig
 """
 import os
 import re
@@ -12,6 +14,27 @@ from embeddings import NeMoEmbeddingService
 from query_router import QueryRouter, QueryType
 from vector_rag import VectorRAG
 from query_analyzer import get_query_analyzer, QueryIntent
+
+# H2: Import ChunkRelationService for graph-based context expansion
+try:
+    from app.api.services.knowledge_graph_service import get_chunk_relation_service
+    CHUNK_RELATION_SERVICE_AVAILABLE = True
+except ImportError:
+    CHUNK_RELATION_SERVICE_AVAILABLE = False
+
+# v1.1: Import HybridScoreCalculator for centralized scoring
+try:
+    from app.api.services.hybrid_score_calculator import (
+        HybridScoreCalculator,
+        SourceType,
+        QueryType as HybridQueryType,
+        SearchType,
+        get_hybrid_score_calculator,
+    )
+    from app.api.services.scoring_config_service import get_hybrid_config
+    HYBRID_CALCULATOR_AVAILABLE = True
+except ImportError:
+    HYBRID_CALCULATOR_AVAILABLE = False
 
 
 class HybridRAG:
@@ -88,6 +111,26 @@ class HybridRAG:
         self.vector_weight = config.rag.vector_weight
         self.top_k = config.rag.top_k
 
+        # v1.1: Initialize HybridScoreCalculator for centralized scoring (no hardcoding)
+        self.calculator = None
+        if HYBRID_CALCULATOR_AVAILABLE:
+            try:
+                hybrid_config = get_hybrid_config()
+                self.calculator = get_hybrid_score_calculator(hybrid_config)
+                print("[HybridRAG] HybridScoreCalculator initialized (hardcoding eliminated)")
+            except Exception as e:
+                print(f"[HybridRAG] HybridScoreCalculator init failed, using legacy: {e}")
+
+        # H2: Initialize ChunkRelationService for graph-based context expansion
+        # This separates concerns: PostgreSQL for vector search, Neo4j for graph relations
+        self.chunk_relation_service = None
+        if CHUNK_RELATION_SERVICE_AVAILABLE:
+            try:
+                self.chunk_relation_service = get_chunk_relation_service(self.graph)
+                print("[HybridRAG] ChunkRelationService initialized for context expansion")
+            except Exception as e:
+                print(f"[HybridRAG] ChunkRelationService init failed: {e}")
+
     def query(
         self,
         question: str,
@@ -115,14 +158,24 @@ class HybridRAG:
         # Detect if query needs deep analysis (detailed, thorough response)
         is_deep_analysis = self._is_deep_analysis_query(question)
 
-        # Adjust k based on query type
+        # Adjust k based on query type (v1.1: use calculator if available)
         if k is None:
-            if is_deep_analysis:
-                k = self.top_k * 4  # 20 results for deep analysis
-            elif is_comprehensive:
-                k = self.top_k * 2  # 10 results for comprehensive
+            if self.calculator:
+                # Use configurable multipliers from HybridScoreConfig
+                if is_deep_analysis:
+                    k = self.calculator.get_search_multiplier(SearchType.DEEP, self.top_k)
+                elif is_comprehensive:
+                    k = self.calculator.get_search_multiplier(SearchType.COMPREHENSIVE, self.top_k)
+                else:
+                    k = self.top_k
             else:
-                k = self.top_k      # 5 results for normal
+                # Legacy fallback
+                if is_deep_analysis:
+                    k = self.top_k * 4
+                elif is_comprehensive:
+                    k = self.top_k * 2
+                else:
+                    k = self.top_k
 
         # Detect language if auto
         if language == "auto":
@@ -765,18 +818,27 @@ class HybridRAG:
                     {"keyword": keyword, "k": k}
                 )
 
-        graph_results = [
-            {
+        # Normalize match_count to 0-1 range
+        # v1.1: Use calculator for normalization divisor (configurable)
+        graph_results = []
+        for r in results:
+            match_count = r.get("match_count", 1)
+            if self.calculator:
+                # Use configurable normalization: min(1.0, match_count / divisor)
+                score = self.calculator.normalize_entity_match_count(match_count)
+            else:
+                # Legacy fallback: min(1.0, match_count / 5.0)
+                score = min(1.0, match_count / 5.0)
+
+            graph_results.append({
                 "chunk_id": r["chunk_id"],
                 "content": r["content"],
                 "chunk_index": r["chunk_index"],
                 "doc_id": r["doc_id"],
                 "entities": r["entities"] or [],
-                "score": r.get("match_count", 1.0),  # Use match count as score
+                "score": score,
                 "source": "graph"
-            }
-            for r in results
-        ]
+            })
 
         # Merge glossary definitions with graph results (glossary first)
         if glossary_results:
@@ -816,7 +878,121 @@ class HybridRAG:
         # Rerank
         reranked = self._rerank_results(merged, query)
 
-        return reranked[:k]
+        # H2: Expand context using graph relations (SIMILAR_TO, CO_MENTIONS, NEXT)
+        # This leverages Neo4j for graph traversal while vector search is in PostgreSQL
+        expanded = self._expand_context_via_graph(reranked[:k], depth=1)
+
+        return expanded[:k]
+
+    def _expand_context_via_graph(
+        self,
+        results: List[Dict],
+        depth: int = 1,
+        include_similar: bool = True,
+        include_co_mentions: bool = True,
+        include_next: bool = True
+    ) -> List[Dict]:
+        """
+        H2: Expand search results using graph-based relations.
+
+        Role Separation:
+        - PostgreSQL (VectorRAG): Primary vector similarity search
+        - Neo4j (ChunkRelationService): Graph traversal for context expansion
+
+        This method uses SIMILAR_TO, CO_MENTIONS, NEXT relations to find
+        additional relevant chunks that may not appear in vector search.
+
+        Args:
+            results: Initial search results from vector/hybrid search
+            depth: How many hops to traverse in the graph
+            include_similar: Include SIMILAR_TO relations
+            include_co_mentions: Include CO_MENTIONS relations
+            include_next: Include NEXT relations (sequential context)
+
+        Returns:
+            Expanded results with related chunks added
+        """
+        if not self.chunk_relation_service or not results:
+            return results
+
+        try:
+            # Extract chunk IDs from initial results
+            chunk_ids = [r.get("chunk_id") for r in results if r.get("chunk_id")]
+
+            if not chunk_ids:
+                return results
+
+            # Use synchronous expand_context (run in event loop)
+            import asyncio
+
+            async def expand_async():
+                return await self.chunk_relation_service.expand_context(
+                    chunk_ids=chunk_ids,
+                    depth=depth,
+                    include_similar=include_similar,
+                    include_co_mentions=include_co_mentions,
+                    include_next=include_next
+                )
+
+            # Check if we're in an async context
+            try:
+                loop = asyncio.get_running_loop()
+                # If we're in an async context, create a task
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, expand_async())
+                    expansion_result = future.result(timeout=5.0)
+            except RuntimeError:
+                # No running loop, run directly
+                expansion_result = asyncio.run(expand_async())
+
+            if not expansion_result:
+                return results
+
+            # Get expanded chunks (key is "related_chunks" from ChunkRelationService)
+            expanded_chunks = expansion_result.get("related_chunks", [])
+            if not expanded_chunks:
+                return results
+
+            # Create a set of existing chunk IDs
+            existing_ids = set(chunk_ids)
+
+            # Add expanded chunks that aren't already in results
+            expanded_results = list(results)
+            added_count = 0
+
+            for chunk in expanded_chunks:
+                chunk_id = chunk.get("chunk_id")
+                if chunk_id and chunk_id not in existing_ids:
+                    # Calculate score based on distance (closer = higher score)
+                    distance = chunk.get("distance", 2)
+                    base_score = max(0.3, 0.7 - (distance * 0.15))
+
+                    # Get relation types used
+                    via_relations = chunk.get("via_relations", [])
+                    relation_str = "->".join(via_relations) if via_relations else "expanded"
+
+                    # Format as search result
+                    expanded_results.append({
+                        "chunk_id": chunk_id,
+                        "content": chunk.get("content", ""),
+                        "page_number": chunk.get("page_number"),
+                        "score": base_score,
+                        "source": "graph_expansion",
+                        "relation_type": relation_str,
+                        "expansion_distance": distance
+                    })
+                    existing_ids.add(chunk_id)
+                    added_count += 1
+
+            if added_count > 0:
+                print(f"    [Context Expansion] Added {added_count} related chunks via graph relations")
+
+            return expanded_results
+
+        except Exception as e:
+            print(f"    [Context Expansion] Failed: {e}")
+            return results
 
     def _search_numeric_error_code(self, query: str, k: int) -> List[Dict]:
         """Search for numeric error codes like -5212 directly in content"""
@@ -921,60 +1097,93 @@ class HybridRAG:
         seen_chunks = set()
         merged = []
 
+        # v1.1: All scoring parameters from HybridScoreConfig (no hardcoding)
+        # Get config values or use legacy defaults
+        if self.calculator:
+            cfg = self.calculator.config
+            error_code_priority = cfg.error_code_priority
+            topic_base = cfg.topic_density_base
+            topic_weight = cfg.topic_density_weight
+            topic_boost_increment = cfg.topic_boost_increment
+            vector_boost_increment = cfg.vector_boost_increment
+            graph_boost_increment = cfg.graph_boost_increment
+            graph_weight = cfg.graph_weight
+        else:
+            # Legacy fallback values
+            error_code_priority = 1.0
+            topic_base = 0.4
+            topic_weight = 0.2
+            topic_boost_increment = 0.2
+            vector_boost_increment = 0.1
+            graph_boost_increment = 0.1
+            graph_weight = 1.0 - self.vector_weight
+
         # 1. Process error code results first (highest priority)
         if error_code_results:
             for result in error_code_results:
                 chunk_id = result["chunk_id"]
                 if chunk_id not in seen_chunks:
-                    result["combined_score"] = 1.0  # Highest priority
+                    result["combined_score"] = error_code_priority
                     merged.append(result)
                     seen_chunks.add(chunk_id)
 
         # 2. Process topic density results (concept-central documents)
+        # Topic density should NOT outrank high-quality vector results
         if topic_density_results:
             for result in topic_density_results:
                 chunk_id = result["chunk_id"]
                 if chunk_id not in seen_chunks:
-                    # Score based on topic density (0.0 to 1.0) + base boost
+                    # Score based on topic density: base + (density * weight)
                     topic_score = result.get("topic_density", 0.5)
-                    result["combined_score"] = 0.9 + (topic_score * 0.1)  # 0.9 ~ 1.0 range
+                    if self.calculator:
+                        result["combined_score"] = self.calculator.calculate_topic_score(topic_score)
+                    else:
+                        result["combined_score"] = topic_base + (topic_score * topic_weight)
                     merged.append(result)
                     seen_chunks.add(chunk_id)
                 else:
                     # Boost existing chunk if also found by topic density
                     for m in merged:
                         if m["chunk_id"] == chunk_id:
-                            m["combined_score"] += 0.2  # Boost
+                            m["combined_score"] += topic_boost_increment
                             m["source"] = "topic_density_boosted"
                             break
 
         # 3. Process vector results
+        # Vector results are semantically matched - should have higher priority than topic_density
         for result in vector_results:
             chunk_id = result["chunk_id"]
             if chunk_id not in seen_chunks:
-                result["combined_score"] = result["score"] * self.vector_weight * 0.8  # Slightly lower priority
+                # Keep vector score high (0.5~1.0 range for good matches)
+                if self.calculator:
+                    result["combined_score"] = self.calculator.calculate_vector_score(result["score"])
+                else:
+                    result["combined_score"] = result["score"] * self.vector_weight
                 merged.append(result)
                 seen_chunks.add(chunk_id)
             else:
                 # Boost if also found by vector
                 for m in merged:
                     if m["chunk_id"] == chunk_id:
-                        m["combined_score"] += result["score"] * 0.1
+                        m["combined_score"] += result["score"] * vector_boost_increment
                         break
 
         # 4. Process graph results
-        graph_weight = 1.0 - self.vector_weight
+        # Graph results are entity-matched - maintain reasonable priority
         for result in graph_results:
             chunk_id = result["chunk_id"]
             if chunk_id not in seen_chunks:
-                result["combined_score"] = result.get("score", 0.5) * graph_weight * 0.8
+                if self.calculator:
+                    result["combined_score"] = self.calculator.calculate_graph_score(result.get("score", 0.5))
+                else:
+                    result["combined_score"] = result.get("score", 0.5) * graph_weight
                 merged.append(result)
                 seen_chunks.add(chunk_id)
             else:
                 # Boost if also found by graph
                 for m in merged:
                     if m["chunk_id"] == chunk_id:
-                        m["combined_score"] += result.get("score", 0.5) * 0.1
+                        m["combined_score"] += result.get("score", 0.5) * graph_boost_increment
                         if "hybrid" not in m.get("source", ""):
                             m["source"] = m.get("source", "") + "_hybrid"
                         break
@@ -990,13 +1199,25 @@ class HybridRAG:
             reverse=True
         )
 
+        # v1.1: Get keyword boost from config
+        if self.calculator:
+            keyword_boost = self.calculator.config.keyword_match_boost
+        else:
+            keyword_boost = 0.1  # Legacy default
+
         # Boost results with query keywords in content
         keywords = self._extract_keywords(query)
         for result in sorted_results:
             content_lower = result["content"].lower()
             keyword_matches = sum(1 for kw in keywords if kw.lower() in content_lower)
             if keyword_matches > 0:
-                result["combined_score"] *= (1 + 0.1 * keyword_matches)
+                # v1.1: Use configurable keyword boost
+                if self.calculator:
+                    result["combined_score"] = self.calculator.apply_keyword_boost(
+                        result["combined_score"], keyword_matches
+                    )
+                else:
+                    result["combined_score"] *= (1 + keyword_boost * keyword_matches)
 
         # Re-sort after boosting
         return sorted(sorted_results, key=lambda x: x.get("combined_score", 0), reverse=True)
@@ -1014,28 +1235,46 @@ class HybridRAG:
         if not results:
             return self._no_results_message(language)
 
+        # v1.1: Get min relevance score from config
+        if self.calculator:
+            min_relevance = self.calculator.config.min_relevance_score
+        else:
+            min_relevance = float(os.getenv("RAG_MIN_RELEVANCE_SCORE", "0.3"))
+
         # Filter out low-quality results to prevent hallucination
-        MIN_RELEVANCE_SCORE = float(os.getenv("RAG_MIN_RELEVANCE_SCORE", "0.3"))
-        relevant_results = [r for r in results if r.get("score", 0) >= MIN_RELEVANCE_SCORE]
+        relevant_results = [r for r in results if r.get("combined_score", r.get("score", 0)) >= min_relevance]
 
         # If no relevant results after filtering, return no-info message
         if not relevant_results:
-            print(f"    [HybridRAG] No relevant results (all scores < {MIN_RELEVANCE_SCORE})")
+            print(f"    [HybridRAG] No relevant results (all scores < {min_relevance})")
             return self._no_results_message(language)
 
         # Use filtered results for answer generation
         results = relevant_results
 
-        # Adjust context size based on query type
-        if is_deep_analysis:
-            max_results = 20
-            max_content_length = 1500  # Much more content for deep analysis
-        elif is_comprehensive:
-            max_results = 10
-            max_content_length = 800
+        # v1.1: Get result limits from config
+        if self.calculator:
+            cfg = self.calculator.config
+            if is_deep_analysis:
+                max_results = cfg.comprehensive_query_results
+                max_content_length = 1500
+            elif is_comprehensive:
+                max_results = cfg.standard_query_results
+                max_content_length = 800
+            else:
+                max_results = cfg.simple_query_results
+                max_content_length = 500
         else:
-            max_results = 5
-            max_content_length = 500
+            # Legacy fallback
+            if is_deep_analysis:
+                max_results = 20
+                max_content_length = 1500
+            elif is_comprehensive:
+                max_results = 10
+                max_content_length = 800
+            else:
+                max_results = 5
+                max_content_length = 500
 
         # Build document context
         context_parts = []
@@ -1482,6 +1721,24 @@ Response:"""
         if not concept:
             return []
 
+        # Skip topic density search for very short/common concepts
+        # These tend to match too many irrelevant documents
+        if len(concept) < 3:
+            print(f"    [TopicDensity] Skipping short concept: '{concept}'")
+            return []
+
+        # Common words that shouldn't trigger topic density search
+        skip_concepts = {
+            '확인', '방법', '설명', '사용', '기능', '정보', '내용', '문제', '오류',
+            'check', 'how', 'what', 'use', 'error', 'info', 'help', 'guide'
+        }
+        if concept.lower() in skip_concepts:
+            print(f"    [TopicDensity] Skipping common concept: '{concept}'")
+            return []
+
+        # Minimum topic density threshold - require concept to be truly central
+        MIN_TOPIC_DENSITY = 0.15  # At least 15% of document chunks must contain concept
+
         # Find documents and score by topic density
         results = self.graph.query(
             """
@@ -1498,10 +1755,16 @@ Response:"""
             WITH d, concept_chunks, total_chunks,
                  toFloat(concept_chunks) / toFloat(total_chunks) AS topic_density
 
+            // Filter: require minimum topic density (concept must be central)
+            WHERE topic_density >= $min_density AND concept_chunks >= 2
+
             // Order by density (concept centrality) then by absolute count
             ORDER BY topic_density DESC, concept_chunks DESC
 
-            // Get chunks from top documents
+            // Get chunks from top documents (limit to top 3 documents)
+            WITH d, topic_density, concept_chunks
+            LIMIT 3
+
             MATCH (d)-[:CONTAINS]->(c:Chunk)
             WHERE c.content CONTAINS $concept
             OPTIONAL MATCH (c)-[:MENTIONS]->(e:Entity)
@@ -1517,10 +1780,10 @@ Response:"""
             ORDER BY topic_density DESC, c.index
             LIMIT $k
             """,
-            {"concept": concept, "k": k}
+            {"concept": concept, "k": k, "min_density": MIN_TOPIC_DENSITY}
         )
 
-        return [
+        filtered_results = [
             {
                 "chunk_id": r["chunk_id"],
                 "content": r["content"],
@@ -1534,6 +1797,11 @@ Response:"""
             }
             for r in results
         ]
+
+        if filtered_results:
+            print(f"    [TopicDensity] Found {len(filtered_results)} results for '{concept}' (density >= {MIN_TOPIC_DENSITY})")
+
+        return filtered_results
 
     def _extract_keywords(self, text: str) -> List[str]:
         """Extract keywords from text"""

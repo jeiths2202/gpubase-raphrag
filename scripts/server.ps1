@@ -163,8 +163,19 @@ function Start-Backend {
     Write-LogMessage -LogFile $logFile -Message "========== Backend Server Starting =========="
 
     Push-Location $ProjectRoot
-    $command = "python -m app.api.main --mode develop --port $BackendPort >> `"$logFile`" 2>&1"
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $command -WindowStyle Hidden
+    # Read APP_MODE from .env or default to develop
+    $appMode = "develop"
+    $envFile = Join-Path $ProjectRoot ".env"
+    if (Test-Path $envFile) {
+        $envContent = Get-Content $envFile | Where-Object { $_ -match "^APP_MODE=" }
+        if ($envContent) {
+            $appMode = ($envContent -split "=")[1].Trim()
+        }
+    }
+    # Set UTF-8 encoding to handle Korean/Japanese characters in logs
+    $env:PYTHONIOENCODING = "utf-8"
+    $command = "python -m app.api.main --mode $appMode --port $BackendPort >> `"$logFile`" 2>&1"
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "set PYTHONIOENCODING=utf-8 && $command" -WindowStyle Hidden
     Pop-Location
 
     # Backend takes ~11 seconds to initialize (PostgreSQL, services, etc.)

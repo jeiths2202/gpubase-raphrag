@@ -10,6 +10,8 @@ from .types import (
     AgentResult, AgentType, EvaluationResult, EvaluationCriteria,
     RetryConfig, SubTask
 )
+from ..services.scoring_config_service import get_scoring_config_sync
+from ..models.scoring_config import ScoringConfig
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +24,16 @@ class ResultEvaluator:
     retry recommendations based on configurable criteria.
     """
 
-    def __init__(self, llm_adapter=None):
+    def __init__(self, llm_adapter=None, scoring_config: Optional[ScoringConfig] = None):
         """
         Initialize the evaluator.
 
         Args:
             llm_adapter: Optional LLM adapter for advanced quality evaluation
+            scoring_config: Optional scoring configuration
         """
         self.llm_adapter = llm_adapter
+        self._scoring_config = scoring_config
 
     async def evaluate(
         self,
@@ -53,10 +57,14 @@ class ResultEvaluator:
         issues: List[str] = []
         score = 1.0  # Start with perfect score, deduct for issues
 
+        # Load scoring config for penalty values
+        config = self._scoring_config or get_scoring_config_sync()
+        eval_config = config.evaluation
+
         # Check execution success
         if not result.success:
             issues.append(f"Execution failed: {result.error or 'Unknown error'}")
-            score -= 0.5
+            score -= eval_config.hallucination_penalty  # Major penalty for failure
 
         # Check answer length
         answer_length = len(result.answer.strip()) if result.answer else 0
@@ -65,12 +73,12 @@ class ResultEvaluator:
                 f"Answer too short: {answer_length} chars "
                 f"(minimum: {criteria.min_answer_length})"
             )
-            score -= 0.2
+            score -= eval_config.source_mismatch_penalty
 
         # Check for sources if required
         if criteria.require_sources and not result.sources:
             issues.append("Sources required but not provided")
-            score -= 0.15
+            score -= eval_config.format_error_penalty
 
         # Check execution time
         if criteria.max_execution_time is not None:
@@ -79,19 +87,19 @@ class ResultEvaluator:
                     f"Execution time exceeded: {result.execution_time:.1f}s "
                     f"(max: {criteria.max_execution_time}s)"
                 )
-                score -= 0.1
+                score -= eval_config.reasoning_error_penalty
 
         # Check for error indicators in answer
         error_patterns = self._check_error_patterns(result.answer)
         if error_patterns:
             issues.extend(error_patterns)
-            score -= 0.15 * len(error_patterns)
+            score -= eval_config.repeated_error_penalty * len(error_patterns)
 
         # Check answer relevance (basic heuristic)
         relevance_score = self._check_relevance(result.answer, task)
-        if relevance_score < 0.3:
+        if relevance_score < config.confidence.low_threshold:
             issues.append("Answer may not be relevant to the task")
-            score -= 0.2
+            score -= eval_config.grammar_error_penalty
 
         # Normalize score
         score = max(0.0, min(1.0, score))
@@ -104,8 +112,8 @@ class ResultEvaluator:
         retry_reason = None
 
         if not passed:
-            # Recommend retry if score is close to threshold
-            if score >= criteria.min_confidence - 0.2:
+            # Recommend retry if score is close to threshold (using config offset)
+            if score >= criteria.min_confidence - eval_config.confidence_criteria_offset:
                 retry_recommended = True
                 retry_reason = "Score close to threshold, retry may succeed"
             elif result.error and self._is_transient_error(result.error):
@@ -198,7 +206,10 @@ Be strict but fair. Only recommend retry if the response is close to acceptable.
         if not evaluation.passed and not config.retry_on_failure:
             return False, 0.0
 
-        if evaluation.passed and evaluation.score < 0.8 and not config.retry_on_low_quality:
+        # Use scoring config for low quality threshold
+        scoring_config = self._scoring_config or get_scoring_config_sync()
+        low_quality_threshold = scoring_config.confidence.high_threshold
+        if evaluation.passed and evaluation.score < low_quality_threshold and not config.retry_on_low_quality:
             return False, 0.0
 
         # Retry if recommended
@@ -258,13 +269,18 @@ Be strict but fair. Only recommend retry if the response is close to acceptable.
         )
 
         if not task_words:
-            return 0.5  # Cannot evaluate
+            # Cannot evaluate - use config value
+            config = self._scoring_config or get_scoring_config_sync()
+            return config.evaluation.base_score
 
         # Check how many task words appear in answer
         answer_lower = answer.lower()
         matches = sum(1 for word in task_words if word in answer_lower)
 
-        return min(1.0, matches / max(1, len(task_words) * 0.3))
+        # Use config for relevance matching ratio
+        config = self._scoring_config or get_scoring_config_sync()
+        match_ratio = config.evaluation.relevance_match_ratio
+        return min(1.0, matches / max(1, len(task_words) * match_ratio))
 
     def _is_transient_error(self, error: str) -> bool:
         """Check if an error is likely transient and worth retrying."""
@@ -294,8 +310,9 @@ Be strict but fair. Only recommend retry if the response is close to acceptable.
         criteria: EvaluationCriteria
     ) -> EvaluationResult:
         """Parse LLM evaluation response into EvaluationResult."""
-        # Default values
-        score = 0.5
+        # Default values (use config for default score)
+        config = self._scoring_config or get_scoring_config_sync()
+        score = config.evaluation.base_score
         issues = []
         retry = False
 
@@ -345,6 +362,10 @@ class SynthesisEvaluator:
     Checks that synthesis properly integrates all sub-results.
     """
 
+    def __init__(self, scoring_config: Optional[ScoringConfig] = None):
+        """Initialize with optional scoring configuration."""
+        self._scoring_config = scoring_config
+
     async def evaluate_synthesis(
         self,
         synthesized_answer: str,
@@ -362,13 +383,17 @@ class SynthesisEvaluator:
         Returns:
             EvaluationResult for the synthesis
         """
+        # Load scoring config
+        config = self._scoring_config or get_scoring_config_sync()
+        eval_config = config.evaluation
+
         issues = []
         score = 1.0
 
         # Check synthesis is not empty
         if not synthesized_answer or len(synthesized_answer.strip()) < 50:
             issues.append("Synthesized answer is too short")
-            score -= 0.3
+            score -= eval_config.contradiction_penalty
 
         # Check that synthesis includes content from successful sub-results
         successful_results = {
@@ -389,23 +414,23 @@ class SynthesisEvaluator:
 
         # Check coverage of sub-results in synthesis
         coverage_score = self._check_coverage(synthesized_answer, successful_results)
-        if coverage_score < 0.5:
+        if coverage_score < config.confidence.score_medium_threshold:
             issues.append(f"Synthesis may not cover all sub-results (coverage: {coverage_score:.0%})")
-            score -= 0.2
+            score -= eval_config.source_mismatch_penalty
 
         # Check coherence (basic)
         if self._has_incoherence_markers(synthesized_answer):
             issues.append("Synthesis may have coherence issues")
-            score -= 0.15
+            score -= eval_config.format_error_penalty
 
         score = max(0.0, min(1.0, score))
-        passed = score >= 0.6
+        passed = score >= eval_config.pass_threshold
 
         return EvaluationResult(
             passed=passed,
             score=score,
             issues=issues,
-            retry_recommended=not passed and score >= 0.4,
+            retry_recommended=not passed and score >= eval_config.retry_threshold,
             retry_reason="Synthesis quality below threshold" if not passed else None
         )
 
@@ -430,7 +455,9 @@ class SynthesisEvaluator:
                 )
                 if result_words:
                     matches = sum(1 for word in result_words if word in synthesis_lower)
-                    if matches >= len(result_words) * 0.2:
+                    # Use 20% coverage threshold (low-level constant for synthesis coverage)
+                    coverage_threshold = 0.2
+                    if matches >= len(result_words) * coverage_threshold:
                         covered += 1
                 else:
                     covered += 1  # Cannot evaluate, assume covered

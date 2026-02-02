@@ -67,6 +67,35 @@ class EntityExtractor:
             r'\b\d+(?:\.\d+)?(?:\s*(?:percent|%|달러|원|억|만|천|백|십|개|명|건))\b',
             r'\b(?:\$|₩|€|£)\s*\d+(?:,\d{3})*(?:\.\d+)?\b',
         ],
+        # OpenFrame/Mainframe command patterns
+        EntityType.COMMAND: [
+            # OpenFrame *mgr commands (tjesmgr, hidbmgr, ofmgr, etc.)
+            r'\b(?:tjes|hidb|of|tac|tso|vtam|cics|batch|online)mgr\b',
+            # OpenFrame management commands
+            r'\b(?:tjesmgr|hidbmgr|ofmgr|tacfmgr|tsomgr|vtammgr|cicsmgr)\s+[A-Z]+\b',
+            # Common mainframe utilities
+            r'\b(?:IDCAMS|IEBGENER|IEBCOPY|IEFBR14|SORT|DFSORT)\b',
+            # JCL keywords
+            r'\b(?:DD|DSN|DISP|SPACE|DCB|VOL|UNIT|SYSOUT|COND)\b',
+        ],
+        # Error code patterns
+        EntityType.ERROR_CODE: [
+            # Numeric error codes with dash prefix (-5212, -17201), also handles (-5212)
+            r'(?<![A-Z])-\d{4,5}(?![0-9])',
+            # Product-specific error codes (JEUS-1234, ORA-12154, TIBERO-5001)
+            r'\b(?:JEUS|TIBERO|TMAX|OFM|OFCOBOL|OFASM|ORA|SQL|ERR|ERROR)-\d{4,5}\b',
+            # Named error constants (DSALC_ERR_*, BASE_ERR_*)
+            r'\b(?:DSALC|BASE|AIM|TJES|HIDB|TACF)_(?:ERR|ERROR)_[A-Z_]+\b',
+        ],
+        # Configuration file/parameter patterns
+        EntityType.CONFIG: [
+            # OpenFrame config files
+            r'\b(?:oframe|tjes|hidb|osc|tacf)\.conf\b',
+            # Configuration sections [SECTION_NAME]
+            r'\[\s*[A-Z_]+\s*\]',
+            # Environment variables
+            r'\b(?:OPENFRAME_HOME|TMAX_HOST_ADDR|TB_SID|COBDIR)\b',
+        ],
     }
 
     # Korean entity patterns
@@ -202,6 +231,112 @@ class EntityExtractor:
 
         # Default to concept
         return EntityType.CONCEPT
+
+    # =========================================================================
+    # M1: Entity Confidence Filtering
+    # =========================================================================
+
+    def filter_by_confidence(
+        self,
+        entities: List[KGEntity],
+        threshold: float = None,
+        log_filtered: bool = True
+    ) -> List[KGEntity]:
+        """
+        M1: Filter entities by confidence threshold.
+
+        Args:
+            entities: List of extracted entities
+            threshold: Minimum confidence (default: ENTITY_CONFIDENCE_THRESHOLD)
+            log_filtered: Whether to log filtered entities for debugging
+
+        Returns:
+            List of entities with confidence >= threshold
+        """
+        if threshold is None:
+            threshold = ENTITY_CONFIDENCE_THRESHOLD
+
+        filtered = []
+        low_confidence = []
+
+        for entity in entities:
+            if entity.confidence >= threshold:
+                filtered.append(entity)
+            else:
+                low_confidence.append(entity)
+
+        if log_filtered and low_confidence:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(
+                f"[M1] Filtered {len(low_confidence)} low-confidence entities "
+                f"(threshold={threshold}): {[e.label for e in low_confidence[:5]]}..."
+            )
+
+        return filtered
+
+    def mark_high_confidence(
+        self,
+        entities: List[KGEntity],
+        high_threshold: float = None
+    ) -> List[KGEntity]:
+        """
+        M1: Mark high-confidence entities with a property.
+
+        Args:
+            entities: List of entities
+            high_threshold: High confidence threshold (default: ENTITY_CONFIDENCE_HIGH)
+
+        Returns:
+            Entities with is_high_confidence property added
+        """
+        if high_threshold is None:
+            high_threshold = ENTITY_CONFIDENCE_HIGH
+
+        for entity in entities:
+            entity.properties["is_high_confidence"] = entity.confidence >= high_threshold
+
+        return entities
+
+    async def extract_entities_filtered(
+        self,
+        text: str,
+        entity_types: List[EntityType] = None,
+        language: str = "auto",
+        use_llm: bool = True,
+        apply_threshold: bool = True
+    ) -> List[KGEntity]:
+        """
+        M1: Extract entities with confidence filtering applied.
+
+        This is a convenience method that combines extraction and filtering.
+
+        Args:
+            text: Input text
+            entity_types: Types to extract
+            language: Text language
+            use_llm: Use LLM extraction
+            apply_threshold: Whether to apply confidence threshold
+
+        Returns:
+            List of filtered entities with high-confidence marking
+        """
+        # Extract all entities
+        entities = await self.extract_entities(
+            text=text,
+            entity_types=entity_types,
+            language=language,
+            use_llm=use_llm
+        )
+
+        # Apply confidence filtering
+        if apply_threshold:
+            entities = self.filter_by_confidence(entities)
+
+        # Mark high-confidence entities
+        entities = self.mark_high_confidence(entities)
+
+        return entities
 
 
 class RelationshipExtractor:
@@ -423,7 +558,8 @@ class KnowledgeGraphService:
         use_llm_extraction: bool = True,
         infer_relationships: bool = True,
         merge_similar_entities: bool = True,
-        language: str = "auto"
+        language: str = "auto",
+        apply_confidence_filter: bool = True  # M1: Enable confidence filtering
     ) -> KnowledgeGraph:
         """
         Build a Knowledge Graph from query and/or documents.
@@ -441,6 +577,7 @@ class KnowledgeGraphService:
             infer_relationships: Infer implicit relationships
             merge_similar_entities: Merge similar entities
             language: Extraction language
+            apply_confidence_filter: M1 - Filter low-confidence entities (default: True)
 
         Returns:
             Constructed Knowledge Graph
@@ -461,13 +598,22 @@ class KnowledgeGraphService:
 
         combined_text = "\n\n".join(text_sources)
 
-        # Extract entities
-        entities = await self.entity_extractor.extract_entities(
-            combined_text,
-            entity_types=entity_types,
-            language=language,
-            use_llm=use_llm_extraction
-        )
+        # Extract entities (M1: with confidence filtering if enabled)
+        if apply_confidence_filter:
+            entities = await self.entity_extractor.extract_entities_filtered(
+                combined_text,
+                entity_types=entity_types,
+                language=language,
+                use_llm=use_llm_extraction,
+                apply_threshold=True
+            )
+        else:
+            entities = await self.entity_extractor.extract_entities(
+                combined_text,
+                entity_types=entity_types,
+                language=language,
+                use_llm=use_llm_extraction
+            )
 
         # Limit entities
         entities = entities[:max_entities]
@@ -955,7 +1101,1222 @@ CREATE (a)-[:{rel.relation_type.value}]->(b)'''
         return ";\n\n".join(statements) + ";"
 
 
+# =========================================================================
+# H1: Chunk Similarity Relations Service (Neo4j-based)
+# =========================================================================
+
+# H1 Constants
+SIMILARITY_THRESHOLD = 0.80  # Minimum cosine similarity for SIMILAR_TO relation
+MAX_SIMILAR_RELATIONS = 5    # Max similar relations per chunk
+CO_MENTIONS_MIN_ENTITIES = 2 # Min common entities for CO_MENTIONS relation
+
+# =========================================================================
+# M1: Entity Confidence Threshold Constants
+# =========================================================================
+ENTITY_CONFIDENCE_THRESHOLD = 0.70  # Minimum confidence to store entity (70%)
+ENTITY_CONFIDENCE_HIGH = 0.90       # High confidence threshold for labeling (90%)
+
+
+class ChunkRelationService:
+    """
+    Service for creating and querying chunk-to-chunk relationships in Neo4j.
+
+    Provides:
+    - SIMILAR_TO: Semantic similarity between chunks (cosine >= 0.8)
+    - CO_MENTIONS: Chunks mentioning same entities
+    - Graph-based context expansion for RAG
+
+    Usage:
+        from langchain_neo4j import Neo4jGraph
+        graph = Neo4jGraph(url=..., username=..., password=...)
+        service = ChunkRelationService(graph)
+        await service.create_similarity_relations(document_id)
+    """
+
+    def __init__(self, graph):
+        """
+        Initialize with Neo4j graph connection.
+
+        Args:
+            graph: langchain_neo4j.Neo4jGraph instance
+        """
+        self.graph = graph
+
+    async def create_chunk_similarity_relations(
+        self,
+        document_id: str,
+        similarity_threshold: float = SIMILARITY_THRESHOLD,
+        max_relations: int = MAX_SIMILAR_RELATIONS
+    ) -> Dict[str, Any]:
+        """
+        Create SIMILAR_TO relations between semantically similar chunks.
+
+        Uses cosine similarity on chunk embeddings stored in Neo4j.
+        Only creates relations where similarity >= threshold.
+
+        Args:
+            document_id: Document ID to process
+            similarity_threshold: Minimum similarity (0-1)
+            max_relations: Max relations per chunk
+
+        Returns:
+            Dict with created_count, skipped_count, errors
+        """
+        # Note: This query requires Neo4j GDS or vector index for cosine similarity
+        # Alternative: Use manual calculation if GDS not available
+        query = """
+        MATCH (d:Document {id: $doc_id})-[:CONTAINS]->(c1:Chunk)
+        WHERE c1.embedding IS NOT NULL
+        WITH c1, d
+        MATCH (d)-[:CONTAINS]->(c2:Chunk)
+        WHERE c2.embedding IS NOT NULL
+          AND id(c1) < id(c2)
+        WITH c1, c2,
+             reduce(dot = 0.0, i IN range(0, size(c1.embedding)-1) |
+                dot + c1.embedding[i] * c2.embedding[i]) /
+             (sqrt(reduce(s1 = 0.0, x IN c1.embedding | s1 + x*x)) *
+              sqrt(reduce(s2 = 0.0, y IN c2.embedding | s2 + y*y))) AS similarity
+        WHERE similarity >= $threshold
+        WITH c1, c2, similarity
+        ORDER BY similarity DESC
+        WITH c1, collect({chunk: c2, score: similarity})[0..$max_rels] as top_similar
+        UNWIND top_similar as sim
+        MERGE (c1)-[r:SIMILAR_TO]->(sim.chunk)
+        SET r.score = sim.score,
+            r.created_at = datetime(),
+            r.method = 'cosine_similarity'
+        RETURN count(r) as created_count
+        """
+
+        try:
+            result = self.graph.query(query, {
+                "doc_id": document_id,
+                "threshold": similarity_threshold,
+                "max_rels": max_relations
+            })
+
+            created_count = result[0]["created_count"] if result else 0
+
+            return {
+                "success": True,
+                "created_count": created_count,
+                "document_id": document_id,
+                "threshold": similarity_threshold
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "document_id": document_id
+            }
+
+    async def create_co_mentions_relations(
+        self,
+        document_id: str,
+        min_common_entities: int = CO_MENTIONS_MIN_ENTITIES
+    ) -> Dict[str, Any]:
+        """
+        Create CO_MENTIONS relations between chunks sharing entities.
+
+        Two chunks are connected if they both MENTION the same entities.
+
+        Args:
+            document_id: Document ID to process
+            min_common_entities: Minimum shared entities required
+
+        Returns:
+            Dict with created_count and details
+        """
+        query = """
+        MATCH (d:Document {id: $doc_id})-[:CONTAINS]->(c1:Chunk)
+        MATCH (d)-[:CONTAINS]->(c2:Chunk)
+        WHERE id(c1) < id(c2)
+        MATCH (c1)-[:MENTIONS]->(e:Entity)<-[:MENTIONS]-(c2)
+        WITH c1, c2, collect(DISTINCT e.name) as common_entities
+        WHERE size(common_entities) >= $min_entities
+        MERGE (c1)-[r:CO_MENTIONS]->(c2)
+        SET r.entities = common_entities,
+            r.count = size(common_entities),
+            r.created_at = datetime()
+        RETURN count(r) as created_count
+        """
+
+        try:
+            result = self.graph.query(query, {
+                "doc_id": document_id,
+                "min_entities": min_common_entities
+            })
+
+            created_count = result[0]["created_count"] if result else 0
+
+            return {
+                "success": True,
+                "created_count": created_count,
+                "document_id": document_id,
+                "min_common_entities": min_common_entities
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "document_id": document_id
+            }
+
+    async def create_all_chunk_relations(
+        self,
+        document_id: str,
+        similarity_threshold: float = SIMILARITY_THRESHOLD,
+        min_common_entities: int = CO_MENTIONS_MIN_ENTITIES
+    ) -> Dict[str, Any]:
+        """
+        Create all chunk-to-chunk relations for a document.
+
+        Combines SIMILAR_TO and CO_MENTIONS relation creation.
+
+        Args:
+            document_id: Document ID
+            similarity_threshold: For SIMILAR_TO
+            min_common_entities: For CO_MENTIONS
+
+        Returns:
+            Combined results
+        """
+        similar_result = await self.create_chunk_similarity_relations(
+            document_id, similarity_threshold
+        )
+
+        co_mentions_result = await self.create_co_mentions_relations(
+            document_id, min_common_entities
+        )
+
+        return {
+            "document_id": document_id,
+            "similar_to": similar_result,
+            "co_mentions": co_mentions_result,
+            "total_relations": (
+                (similar_result.get("created_count", 0) if similar_result.get("success") else 0) +
+                (co_mentions_result.get("created_count", 0) if co_mentions_result.get("success") else 0)
+            )
+        }
+
+    # =========================================================================
+    # M2: Chunk Overlap Relations
+    # =========================================================================
+
+    async def create_overlap_relations(
+        self,
+        document_id: str
+    ) -> Dict[str, Any]:
+        """
+        M2: Create OVERLAPS relations between sequential chunks.
+
+        Finds chunks with NEXT relations and creates OVERLAPS to track
+        content continuity between adjacent chunks.
+
+        Args:
+            document_id: Document ID to process
+
+        Returns:
+            Dict with created_count and details
+        """
+        query = """
+        MATCH (d:Document {id: $doc_id})-[:CONTAINS]->(c1:Chunk)-[:NEXT]->(c2:Chunk)
+        WHERE NOT EXISTS((c1)-[:OVERLAPS]->(c2))
+        WITH c1, c2,
+             CASE
+                 WHEN size(c1.content) > 100 AND size(c2.content) > 100
+                 THEN substring(c1.content, size(c1.content) - 100)
+                 ELSE ''
+             END as tail_text,
+             CASE
+                 WHEN size(c1.content) > 100 AND size(c2.content) > 100
+                 THEN substring(c2.content, 0, 100)
+                 ELSE ''
+             END as head_text
+        WHERE tail_text <> '' AND head_text <> ''
+        CREATE (c1)-[r:OVERLAPS {
+            chars: 100,
+            position: 'end-start',
+            tail_hash: left(toString(abs(reduce(h = 0, c IN split(tail_text, '') | h + toInteger(c)))), 8),
+            created_at: datetime()
+        }]->(c2)
+        RETURN count(r) as created_count
+        """
+
+        try:
+            result = self.graph.query(query, {"doc_id": document_id})
+            created_count = result[0]["created_count"] if result else 0
+
+            return {
+                "success": True,
+                "created_count": created_count,
+                "document_id": document_id
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "document_id": document_id
+            }
+
+    async def create_overlap_relation_single(
+        self,
+        source_chunk_id: str,
+        target_chunk_id: str,
+        overlap_text: str,
+        overlap_chars: int,
+        position: str = "end-start"
+    ) -> Dict[str, Any]:
+        """
+        M2: Create a single OVERLAPS relation between two chunks.
+
+        Args:
+            source_chunk_id: Source chunk ID (has tail overlap)
+            target_chunk_id: Target chunk ID (has head overlap)
+            overlap_text: The overlapping text content
+            overlap_chars: Number of overlapping characters
+            position: Position description (default: end-start)
+
+        Returns:
+            Dict with success status
+        """
+        import hashlib
+        text_hash = hashlib.md5(overlap_text.encode()).hexdigest()[:8]
+
+        query = """
+        MATCH (c1:Chunk {id: $source_id})
+        MATCH (c2:Chunk {id: $target_id})
+        MERGE (c1)-[r:OVERLAPS]->(c2)
+        SET r.chars = $chars,
+            r.position = $position,
+            r.text_hash = $text_hash,
+            r.created_at = datetime()
+        RETURN r IS NOT NULL as success
+        """
+
+        try:
+            result = self.graph.query(query, {
+                "source_id": source_chunk_id,
+                "target_id": target_chunk_id,
+                "chars": overlap_chars,
+                "position": position,
+                "text_hash": text_hash
+            })
+
+            return {
+                "success": True,
+                "source_chunk_id": source_chunk_id,
+                "target_chunk_id": target_chunk_id,
+                "overlap_chars": overlap_chars
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_overlapping_chunks(
+        self,
+        chunk_id: str
+    ) -> List[Dict[str, Any]]:
+        """
+        M2: Get chunks that overlap with a given chunk.
+
+        Args:
+            chunk_id: Chunk ID
+
+        Returns:
+            List of overlapping chunks with overlap info
+        """
+        query = """
+        MATCH (c:Chunk {id: $chunk_id})-[r:OVERLAPS]-(related:Chunk)
+        RETURN
+            related.id as chunk_id,
+            related.content as content,
+            related.page_number as page_number,
+            r.chars as overlap_chars,
+            r.position as position,
+            CASE
+                WHEN startNode(r) = c THEN 'outgoing'
+                ELSE 'incoming'
+            END as direction
+        ORDER BY related.chunk_index
+        """
+
+        result = self.graph.query(query, {"chunk_id": chunk_id})
+        return [dict(row) for row in result]
+
+    async def get_similar_chunks(
+        self,
+        chunk_id: str,
+        min_score: float = 0.7,
+        limit: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Get chunks similar to a given chunk.
+
+        Args:
+            chunk_id: Source chunk ID
+            min_score: Minimum similarity score
+            limit: Max results
+
+        Returns:
+            List of similar chunks with scores
+        """
+        query = """
+        MATCH (c:Chunk {id: $chunk_id})-[r:SIMILAR_TO]-(similar:Chunk)
+        WHERE r.score >= $min_score
+        RETURN similar.id as chunk_id,
+               similar.content as content,
+               r.score as similarity,
+               similar.page_number as page_number
+        ORDER BY r.score DESC
+        LIMIT $limit
+        """
+
+        result = self.graph.query(query, {
+            "chunk_id": chunk_id,
+            "min_score": min_score,
+            "limit": limit
+        })
+
+        return [dict(row) for row in result]
+
+    async def get_co_mentioning_chunks(
+        self,
+        chunk_id: str,
+        limit: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Get chunks that share entity mentions with given chunk.
+
+        Args:
+            chunk_id: Source chunk ID
+            limit: Max results
+
+        Returns:
+            List of co-mentioning chunks with shared entities
+        """
+        query = """
+        MATCH (c:Chunk {id: $chunk_id})-[r:CO_MENTIONS]-(related:Chunk)
+        RETURN related.id as chunk_id,
+               related.content as content,
+               r.entities as shared_entities,
+               r.count as entity_count
+        ORDER BY r.count DESC
+        LIMIT $limit
+        """
+
+        result = self.graph.query(query, {
+            "chunk_id": chunk_id,
+            "limit": limit
+        })
+
+        return [dict(row) for row in result]
+
+    async def expand_context(
+        self,
+        chunk_ids: List[str],
+        depth: int = 2,
+        include_similar: bool = True,
+        include_co_mentions: bool = True,
+        include_next: bool = True,
+        include_overlaps: bool = True,
+        include_section_siblings: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Expand context by following chunk relations.
+
+        Used by RAG to gather related chunks for better context.
+
+        Args:
+            chunk_ids: Starting chunk IDs
+            depth: Max relation hops
+            include_similar: Include SIMILAR_TO relations
+            include_co_mentions: Include CO_MENTIONS relations
+            include_next: Include NEXT relations
+            include_overlaps: Include OVERLAPS relations (M2)
+            include_section_siblings: Include chunks from same section (M3)
+
+        Returns:
+            Dict with source chunks, related chunks, and relation info
+        """
+        rel_types = []
+        if include_similar:
+            rel_types.append("SIMILAR_TO")
+        if include_co_mentions:
+            rel_types.append("CO_MENTIONS")
+        if include_next:
+            rel_types.append("NEXT")
+        if include_overlaps:
+            rel_types.append("OVERLAPS")
+
+        if not rel_types:
+            return {"source_chunks": chunk_ids, "related_chunks": [], "relations": []}
+
+        rel_pattern = "|".join(rel_types)
+
+        query = f"""
+        MATCH (c:Chunk)
+        WHERE c.id IN $chunk_ids
+        CALL {{
+            WITH c
+            MATCH path = (c)-[:{rel_pattern}*1..{depth}]-(related:Chunk)
+            WHERE related.id <> c.id
+            RETURN DISTINCT related,
+                   length(path) as distance,
+                   [r IN relationships(path) | type(r)] as rel_types
+            ORDER BY distance
+            LIMIT 10
+        }}
+        RETURN c.id as source_id,
+               collect({{
+                   chunk_id: related.id,
+                   content: related.content,
+                   page_number: related.page_number,
+                   distance: distance,
+                   via_relations: rel_types
+               }}) as related_chunks
+        """
+
+        result = self.graph.query(query, {"chunk_ids": chunk_ids})
+
+        # Flatten and deduplicate results
+        all_related = {}
+        for row in result:
+            for chunk in row["related_chunks"]:
+                chunk_id = chunk["chunk_id"]
+                if chunk_id not in all_related or chunk["distance"] < all_related[chunk_id]["distance"]:
+                    all_related[chunk_id] = chunk
+
+        # M3: Include section siblings
+        if include_section_siblings:
+            section_query = """
+            MATCH (c:Chunk)
+            WHERE c.id IN $chunk_ids AND c.section_id IS NOT NULL
+            MATCH (s:Section {id: c.section_id})-[:CONTAINS_CHUNK]->(sibling:Chunk)
+            WHERE sibling.id <> c.id AND NOT sibling.id IN $chunk_ids
+            RETURN DISTINCT sibling.id as chunk_id,
+                   sibling.content as content,
+                   sibling.page_number as page_number,
+                   1 as distance,
+                   ['SECTION_SIBLING'] as via_relations
+            LIMIT 10
+            """
+            section_result = self.graph.query(section_query, {"chunk_ids": chunk_ids})
+
+            for row in section_result:
+                chunk_id = row["chunk_id"]
+                if chunk_id not in all_related:
+                    all_related[chunk_id] = dict(row)
+
+        return {
+            "source_chunks": chunk_ids,
+            "related_chunks": list(all_related.values()),
+            "total_related": len(all_related)
+        }
+
+    async def get_chunk_relation_stats(
+        self,
+        document_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Get statistics about chunk relations.
+
+        Args:
+            document_id: Optional filter by document
+
+        Returns:
+            Relation counts and statistics
+        """
+        if document_id:
+            query = """
+            MATCH (d:Document {id: $doc_id})-[:CONTAINS]->(c:Chunk)
+            OPTIONAL MATCH (c)-[sim:SIMILAR_TO]-()
+            OPTIONAL MATCH (c)-[co:CO_MENTIONS]-()
+            OPTIONAL MATCH (c)-[next:NEXT]-()
+            RETURN
+                count(DISTINCT c) as total_chunks,
+                count(DISTINCT sim) as similar_to_count,
+                count(DISTINCT co) as co_mentions_count,
+                count(DISTINCT next) as next_count,
+                avg(sim.score) as avg_similarity
+            """
+            result = self.graph.query(query, {"doc_id": document_id})
+        else:
+            query = """
+            MATCH (c:Chunk)
+            OPTIONAL MATCH (c)-[sim:SIMILAR_TO]-()
+            OPTIONAL MATCH (c)-[co:CO_MENTIONS]-()
+            OPTIONAL MATCH (c)-[next:NEXT]-()
+            RETURN
+                count(DISTINCT c) as total_chunks,
+                count(DISTINCT sim) as similar_to_count,
+                count(DISTINCT co) as co_mentions_count,
+                count(DISTINCT next) as next_count,
+                avg(sim.score) as avg_similarity
+            """
+            result = self.graph.query(query)
+
+        if result:
+            row = result[0]
+            return {
+                "total_chunks": row["total_chunks"],
+                "relations": {
+                    "SIMILAR_TO": row["similar_to_count"],
+                    "CO_MENTIONS": row["co_mentions_count"],
+                    "NEXT": row["next_count"]
+                },
+                "avg_similarity_score": row["avg_similarity"]
+            }
+
+        return {"total_chunks": 0, "relations": {}, "avg_similarity_score": None}
+
+    # =========================================================================
+    # M1: Entity Confidence Operations in Neo4j
+    # =========================================================================
+
+    async def label_high_confidence_entities(
+        self,
+        document_id: Optional[str] = None,
+        threshold: float = ENTITY_CONFIDENCE_HIGH
+    ) -> Dict[str, Any]:
+        """
+        M1: Add HighConfidenceEntity label to entities above threshold.
+
+        Args:
+            document_id: Optional document filter
+            threshold: Confidence threshold (default: 0.9)
+
+        Returns:
+            Dict with labeled_count and details
+        """
+        if document_id:
+            query = """
+            MATCH (d:Document {id: $doc_id})-[:CONTAINS]->(c:Chunk)-[:MENTIONS]->(e:Entity)
+            WHERE e.confidence >= $threshold
+              AND NOT e:HighConfidenceEntity
+            SET e:HighConfidenceEntity
+            RETURN count(DISTINCT e) as labeled_count
+            """
+            params = {"doc_id": document_id, "threshold": threshold}
+        else:
+            query = """
+            MATCH (e:Entity)
+            WHERE e.confidence >= $threshold
+              AND NOT e:HighConfidenceEntity
+            SET e:HighConfidenceEntity
+            RETURN count(e) as labeled_count
+            """
+            params = {"threshold": threshold}
+
+        try:
+            result = self.graph.query(query, params)
+            labeled_count = result[0]["labeled_count"] if result else 0
+
+            return {
+                "success": True,
+                "labeled_count": labeled_count,
+                "threshold": threshold,
+                "document_id": document_id
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "document_id": document_id
+            }
+
+    async def get_entity_confidence_stats(
+        self,
+        document_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        M1: Get entity confidence statistics.
+
+        Args:
+            document_id: Optional document filter
+
+        Returns:
+            Statistics about entity confidence distribution
+        """
+        if document_id:
+            query = """
+            MATCH (d:Document {id: $doc_id})-[:CONTAINS]->(c:Chunk)-[:MENTIONS]->(e:Entity)
+            WITH DISTINCT e
+            RETURN
+                count(e) as total_entities,
+                count(CASE WHEN e.confidence >= $high_threshold THEN 1 END) as high_confidence_count,
+                count(CASE WHEN e.confidence >= $threshold AND e.confidence < $high_threshold THEN 1 END) as medium_confidence_count,
+                count(CASE WHEN e.confidence < $threshold THEN 1 END) as low_confidence_count,
+                avg(e.confidence) as avg_confidence,
+                count(CASE WHEN e:HighConfidenceEntity THEN 1 END) as labeled_high_count
+            """
+            params = {
+                "doc_id": document_id,
+                "threshold": ENTITY_CONFIDENCE_THRESHOLD,
+                "high_threshold": ENTITY_CONFIDENCE_HIGH
+            }
+        else:
+            query = """
+            MATCH (e:Entity)
+            RETURN
+                count(e) as total_entities,
+                count(CASE WHEN e.confidence >= $high_threshold THEN 1 END) as high_confidence_count,
+                count(CASE WHEN e.confidence >= $threshold AND e.confidence < $high_threshold THEN 1 END) as medium_confidence_count,
+                count(CASE WHEN e.confidence < $threshold THEN 1 END) as low_confidence_count,
+                avg(e.confidence) as avg_confidence,
+                count(CASE WHEN e:HighConfidenceEntity THEN 1 END) as labeled_high_count
+            """
+            params = {
+                "threshold": ENTITY_CONFIDENCE_THRESHOLD,
+                "high_threshold": ENTITY_CONFIDENCE_HIGH
+            }
+
+        try:
+            result = self.graph.query(query, params)
+            if result:
+                row = result[0]
+                total = row["total_entities"] or 0
+                high = row["high_confidence_count"] or 0
+
+                return {
+                    "total_entities": total,
+                    "high_confidence_count": high,
+                    "medium_confidence_count": row["medium_confidence_count"] or 0,
+                    "low_confidence_count": row["low_confidence_count"] or 0,
+                    "avg_confidence": row["avg_confidence"],
+                    "labeled_high_count": row["labeled_high_count"] or 0,
+                    "high_confidence_ratio": high / total if total > 0 else 0,
+                    "thresholds": {
+                        "low": ENTITY_CONFIDENCE_THRESHOLD,
+                        "high": ENTITY_CONFIDENCE_HIGH
+                    }
+                }
+            return {"total_entities": 0}
+        except Exception as e:
+            return {"error": str(e)}
+
+    # =========================================================================
+    # M3: Section Hierarchy Operations
+    # =========================================================================
+
+    async def create_section_node(
+        self,
+        document_id: str,
+        section_id: str,
+        title: str,
+        level: int,
+        path: str,
+        page_start: int,
+        page_end: int,
+        parent_section_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        M3: Create a Section node and link it to Document or parent Section.
+
+        Args:
+            document_id: Document ID
+            section_id: Unique section ID
+            title: Section title
+            level: Hierarchy level (1=chapter, 2=section, 3=subsection)
+            path: Section path (e.g., "1", "1.1", "1.1.2")
+            page_start: Starting page
+            page_end: Ending page
+            parent_section_id: Optional parent section ID
+
+        Returns:
+            Dict with success status and section details
+        """
+        # Create Section node
+        create_query = """
+        MERGE (s:Section {id: $section_id})
+        SET s.title = $title,
+            s.level = $level,
+            s.path = $path,
+            s.page_start = $page_start,
+            s.page_end = $page_end,
+            s.document_id = $document_id,
+            s.created_at = datetime()
+        RETURN s.id as section_id
+        """
+
+        try:
+            self.graph.query(create_query, {
+                "section_id": section_id,
+                "title": title,
+                "level": level,
+                "path": path,
+                "page_start": page_start,
+                "page_end": page_end,
+                "document_id": document_id
+            })
+
+            # Link to parent (Document or Section)
+            if parent_section_id:
+                # Link Section → Section
+                link_query = """
+                MATCH (parent:Section {id: $parent_id})
+                MATCH (child:Section {id: $child_id})
+                MERGE (parent)-[:HAS_SECTION]->(child)
+                """
+                self.graph.query(link_query, {
+                    "parent_id": parent_section_id,
+                    "child_id": section_id
+                })
+            else:
+                # Link Document → Section (top-level section)
+                link_query = """
+                MATCH (d:Document {id: $doc_id})
+                MATCH (s:Section {id: $section_id})
+                MERGE (d)-[:HAS_SECTION]->(s)
+                """
+                self.graph.query(link_query, {
+                    "doc_id": document_id,
+                    "section_id": section_id
+                })
+
+            return {
+                "success": True,
+                "section_id": section_id,
+                "title": title,
+                "level": level,
+                "path": path
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def link_chunk_to_section(
+        self,
+        chunk_id: str,
+        section_id: str
+    ) -> Dict[str, Any]:
+        """
+        M3: Link a Chunk to its containing Section.
+
+        Args:
+            chunk_id: Chunk ID
+            section_id: Section ID
+
+        Returns:
+            Dict with success status
+        """
+        query = """
+        MATCH (s:Section {id: $section_id})
+        MATCH (c:Chunk {id: $chunk_id})
+        MERGE (s)-[:CONTAINS_CHUNK]->(c)
+        SET c.section_id = $section_id
+        RETURN s.id as section_id, c.id as chunk_id
+        """
+
+        try:
+            result = self.graph.query(query, {
+                "section_id": section_id,
+                "chunk_id": chunk_id
+            })
+
+            if result:
+                return {
+                    "success": True,
+                    "section_id": section_id,
+                    "chunk_id": chunk_id
+                }
+            return {
+                "success": False,
+                "error": "No match found"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def get_chunks_by_section(
+        self,
+        section_path: str,
+        document_id: Optional[str] = None,
+        include_subsections: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        M3: Get all chunks within a section (and optionally subsections).
+
+        Args:
+            section_path: Section path (e.g., "2" for chapter 2, "2.1" for section 2.1)
+            document_id: Optional document filter
+            include_subsections: Include chunks from child sections
+
+        Returns:
+            List of chunks with section info
+        """
+        if include_subsections:
+            # Use STARTS WITH for path prefix matching
+            path_filter = "s.path STARTS WITH $section_path"
+        else:
+            path_filter = "s.path = $section_path"
+
+        if document_id:
+            query = f"""
+            MATCH (d:Document {{id: $doc_id}})-[:HAS_SECTION*1..]->(s:Section)
+            WHERE {path_filter}
+            MATCH (s)-[:CONTAINS_CHUNK]->(c:Chunk)
+            RETURN c.id as chunk_id,
+                   c.content as content,
+                   c.page_number as page_number,
+                   s.path as section_path,
+                   s.title as section_title,
+                   s.level as section_level
+            ORDER BY s.path, c.chunk_index
+            """
+            params = {"doc_id": document_id, "section_path": section_path}
+        else:
+            query = f"""
+            MATCH (s:Section)-[:CONTAINS_CHUNK]->(c:Chunk)
+            WHERE {path_filter}
+            RETURN c.id as chunk_id,
+                   c.content as content,
+                   c.page_number as page_number,
+                   s.path as section_path,
+                   s.title as section_title,
+                   s.level as section_level
+            ORDER BY s.path, c.chunk_index
+            """
+            params = {"section_path": section_path}
+
+        result = self.graph.query(query, params)
+        return [dict(row) for row in result]
+
+    async def get_section_hierarchy(
+        self,
+        document_id: str
+    ) -> List[Dict[str, Any]]:
+        """
+        M3: Get the complete section hierarchy for a document.
+
+        Args:
+            document_id: Document ID
+
+        Returns:
+            List of sections with hierarchy info
+        """
+        query = """
+        MATCH (d:Document {id: $doc_id})-[:HAS_SECTION*1..]->(s:Section)
+        OPTIONAL MATCH (s)-[:CONTAINS_CHUNK]->(c:Chunk)
+        WITH s, count(c) as chunk_count
+        OPTIONAL MATCH (parent:Section)-[:HAS_SECTION]->(s)
+        RETURN s.id as section_id,
+               s.title as title,
+               s.level as level,
+               s.path as path,
+               s.page_start as page_start,
+               s.page_end as page_end,
+               parent.id as parent_section_id,
+               chunk_count
+        ORDER BY s.path
+        """
+
+        result = self.graph.query(query, {"doc_id": document_id})
+        return [dict(row) for row in result]
+
+    async def build_section_hierarchy_from_chunks(
+        self,
+        document_id: str
+    ) -> Dict[str, Any]:
+        """
+        M3: Build section hierarchy from existing chunk section_path metadata.
+
+        Extracts unique section paths from chunks and creates Section nodes.
+
+        Args:
+            document_id: Document ID
+
+        Returns:
+            Dict with created sections count and details
+        """
+        # Get unique section paths from chunks
+        query = """
+        MATCH (d:Document {id: $doc_id})-[:CONTAINS]->(c:Chunk)
+        WHERE c.section_path IS NOT NULL AND c.section_path <> ''
+        WITH DISTINCT c.section_path as path, c.section_title as title,
+             min(c.page_number) as page_start,
+             max(c.page_number) as page_end
+        RETURN path, title, page_start, page_end
+        ORDER BY path
+        """
+
+        result = self.graph.query(query, {"doc_id": document_id})
+
+        created_sections = []
+        for row in result:
+            path = row["path"]
+            title = row["title"] or f"Section {path}"
+            level = len(path.split(".")) if path else 1
+
+            # Determine parent section
+            parts = path.split(".")
+            parent_path = ".".join(parts[:-1]) if len(parts) > 1 else None
+            parent_section_id = f"{document_id}_sec_{parent_path}" if parent_path else None
+
+            section_id = f"{document_id}_sec_{path}"
+
+            section_result = await self.create_section_node(
+                document_id=document_id,
+                section_id=section_id,
+                title=title,
+                level=level,
+                path=path,
+                page_start=row["page_start"] or 1,
+                page_end=row["page_end"] or 1,
+                parent_section_id=parent_section_id
+            )
+
+            if section_result.get("success"):
+                created_sections.append(section_result)
+
+        # Link chunks to their sections
+        link_query = """
+        MATCH (d:Document {id: $doc_id})-[:CONTAINS]->(c:Chunk)
+        WHERE c.section_path IS NOT NULL AND c.section_path <> ''
+        MATCH (s:Section {path: c.section_path, document_id: $doc_id})
+        MERGE (s)-[:CONTAINS_CHUNK]->(c)
+        SET c.section_id = s.id
+        RETURN count(c) as linked_count
+        """
+
+        link_result = self.graph.query(link_query, {"doc_id": document_id})
+        linked_count = link_result[0]["linked_count"] if link_result else 0
+
+        return {
+            "success": True,
+            "document_id": document_id,
+            "sections_created": len(created_sections),
+            "chunks_linked": linked_count,
+            "sections": created_sections
+        }
+
+    # =========================================================================
+    # Integrated Document Graph Processing (M1, M2, M3)
+    # =========================================================================
+
+    async def process_document_graph(
+        self,
+        document_id: str,
+        chunks: List[Any],
+        options: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Process document chunks and create enriched Graph DB structure.
+
+        Integrates M1, M2, M3 improvements:
+        - M1: Entity extraction with confidence filtering
+        - M2: Chunk relations (SIMILAR_TO, CO_MENTIONS, OVERLAPS)
+        - M3: Section hierarchy from chunk metadata
+
+        Args:
+            document_id: Document ID
+            chunks: List of TextChunk objects (must have id, content, page_number)
+            options: GraphProcessingOptions (optional, uses defaults if None)
+
+        Returns:
+            GraphProcessingResult as dict
+        """
+        import time
+        import logging
+        from ..models.document import GraphProcessingOptions, GraphProcessingResult
+
+        logger = logging.getLogger(__name__)
+        start_time = time.time()
+
+        # Use default options if not provided
+        if options is None:
+            options = GraphProcessingOptions()
+
+        result = GraphProcessingResult(document_id=document_id)
+
+        try:
+            # =================================================================
+            # M1: Entity Extraction with Confidence Filtering
+            # =================================================================
+            if options.extract_entities and chunks:
+                logger.info(f"[M1] Starting entity extraction for document {document_id}")
+
+                entity_extractor = EntityExtractor()
+                all_entities = []
+                batch_size = options.batch_size
+
+                # Process chunks in batches
+                for i in range(0, len(chunks), batch_size):
+                    batch = chunks[i:i + batch_size]
+
+                    for chunk in batch:
+                        chunk_content = getattr(chunk, 'content', str(chunk))
+                        chunk_id = getattr(chunk, 'id', f"chunk_{i}")
+
+                        # Extract entities with confidence filtering
+                        entities = await entity_extractor.extract_entities_filtered(
+                            text=chunk_content[:2000],  # Limit text length
+                            apply_threshold=True
+                        )
+
+                        # Limit entities per chunk
+                        entities = entities[:options.max_entities_per_chunk]
+                        result.entities_extracted += len(entities)
+
+                        # Create Entity nodes and MENTIONS relations
+                        for entity in entities:
+                            await self._create_entity_and_mention(
+                                chunk_id=chunk_id,
+                                entity=entity,
+                                high_threshold=options.high_confidence_threshold
+                            )
+
+                            if entity.properties.get("is_high_confidence"):
+                                result.high_confidence_entities += 1
+
+                    # Log progress
+                    processed = min(i + batch_size, len(chunks))
+                    logger.debug(f"[M1] Processed {processed}/{len(chunks)} chunks")
+
+                logger.info(
+                    f"[M1] Entity extraction complete: {result.entities_extracted} entities, "
+                    f"{result.high_confidence_entities} high-confidence"
+                )
+
+            # =================================================================
+            # M2: Chunk Relations (SIMILAR_TO, CO_MENTIONS, OVERLAPS)
+            # =================================================================
+            if options.create_similar_relations:
+                logger.info(f"[M2] Creating SIMILAR_TO relations for document {document_id}")
+                similar_result = await self.create_chunk_similarity_relations(
+                    document_id=document_id,
+                    similarity_threshold=options.similarity_threshold
+                )
+                if similar_result.get("success"):
+                    result.similar_relations_created = similar_result.get("created_count", 0)
+                logger.info(f"[M2] Created {result.similar_relations_created} SIMILAR_TO relations")
+
+            if options.create_co_mention_relations:
+                logger.info(f"[M2] Creating CO_MENTIONS relations for document {document_id}")
+                co_mention_result = await self.create_co_mentions_relations(
+                    document_id=document_id
+                )
+                if co_mention_result.get("success"):
+                    result.co_mention_relations_created = co_mention_result.get("created_count", 0)
+                logger.info(f"[M2] Created {result.co_mention_relations_created} CO_MENTIONS relations")
+
+            if options.create_overlap_relations:
+                logger.info(f"[M2] Creating OVERLAPS relations for document {document_id}")
+                overlap_result = await self.create_overlap_relations(document_id=document_id)
+                if overlap_result.get("success"):
+                    result.overlap_relations_created = overlap_result.get("created_count", 0)
+                logger.info(f"[M2] Created {result.overlap_relations_created} OVERLAPS relations")
+
+            # =================================================================
+            # M3: Section Hierarchy
+            # =================================================================
+            if options.build_section_hierarchy:
+                logger.info(f"[M3] Building section hierarchy for document {document_id}")
+                hierarchy_result = await self.build_section_hierarchy_from_chunks(document_id)
+                if hierarchy_result.get("success"):
+                    result.sections_created = hierarchy_result.get("sections_created", 0)
+                    result.section_chunk_links = hierarchy_result.get("chunks_linked", 0)
+                logger.info(
+                    f"[M3] Section hierarchy complete: {result.sections_created} sections, "
+                    f"{result.section_chunk_links} chunk links"
+                )
+
+            # Label high-confidence entities (M1)
+            if options.extract_entities:
+                await self.label_high_confidence_entities(
+                    document_id=document_id,
+                    threshold=options.high_confidence_threshold
+                )
+
+            result.success = True
+
+        except Exception as e:
+            logger.error(f"Graph processing failed for document {document_id}: {e}")
+            result.success = False
+            result.error_message = str(e)
+
+        result.processing_time_seconds = time.time() - start_time
+        logger.info(
+            f"Graph processing complete for {document_id}: "
+            f"success={result.success}, time={result.processing_time_seconds:.2f}s"
+        )
+
+        return result.model_dump()
+
+    async def _create_entity_and_mention(
+        self,
+        chunk_id: str,
+        entity: Any,
+        high_threshold: float = ENTITY_CONFIDENCE_HIGH
+    ) -> bool:
+        """
+        Create Entity node and MENTIONS relation to Chunk.
+
+        Args:
+            chunk_id: Chunk ID
+            entity: KGEntity object
+            high_threshold: High confidence threshold for labeling
+
+        Returns:
+            True if successful
+        """
+        try:
+            # Create or merge Entity node
+            entity_labels = "Entity"
+            if entity.confidence >= high_threshold:
+                entity_labels = "Entity:HighConfidenceEntity"
+
+            query = f"""
+            MERGE (e:{entity_labels} {{name: $name}})
+            ON CREATE SET
+                e.type = $type,
+                e.confidence = $confidence,
+                e.created_at = datetime()
+            ON MATCH SET
+                e.confidence = CASE
+                    WHEN e.confidence < $confidence THEN $confidence
+                    ELSE e.confidence
+                END
+            WITH e
+            MATCH (c:Chunk {{id: $chunk_id}})
+            MERGE (c)-[:MENTIONS]->(e)
+            RETURN e.name as name
+            """
+
+            self.graph.query(query, {
+                "name": entity.label,
+                "type": entity.entity_type.value if hasattr(entity.entity_type, 'value') else str(entity.entity_type),
+                "confidence": entity.confidence,
+                "chunk_id": chunk_id
+            })
+
+            return True
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to create entity {entity.label}: {e}")
+            return False
+
+
 # Factory function
 def get_knowledge_graph_service() -> KnowledgeGraphService:
     """Get Knowledge Graph service instance."""
     return KnowledgeGraphService()
+
+
+def get_chunk_relation_service(graph) -> ChunkRelationService:
+    """
+    Get Chunk Relation service instance.
+
+    Args:
+        graph: Neo4jGraph instance from langchain_neo4j
+
+    Returns:
+        ChunkRelationService instance
+    """
+    return ChunkRelationService(graph)

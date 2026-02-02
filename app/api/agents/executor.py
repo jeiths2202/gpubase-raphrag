@@ -29,6 +29,8 @@ from .formatters import DirectReturnFormatter, HybridModeDecision
 from .types import BlockType, AnswerBlock, StructuredAnswer
 from ..core.app_mode import is_develop_mode
 from ..services.reliability_service import calculate_reliability
+from ..services.scoring_config_service import get_scoring_config_sync
+from ..models.scoring_config import ScoringConfig
 import re
 
 logger = logging.getLogger(__name__)
@@ -352,10 +354,13 @@ async def _execute_all_tools_develop_mode(
 # RAG Analysis: Extract and format detailed RAG processing information
 # ============================================================================
 
-def _analyze_query_keywords(query: str, language: str = "ko") -> Dict[str, Any]:
+async def _analyze_query_keywords(query: str, language: str = "ko") -> Dict[str, Any]:
     """
     분석 프롬프트에서 키워드와 의도를 추출합니다.
     Extracts keywords and intent from the query prompt.
+
+    Uses LLM-based KeywordExtractionService for CJK (Japanese/Korean/Chinese) queries
+    to handle languages without word boundaries. Falls back to regex for non-CJK.
 
     Args:
         query: User query string
@@ -364,7 +369,7 @@ def _analyze_query_keywords(query: str, language: str = "ko") -> Dict[str, Any]:
     Returns:
         Dict with keywords, intent, search_strategy (localized)
     """
-    import re
+    from ..services.keyword_extraction_service import get_keyword_extraction_service
 
     # Localized labels for intent and search strategy
     INTENT_LABELS = {
@@ -385,22 +390,16 @@ def _analyze_query_keywords(query: str, language: str = "ko") -> Dict[str, Any]:
         lang_labels = labels.get(key, {})
         return lang_labels.get(language, lang_labels.get("en", lang_labels.get("ko", key)))
 
-    # 간단한 키워드 추출 (stopwords 제외)
-    stopwords_ko = {'이', '가', '은', '는', '을', '를', '의', '에', '에서', '로', '으로', '와', '과', '도', '만', '까지', '부터', '처럼', '같이', '대해', '대한', '관한', '있는', '있다', '없다', '하는', '하다', '되는', '되다', '한', '할', '된', '될', '합니다', '입니다', '습니다', '있습니다', '어떻게', '무엇', '언제', '어디', '왜', '누가'}
-    stopwords_en = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare', 'ought', 'used', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'between', 'under', 'again', 'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just', 'and', 'but', 'if', 'or', 'because', 'until', 'while', 'about', 'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 'am', 'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 'themselves', 'you', 'your', 'yours', 'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 'hers', 'herself', 'we', 'us', 'our', 'ours', 'ourselves', 'i', 'me', 'my', 'mine', 'myself'}
-    stopwords_ja = {'の', 'に', 'は', 'を', 'た', 'が', 'で', 'て', 'と', 'し', 'れ', 'さ', 'ある', 'いる', 'も', 'する', 'から', 'な', 'こと', 'として', 'い', 'や', 'など', 'なっ', 'ない', 'この', 'ため', 'その', 'あっ', 'よう', 'また', 'もの', 'という', 'あり', 'まで', 'られ', 'なる', 'へ', 'か', 'だ', 'これ', 'によって', 'により', 'おり', 'より', 'による', 'ず', 'なり', 'られる', 'において', 'ば', 'なかっ', 'なく', 'しかし', 'について', 'せ', 'だっ', 'でき', 'それ', 'お', 'ほど', 'ものの', 'に対して', 'ほとんど', 'と共に', 'といった', 'です', 'ます', 'でした'}
+    # Use LLM-based keyword extraction service (handles CJK properly)
+    keyword_service = get_keyword_extraction_service()
+    extraction_result = await keyword_service.extract_keywords(query)
+    keywords = extraction_result.keywords
 
-    # 토큰화 (알파벳, 숫자, 한글, 일본어 히라가나/카타카나/한자)
-    # First, extract error codes with minus sign (e.g., -5212, -21001) to preserve them
-    error_codes = re.findall(r'-\d{4,5}', query)
-    # Then extract other tokens
-    other_tokens = re.findall(r'[a-zA-Z0-9가-힣ぁ-んァ-ン一-龥]+', query.lower())
-    # Combine: error codes first (preserving case), then other tokens
-    tokens = error_codes + other_tokens
-
-    # 키워드 추출 (stopwords 제외, 2글자 이상)
-    all_stopwords = stopwords_ko | stopwords_en | stopwords_ja
-    keywords = [t for t in tokens if t not in all_stopwords and len(t) >= 2]
+    logger.debug(f"[Keywords] method={extraction_result.method.value}, "
+                 f"lang={extraction_result.language}, "
+                 f"cache={extraction_result.cache_hit}, "
+                 f"time={extraction_result.extraction_time_ms:.1f}ms, "
+                 f"keywords={keywords}")
 
     # 의도 분류 (간단한 규칙 기반) - multilingual keywords
     intent_key = "info_search"
@@ -428,7 +427,9 @@ def _analyze_query_keywords(query: str, language: str = "ko") -> Dict[str, Any]:
         "keywords": keywords[:10],  # 상위 10개 키워드
         "intent": get_label(INTENT_LABELS, intent_key),
         "search_strategy": [get_label(STRATEGY_LABELS, sk) for sk in strategy_keys],
-        "token_count": len(tokens)
+        "token_count": len(keywords),
+        "extraction_method": extraction_result.method.value,
+        "extraction_time_ms": extraction_result.extraction_time_ms
     }
 
 
@@ -501,16 +502,20 @@ def _extract_embedding_info(tool_result: Dict[str, Any], tool_name: str) -> Dict
     """
     도구 결과에서 임베딩 정보를 추출합니다.
     """
+    # Load scoring config for score distribution thresholds
+    scoring_config = get_scoring_config_sync()
+    score_thresholds = scoring_config.confidence
+
     info = {
         "tool_name": tool_name,
         "model": "NV-EmbedQA-Mistral-7B-v2",  # 기본 임베딩 모델
         "dimension": 4096,
         "similarity_scores": [],
         "score_distribution": {
-            "excellent": 0,  # >= 0.8
-            "good": 0,       # >= 0.6
-            "fair": 0,       # >= 0.4
-            "low": 0         # < 0.4
+            "excellent": 0,  # >= high_threshold
+            "good": 0,       # >= medium_threshold
+            "fair": 0,       # >= low_threshold
+            "low": 0         # < low_threshold
         },
         "top_matches": []
     }
@@ -532,12 +537,12 @@ def _extract_embedding_info(tool_result: Dict[str, Any], tool_name: str) -> Dict
             score = float(src.get("score", src.get("similarity", 0)) or 0)
             info["similarity_scores"].append(score)
 
-            # 점수 분포
-            if score >= 0.8:
+            # 점수 분포 (using config thresholds)
+            if score >= score_thresholds.high_threshold:
                 info["score_distribution"]["excellent"] += 1
-            elif score >= 0.6:
+            elif score >= score_thresholds.medium_threshold:
                 info["score_distribution"]["good"] += 1
-            elif score >= 0.4:
+            elif score >= score_thresholds.low_threshold:
                 info["score_distribution"]["fair"] += 1
             else:
                 info["score_distribution"]["low"] += 1
@@ -861,8 +866,11 @@ def _format_direct_response(
         return not_found_messages.get(language, not_found_messages["en"])
 
     # 높은 신뢰도 또는 단일 결과면 컴팩트 포맷
+    # Use config for confidence threshold
+    config = get_scoring_config_sync()
+    single_result_threshold = config.confidence.high_threshold
     if decision and (decision.reason in ("single_high_match", "error_code_match") or
-                     (decision.result_count == 1 and decision.confidence > 0.7)):
+                     (decision.result_count == 1 and decision.confidence > single_result_threshold)):
         return formatter.format_compact(
             search_results,
             language=language,
@@ -2194,7 +2202,7 @@ User Query:"""
         # RAG Analysis: Send query analysis info for UI progress modal
         # ========================================================================
         user_language = context.language if context.language and context.language != "auto" else "ko"
-        query_analysis = _analyze_query_keywords(task, language=user_language)
+        query_analysis = await _analyze_query_keywords(task, language=user_language)
         yield AgentStreamChunk(
             chunk_type="rag_analysis",
             content=json.dumps(query_analysis, ensure_ascii=False),

@@ -548,6 +548,78 @@ User Query: {task}"""
                 error=str(e)
             )
 
+    async def _fetch_images_for_sources(
+        self,
+        sources: List[Dict[str, Any]],
+        max_images: int = 5,
+        max_image_size_kb: int = 500
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch figure images related to source documents.
+
+        Args:
+            sources: List of source dictionaries with doc_id and page_number
+            max_images: Maximum number of images to return
+            max_image_size_kb: Maximum size per image in KB
+
+        Returns:
+            List of image data dicts with base64 encoded data
+        """
+        if not sources:
+            return []
+
+        try:
+            import asyncpg
+            from ...services.figure_image_service import get_figure_image_service
+            from ...infrastructure.postgres.image_embedding_repository import PostgresImageEmbeddingRepository
+            from ...core.config import api_settings
+
+            # Create connection DSN
+            dsn = f"postgresql://{api_settings.POSTGRES_USER}:{api_settings.POSTGRES_PASSWORD}@{api_settings.POSTGRES_HOST}:{api_settings.POSTGRES_PORT}/{api_settings.POSTGRES_DB}"
+
+            # Create repository with pool
+            repo = await PostgresImageEmbeddingRepository.create_with_pool(
+                dsn,
+                min_size=1,
+                max_size=3
+            )
+
+            try:
+                # Create fresh figure image service (don't use singleton to ensure new code is used)
+                from ...services.figure_image_service import FigureImageService, reset_figure_image_service
+                reset_figure_image_service()  # Reset singleton to pick up any code changes
+                figure_service = FigureImageService(repo)
+
+                # Fetch images for sources
+                images = await figure_service.get_images_for_sources(
+                    sources=sources,
+                    include_data=True
+                )
+
+                # Filter by size and limit count
+                filtered_images = []
+                for img in images:
+                    if len(filtered_images) >= max_images:
+                        break
+                    if img.get("data"):
+                        # Check base64 data size (rough estimate: base64 is ~33% larger)
+                        data_size_kb = len(img["data"]) / 1024 / 1.33
+                        if data_size_kb <= max_image_size_kb:
+                            filtered_images.append(img)
+                        else:
+                            logger.warning(f"Image {img.get('id')} exceeds size limit ({data_size_kb:.0f}KB > {max_image_size_kb}KB)")
+
+                logger.info(f"[{self.name}] Retrieved {len(filtered_images)} images for {len(sources)} sources")
+                return filtered_images
+
+            finally:
+                # Close the repository pool
+                await repo.close()
+
+        except Exception as e:
+            logger.error(f"[{self.name}] Failed to fetch images: {e}")
+            return []
+
     async def stream(
         self,
         task: str,
@@ -576,6 +648,18 @@ User Query: {task}"""
                     chunk_type="sources",
                     sources=sources[:10]  # Limit to 10 sources
                 )
+
+                # Fetch and yield related images
+                try:
+                    images = await self._fetch_images_for_sources(sources[:10])
+                    if images:
+                        logger.info(f"[{self.name}] Yielding {len(images)} images from Deep Agent")
+                        yield AgentStreamChunk(
+                            chunk_type="images",
+                            images=images
+                        )
+                except Exception as img_err:
+                    logger.warning(f"[{self.name}] Failed to fetch images: {img_err}")
 
             yield AgentStreamChunk(
                 chunk_type="done",

@@ -34,6 +34,8 @@ from ..models.summary import (
     ProductVariant,
     MultiProductResult,
 )
+from .scoring_config_service import get_scoring_config_sync
+from ..models.scoring_config import ScoringConfig
 
 logger = logging.getLogger(__name__)
 
@@ -53,20 +55,26 @@ class SummaryBM25Service:
     def __init__(
         self,
         summaries_dir: Optional[Path] = None,
-        high_confidence_threshold: float = 0.7,
-        medium_confidence_threshold: float = 0.4,
+        high_confidence_threshold: Optional[float] = None,
+        medium_confidence_threshold: Optional[float] = None,
+        scoring_config: Optional[ScoringConfig] = None,
     ):
         """
         Initialize BM25 service.
 
         Args:
             summaries_dir: Path to summaries directory
-            high_confidence_threshold: Score threshold for high confidence
-            medium_confidence_threshold: Score threshold for medium confidence
+            high_confidence_threshold: Score threshold for high confidence (deprecated, use scoring_config)
+            medium_confidence_threshold: Score threshold for medium confidence (deprecated, use scoring_config)
+            scoring_config: Optional scoring configuration
         """
+        # Load config for default values
+        config = scoring_config or get_scoring_config_sync()
+
         self.summaries_dir = summaries_dir or Path("/opt/kms/uploads/summaries")
-        self.high_threshold = high_confidence_threshold
-        self.medium_threshold = medium_confidence_threshold
+        # Use config values, allow override via parameters for backward compatibility
+        self.high_threshold = high_confidence_threshold or config.confidence.high_threshold
+        self.medium_threshold = medium_confidence_threshold or config.confidence.medium_threshold
 
         # Index state
         self._documents: List[SummaryDocument] = []
@@ -83,11 +91,12 @@ class SummaryBM25Service:
         # Cache for file hashes (detect changes)
         self._file_hashes: Dict[str, str] = {}
 
-        # LLM-based keyword extraction config
+        # LLM-based keyword extraction config (using ScoringConfig)
         self._llm_url = os.getenv("LLM_API_URL", "http://localhost:12800/v1/chat/completions")
         self._llm_model = os.getenv("LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
         self._llm_keyword_cache: Dict[str, List[str]] = {}  # query -> extracted keywords
-        self._llm_timeout = 10.0  # Timeout for keyword extraction (increased for reliability)
+        self._llm_timeout = config.keyword_extraction.llm_timeout
+        self._scoring_config = config
 
     def _extract_version_from_source(self, source_pdf: str) -> tuple:
         """
@@ -196,6 +205,71 @@ class SummaryBM25Service:
 
         return None
 
+    def _preprocess_query_for_bm25(self, query: str) -> str:
+        """
+        Preprocess query to remove filler phrases before BM25 scoring.
+
+        For CJK queries, removes common polite phrases and filler words
+        that would inflate BM25 scores for documents containing generic content.
+
+        Args:
+            query: Original user query
+
+        Returns:
+            Cleaned query for BM25 scoring
+        """
+        # Japanese filler patterns to remove (order matters - longer patterns first)
+        ja_filler_patterns = [
+            r'について説明してください',  # "please explain about"
+            r'について教えてください',    # "please tell me about"
+            r'を説明してください',        # "please explain"
+            r'を教えてください',          # "please tell me"
+            r'について説明して',          # "explain about"
+            r'について教えて',            # "tell me about"
+            r'説明してください',          # "please explain"
+            r'教えてください',            # "please tell me"
+            r'してください',              # "please do"
+            r'について',                  # "about"
+            r'ください',                  # "please"
+            r'とは何ですか',              # "what is"
+            r'とは',                      # "is"
+            r'ですか',                    # question ending
+            r'ありますか',                # "is there"
+            r'方法を',                    # "method/way"
+            r'方法',                      # "method"
+        ]
+
+        # Korean filler patterns
+        ko_filler_patterns = [
+            r'에 대해 설명해 주세요',
+            r'에 대해 알려 주세요',
+            r'설명해 주세요',
+            r'알려 주세요',
+            r'에 대해',
+            r'주세요',
+            r'이란',
+            r'란',
+        ]
+
+        cleaned = query
+
+        # Apply Japanese filler removal
+        for pattern in ja_filler_patterns:
+            cleaned = re.sub(pattern, ' ', cleaned)
+
+        # Apply Korean filler removal
+        for pattern in ko_filler_patterns:
+            cleaned = re.sub(pattern, ' ', cleaned)
+
+        # Clean up multiple spaces
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+
+        # If query became too short (less than 2 chars), use original
+        if len(cleaned) < 2:
+            return query
+
+        return cleaned
+
     def _tokenize(self, text: str) -> List[str]:
         """
         CJK-optimized tokenization with character bi-grams.
@@ -234,6 +308,28 @@ class SummaryBM25Service:
                 ngrams.append(token)
 
         return list(set(tokens + ngrams))
+
+    def _collect_keywords_from_hierarchy(self, nodes: list) -> set:
+        """
+        Recursively collect all keywords from JSON structure hierarchy.
+
+        Args:
+            nodes: List of hierarchy nodes from structure.json
+
+        Returns:
+            Set of all keywords found in the hierarchy
+        """
+        keywords = set()
+        for node in nodes:
+            # Collect keywords from this node
+            node_keywords = node.get('keywords', [])
+            if node_keywords:
+                keywords.update(node_keywords)
+            # Recursively collect from children
+            children = node.get('children', [])
+            if children:
+                keywords.update(self._collect_keywords_from_hierarchy(children))
+        return keywords
 
     async def initialize(self) -> bool:
         """
@@ -636,7 +732,8 @@ class SummaryBM25Service:
             features_match = re.search(r'\*\*주요기능\*\*:\s*\n((?:\s*-[^\n]+\n?)+)', details)
             if features_match:
                 feature_lines = features_match.group(1).split('\n')
-                for line in feature_lines[:5]:  # Limit to 5 features
+                max_features = self._scoring_config.bm25.max_feature_lines
+                for line in feature_lines[:max_features]:  # Configurable limit
                     line = line.strip()
                     if line.startswith('-'):
                         feature = line[1:].strip()[:100]
@@ -748,6 +845,7 @@ class SummaryBM25Service:
         - Hierarchical section structure
         - Image/figure references
         - Table of contents
+        - CJK keywords (from JSON structure files)
         """
         import json
 
@@ -773,6 +871,19 @@ class SummaryBM25Service:
                 images_data = json.loads(images_path.read_text(encoding='utf-8')).get('figures', [])
             except Exception as e:
                 logger.warning(f"Failed to load images file {images_file}: {e}")
+
+        # Load corresponding structure.json for CJK keywords
+        all_keywords = set()
+        json_file = source_file.replace('_structure.md', '_structure.json')
+        json_path = category_dir / json_file
+        if json_path.exists():
+            try:
+                json_data = json.loads(json_path.read_text(encoding='utf-8'))
+                all_keywords = self._collect_keywords_from_hierarchy(json_data.get('hierarchy', []))
+                if all_keywords:
+                    logger.debug(f"Loaded {len(all_keywords)} keywords from {json_file}")
+            except Exception as e:
+                logger.warning(f"Failed to load structure JSON {json_file}: {e}")
 
         # Parse sections by # headers
         sections = re.split(r'\n(#{1,3} )', content)
@@ -850,9 +961,10 @@ class SummaryBM25Service:
                 doc.metadata['pdf_file'] = pdf_file
 
             self._documents.append(doc)
-            # Include section title, body and image captions in search content
+            # Include section title, body, image captions, and CJK keywords in search content
             image_captions = ' '.join([img.get('caption', '') for img in section_images])
-            self._doc_contents.append(f"{section_title} {section_body} {image_captions}")
+            keywords_text = ' '.join(all_keywords) if all_keywords else ''
+            self._doc_contents.append(f"{section_title} {section_body} {image_captions} {keywords_text}")
 
     async def search(
         self,
@@ -878,22 +990,69 @@ class SummaryBM25Service:
                 return []
 
         try:
-            # Tokenize query
-            tokenized_query = self._tokenize(query)
+            # Preprocess query to remove filler phrases (prevents inflated scores for generic docs)
+            cleaned_query = self._preprocess_query_for_bm25(query)
+            if cleaned_query != query:
+                logger.debug(f"[BM25] Query preprocessed: '{query}' -> '{cleaned_query}'")
 
-            # Get BM25 scores
+            # Tokenize the cleaned query for BM25 scoring
+            tokenized_query = self._tokenize(cleaned_query)
+
+            # Get BM25 scores using cleaned query
             scores = self._bm25.get_scores(tokenized_query)
 
             # Normalize scores to 0-1 range
             max_score = scores.max() if scores.max() > 0 else 1.0
             normalized_scores = scores / (max_score + 1e-8)
 
-            # Get top-k indices
+            # Extract CJK phrases from query for exact match boosting
+            # Split by particles (の, は, が, を, に, etc.) to get meaningful phrases
+            # Also filter out common filler phrases like "ください", "ついて説明"
+            cjk_raw = re.findall(r'[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+', query)
+            cjk_phrases = []
+            filler_patterns = ['ください', 'ついて', '説明', 'して', 'する', 'について', '方法', '教えて']
+            for phrase in cjk_raw:
+                # Split by common particles
+                parts = re.split(r'[のはがをにで]', phrase)
+                for p in parts:
+                    # Filter: length >= 2, not a filler phrase
+                    if len(p) >= 2 and p not in filler_patterns:
+                        # Also skip if it's mainly filler
+                        is_filler = any(filler in p for filler in ['ください', 'して説明', 'ついて説明'])
+                        if not is_filler:
+                            cjk_phrases.append(p)
+            query_lower = query.lower()
+
+            # IMPORTANT: For title matching, we need to consider documents that may have
+            # lower BM25 scores but contain the exact CJK phrase in their title.
+            # First, find documents with title matches to ensure they're included.
+            title_match_indices = set()
+            if cjk_phrases:
+                for idx, doc in enumerate(self._documents):
+                    # Filter by doc_type if specified
+                    if doc_types and doc.doc_type not in doc_types:
+                        continue
+                    doc_name = doc.name or ''
+                    for phrase in cjk_phrases:
+                        if len(phrase) >= 2 and phrase in doc_name:
+                            title_match_indices.add(idx)
+                            break
+
+            # Get top-k indices by BM25 score
             top_indices = np.argsort(scores)[::-1]
 
+            # Merge: start with title matches, then add top BM25 results
+            # This ensures documents with exact title matches are always considered
+            merged_indices = list(title_match_indices)
+            for idx in top_indices:
+                if idx not in title_match_indices:
+                    merged_indices.append(idx)
+                if len(merged_indices) >= top_k * 5:  # Larger pool for re-ranking
+                    break
+
             results = []
-            for rank, idx in enumerate(top_indices):
-                if len(results) >= top_k:
+            for rank, idx in enumerate(merged_indices):
+                if len(results) >= top_k * 3:  # Get more candidates for re-ranking
                     break
 
                 doc = self._documents[idx]
@@ -903,21 +1062,52 @@ class SummaryBM25Service:
                     continue
 
                 score = float(normalized_scores[idx])
-                if score < 0.01:  # Skip very low scores
+                if score < self._scoring_config.bm25.min_score_threshold:  # Configurable minimum score
                     continue
 
                 # Find matched terms
-                doc_tokens = set(self._tokenize(self._doc_contents[idx]))
+                doc_content = self._doc_contents[idx]
+                doc_tokens = set(self._tokenize(doc_content))
                 matched_terms = list(set(tokenized_query) & doc_tokens)
+
+                # Boost 1: Exact CJK phrase match in content
+                phrase_boost = 1.0
+                for phrase in cjk_phrases:
+                    if len(phrase) >= 2 and phrase in doc_content:
+                        phrase_boost += 0.3  # +30% boost for each exact phrase match
+
+                # Boost 2: Query terms in document title/name (Japanese is case-insensitive)
+                title_boost = 1.0
+                doc_name = doc.name or ''
+                for phrase in cjk_phrases:
+                    if phrase in doc_name:
+                        title_boost += 0.5  # +50% boost for title match
+
+                # Boost 3: User Guide preference for UI-related queries (画面, メニュー, etc.)
+                ui_terms = ['画面', 'メニュー', 'ボタン', '表示', 'クリック', 'アイコン', 'メイン']
+                guide_boost = 1.0
+                source_file = doc.source_file or ''
+                if any(term in query for term in ui_terms):
+                    if 'User-Guide' in source_file:
+                        guide_boost = 1.5  # +50% for User Guide on UI queries
+                    elif 'Installation-Guide' in source_file:
+                        guide_boost = 0.5  # -50% for Installation Guide on UI queries
+                    elif 'Release-Notes' in source_file or 'Release_Notes' in source_file:
+                        guide_boost = 0.3  # -70% for Release Notes on UI queries (they don't explain UI)
+
+                # Apply boosts (don't cap at 1.0 to allow boosted docs to rank higher)
+                boosted_score = score * phrase_boost * title_boost * guide_boost
 
                 results.append(SummarySearchResult(
                     document=doc,
-                    score=score,
+                    score=boosted_score,
                     matched_terms=matched_terms[:10],  # Limit matched terms
                     rank=rank + 1
                 ))
 
-            return results
+            # Re-sort by boosted score and return top_k
+            results.sort(key=lambda x: x.score, reverse=True)
+            return results[:top_k]
 
         except Exception as e:
             logger.error(f"BM25 search error: {e}", exc_info=True)
@@ -1114,6 +1304,21 @@ class SummaryBM25Service:
                 if SummaryDocType.GLOSSARY not in result.matched_categories:
                     result.matched_categories.append(SummaryDocType.GLOSSARY)
 
+        # Priority 3.5: STRUCTURES search for CJK queries about documents/operations
+        # CJK queries often ask about document content (起動, 終了, ログ, 설정, 구성)
+        # which is best answered by STRUCTURES search, not glossary lookups
+        if has_cjk:
+            structures_results = await self.search(
+                query, top_k=10, doc_types=[SummaryDocType.STRUCTURES]
+            )
+            for sr in structures_results:
+                if sr.document.id not in [r.document.id for r in result.results]:
+                    # Keep boosted scores from search() - don't cap them
+                    # This allows title matches (e.g., "メイン画面") to rank higher
+                    result.results.append(sr)
+                    if SummaryDocType.STRUCTURES not in result.matched_categories:
+                        result.matched_categories.append(SummaryDocType.STRUCTURES)
+
         # Priority 4: Full BM25 search for remaining slots
         remaining_slots = top_k - len(result.results)
         if remaining_slots > 0:
@@ -1191,11 +1396,13 @@ class SummaryBM25Service:
 
     async def _extract_keywords_llm(self, query: str) -> Tuple[List[str], List[str], List[str]]:
         """
-        Extract keywords from query using LLM.
+        Extract keywords from query using shared KeywordExtractionService.
 
         For CJK queries (Japanese/Korean/Chinese), rule-based regex often fails
-        because word boundaries don't exist. LLM can understand the semantic
-        structure and extract the actual technical terms.
+        because word boundaries don't exist. KeywordExtractionService uses LLM
+        to understand the semantic structure and extract actual technical terms.
+
+        The service provides caching, timeout handling, and regex fallback.
 
         Args:
             query: User query in any language
@@ -1203,86 +1410,41 @@ class SummaryBM25Service:
         Returns:
             Tuple of (commands, error_codes, terms)
         """
-        # Check cache first
-        cache_key = hashlib.md5(query.encode()).hexdigest()
-        if cache_key in self._llm_keyword_cache:
-            cached = self._llm_keyword_cache[cache_key]
-            return cached.get('commands', []), cached.get('error_codes', []), cached.get('terms', [])
-
-        # Prepare prompt for keyword extraction
-        # More explicit prompt with common OpenFrame command patterns
-        prompt = f"""Extract the technical keyword from this query. The keyword is the technical term the user is asking about.
-
-Query: {query}
-
-Rules:
-1. COMMANDS (lowercase): OpenFrame commands ending with mgr/init/boot/down/run/ctl
-   Examples: tjesmgr, ndbmgr, hidbmgr, oscmgr, volmgr, catmgr, osimgr, tacfmgr, obmjinit, osctdlrm
-   Pattern: The alphanumeric word BEFORE Japanese/Korean text is usually the command
-
-2. ERROR CODES: Negative numbers with minus sign MUST be preserved!
-   Examples: -5212, -21001, -1234 (ALWAYS include the minus sign!)
-   ABEND codes: S0C7, S0C4, S806
-   IMPORTANT: If you see "-5212", output "-5212" NOT "5212"
-
-3. TERMS (uppercase): Acronyms like TJES, TACF, OSC, VSAM, JCL, GDG
-
-Extract the EXACT keyword from the query. Do not modify or guess.
-
-Examples:
-- "ndbmgrについて" → {{"commands": ["ndbmgr"], "error_codes": [], "terms": []}}
-- "-5212 에러" → {{"commands": [], "error_codes": ["-5212"], "terms": []}}
-- "TJES機能" → {{"commands": [], "error_codes": [], "terms": ["TJES"]}}
-
-Output ONLY valid JSON (no explanation):"""
+        from app.api.services.keyword_extraction_service import get_keyword_extraction_service
 
         try:
-            async with aiohttp.ClientSession() as session:
-                payload = {
-                    "model": self._llm_model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 200,
-                    "temperature": 0.1,
-                }
-                logger.debug(f"[LLM Keyword] Calling {self._llm_url} with model={self._llm_model}")
+            service = get_keyword_extraction_service()
+            result = await service.extract_keywords(query)
 
-                async with session.post(
-                    self._llm_url,
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=self._llm_timeout)
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            # Classify keywords by type
+            commands = []
+            error_codes = []
+            terms = []
 
-                        # Parse JSON from response
-                        # Handle cases where LLM wraps JSON in markdown
-                        json_match = re.search(r'\{[^{}]*\}', content)
-                        if json_match:
-                            result = json.loads(json_match.group())
-                            commands = [c.lower() for c in result.get("commands", []) if c]
-                            error_codes = result.get("error_codes", [])
-                            terms = [t.upper() for t in result.get("terms", []) if t]
+            for kw in result.keywords:
+                # Error codes: negative numbers or ABEND codes
+                if re.match(r'^-\d{4,5}$', kw):
+                    error_codes.append(kw)
+                elif re.match(r'^S[0-9A-F]{3}$', kw.upper()):
+                    error_codes.append(kw.upper())
+                # Commands: lowercase words ending with mgr/init/boot/down/run/ctl
+                elif re.match(r'^[a-z][a-z0-9]*(?:mgr|init|boot|down|run|ctl|rm)$', kw.lower()):
+                    commands.append(kw.lower())
+                # Terms: uppercase acronyms (2+ letters)
+                elif re.match(r'^[A-Z]{2,}[A-Z0-9]*$', kw):
+                    terms.append(kw.upper())
+                # Mixed case or CJK keywords go to terms
+                else:
+                    terms.append(kw)
 
-                            # Cache result
-                            self._llm_keyword_cache[cache_key] = {
-                                'commands': commands,
-                                'error_codes': error_codes,
-                                'terms': terms
-                            }
+            logger.debug(f"[BM25 Keyword] method={result.method.value}, "
+                        f"commands={commands}, errors={error_codes}, terms={terms}")
+            return commands, error_codes, terms
 
-                            logger.debug(f"[LLM Keyword Extraction] Query: '{query}' -> commands={commands}, errors={error_codes}, terms={terms}")
-                            return commands, error_codes, terms
-
-        except asyncio.TimeoutError:
-            logger.warning(f"[LLM Keyword] Timeout ({self._llm_timeout}s) for query: {query}")
-        except aiohttp.ClientConnectorError as e:
-            logger.warning(f"[LLM Keyword] Connection error to {self._llm_url}: {e}")
         except Exception as e:
-            logger.warning(f"[LLM Keyword] Error: {type(e).__name__}: {e}")
-
-        # Return empty on failure (fall back to rule-based)
-        return [], [], []
+            logger.warning(f"[BM25 Keyword] KeywordExtractionService error: {type(e).__name__}: {e}")
+            # Return empty on failure (fall back to rule-based detection)
+            return [], [], []
 
     @property
     def is_initialized(self) -> bool:
@@ -1411,7 +1573,7 @@ Output ONLY valid JSON (no explanation):"""
             # ANTI-HALLUCINATION: Filter results by score and relevance
             # Only include results that are actually related to the query
             # ================================================================
-            MIN_MULTI_PRODUCT_SCORE = 0.3  # Minimum BM25 score threshold
+            min_multi_product_score = self._scoring_config.search.multi_product_min_score
 
             # Extract query keywords for relevance check
             query_keywords = set(query_lower.split())
@@ -1421,9 +1583,9 @@ Output ONLY valid JSON (no explanation):"""
             # Group results by entity name (case-insensitive)
             by_name: Dict[str, List[SummarySearchResult]] = defaultdict(list)
             for sr in search_result.results:
-                # Filter 1: Minimum score threshold
-                if sr.score < MIN_MULTI_PRODUCT_SCORE:
-                    logger.debug(f"[MultiProduct] Skipping '{sr.document.name}' - score {sr.score:.2f} < {MIN_MULTI_PRODUCT_SCORE}")
+                # Filter 1: Minimum score threshold (configurable)
+                if sr.score < min_multi_product_score:
+                    logger.debug(f"[MultiProduct] Skipping '{sr.document.name}' - score {sr.score:.2f} < {min_multi_product_score}")
                     continue
 
                 name_key = (sr.document.name or "").lower()

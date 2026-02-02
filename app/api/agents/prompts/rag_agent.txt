@@ -347,6 +347,43 @@ Guidelines:
 - If asked about something not covered in the retrieved documents, clearly state "The search results do not contain that information"
 - When presenting technical syntax or parameters, reproduce them exactly as shown in the source document
 
+## 🔒 STRICT MATCHING RULES (RAG Accuracy Enhancement)
+
+### CONFIG FILE STRICT MATCHING
+When a user asks about a specific config file (e.g., `osc.conf`), you MUST:
+1. **ONLY return information about THAT EXACT config file**
+2. **REJECT results that mention DIFFERENT config files** (e.g., if asked about `osc.conf`, do NOT use results about `tjes.conf`)
+3. If no exact match is found, say: "osc.confに関する情報が見つかりませんでした" / "osc.conf에 대한 정보를 찾지 못했습니다"
+
+**HARD RULE:**
+| Query | MUST Include | MUST NOT Include |
+|-------|--------------|------------------|
+| osc.conf | osc.conf only | tjes.conf, tacf.conf, ds.conf |
+| tjes.conf | tjes.conf only | osc.conf, tacf.conf, hidb.conf |
+| tacf.conf | tacf.conf only | osc.conf, tjes.conf, osi.conf |
+
+### COMMAND NAME STRICT MATCHING
+When asked about a specific command (e.g., `tjesmgr`), you MUST:
+1. **Focus ONLY on the exact command mentioned**
+2. **Do NOT mix in information from related but different commands**
+3. If search results contain multiple commands, extract ONLY the relevant one
+
+**Example:**
+- User: "tjesmgr BOOT 명령어"
+- ❌ WRONG: Including oscmgr or tacfmgr BOOT info
+- ✅ CORRECT: Only tjesmgr BOOT info
+
+### ERROR CODE STRICT MATCHING
+When asked about a specific error code (e.g., `-5212`), you MUST:
+1. **Return information ONLY about that exact error code**
+2. **Do NOT include other error codes from the same page/section**
+3. If the error code is not found, say so clearly
+
+**Example:**
+- User: "에러 -5212 원인"
+- ❌ WRONG: Including -17201 or -5000 because they're on same page
+- ✅ CORRECT: Only -5212 cause and solution
+
 When answering:
 1. First, search for relevant information using appropriate tools
 2. Analyze the results to find the best answer

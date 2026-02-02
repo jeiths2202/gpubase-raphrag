@@ -8,6 +8,8 @@ from typing import Dict, List, Optional, Any
 
 from ..types import AgentType, AgentResult
 from .types import ExecutionPlan, VerificationResult
+from ...services.scoring_config_service import get_scoring_config_sync
+from ...models.scoring_config import ScoringConfig
 
 logger = logging.getLogger(__name__)
 
@@ -23,24 +25,53 @@ class ConfidenceScorer:
     - Answer completeness
     """
 
-    # Base confidence weights per agent type
-    AGENT_BASE_CONFIDENCE = {
-        AgentType.RAG: 0.85,
-        AgentType.IMS: 0.80,
-        AgentType.CODE: 0.75,
-        AgentType.VISION: 0.70,
-        AgentType.PLANNER: 0.90,
-    }
+    def __init__(self, scoring_config: Optional[ScoringConfig] = None):
+        """
+        Initialize the confidence scorer.
 
-    # Score component weights
-    WEIGHT_EXECUTION = 0.25
-    WEIGHT_GROUNDING = 0.30
-    WEIGHT_CONSISTENCY = 0.20
-    WEIGHT_COMPLETENESS = 0.25
+        Args:
+            scoring_config: Optional scoring configuration
+        """
+        self._scoring_config = scoring_config
 
-    def __init__(self):
-        """Initialize the confidence scorer"""
-        pass
+    @property
+    def config(self) -> ScoringConfig:
+        """Get the scoring configuration (lazy load)."""
+        if self._scoring_config is None:
+            self._scoring_config = get_scoring_config_sync()
+        return self._scoring_config
+
+    @property
+    def agent_base_confidence(self) -> Dict[AgentType, float]:
+        """Get agent base confidence from config."""
+        conf = self.config.confidence
+        return {
+            AgentType.RAG: conf.agent_base_rag,
+            AgentType.IMS: conf.agent_base_ims,
+            AgentType.CODE: conf.agent_base_code,
+            AgentType.VISION: conf.agent_base_vision,
+            AgentType.PLANNER: conf.agent_base_planner,
+        }
+
+    @property
+    def weight_execution(self) -> float:
+        """Get execution weight from config."""
+        return self.config.confidence.weight_execution
+
+    @property
+    def weight_grounding(self) -> float:
+        """Get grounding weight from config."""
+        return self.config.confidence.weight_grounding
+
+    @property
+    def weight_consistency(self) -> float:
+        """Get consistency weight from config."""
+        return self.config.confidence.weight_consistency
+
+    @property
+    def weight_completeness(self) -> float:
+        """Get completeness weight from config."""
+        return self.config.confidence.weight_completeness
 
     def calculate_execution_confidence(
         self,
@@ -61,8 +92,9 @@ class ConfidenceScorer:
         success_count = sum(1 for r in task_results.values() if r.success)
         total = len(task_results)
 
-        # Penalize more heavily for failed tasks
-        failure_penalty = (total - success_count) * 0.15
+        # Penalize more heavily for failed tasks (using config penalty)
+        failure_penalty_rate = self.config.evaluation.repeated_error_penalty
+        failure_penalty = (total - success_count) * failure_penalty_rate
         base_score = success_count / total
         adjusted_score = max(0.0, base_score - failure_penalty)
 
@@ -92,7 +124,7 @@ class ConfidenceScorer:
 
         if not rag_ims_results:
             # No RAG/IMS tasks, assume good grounding
-            return 0.85
+            return self.config.confidence.agent_base_rag
 
         # Count results with sources
         with_sources = sum(1 for r in rag_ims_results if r.sources)
@@ -106,9 +138,14 @@ class ConfidenceScorer:
             len(r.sources) for r in rag_ims_results
         ) / total if total > 0 else 0
 
-        bonus = min(0.1, avg_source_count * 0.02)  # Up to 0.1 bonus
+        # Bonus calculation using config values
+        source_bonus_multiplier = self.config.boost.source_count_bonus
+        max_bonus = self.config.confidence.grounding_max_bonus  # Configurable max bonus
+        bonus = min(max_bonus, avg_source_count * source_bonus_multiplier)
 
-        return min(1.0, source_ratio * 0.9 + bonus)
+        # Source ratio weight (configurable)
+        source_ratio_weight = self.config.confidence.source_ratio_weight
+        return min(1.0, source_ratio * source_ratio_weight + bonus)
 
     def calculate_consistency_confidence(
         self,
@@ -131,7 +168,7 @@ class ConfidenceScorer:
         answers = [r.answer.lower() for r in task_results.values() if r.success and r.answer]
 
         if not answers:
-            return 0.5
+            return self.config.confidence.contradiction_many_score
 
         # Check for explicit contradiction markers
         contradiction_markers = [
@@ -151,13 +188,14 @@ class ConfidenceScorer:
             if has_positive and has_negative:
                 contradiction_count += 1
 
-        # Penalize for contradictions
+        # Penalize for contradictions (using config thresholds)
+        conf = self.config.confidence
         if contradiction_count == 0:
             return 1.0
-        elif contradiction_count <= 2:
-            return 0.7
+        elif contradiction_count <= conf.contradiction_few_threshold:
+            return conf.contradiction_few_score
         else:
-            return 0.5
+            return conf.contradiction_many_score
 
     def calculate_completeness_confidence(
         self,
@@ -187,17 +225,21 @@ class ConfidenceScorer:
         total_length = sum(len(r.answer) for r in task_results.values() if r.success)
         avg_length = total_length / len(task_results) if task_results else 0
 
-        # Penalize very short answers
-        if avg_length < 50:
-            length_score = 0.5
-        elif avg_length < 100:
-            length_score = 0.7
-        elif avg_length < 500:
-            length_score = 0.85
+        # Penalize very short answers (using config thresholds)
+        conf = self.config.confidence
+        if avg_length < conf.length_very_short:
+            length_score = conf.length_score_very_short
+        elif avg_length < conf.length_short:
+            length_score = conf.length_score_short
+        elif avg_length < conf.length_medium:
+            length_score = conf.length_score_medium
         else:
-            length_score = 1.0
+            length_score = conf.length_score_full
 
-        return execution_ratio * 0.6 + length_score * 0.4
+        # Weighted combination: execution ratio vs length score (configurable)
+        execution_weight = conf.completeness_execution_weight
+        length_weight = conf.completeness_length_weight
+        return execution_ratio * execution_weight + length_score * length_weight
 
     def calculate_overall_confidence(
         self,
@@ -222,12 +264,12 @@ class ConfidenceScorer:
         consistency_score = self.calculate_consistency_confidence(task_results)
         completeness_score = self.calculate_completeness_confidence(plan, task_results)
 
-        # Weighted average
+        # Weighted average (using config weights)
         overall = (
-            execution_score * self.WEIGHT_EXECUTION +
-            grounding_score * self.WEIGHT_GROUNDING +
-            consistency_score * self.WEIGHT_CONSISTENCY +
-            completeness_score * self.WEIGHT_COMPLETENESS
+            execution_score * self.weight_execution +
+            grounding_score * self.weight_grounding +
+            consistency_score * self.weight_consistency +
+            completeness_score * self.weight_completeness
         )
 
         # If verification provided, incorporate its score

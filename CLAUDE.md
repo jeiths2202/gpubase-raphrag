@@ -95,10 +95,59 @@ docker-compose -f docker-compose-local.yml --profile cpu up -d
 | Backend | FastAPI (Python 3.10+) |
 | Frontend | React 18 + TypeScript + Vite |
 | Database | Neo4j (Graph + Vector Index) |
-| RAG LLM | Nemotron Nano 9B (port 12800) |
+| **Vision LLM** | **MiniCPM-V 2.6 (port 12803)** ← 현재 활성 |
 | Code LLM | Mistral NeMo 12B (port 12802) |
 | Embeddings | NV-EmbedQA-Mistral 7B v2 (port 12801) |
 | GPU | NVIDIA A100-SXM4-40GB x 8 |
+
+### 🔄 GPU Configuration (Current - MiniCPM-V)
+
+> **현재 활성 설정**: Vision-Language 모델로 PDF 이미지/차트/표 직접 분석 가능
+
+| 항목 | 값 |
+|------|-----|
+| Container | `minicpm-vision-graphrag` |
+| Model | `openbmb/MiniCPM-V-2_6` |
+| GPU | Device 5, 6 (Tensor Parallel) |
+| Port | 12803 |
+| Max Context | 4096 tokens |
+| API | OpenAI-compatible (vLLM) |
+
+```bash
+# 상태 확인
+docker ps | grep minicpm-vision-graphrag
+
+# 로그 확인
+docker logs minicpm-vision-graphrag --tail 50
+
+# API 테스트
+curl http://localhost:12803/v1/models
+```
+
+### 🔙 GPU Configuration (Backup - Nemotron)
+
+> **롤백용 설정**: 기존 텍스트 기반 RAG LLM (필요시 복원)
+
+| 항목 | 값 |
+|------|-----|
+| Container | `nemotron-nano` |
+| Model | Nemotron Nano 9B |
+| GPU | Device 4, 5 |
+| Port | 12800 |
+| API | OpenAI-compatible |
+
+```bash
+# 롤백 방법
+# 1. MiniCPM-V 중지
+docker stop minicpm-vision-graphrag
+
+# 2. Nemotron 시작 (docker-compose-local.yml 수정 후)
+# GPU device: 4,5로 변경, port: 12800
+docker-compose -f docker-compose-local.yml up -d nemotron-nano
+
+# 3. .env에서 LLM 설정 변경
+# LLM_BASE_URL=http://localhost:12800/v1
+```
 
 ## Project Structure
 

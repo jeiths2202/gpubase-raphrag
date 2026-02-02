@@ -93,15 +93,27 @@ Use this tool FIRST for any knowledge base queries."""
             sources = result.get("sources", [])
             formatted_sources = []
             for i, source in enumerate(sources[:top_k], 1):
-                formatted_sources.append({
+                chunk_type = source.get("chunk_type", "TEXT_CHUNK")
+                formatted_source = {
                     "rank": i,
                     "content": source.get("content", "")[:api_settings.RAG_CONTENT_MAX_CHARS],
                     "source": source.get("doc_name") or source.get("source", "Unknown"),
                     "score": source.get("score", 0.0),
                     "doc_id": source.get("doc_id", ""),
                     "document_id": source.get("doc_id", ""),
-                    "page_number": source.get("page_number")
-                })
+                    "page_number": source.get("page_number"),
+                    "chunk_type": chunk_type,
+                    "page_start": source.get("page_start"),
+                    "page_end": source.get("page_end"),
+                }
+                # For TABLE_CHUNK, mark as table for special rendering
+                if chunk_type == "TABLE_CHUNK":
+                    formatted_source["is_table"] = True
+                # For IMAGE_CHUNK, include image reference
+                elif chunk_type == "IMAGE_CHUNK":
+                    formatted_source["is_image"] = True
+                    formatted_source["image_id"] = source.get("image_id")
+                formatted_sources.append(formatted_source)
 
             # Store sources in context.metadata for image lookup
             if context.metadata is None:

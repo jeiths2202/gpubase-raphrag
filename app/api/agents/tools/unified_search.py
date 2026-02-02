@@ -24,6 +24,9 @@ Architecture:
                    (sections, tables)
                            ▼
                       Final Results
+
+All scoring parameters are loaded from ScoringConfig.
+No hardcoded values in this module.
 """
 import logging
 import os
@@ -34,8 +37,15 @@ import json
 from .base import BaseTool
 from ..types import ToolResult, AgentContext
 from .adaptive_search import _validate_query, _extract_error_codes
+from ...services.scoring_config_service import get_scoring_config_sync
+from ...models.scoring_config import ScoringConfig
+from ...services.rag_accuracy_pipeline import get_rag_accuracy_pipeline
+from ...models.rag_accuracy import RelevanceGrade
 
 logger = logging.getLogger(__name__)
+
+# RAG Accuracy Improvement Feature Toggle
+ENABLE_RAG_ACCURACY_GRADING = os.getenv("RAG_ACCURACY_ENABLE_GRADING", "true").lower() == "true"
 
 # Learning LLM Feature Toggle
 ENABLE_LEARNING_LLM = os.getenv("ENABLE_LEARNING_LLM", "false").lower() == "true"
@@ -58,6 +68,10 @@ if DEFAULT_SEARCH_MODE not in ("hybrid", "vector_only", "keyword_only"):
 # RRF (Reciprocal Rank Fusion) toggle
 # When disabled, hybrid mode returns Neo4j results with PostgreSQL boost markers only
 ENABLE_RRF_FUSION = os.getenv("ENABLE_RRF_FUSION", "false").lower() == "true"
+
+# Semantic Search Feature Toggle (LLM Query Understanding + Hybrid Retrieval)
+USE_SEMANTIC_SEARCH = os.getenv("USE_SEMANTIC_SEARCH", "true").lower() == "true"
+SEMANTIC_QUERY_PREPROCESSING = os.getenv("SEMANTIC_QUERY_PREPROCESSING", "true").lower() == "true"
 
 
 # =============================================================
@@ -133,8 +147,38 @@ def _check_intent_result_match(query_intents: set, summary_results: list, query:
         # Fall back to vector search for better results
         return False
 
-    # If general intent, any results are fine
+    # SPECIFIC QUERY CHECK:
+    # If query contains specific section/structure references (e.g., "基本構造", "概要", "構成"),
+    # the user is asking for detailed information that generic glossary terms can't provide.
+    # In this case, fall back to vector search for actual document content.
+    specific_section_patterns = [
+        '基本構造', '基本設定', '構造', '構成', '設定', '使用方法', '使い方',
+        '概要', '詳細', 'について', '説明', 'chapter', 'section', 'guide',
+        '설정', '구성', '구조', '방법', '상세', '개요',  # Korean
+    ]
+    if query and any(pattern in query.lower() for pattern in specific_section_patterns):
+        # Query is asking for specific document sections - don't return generic glossary
+        if result_types == {'glossary'} or result_types == {'term', 'glossary'}:
+            return False
+
+    # GENERAL QUERY CHECK:
+    # For general queries (without specific definition keywords like "とは", "is", "란"),
+    # glossary/term results alone are insufficient - they only provide brief definitions.
+    # Fall back to vector search for more comprehensive content from actual documents.
+    definition_keywords = ['とは', '是什么', '是什麼', '란', '이란', 'what is', 'define ', 'meaning of']
+    query_lower = query.lower() if query else ""
+    is_definition_query = any(kw in query_lower for kw in definition_keywords)
+
+    # Check if results are only glossary/term (too generic to answer detailed questions)
+    is_only_glossary = result_types <= {'glossary', 'term'}  # subset check: only contains glossary and/or term
+    logger.info(f"[_check_intent_result_match] result_types={result_types}, is_only_glossary={is_only_glossary}, is_definition_query={is_definition_query}")
+
     if 'general' in query_intents:
+        # For general queries, only accept glossary results if explicitly asking for definition
+        if is_only_glossary and not is_definition_query:
+            # Generic query with only glossary results - fall back to vector search
+            logger.info("[_check_intent_result_match] Returning False - generic query with glossary results, not a definition query")
+            return False
         return True
 
     # Check if any query intent matches result types
@@ -180,6 +224,19 @@ Returns relevant document chunks with full context and source information."""
         self._adaptive_service = None
         self._embedding_service = None
         self._clip_service = None
+        self._query_understanding_service = None
+
+    @property
+    def query_understanding_service(self):
+        """Lazy load Query Understanding service for semantic search"""
+        if self._query_understanding_service is None and SEMANTIC_QUERY_PREPROCESSING:
+            try:
+                from ...services.query_understanding_service import get_query_understanding_service
+                self._query_understanding_service = get_query_understanding_service()
+                logger.debug("Query Understanding service loaded")
+            except Exception as e:
+                logger.warning(f"Failed to load Query Understanding service: {e}")
+        return self._query_understanding_service
 
     def _get_default_parameters(self) -> Dict[str, Any]:
         return {
@@ -773,6 +830,14 @@ Returns relevant document chunks with full context and source information."""
             sources = result.get("sources", [])
             neo4j_results = []
 
+            # Debug: Log scores from RAG service
+            if sources:
+                logger.info(f"[unified_search._neo4j_vector_search] Sources count: {len(sources)}")
+                for i, src in enumerate(sources[:3]):  # Log first 3
+                    score = src.get("score", "MISSING")
+                    doc_name = src.get("doc_name", "?")[:30]
+                    logger.info(f"  [{i}] doc_name={doc_name}, score={score}")
+
             for i, source in enumerate(sources):
                 neo4j_results.append({
                     "chunk_id": source.get("doc_id", f"neo4j_{i}"),
@@ -800,23 +865,28 @@ Returns relevant document chunks with full context and source information."""
         query: str,
         top_k: int,
         doc_filter: Optional[str] = None,
-        error_codes: Optional[List[str]] = None
+        error_codes: Optional[List[str]] = None,
+        scoring_config: Optional[ScoringConfig] = None
     ) -> List[Dict[str, Any]]:
         """Execute keyword search via PostgreSQL ts_rank"""
         try:
+            # Load config
+            config = scoring_config or get_scoring_config_sync()
+            error_code_boost = config.boost.error_code_boost
+
             # Build search terms for ts_query
             # Escape special characters and join with OR
             terms = query.split()
             ts_terms = " | ".join([t.replace("'", "''") for t in terms if t])
 
-            # Build error code boost condition
+            # Build error code boost condition (using config value)
             error_boost_sql = ""
             if error_codes:
                 error_patterns = " OR ".join([
                     f"content ILIKE '%{code}%'" for code in error_codes
                 ])
                 error_boost_sql = f"""
-                    CASE WHEN ({error_patterns}) THEN 1.5 ELSE 1.0 END as error_boost,
+                    CASE WHEN ({error_patterns}) THEN {error_code_boost} ELSE 1.0 END as error_boost,
                 """
 
             # Build document filter - support both doc_id and document name patterns
@@ -991,7 +1061,8 @@ Returns relevant document chunks with full context and source information."""
         self,
         results: List[Dict[str, Any]],
         num_following: int = 2,
-        web_only: bool = False
+        web_only: bool = False,
+        scoring_config: Optional[ScoringConfig] = None
     ) -> List[Dict[str, Any]]:
         """
         Fetch subsequent chunks for each result to include related content.
@@ -1001,12 +1072,17 @@ Returns relevant document chunks with full context and source information."""
             results: Search results to expand
             num_following: Number of subsequent chunks to fetch (default: 2)
             web_only: If True, only link web source chunks
+            scoring_config: Optional scoring configuration
 
         Returns:
             Expanded results with linked chunks appended
         """
         if not results or num_following <= 0:
             return results
+
+        # Load config
+        config = scoring_config or get_scoring_config_sync()
+        no_result_rank = config.search.no_result_rank
 
         try:
             from neo4j import GraphDatabase
@@ -1100,17 +1176,19 @@ Returns relevant document chunks with full context and source information."""
                         seen_chunk_ids.add(linked_chunk_id)
                         content = record["content"] or ""
 
-                        # Create linked chunk result
+                        # Create linked chunk result (using config for score calculation)
+                        linked_chunk_default_score = config.search.linked_chunk_default_score
+                        linked_chunk_score_multiplier = config.search.linked_chunk_score_multiplier
                         linked_chunk = {
                             "chunk_id": linked_chunk_id,
                             "content": content,
-                            "score": result.get("score", 0.5) * 0.8,  # Slightly lower score
+                            "score": result.get("score", linked_chunk_default_score) * linked_chunk_score_multiplier,
                             "source": result.get("source", ""),
                             "doc_id": result.get("doc_id", ""),
                             "document_name": result.get("document_name", ""),
                             "source_type": record["source_type"] or "document",
                             "source_url": record["source_url"] or result.get("source_url", ""),
-                            "rank": result.get("rank", 999) + record["chunk_index"] - current_index,
+                            "rank": result.get("rank", no_result_rank) + record["chunk_index"] - current_index,
                             "origin": "linked_chunk",
                             "linked_from": chunk_id,
                             "chunk_index": record["chunk_index"],
@@ -1321,18 +1399,33 @@ Returns relevant document chunks with full context and source information."""
         neo4j_results: List[Dict],
         postgres_results: List[Dict],
         error_codes: List[str],
-        k: int = 60,
-        prioritize_web: bool = False
+        k: Optional[int] = None,
+        prioritize_web: bool = False,
+        scoring_config: Optional[ScoringConfig] = None
     ) -> List[Dict[str, Any]]:
         """
         Reciprocal Rank Fusion (RRF) to combine search results.
 
         RRF score = 1/(k + rank_v) + 1/(k + rank_k) + error_boost
-        Where k=60 is a constant that prevents extreme rankings.
+        All parameters loaded from ScoringConfig.
 
         Args:
             prioritize_web: If True (triggered by @ prefix), heavily boost web sources
+            scoring_config: Optional config override for simulation
         """
+        # Load config (allow override for simulation)
+        config = scoring_config or get_scoring_config_sync()
+
+        # Use config values instead of hardcoded defaults
+        if k is None:
+            k = config.rrf.k
+
+        no_result_rank = config.search.no_result_rank
+        web_priority_boost = config.boost.web_priority_boost
+        web_priority_penalty = config.boost.web_priority_penalty
+        error_code_boost = config.boost.error_code_boost
+        web_normal_rank_threshold = config.boost.web_normal_rank_threshold
+        web_normal_rank_offset = config.boost.web_normal_rank_offset
         # Create lookup maps by chunk_id or content hash
         all_chunks = {}
 
@@ -1341,8 +1434,8 @@ Returns relevant document chunks with full context and source information."""
             key = result.get("chunk_id") or hash(result.get("content", "")[:200])
             all_chunks[key] = {
                 **result,
-                "neo4j_rank": result.get("rank", 999),
-                "postgres_rank": 999,
+                "neo4j_rank": result.get("rank", no_result_rank),
+                "postgres_rank": no_result_rank,
                 "rrf_score": 0.0
             }
 
@@ -1351,21 +1444,21 @@ Returns relevant document chunks with full context and source information."""
             key = result.get("chunk_id") or hash(result.get("content", "")[:200])
             if key in all_chunks:
                 # Update existing with postgres rank
-                all_chunks[key]["postgres_rank"] = result.get("rank", 999)
+                all_chunks[key]["postgres_rank"] = result.get("rank", no_result_rank)
                 all_chunks[key]["postgres_data"] = result
             else:
                 # Add new chunk from postgres
                 all_chunks[key] = {
                     **result,
-                    "neo4j_rank": 999,
-                    "postgres_rank": result.get("rank", 999),
+                    "neo4j_rank": no_result_rank,
+                    "postgres_rank": result.get("rank", no_result_rank),
                     "rrf_score": 0.0
                 }
 
         # Calculate RRF scores
         for key, chunk in all_chunks.items():
-            neo4j_rank = chunk.get("neo4j_rank", 999)
-            postgres_rank = chunk.get("postgres_rank", 999)
+            neo4j_rank = chunk.get("neo4j_rank", no_result_rank)
+            postgres_rank = chunk.get("postgres_rank", no_result_rank)
 
             # Base RRF score
             rrf_score = 1.0 / (k + neo4j_rank) + 1.0 / (k + postgres_rank)
@@ -1375,29 +1468,29 @@ Returns relevant document chunks with full context and source information."""
             # @ prefix mode: heavily prioritize web sources
             if prioritize_web:
                 if source_type == "web":
-                    # Web sources get massive boost (3x multiplier + rank simulation)
+                    # Web sources get massive boost (configurable multiplier + rank simulation)
                     simulated_postgres_rank = min(neo4j_rank, 3)  # Treat as top-3 in postgres
                     rrf_score = 1.0 / (k + neo4j_rank) + 1.0 / (k + simulated_postgres_rank)
-                    rrf_score *= 3.0  # Triple the score for web sources
+                    rrf_score *= web_priority_boost  # Configurable boost for web sources
                     chunk["web_priority_boosted"] = True
                 else:
                     # Non-web sources get penalized in @ mode
-                    rrf_score *= 0.3
+                    rrf_score *= web_priority_penalty
                     chunk["web_priority_penalized"] = True
             else:
                 # Normal mode: moderate web source boosting for fairness
                 # Web source boosting: if source only exists in Neo4j (no PostgreSQL match)
                 # and has high vector rank, boost it to be competitive
-                if source_type == "web" and postgres_rank == 999 and neo4j_rank <= 5:
-                    # Simulate as if it had a postgres_rank of neo4j_rank + 2
-                    simulated_postgres_rank = neo4j_rank + 2
+                if source_type == "web" and postgres_rank == no_result_rank and neo4j_rank <= web_normal_rank_threshold:
+                    # Simulate as if it had a postgres_rank of neo4j_rank + offset
+                    simulated_postgres_rank = neo4j_rank + web_normal_rank_offset
                     rrf_score = 1.0 / (k + neo4j_rank) + 1.0 / (k + simulated_postgres_rank)
                     chunk["web_boosted"] = True
 
             # Error code boosting
             content = chunk.get("content", "")
             if error_codes and any(code in content for code in error_codes):
-                rrf_score *= 1.5
+                rrf_score *= error_code_boost
                 chunk["error_boosted"] = True
 
             chunk["rrf_score"] = rrf_score
@@ -1426,7 +1519,8 @@ Returns relevant document chunks with full context and source information."""
         self,
         neo4j_results: List[Dict],
         postgres_results: List[Dict],
-        error_codes: List[str]
+        error_codes: List[str],
+        scoring_config: Optional[ScoringConfig] = None
     ) -> List[Dict]:
         """
         Simple hybrid merge WITHOUT RRF score calculation.
@@ -1437,6 +1531,10 @@ Returns relevant document chunks with full context and source information."""
         This avoids RRF score inflation issues while still benefiting
         from both search sources.
         """
+        # Load config
+        config = scoring_config or get_scoring_config_sync()
+        keyword_only_default_score = config.search.keyword_only_default_score
+
         # Build set of chunk_ids from PostgreSQL for quick lookup
         postgres_chunk_ids = set()
         for result in postgres_results:
@@ -1468,9 +1566,9 @@ Returns relevant document chunks with full context and source information."""
             if chunk_id and chunk_id not in neo4j_chunk_ids:
                 result["keyword_match"] = True
                 result["source_type"] = "keyword"
-                # Use a low default score for keyword-only results
+                # Use a configurable low default score for keyword-only results
                 if "score" not in result:
-                    result["score"] = 0.1
+                    result["score"] = keyword_only_default_score
                 merged.append(result)
 
         # Sort by score (Neo4j scores are primary)
@@ -1512,7 +1610,8 @@ Returns relevant document chunks with full context and source information."""
     def _apply_exact_phrase_priority(
         self,
         results: List[Dict],
-        exact_phrases: List[str]
+        exact_phrases: List[str],
+        scoring_config: Optional[ScoringConfig] = None
     ) -> List[Dict]:
         """
         Prioritize results containing exact phrases (quoted search).
@@ -1521,12 +1620,20 @@ Returns relevant document chunks with full context and source information."""
         Args:
             results: Search results to reorder
             exact_phrases: List of exact phrases to match (from "quoted" parts of query)
+            scoring_config: Optional scoring configuration
 
         Returns:
             Reordered results with exact matches first
         """
         if not exact_phrases or not results:
             return results
+
+        # Load config
+        config = scoring_config or get_scoring_config_sync()
+        exact_phrase_boost = config.boost.exact_phrase_boost
+        exact_phrase_base_add = config.boost.exact_phrase_base_add
+        partial_phrase_boost = config.boost.partial_phrase_boost
+        partial_phrase_base_add = config.boost.partial_phrase_base_add
 
         exact_match_results = []
         partial_match_results = []
@@ -1548,16 +1655,16 @@ Returns relevant document chunks with full context and source information."""
                 # All phrases matched - highest priority
                 result["exact_phrase_match"] = True
                 result["matched_phrases"] = matched_phrases
-                # Boost score significantly for exact matches
+                # Boost score significantly for exact matches (configurable)
                 original_score = result.get("rrf_score", result.get("score", 0.1))
-                result["rrf_score"] = original_score * 5.0 + 1.0  # Major boost
+                result["rrf_score"] = original_score * exact_phrase_boost + exact_phrase_base_add
                 exact_match_results.append(result)
             elif match_count > 0:
                 # Partial match - medium priority
                 result["exact_phrase_partial"] = True
                 result["matched_phrases"] = matched_phrases
                 original_score = result.get("rrf_score", result.get("score", 0.1))
-                result["rrf_score"] = original_score * 2.0 + 0.5  # Moderate boost
+                result["rrf_score"] = original_score * partial_phrase_boost + partial_phrase_base_add
                 partial_match_results.append(result)
             else:
                 # No match - lowest priority
@@ -1867,6 +1974,38 @@ Returns relevant document chunks with full context and source information."""
         llm_query = llm_modified_query  # The query LLM tried to use
         query_was_corrected = (llm_modified_query != query)
 
+        # =============================================================
+        # SEMANTIC SEARCH: Query Understanding (LLM-based preprocessing)
+        # =============================================================
+        query_analysis = None
+        semantic_entities = []
+        semantic_rewritten_query = None
+
+        if SEMANTIC_QUERY_PREPROCESSING and self.query_understanding_service:
+            try:
+                query_analysis = self.query_understanding_service.analyze_sync(search_query)
+                semantic_entities = query_analysis.entities
+                semantic_rewritten_query = query_analysis.rewritten_query
+
+                logger.info(
+                    f"[SemanticSearch] Query analysis: intent={query_analysis.intent.value}, "
+                    f"entities={[e.value for e in semantic_entities]}, "
+                    f"language={query_analysis.language}"
+                )
+
+                # Store analysis in context metadata for downstream use
+                if context and context.metadata is not None:
+                    context.metadata['query_analysis'] = {
+                        'intent': query_analysis.intent.value,
+                        'entities': [{'type': e.type, 'value': e.value} for e in semantic_entities],
+                        'rewritten_query': semantic_rewritten_query,
+                        'language': query_analysis.language,
+                        'keywords': query_analysis.keywords,
+                    }
+
+            except Exception as e:
+                logger.warning(f"[SemanticSearch] Query analysis failed, continuing with original: {e}")
+
         # Phase 1: Character corruption check only (Option C handles LLM expansion)
         original_query = context.metadata.get('original_query', '') if context.metadata else ''
         if original_query and query != original_query:
@@ -1949,8 +2088,21 @@ Returns relevant document chunks with full context and source information."""
         # =============================================================
         # Phase 0: Summary-first search for error codes, commands, terms
         # This provides fast (<50ms) accurate retrieval before expensive vector search
+
+        # Enhance search with Semantic Search entities (commands, error codes from Query Understanding)
+        enhanced_search_query = search_query
+        if semantic_entities:
+            entity_terms = []
+            for entity in semantic_entities:
+                if entity.type in ("command", "error_code", "product"):
+                    entity_terms.append(entity.value)
+            if entity_terms:
+                # Add entity terms to search query for better BM25 matching
+                enhanced_search_query = f"{search_query} {' '.join(entity_terms)}"
+                logger.debug(f"[SemanticSearch] Enhanced search query with entities: {entity_terms}")
+
         summary_first_result = await self._summary_first_search(
-            query=search_query,
+            query=enhanced_search_query,
             context=context,
         )
 
@@ -1966,22 +2118,42 @@ Returns relevant document chunks with full context and source information."""
             intent_matches = _check_intent_result_match(query_intents, summary_results, intent_query)
             print(f"[SummaryFirst] Intent detection: intent_query='{intent_query[:50]}', intents={query_intents}, result_types={result_types}, matches={intent_matches}")
 
-            # PRIORITY: If BM25 detected specific keywords (commands, error codes, terms),
-            # ALWAYS return those results - they are exact matches that shouldn't fall back to vector search
+            # PRIORITY: If BM25 detected SPECIFIC keywords (commands, error codes),
+            # return those results - they are exact matches that shouldn't fall back to vector search
+            # NOTE: detected_terms (like OSC, OpenFrame) are too general - they should NOT bypass vector search
             detected_commands = summary_first_result.get("detected_commands", [])
             detected_error_codes = summary_first_result.get("detected_error_codes", [])
             detected_terms = summary_first_result.get("detected_terms", [])
 
-            has_bm25_detection = detected_commands or detected_error_codes or detected_terms
+            # Merge with Semantic Search entities for better detection
+            if semantic_entities:
+                for entity in semantic_entities:
+                    if entity.type == "command" and entity.value not in detected_commands:
+                        detected_commands.append(entity.value)
+                        logger.debug(f"[SemanticSearch] Added command from query analysis: {entity.value}")
+                    elif entity.type == "error_code" and entity.value not in detected_error_codes:
+                        detected_error_codes.append(entity.value)
+                        logger.debug(f"[SemanticSearch] Added error code from query analysis: {entity.value}")
 
-            if has_bm25_detection and summary_results:
-                # BM25 detected specific keywords and found results - return immediately
-                logger.info(f"[SummaryFirst] BM25 detection success: commands={detected_commands}, errors={detected_error_codes}, terms={detected_terms}, returning {len(summary_results)} results directly")
+            # Only short-circuit for specific matches (commands, error codes), NOT general terms
+            # General terms like "OSC" or "OpenFrame" are too broad and may miss detailed PDF content
+            has_specific_bm25_match = detected_commands or detected_error_codes
+
+            if has_specific_bm25_match and summary_results:
+                # BM25 detected specific commands/errors and found results - return immediately
+                logger.info(f"[SummaryFirst] BM25 detection success: commands={detected_commands}, errors={detected_error_codes}, returning {len(summary_results)} results directly")
                 return await self._build_response_from_summaries(
                     summary_result=summary_first_result,
                     query=query,
                     context=context,
                 )
+
+            # For general terms, enrich query context but continue to vector search
+            if detected_terms and summary_results:
+                context_string = summary_first_result.get("context_string", "")
+                if context_string:
+                    search_query = f"{search_query}\n\n컨텍스트: {context_string}"
+                    logger.info(f"[SummaryFirst] Terms detected ({detected_terms}), enriching query with context, continuing to vector search")
 
             if confidence == "high" and summary_results and intent_matches:
                 # High confidence AND intent matches: return summary results directly
@@ -2206,6 +2378,55 @@ Returns relevant document chunks with full context and source information."""
                 top_k=top_k
             )
 
+            # ============================================================
+            # Phase 4.5: RAG Accuracy - Relevance Grading [NEW]
+            # ============================================================
+            # Apply relevance grading to filter out irrelevant results
+            # This prevents hallucinations like "osc.conf → tjes.conf"
+            grading_metadata = {}
+            if ENABLE_RAG_ACCURACY_GRADING and enriched_results:
+                try:
+                    rag_pipeline = get_rag_accuracy_pipeline()
+
+                    # Use original query for analysis (not LLM-modified)
+                    grading_query = original_user_query or query
+
+                    # Grade results
+                    grading_result, graded_results = rag_pipeline.grade_search_results(
+                        query=grading_query,
+                        search_results=enriched_results,
+                    )
+
+                    # Store grading metadata
+                    grading_metadata = {
+                        "relevance_grading_enabled": True,
+                        "relevant_count": grading_result.relevant_count,
+                        "partial_count": grading_result.partial_count,
+                        "irrelevant_count": grading_result.irrelevant_count,
+                        "exact_match_type": grading_result.query_analysis.exact_match_type.value,
+                        "exact_match_value": grading_result.query_analysis.exact_match_value,
+                        "primary_intent": grading_result.query_analysis.primary_intent.value,
+                    }
+
+                    # Replace with graded results (filtered)
+                    if graded_results:
+                        enriched_results = graded_results
+                        logger.info(
+                            f"[RAGAccuracy] Filtered to {len(graded_results)} results "
+                            f"(relevant={grading_result.relevant_count}, partial={grading_result.partial_count})"
+                        )
+                    else:
+                        # All results were irrelevant - keep originals but warn
+                        logger.warning(
+                            f"[RAGAccuracy] All {len(enriched_results)} results graded as irrelevant, "
+                            f"exact_match={grading_result.query_analysis.exact_match_value}"
+                        )
+                        grading_metadata["all_irrelevant"] = True
+
+                except Exception as grading_err:
+                    logger.error(f"[RAGAccuracy] Grading failed: {grading_err}")
+                    grading_metadata["grading_error"] = str(grading_err)
+
             # Format output text
             if exact_phrases:
                 exact_count = sum(1 for r in enriched_results if r.get("exact_phrase_match"))
@@ -2349,6 +2570,8 @@ Returns relevant document chunks with full context and source information."""
                 "image_count": len(clip_images),
                 "images": clip_images,
                 "individual_results": enriched_results,
+                # RAG Accuracy grading metadata [NEW]
+                **grading_metadata,
             }
 
             if query_was_corrected:

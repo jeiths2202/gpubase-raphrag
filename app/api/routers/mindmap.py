@@ -1,9 +1,14 @@
 """
 Mindmap API Router
 마인드맵 생성, 조회, 확장, 질의 API
+
+Phase 1 Improvements:
+- 헬스 체크 엔드포인트 추가
+- 에러 핸들링 개선
 """
 import time
 import uuid
+import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 
@@ -18,12 +23,54 @@ from ..models.mindmap import (
 from ..core.deps import get_current_user
 from ..services.mindmap_service import get_mindmap_service, MindmapService
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/mindmap", tags=["Mindmap"])
 
 
 def get_service() -> MindmapService:
     """Get mindmap service instance"""
     return get_mindmap_service()
+
+
+@router.get(
+    "/health",
+    response_model=SuccessResponse[dict],
+    summary="서비스 헬스 체크",
+    description="마인드맵 서비스 상태를 확인합니다. Vector Index, Neo4j 연결, 문서 데이터 유무를 검사합니다."
+)
+async def health_check(
+    service: MindmapService = Depends(get_service)
+):
+    """
+    Phase 1 - H1: 마인드맵 서비스 헬스 체크
+
+    Returns:
+        - status: healthy/degraded/unhealthy
+        - checks: 개별 검사 결과
+        - messages: 문제 발견 시 메시지
+        - stats: DB 통계 (문서, 청크, 엔티티, 마인드맵 수)
+    """
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+    start_time = time.time()
+
+    try:
+        health_status = service.get_health_status()
+        processing_time = int((time.time() - start_time) * 1000)
+
+        return SuccessResponse(
+            data=health_status,
+            meta=MetaInfo(
+                request_id=request_id,
+                processing_time_ms=processing_time
+            )
+        )
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Health check failed: {str(e)}"
+        )
 
 
 @router.post(
