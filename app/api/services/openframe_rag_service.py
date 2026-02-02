@@ -1,11 +1,16 @@
 """
 OpenFrame RAG Service
 
-QLoRA Learning LLM 기반 Multi-Product RAG 메인 서비스.
-제품 라우팅, Learning LLM, Vector/Graph 검색을 통합합니다.
+TRT-LLM NIM 기반 Multi-Product RAG 메인 서비스.
+제품 라우팅, TRT-LLM NIM, Vector/Graph 검색을 통합합니다.
+
+TRT-LLM NIM (Port 12820):
+- OpenFrame 8제품 전용 최적화 LLM
+- 제품별 시스템 프롬프트로 정확한 응답 생성
 """
 import asyncio
 import logging
+import os
 import time
 from typing import AsyncGenerator, Dict, List, Optional, Any
 
@@ -26,6 +31,7 @@ from ..models.openframe_rag import (
 from .product_router_service import get_product_router_service, ProductRouterService
 from .deep_seek_service import get_deep_seek_service, DeepSeekService
 from .learning_llm_service import get_learning_llm_service, LearningLLMService
+from ..adapters.openframe_llm import TRTLLMAdapter, get_trtllm_adapter, initialize_trtllm_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -36,14 +42,16 @@ class OpenFrameRAGService:
 
     Multi-Product RAG의 핵심 서비스로 다음을 통합합니다:
     1. Product Router: 쿼리 → 제품 분류
-    2. Learning LLM: QLoRA 기반 응답 생성
-    3. Vector Search: 유사도 기반 검색
-    4. Graph Search: 엔티티 기반 검색
+    2. TRT-LLM NIM: OpenFrame 8제품 전용 LLM (Port 12820)
+    3. Learning LLM: QLoRA 기반 응답 생성 (폴백용)
+    4. Vector Search: 유사도 기반 검색
+    5. Graph Search: 엔티티 기반 검색
     """
 
     def __init__(
         self,
         product_router: Optional[ProductRouterService] = None,
+        trtllm_adapter: Optional[TRTLLMAdapter] = None,
         learning_llm_service: Optional[LearningLLMService] = None,
         deep_seek_service: Optional[DeepSeekService] = None,
         vector_search_service=None,
@@ -54,16 +62,21 @@ class OpenFrameRAGService:
 
         Args:
             product_router: Product classification service
-            learning_llm_service: QLoRA Learning LLM service
+            trtllm_adapter: TRT-LLM NIM adapter (primary LLM for OpenFrame)
+            learning_llm_service: QLoRA Learning LLM service (fallback)
             deep_seek_service: DeepSeek comprehensive search service
             vector_search_service: Vector search service
             graph_search_service: Graph search service
         """
         self.product_router = product_router or get_product_router_service()
+        self.trtllm_adapter = trtllm_adapter
         self.learning_llm_service = learning_llm_service
         self.deep_seek_service = deep_seek_service
         self.vector_search_service = vector_search_service
         self.graph_search_service = graph_search_service
+
+        # TRT-LLM NIM 설정
+        self.use_trtllm = os.getenv("ENABLE_TRTLLM_NIM", "true").lower() == "true"
 
         self._is_initialized = False
 
@@ -75,11 +88,21 @@ class OpenFrameRAGService:
             True if initialization succeeded
         """
         try:
-            # Get Learning LLM service if not provided
+            # Initialize TRT-LLM NIM adapter (primary for OpenFrame)
+            if self.use_trtllm and self.trtllm_adapter is None:
+                trtllm_url = os.getenv("TRTLLM_NIM_URL", "http://192.168.8.11:12820/v1")
+                trtllm_model = os.getenv("TRTLLM_NIM_MODEL", "ensemble")
+                self.trtllm_adapter = await initialize_trtllm_adapter(
+                    base_url=trtllm_url,
+                    model=trtllm_model,
+                )
+                logger.info(f"TRT-LLM NIM adapter initialized: {trtllm_url}")
+
+            # Get Learning LLM service as fallback if not provided
             if self.learning_llm_service is None:
                 self.learning_llm_service = get_learning_llm_service()
 
-            # Initialize Learning LLM
+            # Initialize Learning LLM (fallback)
             if self.learning_llm_service:
                 await self.learning_llm_service.initialize()
 
@@ -92,7 +115,7 @@ class OpenFrameRAGService:
                 )
 
             self._is_initialized = True
-            logger.info("OpenFrame RAG service initialized")
+            logger.info(f"OpenFrame RAG service initialized (TRT-LLM NIM: {self.use_trtllm})")
             return True
 
         except Exception as e:
@@ -176,10 +199,35 @@ class OpenFrameRAGService:
 
             combined_context = "\n\n".join(context_parts) if context_parts else None
 
-            # Step 3: Generate response with Learning LLM
+            # Step 3: Generate response with TRT-LLM NIM (primary) or Learning LLM (fallback)
             response_text = ""
 
-            if request.use_learning_llm and self.learning_llm_service:
+            # Try TRT-LLM NIM first (primary for OpenFrame)
+            if self.use_trtllm and self.trtllm_adapter and self.trtllm_adapter.is_loaded:
+                try:
+                    trtllm_result = await self.trtllm_adapter.generate_with_metadata(
+                        question=request.message,
+                        context=combined_context,
+                        product=product.value if product != ProductId.AUTO else None,
+                        language=request.language or "ja",
+                        max_tokens=int(os.getenv("TRTLLM_NIM_MAX_TOKENS", "1024")),
+                        temperature=float(os.getenv("TRTLLM_NIM_TEMPERATURE", "0.7")),
+                    )
+
+                    if trtllm_result and trtllm_result.answer:
+                        response_text = trtllm_result.answer
+                        sources.learning_llm = LearningLLMSource(
+                            model="TRT-LLM NIM (OpenFrame)",
+                            adapter=f"trtllm-{product.value}",
+                            confidence=trtllm_result.confidence,
+                            generation_time_ms=int((time.time() - start_time) * 1000),
+                        )
+                        logger.info(f"TRT-LLM NIM response generated for product: {product.value}")
+                except Exception as e:
+                    logger.error(f"TRT-LLM NIM generation failed: {e}")
+
+            # Fallback to Learning LLM
+            if not response_text and request.use_learning_llm and self.learning_llm_service:
                 try:
                     llm_result = await self.learning_llm_service.generate(
                         question=request.message,
@@ -196,6 +244,7 @@ class OpenFrameRAGService:
                             confidence=0.8,
                             generation_time_ms=int((time.time() - start_time) * 1000),
                         )
+                        logger.info("Fallback to Learning LLM for response generation")
                 except Exception as e:
                     logger.error(f"Learning LLM generation failed: {e}")
 
@@ -327,7 +376,34 @@ class OpenFrameRAGService:
             # Step 3: Generate streaming response
             yield {"type": "status", "data": {"step": "generating"}}
 
-            if request.use_learning_llm and self.learning_llm_service:
+            llm_used = None
+
+            # Try TRT-LLM NIM first (primary for OpenFrame)
+            if self.use_trtllm and self.trtllm_adapter and self.trtllm_adapter.is_loaded:
+                try:
+                    async for token in self.trtllm_adapter.generate_stream(
+                        question=request.message,
+                        context=combined_context,
+                        product=product.value if product != ProductId.AUTO else None,
+                        language=request.language or "ja",
+                        max_tokens=int(os.getenv("TRTLLM_NIM_MAX_TOKENS", "1024")),
+                        temperature=float(os.getenv("TRTLLM_NIM_TEMPERATURE", "0.7")),
+                    ):
+                        yield {"type": "token", "data": {"content": token}}
+
+                    sources.learning_llm = LearningLLMSource(
+                        model="TRT-LLM NIM (OpenFrame)",
+                        adapter=f"trtllm-{product.value}",
+                        confidence=0.85,
+                    )
+                    llm_used = "trtllm"
+                    logger.info(f"TRT-LLM NIM streaming response for product: {product.value}")
+
+                except Exception as e:
+                    logger.error(f"TRT-LLM NIM streaming failed: {e}, falling back to Learning LLM")
+
+            # Fallback to Learning LLM if TRT-LLM failed
+            if llm_used is None and request.use_learning_llm and self.learning_llm_service:
                 try:
                     async for token in self.learning_llm_service.generate_stream(
                         question=request.message,
@@ -341,16 +417,19 @@ class OpenFrameRAGService:
                         model="Qwen/Qwen2.5-7B-Instruct",
                         confidence=0.8,
                     )
+                    llm_used = "learning"
 
                 except Exception as e:
                     logger.error(f"Learning LLM streaming failed: {e}")
-                    # Fallback
-                    fallback = self._generate_fallback_response(
-                        query=request.message,
-                        context_parts=context_parts,
-                        language=request.language or "ja",
-                    )
-                    yield {"type": "token", "data": {"content": fallback}}
+
+            # Final fallback to context-based response
+            if llm_used is None:
+                fallback = self._generate_fallback_response(
+                    query=request.message,
+                    context_parts=context_parts,
+                    language=request.language or "ja",
+                )
+                yield {"type": "token", "data": {"content": fallback}}
 
             # Final event
             processing_time = int((time.time() - start_time) * 1000)
@@ -462,34 +541,49 @@ class OpenFrameRAGService:
         available = False
         message = "Service not initialized"
         learning_llm_status = {}
+        trtllm_status = {}
         vector_available = False
         graph_available = False
         adapters = []
 
         try:
-            # Check Learning LLM
+            # Check TRT-LLM NIM (primary)
+            if self.use_trtllm and self.trtllm_adapter:
+                trtllm_health = await self.trtllm_adapter.health_check()
+                trtllm_status = self.trtllm_adapter.get_status()
+                if trtllm_health.get("status") == "healthy":
+                    available = True
+                    message = f"TRT-LLM NIM available ({self.trtllm_adapter.base_url})"
+
+                    # Add TRT-LLM adapter status
+                    adapters.append(AdapterStatus(
+                        name="trtllm-nim",
+                        product=ProductId.OPENFRAME_MVS,
+                        loaded=True,
+                    ))
+
+            # Check Learning LLM (fallback)
             if self.learning_llm_service:
                 learning_llm_status = self.learning_llm_service.get_status()
                 if learning_llm_status.get("is_loaded"):
-                    available = True
-                    message = "Service available"
+                    if not available:
+                        available = True
+                        message = "Learning LLM available (fallback)"
 
             # Check Vector search
             if self.vector_search_service:
-                # TODO: Add actual health check
                 vector_available = True
 
             # Check Graph search
             if self.graph_search_service:
-                # TODO: Add actual health check
                 graph_available = True
 
-            # List adapters
+            # List Learning LLM adapters
             if learning_llm_status.get("available_adapters"):
                 for adapter_name in learning_llm_status["available_adapters"][:5]:
                     adapters.append(AdapterStatus(
                         name=adapter_name,
-                        product=ProductId.OPENFRAME_MVS,  # Default
+                        product=ProductId.OPENFRAME_MVS,
                         loaded=adapter_name == learning_llm_status.get("current_adapter"),
                     ))
 
@@ -497,10 +591,17 @@ class OpenFrameRAGService:
             message = f"Health check failed: {e}"
             logger.error(message)
 
+        # Merge TRT-LLM status into learning_llm_status for backward compatibility
+        combined_status = {
+            **learning_llm_status,
+            "trtllm_nim": trtllm_status,
+            "primary_llm": "trtllm-nim" if (self.use_trtllm and self.trtllm_adapter and self.trtllm_adapter.is_loaded) else "learning-llm",
+        }
+
         return OpenFrameRAGHealth(
             available=available,
             message=message,
-            learning_llm_status=learning_llm_status,
+            learning_llm_status=combined_status,
             vector_search_available=vector_available,
             graph_search_available=graph_available,
             adapters=adapters,
@@ -524,6 +625,7 @@ def get_openframe_rag_service() -> OpenFrameRAGService:
 
 
 async def initialize_openframe_rag_service(
+    trtllm_adapter: Optional[TRTLLMAdapter] = None,
     learning_llm_service: Optional[LearningLLMService] = None,
     vector_search_service=None,
     graph_search_service=None,
@@ -532,7 +634,8 @@ async def initialize_openframe_rag_service(
     Initialize OpenFrame RAG service
 
     Args:
-        learning_llm_service: Learning LLM service instance
+        trtllm_adapter: TRT-LLM NIM adapter instance (primary LLM)
+        learning_llm_service: Learning LLM service instance (fallback)
         vector_search_service: Vector search service instance
         graph_search_service: Graph search service instance
 
@@ -542,6 +645,7 @@ async def initialize_openframe_rag_service(
     global _openframe_rag_service
 
     _openframe_rag_service = OpenFrameRAGService(
+        trtllm_adapter=trtllm_adapter,
         learning_llm_service=learning_llm_service,
         vector_search_service=vector_search_service,
         graph_search_service=graph_search_service,
@@ -549,5 +653,6 @@ async def initialize_openframe_rag_service(
 
     await _openframe_rag_service.initialize()
 
-    logger.info("OpenFrame RAG service initialized")
+    use_trtllm = os.getenv("ENABLE_TRTLLM_NIM", "true").lower() == "true"
+    logger.info(f"OpenFrame RAG service initialized (TRT-LLM NIM: {use_trtllm})")
     return _openframe_rag_service
