@@ -1,49 +1,44 @@
 {
-  "sessionCount": 82,
+  "sessionCount": 83,
   "lastSession": {
     "startedAt": "2026-02-03T00:00:00.000Z",
     "platform": "claude",
     "level": "Enterprise"
   },
-  "activeFeature": "chatgpt-style-webui",
-  "pdcaPhase": "completed",
-  "designVersion": "v1.0",
-  "planPath": "docs/01-plan/features/chatgpt-style-webui.plan.md",
-  "designPath": "docs/02-design/features/chatgpt-style-webui.design.md",
-  "analysisPath": "docs/03-analysis/chatgpt-style-webui.analysis.md",
-  "implementationProgress": {
-    "completedTasks": [
-      "QueryAnalysis 모델 생성 (models/query_analysis.py)",
-      "QueryUnderstandingService 구현 (services/query_understanding_service.py)",
-      "LLM Prompt 설계 (prompts/query_understanding.txt)",
-      "EntityLookupService 구현 (services/entity_lookup_service.py)",
-      "ResultFusionService RRF 구현 (services/result_fusion_service.py)",
-      "HybridRetrieverService 구현 (services/hybrid_retriever_service.py)",
-      "SemanticSearchTool 구현 (agents/tools/semantic_search.py)",
-      "SemanticSearchIntegration 어댑터 (services/semantic_search_integration.py)",
-      "deps.py 의존성 주입 추가",
-      "테스트 스크립트 작성 및 검증 (86% pass)"
-    ],
-    "pendingTasks": [
-      "기존 unified_search.py 통합",
-      "실제 Vector/Keyword 검색 연결",
-      "E2E 테스트 (일본어/한국어 쿼리)"
-    ],
-    "status": "implementation_in_progress"
-  },
-  "matchRate": 91,
+  "activeFeature": null,
+  "pdcaPhase": "idle",
+  "designVersion": null,
+  "planPath": null,
+  "designPath": null,
+  "analysisPath": null,
+  "implementationProgress": null,
+  "matchRate": null,
   "iterationCount": 0,
   "completedAt": null,
-  "reportPath": "docs/04-report/features/chatgpt-style-webui.report.md",
+  "reportPath": null,
   "gaps": null,
   "verifiedItems": null,
   "previousFeature": {
-    "feature": "rag-accuracy-improvement",
+    "feature": "chatgpt-style-webui",
     "phase": "archived",
-    "matchRate": 97,
-    "completedAt": "2026-01-31T19:45:00.000Z"
+    "matchRate": 91,
+    "completedAt": "2026-02-03T00:00:00.000Z"
   },
   "archivedFeatures": [
+    {
+      "feature": "chatgpt-style-webui",
+      "archivedAt": "2026-02-03T00:00:00.000Z",
+      "archivedTo": "docs/archive/2026-02/chatgpt-style-webui/",
+      "matchRate": 91,
+      "completedAt": "2026-02-03T00:00:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "cssLinesCreated": 535,
+        "componentsCreated": 2,
+        "componentsModified": 1,
+        "i18nLanguages": 3
+      }
+    },
     {
       "feature": "rag-accuracy-improvement",
       "archivedAt": "2026-01-31T19:30:00.000Z",
@@ -137,6 +132,12 @@
       "feature": "document-graph-integration",
       "archivedAt": "2026-01-31T17:30:00.000Z",
       "archivedTo": "docs/archive/2026-01/document-graph-integration/",
+      "matchRate": 100
+    },
+    {
+      "feature": "mindmap-embedding-verification",
+      "archivedAt": "2026-02-02T00:00:00.000Z",
+      "archivedTo": "docs/archive/2026-02/mindmap-embedding-verification/",
       "matchRate": 100
     }
   ]

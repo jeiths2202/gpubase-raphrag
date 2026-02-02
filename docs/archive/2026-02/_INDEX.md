@@ -6,7 +6,27 @@
 
 | Feature | Archive Date | Match Rate | Status |
 |---------|--------------|------------|--------|
+| [chatgpt-style-webui](./chatgpt-style-webui/) | 2026-02-03 | 91% | ✅ Completed |
 | [mindmap-embedding-verification](./mindmap-embedding-verification/) | 2026-02-02 | 100% | ✅ Completed |
+
+---
+
+## chatgpt-style-webui
+
+**Purpose**: ChatGPT-style chat WebUI with syntax highlighting and collapsible sources
+
+**Documents**:
+- `chatgpt-style-webui.plan.md` - Feature plan
+- `chatgpt-style-webui.design.md` - Component design specifications
+- `chatgpt-style-webui.analysis.md` - Gap analysis (91% match)
+- `chatgpt-style-webui.report.md` - Completion report
+
+**Key Deliverables**:
+- `chatgpt-style.css` - 535 lines of ChatGPT-style CSS
+- `MessageContent.tsx` - Enhanced with rehype-highlight
+- `TypingCursor.tsx` - Streaming cursor animation
+- `SourcesAccordion.tsx` - Collapsible RAG sources
+- i18n translations (EN, KO, JA)
 
 ---
 
@@ -27,4 +47,4 @@
 
 ---
 
-*Last updated: 2026-02-02*
+*Last updated: 2026-02-03*
