@@ -662,7 +662,7 @@ export const AIStudioPage: React.FC = () => {
     try {
       const response = await mindmapApi.generateFromAllDocuments({
         max_nodes: 50,
-        language: 'auto',
+        language: language,  // Use user's current UI language
       });
 
       setCurrentMindmapData(response.mindmap);
@@ -676,7 +676,7 @@ export const AIStudioPage: React.FC = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, []);
+  }, [language]);
 
   // Render connections
   const renderConnections = () => {
