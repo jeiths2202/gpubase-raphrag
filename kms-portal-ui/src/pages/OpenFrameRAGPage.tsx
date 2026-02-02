@@ -54,7 +54,9 @@ interface ClassificationResult {
 
 // Message source types
 interface LearningLLMSource {
-  product: string;
+  model?: string;
+  adapter?: string;
+  product?: string;
   confidence: number;
 }
 
@@ -195,8 +197,7 @@ export const OpenFrameRAGPage: React.FC = () => {
       return { product: 'unknown', confidence: 0.0, needs_selection: true };
     } catch (err) {
       console.error('Classification API error, using fallback:', err);
-      // Fallback: simple keyword matching (client-side)
-      const queryLower = query.toLowerCase();
+      // Fallback: simple keyword matching (client-side, case-insensitive via regex)
 
       // Command-based detection (high confidence)
       if (/tjesmgr|tacfmgr|hidbmgr|oscmgr|osimgr|ndbmgr/i.test(query)) {
@@ -310,11 +311,12 @@ export const OpenFrameRAGPage: React.FC = () => {
 
       // Use SSE streaming
       console.log('[OpenFrameRAG] Sending request:', JSON.stringify(requestBody, null, 2));
+      const authHeader = client.defaults.headers.common?.['Authorization'];
       const response = await fetch(`${client.defaults.baseURL}/openframe-rag/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...client.defaults.headers.common,
+          ...(authHeader ? { 'Authorization': String(authHeader) } : {}),
         },
         body: JSON.stringify(requestBody),
         credentials: 'include',
@@ -408,9 +410,12 @@ export const OpenFrameRAGPage: React.FC = () => {
                   confidenceValue = event.data.confidence === 'high' ? 0.9 :
                     event.data.confidence === 'medium' ? 0.7 : 0.5;
                   if (event.data.sources?.learning_llm) {
+                    // Use API response data directly (includes model, adapter, product, confidence)
                     sources.learning_llm = {
-                      product: productDetected || 'unknown',
-                      confidence: confidenceValue,
+                      model: event.data.sources.learning_llm.model,
+                      adapter: event.data.sources.learning_llm.adapter,
+                      product: event.data.sources.learning_llm.product || productDetected || 'unknown',
+                      confidence: event.data.sources.learning_llm.confidence ?? confidenceValue,
                     };
                   }
                   break;
@@ -492,11 +497,12 @@ export const OpenFrameRAGPage: React.FC = () => {
       };
 
       // Use SSE streaming for DeepSeek
+      const deepSeekAuthHeader = client.defaults.headers.common?.['Authorization'];
       const response = await fetch(`${client.defaults.baseURL}/openframe-rag/deep-seek/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...client.defaults.headers.common,
+          ...(deepSeekAuthHeader ? { 'Authorization': String(deepSeekAuthHeader) } : {}),
         },
         body: JSON.stringify(requestBody),
         credentials: 'include',
@@ -864,7 +870,7 @@ export const OpenFrameRAGPage: React.FC = () => {
                       {message.sources.learning_llm && (
                         <div className="openframe-source-item learning-llm">
                           <span className="openframe-source-type">🧠</span>
-                          <span>Learning LLM: {getProductName(message.sources.learning_llm.product)}</span>
+                          <span>{message.sources.learning_llm.model || 'Learning LLM'}{message.sources.learning_llm.product ? ` (${getProductName(message.sources.learning_llm.product)})` : ''}</span>
                           <span className="openframe-source-score">
                             {(message.sources.learning_llm.confidence * 100).toFixed(0)}%
                           </span>

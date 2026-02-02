@@ -104,6 +104,7 @@ class LearningLLMSource(BaseModel):
     """Learning LLM response source"""
     model: str = Field(default="Qwen/Qwen2.5-7B-Instruct+QLoRA")
     adapter: Optional[str] = Field(default=None, description="Active QLoRA adapter")
+    product: Optional[str] = Field(default=None, description="Target product ID")
     confidence: float = Field(ge=0.0, le=1.0)
     generation_time_ms: Optional[int] = None
 

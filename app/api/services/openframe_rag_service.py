@@ -217,8 +217,9 @@ class OpenFrameRAGService:
                     if trtllm_result and trtllm_result.answer:
                         response_text = trtllm_result.answer
                         sources.learning_llm = LearningLLMSource(
-                            model="TRT-LLM NIM (OpenFrame)",
+                            model=f"TRT-LLM NIM ({trtllm_result.model})",
                             adapter=f"trtllm-{product.value}",
+                            product=product.value,
                             confidence=trtllm_result.confidence,
                             generation_time_ms=int((time.time() - start_time) * 1000),
                         )
@@ -241,6 +242,7 @@ class OpenFrameRAGService:
                         sources.learning_llm = LearningLLMSource(
                             model=llm_result.get("model", "Qwen/Qwen2.5-7B-Instruct"),
                             adapter=llm_result.get("adapter"),
+                            product=product.value,
                             confidence=0.8,
                             generation_time_ms=int((time.time() - start_time) * 1000),
                         )
@@ -379,28 +381,33 @@ class OpenFrameRAGService:
             llm_used = None
 
             # Try TRT-LLM NIM first (primary for OpenFrame)
+            # Note: TRT-LLM NIM doesn't support streaming, so we use generate_with_metadata
             if self.use_trtllm and self.trtllm_adapter and self.trtllm_adapter.is_loaded:
                 try:
-                    async for token in self.trtllm_adapter.generate_stream(
+                    trtllm_result = await self.trtllm_adapter.generate_with_metadata(
                         question=request.message,
                         context=combined_context,
                         product=product.value if product != ProductId.AUTO else None,
                         language=request.language or "ja",
                         max_tokens=int(os.getenv("TRTLLM_NIM_MAX_TOKENS", "1024")),
                         temperature=float(os.getenv("TRTLLM_NIM_TEMPERATURE", "0.7")),
-                    ):
-                        yield {"type": "token", "data": {"content": token}}
-
-                    sources.learning_llm = LearningLLMSource(
-                        model="TRT-LLM NIM (OpenFrame)",
-                        adapter=f"trtllm-{product.value}",
-                        confidence=0.85,
                     )
-                    llm_used = "trtllm"
-                    logger.info(f"TRT-LLM NIM streaming response for product: {product.value}")
+
+                    if trtllm_result and trtllm_result.answer:
+                        # Yield entire response at once (TRT-LLM doesn't support streaming)
+                        yield {"type": "token", "data": {"content": trtllm_result.answer}}
+
+                        sources.learning_llm = LearningLLMSource(
+                            model=f"TRT-LLM NIM ({trtllm_result.model})",
+                            adapter=f"trtllm-{product.value}",
+                            product=product.value,
+                            confidence=trtllm_result.confidence,
+                        )
+                        llm_used = "trtllm"
+                        logger.info(f"TRT-LLM NIM response for product: {product.value}")
 
                 except Exception as e:
-                    logger.error(f"TRT-LLM NIM streaming failed: {e}, falling back to Learning LLM")
+                    logger.error(f"TRT-LLM NIM failed: {e}, falling back to Learning LLM")
 
             # Fallback to Learning LLM if TRT-LLM failed
             if llm_used is None and request.use_learning_llm and self.learning_llm_service:
@@ -415,6 +422,7 @@ class OpenFrameRAGService:
 
                     sources.learning_llm = LearningLLMSource(
                         model="Qwen/Qwen2.5-7B-Instruct",
+                        product=product.value,
                         confidence=0.8,
                     )
                     llm_used = "learning"

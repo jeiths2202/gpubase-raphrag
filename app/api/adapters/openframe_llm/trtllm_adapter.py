@@ -119,6 +119,7 @@ class TRTLLMResponse:
     answer: str
     confidence: float
     product: str
+    model: str = "trtllm-nim"  # 실제 사용된 모델명 (예: openframe-mvs)
     mentioned_codes: List[str] = field(default_factory=list)
     mentioned_terms: List[str] = field(default_factory=list)
     mentioned_commands: List[str] = field(default_factory=list)
@@ -374,6 +375,9 @@ class TRTLLMAdapter:
 
         응답에서 에러코드, 명령어, 용어를 추출합니다.
         """
+        # Get actual model name used for this request
+        model_name = self._get_model_name(product)
+
         answer = await self.generate(
             question=question,
             context=context,
@@ -388,12 +392,13 @@ class TRTLLMAdapter:
                 answer="",
                 confidence=0.0,
                 product=product or "unknown",
+                model=model_name,
             )
 
         # Extract metadata from answer
-        return self._parse_response(answer, product)
+        return self._parse_response(answer, product, model_name)
 
-    def _parse_response(self, answer: str, product: Optional[str] = None) -> TRTLLMResponse:
+    def _parse_response(self, answer: str, product: Optional[str] = None, model: Optional[str] = None) -> TRTLLMResponse:
         """응답에서 메타데이터 추출"""
         # Extract error codes (pattern: -XXXX or -XXXXX)
         mentioned_codes = list(set(re.findall(r'-\d{4,5}', answer)))
@@ -425,6 +430,7 @@ class TRTLLMAdapter:
             answer=answer,
             confidence=confidence,
             product=product or "unknown",
+            model=model or self.model,
             mentioned_codes=mentioned_codes,
             mentioned_terms=mentioned_terms,
             mentioned_commands=mentioned_commands,
