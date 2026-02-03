@@ -1,7 +1,7 @@
 {
-  "sessionCount": 101,
+  "sessionCount": 103,
   "lastSession": {
-    "startedAt": "2026-02-03T08:44:56.422Z",
+    "startedAt": "2026-02-03T09:33:03.314Z",
     "platform": "claude",
     "level": "Enterprise"
   },
@@ -20,12 +20,38 @@
   "verifiedItems": null,
   "keyDeliverables": null,
   "previousFeature": {
-    "feature": "rag-backend-integration",
+    "feature": "server-script-improvement",
     "phase": "archived",
-    "matchRate": 96,
-    "archivedAt": "2026-02-03T17:51:00.000Z"
+    "matchRate": 97,
+    "archivedAt": "2026-02-03T18:36:00.000Z"
   },
   "archivedFeatures": [
+    {
+      "feature": "server-script-improvement",
+      "archivedAt": "2026-02-03T18:36:00.000Z",
+      "archivedTo": "docs/archive/2026-02/server-script-improvement/",
+      "matchRate": 97,
+      "completedAt": "2026-02-03T18:30:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "filesModified": 1,
+        "linesAdded": 495,
+        "functionsAdded": 14,
+        "parametersAdded": 4,
+        "backupCreated": true,
+        "implementationFiles": ["scripts/server.ps1"],
+        "keyFeatures": [
+          "Start-Process 방식 변경 (cmd.exe → python 직접)",
+          "Health Check 기반 시작 완료 감지",
+          "Graceful Shutdown",
+          "PID 파일 관리",
+          "환경변수 검증",
+          "재시도 로직 (3회)",
+          "CPU/메모리 정보 표시",
+          "로그 Rotation (7일)"
+        ]
+      }
+    },
     {
       "feature": "rag-backend-integration",
       "archivedAt": "2026-02-03T17:51:00.000Z",
@@ -42,7 +68,10 @@
         "breakingChanges": 0,
         "enhancedErrorHandling": true,
         "trainingDataDocs": 13594,
-        "implementationFiles": ["app/api/services/rag_anti_hallucination_service.py", "app/api/routers/query_rag.py"]
+        "implementationFiles": [
+          "app/api/services/rag_anti_hallucination_service.py",
+          "app/api/routers/query_rag.py"
+        ]
       }
     },
     {

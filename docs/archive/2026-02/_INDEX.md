@@ -6,6 +6,7 @@
 
 | Feature | Archive Date | Match Rate | Status |
 |---------|--------------|------------|--------|
+| [server-script-improvement](./server-script-improvement/) | 2026-02-03 | 97% | ✅ Completed |
 | [rag-backend-integration](./rag-backend-integration/) | 2026-02-03 | 96% | ✅ Completed |
 | [summary-quality-improvement](./summary-quality-improvement/) | 2026-02-03 | 94% | ✅ Completed |
 | [strategy-aware-learning-dataset](./strategy-aware-learning-dataset/) | 2026-02-03 | 100% | ✅ Completed |
@@ -178,4 +179,48 @@
 
 ---
 
-*Last updated: 2026-02-03 (rag-backend-integration archived)*
+## server-script-improvement
+
+**Purpose**: Production-grade improvement of `scripts/server.ps1` for reliable server start/stop operations
+
+**Documents**:
+- `server-script-improvement.plan.md` - Feature plan (Start-Process crash analysis)
+- `server-script-improvement.design.md` - 13 functions design (550→855 lines)
+- `server-script-improvement.analysis.md` - Gap analysis (97% match rate)
+- `server-script-improvement.report.md` - Completion report
+
+**Key Deliverables**:
+- `scripts/server.ps1` - Main implementation (855 lines, +495 lines)
+- `scripts/server.ps1.bak` - Original backup (360 lines)
+
+**Root Cause Fixed**:
+```powershell
+# Before (broken) - cmd.exe /c causes child process termination
+Start-Process cmd.exe /c "python ..." -WindowStyle Hidden
+
+# After (working) - Direct Python execution
+Start-Process python -PassThru -RedirectStandardOutput
+```
+
+**New Features**:
+| Feature | Description |
+|---------|-------------|
+| Health Check | HTTP `/api/v1/health` polling (60s timeout) |
+| Graceful Shutdown | WM_CLOSE → 10s wait → Force kill |
+| PID Management | `.pids/` directory for process tracking |
+| Environment Validation | Required env vars check |
+| Retry Logic | Max 3 attempts on failure |
+| Resource Monitoring | CPU/Memory display in status |
+| Log Rotation | Auto-delete logs older than 7 days |
+
+**New Parameters**:
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `-Timeout` | 60 | Health check timeout (seconds) |
+| `-MaxRetries` | 3 | Start retry count |
+| `-SkipEnvCheck` | false | Skip environment validation |
+| `-GracePeriod` | 10 | Graceful shutdown wait (seconds) |
+
+---
+
+*Last updated: 2026-02-03 (server-script-improvement archived)*
