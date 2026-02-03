@@ -1,30 +1,96 @@
 {
-  "sessionCount": 83,
+  "sessionCount": 101,
   "lastSession": {
-    "startedAt": "2026-02-03T00:00:00.000Z",
+    "startedAt": "2026-02-03T08:44:56.422Z",
     "platform": "claude",
     "level": "Enterprise"
   },
   "activeFeature": null,
-  "pdcaPhase": "idle",
+  "pdcaPhase": null,
   "designVersion": null,
   "planPath": null,
   "designPath": null,
   "analysisPath": null,
+  "reportPath": null,
   "implementationProgress": null,
   "matchRate": null,
-  "iterationCount": 0,
+  "iterationCount": null,
   "completedAt": null,
-  "reportPath": null,
   "gaps": null,
   "verifiedItems": null,
+  "keyDeliverables": null,
   "previousFeature": {
-    "feature": "chatgpt-style-webui",
+    "feature": "rag-backend-integration",
     "phase": "archived",
-    "matchRate": 91,
-    "completedAt": "2026-02-03T00:00:00.000Z"
+    "matchRate": 96,
+    "archivedAt": "2026-02-03T17:51:00.000Z"
   },
   "archivedFeatures": [
+    {
+      "feature": "rag-backend-integration",
+      "archivedAt": "2026-02-03T17:51:00.000Z",
+      "archivedTo": "docs/archive/2026-02/rag-backend-integration/",
+      "matchRate": 96,
+      "completedAt": "2026-02-03T15:30:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "filesCreated": 2,
+        "linesAdded": 752,
+        "serviceEndpoints": 4,
+        "pydanticModels": 9,
+        "hallucinationModes": 3,
+        "breakingChanges": 0,
+        "enhancedErrorHandling": true,
+        "trainingDataDocs": 13594,
+        "implementationFiles": ["app/api/services/rag_anti_hallucination_service.py", "app/api/routers/query_rag.py"]
+      }
+    },
+    {
+      "feature": "summary-quality-improvement",
+      "archivedAt": "2026-02-03T13:00:00.000Z",
+      "archivedTo": "docs/archive/2026-02/summary-quality-improvement/",
+      "matchRate": 94,
+      "completedAt": "2026-02-03T12:41:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "filesCreated": 3,
+        "linesAdded": 1256,
+        "osctdlrmFixed": true,
+        "itemsReclassified": 62,
+        "qualityScore": 87.4
+      }
+    },
+    {
+      "feature": "strategy-aware-learning-dataset",
+      "archivedAt": "2026-02-03T12:50:00.000Z",
+      "archivedTo": "docs/archive/2026-02/strategy-aware-learning-dataset/",
+      "matchRate": 100,
+      "completedAt": "2026-02-03T12:41:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "filesCreated": 2,
+        "learningItems": 20143,
+        "pdfProcessed": 245,
+        "jeusKoreanRatio": "76.8%",
+        "processingTime": "30s"
+      }
+    },
+    {
+      "feature": "chatgpt-quality-pipeline",
+      "archivedAt": "2026-02-03T01:38:00.000Z",
+      "archivedTo": "docs/archive/2026-02/chatgpt-quality-pipeline/",
+      "matchRate": 100,
+      "completedAt": "2026-02-03T01:35:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "classesCreated": 2,
+        "filesModified": 4,
+        "linesAdded": 205,
+        "contextWindowExtended": "200→500, 500→1000",
+        "sentenceLimitExtended": "3→5",
+        "codeLengthThreshold": "20→5"
+      }
+    },
     {
       "feature": "chatgpt-style-webui",
       "archivedAt": "2026-02-03T00:00:00.000Z",
