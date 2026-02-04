@@ -1,0 +1,17 @@
+{
+  "total": 678,
+  "converted": 678,
+  "skipped": 0,
+  "by_type": {},
+  "by_language": {
+    "ja": 600,
+    "en": 78
+  },
+  "by_product": {},
+  "augmented": 0,
+  "train_count": 542,
+  "eval_count": 136,
+  "product": "openframe_tacf_v2",
+  "train_file": "uploads\\summaries\\multi_lora_v3\\openframe_tacf_v2\\train.json",
+  "eval_file": "uploads\\summaries\\multi_lora_v3\\openframe_tacf_v2\\eval.json"
+}

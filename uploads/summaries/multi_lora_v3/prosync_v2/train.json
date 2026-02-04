@@ -1,0 +1,938 @@
+[
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n初期化パラメータの管理とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncは、設定ファイルとルール・データベースを使用した初期化パラメータの管理をサポートしま\nす。\n2.2.1. 設定ファイルを使用した初期化パラメータの管理\n設定ファイルはProSyncで起動時に使用するパラメータを管理するファイルで、プロセスごとに存在し\nます。設定ファイルはユーザーが入力した情報を基準に、インストール時にconfigディレクトリに自動\nで生成されます。\nソースDBがクラスター環境の場合、抽出プロセスの設定ファイルはクラスター・ノードの数と同数が\n生成され、ファイル名は [top_id]_extnode#.cfgに設定されます。ソースDBがクラスター環境でない場合\nは、抽出プロセスの設定ファイルは1つのみ生成され、ファイル名は上記と同様に [top_id]_ext1.cfgに設\n定されます。\n以下は、抽出プロセスの設定ファイルにより抽出プロセスの初期化パラメータを設定した例です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\ncfgファイルをシステム環境に合わせて設定した後、以下のようにprs_install.shファイのステップを説明してください。<|im_end|>\n<|im_start|>assistant\nルを実行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストール前の準備の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n本章では、ProSyncをインストールする前に必要な準備事項について説明します。\n2.1. 概要\nProSyncをインストールする前に確認および設定する準備事項は以下のとおりです。\n●ディスク容量の確認\n●ディレクトリの確認\n●運用ディレクトリの設定\n●環境設定\n●データベースのエイリアス設定\n●同期対象表の作成および登録\n●インストール設定ファイルの設定\n●ログ分析の確認\n2.2. ディスク容量の確認\nProSyncをインストールするには、少なくとも1.5GB以上のハードディスク空き容量(プラットフォーム\nごとに異なる)が必要です。これは、ProSyncのインストール後、操作ログを作成するときに必要な最小\n容量です。\nUNIXシステムでは、dfコマンドを使用してハードディスクの空き容量を確認することができます。\n参考\nハードウェア要件についての詳細は、「1.2. システム要件」を参照してください。\n2.3. ディレクトリの確認\nProSyncの圧縮されたインストール・ファイルを解凍すると、以下のディレクトリ構造が作成されま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSyncのインストールに必要なファイルが格納されています。のステップを説明してください。<|im_end|>\n<|im_start|>assistant\n以下は、$PRS_HOME/installのファイルとサブディレクトリについての説明です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期履歴の調整方法とは何ですか？<|im_end|>\n<|im_start|>assistant\n以下は、各表の履歴データを調整する方法です。\n1. 同期履歴を調整する前にプロセスを終了します。同期の実行中に同期履歴調整表のデータを変更する\nと、深刻なエラーが発生する可能性があるため、注意が必要です。\n2. PRS_COMMITTED_TX_LIST表の同期履歴を調整します。\n– ソースDBがTiberoの場合\nPRS_COMMITTED_TX_LIST表のTSN値を同期する開始TSN値で更新するクエリを実行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n一方向の同期モードの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncのインストール時にソースDBとターゲットDBにそれぞれ接続し、ProSyncの実行に必要なさ\nまざまなオブジェクトを作成します。ProSyncをインストールするときは、各DBが運用中である必要が\nあります。\n最初にprs_install.cfgファイルをシステム環境に合わせて設定した後、以下のようにprs_install.shファイ\nルを実行します。prs_install.cfgファイルの設定方法については、「2.8. インストール環境ファイルの設\n定」を参照してください。\n以下は、prs_install.shの使用方法です。\n. prs_install.sh [option] [config file] [list file]\n●[option]\nprs_install.shでは、-h、-c、-lオプションがあります。\n説明\nオプション\nヘルプを表示します\n-h\n環境設定ファイルを指定します\n-c\n同期対象のリスト・ファイルを指定します\n-l\n●入力項目\n説明\n項目\n-cオプションを使用してインストールに使用する設定ファイルを指定します。\n[config file]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nする場合は、ターゲットDBの数とタイプに合わせてインストーの手順を教えてください。<|im_end|>\n<|im_start|>assistant\nル・パラメータを設定してからインストールする必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nユーザー・フィルタリング機能について説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncは、特定のユーザーによって発生されたDMLとDDLを同期から除外できる機能を提供します。\nユーザー・フィルタリング機能を使用するには、[TOP_ID]_ext1.cfgファイルに次のパラメータを設定す\nる必要があります。\nEXCLUDE_USER={user_name, user_name}\n説明\nパラメータ\nDMLとDDLを同期から除外するユーザー名を指定します\nEXCLUDE_USER\n以下は、TESTユーザーとPRS_USERを同期から除外する例です。\nEXCLUDE_USER=PRS_USER,TEST\n参考\nProSyncが双方向同期モードに設定された場合は、PRS_USERによって発生および同期されたDML\nが再び抽出データベースに転送されることを防ぐために、EXCLUDE_USERにPRS_USERを登録\nする必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOracle ASMの設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nソースDBがASMを使用するOracle環境である場合、REDOログとアーカイブ・ログがASMディスク・\nグループに存在すると、ProSyncがREDOログとアーカイブ・ログを読み取ることができません。\nしたがって、ACFS(ASM Cluster File System)を使用してASMとして管理されるが、OSからアクセスで\nきるパスを作成し、そのパスにREDOログとアーカイブ・ログを格納する必要があります。\n●ACFSの設定\n以下は、Oracle環境でASMCMDを使用してボリュームを作成し、そのボリュームをファイル・シス\nテムにマウンドする例です。\n$ oraenv\n [rac1] ? +ASM1\n$ asmcmd\nASMCMD [+]> volcreate -G DISKGROUPNAME -s 10G VOLUMENAME\nASMCMD [+]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nするためにソースDBとターゲットDBにはそれぞれ1つのOSアカウントが必要のやり方は？<|im_end|>\n<|im_start|>assistant\nです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nPRS_CONST_HIST表の履歴情報を調整します。について説明してください。<|im_end|>\n<|im_start|>assistant\nPRS_CONST_HIST表で最も高いHIST#値を持つ行に対して、SEQNO列の抽出を開始するために使\n用されるログのシーケンス番号でWRAPNO列の値を0に更新するためのクエリを実行します。\n以下は、シーケンス番号が50のアーカイブ・ログから抽出する例です。\nSQL> UPDATE PRS_CONST_HIST SET SEQNO=50, WRAPNO=0\nWHERE HIST# = (SELECT max(HIST#) FROM PRS_CONST_HIST);\n4. DDLが発生した場合\nデータ・ディクショナリが変更される場合であり、複数のトランザクションを継続して適用すると、\n整合性が失われる可能性があります。したがって、DDLが発生したら、その時間以前に発生したすべ\nてのトランザクションを適用し、DMLの適用を一時的に停止します。\nPRS_LCT表に最後に適用されたトランザクションの時間を保存した後、DDLによって変更されたデー\nタ・ディクショナリを変更し、PRS_LCTに保存された時間以降のトランザクションから適用を再開\nします。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nHISTORYについて説明してください。<|im_end|>\n<|im_start|>assistant\nコマンドの履歴のサイズを設定します。\n以下は、HISTORYシステム変数の詳細です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSTARTUPの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n指定したTOP_IDのプロセスまたはマネージャー・プロセスを実行します。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nSTART[UP] MAN[AGER]\nSTART[UP] top_id [EXT[RACT] [num] | APP[LY] [num]]\n説明\nオプション\nマネージャー・プロセス実行します\nMAN[AGER]\n特定のTOP_IDの抽出、適用、LONG/LOBプロセスをすべて実行します\ntop_id\n[num]番目のノードの抽出プロセスを実行します\n*EXT[RACT] [num]\n[num]番目のノードの適用プロセスを実行します\n*APP[LY] [num]\n●例\n以下は、マネージャー・プロセスを実行する例です。\nAdmin> STARTUP MANAGER\nManager process (19616) started.\n以下は、「prosync4」プロセスを実行する例です。\nAdmin> STARTUP prosync4\nprosync_ext1 process (19644)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\ncfg)の手順を教えてください。<|im_end|>\n<|im_start|>assistant\n-lオプションを使用して同期対象のリスト・ファイルを指定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nターゲットDBに同期されていることを確認します。について説明してください。<|im_end|>\n<|im_start|>assistant\nSQL> SELECT * FROM TEST.T4;\nC1\n----------\n1\n1 row selected.\n5. ソースDBのTEST.T4表を切り捨てます。\nSQL> TRUNCATE TABLE TEST.T4;\nTable 'TEST.T4' truncated.\n6. ターゲットDBのTEST.T4表が切り捨てられ、空になっていることを確認します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n後に作成されます。のやり方は？<|im_end|>\n<|im_start|>assistant\n以下は、$PRS_HOME/varのサブディレクトリについての説明です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n手動でのDDL同期とは何ですか？<|im_end|>\n<|im_start|>assistant\n本章では、DDL同期をサポートしないデータベースを使用する場合にDDLを手動で同期する方法につい\nて説明します。\nソースDBがTiberoまたはOracleの場合\n1. データベースへの負荷を停止します。\nDDLを手動で同期する前に実行中のアプリケーションをすべて停止します。データベースに実行中の\nトランザクションがある場合は、データが失われないようにトランザクションが完了してから同期す\nる必要があります。\n2. ProSyncが最後に同期を実行した時点を確認します。\nログ・スイッチを使用すると、情報を簡単に確認できます。\nソースDBがTiberoの場合は、ログ・スイッチを実行します。ProSyncがログ・スイッチが発生したポ\nイントまでの同期を完了すると、ターゲットDBのPRS_CONST_HIST表に該当するシーケンスの履\n歴が追加されます。ソースDBでログ・スイッチを実行した後、シーケンス番号を記録します。（Tibero\nのV$LOGビューでカレント・ログのシーケンスを確認）\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nJCDUMPについて説明してください。<|im_end|>\n<|im_start|>assistant\n各プロセスの統計情報を収集します。\nJCDUMPを使用すると、「$PRS_HOME/var/[top_id]/log/stat_report」に各プロセスのパフォーマンス・\nログが保存されます。Countは動作回数を、Timeは処理時間を示します。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nJCDUMP top_id\n説明\nオプション\nトポロジIDに該当するプロセスのパフォーマンス・ログ情報を表示します\ntop_id\n●stat_reportの例\n以下は、JCDUMPの使用後に保存されたstat_reportの例です。\n################################################################################\nExtract(1)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータベースの設定について説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncを起動してデータを抽出するためには、以下の項目を設定する必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nシステム環境変数の設定について説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncをインストールするために設定が必要な環境変数は以下のとおりです。\n説明\n環境変数\nTiberoがインストールされるホーム・ディレクトリです。TiberoがソースDB\nとターゲットDBのいずれかである場合に設定します。Tiberoサーバー、クラ\nTB_HOME\nイアント・ライブラリやさまざまな付加機能を実行するファイルがインス\nトールされます\nOracle DBがソースDBとターゲットDBのいずれかである場合に設定します\nORACLE_HOME\nファイル・システムを介して特定のファイルにアクセスするためのディレク\nトリ・パスを設定します\nPATH\nデータベース接続のためにクライアント・ライブラリへのアクセス・パスを\n設定します。\nLD_LIBRARY_PATH\nOSによっては、LIBPATHまたはSHLIB_PATHが使用されることがあります\nProSyncがインストールされるルート・ディレクトリを設定します\nPRS_HOME\n2.5.3. データベースの設定\nProSyncを起動してデータを抽出するためには、以下の項目を設定する必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータベースへの負荷を停止します。について説明してください。<|im_end|>\n<|im_start|>assistant\nDDLを手動で同期する前に実行中のアプリケーションをすべて停止します。データベースに実行中の\nトランザクションがある場合は、データが失われないようにトランザクションが完了してから同期す\nる必要があります。\n2. ProSyncが最後に同期を実行した時点を確認します。\nログ・スイッチを使用すると、情報を簡単に確認できます。\nソースDBがTiberoの場合は、ログ・スイッチを実行します。ProSyncがログ・スイッチが発生したポ\nイントまでの同期を完了すると、ターゲットDBのPRS_CONST_HIST表に該当するシーケンスの履\n歴が追加されます。ソースDBでログ・スイッチを実行した後、シーケンス番号を記録します。（Tibero\nのV$LOGビューでカレント・ログのシーケンスを確認）\nターゲットDBのPRS_USER.PRS_CONST_HIST表に該当するシーケンスを持つ行が追加されたこと\nを確認します。\n3. ProSyncを終了します。\n現在実行されているすべてのProSyncプロセスを終了します。\n4. ソースDBとターゲットDBにDDLを実行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nPROMPTについて説明してください。<|im_end|>\n<|im_start|>assistant\nプロンプト文字列を設定します。\n以下は、PROMPTシステム変数の詳細です。\n●使用方法\nSET PROM[PT] {prompt_string}\n説明\n項目\nプロンプト文字列です。(デフォルト値: \"Admin>\")\nprompt_string\nこの文字列を波括弧({ })で囲むと、環境変数として認識されます。\nたとえば、「{PRS_PROMPT}」のように指定すると、環境変数の$PRS_PROMPT\nの値が置換され、プロンプトとして使用されます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期対象表の作成と登録の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n同期対象表を作成または登録する前にデータ型を確認します。ProSyncでは、ソースDBに応じてサポー\nトする列の型が異なります。\nサポートする型\nデータベース\nXML、OBJECT、BFILE、ROWIDを除くすべての列の型をサポートしま\nす。\nTibero\nただし、BINARY_FLOAT、BINARY_DOUBLE、GEOMETRY型の場合、\nTiberoからTiberoへの同期のみサポートされます\nROWID、UROWID、BINARY_DOUBLE、BINARY_FLOAT、URITYPE、\nBFILE、XMLTYPE、OBJECT、GEOMETRY型はサポートされません\nOracle\n2.7.1. 表の作成\n同期対象の表は、ソースDBとターゲットDBに存在する同じ名前のユーザー・アカウントに属する必要\nがあり、同じスキーマで作成されている必要があります。\n以下は、ProSyncをテストするために使用するDBアカウントのTESTユーザーにT1、T2、T3という表を\n作成する例です。ソースDBとターゲットDBにそれぞれ作成する必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n中にエラーが発生した場合は、アプリケーションをデバッグできるようにエラーが発生しのやり方は？<|im_end|>\n<|im_start|>assistant\nた箇所またはエラー・メッセージをログ・ファイルに出力し、インストールを中止します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nする前に、各データベースのSID設定ファイルを確認して接続可能なエイリアの手順を教えてください。<|im_end|>\n<|im_start|>assistant\nスを設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSyncが最後に同期を実行した時点を確認します。の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nログ・スイッチを使用すると、情報を簡単に確認できます。\nソースDBがTiberoの場合は、ログ・スイッチを実行します。ProSyncがログ・スイッチが発生したポ\nイントまでの同期を完了すると、ターゲットDBのPRS_CONST_HIST表に該当するシーケンスの履\n歴が追加されます。ソースDBでログ・スイッチを実行した後、シーケンス番号を記録します。（Tibero\nのV$LOGビューでカレント・ログのシーケンスを確認）\nターゲットDBのPRS_USER.PRS_CONST_HIST表に該当するシーケンスを持つ行が追加されたこと\nを確認します。\n3. ProSyncを終了します。\n現在実行されているすべてのProSyncプロセスを終了します。\n4. ソースDBとターゲットDBにDDLを実行します。\n5. ProSyncを再起動します。\nProSyncの再起動する場合は、同期対象表のメタデータが変更されたか（例: RENAME）、マッピン\nグ・ルールが設定されている表のDDが変更された（例: ALTER TABLE）\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータの暗号化と圧縮の設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncは、抽出プロセスから適用プロセスにデータを転送するとき、ユーザーの必要に応じてセキュ\nリティのためのデータ暗号化およびネットワークの負荷低減のためのデータ圧縮オプションを提供して\nいます。\nデータ暗号化と圧縮機能を使用するには、[TOP_ID]_ext1.cfgファイルに次のパラメータを指定する必要\nがあります。\nENABLE_NETWORK_ENCRYPT=[Y|N]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nルール・データベースを使用した初期化パラメータの管理について説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncは設定ファイルとルール・データベースを使用した初期化パラメータの管理をサポートしま\nす。ルール・データベースは、初期化パラメータを管理するデータベースです。ルール・データベース\nを使用すると、直接環境設定ファイルを修正せずにパラメータを管理することができます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n中に同期対象の表に対して自動的にサプリメの手順を教えてください。<|im_end|>\n<|im_start|>assistant\nンタル・ログを追加するかどうかを設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nする場合は、ターゲットDBの数とタイプに合わせてインストーのやり方は？<|im_end|>\n<|im_start|>assistant\nル・パラメータを設定してからインストールする必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nTiberoの推奨設定は？<|im_end|>\n<|im_start|>assistant\nがインストールされるホーム・ディレクトリです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nディスク容量の確認について説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncをインストールするには、少なくとも1.5GB以上のハードディスク空き容量(プラットフォーム\nごとに異なる)が必要です。これは、ProSyncのインストール後、操作ログを作成するときに必要な最小\n容量です。\nUNIXシステムでは、dfコマンドを使用してハードディスクの空き容量を確認することができます。\n参考\nハードウェア要件についての詳細は、「1.2. システム要件」を参照してください。\n2.3. ディレクトリの確認\nProSyncの圧縮されたインストール・ファイルを解凍すると、以下のディレクトリ構造が作成されま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nPROMPTの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nプロンプト文字列を設定します。\n以下は、PROMPTシステム変数の詳細です。\n●使用方法\nSET PROM[PT] {prompt_string}\n説明\n項目\nプロンプト文字列です。(デフォルト値: \"Admin>\")\nprompt_string\nこの文字列を波括弧({ })で囲むと、環境変数として認識されます。\nたとえば、「{PRS_PROMPT}」のように指定すると、環境変数の$PRS_PROMPT\nの値が置換され、プロンプトとして使用されます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nターゲットDBからソースDBへの一方向同期のインストールについて説明してください。<|im_end|>\n<|im_start|>assistant\nターゲットDBの環境に応じてインストール設定ファイル($PRS_HOME/install/prosync4 _2.cfg)を設\n定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nクラスター環境でのフェイルオーバーの設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncは、ソースDBがクラスター環境(TAC、RAC)に属している場合、クラスター内の特定のノード\nで障害が発生しても、同期を継続することができます。\nProSyncの抽出プロセスは、クラスターの各ノードの状態を定期的にチェックし、ノードの障害発生が\n検知された場合は、正常なノードに接続を確立し、TSN(SCN)に合わせて障害ノードが正常に回復され\nるまで適用プロセスにダミー・トランザクションを定期的に転送することで同期が中断されることなく\n実行されるようにします。\nクラスター環境での障害をチェックするには、[TOP_ID]_ext1.cfgファイルに次のパラメータを設定する\n必要があります。\nINSTANCE_FAILURE_CHECK_INTERVAL=check_interval\n説明\nパラメータ\n抽出プロセスがソースDBのの障害をチェックする間隔を指定しま\nす。(デフォルト値: 5、範囲: 5 ~ 3600、単位: 秒）\nINSTANCE_FAIL\nURE_CHECK_INTERVAL\n3.2. 適用機能の設定\n本節では、適用(apply)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSyncが最後に同期を実行した時点を確認します。とは何ですか？<|im_end|>\n<|im_start|>assistant\nログ・スイッチを使用すると、情報を簡単に確認できます。\nソースDBがTiberoの場合は、ログ・スイッチを実行します。ProSyncがログ・スイッチが発生したポ\nイントまでの同期を完了すると、ターゲットDBのPRS_CONST_HIST表に該当するシーケンスの履\n歴が追加されます。ソースDBでログ・スイッチを実行した後、シーケンス番号を記録します。（Tibero\nのV$LOGビューでカレント・ログのシーケンスを確認）\nターゲットDBのPRS_USER.PRS_CONST_HIST表に該当するシーケンスを持つ行が追加されたこと\nを確認します。\n3. ProSyncを終了します。\n現在実行されているすべてのProSyncプロセスを終了します。\n4. ソースDBとターゲットDBにDDLを実行します。\n5. ProSyncを再起動します。\nProSyncの再起動する場合は、同期対象表のメタデータが変更されたか（例: RENAME）、マッピン\nグ・ルールが設定されている表のDDが変更された（例: ALTER TABLE）\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータベースへの負荷を停止します。の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nDDLを手動で同期する前に実行中のアプリケーションをすべて停止します。データベースに実行中の\nトランザクションがある場合は、データが失われないようにトランザクションが完了してから同期す\nる必要があります。\n2. ProSyncが最後に同期を実行した時点を確認します。\nログ・スイッチを使用すると、情報を簡単に確認できます。\nソースDBがTiberoの場合は、ログ・スイッチを実行します。ProSyncがログ・スイッチが発生したポ\nイントまでの同期を完了すると、ターゲットDBのPRS_CONST_HIST表に該当するシーケンスの履\n歴が追加されます。ソースDBでログ・スイッチを実行した後、シーケンス番号を記録します。（Tibero\nのV$LOGビューでカレント・ログのシーケンスを確認）\nターゲットDBのPRS_USER.PRS_CONST_HIST表に該当するシーケンスを持つ行が追加されたこと\nを確認します。\n3. ProSyncを終了します。\n現在実行されているすべてのProSyncプロセスを終了します。\n4. ソースDBとターゲットDBにDDLを実行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSyncを終了します。について説明してください。<|im_end|>\n<|im_start|>assistant\n現在実行されているすべてのProSyncプロセスを終了します。\n4. ソースDBとターゲットDBにDDLを実行します。\n5. ProSyncを再起動します。\nProSyncの再起動する場合は、同期対象表のメタデータが変更されたか（例: RENAME）、マッピン\nグ・ルールが設定されている表のDDが変更された（例: ALTER TABLE）場合は、起動関連の設定\nファイルを実行したDDLに合わせて変更する必要があります。\nまた、同期対象表を追加した場合は、ProSyncの再起動後に同期対象表を追加する必要があります。\n詳細については、『ProSync 管理ユーティリティガイド』の「3.2.4 ALTER TABLE」を参照してく\nださい。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nPRS_CONST_HIST表の履歴情報を調整します。とは何ですか？<|im_end|>\n<|im_start|>assistant\nPRS_CONST_HIST表で最も高いHIST#値を持つ行に対して、SEQNO列の抽出を開始するために使\n用されるログのシーケンス番号でWRAPNO列の値を0に更新するためのクエリを実行します。\n以下は、シーケンス番号が50のアーカイブ・ログから抽出する例です。\nSQL> UPDATE PRS_CONST_HIST SET SEQNO=50, WRAPNO=0\nWHERE HIST# = (SELECT max(HIST#) FROM PRS_CONST_HIST);\n4. DDLが発生した場合\nデータ・ディクショナリが変更される場合であり、複数のトランザクションを継続して適用すると、\n整合性が失われる可能性があります。したがって、DDLが発生したら、その時間以前に発生したすべ\nてのトランザクションを適用し、DMLの適用を一時的に停止します。\nPRS_LCT表に最後に適用されたトランザクションの時間を保存した後、DDLによって変更されたデー\nタ・ディクショナリを変更し、PRS_LCTに保存された時間以降のトランザクションから適用を再開\nします。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\ncfgファイルを使用してインストールする例です。prs_install.cfgにのステップを説明してください。<|im_end|>\n<|im_start|>assistant\nパスワード・オプションを指定しなかった場合は、prs_install.shファイルを実行した後、各アカウント\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストール・パス内のconfigディレクトリに移動します。の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n2. [TOP_ID]_rule.cfgファイルにRULE_CFG_FILE=Nを追加します。\n説明\nRULE_CFG_FILE値\n設定ファイル・モードを使用します。(デフォルト値)\nY\nルール・データベースを使用します\nN\n3. ProSyncを再起動します。\nルール・データベースによる初期化パラメータの管理\n初期化パラメータの情報は、ルール・データベースのPRS_IPARAM表に保存されています。本節では、\nルール・データベースを使用して初期化パラメータ値を確認、変更、追加する方法について説明しま\nす。(ルール・データベース・モードへの切り替えとルール・データベース・アカウントで接続されて\nいると仮定します。）\n●PRS_IPARAM表\nPRS_IPARAM表の列とデータ型は以下のとおりです。\n説明\nデータ型\n列名\nVARCHAR(256)\nTOP_ID\n抽出プロセス(2)、適用プロセス(3)、\nLONG/LOBプロセス(4)\nNUMBER\nPROCESS_TYPE\nNUMBER\nPROCESS_NUM\nパラメータ名\nVARCHAR(256)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nプロセス実行の確認とは何ですか？<|im_end|>\n<|im_start|>assistant\nすべてのプロセスが正常に実行されたら、DMLとDDLを実行して正常に同期が行われることを確認しま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nLINESIZEとは何ですか？<|im_end|>\n<|im_start|>assistant\n画面の1行の長さを設定します。行の長さの最小値は1であり、最大値はオペレーティング・システムに\nよって異なります。\n以下は、LINESIZEシステム変数の詳細です。\n●使用方法\nSET LINE[SIZE] {n}\n説明\n項目\n画面の1行の長さです。(デフォルト値: 80)\nn\n2.2.3. PROMPT\nプロンプト文字列を設定します。\n以下は、PROMPTシステム変数の詳細です。\n●使用方法\nSET PROM[PT] {prompt_string}\n説明\n項目\nプロンプト文字列です。(デフォルト値: \"Admin>\")\nprompt_string\nこの文字列を波括弧({ })で囲むと、環境変数として認識されます。\nたとえば、「{PRS_PROMPT}」のように指定すると、環境変数の$PRS_PROMPT\nの値が置換され、プロンプトとして使用されます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nLINESIZEの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n画面の1行の長さを設定します。行の長さの最小値は1であり、最大値はオペレーティング・システムに\nよって異なります。\n以下は、LINESIZEシステム変数の詳細です。\n●使用方法\nSET LINE[SIZE] {n}\n説明\n項目\n画面の1行の長さです。(デフォルト値: 80)\nn\n2.2.3. PROMPT\nプロンプト文字列を設定します。\n以下は、PROMPTシステム変数の詳細です。\n●使用方法\nSET PROM[PT] {prompt_string}\n説明\n項目\nプロンプト文字列です。(デフォルト値: \"Admin>\")\nprompt_string\nこの文字列を波括弧({ })で囲むと、環境変数として認識されます。\nたとえば、「{PRS_PROMPT}」のように指定すると、環境変数の$PRS_PROMPT\nの値が置換され、プロンプトとして使用されます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストール前の準備とは何ですか？<|im_end|>\n<|im_start|>assistant\n本章では、ProSyncをインストールする前に必要な準備事項について説明します。\n2.1. 概要\nProSyncをインストールする前に確認および設定する準備事項は以下のとおりです。\n●ディスク容量の確認\n●ディレクトリの確認\n●運用ディレクトリの設定\n●環境設定\n●データベースのエイリアス設定\n●同期対象表の作成および登録\n●インストール設定ファイルの設定\n●ログ分析の確認\n2.2. ディスク容量の確認\nProSyncをインストールするには、少なくとも1.5GB以上のハードディスク空き容量(プラットフォーム\nごとに異なる)が必要です。これは、ProSyncのインストール後、操作ログを作成するときに必要な最小\n容量です。\nUNIXシステムでは、dfコマンドを使用してハードディスクの空き容量を確認することができます。\n参考\nハードウェア要件についての詳細は、「1.2. システム要件」を参照してください。\n2.3. ディレクトリの確認\nProSyncの圧縮されたインストール・ファイルを解凍すると、以下のディレクトリ構造が作成されま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nするには、少なくとも1.5GB以上のハードディスク空き容量(プラットフォームの手順を教えてください。<|im_end|>\n<|im_start|>assistant\nごとに異なる)が必要です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nRESUMEの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n指定したTOP_IDのタスクを再開します。\nコマンドの詳細は、以下のとおりです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期履歴を調整する前にプロセスを終了します。同期の実行中に同期履歴調整表のデータを変更するについて説明してください。<|im_end|>\n<|im_start|>assistant\nと、深刻なエラーが発生する可能性があるため、注意が必要です。\n2. PRS_COMMITTED_TX_LIST表の同期履歴を調整します。\n– ソースDBがTiberoの場合\nPRS_COMMITTED_TX_LIST表のTSN値を同期する開始TSN値で更新するクエリを実行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n手動でのDDL同期について説明してください。<|im_end|>\n<|im_start|>assistant\n本章では、DDL同期をサポートしないデータベースを使用する場合にDDLを手動で同期する方法につい\nて説明します。\nソースDBがTiberoまたはOracleの場合\n1. データベースへの負荷を停止します。\nDDLを手動で同期する前に実行中のアプリケーションをすべて停止します。データベースに実行中の\nトランザクションがある場合は、データが失われないようにトランザクションが完了してから同期す\nる必要があります。\n2. ProSyncが最後に同期を実行した時点を確認します。\nログ・スイッチを使用すると、情報を簡単に確認できます。\nソースDBがTiberoの場合は、ログ・スイッチを実行します。ProSyncがログ・スイッチが発生したポ\nイントまでの同期を完了すると、ターゲットDBのPRS_CONST_HIST表に該当するシーケンスの履\n歴が追加されます。ソースDBでログ・スイッチを実行した後、シーケンス番号を記録します。（Tibero\nのV$LOGビューでカレント・ログのシーケンスを確認）\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータの暗号化と圧縮の設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncは、抽出プロセスから適用プロセスにデータを転送するとき、ユーザーの必要に応じてセキュ\nリティのためのデータ暗号化およびネットワークの負荷低減のためのデータ圧縮オプションを提供して\nいます。\nデータ暗号化と圧縮機能を使用するには、[TOP_ID]_ext1.cfgファイルに次のパラメータを指定する必要\nがあります。\nENABLE_NETWORK_ENCRYPT=[Y|N]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n後に作成される設定ファイルには、暗号化されてのやり方は？<|im_end|>\n<|im_start|>assistant\nTDE_WALLET_PWDを直接設定するために使用されます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nコマンドの使用方法とは何ですか？<|im_end|>\n<|im_start|>assistant\n本節では、ProSync管理ユーティリティコマンドの実行およびプロセスの管理に必要なコマンドを紹介\nし、各コマンドの構文、パラメータ、例の順に説明します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nプロセス実行の確認について説明してください。<|im_end|>\n<|im_start|>assistant\nすべてのプロセスが正常に実行されたら、DMLとDDLを実行して正常に同期が行われることを確認しま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOracle LogMinerを使用してREDOログの抽出の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nソースDBがOracleの場合は、既存のダイレクト読み取りではなく、Oracle LogMinerを介してREDOロ\nグ・ファイルを抽出することができます。\nOracle LogMinerを使用してREDOログ・ファイルを抽出するには、インストール時にUSE_LOGMNR=Y\nを指定する必要があります。ダイレクト読み取り方式からOracle LogMiner方式に変更する場合のため\nに、抽出プロセス、適用プロセス、LLOBプロセスのパラメータとして指定することは可能ですが、ディ\nクショナリ・ファイルを作成するプロセスが必要となるため、一般的には、ProSyncの再インストール\nをお勧めしています。\nOracle LogMinerは、ソースDBのパッケージを使用してビューにロードした後、それを再び読み取る方\n式であるため、ダイレクト読み取りに比べ、同期パフォーマンスが大きく低下します。したがって、\nASMを使用するが、ACFSは使用できない環境または暗号化を使用している環境など、特殊なケースに\nProSyncを適用するために使用されます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nALTER PARAMETERについて説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncの実行中にパラメータの値を動的に変更します。ただし、『ProSync 管理者ガイド』の「付録\nA. 初期化パラメータ」のうち、クラスの属性が動的(Dynamic)なパラメータのみ変更できます。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nALTER top_id {EXT|APP[LY]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOSアカウントの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncをインストールするためにソースDBとターゲットDBにはそれぞれ1つのOSアカウントが必要\nです。このOSアカウントは、データベース・クライアント・ライブラリへのアクセス権限と実行権限\nが必要であり、ソースDBの場合はデータベース・ログファイルへの読み取り権限が必要です。\n2.5.2. システム環境変数の設定\nProSyncをインストールするために設定が必要な環境変数は以下のとおりです。\n説明\n環境変数\nTiberoがインストールされるホーム・ディレクトリです。TiberoがソースDB\nとターゲットDBのいずれかである場合に設定します。Tiberoサーバー、クラ\nTB_HOME\nイアント・ライブラリやさまざまな付加機能を実行するファイルがインス\nトールされます\nOracle DBがソースDBとターゲットDBのいずれかである場合に設定します\nORACLE_HOME\nファイル・システムを介して特定のファイルにアクセスするためのディレク\nトリ・パスを設定します\nPATH\nデータベース接続のためにクライアント・ライブラリへのアクセス・パスを\n設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nシステム変数とは何ですか？<|im_end|>\n<|im_start|>assistant\n本節では、SETコマンドを使用して設定できるシステム変数について説明します。\n2.2.1. HISTORY\nコマンドの履歴のサイズを設定します。\n以下は、HISTORYシステム変数の詳細です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nされるホーム・ディレクトリです。TiberoがソースDBのやり方は？<|im_end|>\n<|im_start|>assistant\nとターゲットDBのいずれかである場合に設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nLINESIZEについて説明してください。<|im_end|>\n<|im_start|>assistant\n画面の1行の長さを設定します。行の長さの最小値は1であり、最大値はオペレーティング・システムに\nよって異なります。\n以下は、LINESIZEシステム変数の詳細です。\n●使用方法\nSET LINE[SIZE] {n}\n説明\n項目\n画面の1行の長さです。(デフォルト値: 80)\nn\n2.2.3. PROMPT\nプロンプト文字列を設定します。\n以下は、PROMPTシステム変数の詳細です。\n●使用方法\nSET PROM[PT] {prompt_string}\n説明\n項目\nプロンプト文字列です。(デフォルト値: \"Admin>\")\nprompt_string\nこの文字列を波括弧({ })で囲むと、環境変数として認識されます。\nたとえば、「{PRS_PROMPT}」のように指定すると、環境変数の$PRS_PROMPT\nの値が置換され、プロンプトとして使用されます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nマッピング・ルールの設定とは何ですか？<|im_end|>\n<|im_start|>assistant\n表と列のマッピング機能を使用するには、$PRS_HOME/configディレクトリの適用プロセスの設定ファ\nイルである[TOP_ID]_apply1.cfgを設定する必要があります。たとえば、トポロジIDが「PROSYNC」の\n場合は、「PROSYNC_apply1.cfg」を設定します。\n以下は、設定が必要なパラメータについての説明です。ソースDBの特定の表とターゲットDBの特定の\n表を同期するためのルールをMAPパラメータに設定します。\nMAP=([SYNC OPTION] SOURCE_USER.SOURCE_TABLE [SOURCE_COLUMNS]\n[COLUMN FILTERING OPTION],\n[TARGET_DATABASE.]TARGET_USER.TARGET_TABLE [TARGET_COLUMNS]\n[RESOLVE OPTION] [SKIP OPTION]))\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nするためのIDを設定します。この値は、表領のやり方は？<|im_end|>\n<|im_start|>assistant\n域名として使用できる形式である必要があり、先頭に数字を使用する\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n中に直接入力しますのやり方は？<|im_end|>\n<|im_start|>assistant\nProSyncの運用に使用されるデータを保存する表領域名を設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n適用機能の設定について説明してください。<|im_end|>\n<|im_start|>assistant\n本節では、適用(apply)の付加機能を使用するための設定方法について説明します。\n3.2.1. マッピング・ルールの設定\n表と列のマッピング機能を使用するには、$PRS_HOME/configディレクトリの適用プロセスの設定ファ\nイルである[TOP_ID]_apply1.cfgを設定する必要があります。たとえば、トポロジIDが「PROSYNC」の\n場合は、「PROSYNC_apply1.cfg」を設定します。\n以下は、設定が必要なパラメータについての説明です。ソースDBの特定の表とターゲットDBの特定の\n表を同期するためのルールをMAPパラメータに設定します。\nMAP=([SYNC OPTION] SOURCE_USER.SOURCE_TABLE [SOURCE_COLUMNS]\n[COLUMN FILTERING OPTION],\n[TARGET_DATABASE.]TARGET_USER.TARGET_TABLE [TARGET_COLUMNS]\n[RESOLVE OPTION] [SKIP OPTION]))\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n要件のチェックおよびPRS_USERの作成のたの手順を教えてください。<|im_end|>\n<|im_start|>assistant\nめ、ソースDBへの接続に使用するアカウントです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n環境ファイルの設定のやり方は？<|im_end|>\n<|im_start|>assistant\n本節では、各アカウントの権限とインストール・パラメータについて説明します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nする場合は、設定ファイル・モードで設定されています。初期化パラメータの手順を教えてください。<|im_end|>\n<|im_start|>assistant\nをルールDBモードで管理する場合は、[TOP_ID]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n抽出機能の設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n本節では、抽出(ext)の付加機能を使用するための設定方法について説明します。\n3.1.1. ユーザー・フィルタリング機能\nProSyncは、特定のユーザーによって発生されたDMLとDDLを同期から除外できる機能を提供します。\nユーザー・フィルタリング機能を使用するには、[TOP_ID]_ext1.cfgファイルに次のパラメータを設定す\nる必要があります。\nEXCLUDE_USER={user_name, user_name}\n説明\nパラメータ\nDMLとDDLを同期から除外するユーザー名を指定します\nEXCLUDE_USER\n以下は、TESTユーザーとPRS_USERを同期から除外する例です。\nEXCLUDE_USER=PRS_USER,TEST\n参考\nProSyncが双方向同期モードに設定された場合は、PRS_USERによって発生および同期されたDML\nが再び抽出データベースに転送されることを防ぐために、EXCLUDE_USERにPRS_USERを登録\nする必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nHISTORYコマンドの使い方を教えてください。<|im_end|>\n<|im_start|>assistant\nの履歴のサイズを設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nコマンドの使用方法の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n本節では、ProSync管理ユーティリティコマンドの実行およびプロセスの管理に必要なコマンドを紹介\nし、各コマンドの構文、パラメータ、例の順に説明します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールの確認について説明してください。<|im_end|>\n<|im_start|>assistant\nメタ表が正常に作成されたことを確認します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n抽出と適用の共通機能について説明してください。<|im_end|>\n<|im_start|>assistant\n本節では、抽出(ext)と適用(apply)で共通して提供される付加機能を使用するための設定方法について説\n明します。\n3.3.1. SAMファイル\nProSyncでは、同期中に渡されるセグメントをファイルに順次に記録することができます。ファイルに\nは、抽出プロセスから適用プロセスに渡されるステートメントを記録するEXT_SAMと適用プロセスか\nらターゲットDBに適用されるステートメントを記録するAPPLY_SAMの2種類があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n主キーを使用した同期機能の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nソースDBとターゲットDBの同期対象表の整合性が合わない状態で同期しなければならない場合があり\nます。\nたとえば、特定の列のデータ型がTIMESTAMPであり、行の最終変更時刻をその列に入力するトリガー\nが設定されていると仮定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSync technical expert assistant. Answer questions about ProSync accurately.<|im_end|>\n<|im_start|>user\nExplain the procedure for shの使用方法です。.<|im_end|>\n<|im_start|>assistant\n. prs_install.sh [option] [config file] [list file]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDML同期の確認の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n以下では、ソースDBとターゲットDBのDMLの同期を確認する方法を説明します。\nソースDBでDMLがコミットされた後、ターゲットDBで同期を確認することができます。以下は、\nTEST.T1表のDMLを実行する例です。C1列はNUMBER型、C2列はVARCHAR(10)型であると仮定して\nいます。\n●INSERT\n1. ソースDBのTEST.T1表が空であることを確認します。\nSQL> SELECT * FROM TEST.T1;\n0 row selected.\n2. ターゲットDBのTEST.T1表が空であることを確認します。\nSQL> SELECT * FROM TEST.T1;\n0 row selected.\n3. ソースDBのTEST.T1表にデータを挿入します。\nSQL> INSERT INTO TEST.T1 VALUES(1, 'INSERT')\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nALTER PARAMETERの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncの実行中にパラメータの値を動的に変更します。ただし、『ProSync 管理者ガイド』の「付録\nA. 初期化パラメータ」のうち、クラスの属性が動的(Dynamic)なパラメータのみ変更できます。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nALTER top_id {EXT|APP[LY]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期履歴の調整表とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncの同期履歴の調整は、ターゲットDBのProSyncのユーザー・アカウントに存在する次の表を使\n用して行います。\n説明\n表\n適用プロセスがターゲットDBに適用するためにトランザクション・ハッ\nシュに追加した最後のREDOレコードに関するログのシーケンス番号\nPRS_CONST_HIST\n(SEQNO)とラップ番号(WRAPNO)を保存します。ProSyncを再起動する\nと、抽出プロセスは該当するシーケンス番号のログをラップ番号から読\nみ取ります。(調整対象の列: SEQNO、WRAPNO)\n適用プロセスが最後に適用した後コミットしたトランザクションの情報\nを保存します。トランザクションのXIDとTSNを保存します。(調整対象\nの列: TSN)\nPRS_COMMIT\nTED_TX_LIST\nDDLが発生した場合、適用プロセスが最後に適用した後コミットしたト\nランザクションの時間を保存します\nPRS_LCT\n4.2. 同期履歴の調整方法\n以下は、各表の履歴データを調整する方法です。\n1. 同期履歴を調整する前にプロセスを終了します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nされるホーム・ディレクトリです。TiberoがソースDBの手順を教えてください。<|im_end|>\n<|im_start|>assistant\nとターゲットDBのいずれかである場合に設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nする場合は、ターゲットDBの数とタイプに合わせてインストーのステップを説明してください。<|im_end|>\n<|im_start|>assistant\nル・パラメータを設定してからインストールする必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期対象表の作成と登録について説明してください。<|im_end|>\n<|im_start|>assistant\n同期対象表を作成または登録する前にデータ型を確認します。ProSyncでは、ソースDBに応じてサポー\nトする列の型が異なります。\nサポートする型\nデータベース\nXML、OBJECT、BFILE、ROWIDを除くすべての列の型をサポートしま\nす。\nTibero\nただし、BINARY_FLOAT、BINARY_DOUBLE、GEOMETRY型の場合、\nTiberoからTiberoへの同期のみサポートされます\nROWID、UROWID、BINARY_DOUBLE、BINARY_FLOAT、URITYPE、\nBFILE、XMLTYPE、OBJECT、GEOMETRY型はサポートされません\nOracle\n2.7.1. 表の作成\n同期対象の表は、ソースDBとターゲットDBに存在する同じ名前のユーザー・アカウントに属する必要\nがあり、同じスキーマで作成されている必要があります。\n以下は、ProSyncをテストするために使用するDBアカウントのTESTユーザーにT1、T2、T3という表を\n作成する例です。ソースDBとターゲットDBにそれぞれ作成する必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nTiberoのエイリアス設定について説明してください。<|im_end|>\n<|im_start|>assistant\nソースDBとターゲットDBのいずれかがTiberoの場合は、$TB_HOME/client/config/tbdsn.tbrファイルに\nエイリアスを設定します。\n[SOURCE_SID]=(\n(INSTANCE=(HOST=SOURCE DB IP)\n(PORT=SOURCE DB PORT)\n(DB_NAME=SOURCE DB NAME)))\n[TARGET_SID]=(\n(INSTANCE=(HOST=TARGET DB IP)\n(PORT=TARGET DB PORT)\n(DB_NAME=TARGET DB NAME)))\nTACの場合は、tbdsnにDB_NAMEを使用してFAILOVERエイリアスを追加設定する必要があります。\n[Source DB Name]=(\n(INSTANCE=(HOST=Source DB IP1)\n(DB_NAME=Source DB Name)\n(PORT=Source DB Port1))\n(INSTANCE=(HOST=Source DB IP2)\n(DB_NAME=Source DB Name)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nsh [option] [config file] [list file]のステップを説明してください。<|im_end|>\n<|im_start|>assistant\nprs_install.shでは、-h、-c、-lオプションがあります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSUFFIXの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nファイル拡張子の設定を省略した場合に使用されるファイル拡張子を設定します。\n以下は、SUFFIXシステム変数の詳細です。\n●使用方法\nSET SUF[FIX] {extension}\n説明\n項目\nデフォルトとして使用するファイル拡張子です。(デフォルト値: sql)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n暗号化された表の同期とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncは、ソースDBがTiberoの場合にのみ暗号化された表の同期をサポートしています。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータベースへの負荷を停止します。とは何ですか？<|im_end|>\n<|im_start|>assistant\nDDLを手動で同期する前に実行中のアプリケーションをすべて停止します。データベースに実行中の\nトランザクションがある場合は、データが失われないようにトランザクションが完了してから同期す\nる必要があります。\n2. ProSyncが最後に同期を実行した時点を確認します。\nログ・スイッチを使用すると、情報を簡単に確認できます。\nソースDBがTiberoの場合は、ログ・スイッチを実行します。ProSyncがログ・スイッチが発生したポ\nイントまでの同期を完了すると、ターゲットDBのPRS_CONST_HIST表に該当するシーケンスの履\n歴が追加されます。ソースDBでログ・スイッチを実行した後、シーケンス番号を記録します。（Tibero\nのV$LOGビューでカレント・ログのシーケンスを確認）\nターゲットDBのPRS_USER.PRS_CONST_HIST表に該当するシーケンスを持つ行が追加されたこと\nを確認します。\n3. ProSyncを終了します。\n現在実行されているすべてのProSyncプロセスを終了します。\n4. ソースDBとターゲットDBにDDLを実行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期履歴の調整の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n本章では、ProSyncの同期履歴を調整する方法について説明します。同期履歴の調整は、ProSyncの運\n用中に深刻な問題が発生したり、何らかの理由で過去の特定の時点から再同期する必要がある場合に使\n用します。\n参考\n同期履歴の調整は、整合性の不一致や同期できない状態を引き起こす恐れがあるので、実行時に\n注意が必要です。\n4.1. 同期履歴の調整表\nProSyncの同期履歴の調整は、ターゲットDBのProSyncのユーザー・アカウントに存在する次の表を使\n用して行います。\n説明\n表\n適用プロセスがターゲットDBに適用するためにトランザクション・ハッ\nシュに追加した最後のREDOレコードに関するログのシーケンス番号\nPRS_CONST_HIST\n(SEQNO)とラップ番号(WRAPNO)を保存します。ProSyncを再起動する\nと、抽出プロセスは該当するシーケンス番号のログをラップ番号から読\nみ取ります。(調整対象の列: SEQNO、WRAPNO)\n適用プロセスが最後に適用した後コミットしたトランザクションの情報\nを保存します。トランザクションのXIDとTSNを保存します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nクラスター化されたソースDBの同期モードとは何ですか？<|im_end|>\n<|im_start|>assistant\nソースDBがクラスター環境の場合(Tibero TACまたはOracle RAC)は、インストール・パラメータに追\n加設定が必要です。\n以下は、ソースDBがクラスター環境の場合、追加設定する例です。(prs_install.cfg)\nSRC_DB_TYPE=TIBERO\nSRC_DB_NAME=tibero_src\nSRC_INSTALL_USER=sys\nSRC_INSTALL_PWD=tibero\nSRC_DB_CNT=2\nSRC_DB_ALIAS[0]=tibero_node_1\nSRC_DB_ALIAS[1]=tibero_node_2\n.....\nSRC_DB_ALIAS[n]=tibero_node_n\n上記のように設定すると、各ノードの数と同じ数の設定ファイルが作成されるため、各ノードごとに設\n定することができます。\n3.1.3. 1:N 一方向の同期モード\n1:N同期は、1つのソースDBのデータをN個のターゲットDBに伝播します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n前の準備の手順を教えてください。<|im_end|>\n<|im_start|>assistant\n本章では、ProSyncをインストールする前に必要な準備事項について説明します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nALTER TABLEについて説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncの実行中に同期する表を動的に追加または削除します。\n起動前にprs_obj_group1.listに追加できなかった表をProSyncの実行中に動的に追加することができま\nす。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nALTER top_id {ADD|DEL[ETE]} TABLE table_owner.table_name GROUP=group_num\n●例\nTOP_IDが「prosync4」の場合、TEST.TABLE2テーブルを同期対象として追加する例です。\nALTER prosync4 ADD TABLE TEST.TABLE2 GROUP=1\n3.2.5. ALTER PARAMETER\nProSyncの実行中にパラメータの値を動的に変更します。ただし、『ProSync 管理者ガイド』の「付録\nA. 初期化パラメータ」のうち、クラスの属性が動的(Dynamic)なパラメータのみ変更できます。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nALTER top_id {EXT|APP[LY]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nします。の手順を教えてください。<|im_end|>\n<|im_start|>assistant\n以下は、オプションなしでprs_install.cfgファイルを使用してインストールする例です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nALTER TABLEとは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncの実行中に同期する表を動的に追加または削除します。\n起動前にprs_obj_group1.listに追加できなかった表をProSyncの実行中に動的に追加することができま\nす。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nALTER top_id {ADD|DEL[ETE]} TABLE table_owner.table_name GROUP=group_num\n●例\nTOP_IDが「prosync4」の場合、TEST.TABLE2テーブルを同期対象として追加する例です。\nALTER prosync4 ADD TABLE TEST.TABLE2 GROUP=1\n3.2.5. ALTER PARAMETER\nProSyncの実行中にパラメータの値を動的に変更します。ただし、『ProSync 管理者ガイド』の「付録\nA. 初期化パラメータ」のうち、クラスの属性が動的(Dynamic)なパラメータのみ変更できます。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nALTER top_id {EXT|APP[LY]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOracle ASMの設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nソースDBがASMを使用するOracle環境である場合、REDOログとアーカイブ・ログがASMディスク・\nグループに存在すると、ProSyncがREDOログとアーカイブ・ログを読み取ることができません。\nしたがって、ACFS(ASM Cluster File System)を使用してASMとして管理されるが、OSからアクセスで\nきるパスを作成し、そのパスにREDOログとアーカイブ・ログを格納する必要があります。\n●ACFSの設定\n以下は、Oracle環境でASMCMDを使用してボリュームを作成し、そのボリュームをファイル・シス\nテムにマウンドする例です。\n$ oraenv\n [rac1] ? +ASM1\n$ asmcmd\nASMCMD [+]> volcreate -G DISKGROUPNAME -s 10G VOLUMENAME\nASMCMD [+]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nプロセス実行の確認の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nすべてのプロセスが正常に実行されたら、DMLとDDLを実行して正常に同期が行われることを確認しま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOSアカウントとは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncをインストールするためにソースDBとターゲットDBにはそれぞれ1つのOSアカウントが必要\nです。このOSアカウントは、データベース・クライアント・ライブラリへのアクセス権限と実行権限\nが必要であり、ソースDBの場合はデータベース・ログファイルへの読み取り権限が必要です。\n2.5.2. システム環境変数の設定\nProSyncをインストールするために設定が必要な環境変数は以下のとおりです。\n説明\n環境変数\nTiberoがインストールされるホーム・ディレクトリです。TiberoがソースDB\nとターゲットDBのいずれかである場合に設定します。Tiberoサーバー、クラ\nTB_HOME\nイアント・ライブラリやさまざまな付加機能を実行するファイルがインス\nトールされます\nOracle DBがソースDBとターゲットDBのいずれかである場合に設定します\nORACLE_HOME\nファイル・システムを介して特定のファイルにアクセスするためのディレク\nトリ・パスを設定します\nPATH\nデータベース接続のためにクライアント・ライブラリへのアクセス・パスを\n設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n双方向の同期モードとは何ですか？<|im_end|>\n<|im_start|>assistant\n双方向の同期は、ソースDBとターゲットDBが相互にデータを伝播します。\n双方向の同期モードを使用するには、ソースDBからターゲットDBへの一方向インストールを実行した\n後、ソースDBとターゲットDBを逆に設定して、一方向インストールをもう一度実行します。\n参考\n双方向の同期モードでは、ProSyncによってすでに同期されている表がもう一度逆同期されないよ\nうに、EXCLUDE_USERパラメータにPRS_USERを追加する必要があります。EXCLUDE_USER\nの詳細については、『ProSync 管理者ガイド』の「付録A. 初期化パラメータ」を参照してくださ\nい。\n2. 双方向の同期モードでは、整合性を保つためにRESOLVE OPTIONを設定する必要があります。\nまた、同期表には主キーが含まれている必要があります。詳細については、『ProSync 管理者ガ\nイド』の「3.2.1. マッピング・ルールの設定」の「RESOLVE OPTION」を参照してください。\n以下は、インストールの手順です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOracleのエイリアス設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nソースDBとターゲットDBのいずれかがOracleの場合は、$ORACLE_HOME/network/admin/tnsnames.ora\nファイルにエイリアスを設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n要件のチェックおよびPRS_USERの作成のたのやり方は？<|im_end|>\n<|im_start|>assistant\nめ、ソースDBへの接続に使用するアカウントです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nハードウェアとソフトウェアの要件について説明してください。<|im_end|>\n<|im_start|>assistant\n以下は、ProSyncをインストールするためのハードウェア要件です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nパラレル・リプレイ機能の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nパラレル・リプレイとは、トランザクション間の依存関係がない場合、適用プロセスがマルチ・スレッ\nドを使用して適用を行うことをいいます。\nターゲットDBに適用する際、シングル・セッションで適用するよりは、マルチ・スレッドのマルチ・\nセッションで適用する方が、より高い同期パフォーマンスを発揮します。事前に設定されたパラメータ\nのモードを確認し、そのモードで依存関係をチェックした後、トランザクション単位の依存関係がなけ\nれば、マルチ・スレッドを作成してマルチ・セッションで適用します。これにより、ソースDBで適用\nされた順序がターゲットDBで変更される場合があります。\nパラレル・リプレイ機能を使用するには、[TOP_ID]_apply1.cfgファイルに次のパラメータを設定しま\nす。\nPR_MODE=[OBJ]\nREPLAY_THREAD_CNT=thread_cnt\n説明\nパラメータ\nパラレル・リプレイのモードを指定します。\nPR_MODE\n現在は、OBJモードのみサポートしています。詳細については、\n「A.3.4.12. PR_MODE」\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nする必要があります。のやり方は？<|im_end|>\n<|im_start|>assistant\n以下は、ターゲットDBが2つの場合の環境設定の例です。(prs_install.cfg)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nアーカイブ・ログ・モードの設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncは、抽出プロセスの付加機能として、ソースDBのアーカイブ・ログのみを抽出する機能を提供\nしています。この機能を使用すると、データベースでアーカイブされていないオンラインREDOログは\n抽出せず、アーカイブ済みのアーカイブ・ログのみを抽出して適用プロセスに転送します。\nアーカイブ・ログ・モードを使用するには、[TOP_ID]_ext1.cfgファイルに次のパラメータを設定する必\n要があります。\nEXTRACT_ARCHIVE_LOG_ONLY=[Y|N]\n説明\nパラメータ名\n抽出プロセスでアーカイブ・ログのみ抽出するかどうかを設定しま\nす。(Y/N)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n時に設定する必要があります。ダイレクト読み取りのやり方は？<|im_end|>\n<|im_start|>assistant\nとの仕様の違いについては、『ProSync 管理者ガイド』を参照してく\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\ncfgファイルを使用してインストールする例です。prs_install.cfgにの手順を教えてください。<|im_end|>\n<|im_start|>assistant\nパスワード・オプションを指定しなかった場合は、prs_install.shファイルを実行した後、各アカウント\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOSアカウントについて説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncをインストールするためにソースDBとターゲットDBにはそれぞれ1つのOSアカウントが必要\nです。このOSアカウントは、データベース・クライアント・ライブラリへのアクセス権限と実行権限\nが必要であり、ソースDBの場合はデータベース・ログファイルへの読み取り権限が必要です。\n2.5.2. システム環境変数の設定\nProSyncをインストールするために設定が必要な環境変数は以下のとおりです。\n説明\n環境変数\nTiberoがインストールされるホーム・ディレクトリです。TiberoがソースDB\nとターゲットDBのいずれかである場合に設定します。Tiberoサーバー、クラ\nTB_HOME\nイアント・ライブラリやさまざまな付加機能を実行するファイルがインス\nトールされます\nOracle DBがソースDBとターゲットDBのいずれかである場合に設定します\nORACLE_HOME\nファイル・システムを介して特定のファイルにアクセスするためのディレク\nトリ・パスを設定します\nPATH\nデータベース接続のためにクライアント・ライブラリへのアクセス・パスを\n設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n抽出と適用の共通機能とは何ですか？<|im_end|>\n<|im_start|>assistant\n本節では、抽出(ext)と適用(apply)で共通して提供される付加機能を使用するための設定方法について説\n明します。\n3.3.1. SAMファイル\nProSyncでは、同期中に渡されるセグメントをファイルに順次に記録することができます。ファイルに\nは、抽出プロセスから適用プロセスに渡されるステートメントを記録するEXT_SAMと適用プロセスか\nらターゲットDBに適用されるステートメントを記録するAPPLY_SAMの2種類があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nルール・データベースを使用した初期化パラメータの管理の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncは設定ファイルとルール・データベースを使用した初期化パラメータの管理をサポートしま\nす。ルール・データベースは、初期化パラメータを管理するデータベースです。ルール・データベース\nを使用すると、直接環境設定ファイルを修正せずにパラメータを管理することができます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nするためにソースDBとターゲットDBにはそれぞれ1つのOSアカウントが必要のステップを説明してください。<|im_end|>\n<|im_start|>assistant\nです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nアーカイブ・ログ・モードの設定について説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncは、抽出プロセスの付加機能として、ソースDBのアーカイブ・ログのみを抽出する機能を提供\nしています。この機能を使用すると、データベースでアーカイブされていないオンラインREDOログは\n抽出せず、アーカイブ済みのアーカイブ・ログのみを抽出して適用プロセスに転送します。\nアーカイブ・ログ・モードを使用するには、[TOP_ID]_ext1.cfgファイルに次のパラメータを設定する必\n要があります。\nEXTRACT_ARCHIVE_LOG_ONLY=[Y|N]\n説明\nパラメータ名\n抽出プロセスでアーカイブ・ログのみ抽出するかどうかを設定しま\nす。(Y/N)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n後に作成されます。の手順を教えてください。<|im_end|>\n<|im_start|>assistant\n以下は、$PRS_HOME/varのサブディレクトリについての説明です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nアンインストールとは何ですか？<|im_end|>\n<|im_start|>assistant\n以下は、ProSyncをアンインストールする方法です。\n●ソースDBとターゲットDBに作成されたスキーマとメタ表を削除します。\n●対象表に設定されている補足ログを解除します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDDL同期の確認とは何ですか？<|im_end|>\n<|im_start|>assistant\n以下は、ソースDBとターゲットDBのDDL同期を確認する方法です。\n●CREATE TABLE\n1. ソースDBにTEST.T4表を作成します。\nSQL> CREATE TABLE TEST.T4 (C1 NUMBER PRIMARY KEY, C2 VARCHAR(10));\nTable 'TEST.T4' created.\n2. ターゲットDBにTEST.T4表が作成されていることを確認します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSyncを再起動します。の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nルール・データベースによる初期化パラメータの管理\n初期化パラメータの情報は、ルール・データベースのPRS_IPARAM表に保存されています。本節では、\nルール・データベースを使用して初期化パラメータ値を確認、変更、追加する方法について説明しま\nす。(ルール・データベース・モードへの切り替えとルール・データベース・アカウントで接続されて\nいると仮定します。）\n●PRS_IPARAM表\nPRS_IPARAM表の列とデータ型は以下のとおりです。\n説明\nデータ型\n列名\nVARCHAR(256)\nTOP_ID\n抽出プロセス(2)、適用プロセス(3)、\nLONG/LOBプロセス(4)\nNUMBER\nPROCESS_TYPE\nNUMBER\nPROCESS_NUM\nパラメータ名\nVARCHAR(256)\nPARAMETER\nパラメータ値\nCLOB\nVALUE\nstatic(1)、dynamic(2)\nNUMBER\nTYPE\n以下は、ルール・データベースを使用して初期化パラメータを確認、変更、追加する例です。初期化パ\nラメータについての詳細は、「付録 A. 初期化パラメータ」を参照してください。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDDLが発生した場合とは何ですか？<|im_end|>\n<|im_start|>assistant\nデータ・ディクショナリが変更される場合であり、複数のトランザクションを継続して適用すると、\n整合性が失われる可能性があります。したがって、DDLが発生したら、その時間以前に発生したすべ\nてのトランザクションを適用し、DMLの適用を一時的に停止します。\nPRS_LCT表に最後に適用されたトランザクションの時間を保存した後、DDLによって変更されたデー\nタ・ディクショナリを変更し、PRS_LCTに保存された時間以降のトランザクションから適用を再開\nします。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nシステム要件について説明してください。<|im_end|>\n<|im_start|>assistant\n本節では、サポートされるプラットフォームとシステム要件について説明します。\n1.2.1. プラットフォームとオペレーティング・システム\n以下は、ProSyncでサポートされるプラットフォームとオペレーティング・システム(以下、OS)です。\nBinary Bits\nOS\nCPU\nベンダー\n64bit\nHP-UX 11i\nItanium\nHP\n64bit\nAIX 5.3, AIX 6.1\nPPC 5L\nIBM\n32bit, 64bit\nX86(Pentium4以上)\nGNU\n– 32bit : Linux kernel 2.6.15, glibc 2.3.6, libst\ndc++6.0.7\n– 64bit : Linux kernel 2.6.9, glibc 2.3.4, libst\ndc++6.0.3\n64bit\nLinux kernel 2.6.9, glibc 2.3.4 libstdc++6.0.3\nIA 64\n1.2.2. ハードウェアとソフトウェアの要件\n以下は、ProSyncをインストールするためのハードウェア要件です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n時に設定する必要があります。ダイレクト読み取りのステップを説明してください。<|im_end|>\n<|im_start|>assistant\nとの仕様の違いについては、『ProSync 管理者ガイド』を参照してく\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nクラスター環境でのフェイルオーバーの設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncは、ソースDBがクラスター環境(TAC、RAC)に属している場合、クラスター内の特定のノード\nで障害が発生しても、同期を継続することができます。\nProSyncの抽出プロセスは、クラスターの各ノードの状態を定期的にチェックし、ノードの障害発生が\n検知された場合は、正常なノードに接続を確立し、TSN(SCN)に合わせて障害ノードが正常に回復され\nるまで適用プロセスにダミー・トランザクションを定期的に転送することで同期が中断されることなく\n実行されるようにします。\nクラスター環境での障害をチェックするには、[TOP_ID]_ext1.cfgファイルに次のパラメータを設定する\n必要があります。\nINSTANCE_FAILURE_CHECK_INTERVAL=check_interval\n説明\nパラメータ\n抽出プロセスがソースDBのの障害をチェックする間隔を指定しま\nす。(デフォルト値: 5、範囲: 5 ~ 3600、単位: 秒）\nINSTANCE_FAIL\nURE_CHECK_INTERVAL\n3.2. 適用機能の設定\n本節では、適用(apply)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n設定ファイルを使用した初期化パラメータの管理について説明してください。<|im_end|>\n<|im_start|>assistant\n設定ファイルはProSyncで起動時に使用するパラメータを管理するファイルで、プロセスごとに存在し\nます。設定ファイルはユーザーが入力した情報を基準に、インストール時にconfigディレクトリに自動\nで生成されます。\nソースDBがクラスター環境の場合、抽出プロセスの設定ファイルはクラスター・ノードの数と同数が\n生成され、ファイル名は [top_id]_extnode#.cfgに設定されます。ソースDBがクラスター環境でない場合\nは、抽出プロセスの設定ファイルは1つのみ生成され、ファイル名は上記と同様に [top_id]_ext1.cfgに設\n定されます。\n以下は、抽出プロセスの設定ファイルにより抽出プロセスの初期化パラメータを設定した例です。\n################################################################################\n#\n# ProSync (Ext)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n配列バインドの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncは、REDOログをベースに同期を行います。したがって、ソースDBで複数の行を変更する1件\nのDMLを実行しただけでも、ターゲットDBでは、各々の行を変更する複数のDMLを同期する必要があ\nるため、パフォーマンスの低下につながります。このような問題を解決するために、配列バインド機能\nを提供しています。1つの行を変更する複数のDMLが特定の条件を満たす場合は、この機能を使用して\n比較的に迅速に適用することができます。\n配列バインド機能を使用するには、[TOP_ID]_apply1.cfgファイルに次のパラメータを設定します。\nUSE_BATCH_MODE=[Y|N]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nされた各TOP_IDごとにディレクトリが作成されます。こののやり方は？<|im_end|>\n<|im_start|>assistant\nディレクトリには、抽出、適用、LONG/LOBプロセスのログと運用に必要\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期対象表の作成と登録とは何ですか？<|im_end|>\n<|im_start|>assistant\n同期対象表を作成または登録する前にデータ型を確認します。ProSyncでは、ソースDBに応じてサポー\nトする列の型が異なります。\nサポートする型\nデータベース\nXML、OBJECT、BFILE、ROWIDを除くすべての列の型をサポートしま\nす。\nTibero\nただし、BINARY_FLOAT、BINARY_DOUBLE、GEOMETRY型の場合、\nTiberoからTiberoへの同期のみサポートされます\nROWID、UROWID、BINARY_DOUBLE、BINARY_FLOAT、URITYPE、\nBFILE、XMLTYPE、OBJECT、GEOMETRY型はサポートされません\nOracle\n2.7.1. 表の作成\n同期対象の表は、ソースDBとターゲットDBに存在する同じ名前のユーザー・アカウントに属する必要\nがあり、同じスキーマで作成されている必要があります。\n以下は、ProSyncをテストするために使用するDBアカウントのTESTユーザーにT1、T2、T3という表を\n作成する例です。ソースDBとターゲットDBにそれぞれ作成する必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期履歴の調整とは何ですか？<|im_end|>\n<|im_start|>assistant\n本章では、ProSyncの同期履歴を調整する方法について説明します。同期履歴の調整は、ProSyncの運\n用中に深刻な問題が発生したり、何らかの理由で過去の特定の時点から再同期する必要がある場合に使\n用します。\n参考\n同期履歴の調整は、整合性の不一致や同期できない状態を引き起こす恐れがあるので、実行時に\n注意が必要です。\n4.1. 同期履歴の調整表\nProSyncの同期履歴の調整は、ターゲットDBのProSyncのユーザー・アカウントに存在する次の表を使\n用して行います。\n説明\n表\n適用プロセスがターゲットDBに適用するためにトランザクション・ハッ\nシュに追加した最後のREDOレコードに関するログのシーケンス番号\nPRS_CONST_HIST\n(SEQNO)とラップ番号(WRAPNO)を保存します。ProSyncを再起動する\nと、抽出プロセスは該当するシーケンス番号のログをラップ番号から読\nみ取ります。(調整対象の列: SEQNO、WRAPNO)\n適用プロセスが最後に適用した後コミットしたトランザクションの情報\nを保存します。トランザクションのXIDとTSNを保存します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nログ分析の確認について説明してください。<|im_end|>\n<|im_start|>assistant\nソースDBがOracleの場合は、ProSyncがREDOログを分析できるかどうかを確認する必要があります。\nolr_analyzeを使用して、以下のようにアーカイブ・ログを分析できるかどうかを確認することができま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nする必要があります。の手順を教えてください。<|im_end|>\n<|im_start|>assistant\n以下は、ターゲットDBが2つの場合の環境設定の例です。(prs_install.cfg)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSync technical expert assistant. Answer questions about ProSync accurately.<|im_end|>\n<|im_start|>user\nHow do I perform USER=rule_db_name?<|im_end|>\n<|im_start|>assistant\nRULE_INSTALL_PWD=rule_install_passwd\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nプラットフォームとオペレーティング・システムについて説明してください。<|im_end|>\n<|im_start|>assistant\n以下は、ProSyncでサポートされるプラットフォームとオペレーティング・システム(以下、OS)です。\nBinary Bits\nOS\nCPU\nベンダー\n64bit\nHP-UX 11i\nItanium\nHP\n64bit\nAIX 5.3, AIX 6.1\nPPC 5L\nIBM\n32bit, 64bit\nX86(Pentium4以上)\nGNU\n– 32bit : Linux kernel 2.6.15, glibc 2.3.6, libst\ndc++6.0.7\n– 64bit : Linux kernel 2.6.9, glibc 2.3.4, libst\ndc++6.0.3\n64bit\nLinux kernel 2.6.9, glibc 2.3.4 libstdc++6.0.3\nIA 64\n1.2.2. ハードウェアとソフトウェアの要件\n以下は、ProSyncをインストールするためのハードウェア要件です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nディレクトリの確認について説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncの圧縮されたインストール・ファイルを解凍すると、以下のディレクトリ構造が作成されま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールとアンインストールの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n本章では、一方向と双方向の同期モードでProSyncをインストールおよびアンインストールする方法に\nついて説明します。\n3.1. インストール\n本節では、 一方向と双方向の同期モードでProSyncをインストールする方法について説明します。\n3.1.1. 一方向の同期モード\nProSyncのインストール時にソースDBとターゲットDBにそれぞれ接続し、ProSyncの実行に必要なさ\nまざまなオブジェクトを作成します。ProSyncをインストールするときは、各DBが運用中である必要が\nあります。\n最初にprs_install.cfgファイルをシステム環境に合わせて設定した後、以下のようにprs_install.shファイ\nルを実行します。prs_install.cfgファイルの設定方法については、「2.8. インストール環境ファイルの設\n定」を参照してください。\n以下は、prs_install.shの使用方法です。\n. prs_install.sh [option] [config file] [list file]\n●[option]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nするときは、各DBが運用中である必要がの手順を教えてください。<|im_end|>\n<|im_start|>assistant\n最初にprs_install.cfgファイルをシステム環境に合わせて設定した後、以下のようにprs_install.shファイ\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nします。のやり方は？<|im_end|>\n<|im_start|>assistant\n以下は、オプションなしでprs_install.cfgファイルを使用してインストールする例です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nPAUSEの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n指定したTOP_IDのタスクを一時停止します。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nPAUSE top_id\n説明\nオプション\n一時停止するTOP_IDです\ntop_id\n●例\n以下は、「prosync4」のタスクを一時停止する例です。\nAdmin> PAUSE prosync4\nprosync4 paused.\nAdmin>\n3.2.10. RESUME\n指定したTOP_IDのタスクを再開します。\nコマンドの詳細は、以下のとおりです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nアンインストールについて説明してください。<|im_end|>\n<|im_start|>assistant\n以下は、ProSyncをアンインストールする方法です。\n●ソースDBとターゲットDBに作成されたスキーマとメタ表を削除します。\n●対象表に設定されている補足ログを解除します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n前の準備のステップを説明してください。<|im_end|>\n<|im_start|>assistant\n本章では、ProSyncをインストールする前に必要な準備事項について説明します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n初期化パラメータの管理の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncは、設定ファイルとルール・データベースを使用した初期化パラメータの管理をサポートしま\nす。\n2.2.1. 設定ファイルを使用した初期化パラメータの管理\n設定ファイルはProSyncで起動時に使用するパラメータを管理するファイルで、プロセスごとに存在し\nます。設定ファイルはユーザーが入力した情報を基準に、インストール時にconfigディレクトリに自動\nで生成されます。\nソースDBがクラスター環境の場合、抽出プロセスの設定ファイルはクラスター・ノードの数と同数が\n生成され、ファイル名は [top_id]_extnode#.cfgに設定されます。ソースDBがクラスター環境でない場合\nは、抽出プロセスの設定ファイルは1つのみ生成され、ファイル名は上記と同様に [top_id]_ext1.cfgに設\n定されます。\n以下は、抽出プロセスの設定ファイルにより抽出プロセスの初期化パラメータを設定した例です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nターゲットDBからソースDBへの一方向同期のインストールとは何ですか？<|im_end|>\n<|im_start|>assistant\nターゲットDBの環境に応じてインストール設定ファイル($PRS_HOME/install/prosync4 _2.cfg)を設\n定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n配列バインドについて説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncは、REDOログをベースに同期を行います。したがって、ソースDBで複数の行を変更する1件\nのDMLを実行しただけでも、ターゲットDBでは、各々の行を変更する複数のDMLを同期する必要があ\nるため、パフォーマンスの低下につながります。このような問題を解決するために、配列バインド機能\nを提供しています。1つの行を変更する複数のDMLが特定の条件を満たす場合は、この機能を使用して\n比較的に迅速に適用することができます。\n配列バインド機能を使用するには、[TOP_ID]_apply1.cfgファイルに次のパラメータを設定します。\nUSE_BATCH_MODE=[Y|N]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n運用ディレクトリの設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncのインストール・ディレクトリのパスを次のように仮定します。\n$ /home/prosync\nProSyncディレクトリは、binディレクトリと同様にソースDBサーバーの各インスタンスごとに存在す\nる必要があります。\n以下は、1:1の一方向モードのソースDBとターゲットDBでのディレクトリの運用例です。\n●ソースDB\nインスタンス・サーバーですべてのファイルを抽出ディレクトリにコピーします。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nPRS_COMMITTED_TX_LIST表の同期履歴を調整します。について説明してください。<|im_end|>\n<|im_start|>assistant\n– ソースDBがTiberoの場合\nPRS_COMMITTED_TX_LIST表のTSN値を同期する開始TSN値で更新するクエリを実行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n適用機能の設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n本節では、適用(apply)の付加機能を使用するための設定方法について説明します。\n3.2.1. マッピング・ルールの設定\n表と列のマッピング機能を使用するには、$PRS_HOME/configディレクトリの適用プロセスの設定ファ\nイルである[TOP_ID]_apply1.cfgを設定する必要があります。たとえば、トポロジIDが「PROSYNC」の\n場合は、「PROSYNC_apply1.cfg」を設定します。\n以下は、設定が必要なパラメータについての説明です。ソースDBの特定の表とターゲットDBの特定の\n表を同期するためのルールをMAPパラメータに設定します。\nMAP=([SYNC OPTION] SOURCE_USER.SOURCE_TABLE [SOURCE_COLUMNS]\n[COLUMN FILTERING OPTION],\n[TARGET_DATABASE.]TARGET_USER.TARGET_TABLE [TARGET_COLUMNS]\n[RESOLVE OPTION] [SKIP OPTION]))\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期履歴を調整する前にプロセスを終了します。同期の実行中に同期履歴調整表のデータを変更するの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nと、深刻なエラーが発生する可能性があるため、注意が必要です。\n2. PRS_COMMITTED_TX_LIST表の同期履歴を調整します。\n– ソースDBがTiberoの場合\nPRS_COMMITTED_TX_LIST表のTSN値を同期する開始TSN値で更新するクエリを実行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nするためのIDを設定します。この値は、表領のステップを説明してください。<|im_end|>\n<|im_start|>assistant\n域名として使用できる形式である必要があり、先頭に数字を使用する\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n以下は、ProSyncをアンインストールする方法です。のやり方は？<|im_end|>\n<|im_start|>assistant\n●ソースDBとターゲットDBに作成されたスキーマとメタ表を削除します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nUSER, TAR_INSTALL_USERのやり方は？<|im_end|>\n<|im_start|>assistant\nソースDBとターゲットDBに接続してインストール要件を満たしているかどうかをチェックし、イン\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期中にエラーが発生した場合のスキップ機能の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncが同期を実行中にターゲットDBが過負荷状態の場合は、ソースDBのDMLをターゲットDBに適\n用する際にエラーが発生することがあります。一般的には、ProSyncがそのDMLの適用を再試行します\nが、この機能を使用すると、DMLの適用を再試行せずにスキップして同期を続行します。\n同期中にエラーが発生した場合、DMLの適用をスキップするには、[TOP_ID]_apply1.cfgファイルに次\nのパラメータを設定します。\nNO_DCR_TABLE_SKIP_ERROR=[Y|N]\n説明\nパラメータ名\n同期中にエラーが発生した場合、DMLの適用をスキップするかどうか\nを設定します。(Y/N)\nNO_DCR_TABLE_SKIP_ER\nROR\n詳細については、「A.3.4.23. NO_DCR_TABLE_SKIP_ERROR」を参\n照してください\n3.3. 抽出と適用の共通機能\n本節では、抽出(ext)と適用(apply)で共通して提供される付加機能を使用するための設定方法について説\n明します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n初期化パラメータとは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncプロセスを実行する前にパラメータの確認が必要です。各プロセスのパラメータについての詳\n細は、「付録 A. 初期化パラメータ」を参照してください。\n●デフォルト・パラメータ\n以下は、ProSyncプロセスのデフォルト・パラメータです。\n説明\nパラメータ\nリモート・マシンのプロセスと通信するためのIPのバージョンを指定し\nます。(デフォルト値: 4、範囲: 4または6)\nIP_VERSION\n各プロセスのポート番号を指定します。(デフォルト値: \n7600、範囲:\n1024~ 65535)\nLISTENER_PORT\nProSyncのログ・ファイルを保存するディレクトリを指定します\nLOG_DIR\n各プロセスのログ・ファイルの最大サイズを指定します。\nLOG_FILE_SIZE\nログ・ファイルのサイズがこの値を超える場合、ファイルを\nLOG_BACKUP_DIRに移動し、新しいログ・ファイルを作成します。\n(デフォルト値: 100MB、範囲: 1MB ~ 1GB)\nすべてのプロセスのログ・レベルを指定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nJCDUMPの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n各プロセスの統計情報を収集します。\nJCDUMPを使用すると、「$PRS_HOME/var/[top_id]/log/stat_report」に各プロセスのパフォーマンス・\nログが保存されます。Countは動作回数を、Timeは処理時間を示します。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nJCDUMP top_id\n説明\nオプション\nトポロジIDに該当するプロセスのパフォーマンス・ログ情報を表示します\ntop_id\n●stat_reportの例\n以下は、JCDUMPの使用後に保存されたstat_reportの例です。\n################################################################################\nExtract(1)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nシステム変数の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n本節では、SETコマンドを使用して設定できるシステム変数について説明します。\n2.2.1. HISTORY\nコマンドの履歴のサイズを設定します。\n以下は、HISTORYシステム変数の詳細です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\ncfgファイルをシステム環境に合わせて設定した後、以下のようにprs_install.shファイのやり方は？<|im_end|>\n<|im_start|>assistant\nルを実行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nします。のステップを説明してください。<|im_end|>\n<|im_start|>assistant\n以下は、オプションなしでprs_install.cfgファイルを使用してインストールする例です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータベースとは何ですか？<|im_end|>\n<|im_start|>assistant\n以下は、サポートされるデータベースと項目についての説明です。\nサポート範囲\n項目\nソースDB\n– Tibero(Single/TAC/TAS)\n– Oracle 11g(Single/ASM-acfsを使用)\n– Oracle 12c(Single/ASM-acfsを使用)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nマテリアライズド・ビューの同期はサポートされません。とは何ですか？<|im_end|>\n<|im_start|>assistant\n3. マルチ・グループ機能を使用する場合は、prs_obj_group#.listに各グループに該当する表を上記\nの方法で登録します。マルチ・グループについての詳細は、「3.1.5. マルチ・グループ・モード」\nを参照してください。\n2.8. インストール環境ファイルの設定\n本節では、各アカウントの権限とインストール・パラメータについて説明します。\n2.8.1. 各アカウントの権限\nProSyncをインストールするには、PRS_USER、SRC_INSTALL_USER、TAR_INSTALL_USERの3つ\nのアカウント情報が必要です。\n●PRS_USER\nProSyncが内部的に使用するデータを保管する表を管理するために、ソースDBとターゲットDBに作\n成するアカウント名です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSHUTDOWNの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n指定したTOP_IDのプロセスまたはマネージャー・プロセスを停止します。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nSHUTD[OWN] MAN[AGER] [ABORT]\nSHUTD[OWN] top_id [EXT[RACT] [num] | APP[LY] [num]] [ABORT]\n説明\nオプション\nマネージャー・プロセスを停止します\nMAN[AGER]\n特定のTOP_IDの抽出、適用、およびLONG/LOBプロセスをすべて停止し\nます\ntop_id\n[num]番目のノードで抽出プロセスを終了します\n*EXT[RACT] [num]\n[num]番目のノードで適用プロセスを終了します\n*APP[LY] [num]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデッドロックに起因する同期の中断の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nターゲットDBのProSyncユーザーが適用中にデッドロックが発生すると、以下のログが発生します。\n\"Deadlock Detected. Rollback Transaction.\"\n上記のログが発生すると、適用プロセスは適用中のトランザクションをロールバックし、そのトラン\nザクションを再試行します。ただし、ロールバックしても、デッドロックを発生させたユーザーのト\nランザクションがコミットまたはロールバックされないと、デッドロックは解消されません。した\nがって、デッドロックを発生させたターゲットDBの他のユーザーでコミットまたはロールバックを\n試みる必要があります。\n2. DMLタイムアウト\nターゲットDB ProSyncでユーザーのアクセスなどにより、ターゲットDBにアクセスできない場合、\n基本的には無限に待機することになります。この問題を解決するためにDMLタイムアウト機能を提\n供しています。この機能を使用すると、障害の発生時に定期的にDBと再接続を確立するため、無限\nに待機することを防ぎます。\nこのパラメータ(DML_WAIT_TIMEOUT、単位 : 秒)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n主キーを使用した同期機能とは何ですか？<|im_end|>\n<|im_start|>assistant\nソースDBとターゲットDBの同期対象表の整合性が合わない状態で同期しなければならない場合があり\nます。\nたとえば、特定の列のデータ型がTIMESTAMPであり、行の最終変更時刻をその列に入力するトリガー\nが設定されていると仮定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSTARTUPについて説明してください。<|im_end|>\n<|im_start|>assistant\n指定したTOP_IDのプロセスまたはマネージャー・プロセスを実行します。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nSTART[UP] MAN[AGER]\nSTART[UP] top_id [EXT[RACT] [num] | APP[LY] [num]]\n説明\nオプション\nマネージャー・プロセス実行します\nMAN[AGER]\n特定のTOP_IDの抽出、適用、LONG/LOBプロセスをすべて実行します\ntop_id\n[num]番目のノードの抽出プロセスを実行します\n*EXT[RACT] [num]\n[num]番目のノードの適用プロセスを実行します\n*APP[LY] [num]\n●例\n以下は、マネージャー・プロセスを実行する例です。\nAdmin> STARTUP MANAGER\nManager process (19616) started.\n以下は、「prosync4」プロセスを実行する例です。\nAdmin> STARTUP prosync4\nprosync_ext1 process (19644)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nクラスター化されたソースDBの同期モードの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nソースDBがクラスター環境の場合(Tibero TACまたはOracle RAC)は、インストール・パラメータに追\n加設定が必要です。\n以下は、ソースDBがクラスター環境の場合、追加設定する例です。(prs_install.cfg)\nSRC_DB_TYPE=TIBERO\nSRC_DB_NAME=tibero_src\nSRC_INSTALL_USER=sys\nSRC_INSTALL_PWD=tibero\nSRC_DB_CNT=2\nSRC_DB_ALIAS[0]=tibero_node_1\nSRC_DB_ALIAS[1]=tibero_node_2\n.....\nSRC_DB_ALIAS[n]=tibero_node_n\n上記のように設定すると、各ノードの数と同じ数の設定ファイルが作成されるため、各ノードごとに設\n定することができます。\n3.1.3. 1:N 一方向の同期モード\n1:N同期は、1つのソースDBのデータをN個のターゲットDBに伝播します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nHISTORYコマンドについて説明してください。<|im_end|>\n<|im_start|>assistant\nの履歴のサイズを設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nターゲットDBからソースDBへの一方向同期のインストールの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nターゲットDBの環境に応じてインストール設定ファイル($PRS_HOME/install/prosync4 _2.cfg)を設\n定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nUSER, TAR_INSTALL_USERの手順を教えてください。<|im_end|>\n<|im_start|>assistant\nソースDBとターゲットDBに接続してインストール要件を満たしているかどうかをチェックし、イン\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストール・パス内のconfigディレクトリに移動します。について説明してください。<|im_end|>\n<|im_start|>assistant\n2. [TOP_ID]_rule.cfgファイルにRULE_CFG_FILE=Nを追加します。\n説明\nRULE_CFG_FILE値\n設定ファイル・モードを使用します。(デフォルト値)\nY\nルール・データベースを使用します\nN\n3. ProSyncを再起動します。\nルール・データベースによる初期化パラメータの管理\n初期化パラメータの情報は、ルール・データベースのPRS_IPARAM表に保存されています。本節では、\nルール・データベースを使用して初期化パラメータ値を確認、変更、追加する方法について説明しま\nす。(ルール・データベース・モードへの切り替えとルール・データベース・アカウントで接続されて\nいると仮定します。）\n●PRS_IPARAM表\nPRS_IPARAM表の列とデータ型は以下のとおりです。\n説明\nデータ型\n列名\nVARCHAR(256)\nTOP_ID\n抽出プロセス(2)、適用プロセス(3)、\nLONG/LOBプロセス(4)\nNUMBER\nPROCESS_TYPE\nNUMBER\nPROCESS_NUM\nパラメータ名\nVARCHAR(256)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSAMファイルについて説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncでは、同期中に渡されるセグメントをファイルに順次に記録することができます。ファイルに\nは、抽出プロセスから適用プロセスに渡されるステートメントを記録するEXT_SAMと適用プロセスか\nらターゲットDBに適用されるステートメントを記録するAPPLY_SAMの2種類があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nPROMPTとは何ですか？<|im_end|>\n<|im_start|>assistant\nプロンプト文字列を設定します。\n以下は、PROMPTシステム変数の詳細です。\n●使用方法\nSET PROM[PT] {prompt_string}\n説明\n項目\nプロンプト文字列です。(デフォルト値: \"Admin>\")\nprompt_string\nこの文字列を波括弧({ })で囲むと、環境変数として認識されます。\nたとえば、「{PRS_PROMPT}」のように指定すると、環境変数の$PRS_PROMPT\nの値が置換され、プロンプトとして使用されます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n抽出と適用の共通機能の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n本節では、抽出(ext)と適用(apply)で共通して提供される付加機能を使用するための設定方法について説\n明します。\n3.3.1. SAMファイル\nProSyncでは、同期中に渡されるセグメントをファイルに順次に記録することができます。ファイルに\nは、抽出プロセスから適用プロセスに渡されるステートメントを記録するEXT_SAMと適用プロセスか\nらターゲットDBに適用されるステートメントを記録するAPPLY_SAMの2種類があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n最後にソースDBで以下のクエリ文を実行します。とは何ですか？<|im_end|>\n<|im_start|>assistant\ninsert into [prosync_user_name].PRS_DICT_HIST\nvalues ([current_scn], '[dict_file_name]');\ncommit;\n[prosync_user_name]には、インストール時に設定したProSyncのユーザー名を入力します。\n●DUMMY TX LOGIC\nソースDBに負荷がない場合やインスタンス障害時にダミー・トランザクションを送信するロジック\nはサポートされません。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n適用機能の設定とは何ですか？<|im_end|>\n<|im_start|>assistant\n本節では、適用(apply)の付加機能を使用するための設定方法について説明します。\n3.2.1. マッピング・ルールの設定\n表と列のマッピング機能を使用するには、$PRS_HOME/configディレクトリの適用プロセスの設定ファ\nイルである[TOP_ID]_apply1.cfgを設定する必要があります。たとえば、トポロジIDが「PROSYNC」の\n場合は、「PROSYNC_apply1.cfg」を設定します。\n以下は、設定が必要なパラメータについての説明です。ソースDBの特定の表とターゲットDBの特定の\n表を同期するためのルールをMAPパラメータに設定します。\nMAP=([SYNC OPTION] SOURCE_USER.SOURCE_TABLE [SOURCE_COLUMNS]\n[COLUMN FILTERING OPTION],\n[TARGET_DATABASE.]TARGET_USER.TARGET_TABLE [TARGET_COLUMNS]\n[RESOLVE OPTION] [SKIP OPTION]))\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n環境ファイルの設定の手順を教えてください。<|im_end|>\n<|im_start|>assistant\n本節では、各アカウントの権限とインストール・パラメータについて説明します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n実行と終了について説明してください。<|im_end|>\n<|im_start|>assistant\nProSync管理ユーティリティは、ProSyncのインストール時に一緒にインストールされます。\n1.2.1. 実行\nProSync管理ユーティリティを実行するコマンドの構文は以下のとおりです。\n●使用方法\nprs_adm [options] [script]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nターゲットDBに同期されていることを確認します。の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nSQL> SELECT * FROM TEST.T4;\nC1\n----------\n1\n1 row selected.\n5. ソースDBのTEST.T4表を切り捨てます。\nSQL> TRUNCATE TABLE TEST.T4;\nTable 'TEST.T4' truncated.\n6. ターゲットDBのTEST.T4表が切り捨てられ、空になっていることを確認します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期中にエラーが発生した場合のスキップ機能とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncが同期を実行中にターゲットDBが過負荷状態の場合は、ソースDBのDMLをターゲットDBに適\n用する際にエラーが発生することがあります。一般的には、ProSyncがそのDMLの適用を再試行します\nが、この機能を使用すると、DMLの適用を再試行せずにスキップして同期を続行します。\n同期中にエラーが発生した場合、DMLの適用をスキップするには、[TOP_ID]_apply1.cfgファイルに次\nのパラメータを設定します。\nNO_DCR_TABLE_SKIP_ERROR=[Y|N]\n説明\nパラメータ名\n同期中にエラーが発生した場合、DMLの適用をスキップするかどうか\nを設定します。(Y/N)\nNO_DCR_TABLE_SKIP_ER\nROR\n詳細については、「A.3.4.23. NO_DCR_TABLE_SKIP_ERROR」を参\n照してください\n3.3. 抽出と適用の共通機能\n本節では、抽出(ext)と適用(apply)で共通して提供される付加機能を使用するための設定方法について説\n明します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nされた各TOP_IDごとにディレクトリが作成されます。こののステップを説明してください。<|im_end|>\n<|im_start|>assistant\nディレクトリには、抽出、適用、LONG/LOBプロセスのログと運用に必要\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n時にソースDBとターゲットDBにそれぞれ接続し、ProSyncの実行に必要なさのやり方は？<|im_end|>\n<|im_start|>assistant\nまざまなオブジェクトを作成します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDDLが発生した場合について説明してください。<|im_end|>\n<|im_start|>assistant\nデータ・ディクショナリが変更される場合であり、複数のトランザクションを継続して適用すると、\n整合性が失われる可能性があります。したがって、DDLが発生したら、その時間以前に発生したすべ\nてのトランザクションを適用し、DMLの適用を一時的に停止します。\nPRS_LCT表に最後に適用されたトランザクションの時間を保存した後、DDLによって変更されたデー\nタ・ディクショナリを変更し、PRS_LCTに保存された時間以降のトランザクションから適用を再開\nします。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nRESUMEとは何ですか？<|im_end|>\n<|im_start|>assistant\n指定したTOP_IDのタスクを再開します。\nコマンドの詳細は、以下のとおりです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nされるホーム・ディレクトリです。TiberoがソースDBのステップを説明してください。<|im_end|>\n<|im_start|>assistant\nとターゲットDBのいずれかである場合に設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n一方向の同期モードについて説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncのインストール時にソースDBとターゲットDBにそれぞれ接続し、ProSyncの実行に必要なさ\nまざまなオブジェクトを作成します。ProSyncをインストールするときは、各DBが運用中である必要が\nあります。\n最初にprs_install.cfgファイルをシステム環境に合わせて設定した後、以下のようにprs_install.shファイ\nルを実行します。prs_install.cfgファイルの設定方法については、「2.8. インストール環境ファイルの設\n定」を参照してください。\n以下は、prs_install.shの使用方法です。\n. prs_install.sh [option] [config file] [list file]\n●[option]\nprs_install.shでは、-h、-c、-lオプションがあります。\n説明\nオプション\nヘルプを表示します\n-h\n環境設定ファイルを指定します\n-c\n同期対象のリスト・ファイルを指定します\n-l\n●入力項目\n説明\n項目\n-cオプションを使用してインストールに使用する設定ファイルを指定します。\n[config file]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\ncfgファイルを使用してインストールする例です。prs_install.cfgにのやり方は？<|im_end|>\n<|im_start|>assistant\nパスワード・オプションを指定しなかった場合は、prs_install.shファイルを実行した後、各アカウント\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期履歴を調整する前にプロセスを終了します。同期の実行中に同期履歴調整表のデータを変更するとは何ですか？<|im_end|>\n<|im_start|>assistant\nと、深刻なエラーが発生する可能性があるため、注意が必要です。\n2. PRS_COMMITTED_TX_LIST表の同期履歴を調整します。\n– ソースDBがTiberoの場合\nPRS_COMMITTED_TX_LIST表のTSN値を同期する開始TSN値で更新するクエリを実行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n実行と終了の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSync管理ユーティリティは、ProSyncのインストール時に一緒にインストールされます。\n1.2.1. 実行\nProSync管理ユーティリティを実行するコマンドの構文は以下のとおりです。\n●使用方法\nprs_adm [options] [script]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nUSER, TAR_INSTALL_USERのステップを説明してください。<|im_end|>\n<|im_start|>assistant\nソースDBとターゲットDBに接続してインストール要件を満たしているかどうかをチェックし、イン\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールとは何ですか？<|im_end|>\n<|im_start|>assistant\n本節では、 一方向と双方向の同期モードでProSyncをインストールする方法について説明します。\n3.1.1. 一方向の同期モード\nProSyncのインストール時にソースDBとターゲットDBにそれぞれ接続し、ProSyncの実行に必要なさ\nまざまなオブジェクトを作成します。ProSyncをインストールするときは、各DBが運用中である必要が\nあります。\n最初にprs_install.cfgファイルをシステム環境に合わせて設定した後、以下のようにprs_install.shファイ\nルを実行します。prs_install.cfgファイルの設定方法については、「2.8. インストール環境ファイルの設\n定」を参照してください。\n以下は、prs_install.shの使用方法です。\n. prs_install.sh [option] [config file] [list file]\n●[option]\nprs_install.shでは、-h、-c、-lオプションがあります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールについて説明してください。<|im_end|>\n<|im_start|>assistant\n本節では、 一方向と双方向の同期モードでProSyncをインストールする方法について説明します。\n3.1.1. 一方向の同期モード\nProSyncのインストール時にソースDBとターゲットDBにそれぞれ接続し、ProSyncの実行に必要なさ\nまざまなオブジェクトを作成します。ProSyncをインストールするときは、各DBが運用中である必要が\nあります。\n最初にprs_install.cfgファイルをシステム環境に合わせて設定した後、以下のようにprs_install.shファイ\nルを実行します。prs_install.cfgファイルの設定方法については、「2.8. インストール環境ファイルの設\n定」を参照してください。\n以下は、prs_install.shの使用方法です。\n. prs_install.sh [option] [config file] [list file]\n●[option]\nprs_install.shでは、-h、-c、-lオプションがあります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOracleのエイリアス設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nソースDBとターゲットDBのいずれかがOracleの場合は、$ORACLE_HOME/network/admin/tnsnames.ora\nファイルにエイリアスを設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nする前に必要な準備事項について説明します。の手順を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncをインストールする前に確認および設定する準備事項は以下のとおりです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータベースの設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncを起動してデータを抽出するためには、以下の項目を設定する必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOracle LogMinerを使用してREDOログの抽出について説明してください。<|im_end|>\n<|im_start|>assistant\nソースDBがOracleの場合は、既存のダイレクト読み取りではなく、Oracle LogMinerを介してREDOロ\nグ・ファイルを抽出することができます。\nOracle LogMinerを使用してREDOログ・ファイルを抽出するには、インストール時にUSE_LOGMNR=Y\nを指定する必要があります。ダイレクト読み取り方式からOracle LogMiner方式に変更する場合のため\nに、抽出プロセス、適用プロセス、LLOBプロセスのパラメータとして指定することは可能ですが、ディ\nクショナリ・ファイルを作成するプロセスが必要となるため、一般的には、ProSyncの再インストール\nをお勧めしています。\nOracle LogMinerは、ソースDBのパッケージを使用してビューにロードした後、それを再び読み取る方\n式であるため、ダイレクト読み取りに比べ、同期パフォーマンスが大きく低下します。したがって、\nASMを使用するが、ACFSは使用できない環境または暗号化を使用している環境など、特殊なケースに\nProSyncを適用するために使用されます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n環境ファイルの設定のステップを説明してください。<|im_end|>\n<|im_start|>assistant\n本節では、各アカウントの権限とインストール・パラメータについて説明します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nプラットフォームとオペレーティング・システムの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n以下は、ProSyncでサポートされるプラットフォームとオペレーティング・システム(以下、OS)です。\nBinary Bits\nOS\nCPU\nベンダー\n64bit\nHP-UX 11i\nItanium\nHP\n64bit\nAIX 5.3, AIX 6.1\nPPC 5L\nIBM\n32bit, 64bit\nX86(Pentium4以上)\nGNU\n– 32bit : Linux kernel 2.6.15, glibc 2.3.6, libst\ndc++6.0.7\n– 64bit : Linux kernel 2.6.9, glibc 2.3.4, libst\ndc++6.0.3\n64bit\nLinux kernel 2.6.9, glibc 2.3.4 libstdc++6.0.3\nIA 64\n1.2.2. ハードウェアとソフトウェアの要件\n以下は、ProSyncをインストールするためのハードウェア要件です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールの概要について説明してください。<|im_end|>\n<|im_start|>assistant\n本章では、ProSyncについて簡単に紹介し、ProSyncのインストールに必要なシステム要件について説\n明します。\n1.1. 概要\nProSyncは、ソースDBの指定された表の変更データのみを抽出してデータを加工し、ターゲットDBに\nリアルタイムで適用するCDC(Change Data Capture)ソリューションです。\nまた、ProSyncは、分散している各システムのデータを統合するためのデータ・バックボーン・ソリュー\nションとして、ビジネス・システムのトランザクション情報をリアルタイムで複製することができるた\nめ、勘定系システム(OLTP)と情報系システム(DW)のデータベース間の同期業務で最適なパフォーマン\nスを発揮します。\n1.2. システム要件\n本節では、サポートされるプラットフォームとシステム要件について説明します。\n1.2.1. プラットフォームとオペレーティング・システム\n以下は、ProSyncでサポートされるプラットフォームとオペレーティング・システム(以下、OS)です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n前の準備のやり方は？<|im_end|>\n<|im_start|>assistant\n本章では、ProSyncをインストールする前に必要な準備事項について説明します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDDLルールの設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncのユーザーは、適用プロセスの設定ファイルでDDLパラメータを設定できます。DDLパラメー\nタは、同期するDDLについての設定です。DDLパラメータは、1つ以上のDDLルール・ステートメント\nで構成されます。DDLルールには、DDL同期が含まれるか除外される対象とDDLタイプを定義できま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSHUTDOWNとは何ですか？<|im_end|>\n<|im_start|>assistant\n指定したTOP_IDのプロセスまたはマネージャー・プロセスを停止します。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nSHUTD[OWN] MAN[AGER] [ABORT]\nSHUTD[OWN] top_id [EXT[RACT] [num] | APP[LY] [num]] [ABORT]\n説明\nオプション\nマネージャー・プロセスを停止します\nMAN[AGER]\n特定のTOP_IDの抽出、適用、およびLONG/LOBプロセスをすべて停止し\nます\ntop_id\n[num]番目のノードで抽出プロセスを終了します\n*EXT[RACT] [num]\n[num]番目のノードで適用プロセスを終了します\n*APP[LY] [num]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nコマンドの実行と終了の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSync管理ユーティリティでは、コマンドを直接入力してプロセスを実行、停止、および一時停止し\nます。ProSync管理ユーティリティコマンドには、実行のためのコマンドがなく、入力されたコマンド\nはバッファーに保存されます。ProSync管理ユーティリティコマンドは入力と同時に実行されます。\n以下は、プロセス(prosync4)を実行する例です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータベースの設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncを起動してデータを抽出するためには、以下の項目を設定する必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nコマンドの使用方法について説明してください。<|im_end|>\n<|im_start|>assistant\n本節では、ProSync管理ユーティリティコマンドの実行およびプロセスの管理に必要なコマンドを紹介\nし、各コマンドの構文、パラメータ、例の順に説明します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nアーカイブ・ログ・モードの設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncは、抽出プロセスの付加機能として、ソースDBのアーカイブ・ログのみを抽出する機能を提供\nしています。この機能を使用すると、データベースでアーカイブされていないオンラインREDOログは\n抽出せず、アーカイブ済みのアーカイブ・ログのみを抽出して適用プロセスに転送します。\nアーカイブ・ログ・モードを使用するには、[TOP_ID]_ext1.cfgファイルに次のパラメータを設定する必\n要があります。\nEXTRACT_ARCHIVE_LOG_ONLY=[Y|N]\n説明\nパラメータ名\n抽出プロセスでアーカイブ・ログのみ抽出するかどうかを設定しま\nす。(Y/N)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n抽出機能の設定とは何ですか？<|im_end|>\n<|im_start|>assistant\n本節では、抽出(ext)の付加機能を使用するための設定方法について説明します。\n3.1.1. ユーザー・フィルタリング機能\nProSyncは、特定のユーザーによって発生されたDMLとDDLを同期から除外できる機能を提供します。\nユーザー・フィルタリング機能を使用するには、[TOP_ID]_ext1.cfgファイルに次のパラメータを設定す\nる必要があります。\nEXCLUDE_USER={user_name, user_name}\n説明\nパラメータ\nDMLとDDLを同期から除外するユーザー名を指定します\nEXCLUDE_USER\n以下は、TESTユーザーとPRS_USERを同期から除外する例です。\nEXCLUDE_USER=PRS_USER,TEST\n参考\nProSyncが双方向同期モードに設定された場合は、PRS_USERによって発生および同期されたDML\nが再び抽出データベースに転送されることを防ぐために、EXCLUDE_USERにPRS_USERを登録\nする必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータベースについて説明してください。<|im_end|>\n<|im_start|>assistant\n以下は、サポートされるデータベースと項目についての説明です。\nサポート範囲\n項目\nソースDB\n– Tibero(Single/TAC/TAS)\n– Oracle 11g(Single/ASM-acfsを使用)\n– Oracle 12c(Single/ASM-acfsを使用)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n運用ディレクトリの設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncのインストール・ディレクトリのパスを次のように仮定します。\n$ /home/prosync\nProSyncディレクトリは、binディレクトリと同様にソースDBサーバーの各インスタンスごとに存在す\nる必要があります。\n以下は、1:1の一方向モードのソースDBとターゲットDBでのディレクトリの運用例です。\n●ソースDB\nインスタンス・サーバーですべてのファイルを抽出ディレクトリにコピーします。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSTARTUPとは何ですか？<|im_end|>\n<|im_start|>assistant\n指定したTOP_IDのプロセスまたはマネージャー・プロセスを実行します。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nSTART[UP] MAN[AGER]\nSTART[UP] top_id [EXT[RACT] [num] | APP[LY] [num]]\n説明\nオプション\nマネージャー・プロセス実行します\nMAN[AGER]\n特定のTOP_IDの抽出、適用、LONG/LOBプロセスをすべて実行します\ntop_id\n[num]番目のノードの抽出プロセスを実行します\n*EXT[RACT] [num]\n[num]番目のノードの適用プロセスを実行します\n*APP[LY] [num]\n●例\n以下は、マネージャー・プロセスを実行する例です。\nAdmin> STARTUP MANAGER\nManager process (19616) started.\n以下は、「prosync4」プロセスを実行する例です。\nAdmin> STARTUP prosync4\nprosync_ext1 process (19644)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nログ分析の確認の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nソースDBがOracleの場合は、ProSyncがREDOログを分析できるかどうかを確認する必要があります。\nolr_analyzeを使用して、以下のようにアーカイブ・ログを分析できるかどうかを確認することができま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータベースの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n以下は、サポートされるデータベースと項目についての説明です。\nサポート範囲\n項目\nソースDB\n– Tibero(Single/TAC/TAS)\n– Oracle 11g(Single/ASM-acfsを使用)\n– Oracle 12c(Single/ASM-acfsを使用)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nユーザー・フィルタリング機能とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncは、特定のユーザーによって発生されたDMLとDDLを同期から除外できる機能を提供します。\nユーザー・フィルタリング機能を使用するには、[TOP_ID]_ext1.cfgファイルに次のパラメータを設定す\nる必要があります。\nEXCLUDE_USER={user_name, user_name}\n説明\nパラメータ\nDMLとDDLを同期から除外するユーザー名を指定します\nEXCLUDE_USER\n以下は、TESTユーザーとPRS_USERを同期から除外する例です。\nEXCLUDE_USER=PRS_USER,TEST\n参考\nProSyncが双方向同期モードに設定された場合は、PRS_USERによって発生および同期されたDML\nが再び抽出データベースに転送されることを防ぐために、EXCLUDE_USERにPRS_USERを登録\nする必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nTiberoの設定方法を説明してください。<|im_end|>\n<|im_start|>assistant\nがインストールされるホーム・ディレクトリです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nPAUSEについて説明してください。<|im_end|>\n<|im_start|>assistant\n指定したTOP_IDのタスクを一時停止します。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nPAUSE top_id\n説明\nオプション\n一時停止するTOP_IDです\ntop_id\n●例\n以下は、「prosync4」のタスクを一時停止する例です。\nAdmin> PAUSE prosync4\nprosync4 paused.\nAdmin>\n3.2.10. RESUME\n指定したTOP_IDのタスクを再開します。\nコマンドの詳細は、以下のとおりです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデッドロックに起因する同期の中断とは何ですか？<|im_end|>\n<|im_start|>assistant\nターゲットDBのProSyncユーザーが適用中にデッドロックが発生すると、以下のログが発生します。\n\"Deadlock Detected. Rollback Transaction.\"\n上記のログが発生すると、適用プロセスは適用中のトランザクションをロールバックし、そのトラン\nザクションを再試行します。ただし、ロールバックしても、デッドロックを発生させたユーザーのト\nランザクションがコミットまたはロールバックされないと、デッドロックは解消されません。した\nがって、デッドロックを発生させたターゲットDBの他のユーザーでコミットまたはロールバックを\n試みる必要があります。\n2. DMLタイムアウト\nターゲットDB ProSyncでユーザーのアクセスなどにより、ターゲットDBにアクセスできない場合、\n基本的には無限に待機することになります。この問題を解決するためにDMLタイムアウト機能を提\n供しています。この機能を使用すると、障害の発生時に定期的にDBと再接続を確立するため、無限\nに待機することを防ぎます。\nこのパラメータ(DML_WAIT_TIMEOUT、単位 : 秒)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nディスク容量の確認とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncをインストールするには、少なくとも1.5GB以上のハードディスク空き容量(プラットフォーム\nごとに異なる)が必要です。これは、ProSyncのインストール後、操作ログを作成するときに必要な最小\n容量です。\nUNIXシステムでは、dfコマンドを使用してハードディスクの空き容量を確認することができます。\n参考\nハードウェア要件についての詳細は、「1.2. システム要件」を参照してください。\n2.3. ディレクトリの確認\nProSyncの圧縮されたインストール・ファイルを解凍すると、以下のディレクトリ構造が作成されま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSTATUSについて説明してください。<|im_end|>\n<|im_start|>assistant\nすべてのプロセス、ユーザー指定のTOP_IDのプロセスまたはマネージャー・プロセスの状態を表示し\nます。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nSTATUS MAN[AGER]\nSTATUS top_id\n説明\nオプション\nすべてのプロセスの状態を表示します\nマネージャー・プロセスの状態を確認します\nMAN[AGER]\n特定のTOP_IDの抽出、適用、およびLONG/LOBプロセスの状態を確認します\ntop_id\n●例\n以下は、すべてのTOP(TOP_ID)プロセスを表示する例です。\nAdmin> STATUS\nprs_mgr (18744), is running\nprosync4_ext1 (20133), is running\nprosync4_apply1 (20154), is running\nprosync4_llob (20168)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n双方向の同期モードの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n双方向の同期は、ソースDBとターゲットDBが相互にデータを伝播します。\n双方向の同期モードを使用するには、ソースDBからターゲットDBへの一方向インストールを実行した\n後、ソースDBとターゲットDBを逆に設定して、一方向インストールをもう一度実行します。\n参考\n双方向の同期モードでは、ProSyncによってすでに同期されている表がもう一度逆同期されないよ\nうに、EXCLUDE_USERパラメータにPRS_USERを追加する必要があります。EXCLUDE_USER\nの詳細については、『ProSync 管理者ガイド』の「付録A. 初期化パラメータ」を参照してくださ\nい。\n2. 双方向の同期モードでは、整合性を保つためにRESOLVE OPTIONを設定する必要があります。\nまた、同期表には主キーが含まれている必要があります。詳細については、『ProSync 管理者ガ\nイド』の「3.2.1. マッピング・ルールの設定」の「RESOLVE OPTION」を参照してください。\n以下は、インストールの手順です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSyncのインストールに必要なファイルが格納されています。の手順を教えてください。<|im_end|>\n<|im_start|>assistant\n以下は、$PRS_HOME/installのファイルとサブディレクトリについての説明です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストール・パス内のconfigディレクトリに移動します。とは何ですか？<|im_end|>\n<|im_start|>assistant\n2. [TOP_ID]_rule.cfgファイルにRULE_CFG_FILE=Nを追加します。\n説明\nRULE_CFG_FILE値\n設定ファイル・モードを使用します。(デフォルト値)\nY\nルール・データベースを使用します\nN\n3. ProSyncを再起動します。\nルール・データベースによる初期化パラメータの管理\n初期化パラメータの情報は、ルール・データベースのPRS_IPARAM表に保存されています。本節では、\nルール・データベースを使用して初期化パラメータ値を確認、変更、追加する方法について説明しま\nす。(ルール・データベース・モードへの切り替えとルール・データベース・アカウントで接続されて\nいると仮定します。）\n●PRS_IPARAM表\nPRS_IPARAM表の列とデータ型は以下のとおりです。\n説明\nデータ型\n列名\nVARCHAR(256)\nTOP_ID\n抽出プロセス(2)、適用プロセス(3)、\nLONG/LOBプロセス(4)\nNUMBER\nPROCESS_TYPE\nNUMBER\nPROCESS_NUM\nパラメータ名\nVARCHAR(256)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n以下は、ProSyncをアンインストールする方法です。の手順を教えてください。<|im_end|>\n<|im_start|>assistant\n●ソースDBとターゲットDBに作成されたスキーマとメタ表を削除します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nルール・データベースを使用した初期化パラメータの管理とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncは設定ファイルとルール・データベースを使用した初期化パラメータの管理をサポートしま\nす。ルール・データベースは、初期化パラメータを管理するデータベースです。ルール・データベース\nを使用すると、直接環境設定ファイルを修正せずにパラメータを管理することができます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nキー違反の解決とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncは、DMLの適用中にキー違反が発生した場合にも同期が続行されるように、キー違反の解決\n(Key Violation Resolution)機能を提供しています。\n以下は、Prosyncによって解決できるキー違反のケースです。\n●挿入する外部キーが参照する主キーの値がないため、キー違反が発生する場合\nユーザー指定のパラメータであるKEY_VIOLATION_RETRY_CNTに従ってDMLを再試行します。再\n試行の後にも失敗する場合は、そのDMLをスキップします。スキップされたDML文は、ProSyncのロ\nグ・ディレクトリの[TOP_ID]_fk_insert_skip.log fileに残され、そのファイルを通じてスキップされた\nDMLをユーザーが処理できるようにします。\n●削除する主キーを参照する外部キーがあるため、キー違反が発生する場合\nユーザー指定のパラメータであるKEY_VIOLATION_RETRY_CNTに従ってDMLを再試行します。再\n試行の後にも失敗する場合は、該当する主キーを参照する外部キーを持つ行をカスケード削除し、同\n期を続行させます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nルールDBの設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nルールDBを介して、ProSyncの初期化パラメータの設定を検索、追加、変更することができます。\nProSyncのインストールする場合は、ルールDBを必須パラメータとして入力する必要がありますが、必\n要に応じてルールDBの使用の有無を選択することもできます。\n参考\n初期化パラメータは、ルールDBモードと設定ファイル・モードで管理できます。ProSyncをデフォ\nルト・インストールする場合は、設定ファイル・モードで設定されています。初期化パラメータ\nをルールDBモードで管理する場合は、[TOP_ID]_rule.cfgファイルでRULE_CFG_FILE=Nを追加し\nた後、ProSyncを再実行します。\n以下は、ルールDBの設定についての説明です。\n●同種データベース間の同期\nソースDBまたはターゲットDBのどちらにも設定できます。一般的には、ターゲットDBをルールDB\nとして設定します。\n●異種データベース間の同期\n以下の表を参考にしてルールDBを設定してください。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nクラスター化されたソースDBの同期モードについて説明してください。<|im_end|>\n<|im_start|>assistant\nソースDBがクラスター環境の場合(Tibero TACまたはOracle RAC)は、インストール・パラメータに追\n加設定が必要です。\n以下は、ソースDBがクラスター環境の場合、追加設定する例です。(prs_install.cfg)\nSRC_DB_TYPE=TIBERO\nSRC_DB_NAME=tibero_src\nSRC_INSTALL_USER=sys\nSRC_INSTALL_PWD=tibero\nSRC_DB_CNT=2\nSRC_DB_ALIAS[0]=tibero_node_1\nSRC_DB_ALIAS[1]=tibero_node_2\n.....\nSRC_DB_ALIAS[n]=tibero_node_n\n上記のように設定すると、各ノードの数と同じ数の設定ファイルが作成されるため、各ノードごとに設\n定することができます。\n3.1.3. 1:N 一方向の同期モード\n1:N同期は、1つのソースDBのデータをN個のターゲットDBに伝播します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nソースDBとターゲットDBにDDLを実行します。の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n5. ProSyncを再起動します。\nProSyncの再起動する場合は、同期対象表のメタデータが変更されたか（例: RENAME）、マッピン\nグ・ルールが設定されている表のDDが変更された（例: ALTER TABLE）場合は、起動関連の設定\nファイルを実行したDDLに合わせて変更する必要があります。\nまた、同期対象表を追加した場合は、ProSyncの再起動後に同期対象表を追加する必要があります。\n詳細については、『ProSync 管理ユーティリティガイド』の「3.2.4 ALTER TABLE」を参照してく\nださい。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSyncを終了します。とは何ですか？<|im_end|>\n<|im_start|>assistant\n現在実行されているすべてのProSyncプロセスを終了します。\n4. ソースDBとターゲットDBにDDLを実行します。\n5. ProSyncを再起動します。\nProSyncの再起動する場合は、同期対象表のメタデータが変更されたか（例: RENAME）、マッピン\nグ・ルールが設定されている表のDDが変更された（例: ALTER TABLE）場合は、起動関連の設定\nファイルを実行したDDLに合わせて変更する必要があります。\nまた、同期対象表を追加した場合は、ProSyncの再起動後に同期対象表を追加する必要があります。\n詳細については、『ProSync 管理ユーティリティガイド』の「3.2.4 ALTER TABLE」を参照してく\nださい。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSyncを再起動します。とは何ですか？<|im_end|>\n<|im_start|>assistant\nルール・データベースによる初期化パラメータの管理\n初期化パラメータの情報は、ルール・データベースのPRS_IPARAM表に保存されています。本節では、\nルール・データベースを使用して初期化パラメータ値を確認、変更、追加する方法について説明しま\nす。(ルール・データベース・モードへの切り替えとルール・データベース・アカウントで接続されて\nいると仮定します。）\n●PRS_IPARAM表\nPRS_IPARAM表の列とデータ型は以下のとおりです。\n説明\nデータ型\n列名\nVARCHAR(256)\nTOP_ID\n抽出プロセス(2)、適用プロセス(3)、\nLONG/LOBプロセス(4)\nNUMBER\nPROCESS_TYPE\nNUMBER\nPROCESS_NUM\nパラメータ名\nVARCHAR(256)\nPARAMETER\nパラメータ値\nCLOB\nVALUE\nstatic(1)、dynamic(2)\nNUMBER\nTYPE\n以下は、ルール・データベースを使用して初期化パラメータを確認、変更、追加する例です。初期化パ\nラメータについての詳細は、「付録 A. 初期化パラメータ」を参照してください。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nシステム環境変数の設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncをインストールするために設定が必要な環境変数は以下のとおりです。\n説明\n環境変数\nTiberoがインストールされるホーム・ディレクトリです。TiberoがソースDB\nとターゲットDBのいずれかである場合に設定します。Tiberoサーバー、クラ\nTB_HOME\nイアント・ライブラリやさまざまな付加機能を実行するファイルがインス\nトールされます\nOracle DBがソースDBとターゲットDBのいずれかである場合に設定します\nORACLE_HOME\nファイル・システムを介して特定のファイルにアクセスするためのディレク\nトリ・パスを設定します\nPATH\nデータベース接続のためにクライアント・ライブラリへのアクセス・パスを\n設定します。\nLD_LIBRARY_PATH\nOSによっては、LIBPATHまたはSHLIB_PATHが使用されることがあります\nProSyncがインストールされるルート・ディレクトリを設定します\nPRS_HOME\n2.5.3. データベースの設定\nProSyncを起動してデータを抽出するためには、以下の項目を設定する必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nするには、少なくとも1.5GB以上のハードディスク空き容量(プラットフォームのやり方は？<|im_end|>\n<|im_start|>assistant\nごとに異なる)が必要です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDMLタイムアウトとは何ですか？<|im_end|>\n<|im_start|>assistant\nターゲットDB ProSyncでユーザーのアクセスなどにより、ターゲットDBにアクセスできない場合、\n基本的には無限に待機することになります。この問題を解決するためにDMLタイムアウト機能を提\n供しています。この機能を使用すると、障害の発生時に定期的にDBと再接続を確立するため、無限\nに待機することを防ぎます。\nこのパラメータ(DML_WAIT_TIMEOUT、単位 : 秒)で指定された時間を超えると、自動的にDBへの\n再接続およびトランザクションを再試行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n実行と終了とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSync管理ユーティリティは、ProSyncのインストール時に一緒にインストールされます。\n1.2.1. 実行\nProSync管理ユーティリティを実行するコマンドの構文は以下のとおりです。\n●使用方法\nprs_adm [options] [script]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nマッピング・ルールの設定について説明してください。<|im_end|>\n<|im_start|>assistant\n表と列のマッピング機能を使用するには、$PRS_HOME/configディレクトリの適用プロセスの設定ファ\nイルである[TOP_ID]_apply1.cfgを設定する必要があります。たとえば、トポロジIDが「PROSYNC」の\n場合は、「PROSYNC_apply1.cfg」を設定します。\n以下は、設定が必要なパラメータについての説明です。ソースDBの特定の表とターゲットDBの特定の\n表を同期するためのルールをMAPパラメータに設定します。\nMAP=([SYNC OPTION] SOURCE_USER.SOURCE_TABLE [SOURCE_COLUMNS]\n[COLUMN FILTERING OPTION],\n[TARGET_DATABASE.]TARGET_USER.TARGET_TABLE [TARGET_COLUMNS]\n[RESOLVE OPTION] [SKIP OPTION]))\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nソースDBとターゲットDBにDDLを実行します。とは何ですか？<|im_end|>\n<|im_start|>assistant\n5. ProSyncを再起動します。\nProSyncの再起動する場合は、同期対象表のメタデータが変更されたか（例: RENAME）、マッピン\nグ・ルールが設定されている表のDDが変更された（例: ALTER TABLE）場合は、起動関連の設定\nファイルを実行したDDLに合わせて変更する必要があります。\nまた、同期対象表を追加した場合は、ProSyncの再起動後に同期対象表を追加する必要があります。\n詳細については、『ProSync 管理ユーティリティガイド』の「3.2.4 ALTER TABLE」を参照してく\nださい。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n主キーを使用した同期機能について説明してください。<|im_end|>\n<|im_start|>assistant\nソースDBとターゲットDBの同期対象表の整合性が合わない状態で同期しなければならない場合があり\nます。\nたとえば、特定の列のデータ型がTIMESTAMPであり、行の最終変更時刻をその列に入力するトリガー\nが設定されていると仮定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n中に同期対象の表に対して自動的にサプリメのやり方は？<|im_end|>\n<|im_start|>assistant\nンタル・ログを追加するかどうかを設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOracleのエイリアス設定について説明してください。<|im_end|>\n<|im_start|>assistant\nソースDBとターゲットDBのいずれかがOracleの場合は、$ORACLE_HOME/network/admin/tnsnames.ora\nファイルにエイリアスを設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールとアンインストールについて説明してください。<|im_end|>\n<|im_start|>assistant\n本章では、一方向と双方向の同期モードでProSyncをインストールおよびアンインストールする方法に\nついて説明します。\n3.1. インストール\n本節では、 一方向と双方向の同期モードでProSyncをインストールする方法について説明します。\n3.1.1. 一方向の同期モード\nProSyncのインストール時にソースDBとターゲットDBにそれぞれ接続し、ProSyncの実行に必要なさ\nまざまなオブジェクトを作成します。ProSyncをインストールするときは、各DBが運用中である必要が\nあります。\n最初にprs_install.cfgファイルをシステム環境に合わせて設定した後、以下のようにprs_install.shファイ\nルを実行します。prs_install.cfgファイルの設定方法については、「2.8. インストール環境ファイルの設\n定」を参照してください。\n以下は、prs_install.shの使用方法です。\n. prs_install.sh [option] [config file] [list file]\n●[option]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールとアンインストールとは何ですか？<|im_end|>\n<|im_start|>assistant\n本章では、一方向と双方向の同期モードでProSyncをインストールおよびアンインストールする方法に\nついて説明します。\n3.1. インストール\n本節では、 一方向と双方向の同期モードでProSyncをインストールする方法について説明します。\n3.1.1. 一方向の同期モード\nProSyncのインストール時にソースDBとターゲットDBにそれぞれ接続し、ProSyncの実行に必要なさ\nまざまなオブジェクトを作成します。ProSyncをインストールするときは、各DBが運用中である必要が\nあります。\n最初にprs_install.cfgファイルをシステム環境に合わせて設定した後、以下のようにprs_install.shファイ\nルを実行します。prs_install.cfgファイルの設定方法については、「2.8. インストール環境ファイルの設\n定」を参照してください。\n以下は、prs_install.shの使用方法です。\n. prs_install.sh [option] [config file] [list file]\n●[option]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n双方向の同期モードについて説明してください。<|im_end|>\n<|im_start|>assistant\n双方向の同期は、ソースDBとターゲットDBが相互にデータを伝播します。\n双方向の同期モードを使用するには、ソースDBからターゲットDBへの一方向インストールを実行した\n後、ソースDBとターゲットDBを逆に設定して、一方向インストールをもう一度実行します。\n参考\n双方向の同期モードでは、ProSyncによってすでに同期されている表がもう一度逆同期されないよ\nうに、EXCLUDE_USERパラメータにPRS_USERを追加する必要があります。EXCLUDE_USER\nの詳細については、『ProSync 管理者ガイド』の「付録A. 初期化パラメータ」を参照してくださ\nい。\n2. 双方向の同期モードでは、整合性を保つためにRESOLVE OPTIONを設定する必要があります。\nまた、同期表には主キーが含まれている必要があります。詳細については、『ProSync 管理者ガ\nイド』の「3.2.1. マッピング・ルールの設定」の「RESOLVE OPTION」を参照してください。\n以下は、インストールの手順です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDDL同期の確認の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n以下は、ソースDBとターゲットDBのDDL同期を確認する方法です。\n●CREATE TABLE\n1. ソースDBにTEST.T4表を作成します。\nSQL> CREATE TABLE TEST.T4 (C1 NUMBER PRIMARY KEY, C2 VARCHAR(10));\nTable 'TEST.T4' created.\n2. ターゲットDBにTEST.T4表が作成されていることを確認します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nクラスター環境でのフェイルオーバーの設定について説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncは、ソースDBがクラスター環境(TAC、RAC)に属している場合、クラスター内の特定のノード\nで障害が発生しても、同期を継続することができます。\nProSyncの抽出プロセスは、クラスターの各ノードの状態を定期的にチェックし、ノードの障害発生が\n検知された場合は、正常なノードに接続を確立し、TSN(SCN)に合わせて障害ノードが正常に回復され\nるまで適用プロセスにダミー・トランザクションを定期的に転送することで同期が中断されることなく\n実行されるようにします。\nクラスター環境での障害をチェックするには、[TOP_ID]_ext1.cfgファイルに次のパラメータを設定する\n必要があります。\nINSTANCE_FAILURE_CHECK_INTERVAL=check_interval\n説明\nパラメータ\n抽出プロセスがソースDBのの障害をチェックする間隔を指定しま\nす。(デフォルト値: 5、範囲: 5 ~ 3600、単位: 秒）\nINSTANCE_FAIL\nURE_CHECK_INTERVAL\n3.2. 適用機能の設定\n本節では、適用(apply)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nシステム環境変数の設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncをインストールするために設定が必要な環境変数は以下のとおりです。\n説明\n環境変数\nTiberoがインストールされるホーム・ディレクトリです。TiberoがソースDB\nとターゲットDBのいずれかである場合に設定します。Tiberoサーバー、クラ\nTB_HOME\nイアント・ライブラリやさまざまな付加機能を実行するファイルがインス\nトールされます\nOracle DBがソースDBとターゲットDBのいずれかである場合に設定します\nORACLE_HOME\nファイル・システムを介して特定のファイルにアクセスするためのディレク\nトリ・パスを設定します\nPATH\nデータベース接続のためにクライアント・ライブラリへのアクセス・パスを\n設定します。\nLD_LIBRARY_PATH\nOSによっては、LIBPATHまたはSHLIB_PATHが使用されることがあります\nProSyncがインストールされるルート・ディレクトリを設定します\nPRS_HOME\n2.5.3. データベースの設定\nProSyncを起動してデータを抽出するためには、以下の項目を設定する必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n設定ファイルを使用した初期化パラメータの管理とは何ですか？<|im_end|>\n<|im_start|>assistant\n設定ファイルはProSyncで起動時に使用するパラメータを管理するファイルで、プロセスごとに存在し\nます。設定ファイルはユーザーが入力した情報を基準に、インストール時にconfigディレクトリに自動\nで生成されます。\nソースDBがクラスター環境の場合、抽出プロセスの設定ファイルはクラスター・ノードの数と同数が\n生成され、ファイル名は [top_id]_extnode#.cfgに設定されます。ソースDBがクラスター環境でない場合\nは、抽出プロセスの設定ファイルは1つのみ生成され、ファイル名は上記と同様に [top_id]_ext1.cfgに設\n定されます。\n以下は、抽出プロセスの設定ファイルにより抽出プロセスの初期化パラメータを設定した例です。\n################################################################################\n#\n# ProSync (Ext)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nキー違反の解決の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncは、DMLの適用中にキー違反が発生した場合にも同期が続行されるように、キー違反の解決\n(Key Violation Resolution)機能を提供しています。\n以下は、Prosyncによって解決できるキー違反のケースです。\n●挿入する外部キーが参照する主キーの値がないため、キー違反が発生する場合\nユーザー指定のパラメータであるKEY_VIOLATION_RETRY_CNTに従ってDMLを再試行します。再\n試行の後にも失敗する場合は、そのDMLをスキップします。スキップされたDML文は、ProSyncのロ\nグ・ディレクトリの[TOP_ID]_fk_insert_skip.log fileに残され、そのファイルを通じてスキップされた\nDMLをユーザーが処理できるようにします。\n●削除する主キーを参照する外部キーがあるため、キー違反が発生する場合\nユーザー指定のパラメータであるKEY_VIOLATION_RETRY_CNTに従ってDMLを再試行します。再\n試行の後にも失敗する場合は、該当する主キーを参照する外部キーを持つ行をカスケード削除し、同\n期を続行させます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\ncfg)のステップを説明してください。<|im_end|>\n<|im_start|>assistant\n-lオプションを使用して同期対象のリスト・ファイルを指定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nルールDBの設定について説明してください。<|im_end|>\n<|im_start|>assistant\nルールDBを介して、ProSyncの初期化パラメータの設定を検索、追加、変更することができます。\nProSyncのインストールする場合は、ルールDBを必須パラメータとして入力する必要がありますが、必\n要に応じてルールDBの使用の有無を選択することもできます。\n参考\n初期化パラメータは、ルールDBモードと設定ファイル・モードで管理できます。ProSyncをデフォ\nルト・インストールする場合は、設定ファイル・モードで設定されています。初期化パラメータ\nをルールDBモードで管理する場合は、[TOP_ID]_rule.cfgファイルでRULE_CFG_FILE=Nを追加し\nた後、ProSyncを再実行します。\n以下は、ルールDBの設定についての説明です。\n●同種データベース間の同期\nソースDBまたはターゲットDBのどちらにも設定できます。一般的には、ターゲットDBをルールDB\nとして設定します。\n●異種データベース間の同期\n以下の表を参考にしてルールDBを設定してください。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n最後にソースDBで以下のクエリ文を実行します。の概念を教えてください。<|im_end|>\n<|im_start|>assistant\ninsert into [prosync_user_name].PRS_DICT_HIST\nvalues ([current_scn], '[dict_file_name]');\ncommit;\n[prosync_user_name]には、インストール時に設定したProSyncのユーザー名を入力します。\n●DUMMY TX LOGIC\nソースDBに負荷がない場合やインスタンス障害時にダミー・トランザクションを送信するロジック\nはサポートされません。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n後、操作ログを作成するときに必要な最小の手順を教えてください。<|im_end|>\n<|im_start|>assistant\nUNIXシステムでは、dfコマンドを使用してハードディスクの空き容量を確認することができます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSync technical expert assistant. Answer questions about ProSync accurately.<|im_end|>\n<|im_start|>user\nWhat are the steps for USER=rule_db_name?<|im_end|>\n<|im_start|>assistant\nRULE_INSTALL_PWD=rule_install_passwd\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nIPアドレスの設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncは、設定ディレクトリのprs_top.mapを介してIPアドレスを管理します。ソースDBとターゲッ\nトDBが異なるマシンに存在する場合は、リモート・マシンで起動するプロセスのIPアドレスとポート\n番号をローカル・マシンのprs_top.mapに明示する必要があります。\n以下は、ソースDBマシンのprs_top.mapにターゲットDBマシンのMANAGER、APPLYプロセスのIPア\nドレスが明示された例です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n双方向の同期モードでは、整合性を保つためにRESOLVE OPTIONを設定する必要があります。とは何ですか？<|im_end|>\n<|im_start|>assistant\nまた、同期表には主キーが含まれている必要があります。詳細については、『ProSync 管理者ガ\nイド』の「3.2.1. マッピング・ルールの設定」の「RESOLVE OPTION」を参照してください。\n以下は、インストールの手順です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nRESUMEについて説明してください。<|im_end|>\n<|im_start|>assistant\n指定したTOP_IDのタスクを再開します。\nコマンドの詳細は、以下のとおりです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDDLルールの設定について説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncのユーザーは、適用プロセスの設定ファイルでDDLパラメータを設定できます。DDLパラメー\nタは、同期するDDLについての設定です。DDLパラメータは、1つ以上のDDLルール・ステートメント\nで構成されます。DDLルールには、DDL同期が含まれるか除外される対象とDDLタイプを定義できま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nTiberoのエイリアス設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nソースDBとターゲットDBのいずれかがTiberoの場合は、$TB_HOME/client/config/tbdsn.tbrファイルに\nエイリアスを設定します。\n[SOURCE_SID]=(\n(INSTANCE=(HOST=SOURCE DB IP)\n(PORT=SOURCE DB PORT)\n(DB_NAME=SOURCE DB NAME)))\n[TARGET_SID]=(\n(INSTANCE=(HOST=TARGET DB IP)\n(PORT=TARGET DB PORT)\n(DB_NAME=TARGET DB NAME)))\nTACの場合は、tbdsnにDB_NAMEを使用してFAILOVERエイリアスを追加設定する必要があります。\n[Source DB Name]=(\n(INSTANCE=(HOST=Source DB IP1)\n(DB_NAME=Source DB Name)\n(PORT=Source DB Port1))\n(INSTANCE=(HOST=Source DB IP2)\n(DB_NAME=Source DB Name)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期中にエラーが発生した場合のスキップ機能について説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncが同期を実行中にターゲットDBが過負荷状態の場合は、ソースDBのDMLをターゲットDBに適\n用する際にエラーが発生することがあります。一般的には、ProSyncがそのDMLの適用を再試行します\nが、この機能を使用すると、DMLの適用を再試行せずにスキップして同期を続行します。\n同期中にエラーが発生した場合、DMLの適用をスキップするには、[TOP_ID]_apply1.cfgファイルに次\nのパラメータを設定します。\nNO_DCR_TABLE_SKIP_ERROR=[Y|N]\n説明\nパラメータ名\n同期中にエラーが発生した場合、DMLの適用をスキップするかどうか\nを設定します。(Y/N)\nNO_DCR_TABLE_SKIP_ER\nROR\n詳細については、「A.3.4.23. NO_DCR_TABLE_SKIP_ERROR」を参\n照してください\n3.3. 抽出と適用の共通機能\n本節では、抽出(ext)と適用(apply)で共通して提供される付加機能を使用するための設定方法について説\n明します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nマテリアライズド・ビューの同期はサポートされません。について説明してください。<|im_end|>\n<|im_start|>assistant\n3. マルチ・グループ機能を使用する場合は、prs_obj_group#.listに各グループに該当する表を上記\nの方法で登録します。マルチ・グループについての詳細は、「3.1.5. マルチ・グループ・モード」\nを参照してください。\n2.8. インストール環境ファイルの設定\n本節では、各アカウントの権限とインストール・パラメータについて説明します。\n2.8.1. 各アカウントの権限\nProSyncをインストールするには、PRS_USER、SRC_INSTALL_USER、TAR_INSTALL_USERの3つ\nのアカウント情報が必要です。\n●PRS_USER\nProSyncが内部的に使用するデータを保管する表を管理するために、ソースDBとターゲットDBに作\n成するアカウント名です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nPRS_COMMITTED_TX_LIST表の同期履歴を調整します。の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n– ソースDBがTiberoの場合\nPRS_COMMITTED_TX_LIST表のTSN値を同期する開始TSN値で更新するクエリを実行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nログ分析の確認とは何ですか？<|im_end|>\n<|im_start|>assistant\nソースDBがOracleの場合は、ProSyncがREDOログを分析できるかどうかを確認する必要があります。\nolr_analyzeを使用して、以下のようにアーカイブ・ログを分析できるかどうかを確認することができま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nHISTORYの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nコマンドの履歴のサイズを設定します。\n以下は、HISTORYシステム変数の詳細です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n各アカウントの権限とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncをインストールするには、PRS_USER、SRC_INSTALL_USER、TAR_INSTALL_USERの3つ\nのアカウント情報が必要です。\n●PRS_USER\nProSyncが内部的に使用するデータを保管する表を管理するために、ソースDBとターゲットDBに作\n成するアカウント名です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストール・パラメータの設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n各アカウントの必要なパラメータを$PRS_HOME/install/prs_install.cfgファイルに設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSync technical expert assistant. Answer questions about ProSync accurately.<|im_end|>\n<|im_start|>user\nWhat are the steps for shの使用方法です。?<|im_end|>\n<|im_start|>assistant\n. prs_install.sh [option] [config file] [list file]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nルールDBの設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nルールDBを介して、ProSyncの初期化パラメータの設定を検索、追加、変更することができます。\nProSyncのインストールする場合は、ルールDBを必須パラメータとして入力する必要がありますが、必\n要に応じてルールDBの使用の有無を選択することもできます。\n参考\n初期化パラメータは、ルールDBモードと設定ファイル・モードで管理できます。ProSyncをデフォ\nルト・インストールする場合は、設定ファイル・モードで設定されています。初期化パラメータ\nをルールDBモードで管理する場合は、[TOP_ID]_rule.cfgファイルでRULE_CFG_FILE=Nを追加し\nた後、ProSyncを再実行します。\n以下は、ルールDBの設定についての説明です。\n●同種データベース間の同期\nソースDBまたはターゲットDBのどちらにも設定できます。一般的には、ターゲットDBをルールDB\nとして設定します。\n●異種データベース間の同期\n以下の表を参考にしてルールDBを設定してください。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nするためのIDを設定します。この値は、表領の手順を教えてください。<|im_end|>\n<|im_start|>assistant\n域名として使用できる形式である必要があり、先頭に数字を使用する\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n1:N 一方向の同期モードの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n1:N同期は、1つのソースDBのデータをN個のターゲットDBに伝播します。\n1:N一方向の同期モードをインストールする場合は、ターゲットDBの数とタイプに合わせてインストー\nル・パラメータを設定してからインストールする必要があります。\n以下は、ターゲットDBが2つの場合の環境設定の例です。(prs_install.cfg)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n要件を満たしているかどうかをチェックし、インのやり方は？<|im_end|>\n<|im_start|>assistant\nストール時にPRS_USERアカウントを作成して必要な権限を与えるために使用されるアカウントで\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nプロセスの実行について説明してください。<|im_end|>\n<|im_start|>assistant\n本章では、ProSyncプロセスを実行するために確認が必要なパラメータとプロセスの実行および実行の\n確認方法について説明します。\n2.1. 初期化パラメータ\nProSyncプロセスを実行する前にパラメータの確認が必要です。各プロセスのパラメータについての詳\n細は、「付録 A. 初期化パラメータ」を参照してください。\n●デフォルト・パラメータ\n以下は、ProSyncプロセスのデフォルト・パラメータです。\n説明\nパラメータ\nリモート・マシンのプロセスと通信するためのIPのバージョンを指定し\nます。(デフォルト値: 4、範囲: 4または6)\nIP_VERSION\n各プロセスのポート番号を指定します。(デフォルト値: \n7600、範囲:\n1024~ 65535)\nLISTENER_PORT\nProSyncのログ・ファイルを保存するディレクトリを指定します\nLOG_DIR\n各プロセスのログ・ファイルの最大サイズを指定します。\nLOG_FILE_SIZE\nログ・ファイルのサイズがこの値を超える場合、ファイルを\nLOG_BACKUP_DIRに移動し、新しいログ・ファイルを作成します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n要件を満たしているかどうかをチェックし、インのステップを説明してください。<|im_end|>\n<|im_start|>assistant\nストール時にPRS_USERアカウントを作成して必要な権限を与えるために使用されるアカウントで\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSAMファイルの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncでは、同期中に渡されるセグメントをファイルに順次に記録することができます。ファイルに\nは、抽出プロセスから適用プロセスに渡されるステートメントを記録するEXT_SAMと適用プロセスか\nらターゲットDBに適用されるステートメントを記録するAPPLY_SAMの2種類があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nシステム要件の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n本節では、サポートされるプラットフォームとシステム要件について説明します。\n1.2.1. プラットフォームとオペレーティング・システム\n以下は、ProSyncでサポートされるプラットフォームとオペレーティング・システム(以下、OS)です。\nBinary Bits\nOS\nCPU\nベンダー\n64bit\nHP-UX 11i\nItanium\nHP\n64bit\nAIX 5.3, AIX 6.1\nPPC 5L\nIBM\n32bit, 64bit\nX86(Pentium4以上)\nGNU\n– 32bit : Linux kernel 2.6.15, glibc 2.3.6, libst\ndc++6.0.7\n– 64bit : Linux kernel 2.6.9, glibc 2.3.4, libst\ndc++6.0.3\n64bit\nLinux kernel 2.6.9, glibc 2.3.4 libstdc++6.0.3\nIA 64\n1.2.2. ハードウェアとソフトウェアの要件\n以下は、ProSyncをインストールするためのハードウェア要件です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期履歴の調整方法の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n以下は、各表の履歴データを調整する方法です。\n1. 同期履歴を調整する前にプロセスを終了します。同期の実行中に同期履歴調整表のデータを変更する\nと、深刻なエラーが発生する可能性があるため、注意が必要です。\n2. PRS_COMMITTED_TX_LIST表の同期履歴を調整します。\n– ソースDBがTiberoの場合\nPRS_COMMITTED_TX_LIST表のTSN値を同期する開始TSN値で更新するクエリを実行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nディスク容量の確認の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncをインストールするには、少なくとも1.5GB以上のハードディスク空き容量(プラットフォーム\nごとに異なる)が必要です。これは、ProSyncのインストール後、操作ログを作成するときに必要な最小\n容量です。\nUNIXシステムでは、dfコマンドを使用してハードディスクの空き容量を確認することができます。\n参考\nハードウェア要件についての詳細は、「1.2. システム要件」を参照してください。\n2.3. ディレクトリの確認\nProSyncの圧縮されたインストール・ファイルを解凍すると、以下のディレクトリ構造が作成されま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSyncを再起動します。について説明してください。<|im_end|>\n<|im_start|>assistant\nルール・データベースによる初期化パラメータの管理\n初期化パラメータの情報は、ルール・データベースのPRS_IPARAM表に保存されています。本節では、\nルール・データベースを使用して初期化パラメータ値を確認、変更、追加する方法について説明しま\nす。(ルール・データベース・モードへの切り替えとルール・データベース・アカウントで接続されて\nいると仮定します。）\n●PRS_IPARAM表\nPRS_IPARAM表の列とデータ型は以下のとおりです。\n説明\nデータ型\n列名\nVARCHAR(256)\nTOP_ID\n抽出プロセス(2)、適用プロセス(3)、\nLONG/LOBプロセス(4)\nNUMBER\nPROCESS_TYPE\nNUMBER\nPROCESS_NUM\nパラメータ名\nVARCHAR(256)\nPARAMETER\nパラメータ値\nCLOB\nVALUE\nstatic(1)、dynamic(2)\nNUMBER\nTYPE\n以下は、ルール・データベースを使用して初期化パラメータを確認、変更、追加する例です。初期化パ\nラメータについての詳細は、「付録 A. 初期化パラメータ」を参照してください。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nする場合は、設定ファイル・モードで設定されています。初期化パラメータのステップを説明してください。<|im_end|>\n<|im_start|>assistant\nをルールDBモードで管理する場合は、[TOP_ID]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n手動でのDDL同期の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n本章では、DDL同期をサポートしないデータベースを使用する場合にDDLを手動で同期する方法につい\nて説明します。\nソースDBがTiberoまたはOracleの場合\n1. データベースへの負荷を停止します。\nDDLを手動で同期する前に実行中のアプリケーションをすべて停止します。データベースに実行中の\nトランザクションがある場合は、データが失われないようにトランザクションが完了してから同期す\nる必要があります。\n2. ProSyncが最後に同期を実行した時点を確認します。\nログ・スイッチを使用すると、情報を簡単に確認できます。\nソースDBがTiberoの場合は、ログ・スイッチを実行します。ProSyncがログ・スイッチが発生したポ\nイントまでの同期を完了すると、ターゲットDBのPRS_CONST_HIST表に該当するシーケンスの履\n歴が追加されます。ソースDBでログ・スイッチを実行した後、シーケンス番号を記録します。（Tibero\nのV$LOGビューでカレント・ログのシーケンスを確認）\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期履歴の調整方法について説明してください。<|im_end|>\n<|im_start|>assistant\n以下は、各表の履歴データを調整する方法です。\n1. 同期履歴を調整する前にプロセスを終了します。同期の実行中に同期履歴調整表のデータを変更する\nと、深刻なエラーが発生する可能性があるため、注意が必要です。\n2. PRS_COMMITTED_TX_LIST表の同期履歴を調整します。\n– ソースDBがTiberoの場合\nPRS_COMMITTED_TX_LIST表のTSN値を同期する開始TSN値で更新するクエリを実行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSync technical expert assistant. Answer questions about ProSync accurately.<|im_end|>\n<|im_start|>user\nHow do I perform shの使用方法です。?<|im_end|>\n<|im_start|>assistant\n. prs_install.sh [option] [config file] [list file]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSyncのインストールに必要なファイルが格納されています。のやり方は？<|im_end|>\n<|im_start|>assistant\n以下は、$PRS_HOME/installのファイルとサブディレクトリについての説明です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータの暗号化と圧縮の設定について説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncは、抽出プロセスから適用プロセスにデータを転送するとき、ユーザーの必要に応じてセキュ\nリティのためのデータ暗号化およびネットワークの負荷低減のためのデータ圧縮オプションを提供して\nいます。\nデータ暗号化と圧縮機能を使用するには、[TOP_ID]_ext1.cfgファイルに次のパラメータを指定する必要\nがあります。\nENABLE_NETWORK_ENCRYPT=[Y|N]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\ncfgファイルをシステム環境に合わせて設定した後、以下のようにprs_install.shファイの手順を教えてください。<|im_end|>\n<|im_start|>assistant\nルを実行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n双方向の同期モードでは、整合性を保つためにRESOLVE OPTIONを設定する必要があります。の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nまた、同期表には主キーが含まれている必要があります。詳細については、『ProSync 管理者ガ\nイド』の「3.2.1. マッピング・ルールの設定」の「RESOLVE OPTION」を参照してください。\n以下は、インストールの手順です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n暗号化された表の同期の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncは、ソースDBがTiberoの場合にのみ暗号化された表の同期をサポートしています。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nIPアドレスの設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncは、設定ディレクトリのprs_top.mapを介してIPアドレスを管理します。ソースDBとターゲッ\nトDBが異なるマシンに存在する場合は、リモート・マシンで起動するプロセスのIPアドレスとポート\n番号をローカル・マシンのprs_top.mapに明示する必要があります。\n以下は、ソースDBマシンのprs_top.mapにターゲットDBマシンのMANAGER、APPLYプロセスのIPア\nドレスが明示された例です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n各アカウントの権限について説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncをインストールするには、PRS_USER、SRC_INSTALL_USER、TAR_INSTALL_USERの3つ\nのアカウント情報が必要です。\n●PRS_USER\nProSyncが内部的に使用するデータを保管する表を管理するために、ソースDBとターゲットDBに作\n成するアカウント名です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSyncを終了します。の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n現在実行されているすべてのProSyncプロセスを終了します。\n4. ソースDBとターゲットDBにDDLを実行します。\n5. ProSyncを再起動します。\nProSyncの再起動する場合は、同期対象表のメタデータが変更されたか（例: RENAME）、マッピン\nグ・ルールが設定されている表のDDが変更された（例: ALTER TABLE）場合は、起動関連の設定\nファイルを実行したDDLに合わせて変更する必要があります。\nまた、同期対象表を追加した場合は、ProSyncの再起動後に同期対象表を追加する必要があります。\n詳細については、『ProSync 管理ユーティリティガイド』の「3.2.4 ALTER TABLE」を参照してく\nださい。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nマルチ・グループ・モードについて説明してください。<|im_end|>\n<|im_start|>assistant\n同期対象の表を独立したグループに分類してP r o S y n c が動作するように設定できます。\n$PRS_HOME/install/prs_install.cfgファイルに設定します。\nGROUP_NUM=2\n説明\n項目\n同期表を分類するためのグループの数です\nGROUP_NUM\nGROUP_NUMを設定した後は、ROUP_NUMと同じ数の$PRS_HOME/install/prs_obj_group#.listを作成\nします。たとえば、GROUP_NUMが2に設定されている場合は、$PRS_HOME/installにprs_obj_gourp1.list\nとprs_obj_group2.listを作成します。次に、各$PRS_HOME/install/prs_obj_group#.listに同期対象の表を\n設定します。各prs_obj_group#.listの同期対象の表を追加する方法については、「2.7.2. 表の登録」を参\n照してください。\n以降のプロセスは、同期モードに応じて、「3.1.1. 一方向の同期モード」または「3.1.4. 双方向の同期\nモード」\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSTATUSの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nすべてのプロセス、ユーザー指定のTOP_IDのプロセスまたはマネージャー・プロセスの状態を表示し\nます。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nSTATUS MAN[AGER]\nSTATUS top_id\n説明\nオプション\nすべてのプロセスの状態を表示します\nマネージャー・プロセスの状態を確認します\nMAN[AGER]\n特定のTOP_IDの抽出、適用、およびLONG/LOBプロセスの状態を確認します\ntop_id\n●例\n以下は、すべてのTOP(TOP_ID)プロセスを表示する例です。\nAdmin> STATUS\nprs_mgr (18744), is running\nprosync4_ext1 (20133), is running\nprosync4_apply1 (20154), is running\nprosync4_llob (20168)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールの確認とは何ですか？<|im_end|>\n<|im_start|>assistant\nメタ表が正常に作成されたことを確認します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nsh [option] [config file] [list file]の手順を教えてください。<|im_end|>\n<|im_start|>assistant\nprs_install.shでは、-h、-c、-lオプションがあります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOracle LogMinerを使用してREDOログの抽出とは何ですか？<|im_end|>\n<|im_start|>assistant\nソースDBがOracleの場合は、既存のダイレクト読み取りではなく、Oracle LogMinerを介してREDOロ\nグ・ファイルを抽出することができます。\nOracle LogMinerを使用してREDOログ・ファイルを抽出するには、インストール時にUSE_LOGMNR=Y\nを指定する必要があります。ダイレクト読み取り方式からOracle LogMiner方式に変更する場合のため\nに、抽出プロセス、適用プロセス、LLOBプロセスのパラメータとして指定することは可能ですが、ディ\nクショナリ・ファイルを作成するプロセスが必要となるため、一般的には、ProSyncの再インストール\nをお勧めしています。\nOracle LogMinerは、ソースDBのパッケージを使用してビューにロードした後、それを再び読み取る方\n式であるため、ダイレクト読み取りに比べ、同期パフォーマンスが大きく低下します。したがって、\nASMを使用するが、ACFSは使用できない環境または暗号化を使用している環境など、特殊なケースに\nProSyncを適用するために使用されます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSTATUSとは何ですか？<|im_end|>\n<|im_start|>assistant\nすべてのプロセス、ユーザー指定のTOP_IDのプロセスまたはマネージャー・プロセスの状態を表示し\nます。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nSTATUS MAN[AGER]\nSTATUS top_id\n説明\nオプション\nすべてのプロセスの状態を表示します\nマネージャー・プロセスの状態を確認します\nMAN[AGER]\n特定のTOP_IDの抽出、適用、およびLONG/LOBプロセスの状態を確認します\ntop_id\n●例\n以下は、すべてのTOP(TOP_ID)プロセスを表示する例です。\nAdmin> STATUS\nprs_mgr (18744), is running\nprosync4_ext1 (20133), is running\nprosync4_apply1 (20154), is running\nprosync4_llob (20168)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nsh [option] [config file] [list file]のやり方は？<|im_end|>\n<|im_start|>assistant\nprs_install.shでは、-h、-c、-lオプションがあります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n一方向の同期モードとは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncのインストール時にソースDBとターゲットDBにそれぞれ接続し、ProSyncの実行に必要なさ\nまざまなオブジェクトを作成します。ProSyncをインストールするときは、各DBが運用中である必要が\nあります。\n最初にprs_install.cfgファイルをシステム環境に合わせて設定した後、以下のようにprs_install.shファイ\nルを実行します。prs_install.cfgファイルの設定方法については、「2.8. インストール環境ファイルの設\n定」を参照してください。\n以下は、prs_install.shの使用方法です。\n. prs_install.sh [option] [config file] [list file]\n●[option]\nprs_install.shでは、-h、-c、-lオプションがあります。\n説明\nオプション\nヘルプを表示します\n-h\n環境設定ファイルを指定します\n-c\n同期対象のリスト・ファイルを指定します\n-l\n●入力項目\n説明\n項目\n-cオプションを使用してインストールに使用する設定ファイルを指定します。\n[config file]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期履歴の調整表について説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncの同期履歴の調整は、ターゲットDBのProSyncのユーザー・アカウントに存在する次の表を使\n用して行います。\n説明\n表\n適用プロセスがターゲットDBに適用するためにトランザクション・ハッ\nシュに追加した最後のREDOレコードに関するログのシーケンス番号\nPRS_CONST_HIST\n(SEQNO)とラップ番号(WRAPNO)を保存します。ProSyncを再起動する\nと、抽出プロセスは該当するシーケンス番号のログをラップ番号から読\nみ取ります。(調整対象の列: SEQNO、WRAPNO)\n適用プロセスが最後に適用した後コミットしたトランザクションの情報\nを保存します。トランザクションのXIDとTSNを保存します。(調整対象\nの列: TSN)\nPRS_COMMIT\nTED_TX_LIST\nDDLが発生した場合、適用プロセスが最後に適用した後コミットしたト\nランザクションの時間を保存します\nPRS_LCT\n4.2. 同期履歴の調整方法\n以下は、各表の履歴データを調整する方法です。\n1. 同期履歴を調整する前にプロセスを終了します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSUFFIXとは何ですか？<|im_end|>\n<|im_start|>assistant\nファイル拡張子の設定を省略した場合に使用されるファイル拡張子を設定します。\n以下は、SUFFIXシステム変数の詳細です。\n●使用方法\nSET SUF[FIX] {extension}\n説明\n項目\nデフォルトとして使用するファイル拡張子です。(デフォルト値: sql)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストール前の準備について説明してください。<|im_end|>\n<|im_start|>assistant\n本章では、ProSyncをインストールする前に必要な準備事項について説明します。\n2.1. 概要\nProSyncをインストールする前に確認および設定する準備事項は以下のとおりです。\n●ディスク容量の確認\n●ディレクトリの確認\n●運用ディレクトリの設定\n●環境設定\n●データベースのエイリアス設定\n●同期対象表の作成および登録\n●インストール設定ファイルの設定\n●ログ分析の確認\n2.2. ディスク容量の確認\nProSyncをインストールするには、少なくとも1.5GB以上のハードディスク空き容量(プラットフォーム\nごとに異なる)が必要です。これは、ProSyncのインストール後、操作ログを作成するときに必要な最小\n容量です。\nUNIXシステムでは、dfコマンドを使用してハードディスクの空き容量を確認することができます。\n参考\nハードウェア要件についての詳細は、「1.2. システム要件」を参照してください。\n2.3. ディレクトリの確認\nProSyncの圧縮されたインストール・ファイルを解凍すると、以下のディレクトリ構造が作成されま\nす。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nコマンドの実行と終了とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSync管理ユーティリティでは、コマンドを直接入力してプロセスを実行、停止、および一時停止し\nます。ProSync管理ユーティリティコマンドには、実行のためのコマンドがなく、入力されたコマンド\nはバッファーに保存されます。ProSync管理ユーティリティコマンドは入力と同時に実行されます。\n以下は、プロセス(prosync4)を実行する例です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nマルチ・グループ・モードとは何ですか？<|im_end|>\n<|im_start|>assistant\n同期対象の表を独立したグループに分類してP r o S y n c が動作するように設定できます。\n$PRS_HOME/install/prs_install.cfgファイルに設定します。\nGROUP_NUM=2\n説明\n項目\n同期表を分類するためのグループの数です\nGROUP_NUM\nGROUP_NUMを設定した後は、ROUP_NUMと同じ数の$PRS_HOME/install/prs_obj_group#.listを作成\nします。たとえば、GROUP_NUMが2に設定されている場合は、$PRS_HOME/installにprs_obj_gourp1.list\nとprs_obj_group2.listを作成します。次に、各$PRS_HOME/install/prs_obj_group#.listに同期対象の表を\n設定します。各prs_obj_group#.listの同期対象の表を追加する方法については、「2.7.2. 表の登録」を参\n照してください。\n以降のプロセスは、同期モードに応じて、「3.1.1. 一方向の同期モード」または「3.1.4. 双方向の同期\nモード」\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nソースDBとターゲットDBにDDLを実行します。について説明してください。<|im_end|>\n<|im_start|>assistant\n5. ProSyncを再起動します。\nProSyncの再起動する場合は、同期対象表のメタデータが変更されたか（例: RENAME）、マッピン\nグ・ルールが設定されている表のDDが変更された（例: ALTER TABLE）場合は、起動関連の設定\nファイルを実行したDDLに合わせて変更する必要があります。\nまた、同期対象表を追加した場合は、ProSyncの再起動後に同期対象表を追加する必要があります。\n詳細については、『ProSync 管理ユーティリティガイド』の「3.2.4 ALTER TABLE」を参照してく\nださい。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nJCDUMPとは何ですか？<|im_end|>\n<|im_start|>assistant\n各プロセスの統計情報を収集します。\nJCDUMPを使用すると、「$PRS_HOME/var/[top_id]/log/stat_report」に各プロセスのパフォーマンス・\nログが保存されます。Countは動作回数を、Timeは処理時間を示します。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nJCDUMP top_id\n説明\nオプション\nトポロジIDに該当するプロセスのパフォーマンス・ログ情報を表示します\ntop_id\n●stat_reportの例\n以下は、JCDUMPの使用後に保存されたstat_reportの例です。\n################################################################################\nExtract(1)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n時にソースDBとターゲットDBにそれぞれ接続し、ProSyncの実行に必要なさの手順を教えてください。<|im_end|>\n<|im_start|>assistant\nまざまなオブジェクトを作成します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nするときは、各DBが運用中である必要がのやり方は？<|im_end|>\n<|im_start|>assistant\n最初にprs_install.cfgファイルをシステム環境に合わせて設定した後、以下のようにprs_install.shファイ\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nTiberoパラメータの設定値は？<|im_end|>\n<|im_start|>assistant\nがインストールされるホーム・ディレクトリです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n初期化パラメータの管理について説明してください。<|im_end|>\n<|im_start|>assistant\nProSyncは、設定ファイルとルール・データベースを使用した初期化パラメータの管理をサポートしま\nす。\n2.2.1. 設定ファイルを使用した初期化パラメータの管理\n設定ファイルはProSyncで起動時に使用するパラメータを管理するファイルで、プロセスごとに存在し\nます。設定ファイルはユーザーが入力した情報を基準に、インストール時にconfigディレクトリに自動\nで生成されます。\nソースDBがクラスター環境の場合、抽出プロセスの設定ファイルはクラスター・ノードの数と同数が\n生成され、ファイル名は [top_id]_extnode#.cfgに設定されます。ソースDBがクラスター環境でない場合\nは、抽出プロセスの設定ファイルは1つのみ生成され、ファイル名は上記と同様に [top_id]_ext1.cfgに設\n定されます。\n以下は、抽出プロセスの設定ファイルにより抽出プロセスの初期化パラメータを設定した例です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nする場合は、設定ファイル・モードで設定されています。初期化パラメータのやり方は？<|im_end|>\n<|im_start|>assistant\nをルールDBモードで管理する場合は、[TOP_ID]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nTiberoのエイリアス設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nソースDBとターゲットDBのいずれかがTiberoの場合は、$TB_HOME/client/config/tbdsn.tbrファイルに\nエイリアスを設定します。\n[SOURCE_SID]=(\n(INSTANCE=(HOST=SOURCE DB IP)\n(PORT=SOURCE DB PORT)\n(DB_NAME=SOURCE DB NAME)))\n[TARGET_SID]=(\n(INSTANCE=(HOST=TARGET DB IP)\n(PORT=TARGET DB PORT)\n(DB_NAME=TARGET DB NAME)))\nTACの場合は、tbdsnにDB_NAMEを使用してFAILOVERエイリアスを追加設定する必要があります。\n[Source DB Name]=(\n(INSTANCE=(HOST=Source DB IP1)\n(DB_NAME=Source DB Name)\n(PORT=Source DB Port1))\n(INSTANCE=(HOST=Source DB IP2)\n(DB_NAME=Source DB Name)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストール・パラメータの設定とは何ですか？<|im_end|>\n<|im_start|>assistant\n各アカウントの必要なパラメータを$PRS_HOME/install/prs_install.cfgファイルに設定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nPAUSEとは何ですか？<|im_end|>\n<|im_start|>assistant\n指定したTOP_IDのタスクを一時停止します。\nコマンドの詳細は、以下のとおりです。\n●使用方法\nPAUSE top_id\n説明\nオプション\n一時停止するTOP_IDです\ntop_id\n●例\n以下は、「prosync4」のタスクを一時停止する例です。\nAdmin> PAUSE prosync4\nprosync4 paused.\nAdmin>\n3.2.10. RESUME\n指定したTOP_IDのタスクを再開します。\nコマンドの詳細は、以下のとおりです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n各アカウントの権限の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncをインストールするには、PRS_USER、SRC_INSTALL_USER、TAR_INSTALL_USERの3つ\nのアカウント情報が必要です。\n●PRS_USER\nProSyncが内部的に使用するデータを保管する表を管理するために、ソースDBとターゲットDBに作\n成するアカウント名です。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSUFFIXについて説明してください。<|im_end|>\n<|im_start|>assistant\nファイル拡張子の設定を省略した場合に使用されるファイル拡張子を設定します。\n以下は、SUFFIXシステム変数の詳細です。\n●使用方法\nSET SUF[FIX] {extension}\n説明\n項目\nデフォルトとして使用するファイル拡張子です。(デフォルト値: sql)\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Admin-Utility-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\ncfg)のやり方は？<|im_end|>\n<|im_start|>assistant\n-lオプションを使用して同期対象のリスト・ファイルを指定します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n同期履歴の調整表の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSyncの同期履歴の調整は、ターゲットDBのProSyncのユーザー・アカウントに存在する次の表を使\n用して行います。\n説明\n表\n適用プロセスがターゲットDBに適用するためにトランザクション・ハッ\nシュに追加した最後のREDOレコードに関するログのシーケンス番号\nPRS_CONST_HIST\n(SEQNO)とラップ番号(WRAPNO)を保存します。ProSyncを再起動する\nと、抽出プロセスは該当するシーケンス番号のログをラップ番号から読\nみ取ります。(調整対象の列: SEQNO、WRAPNO)\n適用プロセスが最後に適用した後コミットしたトランザクションの情報\nを保存します。トランザクションのXIDとTSNを保存します。(調整対象\nの列: TSN)\nPRS_COMMIT\nTED_TX_LIST\nDDLが発生した場合、適用プロセスが最後に適用した後コミットしたト\nランザクションの時間を保存します\nPRS_LCT\n4.2. 同期履歴の調整方法\n以下は、各表の履歴データを調整する方法です。\n1. 同期履歴を調整する前にプロセスを終了します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOracle ASMの設定について説明してください。<|im_end|>\n<|im_start|>assistant\nソースDBがASMを使用するOracle環境である場合、REDOログとアーカイブ・ログがASMディスク・\nグループに存在すると、ProSyncがREDOログとアーカイブ・ログを読み取ることができません。\nしたがって、ACFS(ASM Cluster File System)を使用してASMとして管理されるが、OSからアクセスで\nきるパスを作成し、そのパスにREDOログとアーカイブ・ログを格納する必要があります。\n●ACFSの設定\n以下は、Oracle環境でASMCMDを使用してボリュームを作成し、そのボリュームをファイル・シス\nテムにマウンドする例です。\n$ oraenv\n [rac1] ? +ASM1\n$ asmcmd\nASMCMD [+]> volcreate -G DISKGROUPNAME -s 10G VOLUMENAME\nASMCMD [+]\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nPRS_CONST_HIST表の履歴情報を調整します。の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nPRS_CONST_HIST表で最も高いHIST#値を持つ行に対して、SEQNO列の抽出を開始するために使\n用されるログのシーケンス番号でWRAPNO列の値を0に更新するためのクエリを実行します。\n以下は、シーケンス番号が50のアーカイブ・ログから抽出する例です。\nSQL> UPDATE PRS_CONST_HIST SET SEQNO=50, WRAPNO=0\nWHERE HIST# = (SELECT max(HIST#) FROM PRS_CONST_HIST);\n4. DDLが発生した場合\nデータ・ディクショナリが変更される場合であり、複数のトランザクションを継続して適用すると、\n整合性が失われる可能性があります。したがって、DDLが発生したら、その時間以前に発生したすべ\nてのトランザクションを適用し、DMLの適用を一時的に停止します。\nPRS_LCT表に最後に適用されたトランザクションの時間を保存した後、DDLによって変更されたデー\nタ・ディクショナリを変更し、PRS_LCTに保存された時間以降のトランザクションから適用を再開\nします。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n後に作成される設定ファイルには、暗号化されての手順を教えてください。<|im_end|>\n<|im_start|>assistant\nTDE_WALLET_PWDを直接設定するために使用されます。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータベースのエイリアス設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSyncをインストールする前に、各データベースのSID設定ファイルを確認して接続可能なエイリア\nスを設定します。データベースがクラスター化されている場合は、各インスタンスの設定がすべて含ま\nれている必要があります。エイリアスはインストール・プロパティ・ファイルのSRC_DB_NAMEパラ\nメータとTAR_DB_NAMEパラメータに使用されます。（「2.8. インストール環境ファイルの設定」を\n参照）\n2.6.1. Tiberoのエイリアス設定\nソースDBとターゲットDBのいずれかがTiberoの場合は、$TB_HOME/client/config/tbdsn.tbrファイルに\nエイリアスを設定します。\n[SOURCE_SID]=(\n(INSTANCE=(HOST=SOURCE DB IP)\n(PORT=SOURCE DB PORT)\n(DB_NAME=SOURCE DB NAME)))\n[TARGET_SID]=(\n(INSTANCE=(HOST=TARGET DB IP)\n(PORT=TARGET DB PORT)\n(DB_NAME=TARGET DB NAME)))\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDMLタイムアウトについて説明してください。<|im_end|>\n<|im_start|>assistant\nターゲットDB ProSyncでユーザーのアクセスなどにより、ターゲットDBにアクセスできない場合、\n基本的には無限に待機することになります。この問題を解決するためにDMLタイムアウト機能を提\n供しています。この機能を使用すると、障害の発生時に定期的にDBと再接続を確立するため、無限\nに待機することを防ぎます。\nこのパラメータ(DML_WAIT_TIMEOUT、単位 : 秒)で指定された時間を超えると、自動的にDBへの\n再接続およびトランザクションを再試行します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n要件のチェックおよびPRS_USERの作成のたのステップを説明してください。<|im_end|>\n<|im_start|>assistant\nめ、ソースDBへの接続に使用するアカウントです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDDL同期の確認について説明してください。<|im_end|>\n<|im_start|>assistant\n以下は、ソースDBとターゲットDBのDDL同期を確認する方法です。\n●CREATE TABLE\n1. ソースDBにTEST.T4表を作成します。\nSQL> CREATE TABLE TEST.T4 (C1 NUMBER PRIMARY KEY, C2 VARCHAR(10));\nTable 'TEST.T4' created.\n2. ターゲットDBにTEST.T4表が作成されていることを確認します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n抽出機能の設定について説明してください。<|im_end|>\n<|im_start|>assistant\n本節では、抽出(ext)の付加機能を使用するための設定方法について説明します。\n3.1.1. ユーザー・フィルタリング機能\nProSyncは、特定のユーザーによって発生されたDMLとDDLを同期から除外できる機能を提供します。\nユーザー・フィルタリング機能を使用するには、[TOP_ID]_ext1.cfgファイルに次のパラメータを設定す\nる必要があります。\nEXCLUDE_USER={user_name, user_name}\n説明\nパラメータ\nDMLとDDLを同期から除外するユーザー名を指定します\nEXCLUDE_USER\n以下は、TESTユーザーとPRS_USERを同期から除外する例です。\nEXCLUDE_USER=PRS_USER,TEST\n参考\nProSyncが双方向同期モードに設定された場合は、PRS_USERによって発生および同期されたDML\nが再び抽出データベースに転送されることを防ぐために、EXCLUDE_USERにPRS_USERを登録\nする必要があります。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Administrator-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nする前に必要な準備事項について説明します。のやり方は？<|im_end|>\n<|im_start|>assistant\nProSyncをインストールする前に確認および設定する準備事項は以下のとおりです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nするためにソースDBとターゲットDBにはそれぞれ1つのOSアカウントが必要の手順を教えてください。<|im_end|>\n<|im_start|>assistant\nです。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSync専門のテクニカルアシスタントです。ProSyncに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n中にエラーが発生した場合は、アプリケーションをデバッグできるようにエラーが発生しのステップを説明してください。<|im_end|>\n<|im_start|>assistant\nた箇所またはエラー・メッセージをログ・ファイルに出力し、インストールを中止します。\n\n**製品/Product**: ProSync\n\n**出典/Source**: ProSync_4_Installation-Guide_v2.1.4.pdf<|im_end|>"
+  }
+]
