@@ -1,0 +1,716 @@
+"""
+Agentic RAG Service (Orchestrator)
+
+제품별 Agent 기반 RAG 시스템의 메인 오케스트레이터.
+QueryRouter → ProductAgent → QueryTypeClassifier → TemplateResponse/LLM+Verification 파이프라인을 조율합니다.
+동적 제품(str) 기반으로 동작합니다.
+"""
+import asyncio
+import json
+import logging
+import re
+import time
+from typing import Any, AsyncGenerator, Dict, List, Optional
+
+from ..core.logging_framework import get_logger
+from ..models.agentic_rag import (
+    AgenticRAGRequest,
+    AgenticRAGResponse,
+    AgenticRAGHealth,
+    QueryType,
+    RouterResult,
+    RouterDecision,
+    VerifiedSentence,
+)
+from ..models.openframe_rag import (
+    ConfidenceLevel,
+    ProductSources,
+    VectorSource,
+)
+from .query_router_service import QueryRouter, get_query_router
+from .product_agent_service import (
+    BaseProductAgent,
+    get_product_agent,
+    get_all_product_agents,
+)
+from .structured_knowledge_store import SearchResult, ProductSearchContext
+from .query_type_classifier import QueryTypeClassifier, get_query_type_classifier
+from .template_response_builder import TemplateResponseBuilder, get_template_response_builder
+from .response_verifier import ResponseVerifier, get_response_verifier
+
+logger = get_logger("kms.agentic_rag")
+
+# 동적 product_id → VLLMAdapter가 인식하는 제품명 매핑
+_DYNAMIC_TO_ADAPTER_MAP = {
+    "mvs_openframe_7.1": "openframe_base",
+    "msp_openframe_7.3": "msp_openframe",
+    "vos3_openframe_2.0": "openframe_vos3",
+    "xsp_openframe_7.3": "xsp_openframe",
+    "tibero_7fixset01": "tibero7",
+    "tmax_6.0": "tmax",
+    "ofasm_4": "ofasm",
+    "ofcobol_4": "ofcobol",
+    "jeus_8.5": "jeus",
+    "jeus_8": "jeus",
+    "webtob_5.0": "webtob",
+    "protrieve_7": "protrieve",
+    "ofstudio_7": "ofstudio",
+    "ofmanager_7": "ofmanager",
+    "openframe_aim_7": "openframe_aim",
+    "openframe_tacf_7": "openframe_tacf",
+    "openframe_hidb_7": "openframe_hidb",
+    "openframe_ndb_7": "openframe_ndb",
+    "openframe_osi_7": "openframe_osi",
+}
+
+
+class AgenticRAGService:
+    """
+    Agentic RAG 오케스트레이터
+
+    파이프라인:
+    1. QueryRouter.classify() → 제품 확정/되묻기/매칭없음
+    2. ProductAgent.search() → 구조화 검색 (LLM 없음)
+    3. QueryTypeClassifier.classify() → 정형/비정형 판별
+    4a. 정형 → TemplateResponseBuilder.build() (환각 0%)
+    4b. 비정형 → LLM 생성 + ResponseVerifier.verify()
+    """
+
+    def __init__(
+        self,
+        query_router: Optional[QueryRouter] = None,
+        query_type_classifier: Optional[QueryTypeClassifier] = None,
+        template_builder: Optional[TemplateResponseBuilder] = None,
+        response_verifier: Optional[ResponseVerifier] = None,
+    ):
+        self.query_router = query_router or get_query_router()
+        self.query_type_classifier = query_type_classifier or get_query_type_classifier()
+        self.template_builder = template_builder or get_template_response_builder()
+        self.response_verifier = response_verifier or get_response_verifier()
+        self._product_patterns: Optional[List[tuple]] = None
+
+    def _get_product_patterns(self) -> List[tuple]:
+        """ManualRegistry에서 동적 라우팅 패턴 로드"""
+        if self._product_patterns is not None:
+            return self._product_patterns
+        try:
+            from .manual_registry_service import get_manual_registry_service
+            registry = get_manual_registry_service()
+            self._product_patterns = registry.get_routing_patterns()
+        except Exception:
+            self._product_patterns = []
+        return self._product_patterns
+
+    def _detect_products_in_query(self, query: str) -> List[str]:
+        """쿼리에서 언급된 모든 제품 감지"""
+        detected: List[str] = []
+        query_lower = query.lower()
+        for pattern, pid in self._get_product_patterns():
+            if re.search(pattern, query_lower):
+                if pid not in detected:
+                    detected.append(pid)
+        return detected
+
+    async def _cross_agent_search(
+        self,
+        query: str,
+        primary_product: str,
+        additional_products: List[str],
+        query_type: Optional[QueryType],
+        top_k: int = 5,
+    ) -> ProductSearchContext:
+        """여러 Product Agent를 병렬 검색하고 결과를 병합."""
+        all_products = [primary_product] + additional_products
+        agents = []
+        for pid in all_products:
+            agent = get_product_agent(pid)
+            if agent:
+                agents.append((pid, agent))
+
+        if not agents:
+            return ProductSearchContext(product=primary_product)
+
+        async def _search_one(pid: str, agent: BaseProductAgent) -> List[SearchResult]:
+            ctx = await agent.search(query=query, query_type=query_type, top_k=top_k)
+            for r in ctx.structured_results:
+                r.product = pid
+            return ctx.structured_results
+
+        tasks = [_search_one(pid, agent) for pid, agent in agents]
+        results_lists = await asyncio.gather(*tasks, return_exceptions=True)
+
+        all_results: List[SearchResult] = []
+        for result in results_lists:
+            if isinstance(result, list):
+                all_results.extend(result)
+
+        all_results.sort(key=lambda r: r.relevance_score, reverse=True)
+
+        deduped: List[SearchResult] = []
+        seen_fp: set = set()
+        for r in all_results:
+            raw_fp = r.content[:120].strip().lower()
+            fp = re.sub(r"[^a-z0-9\u3040-\u9fff\uac00-\ud7af]", "", raw_fp)
+            if fp in seen_fp:
+                continue
+            seen_fp.add(fp)
+            deduped.append(r)
+            if len(deduped) >= top_k:
+                break
+
+        merged = ProductSearchContext(product=primary_product)
+        merged.structured_results = deduped
+        logger.info(
+            f"Cross-agent search: {all_products} → "
+            f"{len(all_results)} total, {len(deduped)} after dedup"
+        )
+        return merged
+
+    async def health_check(self) -> AgenticRAGHealth:
+        """서비스 상태 확인"""
+        agents = get_all_product_agents()
+        agent_status = {
+            pid: agent.is_available
+            for pid, agent in agents.items()
+        }
+
+        knowledge_stats: Dict[str, int] = {}
+        for pid, agent in agents.items():
+            try:
+                stats = agent.get_stats()
+                knowledge_stats[pid] = sum(stats.values())
+            except Exception:
+                knowledge_stats[pid] = 0
+
+        return AgenticRAGHealth(
+            available=True,
+            message="Agentic RAG service is running",
+            agents=agent_status,
+            knowledge_store_status=knowledge_stats,
+            supported_products=list(agents.keys()),
+        )
+
+    async def chat(self, request: AgenticRAGRequest) -> AgenticRAGResponse:
+        """동기식 채팅 처리"""
+        start = time.time()
+
+        # 1. 제품 분류
+        if request.selected_product:
+            product_id = request.selected_product
+            router_result = RouterResult(
+                decision=RouterDecision.CONFIRMED,
+                product=product_id,
+                confidence=1.0,
+            )
+        elif request.product == "auto":
+            router_result = self.query_router.classify(
+                request.message, request.language or "ja",
+            )
+            product_id = router_result.product
+        else:
+            product_id = request.product
+            router_result = RouterResult(
+                decision=RouterDecision.CONFIRMED,
+                product=product_id,
+                confidence=1.0,
+            )
+
+        # 되묻기 필요
+        if router_result.decision == RouterDecision.CLARIFICATION_NEEDED:
+            return AgenticRAGResponse(
+                success=True,
+                response="",
+                product=router_result.product or "auto",
+                query_type=QueryType.FREEFORM,
+                router_result=router_result,
+                confidence=ConfidenceLevel.LOW,
+                processing_time_ms=int((time.time() - start) * 1000),
+            )
+
+        # 매칭 없음
+        if router_result.decision == RouterDecision.NO_MATCH or not product_id:
+            return AgenticRAGResponse(
+                success=True,
+                response="該当する製品を特定できませんでした。質問を具体的にしていただくか、製品を選択してください。",
+                product="auto",
+                query_type=QueryType.FREEFORM,
+                router_result=router_result,
+                confidence=ConfidenceLevel.LOW,
+                processing_time_ms=int((time.time() - start) * 1000),
+            )
+
+        # 2. 제품별 Agent 검색
+        agent = get_product_agent(product_id)
+        if not agent:
+            return AgenticRAGResponse(
+                success=False,
+                response=f"製品 {product_id} のエージェントが利用できません。",
+                product=product_id,
+                query_type=QueryType.FREEFORM,
+                router_result=router_result,
+                confidence=ConfidenceLevel.LOW,
+                processing_time_ms=int((time.time() - start) * 1000),
+            )
+
+        # 3. 質問 유형 분류
+        query_type = self.query_type_classifier.classify(request.message)
+
+        # 4. 검索 실행 (Cross-Agent 감지)
+        additional_products = [
+            p for p in self._detect_products_in_query(request.message)
+            if p != product_id
+        ]
+        if additional_products:
+            search_context = await self._cross_agent_search(
+                query=request.message,
+                primary_product=product_id,
+                additional_products=additional_products,
+                query_type=query_type,
+            )
+        else:
+            search_context = await agent.search(
+                query=request.message,
+                query_type=query_type,
+            )
+
+        # 5. 응답 생성
+        if query_type != QueryType.FREEFORM and search_context.structured_results:
+            template_response = self.template_builder.build(
+                query=request.message,
+                query_type=query_type,
+                results=search_context.structured_results,
+                language=request.language or "ja",
+            )
+            if template_response:
+                return AgenticRAGResponse(
+                    success=True,
+                    response=template_response,
+                    product=product_id,
+                    query_type=query_type,
+                    router_result=router_result,
+                    confidence=ConfidenceLevel.HIGH,
+                    sources=self._build_sources(search_context.structured_results),
+                    processing_time_ms=int((time.time() - start) * 1000),
+                )
+
+        # 비정형 질문 또는 템플릿 실패: LLM 생성
+        llm_response = await self._generate_with_llm(
+            request.message,
+            product_id,
+            search_context,
+            request.language or "ja",
+        )
+
+        verification = None
+        if llm_response and search_context.structured_results:
+            verification = self.response_verifier.verify(
+                llm_response,
+                search_context.structured_results,
+            )
+
+        confidence = self._calculate_confidence(verification)
+
+        return AgenticRAGResponse(
+            success=True,
+            response=llm_response or "情報が見つかりませんでした。質問を変更してお試しください。",
+            product=product_id,
+            query_type=query_type,
+            router_result=router_result,
+            verification=verification,
+            sources=self._build_sources(search_context.structured_results),
+            confidence=confidence,
+            processing_time_ms=int((time.time() - start) * 1000),
+        )
+
+    async def stream_chat(
+        self,
+        request: AgenticRAGRequest,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """SSE 스트리밍 채팅"""
+        start = time.time()
+
+        # 1. 제품 분류
+        if request.selected_product:
+            product_id = request.selected_product
+            router_result = RouterResult(
+                decision=RouterDecision.CONFIRMED,
+                product=product_id,
+                confidence=1.0,
+            )
+        elif request.product == "auto":
+            router_result = self.query_router.classify(
+                request.message, request.language or "ja",
+            )
+            product_id = router_result.product
+        else:
+            product_id = request.product
+            router_result = RouterResult(
+                decision=RouterDecision.CONFIRMED,
+                product=product_id,
+                confidence=1.0,
+            )
+
+        # 분류 결과 전송
+        yield {
+            "type": "classification",
+            "product": product_id or "auto",
+            "decision": router_result.decision.value,
+            "confidence": router_result.confidence,
+        }
+
+        # 되묻기 필요
+        if router_result.decision == RouterDecision.CLARIFICATION_NEEDED:
+            yield {
+                "type": "clarification_needed",
+                "candidates": [
+                    {
+                        "product": c.product,
+                        "confidence": c.confidence,
+                        "reason": c.reason,
+                        "matched_keywords": c.matched_keywords,
+                    }
+                    for c in router_result.candidates
+                ],
+                "message": "どの製品に関する質問ですか？",
+            }
+            return
+
+        # 매칭 없음
+        if router_result.decision == RouterDecision.NO_MATCH or not product_id:
+            yield {
+                "type": "error",
+                "message": "該当する製品を特定できませんでした。製品を選択してください。",
+            }
+            return
+
+        # 2. 검색 진행
+        yield {
+            "type": "search_progress",
+            "product": product_id,
+            "step": "structured_search",
+            "progress": 0.3,
+        }
+
+        agent = get_product_agent(product_id)
+        if not agent:
+            yield {"type": "error", "message": f"製品 {product_id} のエージェントが利用できません。"}
+            return
+
+        # 3. 질問 유형 분류
+        query_type = self.query_type_classifier.classify(request.message)
+
+        # 4. 검색 실행 (Cross-Agent 감지)
+        additional_products = [
+            p for p in self._detect_products_in_query(request.message)
+            if p != product_id
+        ]
+        if additional_products:
+            search_context = await self._cross_agent_search(
+                query=request.message,
+                primary_product=product_id,
+                additional_products=additional_products,
+                query_type=query_type,
+            )
+        else:
+            search_context = await agent.search(
+                query=request.message,
+                query_type=query_type,
+            )
+
+        yield {
+            "type": "search_progress",
+            "product": product_id,
+            "step": "search_complete",
+            "progress": 0.6,
+        }
+
+        # 5. 응답 생성
+        if query_type != QueryType.FREEFORM and search_context.structured_results:
+            template_response = self.template_builder.build(
+                query=request.message,
+                query_type=query_type,
+                results=search_context.structured_results,
+                language=request.language or "ja",
+            )
+            if template_response:
+                yield {
+                    "type": "template_response",
+                    "content": template_response,
+                    "query_type": query_type.value,
+                }
+                yield self._build_sources_event(search_context.structured_results)
+                yield {
+                    "type": "done",
+                    "processing_time_ms": int((time.time() - start) * 1000),
+                    "product": product_id,
+                    "query_type": query_type.value,
+                }
+                return
+
+        # 비정형: LLM 스트리밍 생성
+        yield {
+            "type": "search_progress",
+            "product": product_id,
+            "step": "generating",
+            "progress": 0.7,
+        }
+
+        full_response = ""
+        async for token in self._stream_llm(
+            request.message, product_id, search_context, request.language or "ja",
+        ):
+            full_response += token
+            yield {"type": "llm_token", "token": token}
+
+        # 사후 검증
+        if full_response and search_context.structured_results:
+            verification = self.response_verifier.verify(
+                full_response,
+                search_context.structured_results,
+            )
+            if verification:
+                yield {
+                    "type": "verification",
+                    "sentences": [
+                        {
+                            "text": v.text,
+                            "level": v.level.value,
+                            "similarity": v.similarity,
+                            "source_chunk": v.source_chunk,
+                            "source_doc": v.source_doc,
+                        }
+                        for v in verification
+                    ],
+                }
+
+        yield self._build_sources_event(search_context.structured_results)
+        yield {
+            "type": "done",
+            "processing_time_ms": int((time.time() - start) * 1000),
+            "product": product_id,
+            "query_type": query_type.value,
+        }
+
+    async def _generate_with_llm(
+        self,
+        query: str,
+        product_id: str,
+        search_context,
+        language: str,
+    ) -> Optional[str]:
+        """LLM으로 비정형 응답 생성"""
+        try:
+            from .learning_llm_service import get_learning_llm_service
+            llm_service = get_learning_llm_service()
+
+            if not llm_service:
+                logger.warning("LLM skipped (generate): get_learning_llm_service() returned None")
+            elif not llm_service.is_available:
+                logger.warning(
+                    f"LLM skipped (generate): is_available=False "
+                    f"(enabled={llm_service.enabled}, initialized={llm_service._is_initialized})"
+                )
+
+            if not llm_service or not llm_service.is_available:
+                if search_context.structured_results:
+                    return self._fallback_from_structured(search_context.structured_results)
+                return None
+
+            adapter_product = self._map_product_for_llm(product_id)
+            context = self._build_llm_context(search_context.structured_results)
+            logger.info(
+                f"LLM generate: product={product_id}, adapter_product={adapter_product}, "
+                f"context_len={len(context)}"
+            )
+
+            result = await llm_service.generate(
+                question=query,
+                context=context,
+                max_tokens=1024,
+                temperature=0.3,
+                product=adapter_product,
+            )
+
+            if result and result.get("response"):
+                return result["response"]
+
+        except Exception as e:
+            logger.warning(f"LLM generation failed: {type(e).__name__}: {e}")
+
+        if search_context.structured_results:
+            return self._fallback_from_structured(search_context.structured_results)
+        return None
+
+    async def _stream_llm(
+        self,
+        query: str,
+        product_id: str,
+        search_context,
+        language: str,
+    ) -> AsyncGenerator[str, None]:
+        """LLM 스트리밍 생성"""
+        try:
+            from .learning_llm_service import get_learning_llm_service
+            llm_service = get_learning_llm_service()
+
+            if not llm_service:
+                logger.warning("LLM skipped (stream): get_learning_llm_service() returned None")
+            elif not llm_service.is_available:
+                logger.warning(
+                    f"LLM skipped (stream): is_available=False "
+                    f"(enabled={llm_service.enabled}, initialized={llm_service._is_initialized})"
+                )
+
+            if not llm_service or not llm_service.is_available:
+                fallback = self._fallback_from_structured(
+                    search_context.structured_results
+                ) if search_context.structured_results else "情報が見つかりませんでした。"
+                yield fallback
+                return
+
+            adapter_product = self._map_product_for_llm(product_id)
+            context = self._build_llm_context(search_context.structured_results)
+            logger.info(
+                f"LLM streaming: product={product_id}, adapter_product={adapter_product}, "
+                f"context_len={len(context)}"
+            )
+
+            async for token in llm_service.generate_stream(
+                question=query,
+                context=context,
+                max_tokens=1024,
+                temperature=0.3,
+                product=adapter_product,
+            ):
+                yield token
+
+        except Exception as e:
+            logger.warning(f"LLM streaming failed: {type(e).__name__}: {e}")
+            fallback = self._fallback_from_structured(
+                search_context.structured_results
+            ) if search_context.structured_results else f"生成エラー: {str(e)}"
+            yield fallback
+
+    def _build_llm_context(self, results) -> str:
+        """검색 결과를 LLM 컨텍스트 문자열로 변환"""
+        if not results:
+            return ""
+        top_score = results[0].relevance_score if results else 0
+        threshold = top_score * 0.5
+        filtered = [r for r in results[:5] if r.relevance_score >= threshold]
+        if not filtered:
+            filtered = results[:1]
+        parts = []
+        for i, r in enumerate(filtered, 1):
+            content = r.content or ""
+            if len(content) > 2000:
+                content = content[:2000] + "..."
+            source = f" (出典: {r.source_file})" if r.source_file else ""
+            parts.append(f"[参考資料 {i}: {r.title}{source}]\n{content}")
+        return "\n\n---\n\n".join(parts)
+
+    def _fallback_from_structured(self, results) -> str:
+        """구조화 결과로 폴백 응답 생성 (가독성 개선)"""
+        if not results:
+            return ""
+        top_score = results[0].relevance_score if results else 0
+        threshold = top_score * 0.5
+        filtered = [r for r in results[:3] if r.relevance_score >= threshold]
+        if not filtered:
+            filtered = results[:1]
+        parts = []
+        for r in filtered:
+            content = r.content or ""
+            if len(content) > 1000:
+                cut = content[:1000]
+                last_break = max(cut.rfind('。'), cut.rfind('\n'), cut.rfind('. '))
+                if last_break > 500:
+                    cut = cut[:last_break + 1]
+                content = cut + "\n..."
+            parts.append(f"### {r.title}\n\n{content}")
+        return "\n\n---\n\n".join(parts)
+
+    def _map_product_for_llm(self, product_id: str) -> str:
+        """동적 product_id를 VLLMAdapter가 인식할 수 있는 제품명으로 변환"""
+        if product_id in _DYNAMIC_TO_ADAPTER_MAP:
+            return _DYNAMIC_TO_ADAPTER_MAP[product_id]
+        # Fallback: '_' 기준 첫 부분 (family) 사용
+        family = product_id.split("_")[0] if "_" in product_id else product_id
+        return family
+
+    def _build_sources(self, results) -> ProductSources:
+        """검색 결과에서 출처 정보 생성"""
+        vector_sources = []
+        for i, r in enumerate(results[:5]):
+            vector_sources.append(VectorSource(
+                chunk_id=f"structured_{i}",
+                doc_id=r.source_file or f"doc_{i}",
+                doc_name=r.source_file or "",
+                content=r.content[:200] if r.content else "",
+                score=r.relevance_score,
+                product=r.product or r.domain,
+            ))
+        return ProductSources(vector_search=vector_sources)
+
+    def _build_sources_event(self, results) -> Dict[str, Any]:
+        """출처 정보 SSE 이벤트 생성"""
+        sources = []
+        for r in results[:5]:
+            sources.append({
+                "doc_name": r.source_file or "",
+                "content": r.content[:200] if r.content else "",
+                "score": r.relevance_score,
+                "domain": r.domain,
+                "product": r.product,
+            })
+        return {
+            "type": "sources",
+            "results": sources,
+            "total": len(results),
+        }
+
+    def _calculate_confidence(
+        self,
+        verification: Optional[List[VerifiedSentence]],
+    ) -> ConfidenceLevel:
+        """검증 결과 기반 전체 신뢰도 계산"""
+        if not verification:
+            return ConfidenceLevel.LOW
+
+        verified_count = sum(
+            1 for v in verification if v.level.value == "verified"
+        )
+        total = len(verification)
+
+        if total == 0:
+            return ConfidenceLevel.LOW
+
+        ratio = verified_count / total
+        if ratio >= 0.7:
+            return ConfidenceLevel.HIGH
+        elif ratio >= 0.4:
+            return ConfidenceLevel.MEDIUM
+        return ConfidenceLevel.LOW
+
+
+# =============================================================================
+# Singleton
+# =============================================================================
+
+_service_instance: Optional[AgenticRAGService] = None
+
+
+def get_agentic_rag_service() -> AgenticRAGService:
+    """Get singleton AgenticRAGService"""
+    global _service_instance
+    if _service_instance is None:
+        _service_instance = AgenticRAGService()
+    return _service_instance
+
+
+async def initialize_agentic_rag_service() -> AgenticRAGService:
+    """Initialize AgenticRAGService"""
+    global _service_instance
+    _service_instance = AgenticRAGService()
+    logger.info("AgenticRAGService initialized")
+    return _service_instance

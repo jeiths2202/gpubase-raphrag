@@ -4,13 +4,19 @@ Learning LLM vLLM Adapter
 외부 vLLM 서버에 연결하여 추론을 수행합니다.
 Docker 컨테이너로 배포된 Learning LLM 서비스에 연결합니다.
 
+Multi-LoRA v2 지원 (2026-02-03):
+- GPU 5 (Port 12815): 대형 제품 8개
+- GPU 6 (Port 12816): 중형 제품 8개
+- GPU 7 (Port 12817): 소형 제품 8개
+
 Usage:
     from app.api.adapters.learning_llm.vllm_adapter import get_vllm_adapter
 
     adapter = get_vllm_adapter()
     result = await adapter.generate_with_confidence(
         question="에러코드 -5212의 원인은?",
-        context="TJES 관련 문서"
+        context="TJES 관련 문서",
+        product="tibero7"  # 제품 지정 시 해당 어댑터 사용
     )
     print(result["answer"], result["confidence"])
 """
@@ -23,6 +29,125 @@ from typing import Optional, Dict, Any, AsyncGenerator, List
 from dataclasses import dataclass, field, asdict
 
 logger = logging.getLogger(__name__)
+
+
+# Multi-LoRA v2 제품별 어댑터 매핑 (2026-02-04 수정)
+# 24개 QLoRA v2 어댑터가 단일 vLLM 서버(Port 12815)에 로드됨
+MULTI_LORA_PORT = 12815  # 모든 어댑터가 이 포트에 있음
+
+MULTI_LORA_PRODUCT_MAPPING = {
+    # =========================================================================
+    # 대형 제품 (예제 수 많음)
+    # =========================================================================
+    "tibero7_v2": {"port": MULTI_LORA_PORT},
+    "tibero7": {"port": MULTI_LORA_PORT},
+    "tibero": {"port": MULTI_LORA_PORT, "adapter": "tibero7_v2"},
+    "jeus_v2": {"port": MULTI_LORA_PORT},
+    "jeus": {"port": MULTI_LORA_PORT},
+    "tmax_v2": {"port": MULTI_LORA_PORT},
+    "tmax": {"port": MULTI_LORA_PORT},
+    "openframe_common_v2": {"port": MULTI_LORA_PORT},
+    "openframe_common": {"port": MULTI_LORA_PORT},
+    "openframe_batch_v2": {"port": MULTI_LORA_PORT},
+    "openframe_batch": {"port": MULTI_LORA_PORT},
+    "batch": {"port": MULTI_LORA_PORT, "adapter": "openframe_batch_v2"},
+    "webtob_v2": {"port": MULTI_LORA_PORT},
+    "webtob": {"port": MULTI_LORA_PORT},
+    "openframe_vos3_v2": {"port": MULTI_LORA_PORT},
+    "openframe_vos3": {"port": MULTI_LORA_PORT},
+    "vos3": {"port": MULTI_LORA_PORT, "adapter": "openframe_vos3_v2"},
+    "vos3_openframe": {"port": MULTI_LORA_PORT, "adapter": "openframe_vos3_v2"},
+    "openframe_osc_v2": {"port": MULTI_LORA_PORT},
+    "openframe_osc": {"port": MULTI_LORA_PORT},
+    "osc": {"port": MULTI_LORA_PORT, "adapter": "openframe_osc_v2"},
+    # --- ProductId 매핑 (OpenFrame RAG 라우터에서 사용) ---
+    # openframe_mvs는 일반적인 OpenFrame 쿼리이므로 base 어댑터를 기본으로 사용
+    # (OSC 전용 쿼리는 detect_product_from_query에서 osc/cics 키워드로 감지됨)
+    "openframe_mvs_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_base_v2"},
+    "openframe_mvs": {"port": MULTI_LORA_PORT, "adapter": "openframe_base_v2"},
+    "mvs": {"port": MULTI_LORA_PORT, "adapter": "openframe_base_v2"},
+    "msp_openframe": {"port": MULTI_LORA_PORT, "adapter": "openframe_batch_v2"},
+    "msp": {"port": MULTI_LORA_PORT, "adapter": "openframe_batch_v2"},
+    "xsp_openframe": {"port": MULTI_LORA_PORT, "adapter": "openframe_common_v2"},
+    "xsp": {"port": MULTI_LORA_PORT, "adapter": "openframe_common_v2"},
+    # =========================================================================
+    # 중형 제품
+    # =========================================================================
+    "openframe_base_v2": {"port": MULTI_LORA_PORT},
+    "openframe_base": {"port": MULTI_LORA_PORT},
+    "base": {"port": MULTI_LORA_PORT, "adapter": "openframe_base_v2"},
+    "ofmanager_v2": {"port": MULTI_LORA_PORT},
+    "ofmanager": {"port": MULTI_LORA_PORT},
+    "manager": {"port": MULTI_LORA_PORT, "adapter": "ofmanager_v2"},
+    "openframe_aim_v2": {"port": MULTI_LORA_PORT},
+    "openframe_aim": {"port": MULTI_LORA_PORT},
+    "aim": {"port": MULTI_LORA_PORT, "adapter": "openframe_aim_v2"},
+    "protrieve_v2": {"port": MULTI_LORA_PORT},
+    "protrieve": {"port": MULTI_LORA_PORT},
+    "openframe_osi_v2": {"port": MULTI_LORA_PORT},
+    "openframe_osi": {"port": MULTI_LORA_PORT},
+    "osi": {"port": MULTI_LORA_PORT, "adapter": "openframe_osi_v2"},
+    "openframe_tacf_v2": {"port": MULTI_LORA_PORT},
+    "openframe_tacf": {"port": MULTI_LORA_PORT},
+    "tacf": {"port": MULTI_LORA_PORT, "adapter": "openframe_tacf_v2"},
+    "openframe_gateway_v2": {"port": MULTI_LORA_PORT},
+    "openframe_gateway": {"port": MULTI_LORA_PORT},
+    "gateway": {"port": MULTI_LORA_PORT, "adapter": "openframe_gateway_v2"},
+    "ofpli_v2": {"port": MULTI_LORA_PORT},
+    "ofpli": {"port": MULTI_LORA_PORT},
+    "pli": {"port": MULTI_LORA_PORT, "adapter": "ofpli_v2"},
+    # =========================================================================
+    # 소형 제품
+    # =========================================================================
+    "ofcobol_v2": {"port": MULTI_LORA_PORT},
+    "ofcobol": {"port": MULTI_LORA_PORT},
+    "cobol": {"port": MULTI_LORA_PORT, "adapter": "ofcobol_v2"},
+    "prosync_v2": {"port": MULTI_LORA_PORT},
+    "prosync": {"port": MULTI_LORA_PORT},
+    "openframe_ndb_v2": {"port": MULTI_LORA_PORT},
+    "openframe_ndb": {"port": MULTI_LORA_PORT},
+    "ndb": {"port": MULTI_LORA_PORT, "adapter": "openframe_ndb_v2"},
+    "ofstudio_v2": {"port": MULTI_LORA_PORT},
+    "ofstudio": {"port": MULTI_LORA_PORT},
+    "studio": {"port": MULTI_LORA_PORT, "adapter": "ofstudio_v2"},
+    "ofminer_v2": {"port": MULTI_LORA_PORT},
+    "ofminer": {"port": MULTI_LORA_PORT},
+    "miner": {"port": MULTI_LORA_PORT, "adapter": "ofminer_v2"},
+    "prosort_v2": {"port": MULTI_LORA_PORT},
+    "prosort": {"port": MULTI_LORA_PORT},
+    "sort": {"port": MULTI_LORA_PORT, "adapter": "prosort_v2"},
+    "openframe_hidb_v2": {"port": MULTI_LORA_PORT},
+    "openframe_hidb": {"port": MULTI_LORA_PORT},
+    "hidb": {"port": MULTI_LORA_PORT, "adapter": "openframe_hidb_v2"},
+    "ofasm_v2": {"port": MULTI_LORA_PORT},
+    "ofasm": {"port": MULTI_LORA_PORT},
+    "asm": {"port": MULTI_LORA_PORT, "adapter": "ofasm_v2"},
+    # =========================================================================
+    # 동적 product_id (Agentic RAG ManualRegistry에서 사용)
+    # =========================================================================
+    "mvs_openframe_7.1": {"port": MULTI_LORA_PORT, "adapter": "openframe_base_v2"},
+    "msp_openframe_7.3": {"port": MULTI_LORA_PORT, "adapter": "openframe_batch_v2"},
+    "vos3_openframe_2.0": {"port": MULTI_LORA_PORT, "adapter": "openframe_vos3_v2"},
+    "xsp_openframe_7.3": {"port": MULTI_LORA_PORT, "adapter": "openframe_common_v2"},
+    "tibero_7fixset01": {"port": MULTI_LORA_PORT, "adapter": "tibero7_v2"},
+    "tmax_6.0": {"port": MULTI_LORA_PORT, "adapter": "tmax_v2"},
+    "ofasm_4": {"port": MULTI_LORA_PORT, "adapter": "ofasm_v2"},
+    "ofcobol_4": {"port": MULTI_LORA_PORT, "adapter": "ofcobol_v2"},
+    "jeus_8.5": {"port": MULTI_LORA_PORT, "adapter": "jeus_v2"},
+    "jeus_8": {"port": MULTI_LORA_PORT, "adapter": "jeus_v2"},
+    "webtob_5.0": {"port": MULTI_LORA_PORT, "adapter": "webtob_v2"},
+    "protrieve_7": {"port": MULTI_LORA_PORT, "adapter": "protrieve_v2"},
+    "ofstudio_7": {"port": MULTI_LORA_PORT, "adapter": "ofstudio_v2"},
+    "ofmanager_7": {"port": MULTI_LORA_PORT, "adapter": "ofmanager_v2"},
+    "openframe_aim_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_aim_v2"},
+    "openframe_tacf_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_tacf_v2"},
+    "openframe_hidb_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_hidb_v2"},
+    "openframe_ndb_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_ndb_v2"},
+    "openframe_osi_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_osi_v2"},
+}
+
+# 단일 vLLM 서버 URL (모든 24개 어댑터가 12815에 로드됨)
+MULTI_LORA_BASE_URL = os.getenv("MULTI_LORA_URL", "http://192.168.8.11:12815/v1")
 
 
 @dataclass
@@ -44,6 +169,10 @@ class VLLMAdapter:
     vLLM 서버 연결 어댑터
 
     OpenAI 호환 API를 통해 외부 vLLM 서버에 연결합니다.
+
+    Multi-LoRA v2 지원 (2026-02-03):
+    - 제품별로 적절한 GPU/포트로 자동 라우팅
+    - tibero7_v2, jeus_v2 등 어댑터 이름 직접 지정 가능
     """
 
     def __init__(
@@ -54,12 +183,102 @@ class VLLMAdapter:
     ):
         self.base_url = base_url or os.getenv(
             "LEARNING_LLM_URL",
-            "http://learning-llm-graphrag:8000/v1"
+            "http://192.168.8.11:12815/v1"  # 기본: GPU 5
         )
         self.model = model
         self.timeout = timeout
         self.is_loaded = False
         self.current_adapter = "vllm-server"
+        self._remote_host = os.getenv("REMOTE_HOST", "192.168.8.11")
+
+    def get_url_for_product(self, product: Optional[str] = None) -> tuple[str, str]:
+        """
+        제품에 맞는 URL과 모델명 반환
+
+        모든 24개 어댑터가 단일 vLLM 서버(Port 12815)에 로드되어 있음.
+
+        Args:
+            product: 제품명 (예: "tibero7", "jeus", "openframe_base")
+
+        Returns:
+            (base_url, model_name) 튜플
+        """
+        # 단일 vLLM 서버 URL 사용
+        base_url = MULTI_LORA_BASE_URL
+
+        if not product:
+            return base_url, self.model
+
+        product_lower = product.lower().strip()
+
+        # 제품명 매핑 확인
+        if product_lower in MULTI_LORA_PRODUCT_MAPPING:
+            mapping = MULTI_LORA_PRODUCT_MAPPING[product_lower]
+
+            # adapter 필드가 있으면 그것을 사용 (openframe_mvs -> openframe_osc_v2)
+            if "adapter" in mapping:
+                model_name = mapping["adapter"]
+            # 모델명 결정 (v2 suffix 추가)
+            elif not product_lower.endswith("_v2"):
+                model_name = f"{product_lower}_v2"
+            else:
+                model_name = product_lower
+
+            logger.info(f"Multi-LoRA routing: {product} -> {base_url} (adapter: {model_name})")
+            return base_url, model_name
+
+        # 매핑에 없으면 기본 어댑터 사용 (Base는 일반적인 OpenFrame 문서를 다룸)
+        logger.warning(f"Unknown product '{product}', using default adapter: openframe_base_v2")
+        return base_url, "openframe_base_v2"
+
+    def detect_product_from_query(self, query: str) -> Optional[str]:
+        """
+        질문에서 제품명 감지
+
+        Args:
+            query: 사용자 질문
+
+        Returns:
+            감지된 제품명 또는 None
+        """
+        query_lower = query.lower()
+
+        # 제품명 패턴 매칭 (우선순위 순)
+        # 참고: re.ASCII 플래그를 사용하여 \b가 일본어/한국어 문자에서도
+        # 올바르게 단어 경계를 인식하도록 함 (Unicode 기본값 문제 해결)
+        product_patterns = [
+            (r'\btibero\b', 'tibero7'),
+            (r'\bjeus\b', 'jeus'),
+            (r'\btmax\s*(tp)?\b', 'tmax'),
+            (r'\bwebtob\b', 'webtob'),
+            (r'\bosc\b|\bcics\b', 'openframe_osc'),
+            (r'\bvos3\b', 'openframe_vos3'),
+            (r'\bbatch\b', 'openframe_batch'),
+            (r'\bbase\b', 'openframe_base'),
+            (r'\bofmanager\b', 'ofmanager'),
+            (r'\baim\b', 'openframe_aim'),
+            (r'\bprotrieve\b', 'protrieve'),
+            (r'\bosi\b', 'openframe_osi'),
+            (r'\btacf\b', 'openframe_tacf'),
+            (r'\bgateway\b', 'openframe_gateway'),
+            (r'\bpli\b|\bofpli\b', 'ofpli'),
+            (r'\bcobol\b|\bofcobol\b', 'ofcobol'),
+            (r'\bprosync\b', 'prosync'),
+            (r'\bndb\b', 'openframe_ndb'),
+            (r'\bstudio\b|\bofstudio\b', 'ofstudio'),
+            (r'\bminer\b|\bofminer\b', 'ofminer'),
+            (r'\bprosort\b|\bsort\b', 'prosort'),
+            (r'\bhidb\b', 'openframe_hidb'),
+            (r'\basm\b|\bofasm\b', 'ofasm'),
+        ]
+
+        for pattern, product in product_patterns:
+            # re.ASCII 플래그로 일본어/한국어 문자 다음에도 단어 경계 인식
+            if re.search(pattern, query_lower, re.ASCII):
+                logger.debug(f"detect_product_from_query: '{pattern}' matched -> {product}")
+                return product
+
+        return None
 
     async def health_check(self) -> Dict[str, Any]:
         """vLLM 서버 헬스 체크"""
@@ -108,34 +327,57 @@ class VLLMAdapter:
         max_new_tokens: int = 512,
         temperature: float = 0.7,
         top_p: float = 0.9,
+        product: Optional[str] = None,  # Multi-LoRA 제품 지정
         **kwargs
     ) -> str:
         """
-        vLLM 서버를 통한 응답 생성
+        vLLM 서버를 통한 응답 생성 (Multi-LoRA v2 지원)
 
         Args:
             question: 사용자 질문
             context: 추가 컨텍스트
             max_new_tokens: 최대 생성 토큰
             temperature: 샘플링 온도
+            product: Multi-LoRA 제품명 (예: "tibero7", "jeus")
 
         Returns:
             생성된 응답
         """
-        messages = self._build_messages(question, context)
+        # 쿼리 기반 제품 감지를 항상 먼저 시도 (더 정확한 어댑터 선택)
+        detected_product = self.detect_product_from_query(question)
+        if detected_product:
+            product = detected_product
+            logger.info(f"Query-based product detection: '{detected_product}' from query")
+        elif not product:
+            product = None  # 기본 어댑터 사용
 
+        # Multi-LoRA 라우팅
+        base_url, model_name = self.get_url_for_product(product)
+
+        # lora-api-server-v3 API 형식 (v2 suffix 제거)
+        adapter_name = model_name.replace("_v2", "")
+
+        # context를 message에 통합 (lora-api-server-v3는 context 필드 미지원)
+        if context:
+            message = f"以下の参考資料に基づいて質問に回答してください。\n\n{context}\n\n質問: {question}"
+        else:
+            message = question
+
+        # lora-api-server-v3 API: /chat endpoint with {adapter, message, max_tokens, temperature}
         payload = {
-            "model": self.model,
-            "messages": messages,
+            "adapter": adapter_name,
+            "message": message,
             "max_tokens": max_new_tokens,
             "temperature": temperature,
-            "top_p": top_p,
         }
 
         try:
+            # /v1 prefix 제거하고 /chat 엔드포인트 사용
+            chat_url = base_url.replace("/v1", "") + "/chat"
+
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"{self.base_url}/chat/completions",
+                    chat_url,
                     json=payload,
                     timeout=aiohttp.ClientTimeout(total=self.timeout)
                 ) as resp:
@@ -145,7 +387,8 @@ class VLLMAdapter:
                         return ""
 
                     data = await resp.json()
-                    return data["choices"][0]["message"]["content"]
+                    # lora-api-server-v3 응답 형식: {"adapter", "response", "tokens_generated", "accuracy"}
+                    return data.get("response", "")
 
         except Exception as e:
             logger.error(f"vLLM generation failed: {e}")
@@ -158,67 +401,168 @@ class VLLMAdapter:
         max_new_tokens: int = 512,
         temperature: float = 0.7,
         top_p: float = 0.9,
+        product: Optional[str] = None,  # Multi-LoRA 제품 지정
     ) -> AsyncGenerator[str, None]:
-        """스트리밍 응답 생성"""
-        messages = self._build_messages(question, context)
+        """
+        스트리밍 응답 생성 (Multi-LoRA v2 지원)
 
+        lora-api-server-v3는 스트리밍을 지원하지 않으므로,
+        전체 응답을 받아서 한 번에 yield합니다.
+
+        Args:
+            question: 사용자 질문
+            context: 추가 컨텍스트
+            max_new_tokens: 최대 생성 토큰
+            temperature: 샘플링 온도
+            product: Multi-LoRA 제품명 (예: "tibero7", "openframe_osc")
+        """
+        # 쿼리 기반 제품 감지를 항상 먼저 시도 (더 정확한 어댑터 선택)
+        detected_product = self.detect_product_from_query(question)
+        if detected_product:
+            product = detected_product
+            logger.info(f"Query-based product detection: '{detected_product}' from query")
+        elif not product:
+            product = None  # 기본 어댑터 사용
+
+        # Multi-LoRA 라우팅
+        base_url, model_name = self.get_url_for_product(product)
+
+        # lora-api-server-v3 API 형식 (v2 suffix 제거)
+        adapter_name = model_name.replace("_v2", "")
+
+        # context를 message에 통합 (lora-api-server-v3는 context 필드 미지원)
+        if context:
+            message = f"以下の参考資料に基づいて質問に回答してください。\n\n{context}\n\n質問: {question}"
+        else:
+            message = question
+
+        logger.info(f"generate_stream: product={product}, adapter={adapter_name}, context_len={len(context) if context else 0}")
+
+        # lora-api-server-v3 API: /chat endpoint (스트리밍 미지원, 전체 응답 반환)
         payload = {
-            "model": self.model,
-            "messages": messages,
+            "adapter": adapter_name,
+            "message": message,
             "max_tokens": max_new_tokens,
             "temperature": temperature,
-            "top_p": top_p,
-            "stream": True,
         }
 
         try:
+            # /v1 prefix 제거하고 /chat 엔드포인트 사용
+            chat_url = base_url.replace("/v1", "") + "/chat"
+
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"{self.base_url}/chat/completions",
+                    chat_url,
                     json=payload,
                     timeout=aiohttp.ClientTimeout(total=self.timeout)
                 ) as resp:
                     if resp.status != 200:
+                        error_text = await resp.text()
+                        logger.error(f"vLLM stream error: {resp.status} - {error_text}")
                         return
 
-                    async for line in resp.content:
-                        line = line.decode("utf-8").strip()
-                        if line.startswith("data: "):
-                            data_str = line[6:]
-                            if data_str == "[DONE]":
-                                break
-                            try:
-                                import json
-                                data = json.loads(data_str)
-                                delta = data["choices"][0].get("delta", {})
-                                if "content" in delta:
-                                    yield delta["content"]
-                            except:
-                                continue
+                    data = await resp.json()
+                    # lora-api-server-v3 응답 형식: {"adapter", "response", "tokens_generated", "accuracy"}
+                    response = data.get("response", "")
+                    if response:
+                        # 전체 응답을 한 번에 yield (스트리밍 미지원)
+                        yield response
+                        logger.info(f"Non-streaming response from {chat_url}, yielded {len(response)} chars")
 
         except Exception as e:
             logger.error(f"vLLM streaming failed: {e}")
 
-    def _build_messages(self, question: str, context: Optional[str] = None) -> list:
-        """OpenAI 형식 메시지 빌드"""
+    def _build_messages(
+        self,
+        question: str,
+        context: Optional[str] = None,
+        product: Optional[str] = None
+    ) -> list:
+        """
+        OpenAI 형식 메시지 빌드 (학습 데이터 형식 준수)
+
+        학습 데이터 형식과 정확히 일치하게 프롬프트를 구성합니다:
+        - system: "あなたはOpenFrame KMSのアシスタントです。技術的な質問に正確に回答してください。"
+        - user: "XXXとは何ですか？"
+
+        중요: context는 무시합니다 (모델이 학습 시 context 없이 학습됨)
+        """
+        # 학습 데이터와 동일한 시스템 프롬프트
+        system_prompt = "あなたはOpenFrame KMSのアシスタントです。技術的な質問に正確に回答してください。"
+
         messages = [
             {
                 "role": "system",
-                "content": "You are a helpful KMS assistant that provides accurate answers based on verified knowledge."
+                "content": system_prompt
             }
         ]
 
-        if context:
-            user_content = f"{question}\n\nContext:\n{context}"
-        else:
-            user_content = question
+        # 질문을 학습 데이터 형식에 맞게 정규화
+        user_content = question.strip()
+
+        # 이미 "とは何ですか" 형식인지 확인
+        if "とは何ですか" not in user_content:
+            user_content = f"{user_content}とは何ですか？"
 
         messages.append({
             "role": "user",
             "content": user_content
         })
 
+        logger.debug(f"_build_messages: '{question[:30]}...' -> '{user_content[:50]}...'")
+
         return messages
+
+    def _extract_core_content(self, context: str) -> str:
+        """컨텍스트에서 메타데이터를 제거하고 핵심 내용 추출"""
+        if not context:
+            return ""
+
+        lines = []
+        for line in context.split('\n'):
+            line = line.strip()
+            # 메타데이터 라인 제거
+            if line.startswith('[Document:') or line.startswith('[Cross-Product:'):
+                continue
+            if line.startswith('[Entity:'):
+                continue
+            if '**製品/Product**' in line or '**出典/Source**' in line:
+                continue
+            if line:
+                lines.append(line)
+
+        return '\n'.join(lines[:20])  # 최대 20줄
+
+    def _get_product_display_name(self, product: str) -> str:
+        """제품 ID를 표시 이름으로 변환"""
+        product_names = {
+            "openframe_base": "OpenFrame/Base",
+            "openframe_mvs": "OpenFrame/Base",
+            "openframe_osc": "OpenFrame/OSC",
+            "openframe_batch": "OpenFrame/Batch",
+            "openframe_vos3": "OpenFrame/VOS3",
+            "openframe_tacf": "OpenFrame/TACF",
+            "openframe_aim": "OpenFrame/AIM",
+            "openframe_hidb": "OpenFrame/HiDB",
+            "openframe_ndb": "OpenFrame/NDB",
+            "openframe_osi": "OpenFrame/OSI",
+            "openframe_gateway": "OpenFrame/Gateway",
+            "tibero7": "Tibero",
+            "tibero": "Tibero",
+            "jeus": "JEUS",
+            "tmax": "Tmax",
+            "webtob": "WebtoB",
+            "ofcobol": "OFCOBOL",
+            "ofasm": "OFASM",
+            "ofpli": "OFPLI",
+            "ofstudio": "OFStudio",
+            "ofminer": "OFMiner",
+            "ofmanager": "OFManager",
+            "prosort": "ProSort",
+            "prosync": "ProSync",
+            "protrieve": "ProTrieve",
+        }
+        return product_names.get(product.lower(), product)
 
     def _build_confidence_messages(
         self,
@@ -258,9 +602,10 @@ Format: [CODES: -5212, -9001] [TERMS: TJES, TACF] [COMMANDS: tjesmgr, hidbmgr]""
         max_new_tokens: int = 1024,
         temperature: float = 0.3,  # 낮은 temperature로 일관된 답변
         top_p: float = 0.9,
+        product: Optional[str] = None,  # Multi-LoRA 제품 지정
     ) -> LearningLLMResponse:
         """
-        신뢰도 점수와 함께 응답 생성
+        신뢰도 점수와 함께 응답 생성 (Multi-LoRA v2 지원)
 
         Fine-tuned Learning LLM이 학습된 도메인 지식을 바탕으로
         답변을 생성하고 신뢰도 점수를 반환합니다.
@@ -270,24 +615,41 @@ Format: [CODES: -5212, -9001] [TERMS: TJES, TACF] [COMMANDS: tjesmgr, hidbmgr]""
             context: 추가 컨텍스트 (선택)
             max_new_tokens: 최대 생성 토큰
             temperature: 샘플링 온도 (낮을수록 일관성)
+            product: Multi-LoRA 제품명 (예: "tibero7", "jeus", "openframe_base")
+                     지정하지 않으면 질문에서 자동 감지 시도
 
         Returns:
             LearningLLMResponse with answer, confidence, mentioned entities
         """
-        messages = self._build_confidence_messages(question, context)
+        # 쿼리 기반 제품 감지를 항상 먼저 시도 (더 정확한 어댑터 선택)
+        detected_product = self.detect_product_from_query(question)
+        if detected_product:
+            product = detected_product
+            logger.info(f"Query-based product detection: '{detected_product}' from query")
+        elif not product:
+            product = None  # 기본 어댑터 사용
 
+        # Multi-LoRA 라우팅
+        base_url, model_name = self.get_url_for_product(product)
+
+        # lora-api-server-v3 API 형식 (v2 suffix 제거)
+        adapter_name = model_name.replace("_v2", "")
+
+        # lora-api-server-v3 API: /chat endpoint
         payload = {
-            "model": self.model,
-            "messages": messages,
+            "adapter": adapter_name,
+            "message": question,
             "max_tokens": max_new_tokens,
             "temperature": temperature,
-            "top_p": top_p,
         }
 
         try:
+            # /v1 prefix 제거하고 /chat 엔드포인트 사용
+            chat_url = base_url.replace("/v1", "") + "/chat"
+
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"{self.base_url}/chat/completions",
+                    chat_url,
                     json=payload,
                     timeout=aiohttp.ClientTimeout(total=self.timeout)
                 ) as resp:
@@ -301,10 +663,22 @@ Format: [CODES: -5212, -9001] [TERMS: TJES, TACF] [COMMANDS: tjesmgr, hidbmgr]""
                         )
 
                     data = await resp.json()
-                    raw_answer = data["choices"][0]["message"]["content"]
+                    # lora-api-server-v3 응답 형식
+                    raw_answer = data.get("response", "")
+                    server_accuracy = data.get("accuracy", 0.0) / 100.0  # 0-100 -> 0-1
 
                     # Parse response to extract confidence and mentions
-                    return self._parse_confidence_response(raw_answer)
+                    response = self._parse_confidence_response(raw_answer)
+
+                    # 서버에서 반환한 accuracy를 confidence로 사용
+                    if server_accuracy > 0:
+                        response.confidence = server_accuracy
+
+                    # 사용된 어댑터 정보 추가
+                    if product:
+                        logger.info(f"Multi-LoRA response from {adapter_name} via {chat_url}, accuracy={server_accuracy:.2f}")
+
+                    return response
 
         except Exception as e:
             logger.error(f"vLLM confidence generation failed: {e}")
@@ -456,13 +830,26 @@ Format: [CODES: -5212, -9001] [TERMS: TJES, TACF] [COMMANDS: tjesmgr, hidbmgr]""
         return max(0.0, min(1.0, confidence))
 
     def get_status(self) -> Dict[str, Any]:
-        """상태 반환"""
+        """상태 반환 (Multi-LoRA v2 정보 포함)"""
         return {
             "type": "vllm",
             "is_loaded": self.is_loaded,
-            "base_url": self.base_url,
+            "base_url": MULTI_LORA_BASE_URL,
             "model": self.model,
             "current_adapter": self.current_adapter,
+            "multi_lora_v2": {
+                "enabled": True,
+                "server_url": MULTI_LORA_BASE_URL,
+                "adapters": [
+                    "tibero7_v2", "jeus_v2", "tmax_v2", "openframe_common_v2",
+                    "openframe_batch_v2", "webtob_v2", "openframe_vos3_v2", "openframe_osc_v2",
+                    "openframe_base_v2", "ofmanager_v2", "openframe_aim_v2", "protrieve_v2",
+                    "openframe_osi_v2", "openframe_tacf_v2", "openframe_gateway_v2", "ofpli_v2",
+                    "ofcobol_v2", "prosync_v2", "openframe_ndb_v2", "ofstudio_v2",
+                    "ofminer_v2", "prosort_v2", "openframe_hidb_v2", "ofasm_v2",
+                ],
+                "total_adapters": 24,
+            },
         }
 
 
