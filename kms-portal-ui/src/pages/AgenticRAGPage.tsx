@@ -2,6 +2,8 @@
  * Agentic RAG Page
  *
  * 제품별 Agent 기반 RAG 채팅 인터페이스
+ * - 동적 제품 발견 (uploads/manuals/)
+ * - 트리 드롭다운 (패밀리 > 버전)
  * - 다단계 질문 라우터 (확정/되묻기/매칭없음)
  * - 정형 질문: 템플릿 기반 응답 (환각 0%)
  * - 비정형 질문: LLM 생성 + 사후 검증 (🟢🟡🔴)
@@ -16,12 +18,14 @@ import {
   Trash2,
   Workflow,
   ChevronDown,
+  ChevronRight,
   Info,
   CheckCircle2,
   AlertTriangle,
   XCircle,
   FileText,
   Search,
+  FolderOpen,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -31,22 +35,9 @@ import type {
   ClarificationCandidate,
   VerifiedSentence,
   SSEEvent,
+  ProductGroup,
 } from '../api/agentic-rag.api';
 import './OpenAgentPage.css';
-
-// Product definitions
-const PRODUCTS = [
-  { id: 'auto', labelKey: 'Auto' },
-  { id: 'openframe_mvs', labelKey: 'OpenFrame MVS' },
-  { id: 'openframe_base', labelKey: 'OpenFrame Base' },
-  { id: 'msp_openframe', labelKey: 'MSP' },
-  { id: 'vos3_openframe', labelKey: 'VOS3' },
-  { id: 'tibero7', labelKey: 'Tibero 7' },
-  { id: 'ofasm', labelKey: 'OFASM' },
-  { id: 'ofcobol', labelKey: 'OFCOBOL' },
-  { id: 'xsp_openframe', labelKey: 'XSP' },
-  { id: 'tmax', labelKey: 'Tmax' },
-] as const;
 
 // Verification badge config
 const VERIFICATION_BADGE: Record<string, { icon: React.ReactNode; label: string; className: string }> = {
@@ -88,15 +79,80 @@ export const AgenticRAGPage: React.FC = () => {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState('auto');
+  const [selectedProductLabel, setSelectedProductLabel] = useState('Auto');
   const [showProductSelector, setShowProductSelector] = useState(false);
+  const [productGroups, setProductGroups] = useState<ProductGroup[]>([]);
+  const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Load product tree from API
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    client.get('/agentic-rag/products')
+      .then(res => {
+        const data = res.data;
+        if (data.success && data.products) {
+          setProductGroups(data.products);
+        }
+      })
+      .catch(() => {
+        // Fallback: empty groups
+      });
+  }, [isAuthenticated]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowProductSelector(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Get display label for a product_id
+  const getProductLabel = useCallback((productId: string): string => {
+    if (productId === 'auto') return 'Auto';
+    for (const group of productGroups) {
+      for (const v of group.versions) {
+        if (v.product_id === productId) {
+          return group.versions.length > 1
+            ? `${group.name} ${v.version}`
+            : group.name;
+        }
+      }
+    }
+    return productId;
+  }, [productGroups]);
+
+  // Toggle family expansion
+  const toggleFamily = (family: string) => {
+    setExpandedFamilies(prev => {
+      const next = new Set(prev);
+      if (next.has(family)) {
+        next.delete(family);
+      } else {
+        next.add(family);
+      }
+      return next;
+    });
+  };
+
+  // Select product
+  const selectProduct = (productId: string, label: string) => {
+    setSelectedProduct(productId);
+    setSelectedProductLabel(label);
+    setShowProductSelector(false);
+  };
 
   // Send message via SSE stream
   const sendMessage = useCallback(async (text: string, overrideProduct?: string) => {
@@ -177,7 +233,6 @@ export const AgenticRAGPage: React.FC = () => {
               break;
 
             case 'clarification_needed': {
-              // 되묻기 카드 표시
               const clarification: ChatMessage = {
                 id: `clarify-${Date.now()}`,
                 role: 'clarification',
@@ -192,7 +247,6 @@ export const AgenticRAGPage: React.FC = () => {
             }
 
             case 'search_progress':
-              // 검색 진행 상태 (UI 표시 가능)
               break;
 
             case 'template_response':
@@ -350,7 +404,7 @@ export const AgenticRAGPage: React.FC = () => {
                     onClick={() => handleClarificationSelect(candidate.product)}
                   >
                     <span className="clarification-product">
-                      {PRODUCTS.find(p => p.id === candidate.product)?.labelKey || candidate.product}
+                      {getProductLabel(candidate.product)}
                     </span>
                     <span className="clarification-confidence">
                       {Math.round(candidate.confidence * 100)}%
@@ -373,13 +427,34 @@ export const AgenticRAGPage: React.FC = () => {
               {msg.product && (
                 <div className="message-product-tag">
                   <Workflow size={14} />
-                  <span>{PRODUCTS.find(p => p.id === msg.product)?.labelKey || msg.product}</span>
+                  <span>{getProductLabel(msg.product)}</span>
                   {msg.queryType && (
                     <span className="message-query-type">{msg.queryType}</span>
                   )}
                 </div>
               )}
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  table: ({ children, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
+                    <div className="markdown-table-wrapper">
+                      <table {...props}>{children}</table>
+                    </div>
+                  ),
+                  img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
+                    <div className="markdown-image-wrapper">
+                      <img
+                        src={src}
+                        alt={alt || ''}
+                        loading="lazy"
+                        onClick={() => src && window.open(src, '_blank')}
+                        {...props}
+                      />
+                      {alt && <span className="markdown-image-caption">{alt}</span>}
+                    </div>
+                  ),
+                }}
+              >
                 {msg.content}
               </ReactMarkdown>
               {msg.verification && msg.verification.length > 0 && (
@@ -417,6 +492,81 @@ export const AgenticRAGPage: React.FC = () => {
     );
   };
 
+  // Render product tree dropdown
+  const renderProductTree = () => (
+    <div className="product-tree-dropdown">
+      {/* Auto option */}
+      <button
+        className={`product-tree-item ${selectedProduct === 'auto' ? 'active' : ''}`}
+        onClick={() => selectProduct('auto', 'Auto')}
+      >
+        <Search size={14} />
+        <span>{t('common.agenticRag.autoProduct') || 'Auto'}</span>
+      </button>
+      <div className="product-tree-separator" />
+      {/* Product families */}
+      {productGroups.map(group => (
+        <div key={group.name} className="product-tree-family">
+          {group.versions.length === 1 ? (
+            // Single version: click selects directly
+            <button
+              className={`product-tree-item ${selectedProduct === group.versions[0].product_id ? 'active' : ''}`}
+              onClick={() => selectProduct(
+                group.versions[0].product_id,
+                group.name,
+              )}
+            >
+              <FolderOpen size={14} />
+              <span>{group.name}</span>
+              <span className="product-tree-meta">
+                {group.versions[0].pdf_count} PDFs
+              </span>
+            </button>
+          ) : (
+            // Multiple versions: expandable
+            <>
+              <button
+                className="product-tree-item product-tree-group"
+                onClick={() => toggleFamily(group.name)}
+              >
+                {expandedFamilies.has(group.name)
+                  ? <ChevronDown size={14} />
+                  : <ChevronRight size={14} />
+                }
+                <span>{group.name}</span>
+                <span className="product-tree-meta">
+                  {group.versions.length} {t('common.agenticRag.version') || 'ver'}
+                </span>
+              </button>
+              {expandedFamilies.has(group.name) && (
+                <div className="product-tree-versions">
+                  {group.versions.map(v => (
+                    <button
+                      key={v.product_id}
+                      className={`product-tree-item product-tree-version ${selectedProduct === v.product_id ? 'active' : ''}`}
+                      onClick={() => selectProduct(
+                        v.product_id,
+                        `${group.name} ${v.version}`,
+                      )}
+                    >
+                      <span className="product-tree-version-label">
+                        {v.version}
+                        {v.doc_version && <span className="product-tree-doc-ver">(v{v.doc_version})</span>}
+                      </span>
+                      <span className="product-tree-meta">
+                        {v.language} · {v.pdf_count} PDFs
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="openagent-page">
       {/* Header */}
@@ -428,36 +578,21 @@ export const AgenticRAGPage: React.FC = () => {
               {t('common.nav.agenticRag') || 'Agentic RAG'}
             </h1>
             <p className="openagent-subtitle">
-              製品別エージェント基盤のRAGシステム
+              {t('common.agenticRag.subtitle') || '製品別エージェント基盤のRAGシステム'}
             </p>
           </div>
         </div>
         <div className="openagent-header-right">
           {/* Product Selector */}
-          <div className="product-selector-wrapper">
+          <div className="product-selector-wrapper" ref={dropdownRef}>
             <button
               className="product-selector-button"
               onClick={() => setShowProductSelector(!showProductSelector)}
             >
-              <span>{PRODUCTS.find(p => p.id === selectedProduct)?.labelKey || 'Auto'}</span>
+              <span>{selectedProductLabel}</span>
               <ChevronDown size={16} />
             </button>
-            {showProductSelector && (
-              <div className="product-selector-dropdown">
-                {PRODUCTS.map(product => (
-                  <button
-                    key={product.id}
-                    className={`product-selector-item ${selectedProduct === product.id ? 'active' : ''}`}
-                    onClick={() => {
-                      setSelectedProduct(product.id);
-                      setShowProductSelector(false);
-                    }}
-                  >
-                    {product.labelKey}
-                  </button>
-                ))}
-              </div>
-            )}
+            {showProductSelector && renderProductTree()}
           </div>
           <button
             className="openagent-btn-icon"
@@ -474,9 +609,9 @@ export const AgenticRAGPage: React.FC = () => {
         {messages.length === 0 ? (
           <div className="openagent-empty">
             <Workflow size={48} style={{ opacity: 0.3 }} />
-            <p>製品に関する技術的な質問を入力してください</p>
+            <p>{t('common.agenticRag.emptyState') || '製品に関する技術的な質問を入力してください'}</p>
             <p style={{ fontSize: '0.85rem', opacity: 0.6 }}>
-              コマンド使用法、エラーコード、設定方法など
+              {t('common.agenticRag.emptyHint') || 'コマンド使用法、エラーコード、設定方法など'}
             </p>
           </div>
         ) : (
@@ -501,7 +636,7 @@ export const AgenticRAGPage: React.FC = () => {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="質問を入力してください..."
+            placeholder={t('common.agenticRag.inputPlaceholder') || '質問を入力してください...'}
             rows={1}
             disabled={isStreaming}
           />

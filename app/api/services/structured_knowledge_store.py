@@ -15,11 +15,10 @@ from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# 프로젝트 루트 기준 요약본 경로
-SUMMARIES_BASE = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
-    "uploads", "summaries",
-)
+# 프로젝트 루트 기준 경로
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+SUMMARIES_BASE = os.path.join(_PROJECT_ROOT, "uploads", "summaries")
+IMAGES_BASE = os.path.join(_PROJECT_ROOT, "uploads", "pdf_images")
 
 
 @dataclass
@@ -32,6 +31,7 @@ class SearchResult:
     relevance_score: float = 0.0
     domain: str = ""  # commands, error_codes, configs, glossary
     product: str = ""  # 검색 출처 Agent (cross-agent 검색 시 사용)
+    source_path: str = ""  # 원본 PDF 전체 경로 (lazy table/image extraction용)
 
 
 @dataclass
@@ -156,6 +156,52 @@ class StructuredKnowledgeStore:
     _HEADING_PATTERN = re.compile(r'^(\d+\.)+\s+\S')
     _MAX_SECTION_CHARS = 8000  # 메모리 관리: 섹션당 최대 문자 수
 
+    @staticmethod
+    def _table_to_markdown(table_data: list) -> str:
+        """PyMuPDF table.extract() 결과를 GFM Markdown 테이블로 변환"""
+        if not table_data or len(table_data) < 2:
+            return ""
+        rows = [[str(c).replace("\n", " ") if c else "" for c in row] for row in table_data]
+        max_cols = max(len(r) for r in rows)
+        rows = [r + [""] * (max_cols - len(r)) for r in rows]
+        header = "| " + " | ".join(rows[0]) + " |"
+        sep = "| " + " | ".join("---" for _ in range(max_cols)) + " |"
+        body = "\n".join("| " + " | ".join(r) + " |" for r in rows[1:])
+        return f"{header}\n{sep}\n{body}"
+
+    @staticmethod
+    def _extract_page_images(doc, page_num: int, product_id: str) -> List[str]:
+        """페이지에서 이미지를 추출하여 파일로 저장, Markdown 이미지 참조 반환"""
+        import pymupdf
+        results = []
+        page = doc[page_num]
+        images = page.get_images(full=True)
+
+        for img_idx, img_info in enumerate(images):
+            xref = img_info[0]
+            try:
+                pix = pymupdf.Pixmap(doc, xref)
+                if pix.n > 4:  # CMYK → RGB
+                    pix = pymupdf.Pixmap(pymupdf.csRGB, pix)
+
+                # 너무 작은 이미지 스킵 (아이콘 등)
+                if pix.width < 50 or pix.height < 50:
+                    continue
+
+                img_dir = os.path.join(IMAGES_BASE, product_id)
+                os.makedirs(img_dir, exist_ok=True)
+                filename = f"p{page_num + 1}_img{img_idx}.png"
+                filepath = os.path.join(img_dir, filename)
+
+                if not os.path.exists(filepath):
+                    pix.save(filepath)
+
+                img_url = f"/uploads/pdf_images/{product_id}/{filename}"
+                results.append(f"![Figure (p.{page_num + 1})]({img_url})")
+            except Exception:
+                continue
+        return results
+
     def _parse_pdf(self, filepath: str, domain: str) -> List[Dict]:
         """PDF 파일을 섹션 단위로 파싱 (PyMuPDF 사용)"""
         sections = []
@@ -176,24 +222,41 @@ class StructuredKnowledgeStore:
         # TOC 기반 섹션 분할 시도
         toc = doc.get_toc()
         if toc and len(toc) >= 3:
-            sections = self._parse_pdf_by_toc(doc, toc, filename, domain)
+            sections = self._parse_pdf_by_toc(doc, toc, filename, domain, filepath)
         else:
             # TOC 없으면 heading 패턴 기반 fallback
-            sections = self._parse_pdf_by_headings(doc, filename, domain)
+            sections = self._parse_pdf_by_headings(doc, filename, domain, filepath)
 
         doc.close()
         return sections
 
     def _parse_pdf_by_toc(
-        self, doc, toc: list, filename: str, domain: str,
+        self, doc, toc: list, filename: str, domain: str, filepath: str = "",
     ) -> List[Dict]:
-        """TOC 기반 PDF 섹션 분할"""
+        """TOC 기반 PDF 섹션 분할 (L1/L2 중복 방지)"""
         sections = []
         total_pages = len(doc)
+
+        # L1 섹션 중 L2 자식이 있는 것을 미리 파악
+        l1_with_children: set = set()
+        for i, (level, title, page_num) in enumerate(toc):
+            if level != 1:
+                continue
+            for j in range(i + 1, len(toc)):
+                if toc[j][0] == 1:
+                    break  # 다음 L1 → 자식 없음
+                if toc[j][0] == 2:
+                    l1_with_children.add(i)
+                    break
 
         for i, (level, title, page_num) in enumerate(toc):
             if level > 2:
                 continue  # 3단계 이하 무시
+
+            # L1에 L2 자식이 있으면 스킵 (L2가 세분화된 콘텐츠 제공)
+            if level == 1 and i in l1_with_children:
+                continue
+
             # 다음 TOC 항목의 페이지 번호
             next_page = total_pages
             for j in range(i + 1, len(toc)):
@@ -222,12 +285,13 @@ class StructuredKnowledgeStore:
                     "source_file": filename,
                     "source_page": f"p.{page_num}",
                     "domain": domain,
+                    "source_path": filepath,
                 })
 
         return sections
 
     def _parse_pdf_by_headings(
-        self, doc, filename: str, domain: str,
+        self, doc, filename: str, domain: str, filepath: str = "",
     ) -> List[Dict]:
         """Heading 패턴 기반 PDF 섹션 분할 (TOC 없을 때)"""
         sections = []
@@ -259,6 +323,7 @@ class StructuredKnowledgeStore:
                                 "source_file": filename,
                                 "source_page": f"p.{current_page}",
                                 "domain": domain,
+                                "source_path": filepath,
                             })
                     current_title = stripped
                     current_content = []
@@ -276,6 +341,7 @@ class StructuredKnowledgeStore:
                     "source_file": filename,
                     "source_page": f"p.{current_page}",
                     "domain": domain,
+                    "source_path": filepath,
                 })
 
         return sections
@@ -346,17 +412,26 @@ class StructuredKnowledgeStore:
 
         return sections
 
-    # 불용어 (일본어 조사 + 영어 관사/전치사)
+    # 불용어 (일본어 조사/기능어구 + 영어 관사/전치사)
     _STOPWORDS = frozenset([
         # 일본어 조사·접속사
         "の", "は", "が", "を", "に", "で", "と", "も", "や", "か",
         "へ", "から", "まで", "より", "ね", "よ", "わ", "な", "け",
         "って", "ので", "のに", "けど", "だけ", "しか", "ばかり",
+        # 일본어 기능어구 (검색 질의에서 토픽 의미 없음)
+        "について", "してください", "ください", "とは", "ことが",
+        "ている", "された", "される", "している", "できる",
+        "ものです", "ことです", "あります", "ありません",
+        "ですか", "ますか", "ません", "でしょう",
+        "ました", "しました", "なります", "おける",
+        "どのよう", "どうすれ", "なぜ", "いつ",
+        "教えて", "説明して", "知りたい",
         # 영어 불용어
         "the", "a", "an", "of", "in", "on", "at", "to", "for",
         "is", "are", "was", "were", "be", "and", "or", "not",
         "it", "this", "that", "with", "from", "by", "as",
         "about", "what", "how", "do", "does",
+        "tell", "me", "explain", "please", "describe",
     ])
 
     def _tokenize_query(self, query: str) -> List[str]:
@@ -514,6 +589,23 @@ class StructuredKnowledgeStore:
                 coverage_factor = 0.5 + 0.5 * coverage
                 cand["score"] *= coverage_factor
 
+        # 도메인 우선순위 보정: 권위 있는 소스를 learning_qa보다 우선 배치.
+        # error_codes는 에러코드 패턴(-XXXX)이 있을 때만 부스트 (일반 질문에서 에러코드 오염 방지)
+        _has_error_pattern = bool(error_codes)
+        _DOMAIN_BOOST = {
+            "pdf_manuals": 1.4,  # PDF 원본 최우선 (정확한 원본 데이터)
+            "commands": 1.3,
+            "configs": 1.2,
+            "error_codes": 1.3 if _has_error_pattern else 0.7,  # 에러 질문이 아니면 감점
+            "glossary": 0.9,  # 요약본은 중복/노이즈 가능성 → PDF 우선
+            "learning_qa": 0.8,  # cross-product 오염 가능성 → 감점
+        }
+        for key, cand in candidates.items():
+            domain = key[0]
+            boost = _DOMAIN_BOOST.get(domain, 1.0)
+            if boost != 1.0 and cand["score"] > 0:
+                cand["score"] *= boost
+
         # 최종 결과 수집 + content 중복 제거
         results: List[SearchResult] = []
         seen_content: set = set()
@@ -544,6 +636,8 @@ class StructuredKnowledgeStore:
                 source_page=section.get("source_page", ""),
                 relevance_score=cand["score"],
                 domain=section["domain"],
+                product=self.product_id,
+                source_path=section.get("source_path", ""),
             ))
 
             if len(results) >= top_k:
@@ -555,3 +649,116 @@ class StructuredKnowledgeStore:
         """도메인별 섹션 수 반환"""
         self._ensure_loaded()
         return {domain: len(sections) for domain, sections in self._cache.items()}
+
+
+def _resolve_pdf_path_and_page(result: SearchResult):
+    """
+    SearchResult에서 PDF 경로와 페이지 번호를 해석.
+
+    두 가지 소스를 처리:
+    1. PDF 직접 파싱 결과: source_path 있음, source_page="p.45"
+    2. 요약본(.md) 결과: source_path 없음, source_page="소스: XXX.pdf (p.45)"
+
+    Returns:
+        (pdf_path, page_num_0indexed) or (None, -1)
+    """
+    # Case 1: PDF 직접 파싱 결과
+    if result.source_path and result.source_file.lower().endswith(".pdf"):
+        page_match = re.match(r"p\.(\d+)", result.source_page or "")
+        if page_match:
+            return result.source_path, int(page_match.group(1)) - 1
+        return None, -1
+
+    # Case 2: 요약본(.md) → source_page에서 PDF 파일명과 페이지 추출
+    source_page = result.source_page or ""
+    # "소스: OF_Batch_MVS_7.1_TJES-Guide_v3.1.3_jp.pdf (p.21)" 패턴
+    pdf_ref = re.search(r"([A-Za-z0-9_\-][A-Za-z0-9_.\-]+\.pdf)\s*\(p\.(\d+)\)", source_page)
+    if not pdf_ref:
+        # content 내 "- 소스: ..." 패턴도 검색
+        pdf_ref = re.search(r"([A-Za-z0-9_\-][A-Za-z0-9_.\-]+\.pdf)\s*\(p\.(\d+)\)", result.content or "")
+    if not pdf_ref:
+        return None, -1
+
+    pdf_filename = pdf_ref.group(1)
+    page_num = int(pdf_ref.group(2)) - 1
+
+    # ManualRegistry에서 PDF 전체 경로 찾기
+    from .manual_registry_service import get_manual_registry_service, MANUALS_BASE
+
+    registry = get_manual_registry_service()
+    all_products = registry.get_all_products()
+
+    # product 힌트가 있으면 해당 제품 디렉토리 먼저 검색
+    search_order = []
+    if result.product and result.product in all_products:
+        search_order.append(all_products[result.product])
+    for pid, prod in all_products.items():
+        if pid != result.product:
+            search_order.append(prod)
+
+    for prod in search_order:
+        candidate = os.path.join(prod.directory_path, pdf_filename)
+        if os.path.exists(candidate):
+            return candidate, page_num
+
+    # MANUALS_BASE 전체에서 재귀 검색 (fallback)
+    for root, _dirs, files in os.walk(MANUALS_BASE):
+        if pdf_filename in files:
+            return os.path.join(root, pdf_filename), page_num
+
+    return None, -1
+
+
+def enrich_content_with_tables(result: SearchResult) -> str:
+    """
+    검색 결과의 content를 테이블 Markdown으로 보강 (lazy extraction).
+
+    PDF 직접 파싱 결과와 요약본(.md) 결과 모두 지원:
+    - PDF 결과: source_path + source_page="p.45"
+    - 요약본 결과: source_page="소스: XXX.pdf (p.21)" → PDF 역추적
+    """
+    content = result.content
+
+    pdf_path, page_num = _resolve_pdf_path_and_page(result)
+    if not pdf_path or page_num < 0:
+        return content
+
+    try:
+        import pymupdf
+        doc = pymupdf.open(pdf_path)
+        if page_num >= len(doc):
+            doc.close()
+            return content
+
+        # 해당 페이지만 스캔 (인접 페이지의 무관한 테이블/이미지 방지)
+        tables_md = []
+        try:
+            tables = doc[page_num].find_tables()
+            for table in tables:
+                data = table.extract()
+                md = StructuredKnowledgeStore._table_to_markdown(data)
+                if md:
+                    tables_md.append(md)
+        except Exception:
+            pass
+
+        images_md = []
+        try:
+            imgs = StructuredKnowledgeStore._extract_page_images(
+                doc, page_num, result.product or "unknown",
+            )
+            images_md.extend(imgs)
+        except Exception:
+            pass
+
+        doc.close()
+
+        if tables_md:
+            content += "\n\n" + "\n\n".join(tables_md)
+        if images_md:
+            content += "\n\n" + "\n".join(images_md)
+
+    except Exception as e:
+        logger.debug(f"Lazy table extraction failed for {result.source_file}: {e}")
+
+    return content

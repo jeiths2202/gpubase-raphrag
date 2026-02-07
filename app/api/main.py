@@ -37,7 +37,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management, agent_navigation, agent_session, clarification, verified_knowledge, openagent, openframe_rag, admin_scoring, admin_prompts, query_rag
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management, agent_navigation, agent_session, clarification, verified_knowledge, openagent, openframe_rag, admin_scoring, admin_prompts, query_rag, agentic_rag
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 from .admin_dashboard.router import router as admin_dashboard_router
 
@@ -81,9 +81,11 @@ async def lifespan(app: FastAPI):
     # ==================== PostgreSQL Auth Service Initialization ====================
     # Initialize PostgreSQL-backed authentication service
     from .services.auth_service import initialize_auth_service
+    _pg_available = False
     try:
         dsn = api_settings.get_postgres_dsn()
         auth_service = await initialize_auth_service(dsn)
+        _pg_available = True
         logger.info(
             "[OK] PostgreSQL-backed authentication initialized",
             category=LogCategory.BUSINESS,
@@ -93,11 +95,11 @@ async def lifespan(app: FastAPI):
             }
         )
     except Exception as e:
-        logger.error(
-            f"FATAL: Auth service initialization failed: {e}",
+        logger.warning(
+            f"Auth service initialization failed (degraded mode): {e}",
             category=LogCategory.BUSINESS
         )
-        raise  # Application should not start without authentication
+        # App continues in degraded mode - auth-dependent endpoints will return 503
 
     # ==================== Database Pool Initialization ====================
     # Initialize PostgreSQL connection pool for conversation repository
@@ -107,7 +109,10 @@ async def lifespan(app: FastAPI):
 
     db_pool = None
     conversation_repo = None
-    try:
+    trace_writer = None
+    task_queue = None
+    if _pg_available:
+      try:
         dsn = api_settings.get_postgres_dsn()
         db_pool = await asyncpg.create_pool(
             dsn,
@@ -516,12 +521,16 @@ async def lifespan(app: FastAPI):
                 category=LogCategory.BUSINESS
             )
 
-    except Exception as e:
-        logger.error(
-            f"FATAL: PostgreSQL pool initialization failed: {e}",
+      except Exception as e:
+        logger.warning(
+            f"PostgreSQL pool initialization failed (degraded mode): {e}",
             category=LogCategory.BUSINESS
         )
-        raise RuntimeError(f"PostgreSQL connection required but failed: {e}")
+    else:
+        logger.warning(
+            "PostgreSQL unavailable - skipping DB-dependent service initialization",
+            category=LogCategory.BUSINESS
+        )
 
     # ==================== Background Task Queue Initialization ====================
     from .ims_crawler.infrastructure.services import get_task_queue
@@ -767,6 +776,16 @@ app.include_router(openframe_rag.router, prefix=API_PREFIX)  # OpenFrame RAG: QL
 app.include_router(admin_scoring.router, prefix=API_PREFIX)  # Admin Scoring Configuration (RRF, Boost, Confidence)
 app.include_router(admin_prompts.router, prefix=API_PREFIX)  # Admin Prompt Configuration (System Prompts Management)
 app.include_router(query_rag.router)  # RAG Anti-Hallucination Query (prefix already in router)
+app.include_router(agentic_rag.router, prefix=API_PREFIX)  # Agentic RAG: Product-specific Agent-based RAG
+
+# Static file serving for PDF-extracted images
+from starlette.staticfiles import StaticFiles as _StaticFiles
+_pdf_images_path = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "uploads", "pdf_images",
+)
+os.makedirs(_pdf_images_path, exist_ok=True)
+app.mount("/uploads/pdf_images", _StaticFiles(directory=_pdf_images_path), name="pdf_images")
 
 
 # Root endpoint

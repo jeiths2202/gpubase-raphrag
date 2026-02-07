@@ -301,6 +301,12 @@ class AgenticRAGService:
             request.language or "ja",
         )
 
+        # LLM 응답에 테이블 보충
+        if llm_response and search_context.structured_results:
+            table_supplement = self._build_table_supplement(search_context.structured_results)
+            if table_supplement:
+                llm_response += table_supplement
+
         verification = None
         if llm_response and search_context.structured_results:
             verification = self.response_verifier.verify(
@@ -462,6 +468,13 @@ class AgenticRAGService:
             full_response += token
             yield {"type": "llm_token", "token": token}
 
+        # LLM 응답 후 테이블 보충 (LLM이 재현하지 못한 표 데이터 추가)
+        if search_context.structured_results:
+            table_supplement = self._build_table_supplement(search_context.structured_results)
+            if table_supplement:
+                yield {"type": "llm_token", "token": table_supplement}
+                full_response += table_supplement
+
         # 사후 검증
         if full_response and search_context.structured_results:
             verification = self.response_verifier.verify(
@@ -526,7 +539,7 @@ class AgenticRAGService:
             result = await llm_service.generate(
                 question=query,
                 context=context,
-                max_tokens=1024,
+                max_tokens=2048,
                 temperature=0.3,
                 product=adapter_product,
             )
@@ -578,7 +591,7 @@ class AgenticRAGService:
             async for token in llm_service.generate_stream(
                 question=query,
                 context=context,
-                max_tokens=1024,
+                max_tokens=2048,
                 temperature=0.3,
                 product=adapter_product,
             ):
@@ -591,28 +604,44 @@ class AgenticRAGService:
             ) if search_context.structured_results else f"生成エラー: {str(e)}"
             yield fallback
 
+    # LLM 컨텍스트 총 문자 수 제한 (모델 context window 고려, ~1500 tokens)
+    _MAX_LLM_CONTEXT_CHARS = 4000
+
     def _build_llm_context(self, results) -> str:
-        """검색 결과를 LLM 컨텍스트 문자열로 변환"""
+        """검색 결과를 LLM 컨텍스트 문자열로 변환 (테이블 포함, 예산 관리)"""
         if not results:
             return ""
+        from .structured_knowledge_store import enrich_content_with_tables
+
         top_score = results[0].relevance_score if results else 0
         threshold = top_score * 0.5
         filtered = [r for r in results[:5] if r.relevance_score >= threshold]
         if not filtered:
             filtered = results[:1]
+
         parts = []
+        total_chars = 0
+        per_result_limit = min(2000, self._MAX_LLM_CONTEXT_CHARS // max(len(filtered), 1))
+
         for i, r in enumerate(filtered, 1):
-            content = r.content or ""
-            if len(content) > 2000:
-                content = content[:2000] + "..."
+            if total_chars >= self._MAX_LLM_CONTEXT_CHARS:
+                break
+            content = enrich_content_with_tables(r)
+            if len(content) > per_result_limit:
+                content = content[:per_result_limit] + "..."
             source = f" (出典: {r.source_file})" if r.source_file else ""
-            parts.append(f"[参考資料 {i}: {r.title}{source}]\n{content}")
+            part = f"[参考資料 {i}: {r.title}{source}]\n{content}"
+            parts.append(part)
+            total_chars += len(part)
+
         return "\n\n---\n\n".join(parts)
 
     def _fallback_from_structured(self, results) -> str:
         """구조화 결과로 폴백 응답 생성 (가독성 개선)"""
         if not results:
             return ""
+        from .structured_knowledge_store import enrich_content_with_tables
+
         top_score = results[0].relevance_score if results else 0
         threshold = top_score * 0.5
         filtered = [r for r in results[:3] if r.relevance_score >= threshold]
@@ -620,15 +649,85 @@ class AgenticRAGService:
             filtered = results[:1]
         parts = []
         for r in filtered:
-            content = r.content or ""
-            if len(content) > 1000:
-                cut = content[:1000]
+            content = enrich_content_with_tables(r)
+            if len(content) > 2000:
+                cut = content[:2000]
                 last_break = max(cut.rfind('。'), cut.rfind('\n'), cut.rfind('. '))
-                if last_break > 500:
+                if last_break > 800:
                     cut = cut[:last_break + 1]
                 content = cut + "\n..."
             parts.append(f"### {r.title}\n\n{content}")
-        return "\n\n---\n\n".join(parts)
+
+        output = "\n\n---\n\n".join(parts)
+
+        # 중복 행 제거 (여러 검색 결과 간 페이지 겹침으로 인한 중복 방지)
+        seen_lines: set = set()
+        deduped: list = []
+        for line in output.split('\n'):
+            stripped = line.strip()
+            if len(stripped) > 30:
+                if stripped in seen_lines:
+                    continue
+                seen_lines.add(stripped)
+            deduped.append(line)
+        return '\n'.join(deduped)
+
+    def _build_table_supplement(self, results) -> str:
+        """LLM 응답 후 검색 결과의 테이블과 이미지를 보충 자료로 추가"""
+        from .structured_knowledge_store import (
+            _resolve_pdf_path_and_page,
+            StructuredKnowledgeStore,
+        )
+
+        tables_md: list = []
+        images_md: list = []
+        seen_tables: set = set()
+        seen_images: set = set()
+
+        for r in results[:3]:
+            pdf_path, page_num = _resolve_pdf_path_and_page(r)
+            if not pdf_path or page_num < 0:
+                continue
+            try:
+                import pymupdf
+                doc = pymupdf.open(pdf_path)
+                product_id = r.product or "unknown"
+                # 해당 페이지 + 다음 1페이지만 스캔 (인접 무관 테이블 방지)
+                for p in range(page_num, min(page_num + 2, len(doc))):
+                    try:
+                        tables = doc[p].find_tables()
+                        for table in tables:
+                            data = table.extract()
+                            md = StructuredKnowledgeStore._table_to_markdown(data)
+                            if md and md not in seen_tables:
+                                seen_tables.add(md)
+                                tables_md.append(md)
+                    except Exception:
+                        pass
+                    try:
+                        imgs = StructuredKnowledgeStore._extract_page_images(
+                            doc, p, product_id,
+                        )
+                        for img_md in imgs:
+                            if img_md not in seen_images:
+                                seen_images.add(img_md)
+                                images_md.append(img_md)
+                    except Exception:
+                        pass
+                doc.close()
+            except Exception:
+                continue
+
+        parts: list = []
+        if tables_md:
+            parts.append("**参考テーブル:**\n\n" + "\n\n".join(tables_md[:5]))
+        if images_md:
+            parts.append("**参考図:**\n\n" + "\n\n".join(images_md[:8]))
+
+        if not parts:
+            return ""
+
+        return "\n\n---\n\n" + "\n\n".join(parts)
 
     def _map_product_for_llm(self, product_id: str) -> str:
         """동적 product_id를 VLLMAdapter가 인식할 수 있는 제품명으로 변환"""
