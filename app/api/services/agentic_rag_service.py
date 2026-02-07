@@ -205,6 +205,7 @@ class AgenticRAGService:
         elif request.product == "auto":
             router_result = self.query_router.classify(
                 request.message, request.language or "ja",
+                history=request.history,
             )
             product_id = router_result.product
         else:
@@ -299,6 +300,7 @@ class AgenticRAGService:
             product_id,
             search_context,
             request.language or "ja",
+            history=request.history,
         )
 
         # LLM 응답에 테이블 보충
@@ -346,6 +348,7 @@ class AgenticRAGService:
         elif request.product == "auto":
             router_result = self.query_router.classify(
                 request.message, request.language or "ja",
+                history=request.history,
             )
             product_id = router_result.product
         else:
@@ -464,6 +467,7 @@ class AgenticRAGService:
         full_response = ""
         async for token in self._stream_llm(
             request.message, product_id, search_context, request.language or "ja",
+            history=request.history,
         ):
             full_response += token
             yield {"type": "llm_token", "token": token}
@@ -510,6 +514,7 @@ class AgenticRAGService:
         product_id: str,
         search_context,
         language: str,
+        history=None,
     ) -> Optional[str]:
         """LLM으로 비정형 응답 생성"""
         try:
@@ -530,7 +535,7 @@ class AgenticRAGService:
                 return None
 
             adapter_product = self._map_product_for_llm(product_id)
-            context = self._build_llm_context(search_context.structured_results)
+            context = self._build_llm_context(search_context.structured_results, history=history)
             logger.info(
                 f"LLM generate: product={product_id}, adapter_product={adapter_product}, "
                 f"context_len={len(context)}"
@@ -560,6 +565,7 @@ class AgenticRAGService:
         product_id: str,
         search_context,
         language: str,
+        history=None,
     ) -> AsyncGenerator[str, None]:
         """LLM 스트리밍 생성"""
         try:
@@ -582,7 +588,7 @@ class AgenticRAGService:
                 return
 
             adapter_product = self._map_product_for_llm(product_id)
-            context = self._build_llm_context(search_context.structured_results)
+            context = self._build_llm_context(search_context.structured_results, history=history)
             logger.info(
                 f"LLM streaming: product={product_id}, adapter_product={adapter_product}, "
                 f"context_len={len(context)}"
@@ -606,11 +612,18 @@ class AgenticRAGService:
 
     # LLM 컨텍스트 총 문자 수 제한 (모델 context window 고려, ~1500 tokens)
     _MAX_LLM_CONTEXT_CHARS = 4000
+    _MAX_HISTORY_CHARS = 800
 
-    def _build_llm_context(self, results) -> str:
-        """검색 결과를 LLM 컨텍스트 문자열로 변환 (테이블 포함, 예산 관리)"""
+    def _build_llm_context(self, results, history=None) -> str:
+        """검색 결과를 LLM 컨텍스트 문자열로 변환 (대화 이력 + 테이블 포함, 예산 관리)"""
+        # 대화 이력 포맷팅
+        history_section = self._format_history_for_context(history)
+        history_len = len(history_section)
+        search_budget = self._MAX_LLM_CONTEXT_CHARS - history_len
+
         if not results:
-            return ""
+            return history_section
+
         from .structured_knowledge_store import enrich_content_with_tables
 
         top_score = results[0].relevance_score if results else 0
@@ -621,10 +634,10 @@ class AgenticRAGService:
 
         parts = []
         total_chars = 0
-        per_result_limit = min(2000, self._MAX_LLM_CONTEXT_CHARS // max(len(filtered), 1))
+        per_result_limit = min(2000, search_budget // max(len(filtered), 1))
 
         for i, r in enumerate(filtered, 1):
-            if total_chars >= self._MAX_LLM_CONTEXT_CHARS:
+            if total_chars >= search_budget:
                 break
             content = enrich_content_with_tables(r)
             if len(content) > per_result_limit:
@@ -634,7 +647,48 @@ class AgenticRAGService:
             parts.append(part)
             total_chars += len(part)
 
-        return "\n\n---\n\n".join(parts)
+        search_section = "\n\n---\n\n".join(parts)
+
+        if history_section and search_section:
+            return history_section + "\n\n" + search_section
+        return search_section or history_section
+
+    def _format_history_for_context(self, history) -> str:
+        """대화 이력을 LLM 컨텍스트용 텍스트로 포맷 (최근 2~3턴, 예산 내)"""
+        if not history:
+            return ""
+
+        # 최근 3턴(user+assistant 쌍) = 최대 6메시지를 역순으로 수집
+        recent_messages = []
+        for msg in reversed(history):
+            if len(recent_messages) >= 6:
+                break
+            role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", None)
+            content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", None)
+            if role and content:
+                recent_messages.append((role, content))
+
+        if not recent_messages:
+            return ""
+
+        # 원래 순서로 복원
+        recent_messages.reverse()
+
+        lines = ["[会話履歴]"]
+        total = len(lines[0])
+        for role, content in recent_messages:
+            label = "ユーザー" if role == "user" else "アシスタント"
+            # 개별 메시지 길이 제한
+            truncated = content[:300] if len(content) > 300 else content
+            line = f"{label}: {truncated}"
+            if total + len(line) + 1 > self._MAX_HISTORY_CHARS:
+                break
+            lines.append(line)
+            total += len(line) + 1
+
+        if len(lines) <= 1:
+            return ""
+        return "\n".join(lines)
 
     def _fallback_from_structured(self, results) -> str:
         """구조화 결과로 폴백 응답 생성 (가독성 개선)"""

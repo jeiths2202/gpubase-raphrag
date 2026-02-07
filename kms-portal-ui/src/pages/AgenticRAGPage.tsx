@@ -26,6 +26,9 @@ import {
   FileText,
   Search,
   FolderOpen,
+  MessageCircle,
+  Terminal,
+  Settings,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -429,7 +432,13 @@ export const AgenticRAGPage: React.FC = () => {
                   <Workflow size={14} />
                   <span>{getProductLabel(msg.product)}</span>
                   {msg.queryType && (
-                    <span className="message-query-type">{msg.queryType}</span>
+                    <span className="message-query-type" title={msg.queryType}>
+                      {msg.queryType === 'command' && <Terminal size={12} />}
+                      {msg.queryType === 'error_code' && <AlertTriangle size={12} />}
+                      {msg.queryType === 'parameter' && <Settings size={12} />}
+                      {msg.queryType === 'config' && <Settings size={12} />}
+                      {msg.queryType === 'freeform' && <MessageCircle size={12} />}
+                    </span>
                   )}
                 </div>
               )}

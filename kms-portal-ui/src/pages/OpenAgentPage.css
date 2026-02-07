@@ -1770,12 +1770,14 @@
 }
 
 .message-query-type {
-  padding: 1px 6px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 5px;
   margin-left: 4px;
   border-radius: 4px;
   background: var(--bg-secondary);
-  font-size: 0.7rem;
   color: var(--text-secondary);
+  cursor: help;
 }
 
 .message-sources {
