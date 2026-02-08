@@ -147,6 +147,15 @@ try:
 except ImportError:
     LANGGRAPH_STORE_AVAILABLE = False
 
+# LangGraph checkpointer for conversation state
+try:
+    from langgraph.checkpoint.memory import MemorySaver
+    LANGGRAPH_CHECKPOINTER_AVAILABLE = True
+except ImportError:
+    MemorySaver = None
+    LANGGRAPH_CHECKPOINTER_AVAILABLE = False
+    logger.info("LangGraph checkpointer not available, conversation state disabled")
+
 try:
     from langchain_ollama import ChatOllama
     LANGCHAIN_OLLAMA_AVAILABLE = True
@@ -223,6 +232,7 @@ class DeepAgentAdapter(BaseAgent):
         self._composite_backend = None
         self._current_language = None  # 언어 변경 시 에이전트 재생성을 위한 추적
         self._base_system_prompt = system_prompt  # 원본 system_prompt 보존
+        self._checkpointer = None  # 대화 상태 체크포인터 (cross-thread persistence)
 
         if not DEEPAGENTS_AVAILABLE:
             logger.warning(f"[{self.name}] Deep Agents not available")
@@ -387,6 +397,13 @@ class DeepAgentAdapter(BaseAgent):
             agent_kwargs["store"] = store
             logger.info(f"[{self.name}] LangGraph store configured for persistence")
 
+        # Add checkpointer for conversation state persistence
+        if LANGGRAPH_CHECKPOINTER_AVAILABLE and self._enable_long_term_memory:
+            if self._checkpointer is None:
+                self._checkpointer = MemorySaver()
+            agent_kwargs["checkpointer"] = self._checkpointer
+            logger.info(f"[{self.name}] Checkpointer configured for conversation state")
+
         # Add CompositeBackend factory for file system routing
         backend_factory = self._get_composite_backend_factory()
         if backend_factory is not None:
@@ -470,10 +487,17 @@ User Query: {task}"""
                 messages.append(HumanMessage(content=task))
 
             # Deep Agent 실행 (recursion_limit으로 무한 루프 방지)
+            # thread_id로 사용자/세션별 대화 상태 분리
+            thread_id = self._user_id or "default"
+            if context.metadata and context.metadata.get("session_id"):
+                thread_id = f"{thread_id}_{context.metadata['session_id']}"
             result = await asyncio.wait_for(
                 agent.ainvoke(
                     {"messages": messages},
-                    config={"recursion_limit": 25}  # 최대 25번 반복
+                    config={
+                        "configurable": {"thread_id": thread_id},
+                        "recursion_limit": 25,
+                    }
                 ),
                 timeout=300.0  # 5분 타임아웃
             )

@@ -29,6 +29,7 @@ import {
   MessageCircle,
   Terminal,
   Settings,
+  Zap,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -64,14 +65,17 @@ const VERIFICATION_BADGE: Record<string, { icon: React.ReactNode; label: string;
 // Message types
 interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'clarification';
+  role: 'user' | 'assistant' | 'clarification' | 'low_relevance';
   content: string;
   product?: string;
+  products?: string[];
   queryType?: string;
   verification?: VerifiedSentence[];
   sources?: unknown;
   candidates?: ClarificationCandidate[];
   clarificationMessage?: string;
+  lowRelevanceScore?: number;
+  searchedProducts?: string[];
   timestamp: Date;
 }
 
@@ -81,8 +85,8 @@ export const AgenticRAGPage: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState('auto');
-  const [selectedProductLabel, setSelectedProductLabel] = useState('Auto');
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);  // empty = auto
+  const [isAutoMode, setIsAutoMode] = useState(true);
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [productGroups, setProductGroups] = useState<ProductGroup[]>([]);
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
@@ -137,6 +141,13 @@ export const AgenticRAGPage: React.FC = () => {
     return productId;
   }, [productGroups]);
 
+  // Selector display label
+  const selectorLabel = isAutoMode
+    ? (t('common.agenticRag.autoProduct') || 'Auto (All Products)')
+    : selectedProducts.length === 1
+      ? getProductLabel(selectedProducts[0])
+      : `${selectedProducts.length} ${t('common.agenticRag.productsSelected') || 'products'}`;
+
   // Toggle family expansion
   const toggleFamily = (family: string) => {
     setExpandedFamilies(prev => {
@@ -150,11 +161,41 @@ export const AgenticRAGPage: React.FC = () => {
     });
   };
 
-  // Select product
-  const selectProduct = (productId: string, label: string) => {
-    setSelectedProduct(productId);
-    setSelectedProductLabel(label);
-    setShowProductSelector(false);
+  // Switch to auto mode
+  const switchToAuto = () => {
+    setIsAutoMode(true);
+    setSelectedProducts([]);
+  };
+
+  // Toggle individual product checkbox
+  const toggleProduct = (productId: string) => {
+    setSelectedProducts(prev => {
+      const next = prev.includes(productId)
+        ? prev.filter(p => p !== productId)
+        : [...prev, productId];
+      if (next.length === 0) {
+        setIsAutoMode(true);
+      } else {
+        setIsAutoMode(false);
+      }
+      return next;
+    });
+  };
+
+  // Toggle all products in a family
+  const toggleFamily_checkbox = (group: ProductGroup) => {
+    const familyIds = group.versions.map(v => v.product_id);
+    const allSelected = familyIds.every(id => selectedProducts.includes(id));
+    setSelectedProducts(prev => {
+      let next: string[];
+      if (allSelected) {
+        next = prev.filter(p => !familyIds.includes(p));
+      } else {
+        next = [...new Set([...prev, ...familyIds])];
+      }
+      setIsAutoMode(next.length === 0);
+      return next;
+    });
   };
 
   // Send message via SSE stream
@@ -174,13 +215,14 @@ export const AgenticRAGPage: React.FC = () => {
 
     const request: AgenticRAGRequest = {
       message: text,
-      product: overrideProduct || selectedProduct,
+      product: isAutoMode ? 'auto' : (selectedProducts[0] || 'auto'),
+      products: (!isAutoMode && selectedProducts.length > 0) ? selectedProducts : undefined,
       selected_product: overrideProduct || undefined,
       language: 'ja',
       history: messages
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .slice(-10)
-        .map(m => ({ role: m.role, content: m.content })),
+        .map(m => ({ role: m.role, content: m.content, product: m.product })),
     };
 
     const assistantId = `assistant-${Date.now()}`;
@@ -249,6 +291,19 @@ export const AgenticRAGPage: React.FC = () => {
               return;
             }
 
+            case 'low_relevance_warning': {
+              const warningMsg: ChatMessage = {
+                id: `low-rel-${Date.now()}`,
+                role: 'low_relevance',
+                content: (event as Record<string, unknown>).message as string || '',
+                lowRelevanceScore: (event as Record<string, unknown>).best_score as number,
+                searchedProducts: (event as Record<string, unknown>).searched_products as string[],
+                timestamp: new Date(),
+              };
+              setMessages(prev => [...prev, warningMsg]);
+              break;
+            }
+
             case 'search_progress':
               break;
 
@@ -312,7 +367,13 @@ export const AgenticRAGPage: React.FC = () => {
               currentQueryType = (event as Record<string, unknown>).query_type as string || currentQueryType;
               setMessages(prev =>
                 prev.map(m =>
-                  m.id === assistantId ? { ...m, queryType: currentQueryType } : m
+                  m.id === assistantId
+                    ? {
+                        ...m,
+                        queryType: currentQueryType,
+                        products: (event as Record<string, unknown>).products as string[] || undefined,
+                      }
+                    : m
                 )
               );
               break;
@@ -348,7 +409,7 @@ export const AgenticRAGPage: React.FC = () => {
       setIsStreaming(false);
       abortControllerRef.current = null;
     }
-  }, [isStreaming, isAuthenticated, selectedProduct, messages]);
+  }, [isStreaming, isAuthenticated, isAutoMode, selectedProducts, messages]);
 
   // Handle clarification product selection
   const handleClarificationSelect = useCallback((product: string) => {
@@ -390,6 +451,24 @@ export const AgenticRAGPage: React.FC = () => {
 
   // Render message
   const renderMessage = (msg: ChatMessage) => {
+    if (msg.role === 'low_relevance') {
+      return (
+        <div key={msg.id} className="openagent-message assistant">
+          <div className="openagent-message-content assistant">
+            <div className="low-relevance-warning">
+              <AlertTriangle size={16} />
+              <span>{msg.content || t('common.agenticRag.lowRelevance') || '検索結果の関連性が低い可能性があります'}</span>
+              {msg.searchedProducts && msg.searchedProducts.length > 0 && (
+                <span className="low-relevance-products">
+                  ({msg.searchedProducts.map(p => getProductLabel(p)).join(', ')})
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (msg.role === 'clarification') {
       return (
         <div key={msg.id} className="openagent-message assistant">
@@ -451,7 +530,7 @@ export const AgenticRAGPage: React.FC = () => {
                     </div>
                   ),
                   img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-                    <div className="markdown-image-wrapper">
+                    <span className="markdown-image-wrapper" style={{ display: 'block' }}>
                       <img
                         src={src}
                         alt={alt || ''}
@@ -460,8 +539,16 @@ export const AgenticRAGPage: React.FC = () => {
                         {...props}
                       />
                       {alt && <span className="markdown-image-caption">{alt}</span>}
-                    </div>
+                    </span>
                   ),
+                  p: ({ children, ...props }) => {
+                    // Avoid nesting block elements inside <p>
+                    const hasBlock = React.Children.toArray(children).some(
+                      (child) => React.isValidElement(child) && typeof child.type === 'string' && ['div', 'table', 'pre'].includes(child.type)
+                    );
+                    if (hasBlock) return <div {...props}>{children}</div>;
+                    return <p {...props}>{children}</p>;
+                  },
                 }}
               >
                 {msg.content}
@@ -501,78 +588,95 @@ export const AgenticRAGPage: React.FC = () => {
     );
   };
 
-  // Render product tree dropdown
+  // Render product tree dropdown (checkbox multi-select)
   const renderProductTree = () => (
     <div className="product-tree-dropdown">
       {/* Auto option */}
       <button
-        className={`product-tree-item ${selectedProduct === 'auto' ? 'active' : ''}`}
-        onClick={() => selectProduct('auto', 'Auto')}
+        className={`product-tree-item ${isAutoMode ? 'active' : ''}`}
+        onClick={switchToAuto}
       >
-        <Search size={14} />
-        <span>{t('common.agenticRag.autoProduct') || 'Auto'}</span>
+        <Zap size={14} />
+        <span>{t('common.agenticRag.autoProduct') || 'Auto (All Products)'}</span>
       </button>
       <div className="product-tree-separator" />
-      {/* Product families */}
-      {productGroups.map(group => (
-        <div key={group.name} className="product-tree-family">
-          {group.versions.length === 1 ? (
-            // Single version: click selects directly
-            <button
-              className={`product-tree-item ${selectedProduct === group.versions[0].product_id ? 'active' : ''}`}
-              onClick={() => selectProduct(
-                group.versions[0].product_id,
-                group.name,
-              )}
-            >
-              <FolderOpen size={14} />
-              <span>{group.name}</span>
-              <span className="product-tree-meta">
-                {group.versions[0].pdf_count} PDFs
-              </span>
-            </button>
-          ) : (
-            // Multiple versions: expandable
-            <>
-              <button
-                className="product-tree-item product-tree-group"
-                onClick={() => toggleFamily(group.name)}
-              >
-                {expandedFamilies.has(group.name)
-                  ? <ChevronDown size={14} />
-                  : <ChevronRight size={14} />
-                }
+      {/* Product families with checkboxes */}
+      {productGroups.map(group => {
+        const familyIds = group.versions.map(v => v.product_id);
+        const allChecked = familyIds.every(id => selectedProducts.includes(id));
+        const someChecked = familyIds.some(id => selectedProducts.includes(id));
+
+        return (
+          <div key={group.name} className="product-tree-family">
+            {group.versions.length === 1 ? (
+              // Single version: checkbox
+              <label className={`product-tree-item product-tree-checkbox-row ${selectedProducts.includes(group.versions[0].product_id) ? 'active' : ''}`}>
+                <input
+                  type="checkbox"
+                  className="product-tree-checkbox"
+                  checked={selectedProducts.includes(group.versions[0].product_id)}
+                  onChange={() => toggleProduct(group.versions[0].product_id)}
+                />
+                <FolderOpen size={14} />
                 <span>{group.name}</span>
                 <span className="product-tree-meta">
-                  {group.versions.length} {t('common.agenticRag.version') || 'ver'}
+                  {group.versions[0].pdf_count} PDFs
                 </span>
-              </button>
-              {expandedFamilies.has(group.name) && (
-                <div className="product-tree-versions">
-                  {group.versions.map(v => (
-                    <button
-                      key={v.product_id}
-                      className={`product-tree-item product-tree-version ${selectedProduct === v.product_id ? 'active' : ''}`}
-                      onClick={() => selectProduct(
-                        v.product_id,
-                        `${group.name} ${v.version}`,
-                      )}
-                    >
-                      <span className="product-tree-version-label">
-                        {v.version}
-                        {v.doc_version && <span className="product-tree-doc-ver">(v{v.doc_version})</span>}
-                      </span>
-                      <span className="product-tree-meta">
-                        {v.language} · {v.pdf_count} PDFs
-                      </span>
-                    </button>
-                  ))}
+              </label>
+            ) : (
+              // Multiple versions: expandable with family checkbox
+              <>
+                <div className="product-tree-item product-tree-group">
+                  <input
+                    type="checkbox"
+                    className="product-tree-checkbox"
+                    checked={allChecked}
+                    ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked; }}
+                    onChange={() => toggleFamily_checkbox(group)}
+                  />
+                  <button
+                    className="product-tree-group-toggle"
+                    onClick={() => toggleFamily(group.name)}
+                  >
+                    {expandedFamilies.has(group.name)
+                      ? <ChevronDown size={14} />
+                      : <ChevronRight size={14} />
+                    }
+                    <span>{group.name}</span>
+                  </button>
+                  <span className="product-tree-meta">
+                    {group.versions.length} {t('common.agenticRag.version') || 'ver'}
+                  </span>
                 </div>
-              )}
-            </>
-          )}
-        </div>
-      ))}
+                {expandedFamilies.has(group.name) && (
+                  <div className="product-tree-versions">
+                    {group.versions.map(v => (
+                      <label
+                        key={v.product_id}
+                        className={`product-tree-item product-tree-version product-tree-checkbox-row ${selectedProducts.includes(v.product_id) ? 'active' : ''}`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="product-tree-checkbox"
+                          checked={selectedProducts.includes(v.product_id)}
+                          onChange={() => toggleProduct(v.product_id)}
+                        />
+                        <span className="product-tree-version-label">
+                          {v.version}
+                          {v.doc_version && <span className="product-tree-doc-ver">(v{v.doc_version})</span>}
+                        </span>
+                        <span className="product-tree-meta">
+                          {v.language} · {v.pdf_count} PDFs
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 
@@ -598,7 +702,10 @@ export const AgenticRAGPage: React.FC = () => {
               className="product-selector-button"
               onClick={() => setShowProductSelector(!showProductSelector)}
             >
-              <span>{selectedProductLabel}</span>
+              <span>{selectorLabel}</span>
+              {!isAutoMode && selectedProducts.length > 1 && (
+                <span className="product-selector-count">{selectedProducts.length}</span>
+              )}
               <ChevronDown size={16} />
             </button>
             {showProductSelector && renderProductTree()}

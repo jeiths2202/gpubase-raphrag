@@ -87,6 +87,32 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
         weight=1.0
     ),
     ProductConfig(
+        product=ProductId.OPENFRAME_BASE,
+        keywords=[
+            # Base 시스템 키워드
+            "base", "openframe base", "openframe/base", "of_base",
+            # 데이터셋 관련
+            "dataset", "dsalc", "dsorg", "recfm", "lrecl", "blksize",
+            "vsam", "ksds", "esds", "rrds", "lds",
+            # 카탈로그 관련
+            "catalog", "catmgr", "alias", "gdg", "generation",
+            # 볼륨 관련
+            "volume", "volser", "vtoc", "dscb",
+            # 파일 시스템
+            "pds", "pdse", "sequential", "partitioned",
+            # 유틸리티
+            "dsmigin", "dsmigout", "listcat", "define",
+        ],
+        patterns=[
+            r"base\s+system",
+            r"openframe\s*/?\s*base",
+            r"dsalc_\w+",          # DSALC 에러 코드
+            r"VSAM\s+\w+",
+            r"GDG\s+\w+",
+        ],
+        weight=1.1  # Base는 일반적인 질문이므로 약간 높은 가중치
+    ),
+    ProductConfig(
         product=ProductId.TIBERO7,
         keywords=[
             "tibero", "tibero7", "tibero 7", "tbsql", "tbcli",
@@ -96,11 +122,18 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "sql", "oracle", "database", "db",
             "select", "insert", "update", "delete",
             "pl/sql", "procedure", "function", "trigger",
+            # DBMS 패키지/기능
+            "dbms_lock", "dbms_output", "dbms_sql", "dbms_job",
+            "dbms_scheduler", "dbms_metadata", "dbms_stats",
+            "dbms_", "package", "パッケージ",
+            # tbPSM 관련
+            "tbpsm", "psm", "stored procedure",
         ],
         patterns=[
             r"tibero\s*\d*",
             r"tb\w+",              # tb로 시작하는 명령어
             r"SELECT\s+.+\s+FROM", # SQL SELECT
+            r"dbms_\w+",           # DBMS_* パッケージ
         ],
         weight=1.0
     ),
@@ -232,8 +265,8 @@ class ProductRouterService:
         top_product, top_score = sorted_products[0]
 
         # Normalize score to 0-1 range
-        # Max possible score is roughly: keyword_matches * 0.1 + pattern_matches * 0.2 + weight
-        max_score = 5.0  # Approximate max
+        # Typical strong match: 3-5 keywords (0.3-0.5) + 1-2 patterns (0.2-0.4) + bonus (1.2) ≈ 0.6-1.2
+        max_score = 1.5
         confidence = min(top_score / max_score, 1.0)
 
         # Determine if user selection is needed
@@ -275,13 +308,13 @@ class ProductRouterService:
         # Keyword matching
         for keyword in config.keywords:
             if keyword.lower() in query_lower:
-                score += 0.1 * config.weight
+                score += 0.15 * config.weight
                 matched.append(keyword)
 
         # Pattern matching (higher weight)
         for pattern in getattr(config, '_compiled_patterns', []):
             if pattern.search(query_lower):
-                score += 0.2 * config.weight
+                score += 0.3 * config.weight
                 matched.append(f"pattern:{pattern.pattern[:20]}")
 
         # Bonus for multiple matches

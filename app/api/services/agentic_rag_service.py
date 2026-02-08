@@ -37,6 +37,7 @@ from .structured_knowledge_store import SearchResult, ProductSearchContext
 from .query_type_classifier import QueryTypeClassifier, get_query_type_classifier
 from .template_response_builder import TemplateResponseBuilder, get_template_response_builder
 from .response_verifier import ResponseVerifier, get_response_verifier
+from .product_context_memory import ProductContextMemory, get_product_context_memory
 
 logger = get_logger("kms.agentic_rag")
 
@@ -82,11 +83,13 @@ class AgenticRAGService:
         query_type_classifier: Optional[QueryTypeClassifier] = None,
         template_builder: Optional[TemplateResponseBuilder] = None,
         response_verifier: Optional[ResponseVerifier] = None,
+        product_memory: Optional[ProductContextMemory] = None,
     ):
         self.query_router = query_router or get_query_router()
         self.query_type_classifier = query_type_classifier or get_query_type_classifier()
         self.template_builder = template_builder or get_template_response_builder()
         self.response_verifier = response_verifier or get_response_verifier()
+        self.product_memory = product_memory or get_product_context_memory()
         self._product_patterns: Optional[List[tuple]] = None
 
     def _get_product_patterns(self) -> List[tuple]:
@@ -111,30 +114,158 @@ class AgenticRAGService:
                     detected.append(pid)
         return detected
 
-    async def _cross_agent_search(
+    def _resolve_search_products(
+        self,
+        request: AgenticRAGRequest,
+    ) -> tuple:
+        """
+        통합 제품 해석. (product_ids, router_result) 반환.
+
+        Case 1: selected_product → [selected_product], CONFIRMED
+        Case 2: products 리스트 → products, CONFIRMED
+        Case 3: product != "auto" → [product], CONFIRMED
+        Case 4: Auto 모드 → classify() 기반 해석 + Long-term Memory 보강
+        """
+        # Case 1~3: 명시적 제품 선택
+        effective = request.effective_products
+        if effective:
+            return effective, RouterResult(
+                decision=RouterDecision.CONFIRMED,
+                product=effective[0],
+                confidence=1.0,
+            )
+
+        # Case 4: Auto 모드 → QueryRouter
+        router_result = self.query_router.classify(
+            request.message, request.language or "ja",
+            history=request.history,
+        )
+
+        if router_result.decision == RouterDecision.CONFIRMED:
+            # 확정 + 쿼리에서 추가 제품 감지
+            products = [router_result.product]
+            additional = [
+                p for p in self._detect_products_in_query(request.message)
+                if p != router_result.product
+            ]
+            products.extend(additional)
+            return products, router_result
+
+        if router_result.decision == RouterDecision.CLARIFICATION_NEEDED:
+            # 후보가 1개이거나, top과 2nd 간의 차이가 큰 경우 자동 확정
+            candidates = router_result.candidates
+            if (
+                router_result.product
+                and router_result.confidence >= 0.6
+                and (len(candidates) <= 1
+                     or (len(candidates) >= 2
+                         and candidates[0].confidence - candidates[1].confidence >= 0.3))
+            ):
+                logger.info(
+                    f"[AgenticRAG] Auto-confirming single/dominant candidate: "
+                    f"{router_result.product} (conf={router_result.confidence:.2f})"
+                )
+                products = [router_result.product]
+                additional = [
+                    p for p in self._detect_products_in_query(request.message)
+                    if p != router_result.product
+                ]
+                products.extend(additional)
+                return products, RouterResult(
+                    decision=RouterDecision.CONFIRMED,
+                    product=router_result.product,
+                    confidence=router_result.confidence,
+                    candidates=router_result.candidates,
+                    all_scores=router_result.all_scores,
+                )
+            return [], router_result
+
+        # NO_MATCH → 1차: all_scores에서 점수가 있는 제품 사용 (router가 일부 매칭)
+        if router_result.all_scores:
+            top_products = sorted(
+                router_result.all_scores.items(),
+                key=lambda x: x[1],
+                reverse=True,
+            )
+            fallback = [p for p, s in top_products[:5] if s > 0]
+            if fallback:
+                return fallback, router_result
+
+        # NO_MATCH → 2차: Long-term Memory에서 최근 제품 컨텍스트 보강
+        # (router 점수가 전혀 없을 때만 → 후속 질문, 대명사 사용 등)
+        memory_product = self._resolve_from_memory(request)
+        if memory_product:
+            logger.info(
+                f"[AgenticRAG] Memory-based product resolution: {memory_product}"
+            )
+            return [memory_product], RouterResult(
+                decision=RouterDecision.CONFIRMED,
+                product=memory_product,
+                confidence=0.6,  # 메모리 기반이므로 중간 confidence
+            )
+
+        return [], router_result
+
+    def _resolve_from_memory(self, request: AgenticRAGRequest) -> Optional[str]:
+        """
+        Long-term Memory에서 최근 제품 컨텍스트를 조회하여 제품을 해석.
+
+        후속 질문 패턴 (それは?, 詳しく, 그거, that 등) 에서 특히 효과적.
+        """
+        if not self.product_memory or not self.product_memory.available:
+            return None
+
+        user_id = getattr(request, "user_id", None) or "anonymous"
+        session_id = getattr(request, "session_id", None) or "default"
+
+        # 1. 현재 세션의 최근 제품 확인
+        session_product = self.product_memory.get_session_product(user_id, session_id)
+        if session_product:
+            return session_product
+
+        # 2. 사용자 글로벌 최근 제품 확인
+        recent_product = self.product_memory.get_recent_product(user_id)
+        if recent_product:
+            return recent_product
+
+        return None
+
+    async def _multi_product_search(
         self,
         query: str,
-        primary_product: str,
-        additional_products: List[str],
+        product_ids: List[str],
         query_type: Optional[QueryType],
-        top_k: int = 5,
+        top_k_per_product: Optional[int] = None,
+        max_total: int = 8,
     ) -> ProductSearchContext:
-        """여러 Product Agent를 병렬 검색하고 결과를 병합."""
-        all_products = [primary_product] + additional_products
+        """복수 Product Agent 병렬 검색 + 결과 병합."""
+        # per-product top_k 자동 조절
+        if top_k_per_product is None:
+            n = len(product_ids)
+            if n <= 2:
+                top_k_per_product = 5
+            elif n <= 5:
+                top_k_per_product = 3
+            else:
+                top_k_per_product = 2
+
         agents = []
-        for pid in all_products:
+        for pid in product_ids:
             agent = get_product_agent(pid)
             if agent:
                 agents.append((pid, agent))
 
         if not agents:
-            return ProductSearchContext(product=primary_product)
+            return ProductSearchContext(product=product_ids[0] if product_ids else "auto")
+
+        sem = asyncio.Semaphore(5)
 
         async def _search_one(pid: str, agent: BaseProductAgent) -> List[SearchResult]:
-            ctx = await agent.search(query=query, query_type=query_type, top_k=top_k)
-            for r in ctx.structured_results:
-                r.product = pid
-            return ctx.structured_results
+            async with sem:
+                ctx = await agent.search(query=query, query_type=query_type, top_k=top_k_per_product)
+                for r in ctx.structured_results:
+                    r.product = pid
+                return ctx.structured_results
 
         tasks = [_search_one(pid, agent) for pid, agent in agents]
         results_lists = await asyncio.gather(*tasks, return_exceptions=True)
@@ -146,6 +277,7 @@ class AgenticRAGService:
 
         all_results.sort(key=lambda r: r.relevance_score, reverse=True)
 
+        # fingerprint dedup
         deduped: List[SearchResult] = []
         seen_fp: set = set()
         for r in all_results:
@@ -155,13 +287,13 @@ class AgenticRAGService:
                 continue
             seen_fp.add(fp)
             deduped.append(r)
-            if len(deduped) >= top_k:
+            if len(deduped) >= max_total:
                 break
 
-        merged = ProductSearchContext(product=primary_product)
+        merged = ProductSearchContext(product=product_ids[0] if product_ids else "auto")
         merged.structured_results = deduped
         logger.info(
-            f"Cross-agent search: {all_products} → "
+            f"Multi-product search: {product_ids} → "
             f"{len(all_results)} total, {len(deduped)} after dedup"
         )
         return merged
@@ -194,30 +326,23 @@ class AgenticRAGService:
         """동기식 채팅 처리"""
         start = time.time()
 
-        # 1. 제품 분류
-        if request.selected_product:
-            product_id = request.selected_product
-            router_result = RouterResult(
-                decision=RouterDecision.CONFIRMED,
-                product=product_id,
-                confidence=1.0,
-            )
-        elif request.product == "auto":
-            router_result = self.query_router.classify(
-                request.message, request.language or "ja",
-                history=request.history,
-            )
-            product_id = router_result.product
-        else:
-            product_id = request.product
-            router_result = RouterResult(
-                decision=RouterDecision.CONFIRMED,
-                product=product_id,
-                confidence=1.0,
+        # 1. 통합 제품 해석
+        product_ids, router_result = self._resolve_search_products(request)
+
+        # Long-term Memory에 제품 라우팅 결과 저장
+        if product_ids and self.product_memory and self.product_memory.available:
+            user_id = getattr(request, "user_id", None) or "anonymous"
+            session_id = getattr(request, "session_id", None) or "default"
+            self.product_memory.save_product_context(
+                user_id=user_id,
+                session_id=session_id,
+                product_id=product_ids[0],
+                query=request.message,
+                confidence=router_result.confidence,
             )
 
         # 되묻기 필요
-        if router_result.decision == RouterDecision.CLARIFICATION_NEEDED:
+        if not product_ids and router_result.decision == RouterDecision.CLARIFICATION_NEEDED:
             return AgenticRAGResponse(
                 success=True,
                 response="",
@@ -229,7 +354,7 @@ class AgenticRAGService:
             )
 
         # 매칭 없음
-        if router_result.decision == RouterDecision.NO_MATCH or not product_id:
+        if not product_ids:
             return AgenticRAGResponse(
                 success=True,
                 response="該当する製品を特定できませんでした。質問を具体的にしていただくか、製品を選択してください。",
@@ -240,41 +365,19 @@ class AgenticRAGService:
                 processing_time_ms=int((time.time() - start) * 1000),
             )
 
-        # 2. 제품별 Agent 검색
-        agent = get_product_agent(product_id)
-        if not agent:
-            return AgenticRAGResponse(
-                success=False,
-                response=f"製品 {product_id} のエージェントが利用できません。",
-                product=product_id,
-                query_type=QueryType.FREEFORM,
-                router_result=router_result,
-                confidence=ConfidenceLevel.LOW,
-                processing_time_ms=int((time.time() - start) * 1000),
-            )
+        primary_product = product_ids[0]
 
-        # 3. 質問 유형 분류
+        # 2. 질문 유형 분류
         query_type = self.query_type_classifier.classify(request.message)
 
-        # 4. 검索 실행 (Cross-Agent 감지)
-        additional_products = [
-            p for p in self._detect_products_in_query(request.message)
-            if p != product_id
-        ]
-        if additional_products:
-            search_context = await self._cross_agent_search(
-                query=request.message,
-                primary_product=product_id,
-                additional_products=additional_products,
-                query_type=query_type,
-            )
-        else:
-            search_context = await agent.search(
-                query=request.message,
-                query_type=query_type,
-            )
+        # 3. 통합 검색
+        search_context = await self._multi_product_search(
+            query=request.message,
+            product_ids=product_ids,
+            query_type=query_type,
+        )
 
-        # 5. 응답 생성
+        # 4. 응답 생성
         if query_type != QueryType.FREEFORM and search_context.structured_results:
             template_response = self.template_builder.build(
                 query=request.message,
@@ -286,7 +389,7 @@ class AgenticRAGService:
                 return AgenticRAGResponse(
                     success=True,
                     response=template_response,
-                    product=product_id,
+                    product=primary_product,
                     query_type=query_type,
                     router_result=router_result,
                     confidence=ConfidenceLevel.HIGH,
@@ -297,7 +400,7 @@ class AgenticRAGService:
         # 비정형 질문 또는 템플릿 실패: LLM 생성
         llm_response = await self._generate_with_llm(
             request.message,
-            product_id,
+            primary_product,
             search_context,
             request.language or "ja",
             history=request.history,
@@ -321,7 +424,7 @@ class AgenticRAGService:
         return AgenticRAGResponse(
             success=True,
             response=llm_response or "情報が見つかりませんでした。質問を変更してお試しください。",
-            product=product_id,
+            product=primary_product,
             query_type=query_type,
             router_result=router_result,
             verification=verification,
@@ -337,38 +440,34 @@ class AgenticRAGService:
         """SSE 스트리밍 채팅"""
         start = time.time()
 
-        # 1. 제품 분류
-        if request.selected_product:
-            product_id = request.selected_product
-            router_result = RouterResult(
-                decision=RouterDecision.CONFIRMED,
-                product=product_id,
-                confidence=1.0,
-            )
-        elif request.product == "auto":
-            router_result = self.query_router.classify(
-                request.message, request.language or "ja",
-                history=request.history,
-            )
-            product_id = router_result.product
-        else:
-            product_id = request.product
-            router_result = RouterResult(
-                decision=RouterDecision.CONFIRMED,
-                product=product_id,
-                confidence=1.0,
+        # 1. 통합 제품 해석
+        product_ids, router_result = self._resolve_search_products(request)
+
+        primary_product = product_ids[0] if product_ids else "auto"
+
+        # Long-term Memory에 제품 라우팅 결과 저장
+        if product_ids and self.product_memory and self.product_memory.available:
+            user_id = getattr(request, "user_id", None) or "anonymous"
+            session_id = getattr(request, "session_id", None) or "default"
+            self.product_memory.save_product_context(
+                user_id=user_id,
+                session_id=session_id,
+                product_id=primary_product,
+                query=request.message,
+                confidence=router_result.confidence,
             )
 
-        # 분류 결과 전송
+        # 분류 결과 전송 (products 리스트 포함)
         yield {
             "type": "classification",
-            "product": product_id or "auto",
+            "product": primary_product,
+            "products": product_ids,
             "decision": router_result.decision.value,
             "confidence": router_result.confidence,
         }
 
         # 되묻기 필요
-        if router_result.decision == RouterDecision.CLARIFICATION_NEEDED:
+        if not product_ids and router_result.decision == RouterDecision.CLARIFICATION_NEEDED:
             yield {
                 "type": "clarification_needed",
                 "candidates": [
@@ -385,7 +484,7 @@ class AgenticRAGService:
             return
 
         # 매칭 없음
-        if router_result.decision == RouterDecision.NO_MATCH or not product_id:
+        if not product_ids:
             yield {
                 "type": "error",
                 "message": "該当する製品を特定できませんでした。製品を選択してください。",
@@ -395,43 +494,40 @@ class AgenticRAGService:
         # 2. 검색 진행
         yield {
             "type": "search_progress",
-            "product": product_id,
+            "product": primary_product,
+            "products": product_ids,
             "step": "structured_search",
             "progress": 0.3,
         }
 
-        agent = get_product_agent(product_id)
-        if not agent:
-            yield {"type": "error", "message": f"製品 {product_id} のエージェントが利用できません。"}
-            return
-
-        # 3. 질問 유형 분류
+        # 3. 질문 유형 분류
         query_type = self.query_type_classifier.classify(request.message)
 
-        # 4. 검색 실행 (Cross-Agent 감지)
-        additional_products = [
-            p for p in self._detect_products_in_query(request.message)
-            if p != product_id
-        ]
-        if additional_products:
-            search_context = await self._cross_agent_search(
-                query=request.message,
-                primary_product=product_id,
-                additional_products=additional_products,
-                query_type=query_type,
-            )
-        else:
-            search_context = await agent.search(
-                query=request.message,
-                query_type=query_type,
-            )
+        # 4. 통합 검색
+        search_context = await self._multi_product_search(
+            query=request.message,
+            product_ids=product_ids,
+            query_type=query_type,
+        )
 
         yield {
             "type": "search_progress",
-            "product": product_id,
+            "product": primary_product,
+            "products": product_ids,
             "step": "search_complete",
             "progress": 0.6,
         }
+
+        # 저관련 경고 (best score < 0.3)
+        if search_context.structured_results:
+            best_score = search_context.structured_results[0].relevance_score
+            if best_score < 0.3:
+                yield {
+                    "type": "low_relevance_warning",
+                    "message": "検索結果の関連性が低い可能性があります。質問を具体的にしてお試しください。",
+                    "best_score": best_score,
+                    "searched_products": product_ids,
+                }
 
         # 5. 응답 생성
         if query_type != QueryType.FREEFORM and search_context.structured_results:
@@ -451,7 +547,8 @@ class AgenticRAGService:
                 yield {
                     "type": "done",
                     "processing_time_ms": int((time.time() - start) * 1000),
-                    "product": product_id,
+                    "product": primary_product,
+                    "products": product_ids,
                     "query_type": query_type.value,
                 }
                 return
@@ -459,14 +556,15 @@ class AgenticRAGService:
         # 비정형: LLM 스트리밍 생성
         yield {
             "type": "search_progress",
-            "product": product_id,
+            "product": primary_product,
+            "products": product_ids,
             "step": "generating",
             "progress": 0.7,
         }
 
         full_response = ""
         async for token in self._stream_llm(
-            request.message, product_id, search_context, request.language or "ja",
+            request.message, primary_product, search_context, request.language or "ja",
             history=request.history,
         ):
             full_response += token
@@ -504,7 +602,8 @@ class AgenticRAGService:
         yield {
             "type": "done",
             "processing_time_ms": int((time.time() - start) * 1000),
-            "product": product_id,
+            "product": primary_product,
+            "products": product_ids,
             "query_type": query_type.value,
         }
 
