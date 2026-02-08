@@ -62,6 +62,22 @@ const VERIFICATION_BADGE: Record<string, { icon: React.ReactNode; label: string;
   },
 };
 
+// Source result from SSE
+interface SourceResult {
+  doc_name: string;
+  source_page?: string;
+  score: number;
+  domain?: string;
+  product?: string;
+  url?: string;  // Web doc source URL (docs.tmaxsoft.com)
+}
+
+interface SourcesEvent {
+  type: string;
+  results: SourceResult[];
+  total: number;
+}
+
 // Message types
 interface ChatMessage {
   id: string;
@@ -71,7 +87,7 @@ interface ChatMessage {
   products?: string[];
   queryType?: string;
   verification?: VerifiedSentence[];
-  sources?: unknown;
+  sources?: SourcesEvent;
   candidates?: ClarificationCandidate[];
   clarificationMessage?: string;
   lowRelevanceScore?: number;
@@ -355,10 +371,14 @@ export const AgenticRAGPage: React.FC = () => {
               );
               break;
 
+            case 'web_doc_match':
+              // Web doc 매칭 알림 (score >= 0.9)
+              break;
+
             case 'sources':
               setMessages(prev =>
                 prev.map(m =>
-                  m.id === assistantId ? { ...m, sources: event } : m
+                  m.id === assistantId ? { ...m, sources: event as unknown as SourcesEvent } : m
                 )
               );
               break;
@@ -573,11 +593,42 @@ export const AgenticRAGPage: React.FC = () => {
                   </div>
                 </div>
               )}
-              {msg.sources && (
-                <div className="message-sources">
-                  <FileText size={14} />
-                  <span>出典情報あり</span>
-                </div>
+              {msg.sources && msg.sources.results && msg.sources.results.length > 0 && (
+                <details className="source-cards">
+                  <summary className="source-cards-header">
+                    <FileText size={14} />
+                    <span>出典情報 ({msg.sources.results.length}件)</span>
+                  </summary>
+                  <div className="source-cards-list">
+                    {msg.sources.results.slice(0, 5).map((src, i) => {
+                      const scoreClass = src.score >= 0.7 ? 'high' : src.score >= 0.4 ? 'medium' : 'low';
+                      const isWebDoc = src.domain === 'web_doc' && src.url;
+                      return (
+                        <div key={i} className="source-card-item">
+                          {isWebDoc ? (
+                            <a
+                              href={src.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="source-card-name source-card-link"
+                              title={src.url}
+                            >
+                              {src.doc_name} ↗
+                            </a>
+                          ) : (
+                            <span className="source-card-name">{src.doc_name}</span>
+                          )}
+                          {src.source_page && !isWebDoc && (
+                            <span className="source-card-page">{src.source_page}</span>
+                          )}
+                          <span className={`source-card-score ${scoreClass}`}>
+                            {src.score.toFixed(1)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
               )}
             </>
           ) : (

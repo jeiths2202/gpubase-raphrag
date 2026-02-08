@@ -8,6 +8,7 @@ QLoRA Learning LLM 기반 Multi-Product RAG 시스템용 Pydantic 모델
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, ConfigDict
+from .web_doc import WebDocSource
 
 
 # =============================================================================
@@ -17,6 +18,7 @@ from pydantic import BaseModel, Field, ConfigDict
 class ProductId(str, Enum):
     """Supported product identifiers"""
     OPENFRAME_MVS = "openframe_mvs"
+    OPENFRAME_BASE = "openframe_base"  # OpenFrame Base 시스템
     MSP_OPENFRAME = "msp_openframe"
     VOS3_OPENFRAME = "vos3_openframe"
     TIBERO7 = "tibero7"
@@ -135,6 +137,7 @@ class ProductSources(BaseModel):
     learning_llm: Optional[LearningLLMSource] = None
     vector_search: List[VectorSource] = Field(default_factory=list)
     graph_search: List[GraphSource] = Field(default_factory=list)
+    web_doc: Optional[WebDocSource] = Field(default=None, description="Web document source (docs.tmaxsoft.com)")
 
 
 # =============================================================================

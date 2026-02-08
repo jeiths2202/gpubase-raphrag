@@ -49,6 +49,14 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "tmboot", "tmdown", "ofboot", "ofdown", "jesinit", "jesdown",
             # OSC 관련
             "osc", "oscmgr", "cics", "online",
+            # OSI 관련
+            "osi", "osimgr",
+            # HiDB 관련 (階層型データベース)
+            "hidb", "hidbmgr", "ims", "dl/i", "dli",
+            "階層データベース", "階層型データベース", "階層db",
+            "dbpcb", "psbgen", "dbd", "psb", "pcb",
+            # NDB 관련
+            "ndb", "ndbmgr",
             # 기타 MVS
             "mvs", "mainframe", "batch", "spufi", "ispf",
         ],
@@ -56,6 +64,9 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             r"tjesmgr\s+\w+",      # tjesmgr 명령어
             r"tacfmgr\s+\w+",      # tacfmgr 명령어
             r"oscmgr\s+\w+",       # oscmgr 명령어
+            r"osimgr\s+\w+",       # osimgr 명령어
+            r"hidbmgr\s+\w+",      # hidbmgr 명령어
+            r"ndbmgr\s+\w+",       # ndbmgr 명령어
             r"\/\/\w+\s+JOB",      # JCL JOB statement
             r"EXEC\s+PGM=",        # JCL EXEC statement
             r"DD\s+DSN=",          # JCL DD statement

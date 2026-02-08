@@ -1797,6 +1797,102 @@
   background: var(--bg-hover);
 }
 
+/* Source Cards (expandable) */
+.source-cards {
+  margin-top: 8px;
+}
+
+.source-cards-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.source-cards-header::-webkit-details-marker {
+  display: none;
+}
+
+.source-cards-header:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+}
+
+.source-cards[open] .source-cards-header {
+  border-radius: 6px 6px 0 0;
+}
+
+.source-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: var(--bg-secondary);
+  border-radius: 0 0 6px 6px;
+  border-top: 1px solid var(--border-color);
+}
+
+.source-card-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  font-size: 0.75rem;
+}
+
+.source-card-name {
+  flex: 1;
+  color: var(--text-primary);
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-card-link {
+  color: #3b82f6;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.source-card-link:hover {
+  text-decoration: underline;
+  color: #2563eb;
+}
+
+.source-card-page {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.source-card-score {
+  font-family: monospace;
+  font-weight: 600;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.source-card-score.high {
+  color: #22c55e;
+}
+
+.source-card-score.medium {
+  color: #f59e0b;
+}
+
+.source-card-score.low {
+  color: #ef4444;
+}
+
 /* Responsive table wrapper (for Markdown tables from PDF extraction) */
 .markdown-table-wrapper {
   overflow-x: auto;
@@ -1866,4 +1962,79 @@
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+/* Multi-product checkbox styles */
+.product-tree-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-color, #6366f1);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.product-tree-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.product-tree-checkbox-row:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+}
+
+.product-tree-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-primary);
+  padding: 0;
+  font: inherit;
+  flex: 1;
+}
+
+.product-selector-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--accent-color, #6366f1);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* Low relevance warning */
+.low-relevance-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #b45309;
+  font-size: 0.85rem;
+}
+
+[data-theme="dark"] .low-relevance-warning {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+}
+
+.low-relevance-warning svg {
+  flex-shrink: 0;
+  color: #f59e0b;
+}
+
+.low-relevance-products {
+  opacity: 0.7;
+  font-size: 0.8rem;
 }

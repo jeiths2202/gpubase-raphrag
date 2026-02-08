@@ -27,6 +27,13 @@ from ..models.openframe_rag import (
     ProductSources,
     VectorSource,
 )
+from ..models.web_doc import WebDocSource
+from .web_doc_search_service import (
+    WebDocSearchService,
+    WebDocSearchResult,
+    get_web_doc_search_service,
+    WEB_DOC_THRESHOLD,
+)
 from .query_router_service import QueryRouter, get_query_router
 from .product_agent_service import (
     BaseProductAgent,
@@ -95,6 +102,42 @@ _TOKENIZE_RE = re.compile(
 )
 
 
+_METADATA_PREFIXES = (
+    '製品/product', '**製品/product',
+    '出典/source', '**出典/source',
+)
+
+# PDF 우선 검색: primary(PDF) / fallback(요약본·학습데이터) 2단계 분리
+_PRIMARY_DOMAINS = frozenset({"pdf_manuals"})
+
+
+def _partition_results(
+    results: List[SearchResult],
+) -> tuple:
+    """PDF(primary)와 요약본/학습데이터(fallback)를 분리"""
+    primary = [r for r in results if r.domain in _PRIMARY_DOMAINS]
+    fallback = [r for r in results if r.domain not in _PRIMARY_DOMAINS]
+    return primary, fallback
+
+
+def _select_tiered_results(
+    results: List[SearchResult],
+    min_primary: int = 1,
+) -> List[SearchResult]:
+    """PDF 결과가 min_primary개 이상이면 PDF만, 아니면 전체 결과 사용"""
+    primary, fallback = _partition_results(results)
+    if len(primary) >= min_primary:
+        return primary
+    return results
+
+
+def _clean_inline_metadata(content: str) -> str:
+    """인라인 메타데이터 행(製品/Product, 出典/Source) 제거"""
+    lines = content.split('\n')
+    cleaned = [l for l in lines if not l.strip().lower().startswith(_METADATA_PREFIXES)]
+    return '\n'.join(cleaned).strip()
+
+
 class AgenticRAGService:
     """
     Agentic RAG 오케스트레이터
@@ -114,12 +157,14 @@ class AgenticRAGService:
         template_builder: Optional[TemplateResponseBuilder] = None,
         response_verifier: Optional[ResponseVerifier] = None,
         product_memory: Optional[ProductContextMemory] = None,
+        web_doc_search: Optional[WebDocSearchService] = None,
     ):
         self.query_router = query_router or get_query_router()
         self.query_type_classifier = query_type_classifier or get_query_type_classifier()
         self.template_builder = template_builder or get_template_response_builder()
         self.response_verifier = response_verifier or get_response_verifier()
         self.product_memory = product_memory or get_product_context_memory()
+        self.web_doc_search = web_doc_search or get_web_doc_search_service()
         self._product_patterns: Optional[List[tuple]] = None
 
     def _get_product_patterns(self) -> List[tuple]:
@@ -460,6 +505,14 @@ class AgenticRAGService:
 
         primary_product = product_ids[0]
 
+        # === Web Doc Fast Path ===
+        web_doc_response = await self._try_web_doc_fast_path(
+            request, product_ids, primary_product, router_result, start,
+        )
+        if web_doc_response:
+            return web_doc_response
+        # === End Web Doc Fast Path ===
+
         # 2. 질문 유형 분류
         query_type = self.query_type_classifier.classify(request.message)
 
@@ -592,6 +645,64 @@ class AgenticRAGService:
             "step": "structured_search",
             "progress": 0.3,
         }
+
+        # === Web Doc Fast Path (streaming) ===
+        web_doc_result = self._search_web_doc(
+            request.message, request.language or "ja", product_ids,
+        )
+        if web_doc_result:
+            yield {
+                "type": "web_doc_match",
+                "url": web_doc_result.url,
+                "title": web_doc_result.title,
+                "component": web_doc_result.component,
+                "score": web_doc_result.normalized_score,
+            }
+            web_content = await self._fetch_web_doc_content(web_doc_result.url)
+            if web_content:
+                query_type = self.query_type_classifier.classify(request.message)
+                yield {
+                    "type": "search_progress",
+                    "product": primary_product,
+                    "products": product_ids,
+                    "step": "web_doc_generating",
+                    "progress": 0.6,
+                }
+                # LLM 스트리밍 (web content를 context로)
+                web_context = f"[Web Documentation: {web_doc_result.title}]\nURL: {web_doc_result.url}\n\n{web_content}"
+                if len(web_context) > self._MAX_LLM_CONTEXT_CHARS:
+                    web_context = web_context[:self._MAX_LLM_CONTEXT_CHARS] + "..."
+                full_response = ""
+                async for token in self._stream_llm_from_context(
+                    request.message, primary_product, web_context,
+                    request.language or "ja", history=request.history,
+                ):
+                    full_response += token
+                    yield {"type": "llm_token", "token": token}
+                # 소스 정보 (URL 포함)
+                yield {
+                    "type": "sources",
+                    "results": [{
+                        "doc_name": web_doc_result.title,
+                        "source_page": web_doc_result.url,
+                        "content": web_content[:200],
+                        "score": web_doc_result.normalized_score,
+                        "domain": "web_doc",
+                        "product": web_doc_result.product_id,
+                        "url": web_doc_result.url,
+                    }],
+                    "total": 1,
+                }
+                yield {
+                    "type": "done",
+                    "processing_time_ms": int((time.time() - start) * 1000),
+                    "product": primary_product,
+                    "products": product_ids,
+                    "query_type": query_type.value,
+                    "web_doc_url": web_doc_result.url,
+                }
+                return
+        # === End Web Doc Fast Path ===
 
         # 3. 질문 유형 분류
         query_type = self.query_type_classifier.classify(request.message)
@@ -802,12 +913,233 @@ class AgenticRAGService:
             ) if search_context.structured_results else f"生成エラー: {str(e)}"
             yield fallback
 
+    # =========================================================================
+    # Web Doc Fast Path (docs.tmaxsoft.com 실시간 검색)
+    # =========================================================================
+
+    # 구 ProductId(라우터 출력) → web doc index product_id 매핑 (1:N)
+    # openframe_mvs는 MVS 본체 + 하위 컴포넌트(HiDB, NDB, TACF, OSI, AIM) 포함
+    _LEGACY_TO_WEB_DOC_PIDS: Dict[str, List[str]] = {
+        "openframe_mvs": [
+            "mvs_openframe_7.1",
+            "openframe_hidb_7", "openframe_ndb_7",
+            "openframe_tacf_7", "openframe_aim_7",
+        ],
+        "openframe_base": ["mvs_openframe_7.1"],
+        "msp_openframe": ["msp_openframe_7.3"],
+        "vos3_openframe": ["vos3_openframe_2.0"],
+        "tibero7": ["tibero_7fixset01"],
+        "ofasm": ["ofasm_4"],
+        "ofcobol": ["ofcobol_4"],
+        "xsp_openframe": ["xsp_openframe_7.3"],
+        "tmax": ["tmax_6.0"],
+    }
+
+    def _search_web_doc(
+        self,
+        query: str,
+        language: str,
+        product_ids: List[str],
+    ) -> Optional[WebDocSearchResult]:
+        """웹 문서 인덱스 검색. score >= threshold이면 결과 반환."""
+        try:
+            # 라우터 product_id → web doc index product_id 변환 (1:N)
+            mapped_pids = []
+            for pid in (product_ids or []):
+                mapped_list = self._LEGACY_TO_WEB_DOC_PIDS.get(pid)
+                if mapped_list:
+                    mapped_pids.extend(mapped_list)
+                else:
+                    mapped_pids.append(pid)
+            results = self.web_doc_search.search(
+                query=query,
+                language=language,
+                product_ids=mapped_pids if mapped_pids else None,
+                top_k=1,
+            )
+            if results:
+                logger.debug(
+                    f"Web doc top: score={results[0].normalized_score:.4f}, "
+                    f"title='{results[0].title}'"
+                )
+            if results and results[0].normalized_score >= WEB_DOC_THRESHOLD:
+                logger.info(
+                    f"Web doc match: score={results[0].normalized_score:.4f}, "
+                    f"url={results[0].url}"
+                )
+                return results[0]
+        except Exception as e:
+            logger.debug(f"Web doc search skipped: {e}")
+        return None
+
+    async def _fetch_web_doc_content(self, url: str) -> Optional[str]:
+        """docs.tmaxsoft.com 페이지를 fetch하여 <article> 내용 추출"""
+        try:
+            import httpx
+            async with httpx.AsyncClient(
+                timeout=10.0,
+                verify=False,
+                follow_redirects=True,
+            ) as client:
+                resp = await client.get(url)
+                if resp.status_code != 200:
+                    logger.warning(f"Web doc fetch failed: HTTP {resp.status_code}")
+                    return None
+
+            html = resp.text
+
+            # <article> 태그에서 내용 추출 (정규식 기반)
+            import re as _re
+            article_match = _re.search(r'<article[^>]*>(.*?)</article>', html, _re.DOTALL)
+            if article_match:
+                article_html = article_match.group(1)
+                # HTML 태그 제거, 줄바꿈 정리
+                text = _re.sub(r'<[^>]+>', '\n', article_html)
+                text = _re.sub(r'\n\s*\n+', '\n\n', text).strip()
+                return text
+
+            # fallback: body에서 추출
+            body_match = _re.search(r'<body[^>]*>(.*?)</body>', html, _re.DOTALL)
+            if body_match:
+                text = _re.sub(r'<[^>]+>', '\n', body_match.group(1))
+                text = _re.sub(r'\n\s*\n+', '\n\n', text).strip()
+                return text[:5000]
+
+        except Exception as e:
+            logger.warning(f"Web doc fetch error: {e}")
+        return None
+
+    async def _try_web_doc_fast_path(
+        self,
+        request: "AgenticRAGRequest",
+        product_ids: List[str],
+        primary_product: str,
+        router_result: "RouterResult",
+        start: float,
+    ) -> Optional[AgenticRAGResponse]:
+        """chat()용 Web Doc Fast Path. score >= 0.9이면 응답 생성."""
+        web_doc_result = self._search_web_doc(
+            request.message, request.language or "ja", product_ids,
+        )
+        if not web_doc_result:
+            return None
+
+        web_content = await self._fetch_web_doc_content(web_doc_result.url)
+        if not web_content:
+            return None  # fetch 실패 → PDF RAG fallback
+
+        query_type = self.query_type_classifier.classify(request.message)
+
+        # Web content를 LLM context로 사용하여 응답 생성
+        web_context = (
+            f"[Web Documentation: {web_doc_result.title}]\n"
+            f"URL: {web_doc_result.url}\n\n{web_content}"
+        )
+        if len(web_context) > self._MAX_LLM_CONTEXT_CHARS:
+            web_context = web_context[:self._MAX_LLM_CONTEXT_CHARS] + "..."
+
+        llm_response = await self._generate_with_llm_from_context(
+            request.message, primary_product, web_context,
+            request.language or "ja", history=request.history,
+        )
+
+        sources = ProductSources(
+            web_doc=WebDocSource(
+                url=web_doc_result.url,
+                title=web_doc_result.title,
+                component=web_doc_result.component,
+                product_id=web_doc_result.product_id,
+                score=web_doc_result.normalized_score,
+                content_preview=web_content[:200],
+                headings=web_doc_result.headings,
+            ),
+        )
+
+        return AgenticRAGResponse(
+            success=True,
+            response=llm_response or web_content[:2000],
+            product=primary_product,
+            query_type=query_type,
+            router_result=router_result,
+            sources=sources,
+            confidence=ConfidenceLevel.HIGH,
+            processing_time_ms=int((time.time() - start) * 1000),
+        )
+
+    async def _generate_with_llm_from_context(
+        self,
+        query: str,
+        product_id: str,
+        context: str,
+        language: str,
+        history=None,
+    ) -> Optional[str]:
+        """사전 구축된 context로 LLM 응답 생성 (web doc용)"""
+        try:
+            from .learning_llm_service import get_learning_llm_service
+            llm_service = get_learning_llm_service()
+            if not llm_service or not llm_service.is_available:
+                return None
+
+            adapter_product = self._map_product_for_llm(product_id)
+            history_section = self._format_history_for_context(history)
+            full_context = (history_section + "\n\n" + context) if history_section else context
+
+            result = await llm_service.generate(
+                question=query,
+                context=full_context,
+                max_tokens=2048,
+                temperature=0.3,
+                product=adapter_product,
+            )
+            if result and result.get("response"):
+                return result["response"]
+        except Exception as e:
+            logger.warning(f"LLM from web context failed: {e}")
+        return None
+
+    async def _stream_llm_from_context(
+        self,
+        query: str,
+        product_id: str,
+        context: str,
+        language: str,
+        history=None,
+    ) -> AsyncGenerator[str, None]:
+        """사전 구축된 context로 LLM 스트리밍 (web doc용)"""
+        try:
+            from .learning_llm_service import get_learning_llm_service
+            llm_service = get_learning_llm_service()
+            if not llm_service or not llm_service.is_available:
+                yield context[:2000]  # LLM 없으면 원문 반환
+                return
+
+            adapter_product = self._map_product_for_llm(product_id)
+            history_section = self._format_history_for_context(history)
+            full_context = (history_section + "\n\n" + context) if history_section else context
+
+            async for token in llm_service.generate_stream(
+                question=query,
+                context=full_context,
+                max_tokens=2048,
+                temperature=0.3,
+                product=adapter_product,
+            ):
+                yield token
+        except Exception as e:
+            logger.warning(f"LLM streaming from web context failed: {e}")
+            yield context[:2000]
+
+    # =========================================================================
+    # LLM Context Building
+    # =========================================================================
+
     # LLM 컨텍스트 총 문자 수 제한 (모델 context window 고려, ~1500 tokens)
     _MAX_LLM_CONTEXT_CHARS = 4000
     _MAX_HISTORY_CHARS = 800
 
     def _build_llm_context(self, results, history=None) -> str:
-        """검색 결과를 LLM 컨텍스트 문자열로 변환 (대화 이력 + 테이블 포함, 예산 관리)"""
+        """검색 결과를 LLM 컨텍스트 문자열로 변환 (PDF 우선 + 대화 이력 + 테이블 포함, 예산 관리)"""
         # 대화 이력 포맷팅
         history_section = self._format_history_for_context(history)
         history_len = len(history_section)
@@ -815,6 +1147,9 @@ class AgenticRAGService:
 
         if not results:
             return history_section
+
+        # PDF 우선: PDF가 있으면 요약본/학습데이터 제외
+        results = _select_tiered_results(results, min_primary=1)
 
         from .structured_knowledge_store import enrich_content_with_tables
 
@@ -883,9 +1218,13 @@ class AgenticRAGService:
         return "\n".join(lines)
 
     def _fallback_from_structured(self, results) -> str:
-        """구조화 결과로 폴백 응답 생성 (가독성 개선)"""
+        """구조화 결과로 폴백 응답 생성 (PDF 우선 + 가독성 개선)"""
         if not results:
             return ""
+
+        # PDF 우선: PDF가 있으면 요약본/학습데이터 제외
+        results = _select_tiered_results(results, min_primary=1)
+
         from .structured_knowledge_store import enrich_content_with_tables
 
         top_score = results[0].relevance_score if results else 0
@@ -895,7 +1234,7 @@ class AgenticRAGService:
             filtered = results[:1]
         parts = []
         for r in filtered:
-            content = enrich_content_with_tables(r)
+            content = _clean_inline_metadata(enrich_content_with_tables(r))
             if len(content) > 2000:
                 cut = content[:2000]
                 last_break = max(cut.rfind('。'), cut.rfind('\n'), cut.rfind('. '))
@@ -987,9 +1326,10 @@ class AgenticRAGService:
         return family
 
     def _build_sources(self, results) -> ProductSources:
-        """검색 결과에서 출처 정보 생성"""
+        """검색 결과에서 출처 정보 생성 (PDF 우선: PDF가 있으면 요약본 제외)"""
+        tiered = _select_tiered_results(results, min_primary=1)
         vector_sources = []
-        for i, r in enumerate(results[:5]):
+        for i, r in enumerate(tiered[:5]):
             vector_sources.append(VectorSource(
                 chunk_id=f"structured_{i}",
                 doc_id=r.source_file or f"doc_{i}",
@@ -1001,11 +1341,13 @@ class AgenticRAGService:
         return ProductSources(vector_search=vector_sources)
 
     def _build_sources_event(self, results) -> Dict[str, Any]:
-        """출처 정보 SSE 이벤트 생성"""
+        """출처 정보 SSE 이벤트 생성 (PDF 우선: PDF가 있으면 요약본 제외)"""
+        tiered = _select_tiered_results(results, min_primary=1)
         sources = []
-        for r in results[:5]:
+        for r in tiered[:5]:
             sources.append({
                 "doc_name": r.source_file or "",
+                "source_page": r.source_page or "",
                 "content": r.content[:200] if r.content else "",
                 "score": r.relevance_score,
                 "domain": r.domain,
