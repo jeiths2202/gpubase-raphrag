@@ -930,7 +930,10 @@ class AgenticRAGService:
         seen_tables: set = set()
         seen_images: set = set()
 
-        for r in results[:3]:
+        # 최상위 결과만 사용 + 최소 점수 요건 (저관련 결과에서 무관한 테이블/이미지 추출 방지)
+        for r in results[:1]:
+            if r.relevance_score < 10.0:
+                continue
             pdf_path, page_num = _resolve_pdf_path_and_page(r)
             if not pdf_path or page_num < 0:
                 continue
