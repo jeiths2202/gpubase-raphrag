@@ -65,6 +65,36 @@ _DYNAMIC_TO_ADAPTER_MAP = {
 }
 
 
+
+
+# Intent re-ranking: 제품명/문맥 토큰과 사용자 의도 토큰을 분리하여 검색 결과 재순위
+_PRODUCT_TERMS = frozenset({
+    "tjes", "tacf", "osc", "osi", "hidb", "ndb", "ofasm", "ofcobol",
+    "ofstudio", "ofmanager", "openframe", "tibero", "jeus", "webtob",
+    "tmax", "protrieve", "xsp", "msp", "vos3", "mvs", "aim",
+    "tjesmgr", "tacfmgr", "oscmgr", "osimgr", "hidbmgr", "ndbmgr",
+    "volmgr", "catmgr", "ofmanager",
+})
+_GENERIC_MODIFIERS = frozenset({
+    # 일본어 고빈도 일반 수식어
+    "機能", "設定", "説明", "エラー", "方法", "使い方", "コマンド",
+    "確認", "手順", "一覧", "詳細", "情報", "問題", "対処",
+    # 영어 고빈도 일반 수식어
+    "function", "setting", "error", "command", "config", "how",
+    "feature", "description", "list", "detail", "info",
+})
+_OVERVIEW_PATTERN = re.compile(
+    r'概要|overview|紹介|introduction|一覧|about|全体|summary', re.IGNORECASE
+)
+_TOKENIZE_RE = re.compile(
+    r'[a-z0-9][a-z0-9_\-]*[a-z0-9]|[a-z0-9]'
+    r'|[\u30a0-\u30ff]{2,}'
+    r'|[\u4e00-\u9fff]+'
+    r'|[\uac00-\ud7af]{2,}'
+    r'|[\u3040-\u309f]{2,}'
+)
+
+
 class AgenticRAGService:
     """
     Agentic RAG 오케스트레이터
@@ -230,6 +260,66 @@ class AgenticRAGService:
 
         return None
 
+    def _rerank_by_intent(
+        self,
+        query: str,
+        product_ids: List[str],
+        results: List[SearchResult],
+    ) -> List[SearchResult]:
+        """
+        검색 의도 기반 재순위.
+
+        쿼리 토큰을 context(제품명) / generic(수식어) / intent(핵심 의도)로 분리하고,
+        intent 토큰이 제목에 포함된 결과에 보너스를 부여하며 개요 섹션에 페널티를 적용합니다.
+        """
+        if len(results) <= 1:
+            return results
+
+        tokens = _TOKENIZE_RE.findall(query.lower())
+        # product_ids에서 추출한 추가 context terms
+        pid_terms = set()
+        for pid in product_ids:
+            for part in pid.replace("-", "_").split("_"):
+                if len(part) >= 2:
+                    pid_terms.add(part.lower())
+
+        intent_tokens = [
+            t for t in tokens
+            if t not in _PRODUCT_TERMS
+            and t not in pid_terms
+            and t not in _GENERIC_MODIFIERS
+            and len(t) >= 2
+        ]
+
+        if not intent_tokens:
+            return results
+
+        logger.debug(f"Intent re-ranking: tokens={tokens}, intent={intent_tokens}")
+
+        for r in results:
+            title_lower = r.title.lower()
+            bonus = 0.0
+
+            for token in intent_tokens:
+                if token in title_lower:
+                    bonus += 5.0
+                elif token in r.content[:200].lower():
+                    bonus += 1.0
+
+            if _OVERVIEW_PATTERN.search(title_lower):
+                r.relevance_score *= 0.7
+
+            r.relevance_score += bonus
+
+        results.sort(key=lambda r: r.relevance_score, reverse=True)
+
+        if intent_tokens:
+            logger.info(
+                f"Intent re-ranked: intent={intent_tokens}, "
+                f"top={results[0].title}({results[0].relevance_score:.2f})"
+            )
+        return results
+
     async def _multi_product_search(
         self,
         query: str,
@@ -276,6 +366,9 @@ class AgenticRAGService:
                 all_results.extend(result)
 
         all_results.sort(key=lambda r: r.relevance_score, reverse=True)
+
+        # Intent-based re-ranking: 의도 토큰이 제목에 있는 결과를 상위로
+        all_results = self._rerank_by_intent(query, product_ids, all_results)
 
         # fingerprint dedup
         deduped: List[SearchResult] = []
