@@ -170,6 +170,108 @@ class StructuredKnowledgeStore:
         return f"{header}\n{sep}\n{body}"
 
     @staticmethod
+    def _get_shaded_rects(page) -> list:
+        """페이지에서 음영(코드블록) 영역의 rect 목록 반환.
+
+        PDF 매뉴얼의 명령어 예시, 출력 결과 등은 회색 배경의 사각형으로
+        표시됩니다. page.get_drawings()를 사용하여 이 영역들을 감지합니다.
+        """
+        rects = []
+        try:
+            for d in page.get_drawings():
+                fill = d.get("fill")
+                if fill is None:
+                    continue
+                rect = d.get("rect")
+                if rect is None:
+                    continue
+                w = rect.width
+                h = rect.height
+                # 코드블록 조건: 폭 > 200, 높이 >= 15, 회색 계열
+                if w < 200 or h < 15:
+                    continue
+                r, g, b = fill[0], fill[1], fill[2] if len(fill) >= 3 else (fill[0], fill[0], fill[0])
+                # 흰색(>0.98)이나 검정(<0.05) 제외, 회색 계열만
+                if r > 0.98 and g > 0.98 and b > 0.98:
+                    continue
+                if r < 0.05 and g < 0.05 and b < 0.05:
+                    continue
+                rects.append(rect)
+        except Exception:
+            pass
+        return rects
+
+    @staticmethod
+    def _extract_page_text_with_codeblocks(page) -> str:
+        """페이지 텍스트를 추출하되, 음영 영역은 마크다운 코드블록으로 감싸서 반환.
+
+        1. page.get_drawings()로 음영 rect 감지
+        2. page.get_text("dict")로 블록별 위치+텍스트 추출
+        3. 각 텍스트 블록의 중심이 음영 rect 내에 있으면 코드블록 마킹
+        4. 인접한 코드 행은 하나의 ``` 블록으로 병합
+        """
+        shaded_rects = StructuredKnowledgeStore._get_shaded_rects(page)
+
+        if not shaded_rects:
+            # 음영 없으면 기존 방식
+            return page.get_text("text") or ""
+
+        try:
+            page_dict = page.get_text("dict")
+        except Exception:
+            return page.get_text("text") or ""
+
+        # 각 텍스트 라인을 (y좌표, 텍스트, is_code) 튜플로 수집
+        lines_with_info: list = []
+
+        for block in page_dict.get("blocks", []):
+            if block.get("type") != 0:  # 텍스트 블록만
+                continue
+            for line_info in block.get("lines", []):
+                bbox = line_info.get("bbox", (0, 0, 0, 0))
+                # 라인 중심 y좌표
+                cy = (bbox[1] + bbox[3]) / 2
+                cx = (bbox[0] + bbox[2]) / 2
+
+                # 라인 텍스트 결합
+                text = ""
+                for span in line_info.get("spans", []):
+                    text += span.get("text", "")
+                text = text.rstrip()
+                if not text:
+                    continue
+
+                # 음영 rect 내에 있는지 판정
+                is_code = False
+                for rect in shaded_rects:
+                    if rect.x0 - 5 <= cx <= rect.x1 + 5 and rect.y0 - 2 <= cy <= rect.y1 + 2:
+                        is_code = True
+                        break
+
+                lines_with_info.append((bbox[1], text, is_code))
+
+        # y좌표 순으로 정렬
+        lines_with_info.sort(key=lambda x: x[0])
+
+        # 마크다운 출력 생성: 인접 코드 행을 ``` 블록으로 병합
+        result: list = []
+        in_code_block = False
+
+        for _, text, is_code in lines_with_info:
+            if is_code and not in_code_block:
+                result.append("\n```")
+                in_code_block = True
+            elif not is_code and in_code_block:
+                result.append("```\n")
+                in_code_block = False
+            result.append(text)
+
+        if in_code_block:
+            result.append("```")
+
+        return "\n".join(result)
+
+    @staticmethod
     def _extract_page_images(doc, page_num: int, product_id: str) -> List[str]:
         """페이지에서 이미지를 추출하여 파일로 저장, Markdown 이미지 참조 반환"""
         import pymupdf
@@ -264,11 +366,11 @@ class StructuredKnowledgeStore:
                     next_page = toc[j][2]
                     break
 
-            # 해당 범위 텍스트 추출
+            # 해당 범위 텍스트 추출 (음영 영역 → 코드블록 변환 포함)
             content_parts = []
             for p in range(max(0, page_num - 1), min(next_page, total_pages)):
                 try:
-                    page_text = doc[p].get_text("text")
+                    page_text = self._extract_page_text_with_codeblocks(doc[p])
                     if page_text:
                         content_parts.append(page_text.strip())
                 except Exception:
@@ -301,7 +403,7 @@ class StructuredKnowledgeStore:
 
         for page_num in range(len(doc)):
             try:
-                page_text = doc[page_num].get_text("text")
+                page_text = self._extract_page_text_with_codeblocks(doc[page_num])
             except Exception:
                 continue
             if not page_text:
@@ -348,26 +450,49 @@ class StructuredKnowledgeStore:
 
     @staticmethod
     def _clean_pdf_text(text: str) -> str:
-        """PDF 텍스트 정리"""
+        """PDF 텍스트 정리 (코드블록 내부는 보존)"""
         if not text:
             return ""
-        # 연속 공백/탭 정리
-        text = re.sub(r'[ \t]+', ' ', text)
-        # 페이지 번호 패턴 제거
-        text = re.sub(r'\n\s*-?\s*\d+\s*-?\s*\n', '\n', text)
-        # 3줄 이상 연속 빈 줄 → 2줄로
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        # 반복되는 헤더/푸터 제거 (같은 줄이 3회 이상 등장)
+
+        # 코드블록(```)을 분리하여 보존
+        parts = re.split(r'(```[\s\S]*?```)', text)
+        cleaned_parts = []
+        for part in parts:
+            if part.startswith('```'):
+                # 코드블록은 그대로 유지
+                cleaned_parts.append(part)
+            else:
+                # 일반 텍스트만 정리
+                p = re.sub(r'[ \t]+', ' ', part)
+                p = re.sub(r'\n\s*-?\s*\d+\s*-?\s*\n', '\n', p)
+                p = re.sub(r'\n{3,}', '\n\n', p)
+                cleaned_parts.append(p)
+
+        text = ''.join(cleaned_parts)
+
+        # 반복되는 헤더/푸터 제거 (같은 줄이 3회 이상 등장, 코드블록 외부만)
         lines = text.split('\n')
         line_counts: Dict[str, int] = {}
+        in_code = False
         for line in lines:
             stripped = line.strip()
-            if stripped and len(stripped) > 5:
+            if stripped.startswith('```'):
+                in_code = not in_code
+                continue
+            if not in_code and stripped and len(stripped) > 5:
                 line_counts[stripped] = line_counts.get(stripped, 0) + 1
         repeated = {line for line, count in line_counts.items() if count >= 3}
         if repeated:
-            lines = [line for line in lines if line.strip() not in repeated]
-            text = '\n'.join(lines)
+            in_code = False
+            new_lines = []
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith('```'):
+                    in_code = not in_code
+                    new_lines.append(line)
+                elif in_code or stripped not in repeated:
+                    new_lines.append(line)
+            text = '\n'.join(new_lines)
         return text.strip()
 
     # ChatML 파싱용 정규식
@@ -593,12 +718,12 @@ class StructuredKnowledgeStore:
         # error_codes는 에러코드 패턴(-XXXX)이 있을 때만 부스트 (일반 질문에서 에러코드 오염 방지)
         _has_error_pattern = bool(error_codes)
         _DOMAIN_BOOST = {
-            "pdf_manuals": 1.4,  # PDF 원본 최우선 (정확한 원본 데이터)
+            "pdf_manuals": 1.5,  # PDF 원본 최우선 (정확한 원본 데이터)
             "commands": 1.3,
             "configs": 1.2,
             "error_codes": 1.3 if _has_error_pattern else 0.7,  # 에러 질문이 아니면 감점
-            "glossary": 0.9,  # 요약본은 중복/노이즈 가능성 → PDF 우선
-            "learning_qa": 0.8,  # cross-product 오염 가능성 → 감점
+            "glossary": 0.6,  # 요약본은 중복/노이즈 → PDF 우선 + 상위 계층 분리
+            "learning_qa": 0.4,  # cross-product 오염 가능성 → 강하게 감점
         }
         for key, cand in candidates.items():
             domain = key[0]

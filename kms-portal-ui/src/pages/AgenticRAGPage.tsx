@@ -31,8 +31,7 @@ import {
   Settings,
   Zap,
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { MessageContent } from '../components/AgentChat/MessageContent';
 import client from '../api/client';
 import type {
   AgenticRAGRequest,
@@ -541,38 +540,7 @@ export const AgenticRAGPage: React.FC = () => {
                   )}
                 </div>
               )}
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  table: ({ children, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
-                    <div className="markdown-table-wrapper">
-                      <table {...props}>{children}</table>
-                    </div>
-                  ),
-                  img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
-                    <span className="markdown-image-wrapper" style={{ display: 'block' }}>
-                      <img
-                        src={src}
-                        alt={alt || ''}
-                        loading="lazy"
-                        onClick={() => src && window.open(src, '_blank')}
-                        {...props}
-                      />
-                      {alt && <span className="markdown-image-caption">{alt}</span>}
-                    </span>
-                  ),
-                  p: ({ children, ...props }) => {
-                    // Avoid nesting block elements inside <p>
-                    const hasBlock = React.Children.toArray(children).some(
-                      (child) => React.isValidElement(child) && typeof child.type === 'string' && ['div', 'table', 'pre'].includes(child.type)
-                    );
-                    if (hasBlock) return <div {...props}>{children}</div>;
-                    return <p {...props}>{children}</p>;
-                  },
-                }}
-              >
-                {msg.content}
-              </ReactMarkdown>
+              <MessageContent content={msg.content} />
               {msg.verification && msg.verification.length > 0 && (
                 <div className="verification-summary">
                   <div className="verification-title">

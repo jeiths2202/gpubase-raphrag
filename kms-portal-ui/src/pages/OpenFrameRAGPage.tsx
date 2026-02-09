@@ -26,8 +26,7 @@ import {
   ChevronDown,
   Info,
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { MessageContent } from '../components/AgentChat/MessageContent';
 import './OpenAgentPage.css';
 
 // Product IDs
@@ -216,8 +215,13 @@ export const OpenFrameRAGPage: React.FC = () => {
         return { product: 'ofcobol', confidence: 0.8, needs_selection: false };
       }
 
+      // OpenFrame Base detection (before generic openframe)
+      if (/openframe.*base|base.*system|of_base|dataset|dsalc|catalog|catmgr|gdg|vsam/i.test(query)) {
+        return { product: 'openframe_base', confidence: 0.8, needs_selection: false };
+      }
+
       // Keyword-based detection (medium confidence)
-      if (/openframe|jcl|mainframe|vsam|cobol|jeus/i.test(query)) {
+      if (/openframe|jcl|mainframe|cobol|jeus/i.test(query)) {
         return { product: 'openframe_mvs', confidence: 0.6, needs_selection: true };
       }
 
@@ -853,7 +857,7 @@ export const OpenFrameRAGPage: React.FC = () => {
                         )}
                       </div>
                     )}
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                    <MessageContent content={message.content} />
                   </>
                 ) : (
                   <p>{message.content}</p>
