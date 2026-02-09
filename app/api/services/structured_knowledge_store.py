@@ -156,6 +156,17 @@ class StructuredKnowledgeStore:
     _HEADING_PATTERN = re.compile(r'^(\d+\.)+\s+\S')
     _MAX_SECTION_CHARS = 8000  # 메모리 관리: 섹션당 최대 문자 수
 
+    # 서브커맨드 감지: 단독 줄에 대문자 3-30자 (ALTER, DEFINE, DEFINE CLUSTER 등)
+    _SUBCOMMAND_RE = re.compile(r'^([A-Z][A-Z0-9]+(?: [A-Z0-9]+)*)$', re.MULTILINE)
+    # 노이즈 제외 (목차·페이지·일반 라벨)
+    _SUBCOMMAND_NOISE = frozenset({
+        "TABLE OF CONTENTS", "PAGE", "CHAPTER", "SECTION", "FIGURE",
+        "EXAMPLE", "NOTE", "WARNING", "CONTENTS", "INDEX", "APPENDIX",
+        "DD", "JCL", "JOB", "EXEC", "DATA", "INDEX",
+    })
+    # 번호 접두사 제거 패턴: "1.4.2. 機能コマンド" → "機能コマンド"
+    _NUM_PREFIX_RE = re.compile(r'^[\d.]+\s+')
+
     @staticmethod
     def _table_to_markdown(table_data: list) -> str:
         """PyMuPDF table.extract() 결과를 GFM Markdown 테이블로 변환"""
@@ -335,31 +346,46 @@ class StructuredKnowledgeStore:
     def _parse_pdf_by_toc(
         self, doc, toc: list, filename: str, domain: str, filepath: str = "",
     ) -> List[Dict]:
-        """TOC 기반 PDF 섹션 분할 (L1/L2 중복 방지)"""
+        """TOC 기반 PDF 섹션 분할 (L1→L2→L3 계층 처리, 자식 있는 부모 스킵)"""
         sections = []
         total_pages = len(doc)
 
-        # L1 섹션 중 L2 자식이 있는 것을 미리 파악
-        l1_with_children: set = set()
+        # 부모-자식 관계 분석: L1→L2 및 L2→L3 모두 추적
+        parents_with_children: set = set()
         for i, (level, title, page_num) in enumerate(toc):
-            if level != 1:
+            if level > 3:
                 continue
             for j in range(i + 1, len(toc)):
-                if toc[j][0] == 1:
-                    break  # 다음 L1 → 자식 없음
-                if toc[j][0] == 2:
-                    l1_with_children.add(i)
+                next_level = toc[j][0]
+                if next_level <= level:
+                    break  # 동일/상위 레벨 → 더 이상 자식 없음
+                if next_level == level + 1:
+                    parents_with_children.add(i)
                     break
 
         for i, (level, title, page_num) in enumerate(toc):
-            if level > 2:
-                continue  # 3단계 이하 무시
+            if level > 3:
+                continue  # L4 이하 무시
 
-            # L1에 L2 자식이 있으면 스킵 (L2가 세분화된 콘텐츠 제공)
-            if level == 1 and i in l1_with_children:
+            # 자식이 있는 부모는 스킵 (자식이 세분화된 콘텐츠 제공)
+            if i in parents_with_children:
+                # 단, 첫 자식 이전의 "개요" 텍스트는 별도 저장
+                overview = self._extract_overview_before_children(
+                    doc, toc, i, page_num, total_pages,
+                )
+                if overview and len(overview) > 100:
+                    hier_title = self._build_hierarchical_title(toc, i)
+                    sections.append({
+                        "title": f"{hier_title} (概要)",
+                        "content": overview[:self._MAX_SECTION_CHARS],
+                        "source_file": filename,
+                        "source_page": f"p.{page_num}",
+                        "domain": domain,
+                        "source_path": filepath,
+                    })
                 continue
 
-            # 다음 TOC 항목의 페이지 번호
+            # 다음 동일/상위 레벨 TOC 항목의 페이지 번호 (섹션 끝)
             next_page = total_pages
             for j in range(i + 1, len(toc)):
                 if toc[j][0] <= level:
@@ -377,20 +403,195 @@ class StructuredKnowledgeStore:
                     continue
 
             content = "\n".join(content_parts)
-            # 텍스트 정리
             content = self._clean_pdf_text(content)
 
-            if content and len(content) > 30:
-                sections.append({
-                    "title": title.strip(),
-                    "content": content[:self._MAX_SECTION_CHARS],
+            if not content or len(content) < 30:
+                continue
+
+            hier_title = self._build_hierarchical_title(toc, i)
+
+            # 대규모 섹션은 서브커맨드 분할 시도
+            if len(content) > self._MAX_SECTION_CHARS:
+                subsections = self._split_by_subcommands(
+                    content, hier_title, filename, domain, filepath, page_num,
+                    total_pages=next_page - page_num,
+                )
+                if subsections:
+                    sections.extend(subsections)
+                    continue
+
+            sections.append({
+                "title": hier_title,
+                "content": content[:self._MAX_SECTION_CHARS],
+                "source_file": filename,
+                "source_page": f"p.{page_num}",
+                "domain": domain,
+                "source_path": filepath,
+            })
+
+        return sections
+
+    def _build_hierarchical_title(self, toc: list, index: int) -> str:
+        """TOC 항목의 계층 타이틀 생성 (번호 접두사 제거).
+
+        예: index → L3 "1.4.2. 機能コマンド"
+            parent → L2 "1.4. IDCAMS"
+            result → "IDCAMS > 機能コマンド"
+        """
+        current_level = toc[index][0]
+        current_title = self._NUM_PREFIX_RE.sub("", toc[index][1].strip())
+
+        if current_level <= 1:
+            return current_title
+
+        # 역방향으로 직계 부모(level - 1) 탐색
+        for j in range(index - 1, -1, -1):
+            if toc[j][0] == current_level - 1:
+                parent_title = self._build_hierarchical_title(toc, j)
+                return f"{parent_title} > {current_title}"
+
+        return current_title
+
+    def _extract_overview_before_children(
+        self, doc, toc: list, parent_idx: int, parent_page: int, total_pages: int,
+    ) -> str:
+        """부모 섹션의 첫 자식 이전 텍스트 추출 (개요/도입부).
+
+        예: "1.4. IDCAMS" (p.37) ~ "1.4.1. DDの設定" (p.40) → p.37-39 텍스트
+        """
+        parent_level = toc[parent_idx][0]
+        first_child_page = total_pages
+
+        for j in range(parent_idx + 1, len(toc)):
+            if toc[j][0] <= parent_level:
+                break
+            if toc[j][0] == parent_level + 1:
+                first_child_page = toc[j][2]
+                break
+
+        if first_child_page <= parent_page:
+            return ""
+
+        content_parts = []
+        for p in range(max(0, parent_page - 1), min(first_child_page - 1, total_pages)):
+            try:
+                page_text = self._extract_page_text_with_codeblocks(doc[p])
+                if page_text:
+                    content_parts.append(page_text.strip())
+            except Exception:
+                continue
+
+        return self._clean_pdf_text("\n".join(content_parts))
+
+    def _split_by_subcommands(
+        self,
+        content: str,
+        parent_title: str,
+        filename: str,
+        domain: str,
+        filepath: str,
+        start_page: int,
+        total_pages: int = 1,
+    ) -> List[Dict]:
+        """대규모 섹션에서 대문자 heading(ALTER, DEFINE 등)을 감지하여 서브섹션 분할.
+
+        Returns:
+            서브섹션 리스트 (빈 리스트 = 분할 불가 → 호출측에서 원본 사용)
+        """
+        lines = content.split('\n')
+        # 대문자 heading 후보 탐색
+        command_positions: list = []  # (line_idx, command_name)
+
+        for idx, line in enumerate(lines):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            m = self._SUBCOMMAND_RE.match(stripped)
+            if not m:
+                continue
+            cmd = m.group(1)
+            if cmd in self._SUBCOMMAND_NOISE:
+                continue
+            if len(cmd) < 3:
+                continue
+            # heading 판정: 직전/직후 공백 줄 필수 (파라미터 이름 필터링)
+            prev_blank = idx == 0 or not lines[idx - 1].strip()
+            next_blank = idx >= len(lines) - 1 or not lines[idx + 1].strip()
+            if not (prev_blank or next_blank):
+                continue  # 문장 중간의 약어/파라미터 이름 제외
+            command_positions.append((idx, cmd))
+
+        if len(command_positions) < 2:
+            return []
+
+        # 밀집 필터: 10줄 이내 5개 이상 연속 → 테이블/파라미터 목록 (heading 아님)
+        filtered_positions: list = []
+        for ci, (lidx, cmd) in enumerate(command_positions):
+            nearby = sum(
+                1 for oj, _ in command_positions
+                if abs(oj - lidx) <= 10 and oj != lidx
+            )
+            if nearby >= 4:
+                continue  # 밀집 영역 → 테이블 항목으로 판단
+            filtered_positions.append((lidx, cmd))
+        command_positions = filtered_positions
+
+        if len(command_positions) < 2:
+            return []
+
+        subsections: list = []
+        total_lines = len(lines)
+
+        # Preamble: 첫 heading 이전 콘텐츠 (ALTER처럼 TOC에 없는 첫 번째 커맨드 포함)
+        if command_positions[0][0] > 0:
+            preamble = '\n'.join(lines[:command_positions[0][0]]).strip()
+            if len(preamble) > 100:
+                # Preamble 내에서 첫 번째 커맨드명 추출 → 타이틀에 반영
+                preamble_title = parent_title
+                for pl in lines[:command_positions[0][0]]:
+                    ps = pl.strip()
+                    if not ps:
+                        continue
+                    pm = self._SUBCOMMAND_RE.match(ps)
+                    if pm and pm.group(1) not in self._SUBCOMMAND_NOISE and len(pm.group(1)) >= 3:
+                        preamble_title = f"{parent_title} > {pm.group(1)}"
+                        break
+                subsections.append({
+                    "title": preamble_title,
+                    "content": preamble[:self._MAX_SECTION_CHARS],
                     "source_file": filename,
-                    "source_page": f"p.{page_num}",
+                    "source_page": f"p.{start_page}",
                     "domain": domain,
                     "source_path": filepath,
                 })
 
-        return sections
+        for ci, (line_idx, cmd) in enumerate(command_positions):
+            # 다음 명령어까지의 콘텐츠
+            next_idx = (
+                command_positions[ci + 1][0]
+                if ci + 1 < len(command_positions)
+                else total_lines
+            )
+            cmd_lines = lines[line_idx:next_idx]
+            cmd_content = '\n'.join(cmd_lines).strip()
+
+            if len(cmd_content) < 80:
+                continue
+
+            # 페이지 번호 추정
+            ratio = line_idx / total_lines if total_lines > 0 else 0
+            est_page = start_page + int(ratio * total_pages)
+
+            subsections.append({
+                "title": f"{parent_title} > {cmd}",
+                "content": cmd_content[:self._MAX_SECTION_CHARS],
+                "source_file": filename,
+                "source_page": f"p.{est_page}",
+                "domain": domain,
+                "source_path": filepath,
+            })
+
+        return subsections
 
     def _parse_pdf_by_headings(
         self, doc, filename: str, domain: str, filepath: str = "",

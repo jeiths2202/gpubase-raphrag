@@ -86,9 +86,20 @@ _GENERIC_MODIFIERS = frozenset({
     # 일본어 고빈도 일반 수식어
     "機能", "設定", "説明", "エラー", "方法", "使い方", "コマンド",
     "確認", "手順", "一覧", "詳細", "情報", "問題", "対処",
+    # 일본어 카타카나 일반 수식어 (제품 고유명사가 아닌 일반 용어)
+    "ユーティリティ", "ツール", "プログラム", "オプション", "パラメータ",
+    "インストール", "サーバー", "クライアント", "システム", "プロセス",
+    "ファイル", "データ", "テーブル", "リスト", "ガイド",
+    # 일본어 히라가나 문법 조각 (intent가 아닌 조사/보조동사)
+    "について", "してください", "ください", "ている", "された",
+    "される", "している", "できる", "ことが", "ものです",
+    "ありません", "あります", "なります",
     # 영어 고빈도 일반 수식어
     "function", "setting", "error", "command", "config", "how",
     "feature", "description", "list", "detail", "info",
+    "utility", "tool", "program", "option", "parameter",
+    "install", "server", "client", "system", "process",
+    "file", "guide", "manual", "reference",
 })
 _OVERVIEW_PATTERN = re.compile(
     r'概要|overview|紹介|introduction|一覧|about|全体|summary', re.IGNORECASE
@@ -1218,7 +1229,7 @@ class AgenticRAGService:
         return "\n".join(lines)
 
     def _fallback_from_structured(self, results) -> str:
-        """구조화 결과로 폴백 응답 생성 (PDF 우선 + 가독성 개선)"""
+        """구조화 결과로 폴백 응답 생성 (PDF 우선 + 마크다운 포맷)"""
         if not results:
             return ""
 
@@ -1226,6 +1237,7 @@ class AgenticRAGService:
         results = _select_tiered_results(results, min_primary=1)
 
         from .structured_knowledge_store import enrich_content_with_tables
+        from .template_response_builder import format_as_markdown
 
         top_score = results[0].relevance_score if results else 0
         threshold = top_score * 0.5
@@ -1234,7 +1246,7 @@ class AgenticRAGService:
             filtered = results[:1]
         parts = []
         for r in filtered:
-            content = _clean_inline_metadata(enrich_content_with_tables(r))
+            content = format_as_markdown(_clean_inline_metadata(enrich_content_with_tables(r)))
             if len(content) > 2000:
                 cut = content[:2000]
                 last_break = max(cut.rfind('。'), cut.rfind('\n'), cut.rfind('. '))
