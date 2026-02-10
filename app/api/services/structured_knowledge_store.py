@@ -181,15 +181,21 @@ class StructuredKnowledgeStore:
         return f"{header}\n{sep}\n{body}"
 
     @staticmethod
-    def _get_shaded_rects(page) -> list:
-        """페이지에서 음영(코드블록) 영역의 rect 목록 반환.
+    def _get_shaded_rects(page) -> tuple:
+        """페이지에서 음영(코드블록) 영역의 rect 목록 + 총 드로잉 수 반환.
 
         PDF 매뉴얼의 명령어 예시, 출력 결과 등은 회색 배경의 사각형으로
         표시됩니다. page.get_drawings()를 사용하여 이 영역들을 감지합니다.
+
+        Returns:
+            (shaded_rects, drawing_count): 음영 rect 목록과 전체 드로잉 수.
+            drawing_count는 테이블 보더 감지 pre-filter에 사용됩니다.
         """
         rects = []
+        drawing_count = 0
         try:
             for d in page.get_drawings():
+                drawing_count += 1
                 fill = d.get("fill")
                 if fill is None:
                     continue
@@ -210,21 +216,41 @@ class StructuredKnowledgeStore:
                 rects.append(rect)
         except Exception:
             pass
-        return rects
+        return rects, drawing_count
 
     @staticmethod
-    def _extract_page_text_with_codeblocks(page) -> str:
-        """페이지 텍스트를 추출하되, 음영 영역은 마크다운 코드블록으로 감싸서 반환.
+    def _extract_page_text_with_codeblocks(page, extract_tables: bool = False) -> str:
+        """페이지 텍스트를 추출: 음영 → 코드블록, 테이블 → 마크다운 테이블 변환.
 
-        1. page.get_drawings()로 음영 rect 감지
-        2. page.get_text("dict")로 블록별 위치+텍스트 추출
-        3. 각 텍스트 블록의 중심이 음영 rect 내에 있으면 코드블록 마킹
-        4. 인접한 코드 행은 하나의 ``` 블록으로 병합
+        1. page.get_drawings()로 음영 rect 감지 → 코드블록
+        2. extract_tables=True일 때: page.find_tables()로 테이블 인라인 변환
+        3. page.get_text("dict")로 블록별 위치+텍스트 추출
+        4. 테이블 영역 텍스트는 스킵, 마크다운 테이블로 교체
+        5. 인접 코드 행은 하나의 ``` 블록으로 병합
+
+        Args:
+            extract_tables: True이면 find_tables() 호출 (검색 시 lazy extraction용).
+                           False(기본)이면 테이블 스킵 (초기 파싱 고속화).
         """
-        shaded_rects = StructuredKnowledgeStore._get_shaded_rects(page)
+        shaded_rects, drawing_count = StructuredKnowledgeStore._get_shaded_rects(page)
 
-        if not shaded_rects:
-            # 음영 없으면 기존 방식
+        # 테이블 감지: extract_tables=True + drawing pre-filter 일 때만
+        # find_tables()는 ~50-200ms/page → 초기 파싱 시 호출하면 4000+페이지에서 ~400초
+        # 검색 시에만 1-5페이지 대상으로 호출 (lazy extraction)
+        table_regions: list = []  # [(x0, y0, x1, y1, markdown)]
+        if extract_tables and drawing_count >= 5:
+            try:
+                tables = page.find_tables()
+                for table in tables:
+                    data = table.extract()
+                    md = StructuredKnowledgeStore._table_to_markdown(data)
+                    if md:
+                        b = table.bbox  # (x0, y0, x1, y1)
+                        table_regions.append((b[0], b[1], b[2], b[3], md))
+            except Exception:
+                pass
+
+        if not shaded_rects and not table_regions:
             return page.get_text("text") or ""
 
         try:
@@ -232,7 +258,14 @@ class StructuredKnowledgeStore:
         except Exception:
             return page.get_text("text") or ""
 
-        # 각 텍스트 라인을 (y좌표, 텍스트, is_code) 튜플로 수집
+        # 테이블 영역 판정 함수
+        def _in_table(cy: float, cx: float) -> bool:
+            for tx0, ty0, tx1, ty1, _ in table_regions:
+                if ty0 - 2 <= cy <= ty1 + 2 and tx0 - 5 <= cx <= tx1 + 5:
+                    return True
+            return False
+
+        # 각 텍스트 라인을 (y좌표, 텍스트, is_code, is_table) 튜플로 수집
         lines_with_info: list = []
 
         for block in page_dict.get("blocks", []):
@@ -240,16 +273,18 @@ class StructuredKnowledgeStore:
                 continue
             for line_info in block.get("lines", []):
                 bbox = line_info.get("bbox", (0, 0, 0, 0))
-                # 라인 중심 y좌표
                 cy = (bbox[1] + bbox[3]) / 2
                 cx = (bbox[0] + bbox[2]) / 2
 
-                # 라인 텍스트 결합
                 text = ""
                 for span in line_info.get("spans", []):
                     text += span.get("text", "")
                 text = text.rstrip()
                 if not text:
+                    continue
+
+                # 테이블 영역 내 텍스트는 스킵 (마크다운 테이블로 대체)
+                if _in_table(cy, cx):
                     continue
 
                 # 음영 rect 내에 있는지 판정
@@ -259,16 +294,28 @@ class StructuredKnowledgeStore:
                         is_code = True
                         break
 
-                lines_with_info.append((bbox[1], text, is_code))
+                lines_with_info.append((bbox[1], text, is_code, False))
+
+        # 테이블 마크다운을 y좌표 위치에 삽입
+        for _, ty0, _, _, md in table_regions:
+            lines_with_info.append((ty0, md, False, True))
 
         # y좌표 순으로 정렬
         lines_with_info.sort(key=lambda x: x[0])
 
-        # 마크다운 출력 생성: 인접 코드 행을 ``` 블록으로 병합
+        # 마크다운 출력 생성
         result: list = []
         in_code_block = False
 
-        for _, text, is_code in lines_with_info:
+        for _, text, is_code, is_table in lines_with_info:
+            if is_table:
+                # 코드블록 내부라면 먼저 닫기
+                if in_code_block:
+                    result.append("```\n")
+                    in_code_block = False
+                result.append("\n" + text + "\n")
+                continue
+
             if is_code and not in_code_block:
                 result.append("\n```")
                 in_code_block = True
@@ -1037,13 +1084,21 @@ def _resolve_pdf_path_and_page(result: SearchResult):
 
 def enrich_content_with_tables(result: SearchResult) -> str:
     """
-    검색 결과의 content를 테이블 Markdown으로 보강 (lazy extraction).
+    검색 결과의 content를 테이블 Markdown으로 보강 (lazy inline extraction).
 
-    PDF 직접 파싱 결과와 요약본(.md) 결과 모두 지원:
-    - PDF 결과: source_path + source_page="p.45"
-    - 요약본 결과: source_page="소스: XXX.pdf (p.21)" → PDF 역추적
+    PDF 테이블을 인라인 마크다운으로 변환하여 평문 테이블 텍스트를 교체.
+    초기 파싱 시 테이블 추출을 건너뛰고(성능), 검색 시점에 1-5 페이지만 처리.
+
+    전략:
+    - 해당 페이지를 extract_tables=True로 재추출 → 인라인 마크다운 테이블
+    - 기존 content(평문 테이블)을 재추출 결과로 교체
+    - content가 2000자 제한으로 잘려도 테이블이 자연 위치에 표시됨
     """
     content = result.content
+
+    # 이미 인라인 테이블이 있으면 스킵
+    if "| ---" in content or "|---" in content:
+        return content
 
     pdf_path, page_num = _resolve_pdf_path_and_page(result)
     if not pdf_path or page_num < 0:
@@ -1056,18 +1111,35 @@ def enrich_content_with_tables(result: SearchResult) -> str:
             doc.close()
             return content
 
-        # 해당 페이지만 스캔 (인접 페이지의 무관한 테이블/이미지 방지)
-        tables_md = []
-        try:
-            tables = doc[page_num].find_tables()
-            for table in tables:
-                data = table.extract()
-                md = StructuredKnowledgeStore._table_to_markdown(data)
-                if md:
-                    tables_md.append(md)
-        except Exception:
-            pass
+        page = doc[page_num]
 
+        # drawing pre-filter: 테이블 보더가 없는 페이지 빠르게 스킵
+        _, drawing_count = StructuredKnowledgeStore._get_shaded_rects(page)
+
+        if drawing_count >= 5:
+            # 인라인 테이블로 재추출 (extract_tables=True)
+            enriched = StructuredKnowledgeStore._extract_page_text_with_codeblocks(
+                page, extract_tables=True,
+            )
+            has_tables = "| ---" in enriched or "|---" in enriched
+
+            if has_tables:
+                # 해당 페이지의 평문 버전 → content에서 찾아 교체
+                flat_page = StructuredKnowledgeStore._extract_page_text_with_codeblocks(
+                    page, extract_tables=False,
+                )
+                flat_stripped = flat_page.strip()
+                enriched_stripped = enriched.strip()
+
+                if flat_stripped and flat_stripped in content:
+                    # 정확히 일치하는 부분만 교체
+                    content = content.replace(flat_stripped, enriched_stripped, 1)
+                else:
+                    # 정확 매칭 실패 → content 전체를 재추출 결과로 교체
+                    # (해당 페이지가 검색 결과의 핵심 페이지이므로)
+                    content = enriched_stripped
+
+        # 이미지 보강
         images_md = []
         try:
             imgs = StructuredKnowledgeStore._extract_page_images(
@@ -1079,8 +1151,6 @@ def enrich_content_with_tables(result: SearchResult) -> str:
 
         doc.close()
 
-        if tables_md:
-            content += "\n\n" + "\n\n".join(tables_md)
         if images_md:
             content += "\n\n" + "\n".join(images_md)
 
