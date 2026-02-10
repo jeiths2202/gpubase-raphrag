@@ -37,7 +37,7 @@
     "mindmap": "AI 스튜디오",
     "agent": "AI 에이전트",
     "documents": "문서",
-    "analytics": "분석",
+    "agenticRag": "에이전트 RAG",
     "improvements": "개선 요청",
     "admin": "관리자",
     "settings": "설정",
@@ -827,5 +827,25 @@
       "loadHistoryFailed": "버전 이력을 불러오지 못했습니다",
       "rollbackFailed": "롤백하지 못했습니다"
     }
+  },
+  "agenticRag": {
+    "autoProduct": "Auto (전체 제품)",
+    "selectProduct": "제품 선택",
+    "productsSelected": "개 제품",
+    "pdfs": "PDFs",
+    "version": "버전",
+    "subtitle": "제품별 에이전트 기반 RAG 시스템",
+    "emptyState": "제품에 관한 기술적인 질문을 입력해주세요",
+    "emptyHint": "명령어 사용법, 에러코드, 설정 방법 등",
+    "inputPlaceholder": "질문을 입력해주세요...",
+    "lowRelevance": "검색 결과 관련성이 낮습니다. 질문을 구체적으로 변경해 주세요.",
+    "suggestion1": "tjesmgr 명령어 사용법을 알려주세요",
+    "suggestion2": "에러코드 -5212의 원인과 해결 방법",
+    "suggestion3": "OSC 매핑 서포트에 대해 알려주세요",
+    "faqTitle": "자주 묻는 질문",
+    "history": "히스토리",
+    "newConversation": "새 대화",
+    "connectors": "외부 연동",
+    "attachFile": "파일 첨부"
   }
 }

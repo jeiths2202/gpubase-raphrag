@@ -31,6 +31,7 @@ from ..models.openframe_rag import (
 from .product_router_service import get_product_router_service, ProductRouterService
 from .deep_seek_service import get_deep_seek_service, DeepSeekService
 from .learning_llm_service import get_learning_llm_service, LearningLLMService
+from .multimodal_embedding import TextEmbeddingService
 from ..adapters.openframe_llm import TRTLLMAdapter, get_trtllm_adapter, initialize_trtllm_adapter
 
 logger = logging.getLogger(__name__)
@@ -322,53 +323,100 @@ class OpenFrameRAGService:
                     yield {"type": "done", "data": {"needs_selection": True}}
                     return
 
-            # Step 2: Search (yield search events)
+            # Step 2: Search (parallel execution for performance)
             sources = ProductSources()
             context_parts = []
 
-            if request.use_vector_search:
-                yield {"type": "status", "data": {"step": "vector_search"}}
-                try:
-                    vector_results = await self._vector_search(
-                        query=request.message,
-                        product=product,
-                        top_k=5,
-                    )
-                    sources.vector_search = vector_results
-                    for vr in vector_results[:3]:
-                        context_parts.append(f"[Document: {vr.doc_name}]\n{vr.content[:500]}")
+            yield {"type": "status", "data": {"step": "parallel_search"}}
 
-                    yield {
-                        "type": "sources",
-                        "data": {
-                            "source_type": "vector",
-                            "count": len(vector_results),
-                        }
-                    }
-                except Exception as e:
-                    logger.warning(f"Vector search failed: {e}")
+            # Build parallel search tasks
+            search_tasks = []
+            task_names = []
+
+            if request.use_vector_search:
+                search_tasks.append(self._vector_search(
+                    query=request.message,
+                    product=product,
+                    top_k=5,
+                ))
+                task_names.append("vector")
 
             if request.use_graph_search:
-                yield {"type": "status", "data": {"step": "graph_search"}}
-                try:
-                    graph_results = await self._graph_search(
-                        query=request.message,
-                        product=product,
-                        top_k=5,
-                    )
-                    sources.graph_search = graph_results
-                    for gr in graph_results[:3]:
-                        context_parts.append(f"[Entity: {gr.entity_name} ({gr.entity_type})]")
+                search_tasks.append(self._graph_search(
+                    query=request.message,
+                    product=product,
+                    top_k=5,
+                ))
+                task_names.append("graph")
 
+            # Cross-product similarity search (always enabled for better coverage)
+            search_tasks.append(self._cross_product_similarity_search(
+                query=request.message,
+                current_product=product,
+                top_k=3,
+            ))
+            task_names.append("cross_product")
+
+            # Execute all searches in parallel
+            search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
+
+            # Process results
+            for i, (name, result) in enumerate(zip(task_names, search_results)):
+                if isinstance(result, Exception):
+                    logger.warning(f"{name} search failed: {result}")
+                    continue
+
+                if name == "vector" and result:
+                    sources.vector_search = result
+                    for vr in result[:3]:
+                        context_parts.append(f"[Document: {vr.doc_name}]\n{vr.content[:500]}")
                     yield {
                         "type": "sources",
-                        "data": {
-                            "source_type": "graph",
-                            "count": len(graph_results),
-                        }
+                        "data": {"source_type": "vector", "count": len(result)}
                     }
-                except Exception as e:
-                    logger.warning(f"Graph search failed: {e}")
+
+                elif name == "graph" and result:
+                    sources.graph_search = result
+                    for gr in result[:3]:
+                        context_parts.append(f"[Entity: {gr.entity_name} ({gr.entity_type})]")
+                    yield {
+                        "type": "sources",
+                        "data": {"source_type": "graph", "count": len(result)}
+                    }
+
+                elif name == "cross_product" and result:
+                    # Merge cross-product results with vector results (avoid duplicates)
+                    existing_docs = {vs.doc_name for vs in sources.vector_search} if sources.vector_search else set()
+
+                    for cp_result in result:
+                        if cp_result.doc_name not in existing_docs:
+                            if sources.vector_search is None:
+                                sources.vector_search = []
+                            sources.vector_search.append(cp_result)
+                            existing_docs.add(cp_result.doc_name)
+                            # Add to context with cross-product marker
+                            context_parts.append(
+                                f"[Cross-Product: {cp_result.doc_name} (score: {cp_result.score:.3f})]\n"
+                                f"{cp_result.content[:500]}"
+                            )
+
+                    if result:
+                        yield {
+                            "type": "sources",
+                            "data": {
+                                "source_type": "cross_product",
+                                "count": len(result),
+                                "top_score": result[0].score if result else 0,
+                            }
+                        }
+
+            # Re-sort vector_search by score (combining original + cross-product results)
+            if sources.vector_search:
+                sources.vector_search = sorted(
+                    sources.vector_search,
+                    key=lambda x: x.score,
+                    reverse=True
+                )[:5]  # Keep top 5
 
             if request.file_content:
                 context_parts.insert(0, f"[User File]\n{request.file_content[:2000]}")
@@ -412,20 +460,25 @@ class OpenFrameRAGService:
             # Fallback to Learning LLM if TRT-LLM failed
             if llm_used is None and request.use_learning_llm and self.learning_llm_service:
                 try:
+                    # Multi-LoRA v2: 제품별 어댑터 사용
+                    product_name = product.value if product != ProductId.AUTO else None
                     async for token in self.learning_llm_service.generate_stream(
                         question=request.message,
                         context=combined_context,
                         max_tokens=1024,
                         temperature=0.7,
+                        product=product_name,  # Multi-LoRA 제품 전달
                     ):
                         yield {"type": "token", "data": {"content": token}}
 
                     sources.learning_llm = LearningLLMSource(
-                        model="Qwen/Qwen2.5-7B-Instruct",
+                        model=f"Qwen/Qwen2.5-7B-Instruct ({product.value})",
+                        adapter=f"{product_name}_v2" if product_name else None,
                         product=product.value,
                         confidence=0.8,
                     )
                     llm_used = "learning"
+                    logger.info(f"Learning LLM (Multi-LoRA) response for product: {product.value}")
 
                 except Exception as e:
                     logger.error(f"Learning LLM streaming failed: {e}")
@@ -461,16 +514,134 @@ class OpenFrameRAGService:
             logger.exception(f"OpenFrame RAG stream error: {e}")
             yield {"type": "error", "data": {"message": str(e)}}
 
+    def _get_neo4j_driver(self):
+        """
+        Neo4j driver 획득 (comprehensive_search.py와 동일한 방식)
+        """
+        from neo4j import GraphDatabase
+
+        uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+        user = os.getenv("NEO4J_USER", "neo4j")
+        password = os.getenv("NEO4J_PASSWORD", "")
+
+        return GraphDatabase.driver(uri, auth=(user, password))
+
+    def _extract_keywords(self, query: str) -> List[str]:
+        """
+        쿼리에서 검색용 키워드 추출
+
+        OpenFrame 관련 명령어, 에러코드, 기술용어를 우선 추출합니다.
+        """
+        import re
+
+        keywords = []
+        query_lower = query.lower()
+
+        # 1. OpenFrame 관련 명령어 패턴
+        command_patterns = [
+            r'\b(tjesmgr|tacfmgr|hidbmgr|oscmgr|osimgr|ndbmgr|volmgr|catmgr)\b',
+            r'\b(tmboot|tmdown|ofboot|ofdown|jesinit|jesdown)\b',
+            r'\b(idcams|iebgener|iebcopy|dfsort|dsmigin|dsmigout)\b',
+        ]
+
+        for pattern in command_patterns:
+            matches = re.findall(pattern, query, re.IGNORECASE)
+            keywords.extend([m.lower() for m in matches])
+
+        # 2. 명령어 옵션 (BOOT, SHUTDOWN, START, STOP 등)
+        option_patterns = [
+            r'\b(BOOT|SHUTDOWN|START|STOP|CANCEL|SUBMIT|HOLD|RELEASE)\b',
+            r'\b(DISPLAY|STATUS|INIT|DOWN|UP)\b',
+        ]
+
+        for pattern in option_patterns:
+            matches = re.findall(pattern, query, re.IGNORECASE)
+            keywords.extend([m.upper() for m in matches])
+
+        # 3. 에러코드 패턴
+        error_codes = re.findall(r'-\d{4,5}', query)
+        keywords.extend(error_codes)
+
+        # 4. 기술용어 (대문자 2글자 이상)
+        tech_terms = re.findall(r'\b[A-Z]{2,}[a-z]*\b', query)
+        keywords.extend([t for t in tech_terms if len(t) >= 3])
+
+        # 5. 일반 단어 (4글자 이상, 영어/한자)
+        if not keywords:
+            words = re.findall(r'\b[a-zA-Z]{4,}\b', query)
+            keywords.extend(words[:3])  # 최대 3개
+
+        # 중복 제거 및 반환
+        return list(dict.fromkeys(keywords))[:5]  # 최대 5개 키워드
+
     async def _vector_search(
         self,
         query: str,
         product: ProductId,
         top_k: int = 5,
     ) -> List[VectorSource]:
-        """Execute vector search with product filter"""
-        # TODO: Integrate with existing vector search service
-        # For now, return empty list
-        return []
+        """
+        Execute vector search using Neo4j CONTAINS query.
+
+        Similar to comprehensive_search.py pattern for consistency.
+        Searches chunks that contain extracted keywords from the query.
+        """
+        try:
+            # 키워드 추출
+            keywords = self._extract_keywords(query)
+            if not keywords:
+                keywords = [query]  # 폴백: 전체 쿼리 사용
+
+            logger.info(f"Vector search keywords: {keywords}")
+
+            driver = self._get_neo4j_driver()
+            try:
+                with driver.session() as session:
+                    # 키워드 기반 검색 (ANY keyword match)
+                    result = session.run(
+                        """
+                        MATCH (d:Document)-[:HAS_CHUNK|CONTAINS]->(c:Chunk)
+                        WHERE ANY(keyword IN $keywords WHERE
+                            c.content CONTAINS keyword OR
+                            toLower(c.content) CONTAINS toLower(keyword)
+                        )
+                        WITH c, d,
+                             size([keyword IN $keywords WHERE c.content CONTAINS keyword]) as match_count
+                        RETURN
+                            c.content as content,
+                            d.filename as doc_name,
+                            d.id as doc_id,
+                            c.page_number as page_number,
+                            c.chunk_type as chunk_type,
+                            toFloat(match_count) / size($keywords) as score
+                        ORDER BY match_count DESC
+                        LIMIT $limit
+                        """,
+                        keywords=keywords,
+                        limit=top_k
+                    )
+
+                    vector_sources = []
+                    for idx, record in enumerate(result):
+                        vector_sources.append(VectorSource(
+                            chunk_id=f"chunk_{idx}",
+                            doc_id=record["doc_id"] or f"doc_{idx}",
+                            doc_name=record["doc_name"] or "Unknown",
+                            content=record["content"][:1000] if record["content"] else "",
+                            score=record["score"],
+                            page_number=record["page_number"],
+                            product=product.value if product else None,
+                        ))
+
+                    logger.info(f"Vector search returned {len(vector_sources)} results for keywords: {keywords}")
+                    return vector_sources
+
+            finally:
+                driver.close()
+
+        except Exception as e:
+            logger.error(f"Vector search failed: {e}")
+            return []
 
     async def _graph_search(
         self,
@@ -478,10 +649,202 @@ class OpenFrameRAGService:
         product: ProductId,
         top_k: int = 5,
     ) -> List[GraphSource]:
-        """Execute graph search with product filter"""
-        # TODO: Integrate with existing graph search service
-        # For now, return empty list
-        return []
+        """
+        Execute graph search using Neo4j Entity-Chunk relationships.
+
+        Similar to comprehensive_search.py pattern for consistency.
+        Searches entities that match extracted keywords from the query.
+        """
+        try:
+            # 키워드 추출
+            keywords = self._extract_keywords(query)
+            if not keywords:
+                keywords = [query]
+
+            logger.info(f"Graph search keywords: {keywords}")
+
+            driver = self._get_neo4j_driver()
+            try:
+                with driver.session() as session:
+                    # 키워드 기반 엔티티 검색
+                    result = session.run(
+                        """
+                        MATCH (e:Entity)-[r:MENTIONS]-(c:Chunk)
+                        WHERE ANY(keyword IN $keywords WHERE
+                            e.name CONTAINS keyword OR
+                            toLower(e.name) CONTAINS toLower(keyword)
+                        )
+                        WITH e, c,
+                             size([keyword IN $keywords WHERE e.name CONTAINS keyword]) as match_count
+                        RETURN
+                            e.name as entity_name,
+                            e.type as entity_type,
+                            c.content as content,
+                            toFloat(match_count) / size($keywords) as score
+                        ORDER BY match_count DESC
+                        LIMIT $limit
+                        """,
+                        keywords=keywords,
+                        limit=top_k
+                    )
+
+                    graph_sources = []
+                    for idx, record in enumerate(result):
+                        graph_sources.append(GraphSource(
+                            entity_id=f"entity_{idx}",
+                            entity_name=record["entity_name"] or "Unknown",
+                            entity_type=record["entity_type"] or "ENTITY",
+                            related_chunks=[record["content"][:500]] if record["content"] else [],
+                            score=record["score"],
+                            product=product.value if product else None,
+                        ))
+
+                    logger.info(f"Graph search returned {len(graph_sources)} results for keywords: {keywords}")
+                    return graph_sources
+
+            finally:
+                driver.close()
+
+        except Exception as e:
+            logger.error(f"Graph search failed: {e}")
+            return []
+
+    async def _cross_product_similarity_search(
+        self,
+        query: str,
+        current_product: ProductId,
+        top_k: int = 3,
+    ) -> List[VectorSource]:
+        """
+        Cross-product similarity search using Neo4j vector index.
+
+        동일한 쿼리 문자열이 다른 유사 제품군에도 존재하는지 검색하고
+        유사도가 가장 높은 top_k 결과를 반환합니다.
+
+        이 검색은 기존 vector_search와 병렬로 실행되어
+        다양한 제품군에서 가장 관련성 높은 결과를 찾습니다.
+
+        Args:
+            query: 검색 쿼리
+            current_product: 현재 선택된 제품 (제외할 수도 있음)
+            top_k: 반환할 최대 결과 수 (기본값: 3)
+
+        Returns:
+            유사도 순으로 정렬된 VectorSource 리스트
+        """
+        try:
+            # 1. Generate query embedding
+            embedding_service = TextEmbeddingService()
+            query_embedding = await embedding_service.embed_text(query, input_type="query")
+
+            if not query_embedding or len(query_embedding) == 0:
+                logger.warning("Failed to generate query embedding for cross-product search")
+                return []
+
+            logger.info(f"[CrossProductSearch] Generated embedding for query: '{query[:50]}...'")
+
+            # 2. Search across all products using Neo4j vector index
+            driver = self._get_neo4j_driver()
+            try:
+                with driver.session() as session:
+                    # Vector similarity search across all products
+                    result = session.run(
+                        """
+                        CALL db.index.vector.queryNodes('chunk_embedding', $k, $embedding)
+                        YIELD node, score
+                        MATCH (d:Document)-[:HAS_CHUNK|CONTAINS]->(node)
+                        RETURN
+                            node.id as chunk_id,
+                            node.content as content,
+                            d.filename as doc_name,
+                            d.id as doc_id,
+                            node.page_number as page_number,
+                            score
+                        ORDER BY score DESC
+                        LIMIT $limit
+                        """,
+                        embedding=query_embedding,
+                        k=top_k * 2,  # Get more to filter
+                        limit=top_k
+                    )
+
+                    cross_product_sources = []
+                    for idx, record in enumerate(result):
+                        doc_name = record["doc_name"] or "Unknown"
+                        content = record["content"] or ""
+                        score = record["score"] or 0.0
+
+                        # Detect product from document name
+                        detected_product = self._detect_product_from_doc_name(doc_name)
+
+                        cross_product_sources.append(VectorSource(
+                            chunk_id=record["chunk_id"] or f"cross_{idx}",
+                            doc_id=record["doc_id"] or f"doc_{idx}",
+                            doc_name=doc_name,
+                            content=content[:1000] if content else "",
+                            score=score,
+                            page_number=record["page_number"],
+                            product=detected_product,
+                        ))
+
+                    logger.info(
+                        f"[CrossProductSearch] Found {len(cross_product_sources)} results "
+                        f"across products (top score: {cross_product_sources[0].score:.4f})"
+                        if cross_product_sources else
+                        "[CrossProductSearch] No cross-product results found"
+                    )
+
+                    return cross_product_sources
+
+            finally:
+                driver.close()
+
+        except Exception as e:
+            logger.error(f"Cross-product similarity search failed: {e}")
+            return []
+
+    def _detect_product_from_doc_name(self, doc_name: str) -> str:
+        """
+        Detect product from document filename.
+
+        Args:
+            doc_name: Document filename
+
+        Returns:
+            Detected product ID or 'unknown'
+        """
+        doc_lower = doc_name.lower()
+
+        # Product patterns in order of specificity
+        product_patterns = [
+            ("of_base", "openframe_base"),
+            ("of_batch", "openframe_batch"),
+            ("of_osc", "openframe_osc"),
+            ("of_osi", "openframe_osi"),
+            ("of_aim", "openframe_aim"),
+            ("of_tacf", "openframe_tacf"),
+            ("of_hidb", "openframe_hidb"),
+            ("of_ndb", "openframe_ndb"),
+            ("tjes", "openframe_batch"),
+            ("tibero", "tibero7"),
+            ("jeus", "jeus"),
+            ("tmax", "tmax"),
+            ("webtob", "webtob"),
+            ("ofasm", "ofasm"),
+            ("ofcobol", "ofcobol"),
+            ("protrieve", "protrieve"),
+            ("prosync", "prosync"),
+            ("ofstudio", "ofstudio"),
+            ("ofminer", "ofminer"),
+            ("prosort", "prosort"),
+            ("openframe", "openframe_mvs"),  # Generic fallback
+        ]
+
+        for pattern, product in product_patterns:
+            if pattern in doc_lower:
+                return product
+
+        return "unknown"
 
     def _calculate_confidence(
         self,

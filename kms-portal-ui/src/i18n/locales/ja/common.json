@@ -37,7 +37,7 @@
     "mindmap": "AIスタジオ",
     "agent": "AIエージェント",
     "documents": "ドキュメント",
-    "analytics": "分析",
+    "agenticRag": "エージェントRAG",
     "improvements": "改善要求",
     "admin": "管理者",
     "settings": "設定",
@@ -827,5 +827,25 @@
       "loadHistoryFailed": "バージョン履歴の読み込みに失敗しました",
       "rollbackFailed": "ロールバックに失敗しました"
     }
+  },
+  "agenticRag": {
+    "autoProduct": "Auto（全製品）",
+    "selectProduct": "製品を選択",
+    "productsSelected": "製品",
+    "pdfs": "PDFs",
+    "version": "バージョン",
+    "subtitle": "製品別エージェント基盤のRAGシステム",
+    "emptyState": "製品に関する技術的な質問を入力してください",
+    "emptyHint": "コマンド使用法、エラーコード、設定方法など",
+    "inputPlaceholder": "質問を入力してください...",
+    "lowRelevance": "検索結果の関連性が低い可能性があります。質問を具体的にしてお試しください。",
+    "suggestion1": "tjesmgrコマンドの使い方を教えてください",
+    "suggestion2": "エラーコード-5212の原因と解決方法",
+    "suggestion3": "OSCのマッピング・サポートについて教えてください",
+    "faqTitle": "よくある質問",
+    "history": "履歴",
+    "newConversation": "新規会話",
+    "connectors": "外部連携",
+    "attachFile": "ファイル添付"
   }
 }

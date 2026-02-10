@@ -51,9 +51,23 @@ $PidDir = Join-Path $LogDir ".pids"
 $FrontendPort = 3000
 $BackendPort = 9000
 
-# Health Check URLs
-$BackendHealthUrl = "http://localhost:$BackendPort/api/v1/health"
-$FrontendHealthUrl = "http://localhost:$FrontendPort"
+# Health Check URLs (use 127.0.0.1 to avoid IPv6 localhost resolution issues)
+$BackendHealthUrl = "http://127.0.0.1:$BackendPort/api/v1/health"
+$FrontendHealthUrl = "https://127.0.0.1:$FrontendPort"
+
+# Ensure TLS 1.2+ and ignore self-signed certs for health checks
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+if (-not ([System.Management.Automation.PSTypeName]'TrustAllCertsPolicy').Type) {
+    Add-Type @"
+using System.Net;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
+public class TrustAllCertsPolicy : ICertificatePolicy {
+    public bool CheckValidationResult(ServicePoint sp, X509Certificate cert, WebRequest req, int problem) { return true; }
+}
+"@
+}
+[System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
 
 # Health Check settings
 $HealthCheckInterval = 2
@@ -220,14 +234,39 @@ function Wait-ForHealthy {
 
     while ($stopwatch.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
         try {
-            $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
-            if ($response.StatusCode -eq 200) {
+            # Use Invoke-WebRequest (more reliable on Windows than HttpWebRequest)
+            $response = $null
+            $responseBody = ""
+            $statusCode = 0
+
+            try {
+                $response = Invoke-WebRequest -Uri $Url -Method GET -TimeoutSec 10 -UseBasicParsing -ErrorAction Stop
+                $statusCode = [int]$response.StatusCode
+                $responseBody = $response.Content
+            } catch [System.Net.WebException] {
+                # Invoke-WebRequest throws on non-2xx (e.g. 503 degraded)
+                # Response body is in ErrorDetails.Message
+                if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+                    $responseBody = $_.ErrorDetails.Message
+                    $statusCode = [int]$_.Exception.Response.StatusCode
+                } elseif ($_.Exception.Response) {
+                    $statusCode = [int]$_.Exception.Response.StatusCode
+                    $responseBody = ""
+                } else {
+                    throw
+                }
+            }
+
+            # Accept both 200 (healthy) and 503 (degraded) as valid responses
+            if ($statusCode -eq 200 -or $statusCode -eq 503) {
                 if ($CheckApiHealth) {
-                    $json = $response.Content | ConvertFrom-Json
-                    # API service healthy is sufficient (external services may be unavailable)
+                    $json = $responseBody | ConvertFrom-Json
+                    # API service healthy is sufficient (external LLM services may be unavailable)
                     if ($json.services -and $json.services.api -and $json.services.api.status -eq "healthy") {
                         Write-Host ""
-                        return @{ Success = $true; ElapsedSeconds = [math]::Round($stopwatch.Elapsed.TotalSeconds, 1) }
+                        $statusMsg = if ($statusCode -eq 503) { " (degraded - some LLM services unavailable)" } else { "" }
+                        Write-Status "Backend API is healthy$statusMsg"
+                        return @{ Success = $true; ElapsedSeconds = [math]::Round($stopwatch.Elapsed.TotalSeconds, 1); Degraded = ($statusCode -eq 503) }
                     }
                 } else {
                     Write-Host ""
@@ -527,16 +566,22 @@ function Start-Frontend {
     Write-Status "Log file: $logFile"
     Write-LogMessage -LogFile $logFile -Message "========== Frontend Server Starting (attempt $attempt) =========="
 
-    # Start npm process
+    # Start npm process via cmd.exe (npm is a batch file, not an executable)
     Push-Location $FrontendDir
     try {
-        $proc = Start-Process -FilePath "npm" `
-            -ArgumentList "run", "dev", "--", "--port", $FrontendPort `
+        $errorLog = Join-Path $LogDir "frontend_$(Get-DateStamp)_error.log"
+        $cmdArgs = "/c npm run dev -- --port $FrontendPort > `"$logFile`" 2> `"$errorLog`""
+
+        $proc = Start-Process -FilePath "cmd.exe" `
+            -ArgumentList $cmdArgs `
             -NoNewWindow -PassThru `
-            -RedirectStandardOutput $logFile `
-            -RedirectStandardError (Join-Path $LogDir "frontend_$(Get-DateStamp)_error.log")
+            -WorkingDirectory $FrontendDir
 
         if ($proc -and $proc.Id) {
+            # Give npm a moment to spawn the actual node process
+            Start-Sleep -Seconds 2
+
+            # Find the node process that's actually listening on the port
             Save-Pid -Service "frontend" -ProcessId $proc.Id
             Write-Status "Frontend process started (PID: $($proc.Id))"
         } else {
@@ -683,20 +728,48 @@ function Show-Status {
             Write-Host ""
         }
 
-        # Health check status
+        # Health check status (handle both 200 and 503 responses)
+        $healthBody = ""
+        $healthCode = 0
+
         try {
-            $health = Invoke-WebRequest -Uri $BackendHealthUrl -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
-            $json = $health.Content | ConvertFrom-Json
-            $apiStatus = if ($json.services -and $json.services.api) { $json.services.api.status } else { "unknown" }
-            Write-Host "         Health: " -NoNewline
-            if ($apiStatus -eq "healthy") {
-                Write-Host "Healthy" -ForegroundColor Green
-            } elseif ($apiStatus -eq "unhealthy") {
-                Write-Host "Degraded (external services)" -ForegroundColor Yellow
-            } else {
-                Write-Host "Unknown" -ForegroundColor DarkGray
+            $healthResp = Invoke-WebRequest -Uri $BackendHealthUrl -Method GET -TimeoutSec 15 -UseBasicParsing -ErrorAction Stop
+            $healthCode = [int]$healthResp.StatusCode
+            $healthBody = $healthResp.Content
+        } catch [System.Net.WebException] {
+            if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+                $healthBody = $_.ErrorDetails.Message
+                $healthCode = [int]$_.Exception.Response.StatusCode
+            } elseif ($_.Exception.Response) {
+                $healthCode = [int]$_.Exception.Response.StatusCode
+                $healthBody = ""
             }
         } catch {
+            $healthBody = ""
+        }
+
+        if ($healthBody) {
+            try {
+                $healthJson = $healthBody | ConvertFrom-Json
+                $overallStatus = $healthJson.status
+                $apiStatus = if ($healthJson.services -and $healthJson.services.api) { $healthJson.services.api.status } else { "unknown" }
+
+                Write-Host "         Health: " -NoNewline
+                if ($overallStatus -eq "healthy") {
+                    Write-Host "Healthy" -ForegroundColor Green
+                } elseif ($overallStatus -eq "degraded" -and $apiStatus -eq "healthy") {
+                    Write-Host "Degraded" -ForegroundColor Yellow -NoNewline
+                    Write-Host " (API OK, some LLM services unavailable)" -ForegroundColor DarkGray
+                } elseif ($apiStatus -eq "unhealthy") {
+                    Write-Host "Unhealthy" -ForegroundColor Red
+                } else {
+                    Write-Host "Unknown ($overallStatus)" -ForegroundColor DarkGray
+                }
+            } catch {
+                Write-Host "         Health: " -NoNewline
+                Write-Host "Parse Error" -ForegroundColor Red
+            }
+        } else {
             Write-Host "         Health: " -NoNewline
             Write-Host "Unreachable" -ForegroundColor Red
         }

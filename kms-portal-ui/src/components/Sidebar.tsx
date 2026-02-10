@@ -21,7 +21,6 @@ import {
   Database,
   Brain,
   FileText,
-  BarChart3,
   Settings,
   Shield,
   ExternalLink,
@@ -32,6 +31,7 @@ import {
   Lightbulb,
   Sparkles,
   Cpu,
+  Workflow,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useAuthStore } from '../store/authStore';
@@ -101,11 +101,10 @@ const NAV_ITEMS: NavItem[] = [
     requiredRole: 'admin',
   },
   {
-    id: 'analytics',
-    path: '/analytics',
-    icon: <BarChart3 size={20} />,
-    labelKey: 'common.nav.analytics',
-    requiredRole: 'admin',
+    id: 'agenticRag',
+    path: '/agentic-rag',
+    icon: <Workflow size={20} />,
+    labelKey: 'common.nav.agenticRag',
   },
   {
     id: 'improvements',

@@ -74,15 +74,6 @@ interface ConfigHistory {
   created_at: string;
 }
 
-interface ParameterMeta {
-  description: string;
-  min: number;
-  max: number;
-  step: number;
-  unit?: string;
-  effect?: string;
-}
-
 interface SimulationResult {
   query: string;
   config: ScoringConfig;

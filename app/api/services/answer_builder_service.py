@@ -17,6 +17,11 @@ Enhanced with RAG Accuracy Pipeline:
 - Relevance grading integration
 - Partial match handling
 
+ChatGPT-Quality Pipeline 개선 (PDCA: chatgpt-quality-pipeline):
+- MAX_SENTENCES: 3 → 5 (더 완전한 설명 추출)
+- MIN_INLINE_CODE_LENGTH: 20 → 5 (짧은 명령어도 포함)
+- MAX_CITATIONS: 5 → 8 (더 많은 출처 제공)
+
 Created as part of PDCA: rag-accuracy-improvement
 """
 import re
@@ -57,10 +62,15 @@ class AnswerBuilderService:
     MIN_CONFIDENCE = 0.01
 
     # Maximum sources to include in citations
-    MAX_CITATIONS = 5
+    # ChatGPT-Quality Pipeline: 5 → 8 (더 많은 출처 제공)
+    MAX_CITATIONS = 8
 
     # Faithfulness threshold for answer acceptance
     FAITHFULNESS_THRESHOLD = 0.5
+
+    # ChatGPT-Quality Pipeline: 추출 제한 완화
+    MAX_SENTENCES_PER_RESULT = 5    # 3 → 5 (더 완전한 설명)
+    MIN_INLINE_CODE_LENGTH = 5       # 20 → 5 (짧은 명령어 포함)
 
     # Intent patterns for classification
     INTENT_PATTERNS = {
@@ -286,10 +296,16 @@ class AnswerBuilderService:
             "Unknown"
         )
 
-    def _extract_sentences(self, text: str, max_sentences: int = 3) -> str:
-        """Extract first N sentences from text"""
-        # Split by sentence-ending punctuation
-        sentences = re.split(r'(?<=[.!?。])\s+', text.strip())
+    def _extract_sentences(self, text: str, max_sentences: int = None) -> str:
+        """Extract first N sentences from text
+
+        ChatGPT-Quality Pipeline: 기본값 3 → MAX_SENTENCES_PER_RESULT (5)
+        """
+        if max_sentences is None:
+            max_sentences = self.MAX_SENTENCES_PER_RESULT
+
+        # Split by sentence-ending punctuation (multilingual support)
+        sentences = re.split(r'(?<=[.!?。？！])\s+', text.strip())
         return " ".join(sentences[:max_sentences])
 
     def _extract_code_blocks(self, text: str) -> List[Tuple[str, str]]:
@@ -303,10 +319,11 @@ class AnswerBuilderService:
             code_blocks.append((lang or "text", code.strip()))
 
         # Inline code patterns (config files, commands)
+        # ChatGPT-Quality Pipeline: 20 → MIN_INLINE_CODE_LENGTH (5)
         inline_pattern = r'`([^`]+)`'
         inline_matches = re.findall(inline_pattern, text)
         for code in inline_matches:
-            if len(code) > 20:  # Only include longer snippets
+            if len(code) >= self.MIN_INLINE_CODE_LENGTH:
                 code_blocks.append(("", code.strip()))
 
         return code_blocks

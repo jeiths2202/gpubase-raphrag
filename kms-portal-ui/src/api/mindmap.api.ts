@@ -268,6 +268,8 @@ export const getNodeDetail = async (
 /**
  * Generate mindmap from all documents in the system
  * POST /api/v1/mindmap/from-all-documents
+ *
+ * Note: Pass language in query params to match FastAPI Query() parameter
  */
 export const generateFromAllDocuments = async (params?: {
   title?: string;
@@ -275,11 +277,19 @@ export const generateFromAllDocuments = async (params?: {
   focus_topic?: string;
   language?: string;
 }): Promise<GenerateMindmapResponse> => {
-  const response = await apiClient.post<ApiResponse<GenerateMindmapResponse>>(
-    '/mindmap/from-all-documents',
-    null,
-    { params }
-  );
+  // Build query string explicitly to ensure params are passed correctly
+  const queryParams = new URLSearchParams();
+  if (params?.title) queryParams.append('title', params.title);
+  if (params?.max_nodes) queryParams.append('max_nodes', params.max_nodes.toString());
+  if (params?.focus_topic) queryParams.append('focus_topic', params.focus_topic);
+  if (params?.language) queryParams.append('language', params.language);
+
+  const queryString = queryParams.toString();
+  const url = queryString
+    ? `/mindmap/from-all-documents?${queryString}`
+    : '/mindmap/from-all-documents';
+
+  const response = await apiClient.post<ApiResponse<GenerateMindmapResponse>>(url);
   return response.data.data;
 };
 

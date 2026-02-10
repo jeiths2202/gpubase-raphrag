@@ -37,7 +37,7 @@
     "mindmap": "AI Studio",
     "agent": "AI Agent",
     "documents": "Documents",
-    "analytics": "Analytics",
+    "agenticRag": "Agentic RAG",
     "improvements": "Improvements",
     "admin": "Admin",
     "settings": "Settings",
@@ -827,5 +827,25 @@
       "saveFailed": "Failed to save prompt",
       "rollbackFailed": "Failed to rollback prompt"
     }
+  },
+  "agenticRag": {
+    "autoProduct": "Auto (All Products)",
+    "selectProduct": "Select Product",
+    "productsSelected": "products",
+    "pdfs": "PDFs",
+    "version": "Version",
+    "subtitle": "Product-specific Agent-based RAG System",
+    "emptyState": "Enter a technical question about a product",
+    "emptyHint": "Command usage, error codes, configuration, etc.",
+    "inputPlaceholder": "Enter your question...",
+    "lowRelevance": "Search results may have low relevance. Try making your question more specific.",
+    "suggestion1": "How to use the tjesmgr command",
+    "suggestion2": "Cause and solution for error code -5212",
+    "suggestion3": "Explain OSC Mapping Support",
+    "faqTitle": "Frequently Asked Questions",
+    "history": "History",
+    "newConversation": "New Conversation",
+    "connectors": "External Connectors",
+    "attachFile": "Attach File"
   }
 }

@@ -31,9 +31,24 @@ import {
   Terminal,
   Settings,
   Zap,
+  Paperclip,
+  X,
+  History,
+  Plus,
+  Link2,
+  Sparkles,
+  HelpCircle,
 } from 'lucide-react';
 import { MessageContent } from '../components/AgentChat/MessageContent';
+import { ConversationSidebar } from '../components/ConversationSidebar';
+import { ExternalConnectorsModal } from '../components/AgentChat/ExternalConnectorsModal';
+import { useFileAttachment } from '../components/AgentChat/hooks/useFileAttachment';
+import { useExternalConnectorsStore } from '../store/externalConnectorsStore';
+import { conversationApi } from '../api/conversation.api';
+import type { ConversationMessage } from '../api/conversation.api';
+import { getFAQItems, type FAQItemAPI } from '../api/faq.api';
 import client from '../api/client';
+import type { AgentType } from '../api/agent.api';
 import type {
   AgenticRAGRequest,
   ClarificationCandidate,
@@ -112,6 +127,25 @@ export const AgenticRAGPage: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { handleHistoryNav, resetHistory } = useInputHistory(messages);
 
+  // --- Feature 1: File attachment ---
+  const selectedAgentRef = useRef<AgentType>('rag');
+  const {
+    attachedFiles, fileError, fileInputRef,
+    handleFileAttach, handleFileChange, handleRemoveFile,
+    getFileContext, clearFileError,
+  } = useFileAttachment(selectedAgentRef);
+
+  // --- Feature 2: Conversation history ---
+  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+
+  // --- Feature 3: External connectors ---
+  const [showConnectorsModal, setShowConnectorsModal] = useState(false);
+  const { getActiveResourcesContext } = useExternalConnectorsStore();
+
+  // --- Feature 5: FAQ ---
+  const [faqItems, setFaqItems] = useState<FAQItemAPI[]>([]);
+
   // Load product tree from API
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -142,6 +176,16 @@ export const AgenticRAGPage: React.FC = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Load FAQ items on mount
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    getFAQItems({ limit: 5, category: 'openframe' })
+      .then(res => {
+        if (res.data?.items) setFaqItems(res.data.items);
+      })
+      .catch(() => { /* FAQ unavailable */ });
+  }, [isAuthenticated]);
 
   // Get display label for a product_id
   const getProductLabel = useCallback((productId: string): string => {
@@ -231,6 +275,11 @@ export const AgenticRAGPage: React.FC = () => {
     resetHistory();
     setIsStreaming(true);
 
+    // File context from attachment
+    const fileCtx = getFileContext();
+    // External connectors context
+    const externalCtx = getActiveResourcesContext();
+
     const request: AgenticRAGRequest = {
       message: text,
       product: isAutoMode ? 'auto' : (selectedProducts[0] || 'auto'),
@@ -241,7 +290,24 @@ export const AgenticRAGPage: React.FC = () => {
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .slice(-10)
         .map(m => ({ role: m.role, content: m.content, product: m.product })),
+      ...(fileCtx ? { file_context: fileCtx } : {}),
+      ...(externalCtx ? { external_context: externalCtx } : {}),
     };
+
+    // Conversation persistence: create if needed, save user message
+    let convId = activeConversationId;
+    try {
+      if (!convId) {
+        const conv = await conversationApi.create({
+          title: text.slice(0, 50),
+          agent_type: 'rag',
+          language: 'ja',
+        });
+        convId = conv.id;
+        setActiveConversationId(convId);
+      }
+      await conversationApi.addMessage(convId, { role: 'user', content: text });
+    } catch { /* conversation save optional */ }
 
     const assistantId = `assistant-${Date.now()}`;
     let currentContent = '';
@@ -415,6 +481,12 @@ export const AgenticRAGPage: React.FC = () => {
           }
         }
       }
+      // Save assistant response to conversation
+      if (convId && currentContent) {
+        try {
+          await conversationApi.addMessage(convId, { role: 'assistant', content: currentContent });
+        } catch { /* optional */ }
+      }
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         setMessages(prev => [
@@ -431,7 +503,7 @@ export const AgenticRAGPage: React.FC = () => {
       setIsStreaming(false);
       abortControllerRef.current = null;
     }
-  }, [isStreaming, isAuthenticated, isAutoMode, selectedProducts, messages]);
+  }, [isStreaming, isAuthenticated, isAutoMode, selectedProducts, messages, activeConversationId]);
 
   // Handle clarification product selection
   const handleClarificationSelect = useCallback((product: string) => {
@@ -460,7 +532,28 @@ export const AgenticRAGPage: React.FC = () => {
   // Clear messages
   const handleClear = () => {
     setMessages([]);
+    setActiveConversationId(null);
   };
+
+  // Conversation history handlers
+  const handleNewConversation = useCallback(() => {
+    setMessages([]);
+    setActiveConversationId(null);
+  }, []);
+
+  const handleSelectConversation = useCallback(async (conversationId: string) => {
+    try {
+      const conv = await conversationApi.get(conversationId, true);
+      setActiveConversationId(conversationId);
+      const restored: ChatMessage[] = conv.messages.map((m: ConversationMessage) => ({
+        id: m.id,
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+        timestamp: new Date(m.created_at),
+      }));
+      setMessages(restored);
+    } catch { /* load failed */ }
+  }, []);
 
   // Render verification badge
   const renderVerificationBadge = (level: string) => {
@@ -705,22 +798,43 @@ export const AgenticRAGPage: React.FC = () => {
   );
 
   return (
-    <div className="openagent-page">
-      {/* Header */}
-      <div className="openagent-header">
-        <div className="openagent-header-left">
-          <Workflow size={24} className="openagent-icon" />
-          <div>
-            <h1 className="openagent-title">
-              {t('common.nav.agenticRag') || 'Agentic RAG'}
-            </h1>
-            <p className="openagent-subtitle">
-              {t('common.agenticRag.subtitle') || '製品別エージェント基盤のRAGシステム'}
-            </p>
-          </div>
-        </div>
+    <div className="openagent-page agentic-rag-layout">
+      {/* Feature 2: Conversation History Sidebar */}
+      <ConversationSidebar
+        agentType="rag"
+        isOpen={showHistorySidebar}
+        onToggle={() => setShowHistorySidebar(prev => !prev)}
+        onNewConversation={handleNewConversation}
+        onSelectConversation={handleSelectConversation}
+      />
+
+      {/* Main content wrapper (flex column, fills space next to sidebar) */}
+      <div className="openagent-main-content">
+
+      {/* Toolbar header bar */}
+      <div className="openagent-header" style={{ justifyContent: 'flex-end' }}>
         <div className="openagent-header-right">
-          {/* Product Selector */}
+          <button
+            className={`openagent-btn-icon ${showHistorySidebar ? 'active' : ''}`}
+            onClick={() => setShowHistorySidebar(prev => !prev)}
+            title={t('common.agenticRag.history') || 'History'}
+          >
+            <History size={18} />
+          </button>
+          <button
+            className="openagent-btn-icon"
+            onClick={handleNewConversation}
+            title={t('common.agenticRag.newConversation') || 'New Conversation'}
+          >
+            <Plus size={18} />
+          </button>
+          <button
+            className="openagent-btn-icon"
+            onClick={() => setShowConnectorsModal(true)}
+            title={t('common.agenticRag.connectors') || 'External Connectors'}
+          >
+            <Link2 size={18} />
+          </button>
           <div className="product-selector-wrapper" ref={dropdownRef}>
             <button
               className="product-selector-button"
@@ -746,13 +860,39 @@ export const AgenticRAGPage: React.FC = () => {
 
       {/* Messages */}
       <div className="openagent-messages">
-        {messages.length === 0 ? (
+        {messages.length === 0 && !isStreaming ? (
           <div className="openagent-empty">
-            <Workflow size={48} style={{ opacity: 0.3 }} />
+            <Sparkles size={48} style={{ opacity: 0.3 }} />
             <p>{t('common.agenticRag.emptyState') || '製品に関する技術的な質問を入力してください'}</p>
             <p style={{ fontSize: '0.85rem', opacity: 0.6 }}>
               {t('common.agenticRag.emptyHint') || 'コマンド使用法、エラーコード、設定方法など'}
             </p>
+            {/* Feature 4: Suggestion buttons */}
+            <div className="openagent-suggestions">
+              <button onClick={() => setInput(t('common.agenticRag.suggestion1') || '')}>
+                {t('common.agenticRag.suggestion1')}
+              </button>
+              <button onClick={() => setInput(t('common.agenticRag.suggestion2') || '')}>
+                {t('common.agenticRag.suggestion2')}
+              </button>
+              <button onClick={() => setInput(t('common.agenticRag.suggestion3') || '')}>
+                {t('common.agenticRag.suggestion3')}
+              </button>
+            </div>
+            {/* Feature 5: FAQ section */}
+            {faqItems.length > 0 && (
+              <div className="openagent-suggestions" style={{ marginTop: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, opacity: 0.7, fontSize: '0.85rem' }}>
+                  <HelpCircle size={14} />
+                  <span>{t('common.agenticRag.faqTitle') || 'FAQ'}</span>
+                </div>
+                {faqItems.map(faq => (
+                  <button key={faq.id} onClick={() => { setInput(faq.question); sendMessage(faq.question); }}>
+                    {faq.question}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           messages.map(renderMessage)
@@ -768,9 +908,47 @@ export const AgenticRAGPage: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Feature 1: Attached files display */}
+      {attachedFiles.length > 0 && (
+        <div className="openagent-selected-file">
+          {attachedFiles.map(f => (
+            <div key={f.name} className="openagent-selected-file" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px' }}>
+              <Paperclip size={14} />
+              <span style={{ fontSize: '0.85rem' }}>{f.name}</span>
+              <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>({(f.size / 1024).toFixed(1)}KB)</span>
+              <button onClick={() => handleRemoveFile(f.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {fileError && (
+        <div style={{ color: 'red', fontSize: '0.8rem', padding: '0 16px' }} onClick={clearFileError}>
+          {fileError}
+        </div>
+      )}
+
       {/* Input */}
       <form className="openagent-input-area" onSubmit={handleSubmit}>
         <div className="openagent-input-row">
+          {/* Feature 1: File attach button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+            accept=".txt,.md,.py,.js,.ts,.json,.yaml,.yml,.xml,.html,.css,.java,.go,.rs,.c,.cpp,.h,.pdf"
+          />
+          <button
+            type="button"
+            className="openagent-btn-attach"
+            onClick={handleFileAttach}
+            disabled={isStreaming}
+            title={t('common.agenticRag.attachFile') || 'Attach File'}
+          >
+            <Paperclip size={20} />
+          </button>
           <textarea
             ref={inputRef}
             value={input}
@@ -783,12 +961,21 @@ export const AgenticRAGPage: React.FC = () => {
           <button
             type="submit"
             className="openagent-btn-send"
-            disabled={!input.trim() || isStreaming}
+            disabled={(!input.trim() && attachedFiles.length === 0) || isStreaming}
           >
             {isStreaming ? <Loader2 size={20} className="spinning" /> : <Send size={20} />}
           </button>
         </div>
       </form>
+
+      {/* Feature 3: External Connectors Modal */}
+      <ExternalConnectorsModal
+        isOpen={showConnectorsModal}
+        onClose={() => setShowConnectorsModal(false)}
+        t={t}
+      />
+
+      </div>{/* end openagent-main-content */}
     </div>
   );
 };

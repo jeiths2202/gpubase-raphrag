@@ -43,6 +43,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { AgentPage } from './pages/AgentPage';
 import { OpenAgentPage } from './pages/OpenAgentPage';
 import { OpenFrameRAGPage } from './pages/OpenFrameRAGPage';
+import { AgenticRAGPage } from './pages/AgenticRAGPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { ImprovementsPage, SubmitImprovementPage, ImprovementDetailPage } from './pages/improvements';
@@ -50,19 +51,6 @@ import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 
 // Import global styles
 import './styles/index.css';
-
-/**
- * Placeholder page for unimplemented routes
- */
-const PlaceholderPage: React.FC<{ title: string }> = ({ title }) => (
-  <div className="placeholder-page">
-    <div className="placeholder-content">
-      <h1>{title}</h1>
-      <p>This page is under construction.</p>
-      <p>Check back soon for updates!</p>
-    </div>
-  </div>
-);
 
 /**
  * Main App Component
@@ -112,8 +100,8 @@ export const App: React.FC = () => {
               {/* Documents & RAG Configuration */}
               <Route path="/documents" element={<DocumentsPage />} />
 
-              {/* Analytics */}
-              <Route path="/analytics" element={<PlaceholderPage title="Analytics" />} />
+              {/* Agentic RAG */}
+              <Route path="/agentic-rag" element={<AgenticRAGPage />} />
 
               {/* Improvements - AI-Driven Enhancement Management */}
               <Route path="/improvements" element={<ImprovementsPage />} />
