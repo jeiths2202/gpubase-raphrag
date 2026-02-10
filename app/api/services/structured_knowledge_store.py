@@ -390,12 +390,24 @@ class StructuredKnowledgeStore:
         doc.close()
         return sections
 
+    # PDF 前付(front matter) 스킵 대상 타이틀
+    _FRONT_MATTER_TITLES = frozenset({
+        "目次", "もくじ", "改訂履歴", "表紙",
+    })
+
     def _parse_pdf_by_toc(
         self, doc, toc: list, filename: str, domain: str, filepath: str = "",
     ) -> List[Dict]:
         """TOC 기반 PDF 섹션 분할 (L1→L2→L3 계층 처리, 자식 있는 부모 스킵)"""
         sections = []
         total_pages = len(doc)
+
+        # 前付 스킵: "目次" 항목과 그 이전 항목 모두 건너뛰기
+        # 모든 PDF가 [표지(p.1), 目次(p.3), このガイドについて(p.7), 第1章...] 구조
+        skip_until = -1
+        for i, (level, title, page_num) in enumerate(toc):
+            if title.strip() in self._FRONT_MATTER_TITLES:
+                skip_until = i  # 이 인덱스까지 스킵 (目次 포함)
 
         # 부모-자식 관계 분석: L1→L2 및 L2→L3 모두 추적
         parents_with_children: set = set()
@@ -411,6 +423,8 @@ class StructuredKnowledgeStore:
                     break
 
         for i, (level, title, page_num) in enumerate(toc):
+            if i <= skip_until:
+                continue  # 前付 (表紙, 目次 등) 스킵
             if level > 3:
                 continue  # L4 이하 무시
 
@@ -701,6 +715,12 @@ class StructuredKnowledgeStore:
         """PDF 텍스트 정리 (코드블록 내부는 보존)"""
         if not text:
             return ""
+
+        # 前付 제거: "目次" 이전의 표지/저작권 정보 제거
+        # "目次" 행이 있으면 그 행까지 삭제 (heading 기반 파싱 fallback용)
+        toc_match = re.search(r'^目次\s*$', text, re.MULTILINE)
+        if toc_match:
+            text = text[toc_match.end():].lstrip('\n')
 
         # 코드블록(```)을 분리하여 보존
         parts = re.split(r'(```[\s\S]*?```)', text)
