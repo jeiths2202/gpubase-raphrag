@@ -9,6 +9,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from '../hooks/useTranslation';
+import { useInputHistory } from '../hooks/useInputHistory';
 import client from '../api/client';
 import {
   Send,
@@ -131,6 +132,7 @@ export const OpenFrameRAGPage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { handleHistoryNav, resetHistory } = useInputHistory(messages);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -275,6 +277,7 @@ export const OpenFrameRAGPage: React.FC = () => {
 
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
+    resetHistory();
     setIsLoading(true);
     setError(null);
     setShowProductModal(false);
@@ -471,6 +474,7 @@ export const OpenFrameRAGPage: React.FC = () => {
 
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
+    resetHistory();
     setIsLoading(true);
     setError(null);
 
@@ -651,11 +655,13 @@ export const OpenFrameRAGPage: React.FC = () => {
     setShowProductModal(false);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+      return;
     }
+    handleHistoryNav(e, input, setInput);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

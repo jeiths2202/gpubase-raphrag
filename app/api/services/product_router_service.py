@@ -49,6 +49,7 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "tmboot", "tmdown", "ofboot", "ofdown", "jesinit", "jesdown",
             # OSC 관련
             "osc", "oscmgr", "cics", "online",
+            "mscasmc", "mscmapc", "mscmapupdate", "dfhmdf", "dfhmdi", "dfhmsd",
             # OSI 관련
             "osi", "osimgr",
             # HiDB 관련 (階層型データベース)
@@ -316,11 +317,13 @@ class ProductRouterService:
         score = 0.0
         matched = []
 
-        # Keyword matching
+        # Keyword matching — 英単語は単語境界マッチ (例: "asm"が"mscasmc"にマッチしない)
         for keyword in config.keywords:
-            if keyword.lower() in query_lower:
-                score += 0.15 * config.weight
-                matched.append(keyword)
+            kw = keyword.lower()
+            if not re.search(rf'(?<![a-z0-9_/]){re.escape(kw)}(?![a-z0-9_])', query_lower):
+                continue
+            score += 0.15 * config.weight
+            matched.append(keyword)
 
         # Pattern matching (higher weight)
         for pattern in getattr(config, '_compiled_patterns', []):

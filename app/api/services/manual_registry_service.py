@@ -92,7 +92,8 @@ class ManualRegistryService:
     # 제품별 라우팅 키워드 (검색용)
     _ROUTING_KEYWORDS: Dict[str, List[str]] = {
         "mvs": ["mvs", "openframe", "tjes", "tjesmgr", "tacf", "tacfmgr", "osc", "oscmgr",
-                 "batch", "jcl", "dataset", "hidb", "hidbmgr", "osi", "osimgr"],
+                 "batch", "jcl", "dataset", "hidb", "hidbmgr", "osi", "osimgr",
+                 "mscasmc", "mscmapc", "mscmapupdate", "dfhmdf", "dfhmdi", "dfhmsd"],
         "msp": ["msp", "jes2", "jes3", "sms", "hsm", "aim"],
         "vos3": ["vos3", "acos", "nec"],
         "xsp": ["xsp"],

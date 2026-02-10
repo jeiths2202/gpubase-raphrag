@@ -11,6 +11,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from '../hooks/useTranslation';
+import { useInputHistory } from '../hooks/useInputHistory';
 import { useAuthStore } from '../store/authStore';
 import {
   Send,
@@ -109,6 +110,7 @@ export const AgenticRAGPage: React.FC = () => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { handleHistoryNav, resetHistory } = useInputHistory(messages);
 
   // Load product tree from API
   useEffect(() => {
@@ -226,6 +228,7 @@ export const AgenticRAGPage: React.FC = () => {
 
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+    resetHistory();
     setIsStreaming(true);
 
     const request: AgenticRAGRequest = {
@@ -445,11 +448,13 @@ export const AgenticRAGPage: React.FC = () => {
   };
 
   // Handle key press
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage(input);
+      return;
     }
+    handleHistoryNav(e, input, setInput);
   };
 
   // Clear messages
