@@ -17,6 +17,7 @@ jobs:
     env:
       NEO4J_PASSWORD: test
       NEO4J_URI: bolt://localhost:7687
+      POSTGRES_PASSWORD: test
       JWT_SECRET_KEY: ci-test-secret-key-minimum-32-chars
       ENCRYPTION_MASTER_KEY: ci-test-encryption-key-32-chars!!
       ENCRYPTION_SALT: ci-test-salt-16ch
