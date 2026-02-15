@@ -473,6 +473,58 @@ class APISettings(BaseSettings):
         description="Minimum keyword match ratio (0.0-1.0) for quick relevance check"
     )
 
+    # Agent Teams (vLLM-based, no Claude API)
+    AGENT_TEAMS_PARALLEL_RETRIEVAL: bool = Field(
+        default=False,
+        description="Pattern A: Parallel Web Doc + PDF RAG retrieval"
+    )
+    AGENT_TEAMS_DOMAIN_SPECIALIST: bool = Field(
+        default=False,
+        description="Pattern C: Multi-LoRA domain specialist team"
+    )
+    AGENT_TEAMS_MULTI_PRODUCT: bool = Field(
+        default=False,
+        description="Pattern D: Multi-product collaboration via DAGBuilder"
+    )
+    AGENT_TEAMS_COMPETITIVE_HYPOTHESIS: bool = Field(
+        default=False,
+        description="Pattern B: Competitive hypothesis verification"
+    )
+    AGENT_TEAMS_SELF_IMPROVEMENT: bool = Field(
+        default=False,
+        description="Pattern E: Self-improvement learning feedback"
+    )
+    AGENT_TEAMS_MAX_PARALLEL_LLM: int = Field(
+        default=3,
+        description="Max concurrent LLM calls for specialist team"
+    )
+    AGENT_TEAMS_WINNER_THRESHOLD: float = Field(
+        default=0.6,
+        description="Min confidence to select winner in competitive patterns"
+    )
+
+    # Enhancement Teams (vLLM-based, no Claude API)
+    ENHANCEMENT_TEAMS_PARALLEL_ANALYSIS: bool = Field(
+        default=False,
+        description="Pattern F: 3-perspective parallel analysis"
+    )
+    ENHANCEMENT_TEAMS_CROSSVAL: bool = Field(
+        default=False,
+        description="Pattern G: Architecture cross-validation"
+    )
+    ENHANCEMENT_TEAMS_FULL_PIPELINE: bool = Field(
+        default=False,
+        description="Pattern H: One-click full pipeline"
+    )
+    ENHANCEMENT_TEAMS_MAX_PARALLEL_LLM: int = Field(
+        default=3,
+        description="Max concurrent LLM calls for enhancement teams"
+    )
+    ENHANCEMENT_TEAMS_QUALITY_GATE_THRESHOLD: float = Field(
+        default=0.6,
+        description="Min quality gate score for phase transition"
+    )
+
     # Corporate SSO
     CORP_EMAIL_DOMAINS: str = Field(
         default="*",

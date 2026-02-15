@@ -37,7 +37,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management, agent_navigation, agent_session, clarification, verified_knowledge, openagent, openframe_rag, admin_scoring, admin_prompts, query_rag, agentic_rag
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management, agent_navigation, agent_session, clarification, verified_knowledge, openagent, openframe_rag, admin_scoring, admin_prompts, query_rag, agentic_rag, graph_visualization, agent_teams
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 from .admin_dashboard.router import router as admin_dashboard_router
 
@@ -777,6 +777,8 @@ app.include_router(admin_scoring.router, prefix=API_PREFIX)  # Admin Scoring Con
 app.include_router(admin_prompts.router, prefix=API_PREFIX)  # Admin Prompt Configuration (System Prompts Management)
 app.include_router(query_rag.router)  # RAG Anti-Hallucination Query (prefix already in router)
 app.include_router(agentic_rag.router, prefix=API_PREFIX)  # Agentic RAG: Product-specific Agent-based RAG
+app.include_router(graph_visualization.router, prefix=API_PREFIX)  # Graph Visualization: Neo4j → ReactFlow JSON
+app.include_router(agent_teams.router, prefix=API_PREFIX)  # Agent Teams: Self-Improvement Feedback API
 
 # Static file serving for PDF-extracted images
 from starlette.staticfiles import StaticFiles as _StaticFiles
