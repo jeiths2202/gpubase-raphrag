@@ -83,6 +83,124 @@ class MindmapService:
     MAX_CHUNKS = 100       # 최대 청크 수
     PREFERRED_CHUNKS = 50  # 권장 청크 수
 
+    # 다국어 프롬프트 로컬라이제이션
+    _LOCALE = {
+        "ja": {
+            "extract_intro": "以下の文書から核心概念(concepts)とそれらの間の関係(relations)を抽出してください。",
+            "output_lang": "概念名(name)、説明(description)、関係ラベル(label)は必ず日本語で出力してください。原文が他言語の場合も日本語に翻訳して出力してください。",
+            "focus_prefix": "集中トピック",
+            "focus_suffix": "このトピックを中心に関連概念を抽出してください。",
+            "doc_label": "文書内容",
+            "entity_label": "既存エンティティ（参考）",
+            "json_instruction": "以下のJSON形式で応答してください",
+            "main_topic_hint": "最も重要な核心トピック",
+            "name_hint": "概念名",
+            "desc_hint": "簡単な説明",
+            "rel_hint": "関係説明",
+            "rules_label": "ルール",
+            "rule1": "最大{n}個の概念を抽出してください",
+            "rule2": "最も重要な概念のimportanceは1.0に近く、重要度が低い概念は低く設定してください",
+            "rule3": "関係は明確な繋がりがある場合のみ抽出してください",
+            "rule4": "main_topicは文書全体を代表する核心トピックです",
+            "rule5": "全ての概念名・説明・ラベルを日本語で出力してください",
+            "json_response": "JSON応答",
+            "topic_intro": "トピック「{topic}」に関する核心概念(concepts)と関係(relations)を生成してください。",
+            "topic_rule4": "各概念に簡潔で有用な説明を含めてください",
+            "topic_rule5": "概念同士がよく繋がるように関係を生成してください",
+            "related": "関連",
+            "overview": "概要",
+            "applications": "応用",
+            "history": "歴史",
+            "contains": "含む",
+            "root_desc": "マインドマップのメイントピック",
+            "main_topic_fallback": "メイントピック",
+            "query_context": "文脈",
+            "query_related": "関連概念",
+            "query_question": "質問",
+            "query_answer": "回答",
+            "query_default_q": "について要約してください。",
+            "query_prompt": "以下の文脈を基に質問に回答してください。",
+            "query_fallback_title": "に関する情報",
+            "query_no_info": "このノードに関する詳細情報が見つかりませんでした。",
+        },
+        "ko": {
+            "extract_intro": "다음 문서들에서 핵심 개념(concepts)과 그들 사이의 관계(relations)를 추출하세요.",
+            "output_lang": "개념명(name), 설명(description), 관계 라벨(label)을 한국어로 출력하세요.",
+            "focus_prefix": "집중할 주제",
+            "focus_suffix": "이 주제를 중심으로 관련 개념들을 추출하세요.",
+            "doc_label": "문서 내용",
+            "entity_label": "기존에 추출된 엔티티들 (참고용)",
+            "json_instruction": "다음 JSON 형식으로 응답하세요",
+            "main_topic_hint": "가장 중요한 핵심 주제",
+            "name_hint": "개념명",
+            "desc_hint": "간단한 설명",
+            "rel_hint": "관계 설명",
+            "rules_label": "규칙",
+            "rule1": "최대 {n}개의 개념을 추출하세요",
+            "rule2": "가장 중요한 개념의 importance는 1.0에 가깝게, 덜 중요한 개념은 낮게 설정하세요",
+            "rule3": "관계는 명확한 연결이 있는 경우에만 추출하세요",
+            "rule4": "main_topic은 문서 전체를 대표하는 핵심 주제입니다",
+            "rule5": "모든 개념명, 설명, 라벨을 한국어로 출력하세요",
+            "json_response": "JSON 응답",
+            "topic_intro": "주제 \"{topic}\"에 대한 핵심 개념(concepts)과 관계(relations)를 생성하세요.",
+            "topic_rule4": "각 개념에 대해 간단하지만 유용한 설명을 포함하세요",
+            "topic_rule5": "개념들이 서로 잘 연결되도록 관계를 생성하세요",
+            "related": "관련",
+            "overview": "개요",
+            "applications": "응용",
+            "history": "역사",
+            "contains": "포함",
+            "root_desc": "마인드맵의 메인 토픽",
+            "main_topic_fallback": "메인 토픽",
+            "query_context": "문맥",
+            "query_related": "관련 개념",
+            "query_question": "질문",
+            "query_answer": "답변",
+            "query_default_q": "에 대해 요약해주세요.",
+            "query_prompt": "다음 문맥을 바탕으로 질문에 답변하세요.",
+            "query_fallback_title": "에 관한 정보",
+            "query_no_info": "이 노드에 대한 상세 정보를 찾을 수 없습니다.",
+        },
+        "en": {
+            "extract_intro": "Extract core concepts and relations from the following documents.",
+            "output_lang": "Output concept names, descriptions, and relation labels in English.",
+            "focus_prefix": "Focus topic",
+            "focus_suffix": "Extract concepts centered around this topic.",
+            "doc_label": "Document content",
+            "entity_label": "Existing entities (reference)",
+            "json_instruction": "Respond in the following JSON format",
+            "main_topic_hint": "Most important core topic",
+            "name_hint": "concept name",
+            "desc_hint": "brief description",
+            "rel_hint": "relation description",
+            "rules_label": "Rules",
+            "rule1": "Extract up to {n} concepts",
+            "rule2": "Set importance close to 1.0 for the most important concepts, lower for less important",
+            "rule3": "Only extract relations where there is a clear connection",
+            "rule4": "main_topic represents the core topic of all documents",
+            "rule5": "Output all names, descriptions, and labels in English",
+            "json_response": "JSON response",
+            "topic_intro": "Generate core concepts and relations about the topic \"{topic}\".",
+            "topic_rule4": "Include a brief but useful description for each concept",
+            "topic_rule5": "Generate relations so concepts connect well with each other",
+            "related": "Related",
+            "overview": "Overview",
+            "applications": "Applications",
+            "history": "History",
+            "contains": "Contains",
+            "root_desc": "Main topic of the mindmap",
+            "main_topic_fallback": "Main Topic",
+            "query_context": "Context",
+            "query_related": "Related concepts",
+            "query_question": "Question",
+            "query_answer": "Answer",
+            "query_default_q": " - please summarize.",
+            "query_prompt": "Answer the question based on the following context.",
+            "query_fallback_title": " - Information",
+            "query_no_info": "No detailed information found for this node.",
+        },
+    }
+
     def __init__(self):
         """Initialize mindmap service"""
         self._graph: Optional[Neo4jGraph] = None
@@ -268,7 +386,8 @@ class MindmapService:
         # 3. 마인드맵 데이터 구조 생성
         nodes, edges, root_id = self._build_mindmap_structure(
             concepts_data,
-            request.depth
+            request.depth,
+            language=request.language
         )
 
         # 4. 마인드맵 정보 생성
@@ -284,7 +403,7 @@ class MindmapService:
 
         # 5. Neo4j에 저장
         doc_ids = request.document_ids or list(set(c.get("doc_id", "unknown") for c in chunks if c.get("doc_id")))
-        self._save_mindmap_to_neo4j(mindmap_id, title, nodes, edges, doc_ids)
+        self._save_mindmap_to_neo4j(mindmap_id, title, nodes, edges, doc_ids, language=request.language)
 
         # 설명 생성
         doc_count = len(doc_ids) if doc_ids else len(set(c["doc_id"] for c in chunks))
@@ -551,46 +670,43 @@ class MindmapService:
         for chunk in chunks:
             existing_entities.update(chunk.get("entities", []))
 
-        # 언어별 프롬프트
-        if language == "ko":
-            lang_instruction = "한국어로 개념을 추출하세요."
-        elif language == "ja":
-            lang_instruction = "日本語で概念を抽出してください。"
-        else:
-            lang_instruction = "Extract concepts in the same language as the source documents."
+        # 언어별 프롬프트 (프롬프트 전체를 대상 언어로 구성)
+        L = self._LOCALE.get(language, self._LOCALE["ko"])
+        entities_str = ', '.join(list(existing_entities)[:30])
 
         focus_instruction = ""
         if focus_topic:
-            focus_instruction = f"\n집중할 주제: {focus_topic}\n이 주제를 중심으로 관련 개념들을 추출하세요."
+            focus_instruction = f"\n{L['focus_prefix']}: {focus_topic}\n{L['focus_suffix']}"
 
-        prompt = f"""다음 문서들에서 핵심 개념(concepts)과 그들 사이의 관계(relations)를 추출하세요.
-{lang_instruction}
+        prompt = f"""{L['extract_intro']}
+{L['output_lang']}
 {focus_instruction}
 
-문서 내용:
+{L['doc_label']}:
 {combined_content}
 
-기존에 추출된 엔티티들 (참고용):
-{', '.join(list(existing_entities)[:30])}
+{L['entity_label']}:
+{entities_str}
 
-다음 JSON 형식으로 응답하세요:
+{L['json_instruction']}:
 {{
-    "main_topic": "가장 중요한 핵심 주제",
+    "main_topic": "{L['main_topic_hint']}",
     "concepts": [
-        {{"name": "개념명", "type": "concept|entity|topic|keyword", "importance": 0.0-1.0, "description": "간단한 설명"}}
+        {{"name": "{L['name_hint']}", "type": "concept|entity|topic|keyword", "importance": 0.0-1.0, "description": "{L['desc_hint']}"}}
     ],
     "relations": [
-        {{"source": "개념1", "target": "개념2", "relation": "relates_to|contains|causes|depends_on|similar_to|part_of", "label": "관계 설명"}}
+        {{"source": "concept1", "target": "concept2", "relation": "relates_to|contains|causes|depends_on|similar_to|part_of", "label": "{L['rel_hint']}"}}
     ]
 }}
 
-규칙:
-1. 최대 {max_nodes}개의 개념을 추출하세요
-2. 가장 중요한 개념의 importance는 1.0에 가깝게, 덜 중요한 개념은 낮게 설정하세요
-3. 관계는 명확한 연결이 있는 경우에만 추출하세요
-4. main_topic은 문서 전체를 대표하는 핵심 주제입니다
+{L['rules_label']}:
+1. {L['rule1'].format(n=max_nodes)}
+2. {L['rule2']}
+3. {L['rule3']}
+4. {L['rule4']}
+5. {L['rule5']}
 
-JSON 응답:"""
+{L['json_response']}:"""
 
         # Phase 1 - H2: LLM 타임아웃 래퍼 적용
         def llm_call():
@@ -600,7 +716,7 @@ JSON 응답:"""
 
         def fallback_fn(*args):
             """LLM 실패 시 폴백"""
-            return self._fallback_concepts(chunks, existing_entities)
+            return self._fallback_concepts(chunks, existing_entities, language)
 
         try:
             # 타임아웃 래퍼로 LLM 호출 실행
@@ -619,21 +735,22 @@ JSON 응답:"""
             else:
                 # JSON 파싱 실패 시 기본값 반환
                 logger.warning("LLM response did not contain valid JSON, using fallback")
-                return self._fallback_concepts(chunks, existing_entities)
+                return self._fallback_concepts(chunks, existing_entities, language)
 
         except json.JSONDecodeError as e:
             logger.warning(f"JSON parsing error: {e}")
-            return self._fallback_concepts(chunks, existing_entities)
+            return self._fallback_concepts(chunks, existing_entities, language)
         except (LLMTimeoutError, LLMError) as e:
             logger.warning(f"LLM error (fallback already executed): {e}")
             # 폴백이 이미 실행되었으면 결과가 반환됨, 그렇지 않으면 여기서 실행
-            return self._fallback_concepts(chunks, existing_entities)
+            return self._fallback_concepts(chunks, existing_entities, language)
         except Exception as e:
             logger.error(f"Concept extraction error: {e}")
-            return self._fallback_concepts(chunks, existing_entities)
+            return self._fallback_concepts(chunks, existing_entities, language)
 
-    def _fallback_concepts(self, chunks: List[Dict], entities: set) -> Dict[str, Any]:
+    def _fallback_concepts(self, chunks: List[Dict], entities: set, language: str = "ko") -> Dict[str, Any]:
         """개념 추출 실패 시 기존 엔티티 기반 폴백"""
+        L = self._LOCALE.get(language, self._LOCALE["ko"])
         entity_list = list(entities)[:30]
 
         concepts = []
@@ -654,7 +771,7 @@ JSON 응답:"""
                     "source": main_entity,
                     "target": entity,
                     "relation": "relates_to",
-                    "label": "관련"
+                    "label": L["related"]
                 })
 
         return {
@@ -671,36 +788,32 @@ JSON 응답:"""
     ) -> Dict[str, Any]:
         """주제만으로 LLM 지식을 사용해 개념과 관계 생성 (문서 없이)"""
 
-        # 언어별 프롬프트
-        if language == "ko":
-            lang_instruction = "한국어로 개념을 생성하세요."
-        elif language == "ja":
-            lang_instruction = "日本語で概念を生成してください。"
-        else:
-            lang_instruction = "Generate concepts in the appropriate language for the topic."
+        # 언어별 프롬프트 (프롬프트 전체를 대상 언어로 구성)
+        L = self._LOCALE.get(language, self._LOCALE["ko"])
 
-        prompt = f"""주제 "{topic}"에 대한 핵심 개념(concepts)과 관계(relations)를 생성하세요.
-{lang_instruction}
+        prompt = f"""{L['topic_intro'].format(topic=topic)}
+{L['output_lang']}
 
-다음 JSON 형식으로 응답하세요:
+{L['json_instruction']}:
 {{
     "main_topic": "{topic}",
     "concepts": [
-        {{"name": "개념명", "type": "concept|entity|topic|keyword", "importance": 0.0-1.0, "description": "간단한 설명"}}
+        {{"name": "{L['name_hint']}", "type": "concept|entity|topic|keyword", "importance": 0.0-1.0, "description": "{L['desc_hint']}"}}
     ],
     "relations": [
-        {{"source": "개념1", "target": "개념2", "relation": "relates_to|contains|causes|depends_on|similar_to|part_of", "label": "관계 설명"}}
+        {{"source": "concept1", "target": "concept2", "relation": "relates_to|contains|causes|depends_on|similar_to|part_of", "label": "{L['rel_hint']}"}}
     ]
 }}
 
-규칙:
-1. 최대 {max_nodes}개의 개념을 생성하세요
-2. 가장 중요한 개념의 importance는 1.0에 가깝게, 덜 중요한 개념은 낮게 설정하세요
-3. 관계는 명확한 연결이 있는 경우에만 생성하세요
-4. 각 개념에 대해 간단하지만 유용한 설명을 포함하세요
-5. 개념들이 서로 잘 연결되도록 관계를 생성하세요
+{L['rules_label']}:
+1. {L['rule1'].format(n=max_nodes)}
+2. {L['rule2']}
+3. {L['rule3']}
+4. {L['topic_rule4']}
+5. {L['topic_rule5']}
+6. {L['rule5']}
 
-JSON 응답:"""
+{L['json_response']}:"""
 
         # Phase 1 - H2: LLM 타임아웃 래퍼 적용
         def llm_topic_call():
@@ -708,7 +821,7 @@ JSON 응답:"""
             return response.content.strip()
 
         def topic_fallback(*args):
-            return self._fallback_topic_concepts(topic)
+            return self._fallback_topic_concepts(topic, language)
 
         try:
             wrapper = LLMTimeoutWrapper(
@@ -729,45 +842,112 @@ JSON 응답:"""
             else:
                 # JSON 파싱 실패 시 기본 구조 반환
                 logger.warning("Topic generation LLM response did not contain valid JSON")
-                return self._fallback_topic_concepts(topic)
+                return self._fallback_topic_concepts(topic, language)
 
         except json.JSONDecodeError as e:
             logger.warning(f"JSON parsing error in topic generation: {e}")
-            return self._fallback_topic_concepts(topic)
+            return self._fallback_topic_concepts(topic, language)
         except (LLMTimeoutError, LLMError) as e:
             logger.warning(f"Topic generation LLM error: {e}")
-            return self._fallback_topic_concepts(topic)
+            return self._fallback_topic_concepts(topic, language)
         except Exception as e:
             logger.error(f"Topic concept generation error: {e}")
-            return self._fallback_topic_concepts(topic)
+            return self._fallback_topic_concepts(topic, language)
 
-    def _fallback_topic_concepts(self, topic: str) -> Dict[str, Any]:
+    def _fallback_topic_concepts(self, topic: str, language: str = "ko") -> Dict[str, Any]:
         """주제 개념 생성 실패 시 기본 구조 반환"""
+        L = self._LOCALE.get(language, self._LOCALE["ko"])
         return {
             "main_topic": topic,
             "concepts": [
-                {"name": topic, "type": "topic", "importance": 1.0, "description": f"Main topic: {topic}"},
-                {"name": f"{topic} 개요", "type": "concept", "importance": 0.8, "description": "Overview"},
-                {"name": f"{topic} 응용", "type": "concept", "importance": 0.7, "description": "Applications"},
-                {"name": f"{topic} 역사", "type": "concept", "importance": 0.6, "description": "History"},
+                {"name": topic, "type": "topic", "importance": 1.0, "description": f"{L['root_desc']}: {topic}"},
+                {"name": f"{topic} {L['overview']}", "type": "concept", "importance": 0.8, "description": L["overview"]},
+                {"name": f"{topic} {L['applications']}", "type": "concept", "importance": 0.7, "description": L["applications"]},
+                {"name": f"{topic} {L['history']}", "type": "concept", "importance": 0.6, "description": L["history"]},
             ],
             "relations": [
-                {"source": topic, "target": f"{topic} 개요", "relation": "contains", "label": "포함"},
-                {"source": topic, "target": f"{topic} 응용", "relation": "contains", "label": "포함"},
-                {"source": topic, "target": f"{topic} 역사", "relation": "contains", "label": "포함"},
+                {"source": topic, "target": f"{topic} {L['overview']}", "relation": "contains", "label": L["contains"]},
+                {"source": topic, "target": f"{topic} {L['applications']}", "relation": "contains", "label": L["contains"]},
+                {"source": topic, "target": f"{topic} {L['history']}", "relation": "contains", "label": L["contains"]},
             ]
         }
+
+    def _fallback_expand_from_chunks(
+        self,
+        node_label: str,
+        chunks: List[Dict],
+        max_children: int,
+        language: str = "ko"
+    ) -> List[Dict[str, str]]:
+        """LLM不可時にチャンク内容からエンティティを抽出してサブコンセプトを生成"""
+        L = self._LOCALE.get(language, self._LOCALE["ko"])
+        sub_concepts = []
+        seen = {node_label.lower()}
+
+        # チャンク内容からキーワードを抽出
+        for chunk in chunks:
+            content = chunk.get("content", "")
+            # 英大文字の技術用語を抽出 (e.g., OPENFRAME_HOME, TJES, tmboot)
+            keywords = re.findall(r'\b[A-Z][A-Za-z_]{2,}[A-Za-z0-9_]*\b', content)
+            # 設定キーパターン (e.g., TLOGDIR, SHMKEY, RACPORT)
+            keywords += re.findall(r'\b[A-Z]{2,}[A-Z_]*\b', content)
+
+            for kw in keywords:
+                kw_lower = kw.lower()
+                if kw_lower not in seen and len(kw) >= 3:
+                    seen.add(kw_lower)
+                    sub_concepts.append({
+                        "name": kw,
+                        "relation": "relates_to",
+                        "description": f"{L['related']}: {node_label}"
+                    })
+                    if len(sub_concepts) >= max_children:
+                        break
+            if len(sub_concepts) >= max_children:
+                break
+
+        # エンティティが見つからない場合、チャンク内既存のEntityノードを取得
+        if not sub_concepts:
+            for chunk in chunks:
+                chunk_id = chunk.get("chunk_id", "")
+                if chunk_id:
+                    entity_result = self._graph.query(
+                        """
+                        MATCH (c:Chunk {id: $chunk_id})-[:MENTIONS]->(e:Entity)
+                        RETURN e.name AS name
+                        LIMIT $limit
+                        """,
+                        {"chunk_id": chunk_id, "limit": max_children}
+                    )
+                    for ent in entity_result:
+                        name = ent.get("name", "")
+                        if name and name.lower() not in seen:
+                            seen.add(name.lower())
+                            sub_concepts.append({
+                                "name": name,
+                                "relation": "relates_to",
+                                "description": f"{L['related']}: {node_label}"
+                            })
+                            if len(sub_concepts) >= max_children:
+                                break
+                if len(sub_concepts) >= max_children:
+                    break
+
+        logger.debug(f"[expand] Fallback generated {len(sub_concepts)} sub-concepts")
+        return sub_concepts
 
     def _build_mindmap_structure(
         self,
         concepts_data: Dict[str, Any],
-        depth: int = 3
+        depth: int = 3,
+        language: str = "ko"
     ) -> Tuple[List[MindmapNode], List[MindmapEdge], str]:
         """개념 데이터로부터 마인드맵 구조 생성"""
+        L = self._LOCALE.get(language, self._LOCALE["ko"])
         nodes = []
         edges = []
 
-        main_topic = concepts_data.get("main_topic", "Main Topic")
+        main_topic = concepts_data.get("main_topic", L["main_topic_fallback"])
         concepts = concepts_data.get("concepts", [])
         relations = concepts_data.get("relations", [])
 
@@ -777,7 +957,7 @@ JSON 응답:"""
             id=root_id,
             label=main_topic,
             type=NodeType.ROOT,
-            description=f"Main topic of the mindmap",
+            description=L["root_desc"],
             importance=1.0,
             color="#2563EB",  # Primary blue
             size=40
@@ -873,15 +1053,33 @@ JSON 응답:"""
         return nodes, edges, root_id
 
     def _generate_title(self, concepts_data: Dict[str, Any], language: str) -> str:
-        """마인드맵 제목 생성"""
+        """
+        마인드맵 제목 생성
+
+        Args:
+            concepts_data: 추출된 개념 데이터
+            language: 언어 설정 (ko, en, ja, auto)
+
+        Returns:
+            언어에 맞는 마인드맵 제목
+        """
         main_topic = concepts_data.get("main_topic", "Mindmap")
 
+        # Log the language parameter for debugging
+        logger.info(f"_generate_title called with language='{language}', main_topic='{main_topic}'")
+
         if language == "ko":
-            return f"{main_topic} 마인드맵"
+            title = f"{main_topic} 마인드맵"
         elif language == "ja":
-            return f"{main_topic} マインドマップ"
+            title = f"{main_topic} マインドマップ"
+        elif language == "en":
+            title = f"{main_topic} Mindmap"
         else:
-            return f"{main_topic} Mindmap"
+            # For 'auto' or unknown languages, default to English
+            title = f"{main_topic} Mindmap"
+
+        logger.info(f"Generated title: '{title}'")
+        return title
 
     def _save_mindmap_to_neo4j(
         self,
@@ -889,7 +1087,8 @@ JSON 응답:"""
         title: str,
         nodes: List[MindmapNode],
         edges: List[MindmapEdge],
-        document_ids: List[str]
+        document_ids: List[str],
+        language: str = "ko"
     ):
         """마인드맵을 Neo4j에 저장"""
         # 마인드맵 노드 생성
@@ -901,14 +1100,16 @@ JSON 응답:"""
                 m.node_count = $node_count,
                 m.edge_count = $edge_count,
                 m.created_at = datetime(),
-                m.updated_at = datetime()
+                m.updated_at = datetime(),
+                m.language = $language
             """,
             {
                 "id": mindmap_id,
                 "title": title,
                 "doc_ids": document_ids,
                 "node_count": len(nodes),
-                "edge_count": len(edges)
+                "edge_count": len(edges),
+                "language": language
             }
         )
 
@@ -1107,6 +1308,8 @@ JSON 응답:"""
         """Synchronous node expansion"""
         self._ensure_initialized()
 
+        logger.debug(f"[expand] Starting expand: mindmap={mindmap_id}, node={request.node_id}")
+
         # 노드 정보 조회
         node_result = self._graph.query(
             """
@@ -1116,7 +1319,10 @@ JSON 응답:"""
             {"node_id": request.node_id}
         )
 
+        logger.debug(f"[expand] Concept lookup result: {node_result}")
+
         if not node_result:
+            logger.debug(f"[expand] Concept not found for node_id={request.node_id}")
             return ExpandNodeResponse(
                 new_nodes=[],
                 new_edges=[],
@@ -1124,8 +1330,10 @@ JSON 응답:"""
             )
 
         node_label = node_result[0]["label"]
+        logger.debug(f"[expand] Node label: '{node_label}'")
 
-        # 마인드맵의 문서에서 관련 청크 검색
+        # マインドマップの文書から関連チャンク検索
+        # Step 1: CONTAINS 完全一致検索
         chunks = self._graph.query(
             """
             MATCH (m:Mindmap {id: $mindmap_id})
@@ -1138,29 +1346,95 @@ JSON 응답:"""
             {"mindmap_id": mindmap_id, "concept": node_label}
         )
 
+        logger.debug(f"[expand] Chunk search (exact) found {len(chunks)} chunks for '{node_label}'")
+
+        # Step 2: 完全一致が見つからない場合、マインドマップに紐づく全チャンクを取得
         if not chunks:
+            logger.debug("[expand] Trying fallback: all chunks from mindmap documents")
+            chunks = self._graph.query(
+                """
+                MATCH (m:Mindmap {id: $mindmap_id})
+                UNWIND m.document_ids AS doc_id
+                MATCH (d:Document {id: doc_id})-[:CONTAINS]->(c:Chunk)
+                RETURN c.content AS content, c.id AS chunk_id
+                LIMIT 10
+                """,
+                {"mindmap_id": mindmap_id}
+            )
+            logger.debug(f"[expand] Fallback found {len(chunks)} chunks from mindmap docs")
+
+        # Step 3: マインドマップにdoc_idsがない場合、直接グラフ全体から検索
+        if not chunks:
+            logger.debug(f"[expand] Trying graph-wide search for '{node_label}'")
+            chunks = self._graph.query(
+                """
+                MATCH (d:Document)-[:CONTAINS]->(c:Chunk)
+                WHERE c.content CONTAINS $concept
+                RETURN c.content AS content, c.id AS chunk_id
+                LIMIT 5
+                """,
+                {"concept": node_label}
+            )
+            logger.debug(f"[expand] Graph-wide search found {len(chunks)} chunks")
+
+        if not chunks:
+            logger.debug(f"[expand] No chunks found at all for node '{node_label}'")
             return ExpandNodeResponse(
                 new_nodes=[],
                 new_edges=[],
                 expanded_from=request.node_id
             )
 
-        # LLM으로 하위 개념 추출
+        # LLMで下位概念を抽出
         combined_content = "\n".join([c["content"][:500] for c in chunks])
+        logger.debug(f"[expand] Combined content length: {len(combined_content)} chars")
 
-        prompt = f"""다음 내용에서 "{node_label}"의 하위 개념이나 관련 세부 사항을 추출하세요.
+        # マインドマップのメタデータから言語を取得
+        lang_result = self._graph.query(
+            """
+            MATCH (m:Mindmap {id: $id})
+            RETURN m.language AS language
+            """,
+            {"id": mindmap_id}
+        )
+        language = "ja"  # default
+        if lang_result and lang_result[0].get("language"):
+            language = lang_result[0]["language"]
+        L = self._LOCALE.get(language, self._LOCALE["ko"])
 
-내용:
+        # 言語別プロンプト
+        _EXPAND_PROMPTS = {
+            "ja": f'以下の内容から「{node_label}」の下位概念や関連する詳細情報を抽出してください。',
+            "ko": f'다음 내용에서 "{node_label}"의 하위 개념이나 관련 세부 사항을 추출하세요.',
+            "en": f'Extract sub-concepts or related details about "{node_label}" from the following content.',
+        }
+        _EXPAND_FORMAT = {
+            "ja": "以下のJSON形式で応答してください",
+            "ko": "다음 JSON 형식으로 응답하세요",
+            "en": "Respond in the following JSON format",
+        }
+        _EXPAND_LIMIT = {
+            "ja": f"最大{request.max_children}個の下位概念を抽出してください。",
+            "ko": f"최대 {request.max_children}개의 하위 개념을 추출하세요.",
+            "en": f"Extract up to {request.max_children} sub-concepts.",
+        }
+
+        intro = _EXPAND_PROMPTS.get(language, _EXPAND_PROMPTS["ko"])
+        fmt = _EXPAND_FORMAT.get(language, _EXPAND_FORMAT["ko"])
+        limit = _EXPAND_LIMIT.get(language, _EXPAND_LIMIT["ko"])
+
+        prompt = f"""{intro}
+
 {combined_content}
 
-다음 JSON 형식으로 응답하세요:
+{fmt}:
 {{
     "sub_concepts": [
-        {{"name": "하위 개념명", "relation": "part_of|example_of|relates_to", "description": "설명"}}
+        {{"name": "concept name", "relation": "part_of|example_of|relates_to", "description": "description"}}
     ]
 }}
 
-최대 {request.max_children}개의 하위 개념을 추출하세요.
+{limit}
 
 JSON:"""
 
@@ -1175,21 +1449,35 @@ JSON:"""
                 max_retries=self.LLM_MAX_RETRIES
             )
             response_content = wrapper.execute_sync(llm_expand_call)
+            logger.debug(f"[expand] LLM response ({len(response_content)} chars): {response_content[:500]}")
+
             json_match = re.search(r'\{[\s\S]*\}', response_content)
 
             if json_match:
                 sub_data = json.loads(json_match.group())
                 sub_concepts = sub_data.get("sub_concepts", [])
+                logger.debug(f"[expand] Parsed {len(sub_concepts)} sub_concepts")
             else:
+                logger.debug("[expand] No JSON found in LLM response, using fallback")
                 sub_concepts = []
         except (LLMTimeoutError, LLMError) as e:
-            logger.warning(f"Node expansion LLM error: {e}")
+            logger.warning(f"[expand] LLM error: {e}, using chunk-based fallback")
+            sub_concepts = []
+        except json.JSONDecodeError as e:
+            logger.warning(f"[expand] JSON parse error: {e}, raw: {response_content[:200]}")
             sub_concepts = []
         except Exception as e:
-            logger.error(f"Expansion error: {e}")
+            logger.warning(f"[expand] Unexpected error: {e}, using fallback")
             sub_concepts = []
 
-        # 새 노드와 엣지 생성
+        # LLM失敗時: チャンク内容からエンティティを抽出してフォールバック
+        if not sub_concepts:
+            logger.debug("[expand] Generating fallback sub-concepts from chunks")
+            sub_concepts = self._fallback_expand_from_chunks(
+                node_label, chunks, request.max_children, language
+            )
+
+        # 新しいノードとエッジ生成
         new_nodes = []
         new_edges = []
 
@@ -1289,6 +1577,16 @@ JSON:"""
         """Synchronous node query"""
         self._ensure_initialized()
 
+        # マインドマップの言語設定を取得
+        lang_result = self._graph.query(
+            "MATCH (m:Mindmap {id: $id}) RETURN m.language AS language",
+            {"id": mindmap_id}
+        )
+        language = "ja"
+        if lang_result and lang_result[0].get("language"):
+            language = lang_result[0]["language"]
+        L = self._LOCALE.get(language, self._LOCALE["ko"])
+
         # 노드 정보 조회
         node_result = self._graph.query(
             """
@@ -1302,12 +1600,13 @@ JSON:"""
             return QueryNodeResponse(
                 node_id=request.node_id,
                 node_label="Unknown",
-                answer="Node not found",
+                answer=L["query_no_info"],
                 related_concepts=[],
                 sources=[]
             )
 
         node_label = node_result[0]["label"]
+        node_desc = node_result[0].get("description", "")
 
         # 관련 청크 검색
         chunks = self._graph.query(
@@ -1333,23 +1632,23 @@ JSON:"""
         )
         related_concepts = [r["label"] for r in related]
 
-        # 질문 생성
-        question = request.question or f"{node_label}에 대해 요약해주세요."
+        # 질문 생성 (언어별)
+        question = request.question or f"{node_label}{L['query_default_q']}"
 
         # 컨텍스트 구성
         context = "\n\n".join([c["content"][:500] for c in chunks])
 
-        # LLM으로 답변 생성
-        prompt = f"""다음 문맥을 바탕으로 질문에 답변하세요.
+        # LLM으로 답변 생성 (언어별 프롬프트)
+        prompt = f"""{L['query_prompt']}
 
-문맥:
+{L['query_context']}:
 {context}
 
-관련 개념들: {', '.join(related_concepts)}
+{L['query_related']}: {', '.join(related_concepts)}
 
-질문: {question}
+{L['query_question']}: {question}
 
-답변:"""
+{L['query_answer']}:"""
 
         # Phase 1 - H2: LLM 타임아웃 래퍼 적용
         def llm_query_call():
@@ -1362,12 +1661,9 @@ JSON:"""
                 max_retries=self.LLM_MAX_RETRIES
             )
             answer = wrapper.execute_sync(llm_query_call)
-        except (LLMTimeoutError, LLMError) as e:
+        except (LLMTimeoutError, LLMError, Exception) as e:
             logger.warning(f"Node query LLM error: {e}")
-            answer = "AI 응답 시간이 초과되었습니다. 다시 시도해주세요."
-        except Exception as e:
-            logger.error(f"Query error: {e}")
-            answer = f"Error generating answer: {e}"
+            answer = self._fallback_query_answer(node_label, node_desc, chunks, related_concepts, L)
 
         # 소스 정보
         sources = [
@@ -1382,6 +1678,32 @@ JSON:"""
             related_concepts=related_concepts,
             sources=sources
         )
+
+    def _fallback_query_answer(
+        self, node_label: str, node_desc: str,
+        chunks: List[Dict], related_concepts: List[str], L: Dict
+    ) -> str:
+        """LLM利用不可時のフォールバック回答生成"""
+        parts = [f"**{node_label}**{L['query_fallback_title']}"]
+
+        if node_desc:
+            parts.append(f"\n{node_desc}")
+
+        if related_concepts:
+            parts.append(f"\n{L['query_related']}: {', '.join(related_concepts)}")
+
+        # チャンクから要約を抽出
+        if chunks:
+            parts.append("")
+            for chunk in chunks[:3]:
+                content = chunk.get("content", "")[:300].strip()
+                if content:
+                    parts.append(f"- {content}")
+
+        if not chunks and not node_desc:
+            parts.append(f"\n{L['query_no_info']}")
+
+        return "\n".join(parts)
 
     async def get_node_detail(self, mindmap_id: str, node_id: str) -> Optional[NodeDetailResponse]:
         """노드 상세 정보 조회"""
