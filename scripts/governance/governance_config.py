@@ -6,6 +6,7 @@ All thresholds, product definitions, and pipeline settings
 are defined here. Supports JSON serialization for CI/CD integration.
 """
 
+import os
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Optional
 from enum import Enum
@@ -134,11 +135,27 @@ class GovernanceConfig:
     # Model
     base_model: str = "Qwen/Qwen2.5-7B-Instruct"
     cpt_model: str = "Qwen/Qwen2.5-72B-Instruct"
-    # Paths
-    adapter_base_dir: str = "/raid/users/ofuser/qlora/outputs"
-    dataset_base_dir: str = "uploads/summaries/multi_lora_v9"
-    governance_output_dir: str = "/raid/users/ofuser/qlora/governance"
-    metrics_db_path: str = "/raid/users/ofuser/qlora/governance/metrics.db"
+    # Paths (환경변수로 CI/CD에서 오버라이드 가능)
+    adapter_base_dir: str = field(
+        default_factory=lambda: os.environ.get(
+            "GOVERNANCE_ADAPTER_DIR", "/raid/users/ofuser/qlora/outputs"
+        )
+    )
+    dataset_base_dir: str = field(
+        default_factory=lambda: os.environ.get(
+            "GOVERNANCE_DATASET_DIR", "uploads/summaries/multi_lora_v9"
+        )
+    )
+    governance_output_dir: str = field(
+        default_factory=lambda: os.environ.get(
+            "GOVERNANCE_OUTPUT_DIR", "/raid/users/ofuser/qlora/governance"
+        )
+    )
+    metrics_db_path: str = field(
+        default_factory=lambda: os.environ.get(
+            "GOVERNANCE_DB_PATH", "/raid/users/ofuser/qlora/governance/metrics.db"
+        )
+    )
     # Products
     products: List[str] = field(default_factory=lambda: ALL_PRODUCT_IDS.copy())
     # Gates
