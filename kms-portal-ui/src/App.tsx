@@ -44,6 +44,7 @@ import { AgentPage } from './pages/AgentPage';
 import { OpenAgentPage } from './pages/OpenAgentPage';
 import { OpenFrameRAGPage } from './pages/OpenFrameRAGPage';
 import { AgenticRAGPage } from './pages/AgenticRAGPage';
+import { KnowledgeGraphPage } from './pages/KnowledgeGraphPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { ImprovementsPage, SubmitImprovementPage, ImprovementDetailPage } from './pages/improvements';
@@ -102,6 +103,9 @@ export const App: React.FC = () => {
 
               {/* Agentic RAG */}
               <Route path="/agentic-rag" element={<AgenticRAGPage />} />
+
+              {/* Knowledge Graph Explorer */}
+              <Route path="/knowledge-graph" element={<KnowledgeGraphPage />} />
 
               {/* Improvements - AI-Driven Enhancement Management */}
               <Route path="/improvements" element={<ImprovementsPage />} />

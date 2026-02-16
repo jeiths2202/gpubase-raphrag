@@ -17,6 +17,7 @@ from ..models.agentic_rag import (
     AgenticRAGRequest,
     AgenticRAGResponse,
     AgenticRAGHealth,
+    AgentMode,
     QueryType,
     RouterResult,
     RouterDecision,
@@ -113,6 +114,34 @@ _TOKENIZE_RE = re.compile(
 )
 
 
+# =========================================================================
+# Agent Mode 인텐트 분류용 키워드 (Code / Planner 감지)
+# =========================================================================
+_CODE_KEYWORDS = frozenset({
+    # 영어
+    "code", "script", "program", "function", "class", "implement",
+    "debug", "compile", "algorithm", "sample code", "example code",
+    # 일본어
+    "コード", "スクリプト", "プログラム", "関数", "クラス", "実装",
+    "デバッグ", "コンパイル", "アルゴリズム", "サンプルコード",
+    # 한국어
+    "코드", "스크립트", "프로그램", "함수", "클래스", "구현",
+    "디버그", "컴파일", "알고리즘", "샘플코드",
+    # 제품 고유 코드 관련
+    "jcl", "cobol", "assembler", "rexx", "clist",
+})
+_PLANNER_KEYWORDS = frozenset({
+    # 영어
+    "plan", "strategy", "approach", "steps", "roadmap",
+    "breakdown", "decompose", "organize", "schedule", "migration",
+    # 일본어
+    "計画", "戦略", "アプローチ", "ステップ", "ロードマップ",
+    "手順", "マイグレーション", "移行", "段階", "方針",
+    # 한국어
+    "계획", "전략", "접근", "단계", "로드맵",
+    "분해", "마이그레이션", "이전", "이행", "방침",
+})
+
 _METADATA_PREFIXES = (
     '製品/product', '**製品/product',
     '出典/source', '**出典/source',
@@ -199,6 +228,38 @@ class AgenticRAGService:
                 if pid not in detected:
                     detected.append(pid)
         return detected
+
+    def _classify_agent_mode(self, query: str, agent_mode: AgentMode) -> AgentMode:
+        """
+        Agent 모드 분류. AUTO이면 키워드 기반 감지, 아니면 그대로 반환.
+        2개 이상의 키워드 매칭 시 해당 모드, 아니면 RAG 기본값.
+        """
+        if agent_mode != AgentMode.AUTO:
+            return agent_mode
+
+        tokens = set(_TOKENIZE_RE.findall(query.lower()))
+        # 카타카나·한글 토큰도 포함 (원문에서 추출)
+        katakana_tokens = set(re.findall(r'[\u30a0-\u30ff]{2,}', query))
+        hangul_tokens = set(re.findall(r'[\uac00-\ud7af]{2,}', query))
+        all_tokens = tokens | katakana_tokens | hangul_tokens
+
+        code_hits = len(all_tokens & _CODE_KEYWORDS)
+        planner_hits = len(all_tokens & _PLANNER_KEYWORDS)
+
+        if code_hits >= 2 and code_hits > planner_hits:
+            logger.info(f"Auto-detected agent_mode=CODE (hits={code_hits})")
+            return AgentMode.CODE
+        if planner_hits >= 2 and planner_hits > code_hits:
+            logger.info(f"Auto-detected agent_mode=PLANNER (hits={planner_hits})")
+            return AgentMode.PLANNER
+        # 1개라도 매칭되면 해당 모드 (동률 시 RAG)
+        if code_hits == 1 and planner_hits == 0:
+            logger.info(f"Auto-detected agent_mode=CODE (single hit)")
+            return AgentMode.CODE
+        if planner_hits == 1 and code_hits == 0:
+            logger.info(f"Auto-detected agent_mode=PLANNER (single hit)")
+            return AgentMode.PLANNER
+        return AgentMode.RAG
 
     def _resolve_search_products(
         self,
@@ -648,6 +709,31 @@ class AgenticRAGService:
             }
             return
 
+        # === Agent Mode 분기 ===
+        effective_mode = self._classify_agent_mode(
+            request.message, request.agent_mode,
+        )
+        if effective_mode != AgentMode.RAG:
+            yield {
+                "type": "agent_mode",
+                "mode": effective_mode.value,
+                "auto_detected": request.agent_mode == AgentMode.AUTO,
+            }
+
+        if effective_mode == AgentMode.CODE:
+            async for event in self._stream_code_agent(
+                request, product_ids, router_result, start,
+            ):
+                yield event
+            return
+
+        if effective_mode == AgentMode.PLANNER:
+            async for event in self._stream_planner_agent(
+                request, product_ids, router_result, start,
+            ):
+                yield event
+            return
+
         # 2. 검색 진행
         yield {
             "type": "search_progress",
@@ -812,6 +898,22 @@ class AgenticRAGService:
                         for v in verification
                     ],
                 }
+
+        # 관련 엔티티 그래프 추출 (Neo4j → ReactFlow JSON)
+        try:
+            from .graph_visualization_service import get_graph_visualization_service
+            graph_service = get_graph_visualization_service()
+            graph_data = await graph_service.get_query_graph(
+                query=request.message, product_ids=product_ids, limit=15
+            )
+            if graph_data and graph_data.get("nodes"):
+                yield {
+                    "type": "graph_data",
+                    "nodes": graph_data["nodes"],
+                    "edges": graph_data["edges"],
+                }
+        except Exception as e:
+            logger.debug(f"Graph data extraction skipped: {e}")
 
         yield self._build_sources_event(search_context.structured_results)
         yield {
@@ -1370,6 +1472,303 @@ class AgenticRAGService:
             "results": sources,
             "total": len(results),
         }
+
+    # =========================================================================
+    # Code Agent Branch
+    # =========================================================================
+
+    async def _stream_code_agent(
+        self,
+        request: AgenticRAGRequest,
+        product_ids: List[str],
+        router_result: RouterResult,
+        start: float,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Code Agent 스트리밍 브랜치.
+        제품 컨텍스트 + 코드 생성 시스템 프롬프트로 LLM 스트리밍.
+        """
+        primary_product = product_ids[0] if product_ids else "auto"
+
+        yield {
+            "type": "search_progress",
+            "product": primary_product,
+            "products": product_ids,
+            "step": "code_search",
+            "progress": 0.3,
+        }
+
+        # 제품 컨텍스트 수집
+        search_context = await self._multi_product_search(
+            query=request.message,
+            product_ids=product_ids,
+            query_type=QueryType.FREEFORM,
+        )
+
+        yield {
+            "type": "search_progress",
+            "product": primary_product,
+            "products": product_ids,
+            "step": "code_generating",
+            "progress": 0.6,
+        }
+
+        # 코드 시스템 프롬프트 로드
+        try:
+            from ..agents.middleware.code_middleware import CODE_SYSTEM_PROMPT
+            code_prompt = CODE_SYSTEM_PROMPT
+        except ImportError:
+            code_prompt = "You are an expert code generation assistant."
+
+        # 검색 결과를 코드 컨텍스트로 변환
+        product_context = self._build_llm_context(
+            search_context.structured_results, history=request.history,
+        )
+        code_context = (
+            f"{code_prompt}\n\n"
+            f"## Product Documentation Context\n\n{product_context}\n\n"
+            f"## Instructions\n"
+            f"Based on the above product documentation, generate code or provide "
+            f"code examples that address the user's request. Include comments "
+            f"explaining the code and reference the relevant product documentation."
+        )
+
+        if len(code_context) > self._MAX_LLM_CONTEXT_CHARS * 2:
+            code_context = code_context[:self._MAX_LLM_CONTEXT_CHARS * 2]
+
+        # LLM 스트리밍
+        full_response = ""
+        async for token in self._stream_llm_from_context(
+            request.message, primary_product, code_context,
+            request.language or "ja", history=request.history,
+        ):
+            full_response += token
+            yield {"type": "llm_token", "token": token}
+
+        # 소스 정보
+        if search_context.structured_results:
+            yield self._build_sources_event(search_context.structured_results)
+
+        yield {
+            "type": "done",
+            "processing_time_ms": int((time.time() - start) * 1000),
+            "product": primary_product,
+            "products": product_ids,
+            "agent_mode": "code",
+        }
+
+    # =========================================================================
+    # Planner Agent Branch
+    # =========================================================================
+
+    async def _stream_planner_agent(
+        self,
+        request: AgenticRAGRequest,
+        product_ids: List[str],
+        router_result: RouterResult,
+        start: float,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Planner Agent 스트리밍 브랜치.
+        제품 컨텍스트 + 플랜 생성 + TracePanel(DAG) 이벤트 방출.
+        """
+        import uuid
+        from datetime import datetime
+
+        primary_product = product_ids[0] if product_ids else "auto"
+        trace_id = str(uuid.uuid4())
+
+        yield {
+            "type": "search_progress",
+            "product": primary_product,
+            "products": product_ids,
+            "step": "plan_search",
+            "progress": 0.3,
+        }
+
+        # 제품 컨텍스트 수집
+        search_context = await self._multi_product_search(
+            query=request.message,
+            product_ids=product_ids,
+            query_type=QueryType.FREEFORM,
+        )
+
+        yield {
+            "type": "plan_start",
+            "trace_id": trace_id,
+            "objective": request.message,
+            "products": product_ids,
+        }
+
+        # Planner 시스템 프롬프트
+        try:
+            from ..agents.middleware.planner_middleware import PLANNER_SYSTEM_PROMPT
+            planner_prompt = PLANNER_SYSTEM_PROMPT
+        except ImportError:
+            planner_prompt = "You are a strategic planning assistant."
+
+        # 검색 결과를 플래너 컨텍스트로 변환
+        product_context = self._build_llm_context(
+            search_context.structured_results, history=request.history,
+        )
+        plan_context = (
+            f"{planner_prompt}\n\n"
+            f"## Product Documentation Context\n\n{product_context}\n\n"
+            f"## Instructions\n"
+            f"Based on the above product documentation, create a detailed execution plan "
+            f"for the user's request. Break it down into clear, actionable steps with "
+            f"dependencies. For each step, specify:\n"
+            f"- Step number and description\n"
+            f"- Agent type (rag, code, or planner)\n"
+            f"- Dependencies (which steps must complete first)\n"
+            f"- Estimated complexity (low, medium, high)\n\n"
+            f"Format as a numbered list of steps."
+        )
+
+        if len(plan_context) > self._MAX_LLM_CONTEXT_CHARS * 2:
+            plan_context = plan_context[:self._MAX_LLM_CONTEXT_CHARS * 2]
+
+        yield {
+            "type": "search_progress",
+            "product": primary_product,
+            "products": product_ids,
+            "step": "plan_generating",
+            "progress": 0.6,
+        }
+
+        # LLM 스트리밍으로 플랜 생성
+        full_response = ""
+        async for token in self._stream_llm_from_context(
+            request.message, primary_product, plan_context,
+            request.language or "ja", history=request.history,
+        ):
+            full_response += token
+            yield {"type": "llm_token", "token": token}
+
+        # 플랜에서 단계 추출 → DAG 구조 생성
+        plan_steps = self._parse_plan_steps(full_response)
+
+        if plan_steps:
+            # DAG 구조 생성
+            tasks = []
+            execution_batches = []
+            current_batch = []
+
+            for i, step in enumerate(plan_steps):
+                task_id = f"step_{i + 1}"
+                tasks.append({
+                    "task_id": task_id,
+                    "description": step["description"],
+                    "agent_type": step.get("agent_type", "rag"),
+                    "status": "completed",
+                    "dependencies": step.get("dependencies", []),
+                    "latency_ms": None,
+                })
+                current_batch.append(task_id)
+                # 의존성이 있으면 새 배치 시작
+                if step.get("dependencies"):
+                    if current_batch[:-1]:
+                        execution_batches.append(current_batch[:-1])
+                    current_batch = [task_id]
+
+            if current_batch:
+                execution_batches.append(current_batch)
+
+            parallelism = "none"
+            if len(execution_batches) > 1:
+                max_batch = max(len(b) for b in execution_batches)
+                parallelism = "full" if max_batch > 1 else "pipeline"
+
+            # TracePanel DAG 이벤트
+            yield {
+                "type": "trace_data",
+                "trace_id": trace_id,
+                "dag": {
+                    "tasks": tasks,
+                    "execution_batches": execution_batches,
+                    "parallelism_type": parallelism,
+                },
+            }
+
+            # 각 단계별 plan_step 이벤트
+            for i, step in enumerate(plan_steps):
+                yield {
+                    "type": "plan_step",
+                    "step_index": i,
+                    "total_steps": len(plan_steps),
+                    "description": step["description"],
+                    "agent_type": step.get("agent_type", "rag"),
+                    "complexity": step.get("complexity", "medium"),
+                }
+
+        # 소스 정보
+        if search_context.structured_results:
+            yield self._build_sources_event(search_context.structured_results)
+
+        yield {
+            "type": "done",
+            "processing_time_ms": int((time.time() - start) * 1000),
+            "product": primary_product,
+            "products": product_ids,
+            "agent_mode": "planner",
+            "total_steps": len(plan_steps) if plan_steps else 0,
+        }
+
+    def _parse_plan_steps(self, plan_text: str) -> List[Dict[str, Any]]:
+        """LLM 플랜 응답에서 단계별 구조 추출"""
+        steps = []
+        if not plan_text:
+            return steps
+
+        # 번호 매긴 리스트 패턴 매칭 (1. xxx, 2. xxx, ...)
+        step_pattern = re.compile(
+            r'(?:^|\n)\s*(\d+)[.)]\s*(.+?)(?=\n\s*\d+[.)]|\Z)',
+            re.DOTALL,
+        )
+        matches = step_pattern.findall(plan_text)
+
+        if not matches:
+            # 대시/불릿 리스트 패턴도 시도
+            bullet_pattern = re.compile(
+                r'(?:^|\n)\s*[-*]\s*\*?\*?(?:Step\s*\d*:?\s*)?(.+?)(?=\n\s*[-*]|\Z)',
+                re.DOTALL | re.IGNORECASE,
+            )
+            bullet_matches = bullet_pattern.findall(plan_text)
+            for i, desc in enumerate(bullet_matches[:10]):
+                desc_clean = desc.strip().split('\n')[0].strip()
+                if len(desc_clean) > 5:
+                    steps.append({
+                        "description": desc_clean[:200],
+                        "agent_type": self._infer_step_agent_type(desc_clean),
+                        "complexity": "medium",
+                        "dependencies": [f"step_{i}"] if i > 0 else [],
+                    })
+            return steps
+
+        for idx, (num, desc) in enumerate(matches[:10]):
+            desc_clean = desc.strip().split('\n')[0].strip()
+            if len(desc_clean) > 5:
+                steps.append({
+                    "description": desc_clean[:200],
+                    "agent_type": self._infer_step_agent_type(desc_clean),
+                    "complexity": "medium",
+                    "dependencies": [f"step_{idx}"] if idx > 0 else [],
+                })
+
+        return steps
+
+    def _infer_step_agent_type(self, description: str) -> str:
+        """단계 설명에서 적절한 agent type 추론"""
+        desc_lower = description.lower()
+        code_indicators = {"code", "script", "implement", "program", "jcl", "cobol",
+                           "コード", "スクリプト", "実装", "코드", "구현"}
+        if any(kw in desc_lower for kw in code_indicators):
+            return "code"
+        plan_indicators = {"plan", "analyze", "design", "review",
+                           "計画", "分析", "設計", "계획", "분석"}
+        if any(kw in desc_lower for kw in plan_indicators):
+            return "planner"
+        return "rag"
 
     def _calculate_confidence(
         self,

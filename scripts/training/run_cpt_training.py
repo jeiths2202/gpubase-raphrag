@@ -69,6 +69,16 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================
+# Qwen2.5 Special Token IDs
+# ============================================
+# CPT에서는 <|endoftext|>를 문서 구분자/패딩에 사용해야 합니다.
+# <|im_start|>/<|im_end|>는 SFT ChatML 전용으로 보존합니다.
+QWEN_ENDOFTEXT_ID = 151643   # <|endoftext|> - 일반 텍스트 종료
+QWEN_IM_START_ID = 151644    # <|im_start|>  - ChatML 턴 시작 (CPT에서 미사용)
+QWEN_IM_END_ID = 151645      # <|im_end|>    - ChatML 턴 종료 (CPT에서 미사용)
+
+
+# ============================================
 # Configuration
 # ============================================
 
@@ -153,13 +163,17 @@ class TextPackingDataset(TorchDataset):
         eos_token_id: Optional[int] = None,
     ):
         self.max_seq_length = max_seq_length
-        self.eos_id = eos_token_id or tokenizer.eos_token_id
+        # CPT에서는 <|endoftext|>를 문서 구분자로 사용
+        # <|im_end|>(eos_token)는 SFT ChatML 전용으로 보존
+        self.eos_id = eos_token_id or QWEN_ENDOFTEXT_ID
 
         logger.info(f"텍스트 로드 및 토크나이즈: {text_path}")
+        logger.info(f"문서 구분자 토큰: id={self.eos_id} "
+                     f"(token='{tokenizer.decode([self.eos_id])}')")
         text = text_path.read_text(encoding="utf-8")
         logger.info(f"텍스트 크기: {len(text):,} chars")
 
-        # 문서 구분자에서 EOS 토큰 삽입
+        # 문서 구분자에서 <|endoftext|> 토큰 삽입
         # corpus.txt는 "====...====" 구분자로 문서를 구분
         doc_separator = "=" * 80
         documents = text.split(doc_separator)
@@ -175,7 +189,7 @@ class TextPackingDataset(TorchDataset):
                 chunk = doc[i: i + chunk_size]
                 tokens = tokenizer.encode(chunk, add_special_tokens=False)
                 all_tokens.extend(tokens)
-            # 문서 간 EOS 삽입
+            # 문서 간 <|endoftext|> 삽입 (문서 경계 표시)
             all_tokens.append(self.eos_id)
 
         total_tokens = len(all_tokens)
@@ -311,9 +325,15 @@ def setup_model_and_tokenizer(config: CPTConfig):
         trust_remote_code=True,
     )
 
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-        model.config.pad_token_id = tokenizer.eos_token_id
+    # pad_token을 <|endoftext|>로 설정 (eos_token인 <|im_end|>와 분리)
+    # CPT는 plain text이므로 ChatML 특수토큰 역할을 보존해야 함
+    tokenizer.pad_token = tokenizer.decode([QWEN_ENDOFTEXT_ID])
+    tokenizer.pad_token_id = QWEN_ENDOFTEXT_ID
+    model.config.pad_token_id = QWEN_ENDOFTEXT_ID
+
+    logger.info(f"Special tokens: eos={tokenizer.eos_token}({tokenizer.eos_token_id}), "
+                f"pad={tokenizer.pad_token}({tokenizer.pad_token_id}), "
+                f"endoftext_id={QWEN_ENDOFTEXT_ID}")
 
     # kbit training 준비
     model = prepare_model_for_kbit_training(

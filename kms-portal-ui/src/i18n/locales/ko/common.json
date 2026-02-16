@@ -3,6 +3,7 @@
   "loading": "로딩 중...",
   "error": "오류",
   "success": "성공",
+  "or": "또는",
   "cancel": "취소",
   "confirm": "확인",
   "save": "저장",
@@ -38,6 +39,7 @@
     "agent": "AI 에이전트",
     "documents": "문서",
     "agenticRag": "에이전트 RAG",
+    "knowledgeGraph": "Knowledge Graph",
     "improvements": "개선 요청",
     "admin": "관리자",
     "settings": "설정",
@@ -846,6 +848,26 @@
     "history": "히스토리",
     "newConversation": "새 대화",
     "connectors": "외부 연동",
-    "attachFile": "파일 첨부"
+    "attachFile": "파일 첨부",
+    "modeRag": "RAG / 검색",
+    "modeCode": "코드 / 스크립트",
+    "modePlanner": "플래너",
+    "modeAuto": "자동",
+    "codeGenerating": "코드 생성 중...",
+    "planGenerating": "플랜 작성 중...",
+    "planSteps": "단계",
+    "autoDetected": "자동 감지"
+  },
+  "knowledgeGraph": {
+    "title": "Knowledge Graph",
+    "search": "엔티티 검색...",
+    "entityGraph": "엔티티 그래프",
+    "productOverview": "제품 선택",
+    "relatedGraph": "관련 엔티티 그래프",
+    "expand": "확장",
+    "nodeCount": "노드",
+    "edgeCount": "엣지",
+    "noData": "그래프 데이터가 없습니다. 엔티티를 검색하거나 제품을 선택하세요.",
+    "noProperties": "속성 없음"
   }
 }

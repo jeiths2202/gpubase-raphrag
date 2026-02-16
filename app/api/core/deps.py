@@ -1006,11 +1006,10 @@ class DocumentService:
             except Exception as e:
                 logger.error(f"Failed to delete document from repository: {e}")
 
-        # 6. Delete from memory cache (if exists)
+        # 6. Delete from memory cache (if exists) - use pop() to avoid KeyError
         if doc_exists_in_cache:
-            del self._documents[document_id]
-            if document_id in self._chunks:
-                del self._chunks[document_id]
+            self._documents.pop(document_id, None)
+            self._chunks.pop(document_id, None)
 
         # Check if any data was actually deleted
         total_deleted = sum([

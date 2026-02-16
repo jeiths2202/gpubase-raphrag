@@ -35,7 +35,7 @@ class LearningLLMService:
 
     def __init__(
         self,
-        base_model: str = "Qwen/Qwen2.5-7B-Instruct",
+        base_model: str = "/opt/models/merged_cpt_72b",
         adapter_dir: str = "/opt/kms/models/qlora_adapters",
         auto_load: bool = False,
         enabled: bool = True,
@@ -50,7 +50,7 @@ class LearningLLMService:
         self.use_vllm = use_vllm
         self.vllm_url = vllm_url or os.getenv(
             "LEARNING_LLM_URL",
-            "http://learning-llm-graphrag:8000/v1"
+            "http://192.168.8.11:12810/v1"
         )
         self.vllm_model = vllm_model
 
@@ -61,6 +61,11 @@ class LearningLLMService:
         # Confidence thresholds
         self.min_confidence_threshold = 0.6  # Learning LLM 응답 사용 최소 신뢰도
         self.high_confidence_threshold = 0.8  # 고신뢰도 응답 (RAG 스킵 가능)
+
+    @property
+    def is_available(self) -> bool:
+        """LLM 서비스 사용 가능 여부"""
+        return self.enabled and self._is_initialized
 
     async def initialize(self) -> bool:
         """
@@ -221,9 +226,17 @@ class LearningLLMService:
         context: Optional[str] = None,
         max_tokens: int = 512,
         temperature: float = 0.7,
+        product: Optional[str] = None,  # Multi-LoRA 제품 지정
     ) -> AsyncGenerator[str, None]:
         """
-        스트리밍 응답 생성
+        스트리밍 응답 생성 (Multi-LoRA v2 지원)
+
+        Args:
+            question: 사용자 질문
+            context: 추가 컨텍스트
+            max_tokens: 최대 생성 토큰
+            temperature: 샘플링 온도
+            product: Multi-LoRA 제품명 (예: "tibero7", "openframe_osc")
 
         Yields:
             생성된 토큰들
@@ -240,6 +253,7 @@ class LearningLLMService:
                 context=context,
                 max_new_tokens=max_tokens,
                 temperature=temperature,
+                product=product,  # Multi-LoRA 제품 전달
             ):
                 yield token
 

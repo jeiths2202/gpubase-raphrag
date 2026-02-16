@@ -16,6 +16,7 @@ class DocumentStatus(str, Enum):
     EXTRACTING = "extracting"  # VLM extraction in progress
     EMBEDDING = "embedding"  # Generating embeddings
     INTERRUPTED = "interrupted"  # Server restart interrupted processing
+    SAVING = "saving"  # Legacy: Initial save in progress
 
 
 class EmbeddingStatus(str, Enum):
@@ -38,6 +39,7 @@ class DocumentType(str, Enum):
     HTML = "html"
     CSV = "csv"
     JSON = "json"
+    MANUAL = "manual"  # Legacy: Manual/technical documentation
 
 
 class ProcessingMode(str, Enum):
@@ -45,6 +47,7 @@ class ProcessingMode(str, Enum):
     TEXT_ONLY = "text_only"  # Traditional text extraction (pypdf)
     IMAGE_ONLY = "image_only"  # OCR extraction for scanned/image-based documents
     VLM_ENHANCED = "vlm_enhanced"  # VLM-assisted: text + OCR + layout + table extraction
+    VLM = "vlm"  # Legacy: Alias for vlm_enhanced
 
 
 # MIME type mappings

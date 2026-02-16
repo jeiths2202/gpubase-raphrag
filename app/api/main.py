@@ -307,7 +307,7 @@ async def lifespan(app: FastAPI):
         learning_llm_enabled = os.getenv("ENABLE_LEARNING_LLM", "false").lower() == "true"
         learning_llm_auto_load = os.getenv("LEARNING_LLM_AUTO_LOAD", "false").lower() == "true"
         learning_llm_model = os.getenv("LEARNING_LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
-        learning_llm_url = os.getenv("LEARNING_LLM_URL", "http://learning-llm-graphrag:8000/v1")
+        learning_llm_url = os.getenv("LEARNING_LLM_URL", "http://192.168.8.11:12810/v1")
         learning_llm_vllm_model = os.getenv("LEARNING_LLM_VLLM_MODEL", "learning")  # LoRA 어댑터 이름
 
         learning_llm_service = await initialize_learning_llm_service(

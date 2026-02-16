@@ -3,6 +3,7 @@
   "loading": "読み込み中...",
   "error": "エラー",
   "success": "成功",
+  "or": "または",
   "cancel": "キャンセル",
   "confirm": "確認",
   "save": "保存",
@@ -38,6 +39,7 @@
     "agent": "AIエージェント",
     "documents": "ドキュメント",
     "agenticRag": "エージェントRAG",
+    "knowledgeGraph": "ナレッジグラフ",
     "improvements": "改善要求",
     "admin": "管理者",
     "settings": "設定",
@@ -846,6 +848,26 @@
     "history": "履歴",
     "newConversation": "新規会話",
     "connectors": "外部連携",
-    "attachFile": "ファイル添付"
+    "attachFile": "ファイル添付",
+    "modeRag": "RAG / 検索",
+    "modeCode": "コード / スクリプト",
+    "modePlanner": "プランナー",
+    "modeAuto": "自動",
+    "codeGenerating": "コード生成中...",
+    "planGenerating": "プラン作成中...",
+    "planSteps": "ステップ",
+    "autoDetected": "自動検出"
+  },
+  "knowledgeGraph": {
+    "title": "ナレッジグラフ",
+    "search": "エンティティを検索...",
+    "entityGraph": "エンティティグラフ",
+    "productOverview": "製品を選択",
+    "relatedGraph": "関連エンティティグラフ",
+    "expand": "展開",
+    "nodeCount": "ノード",
+    "edgeCount": "エッジ",
+    "noData": "グラフデータがありません。エンティティを検索するか、製品を選択してください。",
+    "noProperties": "プロパティなし"
   }
 }

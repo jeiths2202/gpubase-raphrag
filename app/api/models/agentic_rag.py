@@ -40,6 +40,14 @@ class RouterDecision(str, Enum):
     NO_MATCH = "no_match"
 
 
+class AgentMode(str, Enum):
+    """Agent 실행 모드"""
+    RAG = "rag"
+    CODE = "code"
+    PLANNER = "planner"
+    AUTO = "auto"
+
+
 # =============================================================================
 # Router Models
 # =============================================================================
@@ -92,6 +100,10 @@ class AgenticRAGRequest(BaseModel):
     selected_product: Optional[str] = Field(
         default=None,
         description="되묻기에서 사용자가 선택한 제품"
+    )
+    agent_mode: AgentMode = Field(
+        default=AgentMode.RAG,
+        description="Agent 실행 모드: rag(기본), code(코드 생성), planner(플랜 생성), auto(자동 감지)"
     )
     # Long-term Memory 컨텍스트 (서버에서 주입)
     user_id: Optional[str] = Field(default=None, exclude=True)

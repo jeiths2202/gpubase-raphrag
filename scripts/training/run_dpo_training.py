@@ -60,6 +60,14 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================
+# Qwen2.5 Special Token IDs
+# ============================================
+QWEN_ENDOFTEXT_ID = 151643   # <|endoftext|> - 패딩용
+QWEN_IM_START_ID = 151644    # <|im_start|>  - ChatML 턴 시작
+QWEN_IM_END_ID = 151645      # <|im_end|>    - ChatML 턴 종료 (eos_token)
+
+
+# ============================================
 # Configuration
 # ============================================
 
@@ -196,9 +204,14 @@ def setup_dpo_model(config: DPOTrainConfig):
         trust_remote_code=True,
     )
 
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-        model.config.pad_token_id = tokenizer.eos_token_id
+    # pad_token을 <|endoftext|>로 설정 (eos_token인 <|im_end|>와 분리)
+    # DPO에서 padding과 ChatML 턴 종료 토큰을 혼동하지 않도록 함
+    tokenizer.pad_token = tokenizer.decode([QWEN_ENDOFTEXT_ID])
+    tokenizer.pad_token_id = QWEN_ENDOFTEXT_ID
+    model.config.pad_token_id = QWEN_ENDOFTEXT_ID
+
+    logger.info(f"Special tokens: eos={tokenizer.eos_token}({tokenizer.eos_token_id}), "
+                f"pad={tokenizer.pad_token}({tokenizer.pad_token_id})")
 
     model = prepare_model_for_kbit_training(
         model, use_gradient_checkpointing=config.gradient_checkpointing

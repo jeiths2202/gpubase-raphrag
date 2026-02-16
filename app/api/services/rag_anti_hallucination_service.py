@@ -16,7 +16,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # LLM URL from environment variable (fallback to localhost for testing)
-DEFAULT_LLM_URL = os.getenv('RAG_LLM_URL', os.getenv('LLM_API_URL', 'http://localhost:12815/v1')).replace('/chat/completions', '')
+DEFAULT_LLM_URL = os.getenv('RAG_LLM_URL', os.getenv('LLM_API_URL', 'http://192.168.8.11:12810/v1')).replace('/chat/completions', '')
 
 
 class RAGAntiHallucinationService:

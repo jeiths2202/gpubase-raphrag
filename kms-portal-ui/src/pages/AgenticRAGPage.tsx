@@ -38,6 +38,8 @@ import {
   Link2,
   Sparkles,
   HelpCircle,
+  GitBranch,
+  Code2,
 } from 'lucide-react';
 import { MessageContent } from '../components/AgentChat/MessageContent';
 import { ConversationSidebar } from '../components/ConversationSidebar';
@@ -51,11 +53,16 @@ import client from '../api/client';
 import type { AgentType } from '../api/agent.api';
 import type {
   AgenticRAGRequest,
+  AgentMode,
   ClarificationCandidate,
   VerifiedSentence,
   SSEEvent,
   ProductGroup,
 } from '../api/agentic-rag.api';
+import { TracePanel } from '../components/TracePanel/TracePanel';
+import { useTraceStore } from '../store/traceStore';
+import { KnowledgeGraphView } from '../components/KnowledgeGraph';
+import type { Node, Edge } from 'reactflow';
 import './OpenAgentPage.css';
 
 // Verification badge config
@@ -107,6 +114,7 @@ interface ChatMessage {
   clarificationMessage?: string;
   lowRelevanceScore?: number;
   searchedProducts?: string[];
+  graphData?: { nodes: Node[]; edges: Edge[] };
   timestamp: Date;
 }
 
@@ -121,6 +129,7 @@ export const AgenticRAGPage: React.FC = () => {
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [productGroups, setProductGroups] = useState<ProductGroup[]>([]);
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
+  const [agentMode, setAgentMode] = useState<AgentMode>('rag');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -286,6 +295,7 @@ export const AgenticRAGPage: React.FC = () => {
       products: (!isAutoMode && selectedProducts.length > 0) ? selectedProducts : undefined,
       selected_product: overrideProduct || undefined,
       language: 'ja',
+      agent_mode: agentMode,
       history: messages
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .slice(-10)
@@ -443,6 +453,46 @@ export const AgenticRAGPage: React.FC = () => {
               // Web doc 매칭 알림 (score >= 0.9)
               break;
 
+            case 'agent_mode':
+              // 감지된 모드 표시 (auto인 경우)
+              break;
+
+            case 'plan_start': {
+              // TracePanel 초기화 + 열기
+              const traceId = (event as Record<string, unknown>).trace_id as string;
+              if (traceId) {
+                useTraceStore.getState().initTrace(traceId);
+                useTraceStore.getState().openPanel();
+              }
+              break;
+            }
+
+            case 'plan_step':
+              // 플랜 단계 진행 알림
+              break;
+
+            case 'trace_data': {
+              // TracePanel DAG 업데이트
+              useTraceStore.getState().updateFromTraceData(event as Record<string, unknown>);
+              break;
+            }
+
+            case 'graph_data': {
+              const ev = event as Record<string, unknown>;
+              const graphNodes = ev.nodes as Node[] | undefined;
+              const graphEdges = ev.edges as Edge[] | undefined;
+              if (graphNodes && graphNodes.length > 0) {
+                setMessages(prev =>
+                  prev.map(m =>
+                    m.id === assistantId
+                      ? { ...m, graphData: { nodes: graphNodes, edges: graphEdges || [] } }
+                      : m
+                  )
+                );
+              }
+              break;
+            }
+
             case 'sources':
               setMessages(prev =>
                 prev.map(m =>
@@ -503,7 +553,7 @@ export const AgenticRAGPage: React.FC = () => {
       setIsStreaming(false);
       abortControllerRef.current = null;
     }
-  }, [isStreaming, isAuthenticated, isAutoMode, selectedProducts, messages, activeConversationId]);
+  }, [isStreaming, isAuthenticated, isAutoMode, selectedProducts, messages, activeConversationId, agentMode]);
 
   // Handle clarification product selection
   const handleClarificationSelect = useCallback((product: string) => {
@@ -696,6 +746,23 @@ export const AgenticRAGPage: React.FC = () => {
                   </div>
                 </details>
               )}
+
+              {/* 관련 엔티티 그래프 (Neo4j → ReactFlow) */}
+              {msg.graphData && msg.graphData.nodes.length > 0 && (
+                <details className="graph-mini-container">
+                  <summary>
+                    <GitBranch size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                    {t('knowledgeGraph.relatedGraph', '関連エンティティグラフ')} ({msg.graphData.nodes.length})
+                  </summary>
+                  <div style={{ height: 280 }}>
+                    <KnowledgeGraphView
+                      nodes={msg.graphData.nodes}
+                      edges={msg.graphData.edges}
+                      mini
+                    />
+                  </div>
+                </details>
+              )}
             </>
           ) : (
             <p>{msg.content}</p>
@@ -835,6 +902,33 @@ export const AgenticRAGPage: React.FC = () => {
           >
             <Link2 size={18} />
           </button>
+          {/* Agent Mode Selector */}
+          <div className="agent-mode-selector">
+            <button
+              className={`agent-mode-btn ${agentMode === 'rag' ? 'active' : ''}`}
+              onClick={() => setAgentMode('rag')}
+              title={t('common.agenticRag.modeRag') || 'RAG / Search'}
+            >
+              <Search size={14} />
+              <span>RAG</span>
+            </button>
+            <button
+              className={`agent-mode-btn ${agentMode === 'code' ? 'active' : ''}`}
+              onClick={() => setAgentMode('code')}
+              title={t('common.agenticRag.modeCode') || 'Code / Script'}
+            >
+              <Code2 size={14} />
+              <span>Code</span>
+            </button>
+            <button
+              className={`agent-mode-btn ${agentMode === 'planner' ? 'active' : ''}`}
+              onClick={() => setAgentMode('planner')}
+              title={t('common.agenticRag.modePlanner') || 'Planner'}
+            >
+              <GitBranch size={14} />
+              <span>Plan</span>
+            </button>
+          </div>
           <div className="product-selector-wrapper" ref={dropdownRef}>
             <button
               className="product-selector-button"
@@ -974,6 +1068,9 @@ export const AgenticRAGPage: React.FC = () => {
         onClose={() => setShowConnectorsModal(false)}
         t={t}
       />
+
+      {/* TracePanel for Planner mode */}
+      <TracePanel t={t} />
 
       </div>{/* end openagent-main-content */}
     </div>

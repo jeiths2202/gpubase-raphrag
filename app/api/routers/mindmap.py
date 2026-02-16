@@ -356,13 +356,16 @@ async def generate_mindmap_from_all(
     title: Optional[str] = Query(None, description="마인드맵 제목"),
     max_nodes: int = Query(50, ge=5, le=200, description="최대 노드 수"),
     focus_topic: Optional[str] = Query(None, description="집중할 주제"),
-    language: str = Query("auto", description="언어 설정"),
+    language: str = Query("auto", description="언어 설정 (auto, ko, en, ja)"),
     current_user: dict = Depends(get_current_user),
     service: MindmapService = Depends(get_service)
 ):
     """Generate mindmap from all documents in the system"""
     start_time = time.time()
     request_id = f"req_{uuid.uuid4().hex[:12]}"
+
+    # Debug: Log received language parameter
+    logger.info(f"[{request_id}] generate_mindmap_from_all called with language='{language}', max_nodes={max_nodes}")
 
     try:
         request = GenerateMindmapRequest(

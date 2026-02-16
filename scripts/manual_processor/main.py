@@ -212,6 +212,125 @@ class ManualProcessor:
         logger.info("=== 인덱스 재생성 ===")
         self.index_generator.rebuild_all()
 
+    def quality_check(
+        self,
+        category: str = "all",
+        output_path: Optional[Path] = None,
+        verbose: bool = False
+    ) -> None:
+        """요약본 품질 검사
+
+        Args:
+            category: 검사할 카테고리 (all, commands, configs, apis, concepts)
+            output_path: 리포트 출력 경로
+            verbose: 상세 출력 여부
+        """
+        logger.info("=== 요약본 품질 검사 ===")
+        start_time = datetime.now()
+
+        from .quality_checker import QualityChecker
+
+        checker = QualityChecker(config.summaries_dir)
+
+        # 카테고리별 또는 전체 검사
+        if category == "all":
+            report = checker.check_all()
+        else:
+            report = checker.check_category(category)
+
+        # 결과 출력
+        summary = checker.generate_summary(report)
+        print(summary)
+
+        # 파일 저장
+        if output_path is None:
+            output_path = config.summaries_dir / "quality_report.json"
+
+        report.save(str(output_path))
+        logger.info(f"리포트 저장: {output_path}")
+
+        # 상세 출력
+        if verbose:
+            print("\n--- 상세 JSON ---")
+            print(report.to_json())
+
+        elapsed = datetime.now() - start_time
+        logger.info(f"소요 시간: {elapsed}")
+
+    def quality_improve(
+        self,
+        dry_run: bool = False,
+        skip_pdf_extraction: bool = False,
+        output_path: Optional[Path] = None
+    ) -> None:
+        """요약본 품질 개선 (검사 + 자동 수정)
+
+        Args:
+            dry_run: 변경 없이 미리보기
+            skip_pdf_extraction: PDF 재추출 건너뛰기
+            output_path: 리포트 출력 경로
+        """
+        logger.info("=== 요약본 품질 개선 ===")
+        start_time = datetime.now()
+
+        from .quality_checker import QualityChecker
+        from .quality_enhancer import QualityEnhancer
+
+        # 1. 품질 검사
+        logger.info("\n[1/3] 품질 검사 중...")
+        checker = QualityChecker(config.summaries_dir)
+        report = checker.check_all()
+
+        summary = checker.generate_summary(report)
+        print(summary)
+
+        if report.total_issues == 0:
+            logger.info("품질 이슈가 없습니다. 개선 작업 불필요.")
+            return
+
+        # 2. 품질 개선
+        if dry_run:
+            logger.info("\n[Dry-Run] 변경 없이 종료합니다.")
+            logger.info(f"수정 대상: {report.total_issues}개 이슈")
+            return
+
+        logger.info(f"\n[2/3] 품질 개선 중... ({report.total_issues}개 이슈)")
+        enhancer = QualityEnhancer(
+            pdf_parser=self.pdf_parser,
+            summaries_dir=config.summaries_dir,
+            manuals_dir=config.manuals_dir
+        )
+        result = enhancer.enhance_all(
+            report,
+            skip_pdf_extraction=skip_pdf_extraction
+        )
+
+        logger.info(f"개선 완료:")
+        logger.info(f"  - 불완전 설명 수정: {result.fixed_incomplete}개")
+        logger.info(f"  - 중복 병합: {result.merged_duplicates}개")
+        logger.info(f"  - 타입 재분류: {result.reclassified_items}개")
+
+        if result.failed_items:
+            logger.warning(f"실패한 항목: {len(result.failed_items)}개")
+            for item in result.failed_items[:5]:
+                logger.warning(f"  - {item}")
+
+        # 3. 재검사
+        logger.info("\n[3/3] 재검사 중...")
+        final_report = checker.check_all()
+        final_summary = checker.generate_summary(final_report)
+        print("\n--- 개선 후 ---")
+        print(final_summary)
+
+        # 리포트 저장
+        if output_path is None:
+            output_path = config.summaries_dir / "quality_report.json"
+        final_report.save(str(output_path))
+
+        elapsed = datetime.now() - start_time
+        logger.info(f"\n소요 시간: {elapsed}")
+        logger.info(f"품질 점수 변화: {report.quality_score:.1f}% → {final_report.quality_score:.1f}%")
+
     def extract_comprehensive(self) -> None:
         """포괄적 추출 - 모든 매뉴얼에서 모든 정보 추출"""
         logger.info("=== 포괄적 추출 시작 ===")
@@ -241,6 +360,49 @@ class ManualProcessor:
         logger.info(f"개념/정의: {stats['concepts']}개")
         logger.info(f"절차/가이드: {stats['procedures']}개")
         logger.info(f"총 항목: {sum(stats.values())}개")
+        logger.info(f"소요 시간: {elapsed}")
+
+    def generate_learning_dataset(self, output_path: Optional[Path] = None) -> None:
+        """전략 기반 학습 데이터셋 생성
+
+        strategy_analysis.json을 활용하여 각 문서 유형에 최적화된
+        추출 패턴으로 학습 데이터셋을 생성합니다.
+        """
+        logger.info("=== 전략 기반 학습 데이터셋 생성 ===")
+        start_time = datetime.now()
+
+        from .parsers.strategy_aware_parser import StrategyAwareParser, generate_learning_dataset
+
+        # 출력 경로 설정
+        if output_path is None:
+            output_path = config.summaries_dir / "learning_dataset.json"
+
+        # 전략 파일 경로
+        strategy_file = config.summaries_dir / "strategy_analysis.json"
+
+        if not strategy_file.exists():
+            logger.error(f"전략 분석 파일이 없습니다: {strategy_file}")
+            logger.info("먼저 analyze_all_manuals.py를 실행하세요.")
+            return
+
+        # 학습 데이터셋 생성
+        stats = generate_learning_dataset(
+            manuals_dir=config.manuals_dir,
+            output_path=output_path,
+            strategy_file=strategy_file
+        )
+
+        # 완료
+        elapsed = datetime.now() - start_time
+        logger.info(f"\n=== 학습 데이터셋 생성 완료 ===")
+        logger.info(f"총 항목: {stats['total_items']}개")
+        logger.info(f"\n타입별 통계:")
+        for item_type, count in sorted(stats['type_stats'].items(), key=lambda x: -x[1]):
+            logger.info(f"  {item_type}: {count}개")
+        logger.info(f"\n제품별 통계:")
+        for product, count in sorted(stats['product_stats'].items(), key=lambda x: -x[1])[:10]:
+            logger.info(f"  {product}: {count}개")
+        logger.info(f"\n출력 파일: {output_path}")
         logger.info(f"소요 시간: {elapsed}")
 
     def extract_structure(
@@ -382,6 +544,18 @@ def main():
     # extract-comprehensive 명령
     subparsers.add_parser("extract-comprehensive", help="포괄적 추출 (모든 매뉴얼에서 모든 정보)")
 
+    # generate-learning-dataset 명령
+    learning_parser = subparsers.add_parser(
+        "generate-learning-dataset",
+        help="전략 기반 학습 데이터셋 생성 (strategy_analysis.json 활용)"
+    )
+    learning_parser.add_argument(
+        "--output", "-o",
+        type=Path,
+        default=None,
+        help="출력 파일 경로 (기본: summaries/learning_dataset.json)"
+    )
+
     # extract-structure 명령
     structure_parser = subparsers.add_parser(
         "extract-structure",
@@ -427,6 +601,51 @@ def main():
     # rebuild-index 명령
     subparsers.add_parser("rebuild-index", help="인덱스 재생성")
 
+    # quality-check 명령
+    check_parser = subparsers.add_parser(
+        "quality-check",
+        help="요약본 품질 검사 (불완전 설명, 중복, 분류 오류 탐지)"
+    )
+    check_parser.add_argument(
+        "--category", "-c",
+        choices=["all", "commands", "configs", "apis", "concepts"],
+        default="all",
+        help="검사할 카테고리 (기본: all)"
+    )
+    check_parser.add_argument(
+        "--output", "-o",
+        type=Path,
+        default=None,
+        help="리포트 출력 경로 (기본: summaries/quality_report.json)"
+    )
+    check_parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="상세 출력"
+    )
+
+    # quality-improve 명령
+    improve_parser = subparsers.add_parser(
+        "quality-improve",
+        help="요약본 품질 개선 (검사 + 자동 수정)"
+    )
+    improve_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="변경 없이 미리보기"
+    )
+    improve_parser.add_argument(
+        "--skip-pdf-extraction",
+        action="store_true",
+        help="PDF 재추출 건너뛰기 (빠른 실행)"
+    )
+    improve_parser.add_argument(
+        "--output", "-o",
+        type=Path,
+        default=None,
+        help="리포트 출력 경로"
+    )
+
     args = parser.parse_args()
 
     if not args.command:
@@ -443,6 +662,8 @@ def main():
         processor.extract_errors_only()
     elif args.command == "extract-comprehensive":
         processor.extract_comprehensive()
+    elif args.command == "generate-learning-dataset":
+        processor.generate_learning_dataset(output_path=args.output)
     elif args.command == "extract-structure":
         processor.extract_structure(
             input_path=args.input,
@@ -453,6 +674,18 @@ def main():
         )
     elif args.command == "rebuild-index":
         processor.rebuild_index()
+    elif args.command == "quality-check":
+        processor.quality_check(
+            category=args.category,
+            output_path=args.output,
+            verbose=args.verbose
+        )
+    elif args.command == "quality-improve":
+        processor.quality_improve(
+            dry_run=args.dry_run,
+            skip_pdf_extraction=args.skip_pdf_extraction,
+            output_path=args.output
+        )
 
 
 if __name__ == "__main__":

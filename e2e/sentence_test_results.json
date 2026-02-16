@@ -1,40 +1,15 @@
 {
-  "total": 30,
-  "passed": 29,
-  "failed": 1,
-  "hallucinations": [
-    {
-      "index": 24,
-      "keyword": "osc.conf",
-      "query": "osc.confの設定方法を教えてください。",
-      "foundUnexpected": [
-        "tjes.conf"
-      ],
-      "screenshot": "hallucination_24_osc_conf.png"
-    }
-  ],
-  "noResults": [
-    {
-      "index": 17,
-      "keyword": "iebgener",
-      "query": "iebgenerの使用方法を教えてください。"
-    },
-    {
-      "index": 25,
-      "keyword": "tacf.conf",
-      "query": "tacf.confの設定について説明してください。"
-    },
-    {
-      "index": 27,
-      "keyword": "ABEND S0C7",
-      "query": "ABEND S0C7エラーの原因と対処方法を教えてください。"
-    },
-    {
-      "index": 28,
-      "keyword": "ABEND S0C4",
-      "query": "ABEND S0C4エラーについて説明してください。"
-    }
-  ],
+  "total": 40,
+  "passed": 40,
+  "failed": 0,
+  "hallucinations": [],
+  "noResults": [],
   "errors": [],
-  "timestamp": "2026-01-31T09:17:03.320Z"
+  "timestamp": "2026-02-08T15:01:55.342Z",
+  "strictMatchResults": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "violations": []
+  }
 }

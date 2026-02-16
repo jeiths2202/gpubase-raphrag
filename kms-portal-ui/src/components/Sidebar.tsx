@@ -32,6 +32,7 @@ import {
   Sparkles,
   Cpu,
   Workflow,
+  GitBranch,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useAuthStore } from '../store/authStore';
@@ -105,6 +106,12 @@ const NAV_ITEMS: NavItem[] = [
     path: '/agentic-rag',
     icon: <Workflow size={20} />,
     labelKey: 'common.nav.agenticRag',
+  },
+  {
+    id: 'knowledgeGraph',
+    path: '/knowledge-graph',
+    icon: <GitBranch size={20} />,
+    labelKey: 'common.nav.knowledgeGraph',
   },
   {
     id: 'improvements',

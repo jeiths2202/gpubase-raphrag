@@ -4,10 +4,11 @@ Learning LLM vLLM Adapter
 외부 vLLM 서버에 연결하여 추론을 수행합니다.
 Docker 컨테이너로 배포된 Learning LLM 서비스에 연결합니다.
 
-Multi-LoRA v2 지원 (2026-02-03):
-- GPU 5 (Port 12815): 대형 제품 8개
-- GPU 6 (Port 12816): 중형 제품 8개
-- GPU 7 (Port 12817): 소형 제품 8개
+Multi-LoRA DPO 지원 (2026-02-17):
+- GPU 4-7 (Port 12810): Qwen2.5-72B (merged_cpt_72b) + 15개 DPO 어댑터
+- 어댑터: openframe_base, openframe_batch, openframe_common, openframe_hidb,
+  openframe_osc, openframe_osi, openframe_tacf, openframe_vos3,
+  ofcobol, ofpli, ofmanager, tmax, tibero7, protrieve, prosort
 
 Usage:
     from app.api.adapters.learning_llm.vllm_adapter import get_vllm_adapter
@@ -32,122 +33,118 @@ logger = logging.getLogger(__name__)
 
 
 # Multi-LoRA v2 제품별 어댑터 매핑 (2026-02-04 수정)
-# 24개 QLoRA v2 어댑터가 단일 vLLM 서버(Port 12815)에 로드됨
-MULTI_LORA_PORT = 12815  # 모든 어댑터가 이 포트에 있음
+# 15개 DPO 어댑터가 단일 vLLM 서버(Port 12810)에 로드됨 (Qwen2.5-72B merged_cpt_72b)
+MULTI_LORA_PORT = 12810  # 모든 어댑터가 이 포트에 있음
 
 MULTI_LORA_PRODUCT_MAPPING = {
     # =========================================================================
-    # 대형 제품 (예제 수 많음)
+    # 15개 DPO 어댑터 (Qwen2.5-72B merged_cpt_72b, Port 12810)
+    # 어댑터명에 _v2 접미사 없음 (DPO 버전)
     # =========================================================================
-    "tibero7_v2": {"port": MULTI_LORA_PORT},
-    "tibero7": {"port": MULTI_LORA_PORT},
-    "tibero": {"port": MULTI_LORA_PORT, "adapter": "tibero7_v2"},
-    "jeus_v2": {"port": MULTI_LORA_PORT},
-    "jeus": {"port": MULTI_LORA_PORT},
-    "tmax_v2": {"port": MULTI_LORA_PORT},
-    "tmax": {"port": MULTI_LORA_PORT},
-    "openframe_common_v2": {"port": MULTI_LORA_PORT},
-    "openframe_common": {"port": MULTI_LORA_PORT},
-    "openframe_batch_v2": {"port": MULTI_LORA_PORT},
-    "openframe_batch": {"port": MULTI_LORA_PORT},
-    "batch": {"port": MULTI_LORA_PORT, "adapter": "openframe_batch_v2"},
-    "webtob_v2": {"port": MULTI_LORA_PORT},
-    "webtob": {"port": MULTI_LORA_PORT},
-    "openframe_vos3_v2": {"port": MULTI_LORA_PORT},
-    "openframe_vos3": {"port": MULTI_LORA_PORT},
-    "vos3": {"port": MULTI_LORA_PORT, "adapter": "openframe_vos3_v2"},
-    "vos3_openframe": {"port": MULTI_LORA_PORT, "adapter": "openframe_vos3_v2"},
-    "openframe_osc_v2": {"port": MULTI_LORA_PORT},
-    "openframe_osc": {"port": MULTI_LORA_PORT},
-    "osc": {"port": MULTI_LORA_PORT, "adapter": "openframe_osc_v2"},
-    # --- ProductId 매핑 (OpenFrame RAG 라우터에서 사용) ---
-    # openframe_mvs는 일반적인 OpenFrame 쿼리이므로 base 어댑터를 기본으로 사용
-    # (OSC 전용 쿼리는 detect_product_from_query에서 osc/cics 키워드로 감지됨)
-    "openframe_mvs_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_base_v2"},
-    "openframe_mvs": {"port": MULTI_LORA_PORT, "adapter": "openframe_base_v2"},
-    "mvs": {"port": MULTI_LORA_PORT, "adapter": "openframe_base_v2"},
-    "msp_openframe": {"port": MULTI_LORA_PORT, "adapter": "openframe_batch_v2"},
-    "msp": {"port": MULTI_LORA_PORT, "adapter": "openframe_batch_v2"},
-    "xsp_openframe": {"port": MULTI_LORA_PORT, "adapter": "openframe_common_v2"},
-    "xsp": {"port": MULTI_LORA_PORT, "adapter": "openframe_common_v2"},
-    # =========================================================================
-    # 중형 제품
-    # =========================================================================
-    "openframe_base_v2": {"port": MULTI_LORA_PORT},
+    # --- OpenFrame 코어 ---
     "openframe_base": {"port": MULTI_LORA_PORT},
-    "base": {"port": MULTI_LORA_PORT, "adapter": "openframe_base_v2"},
-    "ofmanager_v2": {"port": MULTI_LORA_PORT},
-    "ofmanager": {"port": MULTI_LORA_PORT},
-    "manager": {"port": MULTI_LORA_PORT, "adapter": "ofmanager_v2"},
-    "openframe_aim_v2": {"port": MULTI_LORA_PORT},
-    "openframe_aim": {"port": MULTI_LORA_PORT},
-    "aim": {"port": MULTI_LORA_PORT, "adapter": "openframe_aim_v2"},
-    "protrieve_v2": {"port": MULTI_LORA_PORT},
-    "protrieve": {"port": MULTI_LORA_PORT},
-    "openframe_osi_v2": {"port": MULTI_LORA_PORT},
-    "openframe_osi": {"port": MULTI_LORA_PORT},
-    "osi": {"port": MULTI_LORA_PORT, "adapter": "openframe_osi_v2"},
-    "openframe_tacf_v2": {"port": MULTI_LORA_PORT},
-    "openframe_tacf": {"port": MULTI_LORA_PORT},
-    "tacf": {"port": MULTI_LORA_PORT, "adapter": "openframe_tacf_v2"},
-    "openframe_gateway_v2": {"port": MULTI_LORA_PORT},
-    "openframe_gateway": {"port": MULTI_LORA_PORT},
-    "gateway": {"port": MULTI_LORA_PORT, "adapter": "openframe_gateway_v2"},
-    "ofpli_v2": {"port": MULTI_LORA_PORT},
-    "ofpli": {"port": MULTI_LORA_PORT},
-    "pli": {"port": MULTI_LORA_PORT, "adapter": "ofpli_v2"},
-    # =========================================================================
-    # 소형 제품
-    # =========================================================================
-    "ofcobol_v2": {"port": MULTI_LORA_PORT},
-    "ofcobol": {"port": MULTI_LORA_PORT},
-    "cobol": {"port": MULTI_LORA_PORT, "adapter": "ofcobol_v2"},
-    "prosync_v2": {"port": MULTI_LORA_PORT},
-    "prosync": {"port": MULTI_LORA_PORT},
-    "openframe_ndb_v2": {"port": MULTI_LORA_PORT},
-    "openframe_ndb": {"port": MULTI_LORA_PORT},
-    "ndb": {"port": MULTI_LORA_PORT, "adapter": "openframe_ndb_v2"},
-    "ofstudio_v2": {"port": MULTI_LORA_PORT},
-    "ofstudio": {"port": MULTI_LORA_PORT},
-    "studio": {"port": MULTI_LORA_PORT, "adapter": "ofstudio_v2"},
-    "ofminer_v2": {"port": MULTI_LORA_PORT},
-    "ofminer": {"port": MULTI_LORA_PORT},
-    "miner": {"port": MULTI_LORA_PORT, "adapter": "ofminer_v2"},
-    "prosort_v2": {"port": MULTI_LORA_PORT},
-    "prosort": {"port": MULTI_LORA_PORT},
-    "sort": {"port": MULTI_LORA_PORT, "adapter": "prosort_v2"},
-    "openframe_hidb_v2": {"port": MULTI_LORA_PORT},
+    "openframe_base_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_base"},
+    "base": {"port": MULTI_LORA_PORT, "adapter": "openframe_base"},
+    "openframe_batch": {"port": MULTI_LORA_PORT},
+    "openframe_batch_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_batch"},
+    "batch": {"port": MULTI_LORA_PORT, "adapter": "openframe_batch"},
+    "openframe_common": {"port": MULTI_LORA_PORT},
+    "openframe_common_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_common"},
     "openframe_hidb": {"port": MULTI_LORA_PORT},
-    "hidb": {"port": MULTI_LORA_PORT, "adapter": "openframe_hidb_v2"},
-    "ofasm_v2": {"port": MULTI_LORA_PORT},
-    "ofasm": {"port": MULTI_LORA_PORT},
-    "asm": {"port": MULTI_LORA_PORT, "adapter": "ofasm_v2"},
+    "openframe_hidb_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_hidb"},
+    "hidb": {"port": MULTI_LORA_PORT, "adapter": "openframe_hidb"},
+    "openframe_osc": {"port": MULTI_LORA_PORT},
+    "openframe_osc_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_osc"},
+    "osc": {"port": MULTI_LORA_PORT, "adapter": "openframe_osc"},
+    "openframe_osi": {"port": MULTI_LORA_PORT},
+    "openframe_osi_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_osi"},
+    "osi": {"port": MULTI_LORA_PORT, "adapter": "openframe_osi"},
+    "openframe_tacf": {"port": MULTI_LORA_PORT},
+    "openframe_tacf_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_tacf"},
+    "tacf": {"port": MULTI_LORA_PORT, "adapter": "openframe_tacf"},
+    "openframe_vos3": {"port": MULTI_LORA_PORT},
+    "openframe_vos3_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_vos3"},
+    "vos3": {"port": MULTI_LORA_PORT, "adapter": "openframe_vos3"},
+    "vos3_openframe": {"port": MULTI_LORA_PORT, "adapter": "openframe_vos3"},
+    # --- 독립 제품 ---
+    "ofcobol": {"port": MULTI_LORA_PORT},
+    "ofcobol_v2": {"port": MULTI_LORA_PORT, "adapter": "ofcobol"},
+    "cobol": {"port": MULTI_LORA_PORT, "adapter": "ofcobol"},
+    "ofpli": {"port": MULTI_LORA_PORT},
+    "ofpli_v2": {"port": MULTI_LORA_PORT, "adapter": "ofpli"},
+    "pli": {"port": MULTI_LORA_PORT, "adapter": "ofpli"},
+    "ofmanager": {"port": MULTI_LORA_PORT},
+    "ofmanager_v2": {"port": MULTI_LORA_PORT, "adapter": "ofmanager"},
+    "manager": {"port": MULTI_LORA_PORT, "adapter": "ofmanager"},
+    "tmax": {"port": MULTI_LORA_PORT},
+    "tmax_v2": {"port": MULTI_LORA_PORT, "adapter": "tmax"},
+    "tibero7": {"port": MULTI_LORA_PORT},
+    "tibero7_v2": {"port": MULTI_LORA_PORT, "adapter": "tibero7"},
+    "tibero": {"port": MULTI_LORA_PORT, "adapter": "tibero7"},
+    "protrieve": {"port": MULTI_LORA_PORT},
+    "protrieve_v2": {"port": MULTI_LORA_PORT, "adapter": "protrieve"},
+    "prosort": {"port": MULTI_LORA_PORT},
+    "prosort_v2": {"port": MULTI_LORA_PORT, "adapter": "prosort"},
+    "sort": {"port": MULTI_LORA_PORT, "adapter": "prosort"},
+    # --- ProductId 매핑 (OpenFrame RAG 라우터에서 사용) ---
+    "openframe_mvs_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_base"},
+    "openframe_mvs": {"port": MULTI_LORA_PORT, "adapter": "openframe_base"},
+    "mvs": {"port": MULTI_LORA_PORT, "adapter": "openframe_base"},
+    "msp_openframe": {"port": MULTI_LORA_PORT, "adapter": "openframe_batch"},
+    "msp": {"port": MULTI_LORA_PORT, "adapter": "openframe_batch"},
+    "xsp_openframe": {"port": MULTI_LORA_PORT, "adapter": "openframe_common"},
+    "xsp": {"port": MULTI_LORA_PORT, "adapter": "openframe_common"},
+    # --- 어댑터 없는 제품 → 가장 가까운 어댑터로 폴백 ---
+    "jeus_v2": {"port": MULTI_LORA_PORT, "adapter": "tmax"},
+    "jeus": {"port": MULTI_LORA_PORT, "adapter": "tmax"},
+    "webtob_v2": {"port": MULTI_LORA_PORT, "adapter": "tmax"},
+    "webtob": {"port": MULTI_LORA_PORT, "adapter": "tmax"},
+    "openframe_aim_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_common"},
+    "openframe_aim": {"port": MULTI_LORA_PORT, "adapter": "openframe_common"},
+    "aim": {"port": MULTI_LORA_PORT, "adapter": "openframe_common"},
+    "openframe_gateway_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_common"},
+    "openframe_gateway": {"port": MULTI_LORA_PORT, "adapter": "openframe_common"},
+    "gateway": {"port": MULTI_LORA_PORT, "adapter": "openframe_common"},
+    "prosync_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_common"},
+    "prosync": {"port": MULTI_LORA_PORT, "adapter": "openframe_common"},
+    "openframe_ndb_v2": {"port": MULTI_LORA_PORT, "adapter": "openframe_hidb"},
+    "openframe_ndb": {"port": MULTI_LORA_PORT, "adapter": "openframe_hidb"},
+    "ndb": {"port": MULTI_LORA_PORT, "adapter": "openframe_hidb"},
+    "ofstudio_v2": {"port": MULTI_LORA_PORT, "adapter": "ofmanager"},
+    "ofstudio": {"port": MULTI_LORA_PORT, "adapter": "ofmanager"},
+    "studio": {"port": MULTI_LORA_PORT, "adapter": "ofmanager"},
+    "ofminer_v2": {"port": MULTI_LORA_PORT, "adapter": "ofmanager"},
+    "ofminer": {"port": MULTI_LORA_PORT, "adapter": "ofmanager"},
+    "miner": {"port": MULTI_LORA_PORT, "adapter": "ofmanager"},
+    "ofasm_v2": {"port": MULTI_LORA_PORT, "adapter": "ofcobol"},
+    "ofasm": {"port": MULTI_LORA_PORT, "adapter": "ofcobol"},
+    "asm": {"port": MULTI_LORA_PORT, "adapter": "ofcobol"},
     # =========================================================================
     # 동적 product_id (Agentic RAG ManualRegistry에서 사용)
     # =========================================================================
-    "mvs_openframe_7.1": {"port": MULTI_LORA_PORT, "adapter": "openframe_base_v2"},
-    "msp_openframe_7.3": {"port": MULTI_LORA_PORT, "adapter": "openframe_batch_v2"},
-    "vos3_openframe_2.0": {"port": MULTI_LORA_PORT, "adapter": "openframe_vos3_v2"},
-    "xsp_openframe_7.3": {"port": MULTI_LORA_PORT, "adapter": "openframe_common_v2"},
-    "tibero_7fixset01": {"port": MULTI_LORA_PORT, "adapter": "tibero7_v2"},
-    "tmax_6.0": {"port": MULTI_LORA_PORT, "adapter": "tmax_v2"},
-    "ofasm_4": {"port": MULTI_LORA_PORT, "adapter": "ofasm_v2"},
-    "ofcobol_4": {"port": MULTI_LORA_PORT, "adapter": "ofcobol_v2"},
-    "jeus_8.5": {"port": MULTI_LORA_PORT, "adapter": "jeus_v2"},
-    "jeus_8": {"port": MULTI_LORA_PORT, "adapter": "jeus_v2"},
-    "webtob_5.0": {"port": MULTI_LORA_PORT, "adapter": "webtob_v2"},
-    "protrieve_7": {"port": MULTI_LORA_PORT, "adapter": "protrieve_v2"},
-    "ofstudio_7": {"port": MULTI_LORA_PORT, "adapter": "ofstudio_v2"},
-    "ofmanager_7": {"port": MULTI_LORA_PORT, "adapter": "ofmanager_v2"},
-    "openframe_aim_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_aim_v2"},
-    "openframe_tacf_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_tacf_v2"},
-    "openframe_hidb_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_hidb_v2"},
-    "openframe_ndb_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_ndb_v2"},
-    "openframe_osi_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_osi_v2"},
+    "mvs_openframe_7.1": {"port": MULTI_LORA_PORT, "adapter": "openframe_base"},
+    "msp_openframe_7.3": {"port": MULTI_LORA_PORT, "adapter": "openframe_batch"},
+    "vos3_openframe_2.0": {"port": MULTI_LORA_PORT, "adapter": "openframe_vos3"},
+    "xsp_openframe_7.3": {"port": MULTI_LORA_PORT, "adapter": "openframe_common"},
+    "tibero_7fixset01": {"port": MULTI_LORA_PORT, "adapter": "tibero7"},
+    "tmax_6.0": {"port": MULTI_LORA_PORT, "adapter": "tmax"},
+    "ofasm_4": {"port": MULTI_LORA_PORT, "adapter": "ofcobol"},
+    "ofcobol_4": {"port": MULTI_LORA_PORT, "adapter": "ofcobol"},
+    "jeus_8.5": {"port": MULTI_LORA_PORT, "adapter": "tmax"},
+    "jeus_8": {"port": MULTI_LORA_PORT, "adapter": "tmax"},
+    "webtob_5.0": {"port": MULTI_LORA_PORT, "adapter": "tmax"},
+    "protrieve_7": {"port": MULTI_LORA_PORT, "adapter": "protrieve"},
+    "ofstudio_7": {"port": MULTI_LORA_PORT, "adapter": "ofmanager"},
+    "ofmanager_7": {"port": MULTI_LORA_PORT, "adapter": "ofmanager"},
+    "openframe_aim_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_common"},
+    "openframe_tacf_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_tacf"},
+    "openframe_hidb_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_hidb"},
+    "openframe_ndb_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_hidb"},
+    "openframe_osi_7": {"port": MULTI_LORA_PORT, "adapter": "openframe_osi"},
 }
 
-# 단일 vLLM 서버 URL (모든 24개 어댑터가 12815에 로드됨)
-MULTI_LORA_BASE_URL = os.getenv("MULTI_LORA_URL", "http://192.168.8.11:12815/v1")
+# 단일 vLLM 서버 URL (15개 DPO 어댑터가 12810에 로드됨)
+MULTI_LORA_BASE_URL = os.getenv("MULTI_LORA_URL", "http://192.168.8.11:12810/v1")
 
 
 @dataclass
@@ -178,12 +175,12 @@ class VLLMAdapter:
     def __init__(
         self,
         base_url: Optional[str] = None,
-        model: str = "Qwen/Qwen2.5-7B-Instruct",
+        model: str = "/opt/models/merged_cpt_72b",
         timeout: int = 60,
     ):
         self.base_url = base_url or os.getenv(
             "LEARNING_LLM_URL",
-            "http://192.168.8.11:12815/v1"  # 기본: GPU 5
+            "http://192.168.8.11:12810/v1"  # 기본: GPU 4-7 (72B + 15 DPO adapters)
         )
         self.model = model
         self.timeout = timeout
@@ -195,10 +192,11 @@ class VLLMAdapter:
         """
         제품에 맞는 URL과 모델명 반환
 
-        모든 24개 어댑터가 단일 vLLM 서버(Port 12815)에 로드되어 있음.
+        15개 DPO 어댑터가 단일 vLLM 서버(Port 12810)에 로드되어 있음.
+        Base model: Qwen2.5-72B (merged_cpt_72b)
 
         Args:
-            product: 제품명 (예: "tibero7", "jeus", "openframe_base")
+            product: 제품명 (예: "tibero7", "openframe_base", "tmax")
 
         Returns:
             (base_url, model_name) 튜플
@@ -215,12 +213,9 @@ class VLLMAdapter:
         if product_lower in MULTI_LORA_PRODUCT_MAPPING:
             mapping = MULTI_LORA_PRODUCT_MAPPING[product_lower]
 
-            # adapter 필드가 있으면 그것을 사용 (openframe_mvs -> openframe_osc_v2)
+            # adapter 필드가 있으면 그것을 사용
             if "adapter" in mapping:
                 model_name = mapping["adapter"]
-            # 모델명 결정 (v2 suffix 추가)
-            elif not product_lower.endswith("_v2"):
-                model_name = f"{product_lower}_v2"
             else:
                 model_name = product_lower
 
@@ -228,8 +223,8 @@ class VLLMAdapter:
             return base_url, model_name
 
         # 매핑에 없으면 기본 어댑터 사용 (Base는 일반적인 OpenFrame 문서를 다룸)
-        logger.warning(f"Unknown product '{product}', using default adapter: openframe_base_v2")
-        return base_url, "openframe_base_v2"
+        logger.warning(f"Unknown product '{product}', using default adapter: openframe_base")
+        return base_url, "openframe_base"
 
     def detect_product_from_query(self, query: str) -> Optional[str]:
         """
@@ -327,53 +322,43 @@ class VLLMAdapter:
         max_new_tokens: int = 512,
         temperature: float = 0.7,
         top_p: float = 0.9,
-        product: Optional[str] = None,  # Multi-LoRA 제품 지정
+        product: Optional[str] = None,
         **kwargs
     ) -> str:
         """
-        vLLM 서버를 통한 응답 생성 (Multi-LoRA v2 지원)
+        vLLM OpenAI-compatible API를 통한 응답 생성
 
         Args:
             question: 사용자 질문
             context: 추가 컨텍스트
             max_new_tokens: 최대 생성 토큰
             temperature: 샘플링 온도
-            product: Multi-LoRA 제품명 (예: "tibero7", "jeus")
+            product: Multi-LoRA 제품명 (예: "tibero7", "openframe_base")
 
         Returns:
             생성된 응답
         """
-        # 쿼리 기반 제품 감지를 항상 먼저 시도 (더 정확한 어댑터 선택)
         detected_product = self.detect_product_from_query(question)
         if detected_product:
             product = detected_product
             logger.info(f"Query-based product detection: '{detected_product}' from query")
         elif not product:
-            product = None  # 기본 어댑터 사용
+            product = None
 
-        # Multi-LoRA 라우팅
         base_url, model_name = self.get_url_for_product(product)
 
-        # lora-api-server-v3 API 형식 (v2 suffix 제거)
-        adapter_name = model_name.replace("_v2", "")
+        messages = self._build_messages(question, context)
 
-        # context를 message에 통합 (lora-api-server-v3는 context 필드 미지원)
-        if context:
-            message = f"以下の参考資料に基づいて質問に回答してください。\n\n{context}\n\n質問: {question}"
-        else:
-            message = question
-
-        # lora-api-server-v3 API: /chat endpoint with {adapter, message, max_tokens, temperature}
         payload = {
-            "adapter": adapter_name,
-            "message": message,
+            "model": model_name,
+            "messages": messages,
             "max_tokens": max_new_tokens,
             "temperature": temperature,
+            "top_p": top_p,
         }
 
         try:
-            # /v1 prefix 제거하고 /chat 엔드포인트 사용
-            chat_url = base_url.replace("/v1", "") + "/chat"
+            chat_url = f"{base_url}/chat/completions"
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(
@@ -387,8 +372,7 @@ class VLLMAdapter:
                         return ""
 
                     data = await resp.json()
-                    # lora-api-server-v3 응답 형식: {"adapter", "response", "tokens_generated", "accuracy"}
-                    return data.get("response", "")
+                    return data["choices"][0]["message"]["content"]
 
         except Exception as e:
             logger.error(f"vLLM generation failed: {e}")
@@ -401,54 +385,42 @@ class VLLMAdapter:
         max_new_tokens: int = 512,
         temperature: float = 0.7,
         top_p: float = 0.9,
-        product: Optional[str] = None,  # Multi-LoRA 제품 지정
+        product: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """
-        스트리밍 응답 생성 (Multi-LoRA v2 지원)
-
-        lora-api-server-v3는 스트리밍을 지원하지 않으므로,
-        전체 응답을 받아서 한 번에 yield합니다.
+        vLLM OpenAI-compatible API 스트리밍 응답 생성
 
         Args:
             question: 사용자 질문
             context: 추가 컨텍스트
             max_new_tokens: 최대 생성 토큰
             temperature: 샘플링 온도
-            product: Multi-LoRA 제품명 (예: "tibero7", "openframe_osc")
+            product: Multi-LoRA 제품명 (예: "tibero7", "openframe_base")
         """
-        # 쿼리 기반 제품 감지를 항상 먼저 시도 (더 정확한 어댑터 선택)
         detected_product = self.detect_product_from_query(question)
         if detected_product:
             product = detected_product
             logger.info(f"Query-based product detection: '{detected_product}' from query")
         elif not product:
-            product = None  # 기본 어댑터 사용
+            product = None
 
-        # Multi-LoRA 라우팅
         base_url, model_name = self.get_url_for_product(product)
 
-        # lora-api-server-v3 API 형식 (v2 suffix 제거)
-        adapter_name = model_name.replace("_v2", "")
+        messages = self._build_messages(question, context)
 
-        # context를 message에 통합 (lora-api-server-v3는 context 필드 미지원)
-        if context:
-            message = f"以下の参考資料に基づいて質問に回答してください。\n\n{context}\n\n質問: {question}"
-        else:
-            message = question
+        logger.info(f"generate_stream: product={product}, model={model_name}, context_len={len(context) if context else 0}")
 
-        logger.info(f"generate_stream: product={product}, adapter={adapter_name}, context_len={len(context) if context else 0}")
-
-        # lora-api-server-v3 API: /chat endpoint (스트리밍 미지원, 전체 응답 반환)
         payload = {
-            "adapter": adapter_name,
-            "message": message,
+            "model": model_name,
+            "messages": messages,
             "max_tokens": max_new_tokens,
             "temperature": temperature,
+            "top_p": top_p,
+            "stream": True,
         }
 
         try:
-            # /v1 prefix 제거하고 /chat 엔드포인트 사용
-            chat_url = base_url.replace("/v1", "") + "/chat"
+            chat_url = f"{base_url}/chat/completions"
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(
@@ -461,13 +433,22 @@ class VLLMAdapter:
                         logger.error(f"vLLM stream error: {resp.status} - {error_text}")
                         return
 
-                    data = await resp.json()
-                    # lora-api-server-v3 응답 형식: {"adapter", "response", "tokens_generated", "accuracy"}
-                    response = data.get("response", "")
-                    if response:
-                        # 전체 응답을 한 번에 yield (스트리밍 미지원)
-                        yield response
-                        logger.info(f"Non-streaming response from {chat_url}, yielded {len(response)} chars")
+                    async for line in resp.content:
+                        line_str = line.decode("utf-8").strip()
+                        if not line_str or not line_str.startswith("data: "):
+                            continue
+                        data_str = line_str[6:]
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            import json as _json
+                            chunk = _json.loads(data_str)
+                            delta = chunk["choices"][0].get("delta", {})
+                            token = delta.get("content", "")
+                            if token:
+                                yield token
+                        except (KeyError, _json.JSONDecodeError):
+                            continue
 
         except Exception as e:
             logger.error(f"vLLM streaming failed: {e}")
@@ -479,15 +460,11 @@ class VLLMAdapter:
         product: Optional[str] = None
     ) -> list:
         """
-        OpenAI 형식 메시지 빌드 (학습 데이터 형식 준수)
+        OpenAI 형식 메시지 빌드 (RAG context 포함)
 
-        학습 데이터 형식과 정확히 일치하게 프롬프트를 구성합니다:
-        - system: "あなたはOpenFrame KMSのアシスタントです。技術的な質問に正確に回答してください。"
-        - user: "XXXとは何ですか？"
-
-        중요: context는 무시합니다 (모델이 학습 시 context 없이 학습됨)
+        72B CPT+DPO 모델은 context 기반 응답 생성을 지원합니다.
+        context가 있으면 RAG 형식으로 포함, 없으면 단순 질문 형식.
         """
-        # 학습 데이터와 동일한 시스템 프롬프트
         system_prompt = "あなたはOpenFrame KMSのアシスタントです。技術的な質問に正確に回答してください。"
 
         messages = [
@@ -497,19 +474,24 @@ class VLLMAdapter:
             }
         ]
 
-        # 질문을 학습 데이터 형식에 맞게 정규화
         user_content = question.strip()
 
-        # 이미 "とは何ですか" 형식인지 확인
-        if "とは何ですか" not in user_content:
-            user_content = f"{user_content}とは何ですか？"
+        # context가 있으면 RAG 형식으로 결합
+        if context:
+            core_context = self._extract_core_content(context)
+            if core_context:
+                user_content = (
+                    f"以下の参考資料に基づいて質問に回答してください。\n\n"
+                    f"参考資料:\n{core_context}\n\n"
+                    f"質問: {user_content}"
+                )
 
         messages.append({
             "role": "user",
             "content": user_content
         })
 
-        logger.debug(f"_build_messages: '{question[:30]}...' -> '{user_content[:50]}...'")
+        logger.debug(f"_build_messages: '{question[:30]}...' -> context={bool(context)}")
 
         return messages
 

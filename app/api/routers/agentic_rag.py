@@ -173,10 +173,11 @@ async def stream_chat(
     )
 
     async def generate():
-        """Generate SSE events"""
+        """Generate SSE events (Agent Teams 패턴 적용)"""
         try:
-            service = get_agentic_rag_service()
-            async for event in service.stream_chat(request):
+            from ..services.agent_teams.team_orchestrator import get_team_orchestrator
+            orchestrator = get_team_orchestrator()
+            async for event in orchestrator.stream_chat_enhanced(request):
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
         except Exception as e:

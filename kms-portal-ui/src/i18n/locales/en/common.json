@@ -3,6 +3,7 @@
   "loading": "Loading...",
   "error": "Error",
   "success": "Success",
+  "or": "or",
   "cancel": "Cancel",
   "confirm": "Confirm",
   "save": "Save",
@@ -38,6 +39,7 @@
     "agent": "AI Agent",
     "documents": "Documents",
     "agenticRag": "Agentic RAG",
+    "knowledgeGraph": "Knowledge Graph",
     "improvements": "Improvements",
     "admin": "Admin",
     "settings": "Settings",
@@ -846,6 +848,26 @@
     "history": "History",
     "newConversation": "New Conversation",
     "connectors": "External Connectors",
-    "attachFile": "Attach File"
+    "attachFile": "Attach File",
+    "modeRag": "RAG / Search",
+    "modeCode": "Code / Script",
+    "modePlanner": "Planner",
+    "modeAuto": "Auto",
+    "codeGenerating": "Generating code...",
+    "planGenerating": "Creating plan...",
+    "planSteps": "steps",
+    "autoDetected": "Auto-detected"
+  },
+  "knowledgeGraph": {
+    "title": "Knowledge Graph",
+    "search": "Search entities...",
+    "entityGraph": "Entity Graph",
+    "productOverview": "Select product",
+    "relatedGraph": "Related Entity Graph",
+    "expand": "Expand",
+    "nodeCount": "Nodes",
+    "edgeCount": "Edges",
+    "noData": "No graph data. Search an entity or select a product.",
+    "noProperties": "No properties"
   }
 }

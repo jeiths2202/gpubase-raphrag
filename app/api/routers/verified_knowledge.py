@@ -897,8 +897,8 @@ async def test_vllm_connection(
     import os
     from ..adapters.learning_llm.vllm_adapter import VLLMAdapter
 
-    base_url = os.getenv("LEARNING_LLM_URL", "http://learning-llm-graphrag:8000/v1")
-    model = os.getenv("LEARNING_LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+    base_url = os.getenv("LEARNING_LLM_URL", "http://192.168.8.11:12810/v1")
+    model = os.getenv("LEARNING_LLM_MODEL", "/opt/models/merged_cpt_72b")
 
     adapter = VLLMAdapter(base_url=base_url, model=model)
     health = await adapter.health_check()
@@ -923,8 +923,8 @@ async def test_vllm_generate(
     import os
     from ..adapters.learning_llm.vllm_adapter import VLLMAdapter
 
-    base_url = os.getenv("LEARNING_LLM_URL", "http://learning-llm-graphrag:8000/v1")
-    model = os.getenv("LEARNING_LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+    base_url = os.getenv("LEARNING_LLM_URL", "http://192.168.8.11:12810/v1")
+    model = os.getenv("LEARNING_LLM_MODEL", "/opt/models/merged_cpt_72b")
 
     adapter = VLLMAdapter(base_url=base_url, model=model)
 
