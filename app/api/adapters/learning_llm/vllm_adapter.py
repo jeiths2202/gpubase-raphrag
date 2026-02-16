@@ -508,6 +508,8 @@ class VLLMAdapter:
                 continue
             if line.startswith('[Entity:'):
                 continue
+            if line.startswith('[参考資料'):
+                continue
             if '**製品/Product**' in line or '**出典/Source**' in line:
                 continue
             if line:

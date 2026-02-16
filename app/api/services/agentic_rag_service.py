@@ -604,6 +604,9 @@ class AgenticRAGService:
                 language=request.language or "ja",
             )
             if template_response:
+                table_supplement = self._build_table_supplement(search_context.structured_results)
+                if table_supplement:
+                    template_response += table_supplement
                 return AgenticRAGResponse(
                     success=True,
                     response=template_response,
@@ -839,6 +842,9 @@ class AgenticRAGService:
                 language=request.language or "ja",
             )
             if template_response:
+                table_supplement = self._build_table_supplement(search_context.structured_results)
+                if table_supplement:
+                    template_response += table_supplement
                 yield {
                     "type": "template_response",
                     "content": template_response,
@@ -1282,8 +1288,7 @@ class AgenticRAGService:
             content = enrich_content_with_tables(r)
             if len(content) > per_result_limit:
                 content = content[:per_result_limit] + "..."
-            source = f" (出典: {r.source_file})" if r.source_file else ""
-            part = f"[参考資料 {i}: {r.title}{source}]\n{content}"
+            part = content
             parts.append(part)
             total_chars += len(part)
 
@@ -1385,7 +1390,7 @@ class AgenticRAGService:
 
         # 최상위 결과만 사용 + 최소 점수 요건 (저관련 결과에서 무관한 테이블/이미지 추출 방지)
         for r in results[:1]:
-            if r.relevance_score < 10.0:
+            if r.relevance_score < 3.0:
                 continue
             pdf_path, page_num = _resolve_pdf_path_and_page(r)
             if not pdf_path or page_num < 0:

@@ -413,6 +413,13 @@ class TeamOrchestrator:
                     full_response += token
                     yield {"type": "llm_token", "token": token}
 
+                # Table/image supplement
+                if winner.search_results:
+                    table_supplement = rag._build_table_supplement(winner.search_results)
+                    if table_supplement:
+                        yield {"type": "llm_token", "token": table_supplement}
+                        full_response += table_supplement
+
                 # Sources
                 if winner.source == "web_doc" and winner.web_doc_result:
                     yield {
