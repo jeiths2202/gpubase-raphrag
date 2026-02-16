@@ -85,6 +85,25 @@ class MindmapService:
     MAX_CHUNKS = 100       # 최대 청크 수
     PREFERRED_CHUNKS = 50  # 권장 청크 수
 
+    # 제품 → 문서 filename 패턴 매핑 (Neo4j Document.filename 필터링용)
+    _PRODUCT_FILENAME_PATTERNS = {
+        "openframe_base": ["OF_Base_", "MVS_Openframe"],
+        "openframe_batch": ["OF_Batch_", "MSP_Openframe"],
+        "openframe_common": ["OF_Common_", "OF_GW_"],
+        "openframe_hidb": ["OF_HiDB_"],
+        "openframe_osc": ["OF_OSC_"],
+        "openframe_osi": ["OF_OSI_"],
+        "openframe_tacf": ["OF_TACF_"],
+        "openframe_vos3": ["VOS3_Openframe"],
+        "ofcobol": ["OFASM", "ofcobol", "OFCOBOL"],
+        "ofpli": ["ofpli", "OFPLI"],
+        "ofmanager": ["OF_Manager_"],
+        "tmax": ["Tmax_", "JEUS", "WebtoB", "XSP_Openframe"],
+        "tibero7": ["Tibero", "tibero"],
+        "protrieve": ["Protrieve", "protrieve"],
+        "prosort": ["Prosort", "prosort"],
+    }
+
     # 다국어 프롬프트 로컬라이제이션
     _LOCALE = {
         "ja": {
@@ -370,41 +389,65 @@ class MindmapService:
 
         chunks = []
         search_method = "graph"
+        use_topic_generation = False
 
         # Phase 1 - H3: 청크 동적 조정 - Vector Search 우선
         if request.document_ids:
             # 특정 문서 지정된 경우
             chunks = self._get_document_chunks(request.document_ids)
         else:
-            # 문서 미지정: focus_topic이 있으면 Vector 검색 우선
-            if request.focus_topic:
+            # 제품 지정 시 해당 제품 문서로 필터링
+            if request.product_id:
+                chunks = self._get_product_filtered_chunks(
+                    product_id=request.product_id,
+                    topic=request.focus_topic,
+                    max_chunks=self.PREFERRED_CHUNKS
+                )
+                if chunks:
+                    search_method = "product_filter"
+
+            # 제품 필터 결과 없으면 Vector 검색 시도
+            if not chunks and request.focus_topic:
                 chunks = self._get_relevant_chunks(
                     topic=request.focus_topic,
                     max_chunks=self.PREFERRED_CHUNKS
                 )
                 if chunks:
                     search_method = "vector"
-                    logger.info(f"Dynamic chunk search found {len(chunks)} chunks for topic: {request.focus_topic}")
 
-            # Vector 검색 결과 없으면 그래프 검색으로 폴백
-            if not chunks:
+            # 제품 지정했는데 문서가 없는 경우 → LLM 토픽 생성으로 전환
+            if not chunks and request.product_id and request.focus_topic:
+                print(f"[Mindmap] No chunks for product '{request.product_id}', using LLM topic generation")
+                use_topic_generation = True
+
+            # 제품 미지정 + 검색 결과 없으면 전체 문서 폴백
+            if not chunks and not use_topic_generation:
                 chunks = self._get_document_chunks([])
 
-        if not chunks:
-            # 어떤 방법으로도 청크를 찾지 못함
+        if not chunks and not use_topic_generation:
             raise ValueError(
                 "No documents found in the knowledge base. "
                 "Please upload documents first before generating a mindmap."
             )
 
-        # 2. LLM을 사용하여 문서에서 개념과 관계 추출
-        concepts_data = self._extract_concepts_and_relations(
-            chunks,
-            max_nodes=request.max_nodes,
-            focus_topic=request.focus_topic,
-            language=request.language,
-            product_id=request.product_id
-        )
+        # 2. 개념과 관계 추출
+        if use_topic_generation:
+            # 제품 문서 없음 → QLoRA 어댑터의 학습된 지식으로 직접 생성
+            concepts_data = self._generate_concepts_from_topic(
+                topic=request.focus_topic,
+                max_nodes=request.max_nodes,
+                language=request.language,
+                product_id=request.product_id
+            )
+            search_method = "llm_knowledge"
+        else:
+            concepts_data = self._extract_concepts_and_relations(
+                chunks,
+                max_nodes=request.max_nodes,
+                focus_topic=request.focus_topic,
+                language=request.language,
+                product_id=request.product_id
+            )
 
         # 3. 마인드맵 데이터 구조 생성
         nodes, edges, root_id = self._build_mindmap_structure(
@@ -418,8 +461,10 @@ class MindmapService:
             id_seed = request.title
         elif request.focus_topic:
             id_seed = request.focus_topic
-        else:
+        elif chunks:
             id_seed = chunks[0].get("content", "mindmap")[:50]
+        else:
+            id_seed = "mindmap"
 
         mindmap_id = self._generate_id("mm", id_seed)
         title = request.title or self._generate_title(concepts_data, request.language)
@@ -429,8 +474,11 @@ class MindmapService:
         self._save_mindmap_to_neo4j(mindmap_id, title, nodes, edges, doc_ids, language=request.language, product_id=request.product_id)
 
         # 설명 생성
-        doc_count = len(doc_ids) if doc_ids else len(set(c["doc_id"] for c in chunks))
-        description = f"Generated from {doc_count} document(s) via {search_method} search"
+        if use_topic_generation:
+            description = f"Generated via LLM knowledge (product: {request.product_id})"
+        else:
+            doc_count = len(doc_ids) if doc_ids else len(set(c["doc_id"] for c in chunks))
+            description = f"Generated from {doc_count} document(s) via {search_method} search"
         if request.focus_topic:
             description += f" (focus: {request.focus_topic})"
 
@@ -494,6 +542,56 @@ class MindmapService:
             }
             for r in results
         ]
+
+    def _get_product_filtered_chunks(
+        self,
+        product_id: str,
+        topic: Optional[str] = None,
+        max_chunks: int = 50
+    ) -> List[Dict]:
+        """제품 ID로 문서를 필터링하여 관련 청크만 반환"""
+        adapter_name = product_id.lower().strip()
+        # adapter_name → filename 패턴 매핑
+        mapping = MULTI_LORA_PRODUCT_MAPPING.get(adapter_name)
+        resolved_adapter = mapping.get("adapter", adapter_name) if mapping else adapter_name
+        patterns = self._PRODUCT_FILENAME_PATTERNS.get(resolved_adapter, [])
+
+        if not patterns:
+            print(f"[Mindmap] No filename patterns for product '{product_id}', skip product filtering")
+            return []
+
+        # Cypher WHERE 조건 생성: filename CONTAINS pattern1 OR filename CONTAINS pattern2 ...
+        where_clauses = " OR ".join([f"d.filename CONTAINS '{p}'" for p in patterns])
+        query_str = f"""
+            MATCH (d:Document)-[:CONTAINS]->(c:Chunk)
+            WHERE {where_clauses}
+            OPTIONAL MATCH (c)-[:MENTIONS]->(e:Entity)
+            RETURN
+                d.id AS doc_id,
+                c.id AS chunk_id,
+                c.content AS content,
+                c.index AS chunk_index,
+                collect(DISTINCT e.name) AS entities
+            ORDER BY d.id, c.index
+            LIMIT $limit
+        """
+        try:
+            results = self._graph.query(query_str, {"limit": max_chunks})
+            chunks = [
+                {
+                    "doc_id": r["doc_id"],
+                    "chunk_id": r["chunk_id"],
+                    "content": r["content"],
+                    "chunk_index": r["chunk_index"],
+                    "entities": r["entities"] or []
+                }
+                for r in results
+            ]
+            print(f"[Mindmap] Product filter '{product_id}' (patterns={patterns}): {len(chunks)} chunks found")
+            return chunks
+        except Exception as e:
+            print(f"[Mindmap] Product filter error: {e}")
+            return []
 
     def _vector_search_chunks(self, query: str, k: int = 20, min_score: float = 0.3) -> List[Dict]:
         """
