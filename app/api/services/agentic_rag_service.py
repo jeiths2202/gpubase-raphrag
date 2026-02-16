@@ -8,6 +8,7 @@ QueryRouter → ProductAgent → QueryTypeClassifier → TemplateResponse/LLM+Ve
 import asyncio
 import json
 import logging
+import os
 import re
 import time
 from typing import Any, AsyncGenerator, Dict, List, Optional
@@ -1414,6 +1415,7 @@ class AgenticRAGService:
                     try:
                         imgs = StructuredKnowledgeStore._extract_page_images(
                             doc, p, product_id,
+                            pdf_name=os.path.basename(pdf_path),
                         )
                         for img_md in imgs:
                             if img_md not in seen_images:

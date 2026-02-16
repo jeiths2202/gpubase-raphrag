@@ -330,12 +330,20 @@ class StructuredKnowledgeStore:
         return "\n".join(result)
 
     @staticmethod
-    def _extract_page_images(doc, page_num: int, product_id: str) -> List[str]:
-        """페이지에서 이미지를 추출하여 파일로 저장, Markdown 이미지 참조 반환"""
+    def _extract_page_images(doc, page_num: int, product_id: str, pdf_name: str = "") -> List[str]:
+        """페이지에서 이미지를 추출하여 파일로 저장, Markdown 이미지 참조 반환
+
+        Args:
+            pdf_name: PDF 파일명 (확장자 포함). 동일 제품 내 PDF간 페이지 번호
+                      충돌 방지를 위해 서브디렉토리로 사용.
+        """
         import pymupdf
         results = []
         page = doc[page_num]
         images = page.get_images(full=True)
+
+        # PDF별 서브디렉토리 (없으면 기존 호환)
+        pdf_stem = os.path.splitext(pdf_name)[0] if pdf_name else ""
 
         for img_idx, img_info in enumerate(images):
             xref = img_info[0]
@@ -348,7 +356,12 @@ class StructuredKnowledgeStore:
                 if pix.width < 50 or pix.height < 50:
                     continue
 
-                img_dir = os.path.join(IMAGES_BASE, product_id)
+                if pdf_stem:
+                    img_dir = os.path.join(IMAGES_BASE, product_id, pdf_stem)
+                    url_subpath = f"{product_id}/{pdf_stem}"
+                else:
+                    img_dir = os.path.join(IMAGES_BASE, product_id)
+                    url_subpath = product_id
                 os.makedirs(img_dir, exist_ok=True)
                 filename = f"p{page_num + 1}_img{img_idx}.png"
                 filepath = os.path.join(img_dir, filename)
@@ -356,7 +369,7 @@ class StructuredKnowledgeStore:
                 if not os.path.exists(filepath):
                     pix.save(filepath)
 
-                img_url = f"/uploads/pdf_images/{product_id}/{filename}"
+                img_url = f"/uploads/pdf_images/{url_subpath}/{filename}"
                 results.append(f"![Figure (p.{page_num + 1})]({img_url})")
             except Exception:
                 continue
@@ -1164,6 +1177,7 @@ def enrich_content_with_tables(result: SearchResult) -> str:
         try:
             imgs = StructuredKnowledgeStore._extract_page_images(
                 doc, page_num, result.product or "unknown",
+                pdf_name=os.path.basename(pdf_path),
             )
             images_md.extend(imgs)
         except Exception:
