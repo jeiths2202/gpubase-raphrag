@@ -310,11 +310,11 @@ class MindmapService:
         product_lower = product_id.lower().strip()
         mapping = MULTI_LORA_PRODUCT_MAPPING.get(product_lower)
         if not mapping:
-            logger.warning(f"No adapter for product '{product_id}', using default LLM")
+            print(f"[Mindmap] No adapter for product '{product_id}', using default LLM")
             return self._llm
 
         adapter_name = mapping.get("adapter", product_lower)
-        logger.info(f"Using Learning LLM adapter '{adapter_name}' for product '{product_id}'")
+        print(f"[Mindmap] Using Learning LLM adapter '{adapter_name}' (product: {product_id})")
         return ChatOpenAI(
             base_url=MULTI_LORA_BASE_URL,
             model=adapter_name,
