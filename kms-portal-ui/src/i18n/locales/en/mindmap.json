@@ -16,7 +16,10 @@
     "generate": "Generate",
     "cancel": "Cancel",
     "savedMindmaps": "Saved Mindmaps",
-    "noMindmaps": "No mindmaps yet"
+    "noMindmaps": "No mindmaps yet",
+    "selectProduct": "Select Product (optional)",
+    "productPlaceholder": "Default LLM (no product specialization)",
+    "learningLlmActive": "Using product-specialized LLM"
   },
   "panel": {
     "importance": "Importance",

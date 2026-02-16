@@ -52,6 +52,8 @@ except ImportError:
     config = FallbackConfig()
     NeMoEmbeddingService = None  # Will be handled in service init
 
+from ..adapters.learning_llm.vllm_adapter import MULTI_LORA_PRODUCT_MAPPING, MULTI_LORA_BASE_URL
+
 from ..models.mindmap import (
     MindmapNode, MindmapEdge, MindmapData, MindmapInfo, MindmapFull,
     NodeType, RelationType,
@@ -300,6 +302,26 @@ class MindmapService:
             except Exception as e:
                 print(f"Schema warning: {e}")
 
+    def _get_llm(self, product_id: Optional[str] = None) -> ChatOpenAI:
+        """제품별 Learning LLM 또는 기본 LLM 반환"""
+        if not product_id:
+            return self._llm
+
+        product_lower = product_id.lower().strip()
+        mapping = MULTI_LORA_PRODUCT_MAPPING.get(product_lower)
+        if not mapping:
+            logger.warning(f"No adapter for product '{product_id}', using default LLM")
+            return self._llm
+
+        adapter_name = mapping.get("adapter", product_lower)
+        logger.info(f"Using Learning LLM adapter '{adapter_name}' for product '{product_id}'")
+        return ChatOpenAI(
+            base_url=MULTI_LORA_BASE_URL,
+            model=adapter_name,
+            api_key="not-needed",
+            temperature=0.3
+        )
+
     def _generate_id(self, prefix: str, content: str) -> str:
         """Generate unique ID"""
         hash_val = hashlib.md5(f"{content}{datetime.now(timezone.utc).isoformat()}".encode()).hexdigest()[:12]
@@ -380,7 +402,8 @@ class MindmapService:
             chunks,
             max_nodes=request.max_nodes,
             focus_topic=request.focus_topic,
-            language=request.language
+            language=request.language,
+            product_id=request.product_id
         )
 
         # 3. 마인드맵 데이터 구조 생성
@@ -403,7 +426,7 @@ class MindmapService:
 
         # 5. Neo4j에 저장
         doc_ids = request.document_ids or list(set(c.get("doc_id", "unknown") for c in chunks if c.get("doc_id")))
-        self._save_mindmap_to_neo4j(mindmap_id, title, nodes, edges, doc_ids, language=request.language)
+        self._save_mindmap_to_neo4j(mindmap_id, title, nodes, edges, doc_ids, language=request.language, product_id=request.product_id)
 
         # 설명 생성
         doc_count = len(doc_ids) if doc_ids else len(set(c["doc_id"] for c in chunks))
@@ -655,7 +678,8 @@ class MindmapService:
         chunks: List[Dict],
         max_nodes: int = 50,
         focus_topic: Optional[str] = None,
-        language: str = "auto"
+        language: str = "auto",
+        product_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """LLM을 사용하여 개념과 관계 추출"""
 
@@ -709,9 +733,11 @@ class MindmapService:
 {L['json_response']}:"""
 
         # Phase 1 - H2: LLM 타임아웃 래퍼 적용
+        llm = self._get_llm(product_id)
+
         def llm_call():
             """타임아웃이 적용될 LLM 호출"""
-            response = self._llm.invoke(prompt)
+            response = llm.invoke(prompt)
             return response.content.strip()
 
         def fallback_fn(*args):
@@ -784,7 +810,8 @@ class MindmapService:
         self,
         topic: str,
         max_nodes: int = 30,
-        language: str = "auto"
+        language: str = "auto",
+        product_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """주제만으로 LLM 지식을 사용해 개념과 관계 생성 (문서 없이)"""
 
@@ -816,8 +843,10 @@ class MindmapService:
 {L['json_response']}:"""
 
         # Phase 1 - H2: LLM 타임아웃 래퍼 적용
+        llm = self._get_llm(product_id)
+
         def llm_topic_call():
-            response = self._llm.invoke(prompt)
+            response = llm.invoke(prompt)
             return response.content.strip()
 
         def topic_fallback(*args):
@@ -1088,7 +1117,8 @@ class MindmapService:
         nodes: List[MindmapNode],
         edges: List[MindmapEdge],
         document_ids: List[str],
-        language: str = "ko"
+        language: str = "ko",
+        product_id: Optional[str] = None
     ):
         """마인드맵을 Neo4j에 저장"""
         # 마인드맵 노드 생성
@@ -1101,7 +1131,8 @@ class MindmapService:
                 m.edge_count = $edge_count,
                 m.created_at = datetime(),
                 m.updated_at = datetime(),
-                m.language = $language
+                m.language = $language,
+                m.product_id = $product_id
             """,
             {
                 "id": mindmap_id,
@@ -1109,7 +1140,8 @@ class MindmapService:
                 "doc_ids": document_ids,
                 "node_count": len(nodes),
                 "edge_count": len(edges),
-                "language": language
+                "language": language,
+                "product_id": product_id
             }
         )
 
@@ -1389,17 +1421,21 @@ class MindmapService:
         combined_content = "\n".join([c["content"][:500] for c in chunks])
         logger.debug(f"[expand] Combined content length: {len(combined_content)} chars")
 
-        # マインドマップのメタデータから言語を取得
-        lang_result = self._graph.query(
+        # マインドマップのメタデータから言語・product_idを取得
+        meta_result = self._graph.query(
             """
             MATCH (m:Mindmap {id: $id})
-            RETURN m.language AS language
+            RETURN m.language AS language, m.product_id AS product_id
             """,
             {"id": mindmap_id}
         )
         language = "ja"  # default
-        if lang_result and lang_result[0].get("language"):
-            language = lang_result[0]["language"]
+        stored_product_id = request.product_id  # request에서 먼저 확인
+        if meta_result:
+            if meta_result[0].get("language"):
+                language = meta_result[0]["language"]
+            if not stored_product_id and meta_result[0].get("product_id"):
+                stored_product_id = meta_result[0]["product_id"]
         L = self._LOCALE.get(language, self._LOCALE["ko"])
 
         # 言語別プロンプト
@@ -1439,8 +1475,10 @@ class MindmapService:
 JSON:"""
 
         # Phase 1 - H2: LLM 타임아웃 래퍼 적용
+        llm = self._get_llm(stored_product_id)
+
         def llm_expand_call():
-            response = self._llm.invoke(prompt)
+            response = llm.invoke(prompt)
             return response.content
 
         try:
@@ -1577,14 +1615,18 @@ JSON:"""
         """Synchronous node query"""
         self._ensure_initialized()
 
-        # マインドマップの言語設定を取得
-        lang_result = self._graph.query(
-            "MATCH (m:Mindmap {id: $id}) RETURN m.language AS language",
+        # マインドマップの言語・product_id設定を取得
+        meta_result = self._graph.query(
+            "MATCH (m:Mindmap {id: $id}) RETURN m.language AS language, m.product_id AS product_id",
             {"id": mindmap_id}
         )
         language = "ja"
-        if lang_result and lang_result[0].get("language"):
-            language = lang_result[0]["language"]
+        stored_product_id = request.product_id  # request에서 먼저 확인
+        if meta_result:
+            if meta_result[0].get("language"):
+                language = meta_result[0]["language"]
+            if not stored_product_id and meta_result[0].get("product_id"):
+                stored_product_id = meta_result[0]["product_id"]
         L = self._LOCALE.get(language, self._LOCALE["ko"])
 
         # 노드 정보 조회
@@ -1651,8 +1693,10 @@ JSON:"""
 {L['query_answer']}:"""
 
         # Phase 1 - H2: LLM 타임아웃 래퍼 적용
+        llm = self._get_llm(stored_product_id)
+
         def llm_query_call():
-            response = self._llm.invoke(prompt)
+            response = llm.invoke(prompt)
             return response.content.strip()
 
         try:

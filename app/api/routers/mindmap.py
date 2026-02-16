@@ -357,6 +357,7 @@ async def generate_mindmap_from_all(
     max_nodes: int = Query(50, ge=5, le=200, description="최대 노드 수"),
     focus_topic: Optional[str] = Query(None, description="집중할 주제"),
     language: str = Query("auto", description="언어 설정 (auto, ko, en, ja)"),
+    product_id: Optional[str] = Query(None, description="제품 ID (Learning LLM 사용)"),
     current_user: dict = Depends(get_current_user),
     service: MindmapService = Depends(get_service)
 ):
@@ -365,7 +366,7 @@ async def generate_mindmap_from_all(
     request_id = f"req_{uuid.uuid4().hex[:12]}"
 
     # Debug: Log received language parameter
-    logger.info(f"[{request_id}] generate_mindmap_from_all called with language='{language}', max_nodes={max_nodes}")
+    logger.info(f"[{request_id}] generate_mindmap_from_all called with language='{language}', max_nodes={max_nodes}, product_id='{product_id}'")
 
     try:
         request = GenerateMindmapRequest(
@@ -373,7 +374,8 @@ async def generate_mindmap_from_all(
             title=title,
             max_nodes=max_nodes,
             focus_topic=focus_topic,
-            language=language
+            language=language,
+            product_id=product_id
         )
 
         mindmap = await service.generate_mindmap(request)

@@ -276,6 +276,25 @@ const convertToVisualization = (data: MindmapFull): VisualizationMindmap => {
   };
 };
 
+// Learning LLM product options (15 main QLoRA adapters)
+const PRODUCT_OPTIONS = [
+  { value: 'openframe_base', label: 'OpenFrame Base' },
+  { value: 'openframe_batch', label: 'OpenFrame Batch' },
+  { value: 'openframe_common', label: 'OpenFrame Common' },
+  { value: 'openframe_hidb', label: 'OpenFrame HIDB' },
+  { value: 'openframe_osc', label: 'OpenFrame OSC' },
+  { value: 'openframe_osi', label: 'OpenFrame OSI' },
+  { value: 'openframe_tacf', label: 'OpenFrame TACF' },
+  { value: 'openframe_vos3', label: 'OpenFrame VOS3' },
+  { value: 'ofcobol', label: 'OF COBOL' },
+  { value: 'ofpli', label: 'OF PLI' },
+  { value: 'ofmanager', label: 'OF Manager' },
+  { value: 'tmax', label: 'Tmax' },
+  { value: 'tibero7', label: 'Tibero 7' },
+  { value: 'protrieve', label: 'ProTrieve' },
+  { value: 'prosort', label: 'ProSort' },
+];
+
 export const AIStudioPage: React.FC = () => {
   const { t, language } = useTranslation();
 
@@ -294,6 +313,7 @@ export const AIStudioPage: React.FC = () => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState('');
   const [showNodeEditor, setShowNodeEditor] = useState(false);
   const [editingLabel, setEditingLabel] = useState('');
 
@@ -573,6 +593,7 @@ export const AIStudioPage: React.FC = () => {
         max_nodes: 30,
         depth: 3,
         language: language,  // Use user's current language setting
+        product_id: selectedProduct || undefined,
       });
 
       setCurrentMindmapData(response.mindmap);
@@ -599,7 +620,7 @@ export const AIStudioPage: React.FC = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [aiPrompt, language, t]);
+  }, [aiPrompt, language, selectedProduct, t]);
 
   // Expand node (real API call)
   const handleExpandNode = useCallback(async () => {
@@ -663,6 +684,7 @@ export const AIStudioPage: React.FC = () => {
       const response = await mindmapApi.generateFromAllDocuments({
         max_nodes: 50,
         language: language,  // Use user's current UI language
+        product_id: selectedProduct || undefined,
       });
 
       setCurrentMindmapData(response.mindmap);
@@ -676,7 +698,7 @@ export const AIStudioPage: React.FC = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [language]);
+  }, [language, selectedProduct]);
 
   // Render connections
   const renderConnections = () => {
@@ -1153,6 +1175,39 @@ export const AIStudioPage: React.FC = () => {
                   onChange={(e) => setAiPrompt(e.target.value)}
                   rows={4}
                 />
+                <select
+                  className="studio-ai-select"
+                  value={selectedProduct}
+                  onChange={(e) => setSelectedProduct(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    marginBottom: '8px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-color, #e2e8f0)',
+                    background: 'var(--bg-secondary, #f8fafc)',
+                    color: 'var(--text-primary, #334155)',
+                    fontSize: '13px',
+                  }}
+                >
+                  <option value="">{t('mindmap.sidebar.productPlaceholder')}</option>
+                  {PRODUCT_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                {selectedProduct && (
+                  <div style={{
+                    fontSize: '12px',
+                    color: '#10b981',
+                    marginBottom: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}>
+                    <Sparkles size={12} />
+                    {t('mindmap.sidebar.learningLlmActive')}
+                  </div>
+                )}
                 <button
                   className="btn btn-primary"
                   onClick={handleAIGenerate}

@@ -83,17 +83,20 @@ export interface GenerateMindmapRequest {
   depth?: number;
   focus_topic?: string;
   language?: string;
+  product_id?: string;
 }
 
 export interface ExpandNodeRequest {
   node_id: string;
   depth?: number;
   max_children?: number;
+  product_id?: string;
 }
 
 export interface QueryNodeRequest {
   node_id: string;
   question?: string;
+  product_id?: string;
 }
 
 // =============================================================================
@@ -276,6 +279,7 @@ export const generateFromAllDocuments = async (params?: {
   max_nodes?: number;
   focus_topic?: string;
   language?: string;
+  product_id?: string;
 }): Promise<GenerateMindmapResponse> => {
   // Build query string explicitly to ensure params are passed correctly
   const queryParams = new URLSearchParams();
@@ -283,6 +287,7 @@ export const generateFromAllDocuments = async (params?: {
   if (params?.max_nodes) queryParams.append('max_nodes', params.max_nodes.toString());
   if (params?.focus_topic) queryParams.append('focus_topic', params.focus_topic);
   if (params?.language) queryParams.append('language', params.language);
+  if (params?.product_id) queryParams.append('product_id', params.product_id);
 
   const queryString = queryParams.toString();
   const url = queryString
