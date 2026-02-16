@@ -40,10 +40,15 @@ import {
   HelpCircle,
   GitBranch,
   Code2,
+  ThumbsUp,
+  ThumbsDown,
+  Upload,
 } from 'lucide-react';
 import { MessageContent } from '../components/AgentChat/MessageContent';
 import { ConversationSidebar } from '../components/ConversationSidebar';
 import { ExternalConnectorsModal } from '../components/AgentChat/ExternalConnectorsModal';
+import { FAQRegistrationModal } from '../components/AgentChat/FAQRegistrationModal';
+import { submitQuickFeedback, cancelFeedback } from '../api/feedback.api';
 import { useFileAttachment } from '../components/AgentChat/hooks/useFileAttachment';
 import { useExternalConnectorsStore } from '../store/externalConnectorsStore';
 import { conversationApi } from '../api/conversation.api';
@@ -120,7 +125,8 @@ interface ChatMessage {
 
 export const AgenticRAGPage: React.FC = () => {
   const { t } = useTranslation();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
+  const userRole = user?.role;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -154,6 +160,12 @@ export const AgenticRAGPage: React.FC = () => {
 
   // --- Feature 5: FAQ ---
   const [faqItems, setFaqItems] = useState<FAQItemAPI[]>([]);
+
+  // --- Feature 6: Feedback & FAQ Registration ---
+  const [feedbackState, setFeedbackState] = useState<Record<string, 'thumbs_up' | 'thumbs_down' | null>>({});
+  const [faqModal, setFaqModal] = useState<{ open: boolean; question: string; answer: string }>({
+    open: false, question: '', answer: '',
+  });
 
   // Load product tree from API
   useEffect(() => {
@@ -267,6 +279,41 @@ export const AgenticRAGPage: React.FC = () => {
       return next;
     });
   };
+
+  // --- Feature 6: Feedback handler ---
+  const handleFeedback = useCallback(async (messageId: string, type: 'thumbs_up' | 'thumbs_down') => {
+    const current = feedbackState[messageId];
+    if (current === type) {
+      // Toggle off (cancel feedback)
+      try {
+        await cancelFeedback(messageId);
+      } catch { /* cancel is best-effort */ }
+      setFeedbackState(prev => ({ ...prev, [messageId]: null }));
+    } else {
+      // Find the user question preceding this assistant message
+      const msgIdx = messages.findIndex(m => m.id === messageId);
+      const userMsg = messages.slice(0, msgIdx).reverse().find(m => m.role === 'user');
+      const assistantMsg = messages.find(m => m.id === messageId);
+
+      try {
+        await submitQuickFeedback({
+          message_id: messageId,
+          feedback_type: type,
+          query: userMsg?.content,
+          answer: assistantMsg?.content,
+          conversation_id: activeConversationId || undefined,
+        });
+      } catch { /* feedback submission is best-effort */ }
+      setFeedbackState(prev => ({ ...prev, [messageId]: type }));
+    }
+  }, [feedbackState, messages, activeConversationId]);
+
+  // --- Feature 6: FAQ modal opener ---
+  const openFAQModal = useCallback((msg: ChatMessage) => {
+    const msgIdx = messages.findIndex(m => m.id === msg.id);
+    const userMsg = messages.slice(0, msgIdx).reverse().find(m => m.role === 'user');
+    setFaqModal({ open: true, question: userMsg?.content || '', answer: msg.content });
+  }, [messages]);
 
   // Send message via SSE stream
   const sendMessage = useCallback(async (text: string, overrideProduct?: string) => {
@@ -763,6 +810,35 @@ export const AgenticRAGPage: React.FC = () => {
                   </div>
                 </details>
               )}
+
+              {/* Feedback actions (👍/👎 + FAQ registration) */}
+              {!isStreaming && (
+                <div className="agentic-rag-message-actions">
+                  <button
+                    className={`agentic-rag-feedback-btn ${feedbackState[msg.id] === 'thumbs_up' ? 'active thumbs-up' : ''}`}
+                    onClick={() => handleFeedback(msg.id, 'thumbs_up')}
+                    title={t('common.agent.feedback.thumbsUp') || 'Helpful'}
+                  >
+                    <ThumbsUp size={14} />
+                  </button>
+                  <button
+                    className={`agentic-rag-feedback-btn ${feedbackState[msg.id] === 'thumbs_down' ? 'active thumbs-down' : ''}`}
+                    onClick={() => handleFeedback(msg.id, 'thumbs_down')}
+                    title={t('common.agent.feedback.thumbsDown') || 'Not helpful'}
+                  >
+                    <ThumbsDown size={14} />
+                  </button>
+                  {(userRole === 'admin' || userRole === 'leader') && (
+                    <button
+                      className="agentic-rag-feedback-btn faq-register"
+                      onClick={() => openFAQModal(msg)}
+                      title={t('common.agent.faq.registerTitle') || 'Register as FAQ'}
+                    >
+                      <Upload size={14} />
+                    </button>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <p>{msg.content}</p>
@@ -1067,6 +1143,17 @@ export const AgenticRAGPage: React.FC = () => {
         isOpen={showConnectorsModal}
         onClose={() => setShowConnectorsModal(false)}
         t={t}
+      />
+
+      {/* Feature 6: FAQ Registration Modal */}
+      <FAQRegistrationModal
+        isOpen={faqModal.open}
+        onClose={() => setFaqModal(prev => ({ ...prev, open: false }))}
+        onSuccess={() => setFaqModal(prev => ({ ...prev, open: false }))}
+        t={t}
+        question={faqModal.question}
+        answer={faqModal.answer}
+        agentType="rag"
       />
 
       {/* TracePanel for Planner mode */}

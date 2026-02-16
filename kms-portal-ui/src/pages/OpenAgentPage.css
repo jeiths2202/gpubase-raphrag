@@ -2104,3 +2104,58 @@
   opacity: 0.7;
   font-size: 0.8rem;
 }
+
+/* =============================================================================
+   Agentic RAG - Feedback Actions (👍/👎 + FAQ registration)
+   ============================================================================= */
+
+.agentic-rag-message-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.agentic-rag-feedback-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary, #94a3b8);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.agentic-rag-feedback-btn:hover {
+  background: var(--bg-tertiary, rgba(0, 0, 0, 0.05));
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+}
+
+.agentic-rag-feedback-btn.active.thumbs-up {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.agentic-rag-feedback-btn.active.thumbs-down {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.agentic-rag-feedback-btn.faq-register {
+  margin-left: 4px;
+}
+
+.agentic-rag-feedback-btn.faq-register:hover {
+  color: var(--accent-color, #6366f1);
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.3);
+}
