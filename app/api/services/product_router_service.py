@@ -109,10 +109,17 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
         product=ProductId.MSP_OPENFRAME,
         keywords=[
             "msp", "msp openframe", "msp-openframe",
+            # JES/SMS/HSM
             "jes2", "jes3", "sms", "hsm", "dfhsm",
+            # AIM (Application Integrity Manager)
+            "aim", "aimmgr", "aimconv", "aimcheck", "aimutil",
+            # MSP 고유
+            "tso", "ispf", "sdsf", "ipcs", "dfsms", "dfp",
         ],
         patterns=[
             r"msp\s+\w+",
+            r"aimmgr\s+\w+",     # AIM 명령어
+            r"AIM[-_]\d+",       # AIM 에러 코드
         ],
         weight=1.0
     ),
@@ -121,9 +128,16 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
         keywords=[
             "vos3", "vos3 openframe", "vos3-openframe",
             "acos", "nec", "日立",
+            # VOS3 유틸리티
+            "adrdump0", "adrinit2", "adrinit3", "adrrest0", "adrdssu",
+            "dscopy", "dsutil", "catutil", "volutil",
+            # VOS3 설정
+            "vos3.conf", "openframe_vos3.conf", "vos3.seq",
         ],
         patterns=[
             r"vos3\s+\w+",
+            r"adr\w{4,}",        # ADR 유틸리티
+            r"VOS3[-_]\d+",      # VOS3 에러 코드
         ],
         weight=1.0
     ),
@@ -159,13 +173,33 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "tibero", "tibero7", "tibero 7", "tbsql", "tbcli",
             "tbdsn", "tbexport", "tbimport", "tbloader",
             "tsql", "tac", "taf", "tbadmin",
+            # Tibero 도구
+            "tbboot", "tbdown", "tbcm", "tbrmgr", "tbprobe",
+            "tbrecover", "tbcrypt", "tbpwd", "tbpc",
+            "tbmigrator", "tbgateway", "tbwallet", "tbwrap",
+            "tbesql", "tbedit", "tblistener", "tbutil",
+            # Tibero 설정
+            "tibero.tip", "tbdsn.tbr", "tbnet_alias.tbr",
+            "tb_cm.cfg", "tbha.cfg",
+            # Tibero 고유 기능
+            "tbha", "tbcm", "tsr",
+            "active standby", "tibero cluster", "zero downtime",
             # SQL 관련
             "sql", "oracle", "database", "db",
             "select", "insert", "update", "delete",
             "pl/sql", "procedure", "function", "trigger",
+            "tablespace", "datafile", "rownum",
             # DBMS 패키지/기능
             "dbms_lock", "dbms_output", "dbms_sql", "dbms_job",
             "dbms_scheduler", "dbms_metadata", "dbms_stats",
+            "dbms_lob", "dbms_pipe", "dbms_alert", "dbms_crypto",
+            "dbms_random", "dbms_session", "dbms_space",
+            "dbms_redefinition", "dbms_xplan", "dbms_repair",
+            "dbms_flashback", "dbms_aq", "dbms_aqadm",
+            "dbms_resource_manager", "dbms_result_cache",
+            "dbms_utility", "dbms_ddl", "dbms_fga",
+            "dbms_xmldom", "dbms_xmlgen", "dbms_xmlparser",
+            "dbms_rls", "dbms_rowid", "dbms_monitor",
             "dbms_", "package", "パッケージ",
             # tbPSM 관련
             "tbpsm", "psm", "stored procedure",
@@ -175,6 +209,7 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             r"tb\w+",              # tb로 시작하는 명령어
             r"SELECT\s+.+\s+FROM", # SQL SELECT
             r"dbms_\w+",           # DBMS_* パッケージ
+            r"TBR[-_]\d+",        # Tibero 에러 코드
         ],
         weight=1.0
     ),
@@ -183,11 +218,22 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
         keywords=[
             "ofasm", "assembler", "asm", "macro",
             "hlasm", "assembler language",
-            "csect", "dsect", "using", "balr",
+            # ASM 기본 명령어
+            "csect", "dsect", "using", "balr", "basr",
+            "bcr", "mvc", "mvi", "cli", "clc",
+            "pack", "unpk", "cvb", "cvd", "zap",
+            "stm", "lm", "sll", "srl",
+            # OFASM 도구
+            "ofasmif", "ofasma", "ofasmpp", "asmrun",
+            # ASM I/O 매크로
+            "dcb", "bsam", "qsam",
+            # 설정
+            "ofasm.conf",
         ],
         patterns=[
             r"ofasm\s+\w+",
             r"CSECT|DSECT|USING|BALR",
+            r"ofasm\w*",          # ofasm 접두사 도구
         ],
         weight=1.0
     ),
@@ -198,11 +244,40 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "copybook", "working-storage", "procedure division",
             "file section", "data division",
             "perform", "move", "compute",
+            # OFCOBOL 도구
+            "ofcob", "ofcbpp", "ofcbppf", "ofcobcpy", "cobmake",
+            # COBOL 구문
+            "identification division", "environment division",
+            "linkage section", "evaluate",
+            "string", "unstring", "inspect",
+            "exec sql", "goback", "stop run",
+            # 컴파일러 옵션
+            "dynam", "nodynam", "trunc", "notrunc", "arith",
+            "apost", "dbcs",
+            # 설정
+            "ofcobol.conf", "ofcob.conf",
         ],
         patterns=[
             r"ofcobol\s+\w+",
+            r"ofcob\w+",
             r"WORKING-STORAGE\s+SECTION",
             r"PROCEDURE\s+DIVISION",
+        ],
+        weight=1.0
+    ),
+    ProductConfig(
+        product=ProductId.OFPLI,
+        keywords=[
+            "ofpli", "pli", "pl/i", "pl/1",
+            "plirun", "plicomp",
+            # PL/I 구문
+            "declare", "dcl", "procedure",
+            # 설정
+            "ofpli.conf",
+        ],
+        patterns=[
+            r"ofpli\s+\w+",
+            r"PL/I",
         ],
         weight=1.0
     ),
@@ -210,10 +285,14 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
         product=ProductId.XSP_OPENFRAME,
         keywords=[
             "xsp", "xsp openframe", "xsp-openframe",
-            "transaction", "tp", "온라인",
+            "xspmgr", "xsp region",
+            "xsp.conf", "openframe_xsp.conf",
+            # ATMI/Tuxedo 호환
+            "atmi",
         ],
         patterns=[
             r"xsp\s+\w+",
+            r"xspmgr\s+\w+",
         ],
         weight=1.0
     ),
@@ -221,13 +300,203 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
         product=ProductId.TMAX,
         keywords=[
             "tmax", "tuxedo", "tmaxsoft",
-            "tpacall", "tpcall", "tpreturn",
-            "domain", "svrgroup", "server",
-            "config", "ulog", "gwtdomain",
+            # Tmax 핵심 도구
+            "tmadmin", "tmaxreadenv",
+            "cfl", "gst", "racd",
+            # Tmax 프로세스
+            "clh", "tlh", "slh", "tmm",
+            # Tmax API 함수
+            "tpacall", "tpcall", "tpreturn", "tpforward",
+            "tpalloc", "tpconnect", "tpdiscon",
+            "tpsend", "tprecv", "tpstart", "tpend",
+            "tpbegin", "tpcommit", "tpabort", "tprollback",
+            "tpscmt", "tpgetlev", "tpbroadcast",
+            "tpenqueue", "tpdequeue", "tppost", "tpsubscribe",
+            "tpnotify", "tpexport", "tpimport",
+            "tpgetctx", "tpsetctx", "tpgetunsol", "tpsetunsol",
+            "tuxgetenv", "tuxputenv", "tuxreadenv", "userlog",
+            # FDL/SDL/TDL
+            "fdl", "sdl", "tdl",
+            "svrgroup", "svc", "gwtdomain",
+            # FDL 설정 키워드
+            "shmkey", "tportno", "maxspr", "maxcpc",
+            "minclh", "maxclh", "cportno",
+            "tmaxdir", "appdir", "svgname",
+            "clopt", "svrtype", "svctimeout", "blocktime",
+            # 설정
+            "tmax.env", "oframe.m", "tmconfig",
+            # 연계
+            "wsgw", "jeus connector",
         ],
         patterns=[
             r"tmax\s+\w+",
             r"tp\w+",             # tp로 시작하는 함수
+            r"tmadmin\s+\w+",     # tmadmin 서브명령어
+            r"tms_\w+",           # TMS 프로세스
+        ],
+        weight=1.0
+    ),
+    # ===========================================================================
+    # 신규 제품 (JEUS, WebtoB, OFGW, OFManager, OFMiner, OFStudio, ProSort, ProSync, ProTrieve)
+    # ===========================================================================
+    ProductConfig(
+        product=ProductId.JEUS,
+        keywords=[
+            "jeus", "jeus8", "jeus 8",
+            # JEUS 핵심 도구
+            "jeusadmin", "jspc", "appcompiler", "jeusdeploy",
+            "startdomainadminserver", "startmanagedserver",
+            "startnodemanager", "stopserver",
+            # JEUS 구성요소
+            "das", "domainadminserver", "managedserver",
+            "nodemanager", "webengine", "ejbengine",
+            "jmsengine", "sessionserver",
+            "datasource", "connectionpool", "threadpool",
+            # JEUS 설정
+            "domain.xml", "jeus-web-dd.xml", "jeus-ejb-dd.xml",
+            "jeus.properties", "jeus-application-dd.xml",
+            # JEUS 프로토콜/기능
+            "webadmin", "jndi", "jdbc", "jms",
+            "ejb", "jpa", "jta", "jca", "jmx",
+            "jaas", "jacc", "jaxb", "jaxrs", "jax-rs",
+            "jaxws", "jax-ws", "saaj", "wsit",
+            "servlet", "jsp", "jsf", "jstl",
+        ],
+        patterns=[
+            r"jeus\s*\d*",
+            r"jeusadmin\s+\w+",   # jeusadmin 서브명령어
+            r"jeus[-_]\w+\.xml",  # JEUS 설정 파일
+        ],
+        weight=1.0
+    ),
+    ProductConfig(
+        product=ProductId.WEBTOB,
+        keywords=[
+            "webtob", "webtob5",
+            # WebtoB 핵심 도구
+            "wsadmin", "wscfl", "wsboot", "wsdown", "wsconfig",
+            # WebtoB 서버 프로세스
+            "hth", "htl", "htmls",
+            "cgis", "ssis", "phps", "jsvs",
+            # WebtoB 기능
+            "reverseproxy", "vhost", "docroot",
+            "errordocument", "filters",
+            # WebtoB 설정
+            "http.m", "webtob.conf", "node.conf",
+            "uri.conf", "vhost.conf", "ssl.conf",
+            # WebtoB 프로세스
+            "tcpgw", "proxy", "httpd",
+        ],
+        patterns=[
+            r"webtob\s*\d*",
+            r"wsadmin\s+\w+",     # wsadmin 서브명령어
+            r"http\.m",           # WebtoB 설정 파일
+        ],
+        weight=1.0
+    ),
+    ProductConfig(
+        product=ProductId.OFGW,
+        keywords=[
+            "ofgw", "ofgateway", "openframe gateway",
+            # OFGW 도구
+            "gwcli", "gwmgr", "gwsvr", "gwmon", "gwadm",
+            # OFGW 기능
+            "webterminal", "web terminal",
+            # 설정
+            "ofgw.conf", "gw.conf",
+        ],
+        patterns=[
+            r"ofgw\s+\w+",
+            r"gwmgr\s+\w+",
+        ],
+        weight=1.0
+    ),
+    ProductConfig(
+        product=ProductId.OFMANAGER,
+        keywords=[
+            "ofmanager", "openframe manager", "of manager",
+            "ofmgr", "webmanager",
+            # OFManager 기능
+            "batch monitor", "job monitor",
+            "resource manager", "system monitor",
+            "log viewer", "config editor",
+        ],
+        patterns=[
+            r"ofmanager\s+\w+",
+            r"ofm_\w+",
+        ],
+        weight=1.0
+    ),
+    ProductConfig(
+        product=ProductId.OFMINER,
+        keywords=[
+            "ofminer", "openframe miner", "of miner",
+            "migration analysis", "impact analysis",
+            "call tree", "cross reference", "xref",
+            "dead code", "complexity",
+        ],
+        patterns=[
+            r"ofminer\s+\w+",
+        ],
+        weight=1.0
+    ),
+    ProductConfig(
+        product=ProductId.OFSTUDIO,
+        keywords=[
+            "ofstudio", "openframe studio", "of studio",
+            "dataset editor", "jcl editor",
+            "cobol editor", "bms editor",
+            "map editor", "region manager",
+        ],
+        patterns=[
+            r"ofstudio\s+\w+",
+            r"openframe\s+studio",
+        ],
+        weight=1.0
+    ),
+    ProductConfig(
+        product=ProductId.PROSORT,
+        keywords=[
+            "prosort",
+            # ProSort 명령어
+            "inrec", "outrec", "outfil",
+            "sortin", "sortout",
+            # ProSort 기능
+            "include", "omit",
+            # 설정
+            "prosort.cfg", "prosort.conf",
+        ],
+        patterns=[
+            r"prosort\s+\w+",
+        ],
+        weight=1.0
+    ),
+    ProductConfig(
+        product=ProductId.PROSYNC,
+        keywords=[
+            "prosync",
+            "syncmgr",
+            "change data capture", "cdc",
+            "replication",
+            # 설정
+            "prosync.conf",
+        ],
+        patterns=[
+            r"prosync\s+\w+",
+        ],
+        weight=1.0
+    ),
+    ProductConfig(
+        product=ProductId.PROTRIEVE,
+        keywords=[
+            "protrieve", "easytrieve", "eztrieve",
+            "report generator",
+            # 설정
+            "protrieve.conf",
+        ],
+        patterns=[
+            r"protrieve\s+\w+",
+            r"easytrieve\s+\w+",
         ],
         weight=1.0
     ),

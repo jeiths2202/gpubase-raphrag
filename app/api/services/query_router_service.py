@@ -108,6 +108,56 @@ class QueryRouter:
                 "ko": "Tmax (미들웨어)",
                 "en": "Tmax (Middleware)",
             },
+            "ofpli": {
+                "ja": "OFPLI (PL/I変換)",
+                "ko": "OFPLI (PL/I 변환)",
+                "en": "OFPLI (PL/I Migration)",
+            },
+            "jeus": {
+                "ja": "JEUS 8 (Webアプリケーションサーバー)",
+                "ko": "JEUS 8 (웹 애플리케이션 서버)",
+                "en": "JEUS 8 (Web Application Server)",
+            },
+            "webtob": {
+                "ja": "WebtoB (Webサーバー)",
+                "ko": "WebtoB (웹 서버)",
+                "en": "WebtoB (Web Server)",
+            },
+            "ofgw": {
+                "ja": "OFGW (OpenFrameゲートウェイ)",
+                "ko": "OFGW (OpenFrame 게이트웨이)",
+                "en": "OFGW (OpenFrame Gateway)",
+            },
+            "ofmanager": {
+                "ja": "OFManager (OpenFrame管理ツール)",
+                "ko": "OFManager (OpenFrame 관리도구)",
+                "en": "OFManager (OpenFrame Management Tool)",
+            },
+            "ofminer": {
+                "ja": "OFMiner (マイグレーション分析)",
+                "ko": "OFMiner (마이그레이션 분석)",
+                "en": "OFMiner (Migration Analysis)",
+            },
+            "ofstudio": {
+                "ja": "OFStudio (OpenFrame IDE)",
+                "ko": "OFStudio (OpenFrame IDE)",
+                "en": "OFStudio (OpenFrame IDE)",
+            },
+            "prosort": {
+                "ja": "ProSort (ソート/マージ)",
+                "ko": "ProSort (정렬/병합)",
+                "en": "ProSort (Sort/Merge)",
+            },
+            "prosync": {
+                "ja": "ProSync (データ同期)",
+                "ko": "ProSync (데이터 동기화)",
+                "en": "ProSync (Data Synchronization)",
+            },
+            "protrieve": {
+                "ja": "ProTrieve (レポートジェネレーター)",
+                "ko": "ProTrieve (리포트 생성기)",
+                "en": "ProTrieve (Report Generator)",
+            },
         }
         for k, v in _legacy_names.items():
             if k not in self._display_names:

@@ -24,8 +24,18 @@ class ProductId(str, Enum):
     TIBERO7 = "tibero7"
     OFASM = "ofasm"
     OFCOBOL = "ofcobol"
+    OFPLI = "ofpli"
     XSP_OPENFRAME = "xsp_openframe"
     TMAX = "tmax"
+    JEUS = "jeus"
+    WEBTOB = "webtob"
+    OFGW = "ofgw"
+    OFMANAGER = "ofmanager"
+    OFMINER = "ofminer"
+    OFSTUDIO = "ofstudio"
+    PROSORT = "prosort"
+    PROSYNC = "prosync"
+    PROTRIEVE = "protrieve"
     AUTO = "auto"       # 자동 분류
     OTHER = "other"     # 기타 (모든 제품 검색)
 
