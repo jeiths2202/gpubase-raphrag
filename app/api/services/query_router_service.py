@@ -28,12 +28,12 @@ class QueryRouter:
 
     판정 기준:
     - 확정 라우팅: top_score >= 0.8 AND (top_score - 2nd_score) >= 0.3
-    - 되묻기: 0.5 <= top_score < 0.8 OR score_gap < 0.3
-    - 매칭 없음: top_score < 0.5
+    - 되묻기: 0.35 <= top_score < 0.8 OR score_gap < 0.3
+    - 매칭 없음: top_score < 0.35
     """
 
     CONFIRM_THRESHOLD = 0.8
-    CLARIFY_THRESHOLD = 0.5
+    CLARIFY_THRESHOLD = 0.35
     SCORE_GAP_THRESHOLD = 0.3
 
     def __init__(

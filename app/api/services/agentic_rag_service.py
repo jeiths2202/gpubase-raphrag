@@ -304,10 +304,10 @@ class AgenticRAGService:
             candidates = router_result.candidates
             if (
                 router_result.product
-                and router_result.confidence >= 0.6
+                and router_result.confidence >= 0.35
                 and (len(candidates) <= 1
                      or (len(candidates) >= 2
-                         and candidates[0].confidence - candidates[1].confidence >= 0.3))
+                         and candidates[0].confidence - candidates[1].confidence >= 0.15))
             ):
                 logger.info(
                     f"[AgenticRAG] Auto-confirming single/dominant candidate: "

@@ -47,9 +47,33 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "tacf", "tacfmgr", "racf", "security",
             # 시스템 관리
             "tmboot", "tmdown", "ofboot", "ofdown", "jesinit", "jesdown",
-            # OSC 관련
+            # OSC 관련 — 管理ツール
             "osc", "oscmgr", "cics", "online",
-            "mscasmc", "mscmapc", "mscmapupdate", "dfhmdf", "dfhmdi", "dfhmsd",
+            "mscasmc", "mscmapc", "mscmapupdate",
+            "osccobprep", "osccblpp", "oscplipp", "osccprep", "oschttp",
+            "cobolprep", "oscdct2rd", "oscjct2rd",
+            # OSC — CTG (CICS Transaction Gateway)
+            "ctg", "ofctg", "openframe ctg",
+            "eciinteractionspec", "cicsinteractionspec", "oivpecit",
+            "ccilocaltransaction", "cicsconnection", "eciconnection",
+            # OSC — EXEC CICS / BMS / マッピング
+            "exec cics", "commarea", "eib", "cvda",
+            "dfhmdf", "dfhmdi", "dfhmsd", "dfhcommarea", "dfhcspg",
+            "dfhdct", "dfhplt", "dfhxlt", "dfhjct", "dfhwba", "dfhwbun",
+            "dfhresp", "dfhpgaco", "dfhsiplt", "dfhdelim",
+            "dfhfile", "dfhgrp", "dfhhtml", "dfhlist", "dfhtdq", "dfhtsq",
+            "bms", "cspg",
+            # OSC — リソース定義 / キュー / 通信
+            "tsq", "tdq", "tranclass", "typeterm", "urimap",
+            "tcpipservice", "doctemplate", "journalmodel", "tsmodel",
+            "grplist", "rtsd",
+            # OSC — 端末・通信
+            "vtam", "tn3270", "3270", "dpl", "isc", "mro",
+            # OSC — 設定ファイル / サーバー
+            "ofosc.seq", "osc.region.list", "openframe_osc.conf",
+            "oivp", "oivpmain", "osc region", "tcache",
+            # OSC — EIB フィールド
+            "eibresp", "eibrcode", "eibaid", "eibcalen", "eibtrnid",
             # OSI 관련
             "osi", "osimgr",
             # HiDB 관련 (階層型データベース)
@@ -73,6 +97,11 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             r"DD\s+DSN=",          # JCL DD statement
             r"-\d{4,5}",           # 에러 코드 패턴
             r"ABEND\s+S\d{3}",     # ABEND 코드
+            r"EXEC\s+CICS\s+\w+",  # EXEC CICS 명령어
+            r"EXEC\s+DLI\s+\w+",   # EXEC DLI 명령어
+            r"(?:OF)?CTG",         # CTG / OFCTG
+            r"DFH[A-Z]{3,}",      # DFH 매크로 (DFHMDF, DFHPLT 등)
+            r"EIB[A-Z]{2,}",      # EIB 필드 (EIBRESP, EIBAID 등)
         ],
         weight=1.2  # MVS는 가장 일반적이므로 약간 높은 가중치
     ),
