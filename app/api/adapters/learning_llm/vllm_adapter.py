@@ -419,8 +419,14 @@ class VLLMAdapter:
             "stream": True,
         }
 
+        # Token buffering: accumulate tokens and flush in chunks
+        # to reduce SSE overhead and improve frontend rendering smoothness
+        FLUSH_SIZE = 4  # flush every N characters
+        FLUSH_CHARS = set('\n。、．，.!?！？\n\r')  # flush on sentence/clause boundaries
+
         try:
             chat_url = f"{base_url}/chat/completions"
+            buffer = ""
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(
@@ -446,9 +452,17 @@ class VLLMAdapter:
                             delta = chunk["choices"][0].get("delta", {})
                             token = delta.get("content", "")
                             if token:
-                                yield token
+                                buffer += token
+                                # Flush on buffer size or sentence boundary
+                                if len(buffer) >= FLUSH_SIZE or any(c in buffer for c in FLUSH_CHARS):
+                                    yield buffer
+                                    buffer = ""
                         except (KeyError, _json.JSONDecodeError):
                             continue
+
+                    # Flush remaining buffer
+                    if buffer:
+                        yield buffer
 
         except Exception as e:
             logger.error(f"vLLM streaming failed: {e}")
