@@ -52,10 +52,11 @@ def open_pdf_toc(source: PdfSource) -> List[Tuple[int, str, int]]:
     toc: List[Tuple[int, str, int]] = []
     try:
         for item in doc.get_toc():
-            level = item.n_count  # nesting level (0-based in pdfium, 1-based in PyMuPDF)
-            title = item.title or ""
-            # page index is 0-based in pypdfium2; PyMuPDF returns 1-based
-            page_idx = item.page_index
+            level = item.level  # 0-based nesting depth
+            title = item.get_title() or ""
+            # get_dest() → PdfDest with get_index() for 0-based page index
+            dest = item.get_dest()
+            page_idx = dest.get_index() if dest else 0
             if page_idx is None or page_idx < 0:
                 page_idx = 0
             toc.append((level + 1, title, page_idx + 1))

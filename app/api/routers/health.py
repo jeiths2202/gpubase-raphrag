@@ -10,9 +10,11 @@ from ..models.health import (
     HealthStatus,
     ServiceHealth,
     ServicesHealth,
+    PreloadStatus,
 )
 from ..core.config import api_settings
 from ..core.deps import get_health_service
+from ..core.preload_state import get_preload_status
 
 router = APIRouter(prefix="/health", tags=["Health"])
 
@@ -88,11 +90,23 @@ async def health_check(
         overall_status = HealthStatus.UNHEALTHY
         response.status_code = 503
 
+    # Include preload progress
+    ps = get_preload_status()
+    preload = PreloadStatus(
+        state=ps["state"],
+        loaded=ps["loaded"],
+        failed=ps["failed"],
+        total=ps["total"],
+        current_product=ps["current_product"],
+        elapsed_seconds=ps["elapsed_seconds"],
+    )
+
     return HealthResponse(
         status=overall_status,
         version=api_settings.APP_VERSION,
         timestamp=datetime.now(timezone.utc),
-        services=services
+        services=services,
+        preload=preload,
     )
 
 

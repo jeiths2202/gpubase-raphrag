@@ -44,9 +44,20 @@ class ServicesHealth(BaseModel):
     vision_llm: Optional[ServiceHealth] = None
 
 
+class PreloadStatus(BaseModel):
+    """Knowledge store preload progress"""
+    state: str = Field(description="pending | loading | completed | failed")
+    loaded: int = 0
+    failed: int = 0
+    total: int = 0
+    current_product: Optional[str] = None
+    elapsed_seconds: Optional[float] = None
+
+
 class HealthResponse(BaseModel):
     """Health check response"""
     status: HealthStatus
     version: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     services: ServicesHealth
+    preload: Optional[PreloadStatus] = None

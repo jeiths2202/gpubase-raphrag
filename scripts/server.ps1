@@ -487,7 +487,60 @@ function Start-Backend {
     $healthResult = Wait-ForHealthy -Url $BackendHealthUrl -TimeoutSeconds $Timeout -CheckApiHealth
 
     if ($healthResult.Success) {
-        Write-Status "Backend started successfully in $($healthResult.ElapsedSeconds) seconds"
+        Write-Status "Backend API is up in $($healthResult.ElapsedSeconds) seconds"
+
+        # Wait for PDF preload to complete
+        Write-Status "Waiting for PDF knowledge store preload to complete..."
+        $preloadStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $preloadTimeout = $Timeout - [math]::Floor($healthResult.ElapsedSeconds)
+        if ($preloadTimeout -lt 60) { $preloadTimeout = 60 }
+
+        while ($preloadStopwatch.Elapsed.TotalSeconds -lt $preloadTimeout) {
+            try {
+                $preloadResp = $null
+                $preloadBody = ""
+                try {
+                    $preloadResp = Invoke-WebRequest -Uri $BackendHealthUrl -Method GET -TimeoutSec 10 -UseBasicParsing -ErrorAction Stop
+                    $preloadBody = $preloadResp.Content
+                } catch [System.Net.WebException] {
+                    if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+                        $preloadBody = $_.ErrorDetails.Message
+                    }
+                }
+
+                if ($preloadBody) {
+                    $pJson = $preloadBody | ConvertFrom-Json
+                    if ($pJson.preload) {
+                        $pState = $pJson.preload.state
+                        $pLoaded = $pJson.preload.loaded
+                        $pTotal = $pJson.preload.total
+                        $pCurrent = $pJson.preload.current_product
+
+                        if ($pState -eq "completed") {
+                            $pElapsed = $pJson.preload.elapsed_seconds
+                            Write-Host ""
+                            Write-Status "PDF preload completed: $pLoaded/$pTotal products loaded in ${pElapsed}s"
+                            break
+                        } elseif ($pState -eq "failed") {
+                            Write-Host ""
+                            Write-Warn "PDF preload failed (loaded: $pLoaded/$pTotal)"
+                            break
+                        } else {
+                            $pctStr = if ($pTotal -gt 0) { " ($pLoaded/$pTotal" + $(if ($pCurrent) { " - $pCurrent" } else { "" }) + ")" } else { "" }
+                            Write-Progress "PDF preloading$pctStr..."
+                        }
+                    } else {
+                        # No preload field = preload not started or old endpoint
+                        break
+                    }
+                }
+            } catch {
+                # Ignore parse errors, keep waiting
+            }
+            Start-Sleep -Seconds 3
+        }
+
+        Write-Status "Backend started successfully"
         Write-Status "URL: http://localhost:$BackendPort"
         Write-Status "Docs: http://localhost:$BackendPort/docs"
         Write-LogMessage -LogFile $logFile -Message "Backend healthy after $($healthResult.ElapsedSeconds)s"
