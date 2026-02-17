@@ -84,6 +84,8 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "ndb", "ndbmgr",
             # 기타 MVS
             "mvs", "mainframe", "batch", "spufi", "ispf",
+            # IPF / MFS (MVS PDF에서 추출)
+            "ipf", "mfs",
         ],
         patterns=[
             r"tjesmgr\s+\w+",      # tjesmgr 명령어
@@ -114,7 +116,7 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             # AIM (Application Integrity Manager)
             "aim", "aimmgr", "aimconv", "aimcheck", "aimutil",
             # MSP 고유
-            "tso", "ispf", "sdsf", "ipcs", "dfsms", "dfp",
+            "tso", "ispf", "sdsf", "ipcs", "dfsms", "dfp", "ipf",
         ],
         patterns=[
             r"msp\s+\w+",
@@ -133,6 +135,8 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "dscopy", "dsutil", "catutil", "volutil",
             # VOS3 설정
             "vos3.conf", "openframe_vos3.conf", "vos3.seq",
+            # VOS3도 자체 JCL/TJES 가이드 보유
+            "vos3 jcl", "vos3 tjes", "vos3 batch",
         ],
         patterns=[
             r"vos3\s+\w+",
@@ -203,6 +207,8 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "dbms_", "package", "パッケージ",
             # tbPSM 관련
             "tbpsm", "psm", "stored procedure",
+            # Tibero PDF에서 추출
+            "hadoop", "imcs", "spatial", "tdpnet", "tdp.net",
         ],
         patterns=[
             r"tibero\s*\d*",
@@ -327,6 +333,10 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "tmax.env", "oframe.m", "tmconfig",
             # 연계
             "wsgw", "jeus connector",
+            # Tmax PDF에서 추출
+            "hms", "hostlink", "jtc", "jtmaxserver",
+            "tmaxgrid", "webtasync", "webtjca",
+            "rpc", "rq", "sq", "ucs", "tcache",
         ],
         patterns=[
             r"tmax\s+\w+",
@@ -361,6 +371,8 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "jaas", "jacc", "jaxb", "jaxrs", "jax-rs",
             "jaxws", "jax-ws", "saaj", "wsit",
             "servlet", "jsp", "jsf", "jstl",
+            # JEUS PDF에서 추출
+            "jbatch", "mq", "snmp", "scheduler",
         ],
         patterns=[
             r"jeus\s*\d*",
