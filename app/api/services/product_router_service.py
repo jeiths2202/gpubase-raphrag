@@ -115,12 +115,16 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "jes2", "jes3", "sms", "hsm", "dfhsm",
             # AIM (Application Integrity Manager)
             "aim", "aimmgr", "aimconv", "aimcheck", "aimutil",
+            # NDB (Network Database) - MSP/Fujitsu 계열
+            "ndb", "ndbmgr", "ndbgensch", "ndbexport", "ndbimport",
+            "ネットワークデータベース", "ネットワークdb",
             # MSP 고유
             "tso", "ispf", "sdsf", "ipcs", "dfsms", "dfp", "ipf",
         ],
         patterns=[
             r"msp\s+\w+",
             r"aimmgr\s+\w+",     # AIM 명령어
+            r"ndbmgr\s+\w+",     # NDB 명령어
             r"AIM[-_]\d+",       # AIM 에러 코드
         ],
         weight=1.0

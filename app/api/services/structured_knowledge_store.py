@@ -1129,9 +1129,9 @@ def enrich_content_with_tables(result: SearchResult) -> str:
     """
     content = result.content
 
-    # 이미 인라인 테이블이 있으면 스킵
-    if "| ---" in content or "|---" in content:
-        return content
+    # 실제 마크다운 테이블 패턴 감지 (| --- | 형식만)
+    # 주의: "|----" 등 디렉토리 트리 구문은 테이블이 아님
+    _has_inline_table = bool(re.search(r"\|\s*---+\s*\|", content))
 
     pdf_path, page_num = _resolve_pdf_path_and_page(result)
     if not pdf_path or page_num < 0:
@@ -1146,33 +1146,35 @@ def enrich_content_with_tables(result: SearchResult) -> str:
 
         page = doc[page_num]
 
-        # drawing pre-filter: 테이블 보더가 없는 페이지 빠르게 스킵
-        _, drawing_count = StructuredKnowledgeStore._get_shaded_rects(page)
+        # 테이블 보강: 이미 인라인 테이블이 있으면 스킵
+        if not _has_inline_table:
+            # drawing pre-filter: 테이블 보더가 없는 페이지 빠르게 스킵
+            _, drawing_count = StructuredKnowledgeStore._get_shaded_rects(page)
 
-        if drawing_count >= 5:
-            # 인라인 테이블로 재추출 (extract_tables=True)
-            enriched = StructuredKnowledgeStore._extract_page_text_with_codeblocks(
-                page, extract_tables=True,
-            )
-            has_tables = "| ---" in enriched or "|---" in enriched
-
-            if has_tables:
-                # 해당 페이지의 평문 버전 → content에서 찾아 교체
-                flat_page = StructuredKnowledgeStore._extract_page_text_with_codeblocks(
-                    page, extract_tables=False,
+            if drawing_count >= 5:
+                # 인라인 테이블로 재추출 (extract_tables=True)
+                enriched = StructuredKnowledgeStore._extract_page_text_with_codeblocks(
+                    page, extract_tables=True,
                 )
-                flat_stripped = flat_page.strip()
-                enriched_stripped = enriched.strip()
+                has_tables = "| ---" in enriched or "|---" in enriched
 
-                if flat_stripped and flat_stripped in content:
-                    # 정확히 일치하는 부분만 교체
-                    content = content.replace(flat_stripped, enriched_stripped, 1)
-                else:
-                    # 정확 매칭 실패 → content 전체를 재추출 결과로 교체
-                    # (해당 페이지가 검색 결과의 핵심 페이지이므로)
-                    content = enriched_stripped
+                if has_tables:
+                    # 해당 페이지의 평문 버전 → content에서 찾아 교체
+                    flat_page = StructuredKnowledgeStore._extract_page_text_with_codeblocks(
+                        page, extract_tables=False,
+                    )
+                    flat_stripped = flat_page.strip()
+                    enriched_stripped = enriched.strip()
 
-        # 이미지 보강
+                    if flat_stripped and flat_stripped in content:
+                        # 정확히 일치하는 부분만 교체
+                        content = content.replace(flat_stripped, enriched_stripped, 1)
+                    else:
+                        # 정확 매칭 실패 → content 전체를 재추출 결과로 교체
+                        # (해당 페이지가 검색 결과의 핵심 페이지이므로)
+                        content = enriched_stripped
+
+        # 이미지 보강 (테이블 유무와 무관하게 항상 실행)
         images_md = []
         try:
             imgs = StructuredKnowledgeStore._extract_page_images(

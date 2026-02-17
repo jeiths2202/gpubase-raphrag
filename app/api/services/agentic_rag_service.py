@@ -1288,7 +1288,19 @@ class AgenticRAGService:
                 break
             content = enrich_content_with_tables(r)
             if len(content) > per_result_limit:
-                content = content[:per_result_limit] + "..."
+                # 이미지 마크다운(![...)은 끝에 위치 → 분리 후 텍스트만 잘라냄
+                img_marker = "\n\n!["
+                img_idx = content.find(img_marker)
+                if img_idx > 0:
+                    text_part = content[:img_idx]
+                    img_part = content[img_idx:]
+                    text_budget = per_result_limit - len(img_part)
+                    if text_budget > 200:
+                        content = text_part[:text_budget] + "..." + img_part
+                    else:
+                        content = content[:per_result_limit] + "..."
+                else:
+                    content = content[:per_result_limit] + "..."
             part = content
             parts.append(part)
             total_chars += len(part)
