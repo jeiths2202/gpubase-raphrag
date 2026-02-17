@@ -338,7 +338,8 @@ class MindmapService:
             base_url=MULTI_LORA_BASE_URL,
             model=adapter_name,
             api_key="not-needed",
-            temperature=0.3
+            temperature=0.3,
+            request_timeout=30
         )
 
     def _generate_id(self, prefix: str, content: str) -> str:
@@ -781,26 +782,54 @@ class MindmapService:
     ) -> Dict[str, Any]:
         """LLM을 사용하여 개념과 관계 추출"""
 
-        # 청크 내용 결합
-        combined_content = "\n\n".join([
-            f"[Document: {c['doc_id']}, Chunk: {c['chunk_index']}]\n{c['content'][:1000]}"
-            for c in chunks[:20]  # 최대 20개 청크만 사용
-        ])
-
         # 기존 엔티티 수집
         existing_entities = set()
         for chunk in chunks:
             existing_entities.update(chunk.get("entities", []))
 
-        # 언어별 프롬프트 (프롬프트 전체를 대상 언어로 구성)
-        L = self._LOCALE.get(language, self._LOCALE["ko"])
-        entities_str = ', '.join(list(existing_entities)[:30])
+        # Learning LLM (4096 context, ~5 tok/s) → 간결한 프롬프트로 개념명만 요청
+        if product_id:
+            # focus_topic 관련도 순으로 청크 정렬
+            if focus_topic:
+                topic_lower = focus_topic.lower()
+                scored_chunks = []
+                for c in chunks:
+                    content = c.get('content', '').lower()
+                    score = content.count(topic_lower) * 3  # 토픽 직접 매칭
+                    # 기술 용어 밀도 가산 (대문자 약어 비율)
+                    upper_count = len(re.findall(r'\b[A-Z][A-Za-z_]{2,}\b', c.get('content', '')))
+                    score += upper_count
+                    scored_chunks.append((score, c))
+                scored_chunks.sort(key=lambda x: x[0], reverse=True)
+                best_chunks = [c for _, c in scored_chunks[:5]]
+            else:
+                best_chunks = chunks[:5]
+            combined_content = "\n".join([
+                c['content'][:200] for c in best_chunks
+            ])
+            topic_str = focus_topic or "this product"
+            prompt = f"""Based on the document content below, list the {min(max_nodes, 10)} most important technical concepts related to "{topic_str}".
 
-        focus_instruction = ""
-        if focus_topic:
-            focus_instruction = f"\n{L['focus_prefix']}: {focus_topic}\n{L['focus_suffix']}"
+Content:
+{combined_content}
 
-        prompt = f"""{L['extract_intro']}
+Respond ONLY with a JSON array of concept name strings. Example: ["concept1", "concept2", "concept3"]
+Response:"""
+        else:
+            # Default LLM: larger context, full structured prompt
+            combined_content = "\n\n".join([
+                f"[Document: {c['doc_id']}, Chunk: {c['chunk_index']}]\n{c['content'][:1000]}"
+                for c in chunks[:20]
+            ])
+
+            L = self._LOCALE.get(language, self._LOCALE["ko"])
+            entities_str = ', '.join(list(existing_entities)[:30])
+
+            focus_instruction = ""
+            if focus_topic:
+                focus_instruction = f"\n{L['focus_prefix']}: {focus_topic}\n{L['focus_suffix']}"
+
+            prompt = f"""{L['extract_intro']}
 {L['output_lang']}
 {focus_instruction}
 
@@ -832,18 +861,20 @@ class MindmapService:
 
         # Phase 1 - H2: LLM 타임아웃 래퍼 적용
         llm = self._get_llm(product_id)
+        print(f"[Mindmap] _extract_concepts: chunks={len(chunks)}, entities={len(existing_entities)}, focus={focus_topic}, product={product_id}")
 
         def llm_call():
             """타임아웃이 적용될 LLM 호출"""
             response = llm.invoke(prompt)
-            return response.content.strip()
+            text = response.content.strip()
+            print(f"[Mindmap] LLM response: {len(text)} chars")
+            return text
 
         def fallback_fn(*args):
             """LLM 실패 시 폴백"""
             return self._fallback_concepts(chunks, existing_entities, language)
 
         try:
-            # 타임아웃 래퍼로 LLM 호출 실행
             wrapper = LLMTimeoutWrapper(
                 timeout=self.LLM_TIMEOUT,
                 max_retries=self.LLM_MAX_RETRIES,
@@ -851,37 +882,177 @@ class MindmapService:
             )
             response_text = wrapper.execute_sync(llm_call)
 
-            # JSON 추출
+            # fallback이 dict를 반환한 경우 바로 리턴
+            if isinstance(response_text, dict):
+                return response_text
+
+            # Learning LLM → simple JSON array response
+            if product_id:
+                concepts_data = self._parse_learning_llm_response(response_text, focus_topic, language)
+                if concepts_data and concepts_data.get("concepts"):
+                    print(f"[Mindmap] Learning LLM: {len(concepts_data['concepts'])} concepts extracted")
+                    return concepts_data
+
+            # Default LLM → full structured JSON response
             json_match = re.search(r'\{[\s\S]*\}', response_text)
             if json_match:
-                concepts_data = json.loads(json_match.group())
-                return concepts_data
-            else:
-                # JSON 파싱 실패 시 기본값 반환
-                logger.warning("LLM response did not contain valid JSON, using fallback")
-                return self._fallback_concepts(chunks, existing_entities, language)
+                raw_json = json_match.group()
+                concepts_data = self._parse_json_robust(raw_json)
+                if concepts_data and concepts_data.get("concepts"):
+                    return concepts_data
+            # JSON 파싱 실패 → 폴백
+            return self._fallback_concepts(chunks, existing_entities, language)
 
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON parsing error: {e}")
+        except json.JSONDecodeError:
             return self._fallback_concepts(chunks, existing_entities, language)
         except (LLMTimeoutError, LLMError) as e:
-            logger.warning(f"LLM error (fallback already executed): {e}")
-            # 폴백이 이미 실행되었으면 결과가 반환됨, 그렇지 않으면 여기서 실행
+            print(f"[Mindmap] LLM timeout/error: {e}")
             return self._fallback_concepts(chunks, existing_entities, language)
         except Exception as e:
-            logger.error(f"Concept extraction error: {e}")
+            print(f"[Mindmap] Concept extraction error: {e}")
             return self._fallback_concepts(chunks, existing_entities, language)
 
+    def _parse_learning_llm_response(self, response_text: str, focus_topic: Optional[str], language: str) -> Optional[Dict[str, Any]]:
+        """Learning LLM의 간결한 JSON 배열 응답을 구조화된 concepts_data로 변환"""
+        # JSON array 추출: ["concept1", "concept2", ...]
+        array_match = re.search(r'\[[\s\S]*?\]', response_text)
+        if not array_match:
+            # 배열이 아닌 경우 쉼표로 구분된 텍스트에서 추출 시도
+            items = re.findall(r'"([^"]{2,40})"', response_text)
+            if not items:
+                return None
+        else:
+            try:
+                items = json.loads(array_match.group())
+            except json.JSONDecodeError:
+                # 잘린 배열 보정
+                raw = array_match.group()
+                raw = re.sub(r',\s*\]', ']', raw)  # trailing comma
+                # 마지막 완전한 문자열까지만
+                last_quote = raw.rfind('"')
+                if last_quote > 0:
+                    raw = raw[:last_quote + 1] + ']'
+                try:
+                    items = json.loads(raw)
+                except json.JSONDecodeError:
+                    items = re.findall(r'"([^"]{2,40})"', response_text)
+
+        if not items or not isinstance(items, list):
+            return None
+
+        # 문자열만 필터링
+        items = [str(item) for item in items if isinstance(item, str) and len(str(item)) >= 2]
+        if not items:
+            return None
+
+        main_topic = focus_topic or items[0]
+        concepts = []
+        for i, name in enumerate(items[:15]):
+            concepts.append({
+                "name": name,
+                "type": "concept",
+                "importance": max(0.4, 1.0 - (i * 0.06)),
+                "description": ""
+            })
+
+        # Star topology: all concepts connect to main_topic
+        relations = []
+        for concept in concepts:
+            if concept["name"] != main_topic:
+                relations.append({
+                    "source": main_topic,
+                    "target": concept["name"],
+                    "relation": "relates_to",
+                    "label": self._LOCALE.get(language, self._LOCALE["ko"]).get("related", "関連")
+                })
+
+        return {
+            "main_topic": main_topic,
+            "concepts": concepts,
+            "relations": relations
+        }
+
+    def _parse_json_robust(self, raw_json: str) -> Optional[Dict[str, Any]]:
+        """LLM 출력의 malformed JSON을 수리하여 파싱 시도"""
+        # 1차: 그대로 파싱
+        try:
+            return json.loads(raw_json)
+        except json.JSONDecodeError:
+            pass
+
+        repaired = raw_json
+
+        # 2차: trailing comma 제거 (,] 또는 ,})
+        repaired = re.sub(r',\s*([}\]])', r'\1', repaired)
+        try:
+            return json.loads(repaired)
+        except json.JSONDecodeError:
+            pass
+
+        # 3차: 누락된 comma 추가 (}{, ][, "}{, "][, }[, ]{ 패턴)
+        repaired = re.sub(r'("\s*)\n(\s*")', r'\1,\n\2', repaired)  # ".."\n".. → "..",\n"..
+        repaired = re.sub(r'(\d)\n(\s*")', r'\1,\n\2', repaired)     # 0.8\n".. → 0.8,\n"..
+        repaired = re.sub(r'}\s*{', r'},{', repaired)                 # }{  → },{
+        repaired = re.sub(r'}\s*\n\s*{', r'},\n{', repaired)         # }\n{ → },\n{
+        try:
+            return json.loads(repaired)
+        except json.JSONDecodeError:
+            pass
+
+        # 4차: 잘린 JSON 보정 — 닫히지 않은 brackets 추가
+        open_braces = repaired.count('{') - repaired.count('}')
+        open_brackets = repaired.count('[') - repaired.count(']')
+        if open_braces > 0 or open_brackets > 0:
+            # 마지막 완전한 object/array까지 잘라냄
+            # 마지막 완전한 }, 또는 ], 이후를 잘라서 닫기
+            last_complete = max(repaired.rfind('},'), repaired.rfind('],'), repaired.rfind('}'), repaired.rfind(']'))
+            if last_complete > 0:
+                truncated = repaired[:last_complete + 1]
+                # 닫히지 않은 brackets 추가
+                remaining_brackets = truncated.count('[') - truncated.count(']')
+                remaining_braces = truncated.count('{') - truncated.count('}')
+                truncated += ']' * max(0, remaining_brackets)
+                truncated += '}' * max(0, remaining_braces)
+                try:
+                    result = json.loads(truncated)
+                    return result
+                except json.JSONDecodeError:
+                    pass
+
+        # 5차: concepts 배열만 추출
+        concepts_match = re.search(r'"concepts"\s*:\s*\[(.*?)\]', repaired, re.DOTALL)
+        if concepts_match:
+            try:
+                concepts_str = '[' + concepts_match.group(1) + ']'
+                # trailing comma 제거
+                concepts_str = re.sub(r',\s*\]', ']', concepts_str)
+                concepts = json.loads(concepts_str)
+                return {
+                    "main_topic": concepts[0].get("name", "Topic") if concepts else "Topic",
+                    "concepts": concepts,
+                    "relations": []
+                }
+            except json.JSONDecodeError:
+                pass
+
+        print(f"[Mindmap] JSON repair failed")
+        return None
+
     def _fallback_concepts(self, chunks: List[Dict], entities: set, language: str = "ko") -> Dict[str, Any]:
-        """개념 추출 실패 시 기존 엔티티 기반 폴백"""
+        """개념 추출 실패 시 엔티티 + 청크 키워드 기반 폴백"""
         L = self._LOCALE.get(language, self._LOCALE["ko"])
         entity_list = list(entities)[:30]
+
+        # 엔티티가 없으면 청크에서 키워드 추출
+        if not entity_list and chunks:
+            entity_list = self._extract_keywords_from_chunks(chunks)
+            print(f"[Mindmap] Keyword fallback: {len(entity_list)} keywords from chunks")
 
         concepts = []
         for i, entity in enumerate(entity_list):
             concepts.append({
                 "name": entity,
-                "type": "entity",
+                "type": "entity" if entity in entities else "keyword",
                 "importance": max(0.3, 1.0 - (i * 0.03)),
                 "description": ""
             })
@@ -904,6 +1075,48 @@ class MindmapService:
             "relations": relations
         }
 
+    def _extract_keywords_from_chunks(self, chunks: List[Dict], max_keywords: int = 15) -> List[str]:
+        """청크 content에서 의미있는 키워드 추출 (LLM 없이)"""
+        # 모든 content 합치기
+        all_text = " ".join(c.get("content", "")[:500] for c in chunks[:20])
+
+        # 영문 대문자 약어/명령어 추출 (OpenFrame 제품 키워드)
+        upper_words = re.findall(r'\b[A-Z][A-Za-z_]{2,}\b', all_text)
+        # 한글 명사 후보 (2글자 이상)
+        korean_words = re.findall(r'[가-힣]{2,5}', all_text)
+        # 일본어 카타카나 (외래어) 추출
+        katakana_words = re.findall(r'[\u30A0-\u30FF]{2,}', all_text)
+        # 영문 소문자 기술 용어 (mgr, cmd 등 접미사 포함)
+        tech_words = re.findall(r'\b[a-z][a-z_]{3,}(?:mgr|cmd|srv|cfg|log|err|conf)\b', all_text)
+
+        # 빈도 카운트
+        from collections import Counter
+        word_counts = Counter()
+        # 불용어
+        stopwords = {
+            'The', 'This', 'That', 'For', 'From', 'With', 'Not', 'And', 'Are', 'Was', 'Were',
+            'Has', 'Have', 'Had', 'Can', 'May', 'Will', 'Shall', 'Use', 'Set', 'Get', 'New',
+            'All', 'Any', 'Each', 'None', 'Note', 'See', 'Also', 'When', 'Where', 'Which',
+            'String', 'Value', 'Type', 'Name', 'Data', 'File', 'True', 'False', 'Null',
+            '설명', '사용', '경우', '다음', '위해', '대한', '통해', '기본', '정보', '관련',
+            '설정', '필요', '수행', '처리', '방법', '제공', '지원', '참고', '이용',
+        }
+        for w in upper_words:
+            if w not in stopwords and len(w) >= 3:
+                word_counts[w] += 2  # 대문자 키워드 가중치 높임
+        for w in tech_words:
+            word_counts[w] += 3  # 기술 용어 가중치 높임
+        for w in katakana_words:
+            if len(w) >= 3:
+                word_counts[w] += 2
+        for w in korean_words:
+            if w not in stopwords:
+                word_counts[w] += 1
+
+        # 상위 키워드 반환
+        keywords = [word for word, _ in word_counts.most_common(max_keywords)]
+        return keywords
+
     def _generate_concepts_from_topic(
         self,
         topic: str,
@@ -913,10 +1126,15 @@ class MindmapService:
     ) -> Dict[str, Any]:
         """주제만으로 LLM 지식을 사용해 개념과 관계 생성 (문서 없이)"""
 
-        # 언어별 프롬프트 (프롬프트 전체를 대상 언어로 구성)
-        L = self._LOCALE.get(language, self._LOCALE["ko"])
-
-        prompt = f"""{L['topic_intro'].format(topic=topic)}
+        # Learning LLM (4096 context) → 간결한 프롬프트
+        if product_id:
+            prompt = f"""List the {min(max_nodes, 10)} most important technical concepts, commands, or features related to "{topic}".
+Respond ONLY with a JSON array of strings. Example: ["concept1", "concept2"]
+Response:"""
+        else:
+            # Default LLM → full structured prompt
+            L = self._LOCALE.get(language, self._LOCALE["ko"])
+            prompt = f"""{L['topic_intro'].format(topic=topic)}
 {L['output_lang']}
 
 {L['json_instruction']}:
@@ -942,10 +1160,13 @@ class MindmapService:
 
         # Phase 1 - H2: LLM 타임아웃 래퍼 적용
         llm = self._get_llm(product_id)
+        print(f"[Mindmap] _generate_concepts_from_topic: topic={topic}, product={product_id}")
 
         def llm_topic_call():
             response = llm.invoke(prompt)
-            return response.content.strip()
+            text = response.content.strip()
+            print(f"[Mindmap] Topic LLM response: {len(text)} chars")
+            return text
 
         def topic_fallback(*args):
             return self._fallback_topic_concepts(topic, language)
@@ -958,24 +1179,28 @@ class MindmapService:
             )
             response_text = wrapper.execute_sync(llm_topic_call)
 
-            # JSON 추출
+            # fallback이 dict를 반환한 경우 바로 리턴
+            if isinstance(response_text, dict):
+                return response_text
+
+            # Learning LLM → simple JSON array
+            if product_id:
+                concepts_data = self._parse_learning_llm_response(response_text, topic, language)
+                if concepts_data and concepts_data.get("concepts"):
+                    return concepts_data
+
+            # Default LLM → full structured JSON
             json_match = re.search(r'\{[\s\S]*\}', response_text)
             if json_match:
-                concepts_data = json.loads(json_match.group())
-                # main_topic이 없으면 추가
-                if "main_topic" not in concepts_data:
-                    concepts_data["main_topic"] = topic
-                return concepts_data
-            else:
-                # JSON 파싱 실패 시 기본 구조 반환
-                logger.warning("Topic generation LLM response did not contain valid JSON")
-                return self._fallback_topic_concepts(topic, language)
+                concepts_data = self._parse_json_robust(json_match.group())
+                if concepts_data:
+                    if "main_topic" not in concepts_data:
+                        concepts_data["main_topic"] = topic
+                    return concepts_data
 
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON parsing error in topic generation: {e}")
             return self._fallback_topic_concepts(topic, language)
-        except (LLMTimeoutError, LLMError) as e:
-            logger.warning(f"Topic generation LLM error: {e}")
+
+        except (json.JSONDecodeError, LLMTimeoutError, LLMError):
             return self._fallback_topic_concepts(topic, language)
         except Exception as e:
             logger.error(f"Topic concept generation error: {e}")
