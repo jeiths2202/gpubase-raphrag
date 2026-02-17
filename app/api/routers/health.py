@@ -10,7 +10,9 @@ from ..models.health import (
     HealthStatus,
     ServiceHealth,
     ServicesHealth,
+    PreloadStatus,
 )
+from ..core.preload_state import get_preload_state
 from ..core.config import api_settings
 from ..core.deps import get_health_service
 
@@ -88,11 +90,16 @@ async def health_check(
         overall_status = HealthStatus.UNHEALTHY
         response.status_code = 503
 
+    # PDF preload progress
+    preload_state = get_preload_state()
+    preload = PreloadStatus(**preload_state.to_dict()) if preload_state.started_at else None
+
     return HealthResponse(
         status=overall_status,
         version=api_settings.APP_VERSION,
         timestamp=datetime.now(timezone.utc),
-        services=services
+        services=services,
+        preload=preload,
     )
 
 

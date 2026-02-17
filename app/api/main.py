@@ -573,6 +573,48 @@ async def lifespan(app: FastAPI):
             category=LogCategory.BUSINESS
         )
 
+    # ==================== Background PDF Preloading ====================
+    # 백그라운드 스레드에서 모든 제품의 StructuredKnowledgeStore를 미리 로딩
+    # 서버는 즉시 요청 수락 가능, PDF 파싱은 병렬로 진행
+    import threading
+    from .core.preload_state import get_preload_state
+
+    def _preload_all_knowledge_stores():
+        """Background thread: preload all product knowledge stores."""
+        state = get_preload_state()
+        try:
+            from .services.product_agent_service import _get_dynamic_service
+            svc = _get_dynamic_service()
+            agents = svc.get_all_agents()
+            state.start(len(agents))
+            logger.info(
+                f"[Preload] Starting background PDF preloading for {len(agents)} products",
+                category=LogCategory.BUSINESS,
+            )
+            for product_id, agent in agents.items():
+                state.update(product_id)
+                try:
+                    if agent.knowledge_store:
+                        agent.knowledge_store._ensure_loaded()
+                except Exception as e:
+                    logger.warning(f"[Preload] Failed to preload {product_id}: {e}")
+                state.advance()
+            state.finish()
+            logger.info(
+                f"[Preload] Completed: {state.loaded}/{state.total} products in {state.elapsed_seconds}s",
+                category=LogCategory.BUSINESS,
+            )
+        except Exception as e:
+            state.finish(error=str(e))
+            logger.error(f"[Preload] Fatal error: {e}", category=LogCategory.BUSINESS)
+
+    preload_thread = threading.Thread(
+        target=_preload_all_knowledge_stores,
+        name="pdf-preload",
+        daemon=True,
+    )
+    preload_thread.start()
+
     yield
 
     # ==================== Application Shutdown ====================

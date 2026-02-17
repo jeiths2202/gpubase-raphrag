@@ -44,9 +44,21 @@ class ServicesHealth(BaseModel):
     vision_llm: Optional[ServiceHealth] = None
 
 
+class PreloadStatus(BaseModel):
+    """PDF knowledge store preload progress"""
+    total: int = Field(description="Total products to preload")
+    loaded: int = Field(description="Products loaded so far")
+    current_product: str = Field(default="", description="Currently loading product")
+    is_running: bool = Field(description="Whether preloading is in progress")
+    is_done: bool = Field(description="Whether preloading completed")
+    elapsed_seconds: float = Field(description="Time elapsed in seconds")
+    error: Optional[str] = None
+
+
 class HealthResponse(BaseModel):
     """Health check response"""
     status: HealthStatus
     version: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     services: ServicesHealth
+    preload: Optional[PreloadStatus] = None
