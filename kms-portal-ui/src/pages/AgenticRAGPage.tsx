@@ -514,13 +514,32 @@ export const AgenticRAGPage: React.FC = () => {
               break;
             }
 
-            case 'plan_step':
-              // 플랜 단계 진행 알림
+            case 'plan_step': {
+              // 플랜 단계를 timeline에 추가
+              const ps = event as Record<string, unknown>;
+              useTraceStore.getState().updateFromTraceData({
+                timeline_event: {
+                  event: 'plan_step',
+                  task_id: `step_${(ps.step_index as number) + 1}`,
+                  agent_type: (ps.agent_type as string) || 'planner',
+                  timestamp: new Date().toISOString(),
+                  success: true,
+                },
+              });
               break;
+            }
 
             case 'trace_data': {
-              // TracePanel DAG 업데이트
-              useTraceStore.getState().updateFromTraceData(event as Record<string, unknown>);
+              // TracePanel DAG 업데이트 — trace_data 내부 객체를 추출하여 전달
+              const traceOuter = event as Record<string, unknown>;
+              const traceInner = traceOuter.trace_data as Record<string, unknown> | undefined;
+              if (traceInner) {
+                useTraceStore.getState().updateFromTraceData(traceInner);
+                // DAG 구조가 포함된 경우 TracePanel 자동 열기
+                if (traceInner.dag) {
+                  useTraceStore.getState().openPanel();
+                }
+              }
               break;
             }
 

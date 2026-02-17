@@ -85,15 +85,18 @@ class MultiProductCollaborationService:
                 if not llm_service:
                     return {"product": pid, "answer": context[:500], "score": 0.3}
 
-                adapter_product = rag_service._map_to_adapter_product(pid)
-                result = await llm_service.generate(
+                adapter_product = rag_service._map_product_for_llm(pid)
+                # generate_stream supports product (Multi-LoRA), generate does not
+                tokens = []
+                async for token in llm_service.generate_stream(
                     question=query,
                     context=context,
                     max_tokens=1024,
                     temperature=0.3,
                     product=adapter_product,
-                )
-                answer = result if isinstance(result, str) else str(result)
+                ):
+                    tokens.append(token)
+                answer = "".join(tokens)
                 best_score = search_ctx.structured_results[0].relevance_score
 
                 return {"product": pid, "answer": answer, "score": best_score}

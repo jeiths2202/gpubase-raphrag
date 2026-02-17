@@ -7,6 +7,8 @@ AgenticRAGService를 래핑하여 Feature Flag에 따라
 import asyncio
 import logging
 import time
+import uuid
+from datetime import datetime, timezone
 from typing import AsyncGenerator, Dict, Any, List, Optional
 
 from ...models.agentic_rag import (
@@ -230,6 +232,32 @@ class TeamOrchestrator:
         # Pattern A: Parallel Retrieval
         # =================================================================
         if self._settings.AGENT_TEAMS_PARALLEL_RETRIEVAL:
+            dag_id = f"dag-{uuid.uuid4().hex[:8]}"
+            _now_iso = lambda: datetime.now(timezone.utc).isoformat()
+
+            # DAG 구조 전송: routing → retrieval(parallel) → generation
+            dag_tasks = [
+                {"task_id": "t-route", "description": "Product Routing", "agent_type": "planner", "status": "completed", "dependencies": []},
+                {"task_id": "t-pdf", "description": "PDF RAG Search", "agent_type": "rag", "status": "pending", "dependencies": ["t-route"]},
+                {"task_id": "t-web", "description": "Web Doc Search", "agent_type": "rag", "status": "pending", "dependencies": ["t-route"]},
+                {"task_id": "t-gen", "description": "Response Generation", "agent_type": "rag", "status": "pending", "dependencies": ["t-pdf", "t-web"]},
+            ]
+            yield {
+                "type": "trace_data",
+                "trace_data": {
+                    "trace_id": dag_id,
+                    "dag": {
+                        "tasks": dag_tasks,
+                        "execution_batches": [["t-route"], ["t-pdf", "t-web"], ["t-gen"]],
+                        "parallelism_type": "partial",
+                    },
+                },
+            }
+            # routing completed timeline
+            yield {"type": "trace_data", "trace_data": {
+                "timeline_event": {"event": "task_complete", "task_id": "t-route", "agent_type": "planner", "timestamp": _now_iso(), "success": True},
+            }}
+
             yield {
                 "type": "search_progress",
                 "product": primary_product,
@@ -244,12 +272,52 @@ class TeamOrchestrator:
                 f"query_type={query_type}"
             )
 
+            # retrieval start events
+            for _tid in ("t-pdf", "t-web"):
+                yield {"type": "trace_data", "trace_data": {
+                    "current_task": {"task_id": _tid, "status": "running", "start_time": _now_iso()},
+                    "timeline_event": {"event": "task_start", "task_id": _tid, "agent_type": "rag", "timestamp": _now_iso()},
+                }}
+
             winner, loser = await self._get_parallel_retrieval().retrieve_parallel(
                 query=request.message,
                 product_ids=product_ids,
                 language=request.language or "ja",
                 query_type=query_type,
             )
+
+            # retrieval complete events
+            def _retrieval_ms(source: str) -> int:
+                if winner.source == source:
+                    return winner.latency_ms or 0
+                if loser and loser.source == source:
+                    return loser.latency_ms or 0
+                return 0
+
+            def _retrieval_score(source: str) -> float:
+                if winner.source == source:
+                    return winner.score
+                if loser and loser.source == source:
+                    return loser.score
+                return 0.0
+
+            for _tid, _src in (("t-pdf", "pdf_rag"), ("t-web", "web_doc")):
+                _ms = _retrieval_ms(_src)
+                yield {"type": "trace_data", "trace_data": {
+                    "current_task": {"task_id": _tid, "status": "completed", "end_time": _now_iso(), "latency_ms": _ms},
+                    "timeline_event": {"event": "task_complete", "task_id": _tid, "agent_type": "rag", "timestamp": _now_iso(), "success": True, "latency_ms": _ms},
+                }}
+            # retrieval quality assessment
+            _assess = {}
+            for _tid, _src in (("t-pdf", "pdf_rag"), ("t-web", "web_doc")):
+                _sc = _retrieval_score(_src)
+                _max = max(winner.score, 0.001)
+                _assess[_tid] = {
+                    "passed": _sc > 0,
+                    "score": round(min(_sc / _max, 1.0), 2),
+                    "issues": [] if _sc > 0 else [f"No results from {_src}"],
+                }
+            yield {"type": "trace_data", "trace_data": {"evaluations": _assess}}
 
             yield {
                 "type": "retrieval_comparison",
@@ -285,6 +353,12 @@ class TeamOrchestrator:
                             "pattern": "domain_specialist",
                         }
 
+                        # t-gen running (domain specialist)
+                        yield {"type": "trace_data", "trace_data": {
+                            "current_task": {"task_id": "t-gen", "status": "running", "start_time": _now_iso()},
+                            "timeline_event": {"event": "task_start", "task_id": "t-gen", "agent_type": "rag", "timestamp": _now_iso()},
+                        }}
+                        _gen_start_c = time.time()
                         answers = await specialists.generate_specialist_answers(
                             query=request.message,
                             context=winner.context,
@@ -335,11 +409,21 @@ class TeamOrchestrator:
                                         pattern_used="domain_specialist",
                                     )
 
+                                # t-gen completed (domain specialist)
+                                _gen_ms = int((time.time() - _gen_start_c) * 1000)
+                                yield {"type": "trace_data", "trace_data": {
+                                    "current_task": {"task_id": "t-gen", "status": "completed", "end_time": _now_iso(), "latency_ms": _gen_ms},
+                                    "timeline_event": {"event": "task_complete", "task_id": "t-gen", "agent_type": "rag", "timestamp": _now_iso(), "success": True, "latency_ms": _gen_ms},
+                                }}
+                                yield {"type": "trace_data", "trace_data": {"evaluations": {"t-gen": {
+                                    "passed": bool(best.answer and len(best.answer) > 50),
+                                    "score": round(best.confidence, 2) if best else 0.0,
+                                    "issues": [] if best and best.answer else ["Empty response"],
+                                }}}}
+
                                 yield {
                                     "type": "done",
-                                    "processing_time_ms": int(
-                                        (time.time() - start) * 1000
-                                    ),
+                                    "processing_time_ms": int((time.time() - start) * 1000),
                                     "product": primary_product,
                                     "products": product_ids,
                                 }
@@ -360,6 +444,12 @@ class TeamOrchestrator:
                         "pattern": "competitive_hypothesis",
                     }
 
+                    # t-gen running (competitive hypothesis)
+                    yield {"type": "trace_data", "trace_data": {
+                        "current_task": {"task_id": "t-gen", "status": "running", "start_time": _now_iso()},
+                        "timeline_event": {"event": "task_start", "task_id": "t-gen", "agent_type": "rag", "timestamp": _now_iso()},
+                    }}
+                    _gen_start_b = time.time()
                     adapter_product = rag._map_product_for_llm(primary_product)
                     hyp_result = await self._get_competitive().generate_and_evaluate(
                         query=request.message,
@@ -391,17 +481,32 @@ class TeamOrchestrator:
                                 pattern_used="competitive_hypothesis",
                             )
 
+                        # t-gen completed (competitive hypothesis)
+                        _gen_ms = int((time.time() - _gen_start_b) * 1000)
+                        yield {"type": "trace_data", "trace_data": {
+                            "current_task": {"task_id": "t-gen", "status": "completed", "end_time": _now_iso(), "latency_ms": _gen_ms},
+                            "timeline_event": {"event": "task_complete", "task_id": "t-gen", "agent_type": "rag", "timestamp": _now_iso(), "success": True, "latency_ms": _gen_ms},
+                        }}
+                        yield {"type": "trace_data", "trace_data": {"evaluations": {"t-gen": {
+                            "passed": bool(hyp_winner.answer and len(hyp_winner.answer) > 50),
+                            "score": round(hyp_winner.score, 2),
+                            "issues": [] if hyp_winner.answer else ["Empty response"],
+                        }}}}
+
                         yield {
                             "type": "done",
-                            "processing_time_ms": int(
-                                (time.time() - start) * 1000
-                            ),
+                            "processing_time_ms": int((time.time() - start) * 1000),
                             "product": primary_product,
                             "products": product_ids,
                         }
                         return
 
                 # 표준 LLM 스트리밍 (Pattern A 승자 컨텍스트 사용)
+                _gen_start = time.time()
+                yield {"type": "trace_data", "trace_data": {
+                    "current_task": {"task_id": "t-gen", "status": "running", "start_time": _now_iso()},
+                    "timeline_event": {"event": "task_start", "task_id": "t-gen", "agent_type": "rag", "timestamp": _now_iso()},
+                }}
                 full_response = ""
                 async for token in rag._stream_llm_from_context(
                     request.message,
@@ -444,6 +549,18 @@ class TeamOrchestrator:
                         retrieval_source=winner.source,
                         pattern_used="parallel_retrieval",
                     )
+
+                # t-gen completed (standard LLM streaming)
+                _gen_ms = int((time.time() - _gen_start) * 1000)
+                yield {"type": "trace_data", "trace_data": {
+                    "current_task": {"task_id": "t-gen", "status": "completed", "end_time": _now_iso(), "latency_ms": _gen_ms},
+                    "timeline_event": {"event": "task_complete", "task_id": "t-gen", "agent_type": "rag", "timestamp": _now_iso(), "success": True, "latency_ms": _gen_ms},
+                }}
+                yield {"type": "trace_data", "trace_data": {"evaluations": {"t-gen": {
+                    "passed": len(full_response) > 50,
+                    "score": round(min(len(full_response) / 500.0, 1.0), 2),
+                    "issues": [] if full_response else ["Empty response"],
+                }}}}
 
                 yield {
                     "type": "done",

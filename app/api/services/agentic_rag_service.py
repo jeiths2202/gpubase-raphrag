@@ -11,6 +11,10 @@ import logging
 import os
 import re
 import time
+import uuid
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from ..core.logging_framework import get_logger
@@ -179,6 +183,79 @@ def _clean_inline_metadata(content: str) -> str:
     return '\n'.join(cleaned).strip()
 
 
+# =========================================================================
+# Query Pattern Analysis (Parallel / Pipeline / Single)
+# =========================================================================
+
+class QueryPatternType(str, Enum):
+    PARALLEL = "parallel"
+    PIPELINE = "pipeline"
+    SINGLE = "single"
+
+
+@dataclass
+class QueryPatternResult:
+    pattern: QueryPatternType
+    subjects: List[str]
+    confidence: float
+
+
+def _iso_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _task_status_event(
+    task_id: str, status: str, *, latency_ms: int | None = None,
+) -> dict:
+    _EVENT_MAP = {"running": "task_start", "completed": "task_complete", "failed": "task_failed"}
+    event_name = _EVENT_MAP.get(status, f"task_{status}")
+    time_key = "start_time" if status == "running" else "end_time"
+    extra: dict = {}
+    if status == "completed":
+        extra["success"] = True
+    if latency_ms is not None:
+        extra["latency_ms"] = latency_ms
+    current_task: dict = {"task_id": task_id, "status": status, time_key: _iso_now()}
+    if latency_ms is not None:
+        current_task["latency_ms"] = latency_ms
+    return {
+        "type": "trace_data",
+        "trace_data": {
+            "current_task": current_task,
+            "timeline_event": {
+                "event": event_name, "task_id": task_id,
+                "agent_type": "rag", "timestamp": _iso_now(),
+                **extra,
+            },
+        },
+    }
+
+
+# Subject extraction patterns (for comparison queries)
+_COMPARISON_SUBJECT_PATTERNS = [
+    # Japanese: AとBを比較 / AとBの違い
+    re.compile(r'(.+?)と(.+?)(?:を|の)(?:比較|対比|違い|差|相違)', re.IGNORECASE),
+    # Japanese: AとBについて...比較 — capture only up to の/について boundary
+    re.compile(r'(.+?)と(.+?)(?:の|について|に関して)', re.IGNORECASE),
+    # Korean: A와 B 비교 / A과 B 차이
+    re.compile(r'(.+?)(?:와|과|랑)\s*(.+?)(?:를|을|의)?\s*(?:비교|대조|차이|다른|구분)', re.IGNORECASE),
+    re.compile(r'(.+?)(?:와|과|랑)\s*(.+?)(?:에\s*대해|관해)', re.IGNORECASE),
+    # English: compare A and B / A vs B
+    re.compile(r'(?:compare|contrast)\s+(.+?)\s+(?:and|with|vs\.?|versus)\s+(.+?)(?:\s|$)', re.IGNORECASE),
+    re.compile(r'(.+?)\s+(?:vs\.?|versus)\s+(.+?)(?:\s|$)', re.IGNORECASE),
+]
+
+# Sequential task extraction patterns
+_SEQUENTIAL_TASK_PATTERNS = [
+    # Japanese: AをリストしてからB生成
+    re.compile(r'(.+?)(?:を検索|をリスト|を調べ|を探).+?(?:して|してから|した後)\s*(.+?)(?:して|を生成|を作成|してください|$)', re.IGNORECASE),
+    # Korean: A 리스트업하고 B 생성해줘
+    re.compile(r'(.+?)(?:리스트업|검색|조회|찾아).+?(?:하고|한\s*후)\s*(.+?)(?:생성|작성|만들어|해줘|해주세요|$)', re.IGNORECASE),
+    # English: first A then B / find A and then generate B
+    re.compile(r'(?:first|find|search|list)\s+(.+?)(?:and\s+then|then)\s+(.+?)$', re.IGNORECASE),
+]
+
+
 class AgenticRAGService:
     """
     Agentic RAG 오케스트레이터
@@ -189,6 +266,7 @@ class AgenticRAGService:
     3. QueryTypeClassifier.classify() → 정형/비정형 판별
     4a. 정형 → TemplateResponseBuilder.build() (환각 0%)
     4b. 비정형 → LLM 생성 + ResponseVerifier.verify()
+    5. (NEW) 비교/순차 패턴 → 병렬/파이프라인 DAG 실행
     """
 
     def __init__(
@@ -261,6 +339,49 @@ class AgenticRAGService:
             logger.info(f"Auto-detected agent_mode=PLANNER (single hit)")
             return AgentMode.PLANNER
         return AgentMode.RAG
+
+    # ------------------------------------------------------------------
+    # Query Pattern Analysis (parallel / pipeline / single)
+    # ------------------------------------------------------------------
+
+    def _analyze_query_pattern(self, message: str) -> QueryPatternResult:
+        """쿼리 패턴 분석: 비교(병렬) / 순차(파이프라인) / 단일 판별"""
+        # 1) 비교 패턴 (PARALLEL)
+        for pat in _COMPARISON_SUBJECT_PATTERNS:
+            m = pat.search(message)
+            if m:
+                subjects = [g.strip() for g in m.groups() if g and g.strip()]
+                if len(subjects) >= 2:
+                    logger.info(
+                        f"Query pattern=PARALLEL, subjects={subjects}"
+                    )
+                    return QueryPatternResult(
+                        pattern=QueryPatternType.PARALLEL,
+                        subjects=subjects,
+                        confidence=0.85,
+                    )
+
+        # 2) 순차 패턴 (PIPELINE)
+        for pat in _SEQUENTIAL_TASK_PATTERNS:
+            m = pat.search(message)
+            if m:
+                tasks = [g.strip() for g in m.groups() if g and g.strip()]
+                if len(tasks) >= 2:
+                    logger.info(
+                        f"Query pattern=PIPELINE, tasks={tasks}"
+                    )
+                    return QueryPatternResult(
+                        pattern=QueryPatternType.PIPELINE,
+                        subjects=tasks,
+                        confidence=0.80,
+                    )
+
+        # 3) 기본값: 단일
+        return QueryPatternResult(
+            pattern=QueryPatternType.SINGLE,
+            subjects=[],
+            confidence=1.0,
+        )
 
     def _resolve_search_products(
         self,
@@ -662,6 +783,35 @@ class AgenticRAGService:
         """SSE 스트리밍 채팅"""
         start = time.time()
 
+        # 0. Query Pattern Analysis (비교/순차 → DAG 실행)
+        try:
+            pattern = self._analyze_query_pattern(request.message)
+            if pattern.pattern == QueryPatternType.PARALLEL:
+                _dag_done = False
+                async for event in self._stream_parallel_comparison(
+                    request, pattern, start,
+                ):
+                    yield event
+                    if event.get("type") == "done":
+                        _dag_done = True
+                if _dag_done:
+                    return
+                # fallback: 병렬 검색 실패 → 단일 모드로 계속 진행
+                logger.info("Parallel comparison fallback → single mode")
+            if pattern.pattern == QueryPatternType.PIPELINE:
+                _dag_done = False
+                async for event in self._stream_pipeline(
+                    request, pattern, start,
+                ):
+                    yield event
+                    if event.get("type") == "done":
+                        _dag_done = True
+                if _dag_done:
+                    return
+                logger.info("Pipeline fallback → single mode")
+        except Exception as e:
+            logger.warning(f"Pattern analysis failed, falling back to SINGLE: {e}")
+
         # 1. 통합 제품 해석
         product_ids, router_result = self._resolve_search_products(request)
 
@@ -929,6 +1079,322 @@ class AgenticRAGService:
             "product": primary_product,
             "products": product_ids,
             "query_type": query_type.value,
+        }
+
+    # ------------------------------------------------------------------
+    # Parallel Comparison Streaming (DAG: 병렬 검색 → 합성)
+    # ------------------------------------------------------------------
+
+    async def _stream_parallel_comparison(
+        self,
+        request: AgenticRAGRequest,
+        pattern: QueryPatternResult,
+        start: float,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """비교 쿼리를 병렬 검색 + LLM 합성으로 처리"""
+        subjects = pattern.subjects
+        language = request.language or "ja"
+        dag_id = f"dag-{uuid.uuid4().hex[:8]}"
+
+        # DAG 구조 정의
+        task_ids = [f"search-{i}" for i in range(len(subjects))]
+        synthesis_id = "synthesis"
+        dag_tasks = [
+            {
+                "task_id": tid,
+                "description": f"Search: {subj}",
+                "agent_type": "rag",
+                "status": "pending",
+                "dependencies": [],
+            }
+            for tid, subj in zip(task_ids, subjects)
+        ] + [
+            {
+                "task_id": synthesis_id,
+                "description": "Compare & Synthesize",
+                "agent_type": "rag",
+                "status": "pending",
+                "dependencies": task_ids,
+            },
+        ]
+
+        # DAG 구조 전송
+        yield {
+            "type": "trace_data",
+            "trace_data": {
+                "trace_id": dag_id,
+                "dag": {
+                    "tasks": dag_tasks,
+                    "execution_batches": [task_ids, [synthesis_id]],
+                    "parallelism_type": "full",
+                },
+            },
+        }
+
+        # 각 subject별 제품 라우팅 + 검색 (병렬)
+        query_type = self.query_type_classifier.classify(request.message)
+        llm_sem = asyncio.Semaphore(2)  # vLLM 동시 요청 제한
+
+        async def _search_subject(idx: int, subject: str):
+            """개별 subject 검색: 라우팅 → 에이전트 검색"""
+            async with llm_sem:
+                # 원본 질문 전체를 검색 쿼리로 사용 (subject는 라우팅 힌트)
+                search_query = request.message
+
+                # subject 기반으로 제품 라우팅
+                sub_result = self.query_router.classify(
+                    subject, language, history=request.history,
+                )
+                pids = []
+                if sub_result.decision == RouterDecision.CONFIRMED:
+                    pids = [sub_result.product]
+                elif sub_result.all_scores:
+                    top_pid = max(sub_result.all_scores, key=sub_result.all_scores.get)
+                    pids = [top_pid]
+                # 명시적 제품 선택이 있으면 우선
+                if request.effective_products:
+                    pids = request.effective_products
+
+                if not pids:
+                    logger.info(f"Parallel search: no products for subject '{subject}'")
+                    return idx, subject, None
+
+                ctx = await self._multi_product_search(
+                    query=search_query,
+                    product_ids=pids,
+                    query_type=query_type,
+                )
+                return idx, subject, ctx
+
+        # 검색 시작 이벤트
+        for i, tid in enumerate(task_ids):
+            yield _task_status_event(tid, "running")
+
+        # 병렬 실행
+        search_tasks = [
+            _search_subject(i, subj) for i, subj in enumerate(subjects)
+        ]
+        results = await asyncio.gather(*search_tasks, return_exceptions=True)
+
+        # 검색 완료 이벤트 + context 수집
+        contexts: List[str] = []
+        all_search_results: List = []
+        product_ids_used: List[str] = []
+        _search_start = time.time()
+        _completed_indices: set = set()
+        for result in results:
+            if isinstance(result, (Exception, BaseException)):
+                logger.warning(
+                    f"Parallel search error: {type(result).__name__}: {result}",
+                    exc_info=result,
+                )
+                continue
+            idx, subject, ctx = result
+            _completed_indices.add(idx)
+            tid = task_ids[idx]
+            _elapsed = int((time.time() - _search_start) * 1000)
+            n_results = len(ctx.structured_results) if ctx and ctx.structured_results else 0
+            yield _task_status_event(tid, "completed", latency_ms=_elapsed)
+            # Evaluation: 검색 결과 품질 평가
+            yield {
+                "type": "trace_data",
+                "trace_data": {
+                    "evaluations": {
+                        tid: {
+                            "passed": n_results > 0,
+                            "score": min(n_results / 5.0, 1.0),
+                            "issues": [] if n_results > 0 else [f"No results for '{subject}'"],
+                        }
+                    }
+                },
+            }
+            if ctx and ctx.structured_results:
+                all_search_results.extend(ctx.structured_results)
+                section = self._build_llm_context(ctx.structured_results)
+                contexts.append(f"【{subject}】\n{section}")
+                if ctx.product and ctx.product not in product_ids_used:
+                    product_ids_used.append(ctx.product)
+
+        # 미완료 태스크에 failed 상태 전송
+        for i, tid in enumerate(task_ids):
+            if i not in _completed_indices:
+                yield _task_status_event(tid, "failed")
+
+        if not contexts:
+            # 병렬 검색 실패 → 단일 모드 fallback (원래 stream_chat 흐름)
+            logger.info("Parallel comparison: no results, falling back to single mode")
+            return
+
+        # 합성タスク開始
+        _synth_start = time.time()
+        yield _task_status_event(synthesis_id, "running")
+
+        # LLM 合成: 各 subject の検索結果をまとめて比較回答生成
+        combined_context = "\n\n".join(contexts)
+        if len(combined_context) > self._MAX_LLM_CONTEXT_CHARS:
+            combined_context = combined_context[: self._MAX_LLM_CONTEXT_CHARS] + "..."
+
+        comparison_prompt = (
+            f"以下の情報を基に、{' と '.join(subjects)} を比較してください。\n\n"
+            f"質問: {request.message}\n\n{combined_context}"
+        )
+
+        primary_product = product_ids_used[0] if product_ids_used else "auto"
+        full_response = ""
+        async for token in self._stream_llm_from_context(
+            comparison_prompt, primary_product, combined_context, language,
+            history=request.history,
+        ):
+            full_response += token
+            yield {"type": "llm_token", "token": token}
+
+        _synth_elapsed = int((time.time() - _synth_start) * 1000)
+        yield _task_status_event(synthesis_id, "completed", latency_ms=_synth_elapsed)
+        # Evaluation: 합성 결과 평가
+        yield {
+            "type": "trace_data",
+            "trace_data": {
+                "evaluations": {
+                    synthesis_id: {
+                        "passed": len(full_response) > 50,
+                        "score": min(len(full_response) / 500.0, 1.0),
+                        "issues": [] if len(full_response) > 50 else ["Response too short"],
+                    }
+                }
+            },
+        }
+
+        yield self._build_sources_event(all_search_results)
+        yield {
+            "type": "done",
+            "processing_time_ms": int((time.time() - start) * 1000),
+            "product": primary_product,
+            "products": product_ids_used,
+            "query_type": query_type.value,
+            "dag_id": dag_id,
+        }
+
+    # ------------------------------------------------------------------
+    # Pipeline Streaming (DAG: 순차 실행, Task2에 Task1 결과 전달)
+    # ------------------------------------------------------------------
+
+    async def _stream_pipeline(
+        self,
+        request: AgenticRAGRequest,
+        pattern: QueryPatternResult,
+        start: float,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """순차 쿼리를 파이프라인 실행으로 처리"""
+        tasks_desc = pattern.subjects
+        language = request.language or "ja"
+        dag_id = f"dag-{uuid.uuid4().hex[:8]}"
+
+        # DAG 구조: task-0 → task-1 → ...
+        task_ids = [f"task-{i}" for i in range(len(tasks_desc))]
+        dag_tasks = []
+        for i, (tid, desc) in enumerate(zip(task_ids, tasks_desc)):
+            dag_tasks.append({
+                "task_id": tid,
+                "description": desc,
+                "agent_type": "rag",
+                "status": "pending",
+                "dependencies": [task_ids[i - 1]] if i > 0 else [],
+            })
+
+        yield {
+            "type": "trace_data",
+            "trace_data": {
+                "trace_id": dag_id,
+                "dag": {
+                    "tasks": dag_tasks,
+                    "execution_batches": [[tid] for tid in task_ids],
+                    "parallelism_type": "pipeline",
+                },
+            },
+        }
+
+        # 순차 실행
+        query_type = self.query_type_classifier.classify(request.message)
+        prev_context = ""
+        all_search_results: List = []
+        product_ids_used: List[str] = []
+
+        for i, (tid, task_text) in enumerate(zip(task_ids, tasks_desc)):
+            _step_start = time.time()
+            yield _task_status_event(tid, "running")
+
+            # 이전 태스크 결과를 컨텍스트에 추가
+            enriched_query = task_text
+            if prev_context:
+                enriched_query = f"{task_text}\n\n[前の結果]\n{prev_context}"
+
+            # 제품 라우팅
+            sub_result = self.query_router.classify(
+                task_text, language, history=request.history,
+            )
+            pids = []
+            if sub_result.decision == RouterDecision.CONFIRMED:
+                pids = [sub_result.product]
+            elif sub_result.all_scores:
+                top_pid = max(sub_result.all_scores, key=sub_result.all_scores.get)
+                pids = [top_pid]
+            if request.effective_products:
+                pids = request.effective_products
+
+            n_results = 0
+            if pids:
+                ctx = await self._multi_product_search(
+                    query=enriched_query,
+                    product_ids=pids,
+                    query_type=query_type,
+                )
+                if ctx and ctx.structured_results:
+                    n_results = len(ctx.structured_results)
+                    all_search_results.extend(ctx.structured_results)
+                    prev_context = self._build_llm_context(ctx.structured_results)
+                    if ctx.product and ctx.product not in product_ids_used:
+                        product_ids_used.append(ctx.product)
+
+            _step_elapsed = int((time.time() - _step_start) * 1000)
+            yield _task_status_event(tid, "completed", latency_ms=_step_elapsed)
+            yield {
+                "type": "trace_data",
+                "trace_data": {
+                    "evaluations": {
+                        tid: {
+                            "passed": n_results > 0,
+                            "score": min(n_results / 5.0, 1.0),
+                            "issues": [] if n_results > 0 else [f"No results for '{task_text}'"],
+                        }
+                    }
+                },
+            }
+
+        # 最終応答: LLM ストリーミング
+        if prev_context:
+            if len(prev_context) > self._MAX_LLM_CONTEXT_CHARS:
+                prev_context = prev_context[: self._MAX_LLM_CONTEXT_CHARS] + "..."
+            primary_product = product_ids_used[0] if product_ids_used else "auto"
+            async for token in self._stream_llm_from_context(
+                request.message, primary_product, prev_context, language,
+                history=request.history,
+            ):
+                yield {"type": "llm_token", "token": token}
+        else:
+            yield {
+                "type": "error",
+                "message": "パイプライン実行で結果が得られませんでした。",
+            }
+            return
+
+        yield self._build_sources_event(all_search_results)
+        yield {
+            "type": "done",
+            "processing_time_ms": int((time.time() - start) * 1000),
+            "product": primary_product,
+            "products": product_ids_used,
+            "query_type": query_type.value,
+            "dag_id": dag_id,
         }
 
     async def _generate_with_llm(
@@ -1701,11 +2167,13 @@ class AgenticRAGService:
             # TracePanel DAG 이벤트
             yield {
                 "type": "trace_data",
-                "trace_id": trace_id,
-                "dag": {
-                    "tasks": tasks,
-                    "execution_batches": execution_batches,
-                    "parallelism_type": parallelism,
+                "trace_data": {
+                    "trace_id": trace_id,
+                    "dag": {
+                        "tasks": tasks,
+                        "execution_batches": execution_batches,
+                        "parallelism_type": parallelism,
+                    },
                 },
             }
 
@@ -1749,7 +2217,7 @@ class AgenticRAGService:
         if not matches:
             # 대시/불릿 리스트 패턴도 시도
             bullet_pattern = re.compile(
-                r'(?:^|\n)\s*[-*]\s*\*?\*?(?:Step\s*\d*:?\s*)?(.+?)(?=\n\s*[-*]|\Z)',
+                r'(?:^|\n)\s*[-*•・]\s*\*?\*?(?:Step\s*\d*:?\s*)?(.+?)(?=\n\s*[-*•・]|\Z)',
                 re.DOTALL | re.IGNORECASE,
             )
             bullet_matches = bullet_pattern.findall(plan_text)
