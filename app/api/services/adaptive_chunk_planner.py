@@ -258,11 +258,34 @@ class AdaptiveChunkPlanner(AdaptiveChunkPlannerPort):
     ) -> List[Tuple[int, str]]:
         """Extract text from PDF pages."""
         try:
-            from . import pdf_compat
+            import fitz
 
-            all_pages = pdf_compat.extract_all_pages_text(pdf_content)
-            pages = [(pn, text) for pn, text in all_pages if text.strip()]
+            doc = fitz.open(stream=pdf_content, filetype="pdf")
+            pages = []
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                text = page.get_text()
+                if text.strip():
+                    pages.append((page_num + 1, text))
+            doc.close()
             return pages
+
+        except ImportError:
+            # Fallback to pypdf
+            try:
+                from pypdf import PdfReader
+
+                pdf_file = io.BytesIO(pdf_content)
+                reader = PdfReader(pdf_file)
+                pages = []
+                for i, page in enumerate(reader.pages):
+                    text = page.extract_text() or ""
+                    if text.strip():
+                        pages.append((i + 1, text))
+                return pages
+            except Exception as e:
+                logger.error(f"Failed to extract PDF text: {e}")
+                return []
 
         except Exception as e:
             logger.error(f"Failed to extract PDF text: {e}")

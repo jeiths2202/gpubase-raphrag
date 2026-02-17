@@ -313,9 +313,9 @@ class PDFParser(BaseDocumentParser):
             return parsed_result
 
         try:
-            from . import pdf_compat
+            import fitz  # PyMuPDF for page-to-image conversion
 
-            total_pages = pdf_compat.get_page_count(pdf_content)
+            pdf_doc = fitz.open(stream=pdf_content, filetype="pdf")
             pages = parsed_result.get("pages", [])
             enhanced_pages = []
             full_text_parts = []
@@ -336,13 +336,17 @@ class PDFParser(BaseDocumentParser):
                     (processing_mode == "vlm_enhanced" and char_count < MIN_TEXT_THRESHOLD)
                 )
 
-                if needs_ocr and page_num <= total_pages:
+                if needs_ocr and page_num <= len(pdf_doc):
                     try:
-                        # Convert page to image (2x zoom for OCR)
-                        img_bytes = pdf_compat.render_page_png(pdf_content, page_num - 1, zoom=2.0)
+                        # Convert page to image
+                        fitz_page = pdf_doc[page_num - 1]
+                        # Use higher resolution for better OCR (2x zoom)
+                        mat = fitz.Matrix(2, 2)
+                        pix = fitz_page.get_pixmap(matrix=mat)
+                        img_bytes = pix.tobytes("png")
 
                         # Check if page is mostly blank before OCR
-                        if pdf_compat.is_blank_page(img_bytes):
+                        if self._is_blank_page(pix):
                             print(f"[OCR] Page {page_num}: Skipped (blank page)")
                             enhanced_pages.append(page_info)
                             full_text_parts.append(page_text)
@@ -390,6 +394,8 @@ class PDFParser(BaseDocumentParser):
                     enhanced_pages.append(page_info)
                     full_text_parts.append(page_text)
 
+            pdf_doc.close()
+
             # Update result with enhanced pages
             parsed_result["pages"] = enhanced_pages
             parsed_result["text_content"] = "\n\n".join(full_text_parts)
@@ -401,38 +407,35 @@ class PDFParser(BaseDocumentParser):
 
             return parsed_result
 
+        except ImportError:
+            print("[OCR] PyMuPDF (fitz) not available for page-to-image conversion")
+            return parsed_result
         except Exception as e:
             print(f"[OCR] VLM enhancement failed: {e}")
             return parsed_result
 
-    def _is_blank_page(self, png_bytes: bytes) -> bool:
+    def _is_blank_page(self, pixmap) -> bool:
         """
         Check if a page image is mostly blank/white.
 
         Args:
-            png_bytes: PNG image bytes
+            pixmap: PyMuPDF pixmap object
 
         Returns:
             True if page is mostly blank (>95% white pixels)
         """
         try:
-            from . import pdf_compat
-            return pdf_compat.is_blank_page(png_bytes)
-        except Exception:
-            return False
-
-    # Legacy compatibility - kept for reference but no longer called
-    def _is_blank_page_legacy(self, pixmap) -> bool:
-        """Legacy PyMuPDF pixmap-based blank page detection (unused)."""
-        try:
+            # Get pixel data as samples
             samples = pixmap.samples
             width, height = pixmap.width, pixmap.height
-            n = pixmap.n
+            n = pixmap.n  # Number of components (RGB=3, RGBA=4, Gray=1)
 
-            white_threshold = 250
+            # Count white/near-white pixels
+            white_threshold = 250  # Near white (0-255)
             total_pixels = width * height
             white_pixels = 0
 
+            # Sample every 10th pixel for performance
             step = 10 * n
             for i in range(0, len(samples) - n + 1, step):
                 # Check if pixel is white (all components >= threshold)
@@ -568,25 +571,26 @@ class PDFParser(BaseDocumentParser):
         if not metadata["title"]:
             metadata["title"] = options.get("filename", "Untitled").replace(".pdf", "")
 
-        # Create image info list with actual image data
+        # Create image info list with actual image data using PyMuPDF
         images = []
         if options.get("extract_images", True):
             try:
-                from . import pdf_compat
-
-                total_pages = pdf_compat.get_page_count(content)
+                import fitz  # PyMuPDF
+                pdf_doc = fitz.open(stream=content, filetype="pdf")
                 img_idx = 0
-                for page_num in range(total_pages):
-                    image_list = pdf_compat.get_images_metadata(content, page_num)
-                    for img_index, img in enumerate(image_list):
+                for page_num in range(len(pdf_doc)):
+                    page = pdf_doc[page_num]
+                    image_list = page.get_images(full=True)
+                    for img in image_list:
                         try:
-                            base_image = pdf_compat.extract_image_data(content, page_num, img_index)
+                            xref = img[0]
+                            base_image = pdf_doc.extract_image(xref)
                             if base_image:
                                 image_bytes = base_image["image"]
                                 image_ext = base_image["ext"]
+                                # Only include images larger than 100x100
                                 width = base_image.get("width", 0)
                                 height = base_image.get("height", 0)
-                                # Only include images larger than 100x100
                                 if width >= 100 and height >= 100:
                                     images.append(ImageInfo(
                                         id=f"img_{uuid.uuid4().hex[:8]}",
@@ -602,6 +606,17 @@ class PDFParser(BaseDocumentParser):
                                     img_idx += 1
                         except Exception as img_err:
                             pass  # Skip problematic images
+                pdf_doc.close()
+            except ImportError:
+                # PyMuPDF not available, create metadata-only entries
+                for i in range(image_count):
+                    images.append(ImageInfo(
+                        id=f"img_{uuid.uuid4().hex[:8]}",
+                        page_number=0,
+                        position={"x": 0, "y": 0, "width": 0, "height": 0},
+                        description=f"Image {i + 1}",
+                        alt_text=f"Embedded image {i + 1}"
+                    ))
             except Exception as e:
                 print(f"Image extraction error: {e}")
 

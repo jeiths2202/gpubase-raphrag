@@ -105,32 +105,39 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
             document_name: Original filename for source reference
         """
         try:
-            from . import pdf_compat
+            import fitz  # PyMuPDF
+
+            doc = fitz.open(stream=pdf_content, filetype="pdf")
 
             # Extract text and compute page hashes
-            pages_text = pdf_compat.extract_all_pages_text(pdf_content)
+            pages_text = []
             page_hashes = {}
             total_images = 0
             total_tables = 0
 
-            images_per_page = pdf_compat.count_images_per_page(pdf_content)
-
-            for page_num_1, text in pages_text:
-                page_idx = page_num_1 - 1
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                text = page.get_text()
+                pages_text.append((page_num + 1, text))
 
                 # Compute page hash for incremental processing
                 page_hash = hashlib.sha256(text.encode()).hexdigest()
-                page_hashes[str(page_num_1)] = page_hash
+                page_hashes[str(page_num + 1)] = page_hash
 
                 # Count images
-                total_images += images_per_page.get(page_idx, 0)
+                image_list = page.get_images(full=False)
+                total_images += len(image_list)
 
                 # Detect tables (heuristic: multiple patterns)
+                # 1. Markdown table: |...|
+                # 2. Tab-separated: multiple tabs
+                # 3. Definition list: 用語/説明, Term/Description patterns (JP/EN docs)
+                # 4. Aligned columns: repeated "  " spacing patterns
                 has_table = (
-                    re.search(r'(\|.*\|)|(\t.*\t.*\t)', text) or
-                    re.search(r'(説明|Description)\s*\n\s*(用語|Term|項目|パラメータ)', text, re.IGNORECASE) or
-                    re.search(r'(用語|Term|項目|パラメータ)\s*\n\s*(説明|Description)', text, re.IGNORECASE) or
-                    len([line for line in text.split('\n') if re.match(r'^[^\s]{2,20}\s{2,}[^\s]', line)]) > 3
+                    re.search(r'(\|.*\|)|(\t.*\t.*\t)', text) or  # Markdown or tabs
+                    re.search(r'(説明|Description)\s*\n\s*(用語|Term|項目|パラメータ)', text, re.IGNORECASE) or  # JP/EN definition header
+                    re.search(r'(用語|Term|項目|パラメータ)\s*\n\s*(説明|Description)', text, re.IGNORECASE) or  # Reversed header
+                    len([line for line in text.split('\n') if re.match(r'^[^\s]{2,20}\s{2,}[^\s]', line)]) > 3  # Aligned columns
                 )
                 if has_table:
                     total_tables += 1
@@ -148,8 +155,10 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
             # Extract hierarchy
             hierarchy = await self._extract_hierarchy_internal(pages_text, language)
 
-            # Analyze layout (uses pdf_compat for page dimensions)
-            layout_info = self._analyze_layout_compat(pdf_content, pages_text)
+            # Analyze layout
+            layout_info = self._analyze_layout(doc, pages_text)
+
+            doc.close()
 
             return PDFStructureAnalysis(
                 pdf_id=pdf_id,
@@ -165,6 +174,9 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
                 document_name=document_name
             )
 
+        except ImportError:
+            logger.warning("PyMuPDF not available, using fallback analysis")
+            return await self._fallback_analyze(pdf_content, pdf_id, language, document_name)
         except Exception as e:
             logger.error(f"PDF structure analysis failed: {e}")
             raise
@@ -172,14 +184,16 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
     async def detect_document_type(self, pdf_content: bytes) -> DocumentType:
         """Detect document type based on content patterns."""
         try:
-            from . import pdf_compat
+            import fitz
 
-            all_pages = pdf_compat.extract_all_pages_text(pdf_content)
+            doc = fitz.open(stream=pdf_content, filetype="pdf")
 
             # Sample first few pages for classification
             sample_text = ""
-            for page_num_1, text in all_pages[:5]:
-                sample_text += text
+            for i in range(min(5, len(doc))):
+                sample_text += doc[i].get_text()
+
+            doc.close()
 
             sample_lower = sample_text.lower()
 
@@ -209,9 +223,17 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
     ) -> List[Dict[str, Any]]:
         """Extract section hierarchy from PDF."""
         try:
-            from . import pdf_compat
+            import fitz
 
-            pages_text = pdf_compat.extract_all_pages_text(pdf_content)
+            doc = fitz.open(stream=pdf_content, filetype="pdf")
+
+            pages_text = []
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                text = page.get_text()
+                pages_text.append((page_num + 1, text))
+
+            doc.close()
 
             if language == "auto":
                 full_text = "\n".join([text for _, text in pages_text])
@@ -337,21 +359,13 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
             return 1
         return 1
 
-    def _analyze_layout_compat(self, source, pages_text: List[Tuple[int, str]]) -> LayoutInfo:
-        """Analyze document layout using pdf_compat."""
+    def _analyze_layout(self, doc, pages_text: List[Tuple[int, str]]) -> LayoutInfo:
+        """Analyze document layout."""
         try:
-            from . import pdf_compat
-
             # Get page dimensions from first page
-            pw, ph = pdf_compat.get_page_dimensions(source, 0)
-            page_dimensions = {"width": pw, "height": ph}
-
-            # Create a simple object with width attribute for column detection
-            class _Rect:
-                def __init__(self, w, h):
-                    self.width = w
-                    self.height = h
-            rect = _Rect(pw, ph)
+            first_page = doc[0]
+            rect = first_page.rect
+            page_dimensions = {"width": rect.width, "height": rect.height}
 
             # Detect columns (heuristic: check text block distribution)
             columns = 1
@@ -521,23 +535,25 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
             List of extracted image data dicts
         """
         try:
-            from . import pdf_compat
+            import fitz
 
-            total_pages = pdf_compat.get_page_count(pdf_content)
+            doc = fitz.open(stream=pdf_content, filetype="pdf")
             extracted_images = []
 
-            for page_num in range(total_pages):
+            for page_num in range(len(doc)):
                 if len(extracted_images) >= max_images:
                     break
 
-                image_list = pdf_compat.get_images_metadata(pdf_content, page_num)
+                page = doc[page_num]
+                image_list = page.get_images(full=True)
 
                 for img_index, img_info in enumerate(image_list):
                     if len(extracted_images) >= max_images:
                         break
 
                     try:
-                        base_image = pdf_compat.extract_image_data(pdf_content, page_num, img_index)
+                        xref = img_info[0]
+                        base_image = doc.extract_image(xref)
 
                         if not base_image:
                             continue
@@ -564,13 +580,16 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
                         }
                         mime_type = mime_map.get(image_ext.lower(), f"image/{image_ext}")
 
-                        # Image position (estimated from extracted dimensions)
-                        position = {
-                            "x": 0,
-                            "y": 0,
-                            "width": width,
-                            "height": height
-                        }
+                        # Get image position on page
+                        position = None
+                        for img_rect in page.get_image_rects(xref):
+                            position = {
+                                "x": img_rect.x0,
+                                "y": img_rect.y0,
+                                "width": img_rect.width,
+                                "height": img_rect.height
+                            }
+                            break
 
                         extracted_images.append({
                             "image_id": image_id,
@@ -590,9 +609,13 @@ class PDFStructureAnalyzer(PDFStructureAnalyzerPort):
                         logger.warning(f"Failed to extract image {img_index} from page {page_num + 1}: {img_error}")
                         continue
 
+            doc.close()
             logger.info(f"Extracted {len(extracted_images)} images from PDF {pdf_id}")
             return extracted_images
 
+        except ImportError:
+            logger.warning("PyMuPDF not available for image extraction")
+            return []
         except Exception as e:
             logger.error(f"Image extraction failed: {e}")
             return []

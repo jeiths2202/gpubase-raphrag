@@ -165,6 +165,12 @@ class PDFPageLoaderService:
         Returns:
             List of PageContent for each requested page
         """
+        try:
+            import fitz  # PyMuPDF
+        except ImportError:
+            logger.error("PyMuPDF (fitz) not installed. Run: pip install pymupdf")
+            return []
+
         # Find actual PDF path
         actual_path = self._find_pdf_path(pdf_path)
         if not actual_path:
@@ -224,13 +230,13 @@ class PDFPageLoaderService:
         Returns:
             List of PageContent
         """
-        from . import pdf_compat
+        import fitz
 
         results = []
-        path_str = str(pdf_path)
 
         try:
-            total_pages = pdf_compat.get_page_count(path_str)
+            doc = fitz.open(str(pdf_path))
+            total_pages = len(doc)
 
             for page_num in page_numbers:
                 # Convert to 0-indexed
@@ -241,15 +247,17 @@ class PDFPageLoaderService:
                     continue
 
                 try:
+                    page = doc[idx]
+
                     # Extract text
-                    text = pdf_compat.extract_text_plain(path_str, idx)
+                    text = page.get_text("text")
 
                     # Extract tables (attempt structured extraction)
-                    tables = self._extract_tables_from_path(path_str, idx)
+                    tables = self._extract_tables_from_page(page)
 
                     # Extract image metadata
                     images = []
-                    for img_index, img in enumerate(pdf_compat.get_images_metadata(path_str, idx)):
+                    for img_index, img in enumerate(page.get_images(full=True)):
                         images.append({
                             "index": img_index,
                             "xref": img[0],
@@ -258,12 +266,11 @@ class PDFPageLoaderService:
                         })
 
                     # Page metadata
-                    pw, ph = pdf_compat.get_page_dimensions(path_str, idx)
                     metadata = {
-                        "pdf_path": path_str,
+                        "pdf_path": str(pdf_path),
                         "total_pages": total_pages,
-                        "page_width": pw,
-                        "page_height": ph,
+                        "page_width": page.rect.width,
+                        "page_height": page.rect.height,
                     }
 
                     results.append(PageContent(
@@ -277,36 +284,39 @@ class PDFPageLoaderService:
                 except Exception as e:
                     logger.warning(f"Failed to extract page {page_num} from {pdf_path}: {e}")
 
+            doc.close()
+
         except Exception as e:
             logger.error(f"Failed to open PDF {pdf_path}: {e}")
 
         return results
 
-    def _extract_tables_from_path(self, pdf_path: str, page_num: int) -> List[str]:
+    def _extract_tables_from_page(self, page) -> List[str]:
         """
         Attempt to extract table structures from a PDF page.
 
-        Uses pdf_compat dict-style text extraction with block analysis
+        Uses PyMuPDF's text extraction with block analysis
         to identify table-like structures.
 
         Args:
-            pdf_path: Path to PDF file
-            page_num: 0-indexed page number
+            page: PyMuPDF page object
 
         Returns:
             List of markdown-formatted tables
         """
-        from . import pdf_compat
         tables = []
 
         try:
-            page_dict = pdf_compat.extract_text_dict(pdf_path, page_num)
-            blocks = page_dict.get("blocks", [])
+            # Get text blocks with positioning
+            blocks = page.get_text("dict")["blocks"]
 
+            # Look for table-like structures (aligned columns)
+            table_blocks = []
             for block in blocks:
                 if block.get("type") == 0:  # Text block
                     lines = block.get("lines", [])
-                    if len(lines) >= 3:
+                    if len(lines) >= 3:  # Potential table (header + separator + rows)
+                        # Check for column alignment
                         if self._looks_like_table(lines):
                             table_text = self._extract_table_text(lines)
                             if table_text:

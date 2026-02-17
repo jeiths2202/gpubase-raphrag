@@ -287,9 +287,10 @@ class DocumentAnalyzer:
     ) -> DocumentVisualProfile:
         """Analyze PDF from bytes."""
         try:
-            from . import pdf_compat
+            import fitz  # PyMuPDF
 
-            profile.total_pages = pdf_compat.get_page_count(pdf_bytes)
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            profile.total_pages = len(doc)
 
             total_text_chars = 0
             total_image_area = 0.0
@@ -297,27 +298,29 @@ class DocumentAnalyzer:
             image_count = 0
             table_count = 0
 
-            # Batch extract text for all pages
-            all_pages = pdf_compat.extract_all_pages_text(pdf_bytes)
-            # Batch count images per page
-            images_per_page = pdf_compat.count_images_per_page(pdf_bytes)
-
-            for page_num_1, text in all_pages:
-                page_idx = page_num_1 - 1
-                pw, ph = pdf_compat.get_page_dimensions(pdf_bytes, page_idx)
-                page_area = pw * ph
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                page_rect = page.rect
+                page_area = page_rect.width * page_rect.height
                 total_page_area += page_area
 
+                # Extract text
+                text = page.get_text()
                 total_text_chars += len(text)
 
-                # Count images
-                page_img_count = images_per_page.get(page_idx, 0)
-                image_count += page_img_count
-                total_image_area += page_area * 0.2 * page_img_count  # Conservative estimate
+                # Count and measure images
+                images = page.get_images(full=True)
+                for img in images:
+                    image_count += 1
+                    # Estimate image area (simplified)
+                    # Full implementation would get actual image bounds
+                    total_image_area += page_area * 0.2  # Conservative estimate
 
-                # Detect tables
+                # Detect tables (simplified: look for table-like text patterns)
                 if self._has_table_pattern(text):
                     table_count += 1
+
+            doc.close()
 
             # Calculate metrics
             profile.image_count = image_count
@@ -339,6 +342,8 @@ class DocumentAnalyzer:
             # Visual element detection (sample first few pages)
             await self._detect_visual_elements_in_pdf(pdf_bytes, profile)
 
+        except ImportError:
+            logger.warning("PyMuPDF not available for PDF analysis")
         except Exception as e:
             logger.error(f"Error analyzing PDF bytes: {e}")
 
@@ -494,14 +499,20 @@ class DocumentAnalyzer:
     ) -> None:
         """Detect charts, diagrams in PDF pages."""
         try:
-            from . import pdf_compat
+            import fitz
 
-            total_pages = pdf_compat.get_page_count(pdf_bytes)
-            pages_to_check = min(3, total_pages)
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+            # Sample first 3 pages for visual detection
+            pages_to_check = min(3, len(doc))
 
             for page_num in range(pages_to_check):
-                # Render at 1x zoom (72 DPI) for speed
-                img_bytes = pdf_compat.render_page_png(pdf_bytes, page_num, zoom=1.0)
+                page = doc[page_num]
+
+                # Render page to image for analysis
+                mat = fitz.Matrix(1.0, 1.0)  # Low resolution for speed
+                pix = page.get_pixmap(matrix=mat)
+                img_bytes = pix.tobytes("png")
 
                 # Detect visual elements
                 chart_result = await self._detect_chart(img_bytes)
@@ -515,6 +526,8 @@ class DocumentAnalyzer:
                 # Early exit if both found
                 if profile.has_charts and profile.has_diagrams:
                     break
+
+            doc.close()
 
         except Exception as e:
             logger.warning(f"Visual element detection failed: {e}")

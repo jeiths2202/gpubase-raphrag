@@ -46,9 +46,6 @@ from .admin_dashboard.router import router as admin_dashboard_router
 mode_manager = get_app_mode_manager()
 logger = get_logger("kms.main")
 
-# Preload status — shared between lifespan task and health endpoint
-from .core.preload_state import preload_status
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -575,60 +572,6 @@ async def lifespan(app: FastAPI):
             "Running in PRODUCT mode - optimized for performance",
             category=LogCategory.BUSINESS
         )
-
-    # ==================== Background Knowledge Store Preloading ====================
-    # Preload all product knowledge stores in a daemon thread.
-    # asyncio.to_thread() hangs on Windows ProactorEventLoop, and running
-    # synchronously in create_task() blocks the event loop during PDF parsing.
-    # A plain threading.Thread runs independently and never blocks the server.
-    import threading
-
-    def _preload_knowledge_stores_thread():
-        """Daemon thread: preload all product knowledge stores."""
-        import time
-        start = time.monotonic()
-        try:
-            from .services.product_agent_service import get_all_product_agents
-            agents = get_all_product_agents()
-            total = len(agents)
-            preload_status["state"] = "loading"
-            preload_status["total"] = total
-            print(f"[Preload] Starting background preload for {total} products...")
-            for i, (product_id, agent) in enumerate(agents.items(), 1):
-                try:
-                    t0 = time.monotonic()
-                    preload_status["current_product"] = product_id
-                    if agent and agent.knowledge_store:
-                        agent.knowledge_store._ensure_loaded()
-                        dt = time.monotonic() - t0
-                        preload_status["loaded"] += 1
-                        print(f"[Preload] ({i}/{total}) Loaded {product_id} in {dt:.1f}s")
-                    else:
-                        print(f"[Preload] ({i}/{total}) Skipped {product_id} (no knowledge store)")
-                except Exception as e:
-                    preload_status["failed"] += 1
-                    print(f"[Preload] ({i}/{total}) Failed {product_id}: {e}")
-            elapsed = time.monotonic() - start
-            preload_status["state"] = "completed"
-            preload_status["current_product"] = None
-            preload_status["elapsed_seconds"] = round(elapsed, 1)
-            print(
-                f"[Preload] Completed in {elapsed:.1f}s "
-                f"({preload_status['loaded']} loaded, {preload_status['failed']} failed, {total} total)"
-            )
-        except Exception as e:
-            preload_status["state"] = "failed"
-            preload_status["current_product"] = None
-            print(f"[Preload] Background preload failed: {e}")
-            import traceback
-            traceback.print_exc()
-
-    _preload_thread = threading.Thread(
-        target=_preload_knowledge_stores_thread,
-        name="knowledge-preload",
-        daemon=True,
-    )
-    _preload_thread.start()
 
     yield
 

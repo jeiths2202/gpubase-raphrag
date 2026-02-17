@@ -1397,13 +1397,13 @@ class AgenticRAGService:
             if not pdf_path or page_num < 0:
                 continue
             try:
-                from . import pdf_compat
-                total_pages = pdf_compat.get_page_count(pdf_path)
+                import pymupdf
+                doc = pymupdf.open(pdf_path)
                 product_id = r.product or "unknown"
                 # 해당 페이지 + 다음 1페이지만 스캔 (인접 무관 테이블 방지)
-                for p in range(page_num, min(page_num + 2, total_pages)):
+                for p in range(page_num, min(page_num + 2, len(doc))):
                     try:
-                        tables = pdf_compat.find_tables(pdf_path, p)
+                        tables = doc[p].find_tables()
                         for table in tables:
                             data = table.extract()
                             md = StructuredKnowledgeStore._table_to_markdown(data)
@@ -1414,7 +1414,7 @@ class AgenticRAGService:
                         pass
                     try:
                         imgs = StructuredKnowledgeStore._extract_page_images(
-                            pdf_path, p, product_id,
+                            doc, p, product_id,
                             pdf_name=os.path.basename(pdf_path),
                         )
                         for img_md in imgs:
@@ -1423,6 +1423,7 @@ class AgenticRAGService:
                                 images_md.append(img_md)
                     except Exception:
                         pass
+                doc.close()
             except Exception:
                 continue
 
