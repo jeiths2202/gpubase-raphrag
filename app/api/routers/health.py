@@ -19,12 +19,18 @@ router = APIRouter(prefix="/health", tags=["Health"])
 
 def _convert_health_result(result: dict) -> ServiceHealth:
     """Convert health check result to ServiceHealth model"""
-    status = HealthStatus.HEALTHY if result.get("status") == "healthy" else HealthStatus.UNHEALTHY
+    raw_status = result.get("status", "unhealthy")
+    if raw_status == "healthy":
+        status = HealthStatus.HEALTHY
+    elif raw_status == "disabled":
+        status = HealthStatus.UNHEALTHY  # disabled → unhealthy for display
+    else:
+        status = HealthStatus.UNHEALTHY
     return ServiceHealth(
         status=status,
         response_time_ms=result.get("response_time_ms"),
         gpu=result.get("gpu"),
-        error=result.get("error")
+        error=result.get("error") or result.get("reason")
     )
 
 
@@ -53,20 +59,22 @@ async def health_check(
 
     # Convert other service health results
     neo4j = _convert_health_result(services_data.get("neo4j", {}))
-    qwen_llm = _convert_health_result(services_data.get("qwen_llm", {}))
+    multi_lora_dpo = _convert_health_result(services_data.get("multi_lora_dpo", {}))
     embedding = _convert_health_result(services_data.get("embedding", {}))
-    codeqwen = _convert_health_result(services_data.get("codeqwen", {}))
-    vision_llm = _convert_health_result(services_data.get("vision_llm", {}))
-    learning_llm = _convert_health_result(services_data.get("learning_llm", {}))
+
+    # Optional disabled services
+    qwen_llm_data = services_data.get("qwen_llm")
+    codeqwen_data = services_data.get("code_llm") or services_data.get("codeqwen")
+    vision_llm_data = services_data.get("vision_llm")
 
     services = ServicesHealth(
         api=api_health,
         neo4j=neo4j,
-        qwen_llm=qwen_llm,
+        multi_lora_dpo=multi_lora_dpo,
         embedding=embedding,
-        codeqwen=codeqwen,
-        vision_llm=vision_llm,
-        learning_llm=learning_llm
+        qwen_llm=_convert_health_result(qwen_llm_data) if qwen_llm_data else None,
+        codeqwen=_convert_health_result(codeqwen_data) if codeqwen_data else None,
+        vision_llm=_convert_health_result(vision_llm_data) if vision_llm_data else None,
     )
 
     # Determine overall status from result
@@ -98,9 +106,9 @@ async def readiness_check(
     health_service = Depends(get_health_service)
 ):
     """Kubernetes readiness probe"""
-    # Check critical services only
+    # Check critical services: Neo4j + active LLM (Multi-LoRA DPO)
     neo4j = await health_service.check_neo4j()
-    llm = await health_service.check_llm()
+    llm = await health_service.check_learning_llm()
 
     if neo4j.get("status") == "healthy" and llm.get("status") == "healthy":
         return {"status": "ready"}

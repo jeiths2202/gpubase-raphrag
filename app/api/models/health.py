@@ -26,19 +26,22 @@ class ServiceHealth(BaseModel):
 class ServicesHealth(BaseModel):
     """All services health status
 
-    GPU Allocation:
-    - GPU 4: qwen_llm (Qwen2.5-7B-Instruct)
-    - GPU 5: embedding (NeMo Embedding)
-    - GPU 6: vision_llm (LLaMA-3.1-Nemotron-Nano-VL)
-    - GPU 7: codeqwen (Qwen2.5-Coder-3B) + learning_llm (Qwen2.5-7B-AWQ)
+    Active GPU Allocation:
+    - GPU 4-7: multi_lora_dpo (Qwen2.5-72B + 15 DPO adapters, 4x A100-40GB, port 12810)
+    - GPU 5: embedding (NeMo Embedding, port 12801)
+
+    Disabled:
+    - qwen_llm (port 12800) - ENABLE_QWEN_LLM=false
+    - codeqwen (port 12802) - not deployed
+    - vision_llm (port 12803) - not deployed
     """
     api: ServiceHealth
     neo4j: ServiceHealth
-    qwen_llm: ServiceHealth
+    multi_lora_dpo: ServiceHealth
     embedding: ServiceHealth
-    codeqwen: ServiceHealth
-    vision_llm: ServiceHealth
-    learning_llm: ServiceHealth
+    qwen_llm: Optional[ServiceHealth] = None
+    codeqwen: Optional[ServiceHealth] = None
+    vision_llm: Optional[ServiceHealth] = None
 
 
 class HealthResponse(BaseModel):
