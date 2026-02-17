@@ -15,7 +15,7 @@ const isGoogleConfigured = !!GOOGLE_CLIENT_ID;
 // Google Login Button Component - only uses hook when configured
 interface GoogleLoginButtonProps {
   onSuccess: (token: string) => Promise<void>;
-  onError: () => void;
+  onError: (errorDetail?: string) => void;
   label: string;
 }
 
@@ -23,11 +23,20 @@ const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({ onSuccess, onErro
   // Only call hook if Google is configured (component is only rendered when configured)
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
+      console.log('[GoogleLogin] Success - received access token');
       if (tokenResponse.access_token) {
         await onSuccess(tokenResponse.access_token);
       }
     },
-    onError,
+    onError: (errorResponse) => {
+      console.error('[GoogleLogin] Error:', errorResponse);
+      const detail = typeof errorResponse === 'object'
+        ? (errorResponse as Record<string, string>)?.error_description
+          || (errorResponse as Record<string, string>)?.error
+          || JSON.stringify(errorResponse)
+        : String(errorResponse);
+      onError(detail);
+    },
   });
 
   return (
@@ -187,8 +196,12 @@ const LoginPage: React.FC = () => {
     }
   }, [loginWithGoogle, navigate]);
 
-  const handleGoogleError = useCallback(() => {
-    setLocalError(t('auth.errors.googleLoginFailed'));
+  const handleGoogleError = useCallback((errorDetail?: string) => {
+    console.error('[GoogleLogin] handleGoogleError:', errorDetail);
+    const msg = errorDetail
+      ? `${t('auth.errors.googleLoginFailed')} (${errorDetail})`
+      : t('auth.errors.googleLoginFailed');
+    setLocalError(msg);
   }, [t]);
 
   const handleSSOLogin = async () => {
