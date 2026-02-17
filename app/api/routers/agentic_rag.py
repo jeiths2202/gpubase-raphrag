@@ -145,6 +145,29 @@ async def chat(
         response = await service.chat(request)
         response.processing_time_ms = int((time.time() - start) * 1000)
 
+        # Log query with token usage
+        try:
+            from ..infrastructure.services.query_log_writer import get_query_log_writer
+            writer = get_query_log_writer()
+            if writer:
+                msg_len = len(request.message)
+                resp_len = len(response.answer) if response.answer else 0
+                await writer.submit_query({
+                    'user_id': request.user_id,
+                    'query_text': request.message,
+                    'agent_type': 'agentic_rag',
+                    'intent_type': response.query_type or 'unknown',
+                    'category': response.product or request.product or 'auto',
+                    'language': request.language or 'ja',
+                    'execution_time_ms': response.processing_time_ms,
+                    'input_tokens': max(1, int(msg_len / 1.5)),
+                    'output_tokens': max(0, int(resp_len / 1.5)),
+                    'success': True,
+                    'response_summary': request.message[:200],
+                })
+        except Exception as log_err:
+            logger.debug(f"Query log write failed (non-blocking): {log_err}")
+
         return response
     except TimeoutError:
         raise HTTPException(
@@ -173,16 +196,58 @@ async def stream_chat(
     )
 
     async def generate():
-        """Generate SSE events (Agent Teams 패턴 적용)"""
+        """Generate SSE events (Agent Teams 패턴 적용) with token tracking"""
+        start_time = time.time()
+        output_chars = 0
+        success = True
+        product = request.product or "auto"
+        query_type = "unknown"
+
         try:
             from ..services.agent_teams.team_orchestrator import get_team_orchestrator
             orchestrator = get_team_orchestrator()
             async for event in orchestrator.stream_chat_enhanced(request):
+                # Track output tokens from llm_token events
+                if event.get("type") == "llm_token":
+                    output_chars += len(event.get("token", ""))
+                elif event.get("type") == "done":
+                    product = event.get("product", product)
+                    query_type = event.get("query_type", query_type)
+                elif event.get("type") == "error":
+                    success = False
+
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
         except Exception as e:
             logger.error(f"Agentic RAG stream error: {e}")
+            success = False
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        finally:
+            # Log query with token usage (non-blocking)
+            try:
+                from ..infrastructure.services.query_log_writer import get_query_log_writer
+                writer = get_query_log_writer()
+                if writer:
+                    # Estimate tokens: CJK ~1.5 chars/token, Latin ~4 chars/token
+                    msg_len = len(request.message)
+                    input_tokens = max(1, int(msg_len / 1.5))
+                    output_tokens = max(0, int(output_chars / 1.5))
+
+                    await writer.submit_query({
+                        'user_id': request.user_id,
+                        'query_text': request.message,
+                        'agent_type': 'agentic_rag',
+                        'intent_type': query_type,
+                        'category': product,
+                        'language': request.language or 'ja',
+                        'execution_time_ms': int((time.time() - start_time) * 1000),
+                        'input_tokens': input_tokens,
+                        'output_tokens': output_tokens,
+                        'success': success,
+                        'response_summary': request.message[:200],
+                    })
+            except Exception as log_err:
+                logger.debug(f"Query log write failed (non-blocking): {log_err}")
 
     return StreamingResponse(
         generate(),

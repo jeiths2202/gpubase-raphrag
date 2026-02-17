@@ -28,6 +28,89 @@ class QueryLogRepository:
         """
         self.pool = pool
         self.logger = AppLogger("query_log_repository")
+        self._tables_ensured = False
+
+    async def ensure_tables(self) -> None:
+        """Create query_log and query_aggregates tables if they don't exist"""
+        if self._tables_ensured:
+            return
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS query_log (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_id VARCHAR(255),
+                        session_id VARCHAR(255),
+                        conversation_id UUID,
+                        query_text TEXT NOT NULL,
+                        query_normalized TEXT,
+                        query_hash VARCHAR(64),
+                        agent_type VARCHAR(50) NOT NULL DEFAULT 'general',
+                        intent_type VARCHAR(50),
+                        category VARCHAR(100),
+                        language VARCHAR(10) DEFAULT 'auto',
+                        execution_time_ms INTEGER,
+                        input_tokens INTEGER DEFAULT 0,
+                        output_tokens INTEGER DEFAULT 0,
+                        success BOOLEAN DEFAULT true,
+                        response_summary TEXT,
+                        is_public BOOLEAN DEFAULT true,
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                await conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_query_log_created_at
+                    ON query_log (created_at)
+                """)
+                await conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_query_log_agent_type
+                    ON query_log (agent_type)
+                """)
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS query_aggregates (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        query_normalized TEXT NOT NULL,
+                        query_hash VARCHAR(64) UNIQUE NOT NULL,
+                        representative_query TEXT,
+                        representative_answer TEXT,
+                        frequency_count INTEGER DEFAULT 1,
+                        last_asked_at TIMESTAMPTZ DEFAULT NOW(),
+                        first_asked_at TIMESTAMPTZ DEFAULT NOW(),
+                        unique_users_count INTEGER DEFAULT 1,
+                        agent_type VARCHAR(50),
+                        intent_type VARCHAR(50),
+                        category VARCHAR(100),
+                        popularity_score FLOAT DEFAULT 0,
+                        is_faq_eligible BOOLEAN DEFAULT false,
+                        updated_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS faq_items (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        source_type VARCHAR(20) DEFAULT 'curated',
+                        query_aggregate_id UUID,
+                        question_en TEXT,
+                        question_ko TEXT,
+                        question_ja TEXT,
+                        answer_en TEXT,
+                        answer_ko TEXT,
+                        answer_ja TEXT,
+                        category VARCHAR(100),
+                        tags JSONB DEFAULT '[]',
+                        display_order INTEGER DEFAULT 0,
+                        is_active BOOLEAN DEFAULT true,
+                        is_pinned BOOLEAN DEFAULT false,
+                        view_count INTEGER DEFAULT 0,
+                        helpful_count INTEGER DEFAULT 0,
+                        not_helpful_count INTEGER DEFAULT 0,
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+            self._tables_ensured = True
+            self.logger.info("Query log tables ensured", category=LogCategory.DATABASE)
+        except Exception as e:
+            self.logger.error(f"Failed to ensure query log tables: {e}", category=LogCategory.ERROR)
 
     @staticmethod
     def normalize_query(query: str) -> str:
@@ -100,6 +183,7 @@ class QueryLogRepository:
         Returns:
             UUID of the inserted record
         """
+        await self.ensure_tables()
         normalized = self.normalize_query(data['query_text'])
         query_hash = self.hash_query(normalized)
         sanitized = self.sanitize_query(data['query_text'])
@@ -145,6 +229,7 @@ class QueryLogRepository:
         Returns:
             Number of inserted records
         """
+        await self.ensure_tables()
         if not queries:
             return 0
 

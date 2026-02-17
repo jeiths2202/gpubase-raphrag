@@ -195,6 +195,7 @@ async def lifespan(app: FastAPI):
         from .routers.faq import set_faq_repository
 
         query_log_repo = QueryLogRepository(db_pool)
+        await query_log_repo.ensure_tables()
         query_log_writer = initialize_query_log_writer(query_log_repo)
         await start_query_log_writer()
 
