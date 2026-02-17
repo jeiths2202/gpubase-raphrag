@@ -573,39 +573,55 @@ async def lifespan(app: FastAPI):
             category=LogCategory.BUSINESS
         )
 
-    # ==================== Background Knowledge Store Preloading ====================
-    # Preload structured knowledge stores in background to compensate for pdfplumber's
-    # slower per-page parsing (~92x vs PyMuPDF). Server starts immediately while
-    # products parse in background (~8 min total for 245 PDFs).
+    # ==================== Synchronous Knowledge Store Preloading ====================
+    # Preload all product knowledge stores synchronously before server accepts requests.
+    # Server startup completes only after all 245 PDFs are parsed (~8 min with pdfplumber).
+    # Progress is logged per product so status can be monitored via server logs.
     async def _preload_knowledge_stores():
-        """Background task: preload all product knowledge stores."""
+        """Synchronous preload: parse all product PDFs before server starts."""
         import time
         start = time.monotonic()
         try:
             from .services.dynamic_product_agent_service import get_dynamic_product_agent_service
             svc = get_dynamic_product_agent_service()
             products = svc.list_products()
+            total = len(products)
+            loaded = 0
+            failed = 0
             logger.info(
-                f"[Preload] Starting background preload for {len(products)} products",
+                f"[Preload] Starting synchronous preload for {total} products...",
                 category=LogCategory.BUSINESS,
             )
-            for product_id in products:
+            for i, product_id in enumerate(products, 1):
                 try:
+                    t0 = time.monotonic()
                     agent = svc.get_agent(product_id)
                     if agent and agent.knowledge_store:
                         await asyncio.to_thread(agent.knowledge_store._ensure_loaded)
-                        logger.debug(f"[Preload] Loaded knowledge store for {product_id}")
+                        dt = time.monotonic() - t0
+                        loaded += 1
+                        logger.info(
+                            f"[Preload] ({i}/{total}) Loaded {product_id} in {dt:.1f}s",
+                            category=LogCategory.BUSINESS,
+                        )
+                    else:
+                        logger.info(
+                            f"[Preload] ({i}/{total}) Skipped {product_id} (no knowledge store)",
+                            category=LogCategory.BUSINESS,
+                        )
                 except Exception as e:
-                    logger.warning(f"[Preload] Failed for {product_id}: {e}")
+                    failed += 1
+                    logger.warning(f"[Preload] ({i}/{total}) Failed {product_id}: {e}")
             elapsed = time.monotonic() - start
             logger.info(
-                f"[Preload] Background preload completed in {elapsed:.1f}s",
+                f"[Preload] Synchronous preload completed in {elapsed:.1f}s "
+                f"({loaded} loaded, {failed} failed, {total} total)",
                 category=LogCategory.BUSINESS,
             )
         except Exception as e:
-            logger.warning(f"[Preload] Background preload failed: {e}")
+            logger.warning(f"[Preload] Synchronous preload failed: {e}")
 
-    asyncio.create_task(_preload_knowledge_stores())
+    await _preload_knowledge_stores()
 
     yield
 

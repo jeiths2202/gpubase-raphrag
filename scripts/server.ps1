@@ -22,9 +22,9 @@ param(
     [Parameter(Position=2)]
     [int]$Lines = 50,
 
-    # Health Check timeout in seconds
+    # Health Check timeout in seconds (default 600s to allow synchronous PDF preloading)
     [Parameter()]
-    [int]$Timeout = 60,
+    [int]$Timeout = 600,
 
     # Maximum retry attempts
     [Parameter()]
@@ -803,7 +803,7 @@ function Show-Usage {
     Write-Host "  logs [N]    - Show last N lines of log (default: 50)"
     Write-Host ""
     Write-Host "Options:" -ForegroundColor Yellow
-    Write-Host "  -Timeout N      - Health check timeout in seconds (default: 60)"
+    Write-Host "  -Timeout N      - Health check timeout in seconds (default: 600)"
     Write-Host "  -MaxRetries N   - Max retry attempts on failure (default: 3)"
     Write-Host "  -GracePeriod N  - Graceful shutdown timeout (default: 10)"
     Write-Host "  -SkipEnvCheck   - Skip environment variable validation"
