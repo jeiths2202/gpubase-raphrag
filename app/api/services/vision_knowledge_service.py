@@ -15,7 +15,7 @@ Architecture:
         ▼
     VisionKnowledgeService.enrich_with_vision()
         │ - PDF 경로 해석
-        │ - 페이지 이미지 렌더링 (PyMuPDF)
+        │ - 페이지 이미지 렌더링 (pypdfium2)
         │ - MiniCPM-V 호출
         ▼
     [Stage 1] Quick Relevance Filter (키워드 기반, <10ms)
@@ -703,28 +703,23 @@ class VisionKnowledgeService:
             keywords: 검색할 키워드 목록
             max_pages: 반환할 최대 페이지 수
         """
-        try:
-            import fitz  # PyMuPDF
-        except ImportError:
-            logger.warning("[VisionKnowledge] PyMuPDF not available for keyword search")
-            return []
-
         if not keywords:
             logger.debug(f"[VisionKnowledge] No keywords to search in {pdf_path.name}")
             return []
+
+        from . import pdf_compat
 
         found_pages = []
         page_scores = []  # (page_num, match_count, matched_keywords)
 
         try:
-            doc = fitz.open(pdf_path)
-            total_pages = len(doc)
+            path_str = str(pdf_path)
+            total_pages = pdf_compat.get_page_count(path_str)
 
             logger.debug(f"[VisionKnowledge] Searching {total_pages} pages in {pdf_path.name} for keywords: {keywords}")
 
             for page_num in range(total_pages):
-                page = doc[page_num]
-                text = page.get_text().upper()
+                text = pdf_compat.extract_text_plain(path_str, page_num).upper()
 
                 # 각 키워드 매칭 확인
                 matched = []
@@ -734,8 +729,6 @@ class VisionKnowledgeService:
 
                 if matched:
                     page_scores.append((page_num + 1, len(matched), matched))
-
-            doc.close()
 
             # 매칭 점수로 정렬 (가장 많은 키워드 매칭 우선)
             page_scores.sort(key=lambda x: x[1], reverse=True)
@@ -902,34 +895,25 @@ class VisionKnowledgeService:
             pdf_path: PDF 파일 경로
             pages: 렌더링할 페이지 번호 목록 (1-based)
         """
-        try:
-            import fitz  # PyMuPDF
-        except ImportError:
-            logger.error("PyMuPDF (fitz) not installed")
-            return []
+        from . import pdf_compat
 
         images = []
+        path_str = str(pdf_path)
 
         try:
-            doc = fitz.open(pdf_path)
-            total_pages = len(doc)
-
+            total_pages = pdf_compat.get_page_count(path_str)
             zoom = PDF_RENDER_DPI / 72  # Convert DPI to zoom factor
-            mat = fitz.Matrix(zoom, zoom)
 
             for page_num in pages:
                 # 1-based to 0-based index
                 idx = page_num - 1
 
                 if 0 <= idx < total_pages:
-                    page = doc[idx]
-                    pix = page.get_pixmap(matrix=mat)
-                    images.append(pix.tobytes("png"))
+                    png_bytes = pdf_compat.render_page_png(path_str, idx, zoom=zoom)
+                    images.append(png_bytes)
                     logger.debug(f"Rendered page {page_num} from {pdf_path.name}")
                 else:
                     logger.warning(f"Page {page_num} out of range (total: {total_pages})")
-
-            doc.close()
 
         except Exception as e:
             logger.error(f"Failed to render PDF {pdf_path}: {e}")

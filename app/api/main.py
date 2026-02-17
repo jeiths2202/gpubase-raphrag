@@ -573,6 +573,40 @@ async def lifespan(app: FastAPI):
             category=LogCategory.BUSINESS
         )
 
+    # ==================== Background Knowledge Store Preloading ====================
+    # Preload structured knowledge stores in background to compensate for pdfplumber's
+    # slower per-page parsing (~92x vs PyMuPDF). Server starts immediately while
+    # products parse in background (~8 min total for 245 PDFs).
+    async def _preload_knowledge_stores():
+        """Background task: preload all product knowledge stores."""
+        import time
+        start = time.monotonic()
+        try:
+            from .services.dynamic_product_agent_service import get_dynamic_product_agent_service
+            svc = get_dynamic_product_agent_service()
+            products = svc.list_products()
+            logger.info(
+                f"[Preload] Starting background preload for {len(products)} products",
+                category=LogCategory.BUSINESS,
+            )
+            for product_id in products:
+                try:
+                    agent = svc.get_agent(product_id)
+                    if agent and agent.knowledge_store:
+                        await asyncio.to_thread(agent.knowledge_store._ensure_loaded)
+                        logger.debug(f"[Preload] Loaded knowledge store for {product_id}")
+                except Exception as e:
+                    logger.warning(f"[Preload] Failed for {product_id}: {e}")
+            elapsed = time.monotonic() - start
+            logger.info(
+                f"[Preload] Background preload completed in {elapsed:.1f}s",
+                category=LogCategory.BUSINESS,
+            )
+        except Exception as e:
+            logger.warning(f"[Preload] Background preload failed: {e}")
+
+    asyncio.create_task(_preload_knowledge_stores())
+
     yield
 
     # ==================== Application Shutdown ====================

@@ -169,7 +169,7 @@ class StructuredKnowledgeStore:
 
     @staticmethod
     def _table_to_markdown(table_data: list) -> str:
-        """PyMuPDF table.extract() 결과를 GFM Markdown 테이블로 변환"""
+        """table.extract() 결과를 GFM Markdown 테이블로 변환"""
         if not table_data or len(table_data) < 2:
             return ""
         rows = [[str(c).replace("\n", " ") if c else "" for c in row] for row in table_data]
@@ -181,66 +181,47 @@ class StructuredKnowledgeStore:
         return f"{header}\n{sep}\n{body}"
 
     @staticmethod
-    def _get_shaded_rects(page) -> tuple:
+    def _get_shaded_rects_from_path(pdf_path: str, page_num: int) -> tuple:
         """페이지에서 음영(코드블록) 영역의 rect 목록 + 총 드로잉 수 반환.
 
-        PDF 매뉴얼의 명령어 예시, 출력 결과 등은 회색 배경의 사각형으로
-        표시됩니다. page.get_drawings()를 사용하여 이 영역들을 감지합니다.
+        pdf_compat.get_shaded_rects() 래퍼 (stateless path+page_num 인터페이스).
 
         Returns:
             (shaded_rects, drawing_count): 음영 rect 목록과 전체 드로잉 수.
             drawing_count는 테이블 보더 감지 pre-filter에 사용됩니다.
         """
-        rects = []
-        drawing_count = 0
-        try:
-            for d in page.get_drawings():
-                drawing_count += 1
-                fill = d.get("fill")
-                if fill is None:
-                    continue
-                rect = d.get("rect")
-                if rect is None:
-                    continue
-                w = rect.width
-                h = rect.height
-                # 코드블록 조건: 폭 > 200, 높이 >= 15, 회색 계열
-                if w < 200 or h < 15:
-                    continue
-                r, g, b = fill[0], fill[1], fill[2] if len(fill) >= 3 else (fill[0], fill[0], fill[0])
-                # 흰색(>0.98)이나 검정(<0.05) 제외, 회색 계열만
-                if r > 0.98 and g > 0.98 and b > 0.98:
-                    continue
-                if r < 0.05 and g < 0.05 and b < 0.05:
-                    continue
-                rects.append(rect)
-        except Exception:
-            pass
-        return rects, drawing_count
+        from . import pdf_compat
+        return pdf_compat.get_shaded_rects(pdf_path, page_num)
 
     @staticmethod
-    def _extract_page_text_with_codeblocks(page, extract_tables: bool = False) -> str:
+    def _extract_page_text_with_codeblocks_from_path(
+        pdf_path: str, page_num: int, extract_tables: bool = False,
+    ) -> str:
         """페이지 텍스트를 추출: 음영 → 코드블록, 테이블 → 마크다운 테이블 변환.
 
-        1. page.get_drawings()로 음영 rect 감지 → 코드블록
-        2. extract_tables=True일 때: page.find_tables()로 테이블 인라인 변환
-        3. page.get_text("dict")로 블록별 위치+텍스트 추출
+        pdf_compat 기반 stateless 인터페이스 (path + 0-indexed page_num).
+
+        1. pdf_compat.get_shaded_rects()로 음영 rect 감지 → 코드블록
+        2. extract_tables=True일 때: pdf_compat.find_tables()로 테이블 인라인 변환
+        3. pdf_compat.extract_text_dict()로 블록별 위치+텍스트 추출
         4. 테이블 영역 텍스트는 스킵, 마크다운 테이블로 교체
         5. 인접 코드 행은 하나의 ``` 블록으로 병합
 
         Args:
+            pdf_path: PDF 파일 전체 경로.
+            page_num: 0-indexed 페이지 번호.
             extract_tables: True이면 find_tables() 호출 (검색 시 lazy extraction용).
                            False(기본)이면 테이블 스킵 (초기 파싱 고속화).
         """
-        shaded_rects, drawing_count = StructuredKnowledgeStore._get_shaded_rects(page)
+        from . import pdf_compat
+
+        shaded_rects, drawing_count = pdf_compat.get_shaded_rects(pdf_path, page_num)
 
         # 테이블 감지: extract_tables=True + drawing pre-filter 일 때만
-        # find_tables()는 ~50-200ms/page → 초기 파싱 시 호출하면 4000+페이지에서 ~400초
-        # 검색 시에만 1-5페이지 대상으로 호출 (lazy extraction)
         table_regions: list = []  # [(x0, y0, x1, y1, markdown)]
         if extract_tables and drawing_count >= 5:
             try:
-                tables = page.find_tables()
+                tables = pdf_compat.find_tables(pdf_path, page_num)
                 for table in tables:
                     data = table.extract()
                     md = StructuredKnowledgeStore._table_to_markdown(data)
@@ -251,12 +232,12 @@ class StructuredKnowledgeStore:
                 pass
 
         if not shaded_rects and not table_regions:
-            return page.get_text("text") or ""
+            return pdf_compat.extract_text_plain(pdf_path, page_num) or ""
 
         try:
-            page_dict = page.get_text("dict")
+            page_dict = pdf_compat.extract_text_dict(pdf_path, page_num)
         except Exception:
-            return page.get_text("text") or ""
+            return pdf_compat.extract_text_plain(pdf_path, page_num) or ""
 
         # 테이블 영역 판정 함수
         def _in_table(cy: float, cx: float) -> bool:
@@ -330,30 +311,31 @@ class StructuredKnowledgeStore:
         return "\n".join(result)
 
     @staticmethod
-    def _extract_page_images(doc, page_num: int, product_id: str, pdf_name: str = "") -> List[str]:
+    def _extract_page_images(pdf_path: str, page_num: int, product_id: str, pdf_name: str = "") -> List[str]:
         """페이지에서 이미지를 추출하여 파일로 저장, Markdown 이미지 참조 반환
 
         Args:
+            pdf_path: PDF 파일 전체 경로.
+            page_num: 0-indexed 페이지 번호.
+            product_id: 제품 ID (이미지 저장 경로용).
             pdf_name: PDF 파일명 (확장자 포함). 동일 제품 내 PDF간 페이지 번호
                       충돌 방지를 위해 서브디렉토리로 사용.
         """
-        import pymupdf
+        from . import pdf_compat
         results = []
-        page = doc[page_num]
-        images = page.get_images(full=True)
+        images = pdf_compat.get_images_metadata(pdf_path, page_num)
 
         # PDF별 서브디렉토리 (없으면 기존 호환)
         pdf_stem = os.path.splitext(pdf_name)[0] if pdf_name else ""
 
         for img_idx, img_info in enumerate(images):
-            xref = img_info[0]
             try:
-                pix = pymupdf.Pixmap(doc, xref)
-                if pix.n > 4:  # CMYK → RGB
-                    pix = pymupdf.Pixmap(pymupdf.csRGB, pix)
+                pil_image, pix_w, pix_h = pdf_compat.extract_image_pil(pdf_path, page_num, img_idx)
+                if pil_image is None:
+                    continue
 
                 # 너무 작은 이미지 스킵 (아이콘 등)
-                if pix.width < 50 or pix.height < 50:
+                if pix_w < 50 or pix_h < 50:
                     continue
 
                 if pdf_stem:
@@ -367,7 +349,7 @@ class StructuredKnowledgeStore:
                 filepath = os.path.join(img_dir, filename)
 
                 if not os.path.exists(filepath):
-                    pix.save(filepath)
+                    pil_image.save(filepath, format="PNG")
 
                 img_url = f"/uploads/pdf_images/{url_subpath}/{filename}"
                 results.append(f"![Figure (p.{page_num + 1})]({img_url})")
@@ -376,16 +358,12 @@ class StructuredKnowledgeStore:
         return results
 
     def _parse_pdf(self, filepath: str, domain: str) -> List[Dict]:
-        """PDF 파일을 섹션 단위로 파싱 (PyMuPDF 사용)"""
+        """PDF 파일을 섹션 단위로 파싱 (pypdfium2 + pdfplumber)"""
         sections = []
-        try:
-            import pymupdf
-        except ImportError:
-            logger.warning("PyMuPDF not installed, skipping PDF parsing")
-            return sections
+        from . import pdf_compat
 
         try:
-            doc = pymupdf.open(filepath)
+            total_pages = pdf_compat.get_page_count(filepath)
         except Exception as e:
             logger.warning(f"Failed to open PDF {filepath}: {e}")
             return sections
@@ -393,14 +371,13 @@ class StructuredKnowledgeStore:
         filename = os.path.basename(filepath)
 
         # TOC 기반 섹션 분할 시도
-        toc = doc.get_toc()
+        toc = pdf_compat.open_pdf_toc(filepath)
         if toc and len(toc) >= 3:
-            sections = self._parse_pdf_by_toc(doc, toc, filename, domain, filepath)
+            sections = self._parse_pdf_by_toc(filepath, total_pages, toc, filename, domain)
         else:
             # TOC 없으면 heading 패턴 기반 fallback
-            sections = self._parse_pdf_by_headings(doc, filename, domain, filepath)
+            sections = self._parse_pdf_by_headings(filepath, total_pages, filename, domain)
 
-        doc.close()
         return sections
 
     # PDF 前付(front matter) 스킵 대상 타이틀
@@ -409,18 +386,16 @@ class StructuredKnowledgeStore:
     })
 
     def _parse_pdf_by_toc(
-        self, doc, toc: list, filename: str, domain: str, filepath: str = "",
+        self, filepath: str, total_pages: int, toc: list, filename: str, domain: str,
     ) -> List[Dict]:
         """TOC 기반 PDF 섹션 분할 (L1→L2→L3 계층 처리, 자식 있는 부모 스킵)"""
         sections = []
-        total_pages = len(doc)
 
         # 前付 스킵: "目次" 항목과 그 이전 항목 모두 건너뛰기
-        # 모든 PDF가 [표지(p.1), 目次(p.3), このガイドについて(p.7), 第1章...] 구조
         skip_until = -1
         for i, (level, title, page_num) in enumerate(toc):
             if title.strip() in self._FRONT_MATTER_TITLES:
-                skip_until = i  # 이 인덱스까지 스킵 (目次 포함)
+                skip_until = i
 
         # 부모-자식 관계 분석: L1→L2 및 L2→L3 모두 추적
         parents_with_children: set = set()
@@ -430,22 +405,20 @@ class StructuredKnowledgeStore:
             for j in range(i + 1, len(toc)):
                 next_level = toc[j][0]
                 if next_level <= level:
-                    break  # 동일/상위 레벨 → 더 이상 자식 없음
+                    break
                 if next_level == level + 1:
                     parents_with_children.add(i)
                     break
 
         for i, (level, title, page_num) in enumerate(toc):
             if i <= skip_until:
-                continue  # 前付 (表紙, 目次 등) 스킵
+                continue
             if level > 3:
-                continue  # L4 이하 무시
+                continue
 
-            # 자식이 있는 부모는 스킵 (자식이 세분화된 콘텐츠 제공)
             if i in parents_with_children:
-                # 단, 첫 자식 이전의 "개요" 텍스트는 별도 저장
                 overview = self._extract_overview_before_children(
-                    doc, toc, i, page_num, total_pages,
+                    filepath, total_pages, toc, i, page_num,
                 )
                 if overview and len(overview) > 100:
                     hier_title = self._build_hierarchical_title(toc, i)
@@ -459,7 +432,6 @@ class StructuredKnowledgeStore:
                     })
                 continue
 
-            # 다음 동일/상위 레벨 TOC 항목의 페이지 번호 (섹션 끝)
             next_page = total_pages
             for j in range(i + 1, len(toc)):
                 if toc[j][0] <= level:
@@ -470,7 +442,7 @@ class StructuredKnowledgeStore:
             content_parts = []
             for p in range(max(0, page_num - 1), min(next_page, total_pages)):
                 try:
-                    page_text = self._extract_page_text_with_codeblocks(doc[p])
+                    page_text = self._extract_page_text_with_codeblocks_from_path(filepath, p)
                     if page_text:
                         content_parts.append(page_text.strip())
                 except Exception:
@@ -484,7 +456,6 @@ class StructuredKnowledgeStore:
 
             hier_title = self._build_hierarchical_title(toc, i)
 
-            # 대규모 섹션은 서브커맨드 분할 시도
             if len(content) > self._MAX_SECTION_CHARS:
                 subsections = self._split_by_subcommands(
                     content, hier_title, filename, domain, filepath, page_num,
@@ -527,7 +498,7 @@ class StructuredKnowledgeStore:
         return current_title
 
     def _extract_overview_before_children(
-        self, doc, toc: list, parent_idx: int, parent_page: int, total_pages: int,
+        self, filepath: str, total_pages: int, toc: list, parent_idx: int, parent_page: int,
     ) -> str:
         """부모 섹션의 첫 자식 이전 텍스트 추출 (개요/도입부).
 
@@ -549,7 +520,7 @@ class StructuredKnowledgeStore:
         content_parts = []
         for p in range(max(0, parent_page - 1), min(first_child_page - 1, total_pages)):
             try:
-                page_text = self._extract_page_text_with_codeblocks(doc[p])
+                page_text = self._extract_page_text_with_codeblocks_from_path(filepath, p)
                 if page_text:
                     content_parts.append(page_text.strip())
             except Exception:
@@ -668,7 +639,7 @@ class StructuredKnowledgeStore:
         return subsections
 
     def _parse_pdf_by_headings(
-        self, doc, filename: str, domain: str, filepath: str = "",
+        self, filepath: str, total_pages: int, filename: str, domain: str,
     ) -> List[Dict]:
         """Heading 패턴 기반 PDF 섹션 분할 (TOC 없을 때)"""
         sections = []
@@ -676,9 +647,9 @@ class StructuredKnowledgeStore:
         current_content: List[str] = []
         current_page = 1
 
-        for page_num in range(len(doc)):
+        for page_num in range(total_pages):
             try:
-                page_text = self._extract_page_text_with_codeblocks(doc[page_num])
+                page_text = self._extract_page_text_with_codeblocks_from_path(filepath, page_num)
             except Exception:
                 continue
             if not page_text:
@@ -1138,52 +1109,45 @@ def enrich_content_with_tables(result: SearchResult) -> str:
         return content
 
     try:
-        import pymupdf
-        doc = pymupdf.open(pdf_path)
-        if page_num >= len(doc):
-            doc.close()
+        from . import pdf_compat
+
+        total_pages = pdf_compat.get_page_count(pdf_path)
+        if page_num >= total_pages:
             return content
 
-        page = doc[page_num]
-
         # drawing pre-filter: 테이블 보더가 없는 페이지 빠르게 스킵
-        _, drawing_count = StructuredKnowledgeStore._get_shaded_rects(page)
+        _, drawing_count = pdf_compat.get_shaded_rects(pdf_path, page_num)
 
         if drawing_count >= 5:
             # 인라인 테이블로 재추출 (extract_tables=True)
-            enriched = StructuredKnowledgeStore._extract_page_text_with_codeblocks(
-                page, extract_tables=True,
+            enriched = StructuredKnowledgeStore._extract_page_text_with_codeblocks_from_path(
+                pdf_path, page_num, extract_tables=True,
             )
             has_tables = "| ---" in enriched or "|---" in enriched
 
             if has_tables:
                 # 해당 페이지의 평문 버전 → content에서 찾아 교체
-                flat_page = StructuredKnowledgeStore._extract_page_text_with_codeblocks(
-                    page, extract_tables=False,
+                flat_page = StructuredKnowledgeStore._extract_page_text_with_codeblocks_from_path(
+                    pdf_path, page_num, extract_tables=False,
                 )
                 flat_stripped = flat_page.strip()
                 enriched_stripped = enriched.strip()
 
                 if flat_stripped and flat_stripped in content:
-                    # 정확히 일치하는 부분만 교체
                     content = content.replace(flat_stripped, enriched_stripped, 1)
                 else:
-                    # 정확 매칭 실패 → content 전체를 재추출 결과로 교체
-                    # (해당 페이지가 검색 결과의 핵심 페이지이므로)
                     content = enriched_stripped
 
         # 이미지 보강
         images_md = []
         try:
             imgs = StructuredKnowledgeStore._extract_page_images(
-                doc, page_num, result.product or "unknown",
+                pdf_path, page_num, result.product or "unknown",
                 pdf_name=os.path.basename(pdf_path),
             )
             images_md.extend(imgs)
         except Exception:
             pass
-
-        doc.close()
 
         if images_md:
             content += "\n\n" + "\n".join(images_md)
