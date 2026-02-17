@@ -1169,6 +1169,7 @@ Response:"""
             return text
 
         def topic_fallback(*args):
+            print(f"[Mindmap] Topic FALLBACK for '{topic}'")
             return self._fallback_topic_concepts(topic, language)
 
         try:
