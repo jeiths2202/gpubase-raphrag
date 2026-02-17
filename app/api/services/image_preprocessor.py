@@ -196,37 +196,25 @@ class ImagePreprocessor:
         dpi: int,
         page_numbers: Optional[List[int]] = None,
     ) -> List[ProcessedImage]:
-        """Extract PDF pages using PyMuPDF (fitz)."""
+        """Extract PDF pages as rendered PNG images."""
+        from . import pdf_compat
+
         images = []
+        zoom = dpi / 72  # Default PDF DPI is 72
+        path_str = str(pdf_path)
 
-        try:
-            import fitz  # PyMuPDF
+        total_pages = pdf_compat.get_page_count(path_str)
+        pages_to_process = page_numbers or range(1, total_pages + 1)
 
-            doc = fitz.open(str(pdf_path))
-            zoom = dpi / 72  # Default PDF DPI is 72
+        for page_num in pages_to_process:
+            page_bytes = pdf_compat.render_page_png(path_str, page_num - 1, zoom=zoom)
 
-            pages_to_process = page_numbers or range(1, len(doc) + 1)
+            # Preprocess
+            processed = await self.preprocess(page_bytes)
+            processed.page_number = page_num
+            processed.image_type = ImageType.PAGE
 
-            for page_num in pages_to_process:
-                page = doc[page_num - 1]  # 0-indexed
-                mat = fitz.Matrix(zoom, zoom)
-                pix = page.get_pixmap(matrix=mat)
-
-                # Convert to PNG bytes
-                page_bytes = pix.tobytes("png")
-
-                # Preprocess
-                processed = await self.preprocess(page_bytes)
-                processed.page_number = page_num
-                processed.image_type = ImageType.PAGE
-
-                images.append(processed)
-
-            doc.close()
-
-        except ImportError:
-            logger.error("Neither pdf2image nor PyMuPDF available for PDF extraction")
-            raise RuntimeError("PDF extraction requires pdf2image or PyMuPDF")
+            images.append(processed)
 
         return images
 
@@ -248,21 +236,19 @@ class ImagePreprocessor:
         images = []
 
         try:
-            import fitz  # PyMuPDF
+            from . import pdf_compat
 
-            doc = fitz.open(str(pdf_path))
+            path_str = str(pdf_path)
+            total_pages = pdf_compat.get_page_count(path_str)
 
-            for page_num in range(len(doc)):
-                page = doc[page_num]
-                image_list = page.get_images(full=True)
+            for page_num in range(total_pages):
+                image_list = pdf_compat.get_images_metadata(path_str, page_num)
 
                 for img_index, img in enumerate(image_list):
-                    xref = img[0]
-                    base_image = doc.extract_image(xref)
+                    base_image = pdf_compat.extract_image_data(path_str, page_num, img_index)
 
                     if base_image:
                         image_bytes = base_image["image"]
-                        image_ext = base_image["ext"]
 
                         # Check minimum size
                         pil_image = Image.open(io.BytesIO(image_bytes))
@@ -276,10 +262,6 @@ class ImagePreprocessor:
 
                         images.append(processed)
 
-            doc.close()
-
-        except ImportError:
-            logger.warning("PyMuPDF not available for embedded image extraction")
         except Exception as e:
             logger.error(f"Embedded image extraction error: {e}")
 

@@ -784,25 +784,21 @@ class PDFAdaptiveEmbeddingService:
         Returns:
             List of AdaptiveChunk with extracted table content
         """
-        import fitz  # PyMuPDF
+        from . import pdf_compat
         from .ollama_vlm_service import OllamaVLMService
 
         vlm_service = OllamaVLMService()
         table_chunks = []
 
         try:
-            doc = fitz.open(stream=pdf_content, filetype="pdf")
+            total_pages = pdf_compat.get_page_count(pdf_content)
+            all_pages = pdf_compat.extract_all_pages_text(pdf_content)
 
             # Find pages with tables (heuristic: sparse text with alignment patterns)
-            for page_num in range(len(doc)):
-                page = doc[page_num]
-                text = page.get_text()
+            for page_num_1, text in all_pages:
+                page_num = page_num_1 - 1  # 0-indexed
 
                 # Heuristic: Detect table-like patterns
-                # - Multiple lines with similar spacing/alignment
-                # - Lines with tab or multiple space separators
-                # - Definition list patterns (JP/EN docs)
-                # - Aligned columns with double spacing
                 import re
                 has_table_pattern = (
                     text.count('\t') > 3 or  # Tab-separated
@@ -816,21 +812,18 @@ class PDFAdaptiveEmbeddingService:
                 if not has_table_pattern:
                     continue
 
-                logger.info(f"[VLM Table] Detected table pattern on page {page_num + 1}")
-                print(f"[VLM Table] Processing page {page_num + 1}/{len(doc)} for table extraction...", flush=True)
+                logger.info(f"[VLM Table] Detected table pattern on page {page_num_1}")
+                print(f"[VLM Table] Processing page {page_num_1}/{total_pages} for table extraction...", flush=True)
 
-                # Render page to image
-                zoom = 2.0  # Higher resolution for better table extraction
-                mat = fitz.Matrix(zoom, zoom)
-                pixmap = page.get_pixmap(matrix=mat)
-                image_bytes = pixmap.tobytes("png")
+                # Render page to image (2x zoom for better table extraction)
+                image_bytes = pdf_compat.render_page_png(pdf_content, page_num, zoom=2.0)
 
                 # Extract tables using VLM
                 try:
                     result = await vlm_service.extract_tables_from_image(image_bytes)
                     print(f"[VLM Table] Page {page_num + 1} VLM response received, has_tables={result.get('has_tables')}", flush=True)
                 except Exception as vlm_err:
-                    print(f"[VLM Table] Page {page_num + 1} VLM error: {vlm_err}", flush=True)
+                    print(f"[VLM Table] Page {page_num_1} VLM error: {vlm_err}", flush=True)
                     continue
 
                 if result.get("has_tables") and result.get("tables_markdown"):
@@ -845,14 +838,14 @@ class PDFAdaptiveEmbeddingService:
                     # Create chunk for extracted table
                     chunk = AdaptiveChunk(
                         pdf_id=pdf_id,
-                        chunk_id=f"{pdf_id}_vlm_table_p{page_num + 1}",
+                        chunk_id=f"{pdf_id}_vlm_table_p{page_num_1}",
                         chunk_type=ChunkType.TABLE_CHUNK,
                         content=table_markdown,
-                        page_start=page_num + 1,
-                        page_end=page_num + 1,
+                        page_start=page_num_1,
+                        page_end=page_num_1,
                         content_hash=content_hash,
-                        section_title=f"Table (Page {page_num + 1})",
-                        section_path=f"/tables/page_{page_num + 1}",
+                        section_title=f"Table (Page {page_num_1})",
+                        section_path=f"/tables/page_{page_num_1}",
                         metadata={
                             "extraction_method": "vlm",
                             "vlm_confidence": result.get("confidence", 0.0),
@@ -860,9 +853,7 @@ class PDFAdaptiveEmbeddingService:
                         }
                     )
                     table_chunks.append(chunk)
-                    logger.info(f"[VLM Table] Extracted table from page {page_num + 1}: {len(table_markdown)} chars")
-
-            doc.close()
+                    logger.info(f"[VLM Table] Extracted table from page {page_num_1}: {len(table_markdown)} chars")
 
         except Exception as e:
             logger.error(f"[VLM Table] Error extracting tables: {e}")

@@ -2,45 +2,53 @@
 PDF Compatibility Layer
 
 pypdfium2 (Apache 2.0) + pdfplumber (MIT) wrapper that replaces PyMuPDF (AGPL v3).
-All PDF operations are accessed through stateless functions that accept path + page_num.
+All PDF operations are accessed through stateless functions that accept
+a source (file path or bytes) + page_num.
 
 Functions:
-    open_pdf_toc       — TOC extraction (pypdfium2)
-    get_page_count     — page count (pypdfium2)
-    get_shaded_rects   — shaded/code-block rectangles (pdfplumber)
-    extract_text_plain — plain text extraction (pdfplumber)
-    extract_text_dict  — dict-style text with bbox (pdfplumber)
-    find_tables        — table extraction (pdfplumber)
-    get_images_metadata— image info list (pdfplumber)
-    extract_image      — single image bitmap (pypdfium2)
-    render_page_png    — page → PNG bytes (pypdfium2)
-    get_page_dimensions— page width/height (pypdfium2)
+    open_pdf_toc        — TOC extraction (pypdfium2)
+    get_page_count      — page count (pypdfium2)
+    get_shaded_rects    — shaded/code-block rectangles (pdfplumber)
+    extract_text_plain  — plain text extraction (pdfplumber)
+    extract_text_dict   — dict-style text with bbox (pdfplumber)
+    find_tables         — table extraction (pdfplumber)
+    get_images_metadata — image info list (pdfplumber)
+    extract_image       — single image as PNG bytes (pypdfium2)
+    extract_image_pil   — single image as PIL Image (pypdfium2)
+    extract_image_data  — single image with metadata dict (pypdfium2)
+    render_page_png     — page → PNG bytes (pypdfium2)
+    get_page_dimensions — page width/height (pypdfium2)
+    extract_all_pages_text — all pages text in one call (pdfplumber)
+    is_blank_page       — check if PNG image is mostly blank (PIL)
 """
 import io
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
+
+# Source can be a file path (str) or raw PDF bytes
+PdfSource = Union[str, bytes]
 
 # ---------------------------------------------------------------------------
 # pypdfium2 helpers
 # ---------------------------------------------------------------------------
 
-def _open_pdfium(path: str):
-    """Open a PDF with pypdfium2. Caller must close the returned document."""
+def _open_pdfium(source: PdfSource):
+    """Open a PDF with pypdfium2. Accepts file path or bytes. Caller must close."""
     import pypdfium2 as pdfium
-    return pdfium.PdfDocument(path)
+    return pdfium.PdfDocument(source)
 
 
-def open_pdf_toc(path: str) -> List[Tuple[int, str, int]]:
+def open_pdf_toc(source: PdfSource) -> List[Tuple[int, str, int]]:
     """
     Extract the Table of Contents (bookmarks).
 
     Returns list of (level, title, page_number_1based) matching PyMuPDF's get_toc() format.
     """
     import pypdfium2 as pdfium
-    doc = pdfium.PdfDocument(path)
+    doc = pdfium.PdfDocument(source)
     toc: List[Tuple[int, str, int]] = []
     try:
         for item in doc.get_toc():
@@ -52,28 +60,28 @@ def open_pdf_toc(path: str) -> List[Tuple[int, str, int]]:
                 page_idx = 0
             toc.append((level + 1, title, page_idx + 1))
     except Exception as e:
-        logger.debug(f"TOC extraction failed for {path}: {e}")
+        logger.debug(f"TOC extraction failed: {e}")
     finally:
         doc.close()
     return toc
 
 
-def get_page_count(path: str) -> int:
+def get_page_count(source: PdfSource) -> int:
     """Return total number of pages."""
     import pypdfium2 as pdfium
-    doc = pdfium.PdfDocument(path)
+    doc = pdfium.PdfDocument(source)
     try:
         return len(doc)
     finally:
         doc.close()
 
 
-def get_page_dimensions(path: str, page_num: int) -> Tuple[float, float]:
+def get_page_dimensions(source: PdfSource, page_num: int) -> Tuple[float, float]:
     """
     Return (width, height) in points for the given 0-indexed page.
     """
     import pypdfium2 as pdfium
-    doc = pdfium.PdfDocument(path)
+    doc = pdfium.PdfDocument(source)
     try:
         page = doc[page_num]
         return page.get_width(), page.get_height()
@@ -81,14 +89,14 @@ def get_page_dimensions(path: str, page_num: int) -> Tuple[float, float]:
         doc.close()
 
 
-def render_page_png(path: str, page_num: int, zoom: float = 2.0) -> bytes:
+def render_page_png(source: PdfSource, page_num: int, zoom: float = 2.0) -> bytes:
     """
     Render a 0-indexed page to PNG bytes at the given zoom factor.
 
     zoom=2.0 ≈ 144 DPI (PyMuPDF's Matrix(2,2)).
     """
     import pypdfium2 as pdfium
-    doc = pdfium.PdfDocument(path)
+    doc = pdfium.PdfDocument(source)
     try:
         page = doc[page_num]
         bitmap = page.render(scale=zoom)
@@ -104,13 +112,15 @@ def render_page_png(path: str, page_num: int, zoom: float = 2.0) -> bytes:
 # pdfplumber helpers
 # ---------------------------------------------------------------------------
 
-def _open_plumber(path: str):
-    """Open a PDF with pdfplumber. Caller must close the returned object."""
+def _open_plumber(source: PdfSource):
+    """Open a PDF with pdfplumber. Accepts file path or bytes. Caller must close."""
     import pdfplumber
-    return pdfplumber.open(path)
+    if isinstance(source, bytes):
+        return pdfplumber.open(io.BytesIO(source))
+    return pdfplumber.open(source)
 
 
-def get_shaded_rects(path: str, page_num: int) -> Tuple[list, int]:
+def get_shaded_rects(source: PdfSource, page_num: int) -> Tuple[list, int]:
     """
     Detect shaded (code-block) rectangles on a 0-indexed page.
 
@@ -120,8 +130,7 @@ def get_shaded_rects(path: str, page_num: int) -> Tuple[list, int]:
         (shaded_rects, drawing_count) where each rect is a dict with
         keys x0, y0, x1, y1 (matching pdfplumber rect format).
     """
-    import pdfplumber
-    pdf = pdfplumber.open(path)
+    pdf = _open_plumber(source)
     try:
         if page_num >= len(pdf.pages):
             return [], 0
@@ -195,14 +204,13 @@ class _ShadedRect:
         return self.y1 - self.y0
 
 
-def extract_text_plain(path: str, page_num: int) -> str:
+def extract_text_plain(source: PdfSource, page_num: int) -> str:
     """
     Extract plain text from a 0-indexed page.
 
     Replaces PyMuPDF's page.get_text("text").
     """
-    import pdfplumber
-    pdf = pdfplumber.open(path)
+    pdf = _open_plumber(source)
     try:
         if page_num >= len(pdf.pages):
             return ""
@@ -213,15 +221,14 @@ def extract_text_plain(path: str, page_num: int) -> str:
         pdf.close()
 
 
-def extract_text_dict(path: str, page_num: int) -> Dict[str, Any]:
+def extract_text_dict(source: PdfSource, page_num: int) -> Dict[str, Any]:
     """
     Extract text with block/line/span structure (dict mode).
 
     Replaces PyMuPDF's page.get_text("dict").
     Returns a dict with "blocks" key containing text blocks structured like PyMuPDF.
     """
-    import pdfplumber
-    pdf = pdfplumber.open(path)
+    pdf = _open_plumber(source)
     try:
         if page_num >= len(pdf.pages):
             return {"blocks": []}
@@ -292,7 +299,7 @@ def extract_text_dict(path: str, page_num: int) -> Dict[str, Any]:
         pdf.close()
 
 
-def find_tables(path: str, page_num: int) -> list:
+def find_tables(source: PdfSource, page_num: int) -> list:
     """
     Extract tables from a 0-indexed page.
 
@@ -302,8 +309,7 @@ def find_tables(path: str, page_num: int) -> list:
 
     Replaces PyMuPDF's page.find_tables().
     """
-    import pdfplumber
-    pdf = pdfplumber.open(path)
+    pdf = _open_plumber(source)
     try:
         if page_num >= len(pdf.pages):
             return []
@@ -330,7 +336,7 @@ class _PlumberTable:
         return self._table.extract()
 
 
-def get_images_metadata(path: str, page_num: int) -> list:
+def get_images_metadata(source: PdfSource, page_num: int) -> list:
     """
     Get image metadata from a 0-indexed page.
 
@@ -341,8 +347,7 @@ def get_images_metadata(path: str, page_num: int) -> list:
     Each item is a tuple-like: (xref, smask, width, height, bpc, colorspace, ..., name, filter, referencer)
     to match PyMuPDF format where img[0]=xref, img[2]=width, img[3]=height.
     """
-    import pdfplumber
-    pdf = pdfplumber.open(path)
+    pdf = _open_plumber(source)
     try:
         if page_num >= len(pdf.pages):
             return []
@@ -361,19 +366,19 @@ def get_images_metadata(path: str, page_num: int) -> list:
         pdf.close()
 
 
-def extract_image(path: str, page_num: int, img_index: int) -> Optional[bytes]:
+def extract_image(source: PdfSource, page_num: int, img_index: int) -> Optional[bytes]:
     """
     Extract a specific image from a page as PNG bytes.
 
     Uses pypdfium2 for reliable image extraction.
 
     Args:
-        path: PDF file path
+        source: PDF file path or bytes
         page_num: 0-indexed page number
         img_index: image index on the page
     """
     import pypdfium2 as pdfium
-    doc = pdfium.PdfDocument(path)
+    doc = pdfium.PdfDocument(source)
     try:
         page = doc[page_num]
         # Get all image objects on the page
@@ -395,7 +400,7 @@ def extract_image(path: str, page_num: int, img_index: int) -> Optional[bytes]:
         doc.close()
 
 
-def extract_image_pil(path: str, page_num: int, img_index: int):
+def extract_image_pil(source: PdfSource, page_num: int, img_index: int):
     """
     Extract a specific image from a page as a PIL Image.
 
@@ -403,7 +408,7 @@ def extract_image_pil(path: str, page_num: int, img_index: int):
     Replaces PyMuPDF's Pixmap extraction + conversion.
     """
     import pypdfium2 as pdfium
-    doc = pdfium.PdfDocument(path)
+    doc = pdfium.PdfDocument(source)
     try:
         page = doc[page_num]
         images = list(page.get_objects(filter=[pdfium.raw.FPDF_PAGEOBJ_IMAGE]))
@@ -419,3 +424,121 @@ def extract_image_pil(path: str, page_num: int, img_index: int):
         return None, 0, 0
     finally:
         doc.close()
+
+
+def extract_image_data(source: PdfSource, page_num: int, img_index: int) -> Optional[Dict[str, Any]]:
+    """
+    Extract a specific image from a page, returning a dict with image bytes and metadata.
+
+    Replaces PyMuPDF's doc.extract_image(xref) which returns
+    {"image": bytes, "ext": str, "width": int, "height": int}.
+
+    Args:
+        source: PDF file path or bytes
+        page_num: 0-indexed page number
+        img_index: image index on the page
+
+    Returns:
+        Dict with keys: image (bytes), ext (str), width (int), height (int)
+        or None if extraction fails.
+    """
+    import pypdfium2 as pdfium
+    doc = pdfium.PdfDocument(source)
+    try:
+        page = doc[page_num]
+        images = list(page.get_objects(filter=[pdfium.raw.FPDF_PAGEOBJ_IMAGE]))
+        if img_index >= len(images):
+            return None
+
+        img_obj = images[img_index]
+        bitmap = img_obj.get_bitmap()
+        pil_image = bitmap.to_pil()
+
+        buf = io.BytesIO()
+        pil_image.save(buf, format="PNG")
+        return {
+            "image": buf.getvalue(),
+            "ext": "png",
+            "width": pil_image.width,
+            "height": pil_image.height,
+        }
+    except Exception as e:
+        logger.debug(f"Image data extraction failed: page={page_num}, idx={img_index}: {e}")
+        return None
+    finally:
+        doc.close()
+
+
+# ---------------------------------------------------------------------------
+# Batch / convenience helpers (for secondary file migrations)
+# ---------------------------------------------------------------------------
+
+def extract_all_pages_text(source: PdfSource) -> List[Tuple[int, str]]:
+    """
+    Extract text from ALL pages in a single open/close cycle.
+
+    Returns list of (page_number_1based, text).
+    More efficient than calling extract_text_plain() per page when
+    processing the entire document.
+    """
+    pdf = _open_plumber(source)
+    try:
+        result = []
+        for i, page in enumerate(pdf.pages):
+            text = page.extract_text() or ""
+            result.append((i + 1, text))
+        return result
+    finally:
+        pdf.close()
+
+
+def count_images_per_page(source: PdfSource) -> Dict[int, int]:
+    """
+    Count images on each page in a single open/close cycle.
+
+    Returns dict mapping 0-indexed page_num → image count.
+    """
+    pdf = _open_plumber(source)
+    try:
+        result = {}
+        for i, page in enumerate(pdf.pages):
+            images = page.images or []
+            result[i] = len(images)
+        return result
+    finally:
+        pdf.close()
+
+
+def is_blank_page(png_bytes: bytes, threshold: float = 0.95) -> bool:
+    """
+    Check if a rendered page image (PNG bytes) is mostly blank/white.
+
+    Replaces PyMuPDF's pixmap-based blank page detection.
+
+    Args:
+        png_bytes: PNG image bytes (from render_page_png)
+        threshold: ratio of white pixels to consider page blank (default 0.95)
+
+    Returns:
+        True if page is mostly blank (> threshold white pixels)
+    """
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(png_bytes)).convert("RGB")
+        pixels = img.load()
+        width, height = img.size
+
+        total = 0
+        white = 0
+        step = 10  # Sample every 10th pixel for performance
+
+        for y in range(0, height, step):
+            for x in range(0, width, step):
+                r, g, b = pixels[x, y]
+                total += 1
+                if r >= 250 and g >= 250 and b >= 250:
+                    white += 1
+
+        return (white / total) > threshold if total > 0 else False
+    except Exception:
+        return False

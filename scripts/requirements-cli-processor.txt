@@ -7,8 +7,9 @@ aiohttp>=3.9.0
 httpx>=0.25.0
 
 # PDF Processing
-PyMuPDF>=1.23.0  # fitz - 빠른 PDF 처리 및 이미지 추출
-pypdf>=3.17.0    # fallback PDF reader
+pypdfium2>=4.30.1  # Apache 2.0 - PDF rendering, TOC, images
+pdfplumber>=0.11.0 # MIT - text extraction, tables
+pypdf>=3.17.0      # fallback PDF reader
 
 # Image Processing
 Pillow>=10.0.0
