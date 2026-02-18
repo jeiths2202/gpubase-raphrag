@@ -172,16 +172,45 @@ class CompatibilityEngine:
         target_version: str,
         evidence: List[TraceEvidence],
     ) -> Optional[CompatibilityFinding]:
-        """ProductRegistry를 통한 버전별 capability 매칭."""
+        """ProductRegistry를 통한 버전별 capability 매칭 (다단계).
+
+        Matching strategies (in order):
+        1. Direct pattern match via registry.lookup_capability()
+        2. Utility program match: feature metadata has pgm → PGM=name
+        3. JCL parameter match: category=jcl → JCL STMT PARAM
+        """
         try:
             from ..capabilities.registry import get_product_registry
             registry = get_product_registry()
+
+            # Strategy 1: Direct lookup (handles exact, prefix, param-level)
             cap = registry.lookup_capability(target_product, target_version, feature.name)
+
+            # Strategy 2: Utility program match
+            if cap is None and feature.metadata:
+                pgm = feature.metadata.get("pgm") or feature.metadata.get("program")
+                if pgm:
+                    cap = registry.lookup_capability(
+                        target_product, target_version, f"PGM={pgm.upper()}",
+                    )
+
+            # Strategy 3: JCL parameter with value
+            if cap is None and feature.metadata:
+                param = feature.metadata.get("param")
+                value = feature.metadata.get("value")
+                if param and value:
+                    cap = registry.lookup_capability(
+                        target_product, target_version, f"{feature.name}={value}",
+                    )
 
             if cap is None:
                 return None  # fallback to existing CapabilityModel
 
             support = SupportLevel(cap.support) if cap.support in [s.value for s in SupportLevel] else SupportLevel.UNSUPPORTED
+            confidence = 0.95 if support == SupportLevel.FULL else 0.85
+            if cap.source_ref:
+                confidence = min(confidence + 0.03, 1.0)  # Boost for source-verified
+
             return CompatibilityFinding(
                 finding_id=f"openframe-{feature.feature_id}-{support.value.upper()}",
                 feature=feature,
@@ -191,7 +220,7 @@ class CompatibilityEngine:
                 migration_effort=_SUPPORT_TO_EFFORT.get(support, EffortLevel.MEDIUM),
                 severity=_SUPPORT_TO_SEVERITY.get(support, Severity.WARNING),
                 description=cap.notes or f"Feature '{feature.name}' is {support.value} in {target_product} {target_version}",
-                confidence=0.95 if support == SupportLevel.FULL else 0.85,
+                confidence=confidence,
                 trace_evidence=self._find_evidence(feature, evidence),
             )
         except Exception:

@@ -3,7 +3,941 @@
   "version": "7.3",
   "inherits": "aim_msp/v7_1.json",
   "capabilities": [
-    {"category": "ims", "pattern": "EXEC DLI PCB", "support": "full", "notes": "7.3에서 PCB 동적 할당 지원"}
+    {
+      "category": "ims",
+      "pattern": "EXEC DLI PCB",
+      "support": "full",
+      "notes": "7.3에서 PCB 동적 할당 지원"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB ADDRSPC",
+      "support": "full",
+      "notes": "JCL JOB statement ADDRSPC parameter",
+      "valid_values": [
+        "VIRT",
+        "REAL"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB CLASS",
+      "support": "full",
+      "notes": "JCL JOB statement CLASS parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB COND",
+      "support": "full",
+      "notes": "JCL JOB statement COND parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB GROUP",
+      "support": "full",
+      "notes": "JCL JOB statement GROUP parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB MSGCLASS",
+      "support": "full",
+      "notes": "JCL JOB statement MSGCLASS parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB MSGLEVEL",
+      "support": "full",
+      "notes": "JCL JOB statement MSGLEVEL parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB NOTIFY",
+      "support": "full",
+      "notes": "JCL JOB statement NOTIFY parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB PASSWORD",
+      "support": "full",
+      "notes": "JCL JOB statement PASSWORD parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB PARRWORD",
+      "support": "full",
+      "notes": "JCL JOB statement PARRWORD parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB PERFORM",
+      "support": "full",
+      "notes": "JCL JOB statement PERFORM parameter",
+      "valid_values": [
+        "1~999"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB PRTY",
+      "support": "full",
+      "notes": "JCL JOB statement PRTY parameter",
+      "valid_values": [
+        "0~15"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB RD",
+      "support": "full",
+      "notes": "JCL JOB statement RD parameter",
+      "valid_values": [
+        "R",
+        "RNC",
+        "NR",
+        "NC"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB REGION",
+      "support": "full",
+      "notes": "JCL JOB statement REGION parameter",
+      "valid_values": [
+        "0~2096128K",
+        "0~2047M"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB RESTART",
+      "support": "full",
+      "notes": "JCL JOB statement RESTART parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB SPARM",
+      "support": "full",
+      "notes": "JCL JOB statement SPARM parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB TIME",
+      "support": "full",
+      "notes": "JCL JOB statement TIME parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB TYPRUN",
+      "support": "full",
+      "notes": "JCL JOB statement TYPRUN parameter",
+      "valid_values": [
+        "COPY",
+        "HOLD",
+        "JCLHOLD",
+        "JEM",
+        "SCAN"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL JOB USER",
+      "support": "full",
+      "notes": "JCL JOB statement USER parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL EXEC ACCT",
+      "support": "full",
+      "notes": "JCL EXEC statement ACCT parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL EXEC ADDRSPC",
+      "support": "full",
+      "notes": "JCL EXEC statement ADDRSPC parameter",
+      "valid_values": [
+        "VIRT",
+        "REAL"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL EXEC COND",
+      "support": "full",
+      "notes": "JCL EXEC statement COND parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL EXEC DRPTY",
+      "support": "full",
+      "notes": "JCL EXEC statement DRPTY parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL EXEC DYNAMNBR",
+      "support": "full",
+      "notes": "JCL EXEC statement DYNAMNBR parameter",
+      "valid_values": [
+        "0~3273"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL EXEC PARM",
+      "support": "full",
+      "notes": "JCL EXEC statement PARM parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL EXEC PERFORM",
+      "support": "full",
+      "notes": "JCL EXEC statement PERFORM parameter",
+      "valid_values": [
+        "1~999"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL EXEC RD",
+      "support": "full",
+      "notes": "JCL EXEC statement RD parameter",
+      "valid_values": [
+        "R",
+        "RNC",
+        "NR",
+        "NC"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL EXEC REGION",
+      "support": "full",
+      "notes": "JCL EXEC statement REGION parameter",
+      "valid_values": [
+        "0~2096128K",
+        "0~2047M"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL EXEC SPARM",
+      "support": "full",
+      "notes": "JCL EXEC statement SPARM parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL EXEC SYSTEM",
+      "support": "full",
+      "notes": "JCL EXEC statement SYSTEM parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL EXEC TIME",
+      "support": "full",
+      "notes": "JCL EXEC statement TIME parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD AMP",
+      "support": "full",
+      "notes": "JCL DD statement AMP parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD BURST",
+      "support": "full",
+      "notes": "JCL DD statement BURST parameter",
+      "valid_values": [
+        "YES",
+        "Y",
+        "NO",
+        "N"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD CHARS",
+      "support": "full",
+      "notes": "JCL DD statement CHARS parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD CHKPT",
+      "support": "full",
+      "notes": "JCL DD statement CHKPT parameter",
+      "valid_values": [
+        "EOV"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD COPIES",
+      "support": "full",
+      "notes": "JCL DD statement COPIES parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB",
+      "support": "full",
+      "notes": "JCL DD statement DCB parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DDNAME",
+      "support": "full",
+      "notes": "JCL DD statement DDNAME parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DEST",
+      "support": "full",
+      "notes": "JCL DD statement DEST parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DISP",
+      "support": "full",
+      "notes": "JCL DD statement DISP parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DLM",
+      "support": "full",
+      "notes": "JCL DD statement DLM parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DSID",
+      "support": "full",
+      "notes": "JCL DD statement DSID parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DSN",
+      "support": "full",
+      "notes": "JCL DD statement DSN parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DSNAME",
+      "support": "full",
+      "notes": "JCL DD statement DSNAME parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD EXPDT",
+      "support": "full",
+      "notes": "JCL DD statement EXPDT parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD FCB",
+      "support": "full",
+      "notes": "JCL DD statement FCB parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD FLASH",
+      "support": "full",
+      "notes": "JCL DD statement FLASH parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD FREE",
+      "support": "full",
+      "notes": "JCL DD statement FREE parameter",
+      "valid_values": [
+        "END",
+        "CLOSE"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD HOLD",
+      "support": "full",
+      "notes": "JCL DD statement HOLD parameter",
+      "valid_values": [
+        "YES",
+        "Y",
+        "NO",
+        "N"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD KEYLEN",
+      "support": "full",
+      "notes": "JCL DD statement KEYLEN parameter",
+      "valid_values": [
+        "0~255"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD LABEL",
+      "support": "full",
+      "notes": "JCL DD statement LABEL parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD LRECL",
+      "support": "full",
+      "notes": "JCL DD statement LRECL parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD MODIFY",
+      "support": "full",
+      "notes": "JCL DD statement MODIFY parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD MSVGP",
+      "support": "full",
+      "notes": "JCL DD statement MSVGP parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD OUTLIM",
+      "support": "full",
+      "notes": "JCL DD statement OUTLIM parameter",
+      "valid_values": [
+        "0~16777215"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD PASSWORD",
+      "support": "full",
+      "notes": "JCL DD statement PASSWORD parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD PROTECT",
+      "support": "full",
+      "notes": "JCL DD statement PROTECT parameter",
+      "valid_values": [
+        "Y",
+        "YES"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD PRTFORM",
+      "support": "full",
+      "notes": "JCL DD statement PRTFORM parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD QNAME",
+      "support": "full",
+      "notes": "JCL DD statement QNAME parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD RECFM",
+      "support": "full",
+      "notes": "JCL DD statement RECFM parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD RETPD",
+      "support": "full",
+      "notes": "JCL DD statement RETPD parameter",
+      "valid_values": [
+        "0~9999"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD SPACE",
+      "support": "full",
+      "notes": "JCL DD statement SPACE parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD SUBSYS",
+      "support": "full",
+      "notes": "JCL DD statement SUBSYS parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD SYSOUT",
+      "support": "full",
+      "notes": "JCL DD statement SYSOUT parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD TERM",
+      "support": "full",
+      "notes": "JCL DD statement TERM parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD UCS",
+      "support": "full",
+      "notes": "JCL DD statement UCS parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD UNIT",
+      "support": "full",
+      "notes": "JCL DD statement UNIT parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD VOL",
+      "support": "full",
+      "notes": "JCL DD statement VOL parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD VOLUME",
+      "support": "full",
+      "notes": "JCL DD statement VOLUME parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD SEP",
+      "support": "full",
+      "notes": "JCL DD statement SEP parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DATA",
+      "support": "full",
+      "notes": "JCL DD statement DATA parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD BUFNO",
+      "support": "full",
+      "notes": "JCL DD statement BUFNO parameter",
+      "valid_values": [
+        "0~255"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB BFALN",
+      "support": "full",
+      "notes": "JCL DCB statement BFALN parameter",
+      "valid_values": [
+        "F",
+        "D"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB BFTEK",
+      "support": "full",
+      "notes": "JCL DCB statement BFTEK parameter",
+      "valid_values": [
+        "R",
+        "D",
+        "S",
+        "A"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB BLKSIZE",
+      "support": "full",
+      "notes": "JCL DCB statement BLKSIZE parameter",
+      "valid_values": [
+        "0~2147483648",
+        "0~2097152K",
+        "0~2048M",
+        "0~2G"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB BUFIN",
+      "support": "full",
+      "notes": "JCL DCB statement BUFIN parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB BUFL",
+      "support": "full",
+      "notes": "JCL DCB statement BUFL parameter",
+      "valid_values": [
+        "0~32760"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB BUFMAX",
+      "support": "full",
+      "notes": "JCL DCB statement BUFMAX parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB BUFNO",
+      "support": "full",
+      "notes": "JCL DCB statement BUFNO parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB BUFOFF",
+      "support": "full",
+      "notes": "JCL DCB statement BUFOFF parameter",
+      "valid_values": [
+        "0~99",
+        "L"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB BUFOUT",
+      "support": "full",
+      "notes": "JCL DCB statement BUFOUT parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB BUFSIZE",
+      "support": "full",
+      "notes": "JCL DCB statement BUFSIZE parameter",
+      "valid_values": [
+        "31~65535"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB CPRI",
+      "support": "full",
+      "notes": "JCL DCB statement CPRI parameter",
+      "valid_values": [
+        "R",
+        "E",
+        "S"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB CYLOFL",
+      "support": "full",
+      "notes": "JCL DCB statement CYLOFL parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB DEN",
+      "support": "full",
+      "notes": "JCL DCB statement DEN parameter",
+      "valid_values": [
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB DIAGNS",
+      "support": "full",
+      "notes": "JCL DCB statement DIAGNS parameter",
+      "valid_values": [
+        "TRACE"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB DSORG",
+      "support": "full",
+      "notes": "JCL DCB statement DSORG parameter",
+      "valid_values": [
+        "PS",
+        "PSU",
+        "DA",
+        "DAU",
+        "IS",
+        "ISU",
+        "PO",
+        "POU",
+        "CX",
+        "GS"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB EROPT",
+      "support": "full",
+      "notes": "JCL DCB statement EROPT parameter",
+      "valid_values": [
+        "T",
+        "ACC",
+        "SKP",
+        "ABE"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB FUNC",
+      "support": "full",
+      "notes": "JCL DCB statement FUNC parameter",
+      "valid_values": [
+        "I",
+        "R",
+        "P",
+        "W",
+        "WT",
+        "RP",
+        "RPD",
+        "RW",
+        "RWT",
+        "PW",
+        "PWXT",
+        "RPW",
+        "RPWXT",
+        "RPWD",
+        "RWX",
+        "RWXT",
+        "PWX",
+        "RPWX",
+        "RWX"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB GNCP",
+      "support": "full",
+      "notes": "JCL DCB statement GNCP parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB INTVL",
+      "support": "full",
+      "notes": "JCL DCB statement INTVL parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB IPLTXID",
+      "support": "full",
+      "notes": "JCL DCB statement IPLTXID parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB KEYLEN",
+      "support": "full",
+      "notes": "JCL DCB statement KEYLEN parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB LIMCT",
+      "support": "full",
+      "notes": "JCL DCB statement LIMCT parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB LRECL",
+      "support": "full",
+      "notes": "JCL DCB statement LRECL parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB MODE",
+      "support": "full",
+      "notes": "JCL DCB statement MODE parameter",
+      "valid_values": [
+        "C",
+        "CO",
+        "E",
+        "ER"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB NCP",
+      "support": "full",
+      "notes": "JCL DCB statement NCP parameter",
+      "valid_values": [
+        "1~99"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB NTM",
+      "support": "full",
+      "notes": "JCL DCB statement NTM parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB OPTCD",
+      "support": "full",
+      "notes": "JCL DCB statement OPTCD parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB PCI",
+      "support": "full",
+      "notes": "JCL DCB statement PCI parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB PRTSP",
+      "support": "full",
+      "notes": "JCL DCB statement PRTSP parameter",
+      "valid_values": [
+        "0",
+        "1",
+        "2",
+        "3"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB RECFM",
+      "support": "full",
+      "notes": "JCL DCB statement RECFM parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB RESERVE",
+      "support": "full",
+      "notes": "JCL DCB statement RESERVE parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB RKP",
+      "support": "full",
+      "notes": "JCL DCB statement RKP parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB STACK",
+      "support": "full",
+      "notes": "JCL DCB statement STACK parameter",
+      "valid_values": [
+        "1",
+        "2"
+      ],
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB THRESH",
+      "support": "full",
+      "notes": "JCL DCB statement THRESH parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB TRTCH",
+      "support": "full",
+      "notes": "JCL DCB statement TRTCH parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    },
+    {
+      "category": "jcl_parameter",
+      "pattern": "JCL DD DCB PAGESIZE",
+      "support": "full",
+      "notes": "JCL DCB statement PAGESIZE parameter",
+      "source_ref": "base\\parser\\mspjcl\\mspjcl_keyword_table.c"
+    }
   ],
   "removed": []
 }

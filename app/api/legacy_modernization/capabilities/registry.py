@@ -39,6 +39,9 @@ class CapabilityRecord(BaseModel):
     pattern: str
     support: str  # "full", "partial", "workaround", "unsupported"
     notes: Optional[str] = None
+    parameters: Optional[List[str]] = None
+    valid_values: Optional[List[str]] = None
+    source_ref: Optional[str] = None
 
 
 class ResolvedCapabilities(BaseModel):
@@ -206,9 +209,45 @@ class ProductRegistry:
     def lookup_capability(
         self, product: str, version: str, pattern: str,
     ) -> Optional[CapabilityRecord]:
-        """특정 패턴의 capability 조회 (CompatibilityEngine 연동용)."""
+        """특정 패턴의 capability 조회 (다단계 매칭).
+
+        Matching priority:
+        1. Exact match: pattern == capability.pattern
+        2. Prefix match: "JCL DD RECFM" matches "JCL DD DCB RECFM"
+        3. Utility program: "PGM=IDCAMS" matches utility capability
+        4. Parameter-level: "JCL DD RECFM=FB" → check valid_values
+        """
         resolved = self.resolve_capabilities(product, version)
-        return resolved.capabilities.get(pattern)
+        caps = resolved.capabilities
+
+        # 1. Exact match
+        if pattern in caps:
+            return caps[pattern]
+
+        # 2. Prefix match (longer pattern contains shorter query)
+        for cap_pattern, cap in caps.items():
+            if cap_pattern.startswith(pattern + " ") or pattern.startswith(cap_pattern + " "):
+                return cap
+
+        # 3. Utility program match: "PGM=IDCAMS" → look up "PGM=IDCAMS"
+        if pattern.startswith("PGM="):
+            pgm_name = pattern.split("=", 1)[1].upper()
+            pgm_key = f"PGM={pgm_name}"
+            if pgm_key in caps:
+                return caps[pgm_key]
+
+        # 4. Parameter-level match with value validation
+        #    e.g., "JCL DD RECFM=FB" → find "JCL DD DCB RECFM", check FB in valid_values
+        if "=" in pattern:
+            base, value = pattern.rsplit("=", 1)
+            for cap_pattern, cap in caps.items():
+                if cap_pattern == base or cap_pattern.endswith(f" {base.split()[-1]}"):
+                    if cap.valid_values and value.upper() in [v.upper() for v in cap.valid_values]:
+                        return cap
+                    elif cap.valid_values is None:
+                        return cap  # No value restriction
+
+        return None
 
     # ------------------------------------------------------------------
     # Internal helpers

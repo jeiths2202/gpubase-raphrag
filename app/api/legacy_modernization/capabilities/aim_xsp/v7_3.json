@@ -3,7 +3,3407 @@
   "version": "7.3",
   "inherits": "aim_xsp/v7_1.json",
   "capabilities": [
-    {"category": "cics", "pattern": "EXEC CICS WEB", "support": "partial", "notes": "XSP 7.3에서 기본 WEB 지원 추가"}
+    {
+      "category": "cics",
+      "pattern": "EXEC CICS WEB",
+      "support": "partial",
+      "notes": "XSP 7.3에서 기본 WEB 지원 추가"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP JOB",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP DEST",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP MQN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP APL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP FILE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP ABENDEX",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP APLABEND",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP APLKIND",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP APLNAME",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP APLTYPE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP BDAM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP BUFAE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP CBLDBG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP CLOSE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP DLAPL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP DRIVEN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP DUMPL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP ERRAPL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP EXPARM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP FILEKIND",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP IDENTIFIER",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP IN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP INITEX",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP INITTNO",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP INOUT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP INTEGER",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP LOAD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP LOADMODE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP LOCALTC",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP MESSAGE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP MULTICON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP NAME",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP NO",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP NRMLAPL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP OPENMODE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP OPENTYPE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP PRELOAD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP PREOPEN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP PRESTART",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP PSW",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP RDBII",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP RENAME",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP SOUT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP SQL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP SPASIZE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP SYSAPL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP SYSNAME",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP TERMEX",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP TRNMSG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP VSAM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP WAIT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP YES",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP WUTYPE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP ONLINE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP TRNCNTL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM ACP SERVER",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\acp\\acp_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM IN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM PO",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM ALL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM NN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM NA",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM NK",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM NC",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM NH",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM NX",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM SD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM ST",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM SP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM LD1",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM LD2",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM WS1",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM WS2",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM RI1",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM RI2",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM SN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM ELSE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM INOUT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM ALP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM ATTR",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM RECTYPE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM CRTPIC",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM LENGCHK",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM NO",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM PSAM YES",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\psam\\aimpsam_scan.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD AIMN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD APGN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CI",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CSGRP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DID",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DVOL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD EXPARM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD EXT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD FILEID",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD FSNO",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ID",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LDA",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MSGKEY",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD NEWPW",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PATHON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PROC",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PSW",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SISN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SLOGOFF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SLOGON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SOUT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SPATHOF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SPATHON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SQ",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TDN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TOVOL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD VQ",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD JID",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD JOB",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PED",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PRFX",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RGN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SCN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SRGN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD WS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ACCOUNT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ACKPT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ACM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ACMCOM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ACMG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ACP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ACT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ACTIVE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD AIM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD AIMJLIB",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD AIMSNAP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ALDOFF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ALDON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ALL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ALLOC",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ALM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ALTER",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ALTJOB",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ALTLIB",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ALTMQN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD AP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD APG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD APL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD APPLID",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD AR",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ATTR",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD AWAIT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BALT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BFAL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BGEN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BID",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BKUP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BKWD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BLOG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BOF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BOFFLT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BOFON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BOX",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BREAK",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BTRF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BTS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BUF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD BWSL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CANCEL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CJOB",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CLEAR",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CLOSE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CLS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CLSMQN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CMN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD COM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD COMMIT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD COMMMA",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD COMP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CONCUR",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CONT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD COPY",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CPED",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CSA1",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CSA2",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD CYL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DALL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DATA",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DATL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DB",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DBERR",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DBON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DBPSEUDO",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DBSN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DBUTY",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DC",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DCAT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DCAT1",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DCAT2",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DCATON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DCATRCV",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DCBUF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DCMS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DCPSEUDO",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DCQN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DEFVOL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DEL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DELETE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DELSV",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DISPLAY",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DO",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DOWN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DOWNID",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DPART",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DRCT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DRCTGET",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DRCTOFF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DRCTON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DRCTRCV",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DRCTTRNS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DROP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DS1",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DS2",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DSN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DSRCV",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DSTS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DTL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DTMF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DTPF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DUMP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD DYN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ED",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD EMERGENCY",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD EMG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD END",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ENFORCE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ERR",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ERROR",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ET",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD EXPANSION",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD FID",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD FN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD FORCE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD FRCV",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD FREE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD FSET",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD GD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD GDN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD GLOBAL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD GN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD GROUP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD GRP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD GTRN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD HLF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD HLFG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD HLFOFF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD HLFON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD HOST",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD HS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD HULOG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD IC",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ICOFF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ICOPY",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD IDENTFIER",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD IMQN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD IN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD INACT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD INDEX",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD INF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD INH",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD INHIBIT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD INHLD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD INIT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD INSTALL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD INTFS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD IP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD IS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ISYS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD IWSN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD JM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD JN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD JNL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD JOBN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD JP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD JS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD KEY",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD KIND",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LCL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LDG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LDOFF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LDON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LEDIT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LIMIT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LOAD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LOCAL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LOG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LOGALARM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LOGN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LOGOFF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LOGON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LOST",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD LVL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MEMORY",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MERGE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MOD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MODE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MONO",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MQN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MRCVF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MSF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MSFON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MSG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MSSP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD MV",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD NAME",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ND",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD NO",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD NONE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD NONSHR",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD NOR",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD NOREP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD NORMAL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD OCLM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD OCPALARM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD OCS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD OCSID",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD OFF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD OL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD OPEN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD OPENDB",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD OPENERR",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD OPER",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD OPN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD OPNMQN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD OPT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ORIGINAL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD OWTALARM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PART",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PATHOFF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PERMIT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PMT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PMTFS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PO",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD POOL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD POST",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD POTIME",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PRC",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PSYS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PTL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PURGE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD PWS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RACT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RCV",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RCVL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RCVSV",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RDB",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RDP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD REF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD REFINE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD REJECT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RELEASE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD REP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD REPLACE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD REPT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RESEND",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RESERVE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RESET",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RESTRICT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RETN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RFDEF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RI",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RINTVL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RJ",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RLS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RLSLD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RMT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ROLLBACK",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RQLD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RQWS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RRCV",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RSC",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RSK",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RST",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RSTR",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RSTRCTDB",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD RSV",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SCDL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SCHEMA",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SCOPE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SCTPMT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SEL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SELF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SEND",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SET",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SHR",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SID",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SIS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SISOPEN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SLN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SMP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SMQN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SNAPOFF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SNAPON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SORT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SPACE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SPF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SRCF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SRCV",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SSF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SSFON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SSFSCTNG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SSU",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SSUG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ST",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD STANDBY",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD START",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD STATUS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD STD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD STND",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD STOP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD STS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SUM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SWAP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SWAPVOL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SWITCH",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SYNC",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SYS",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD SYSOUT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TBL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TDUMP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TI",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TID",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TID2",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TIME",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TINTVL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TJNL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TLF",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TLFON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TRCV",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TRD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TRN",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TRT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD TYPE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD ULOG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD UNIT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD UNLD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD UNLOAD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD UP",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD USE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD VARY",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD VOL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD WAIT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD WINH",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD WPMT",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD XRFON",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMCMD YES",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\cmd\\aimcmd_l.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR DFNUTRM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR DLTUTRM",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR DFNUWRK",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR DLTUWRK",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR DFNWRK",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR ID",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR TERMINAL",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR LIKE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR ORDER",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR CREATE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR ALTER",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR REPLACE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR DELETE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR NAME",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR DNAME",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR DLANG",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR PROCID",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR PASSWORD",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR OPROCID",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR DELMODE",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    },
+    {
+      "category": "aim_dc",
+      "pattern": "AIM AIMSMR DESC",
+      "support": "full",
+      "notes": null,
+      "source_ref": "aim\\dc\\smr\\aimsmr_lex.l"
+    }
   ],
   "removed": []
 }
