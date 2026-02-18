@@ -38,9 +38,29 @@ export type ReportType =
   | 'compliance'
   | 'cost_estimation';
 
+export interface ProductVersionInfo {
+  product: string;
+  version: string;
+  display_name: string;
+  asset_types: string[];
+}
+
+export interface ProductFamilyInfo {
+  family: string;
+  display_name: string;
+  versions: ProductVersionInfo[];
+}
+
+export interface ProductListResponse {
+  families: ProductFamilyInfo[];
+  total_products: number;
+}
+
 export interface AnalysisRequest {
   file_name: string;
   source_code: string;
+  target_product?: string;
+  target_version?: string;
   vendors?: string[];
   options?: AnalysisOptions;
 }
@@ -120,6 +140,23 @@ export interface SSEEvent {
 // ============================================================================
 // API Functions
 // ============================================================================
+
+/**
+ * Get available OpenFrame products (grouped by family)
+ */
+export const getProducts = async (
+  assetType?: LegacyAssetType,
+  lang: string = 'en'
+): Promise<ProductListResponse> => {
+  const params: Record<string, string> = { lang };
+  if (assetType) params.asset_type = assetType;
+
+  const response = await apiClient.get<ProductListResponse>(
+    '/legacy/products',
+    { params }
+  );
+  return response.data;
+};
 
 /**
  * Start a legacy code analysis
@@ -226,14 +263,45 @@ export const streamAnalysisEvents = (
   return eventSource;
 };
 
+// ============================================================================
+// Modernization AI Chat Types
+// ============================================================================
+
+export type ModernizationSystemType = 'host' | 'openframe' | 'all';
+
+export interface ModernizationChatRequest {
+  message: string;
+  system_type: ModernizationSystemType;
+  language: string;
+  conversation_id?: string;
+  analysis_context?: {
+    analysis_id?: string;
+    file_name?: string;
+    asset_type?: string;
+    source_code_snippet?: string;
+    target_product?: string;
+  };
+}
+
+/**
+ * Get the SSE streaming URL for modernization chat.
+ * Used directly by useModernizationChat hook via fetch.
+ */
+export const getModernizationChatUrl = (): string => {
+  const baseUrl = apiClient.defaults.baseURL || '/api/v1';
+  return `${baseUrl}/legacy/chat/stream`;
+};
+
 // Default export
 const legacyApi = {
+  getProducts,
   startAnalysis,
   getAnalysisStatus,
   getAnalysisResults,
   getReportList,
   getReport,
   streamAnalysisEvents,
+  getModernizationChatUrl,
 };
 
 export default legacyApi;

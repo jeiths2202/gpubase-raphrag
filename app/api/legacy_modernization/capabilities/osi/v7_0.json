@@ -1,0 +1,10 @@
+{
+  "product": "osi",
+  "version": "7.0",
+  "inherits": "osi/v6_0.json",
+  "capabilities": [
+    {"category": "db2", "pattern": "EXEC SQL SELECT", "support": "full", "notes": "7.0에서 서브쿼리 포함 전체 지원"},
+    {"category": "db2", "pattern": "EXEC SQL DECLARE CURSOR", "support": "full", "notes": "7.0에서 커서 지원 추가"}
+  ],
+  "removed": []
+}

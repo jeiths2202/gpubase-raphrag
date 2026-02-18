@@ -37,6 +37,10 @@ class SharedWorkspaceState(BaseModel):
     loc_count: int = 0
     uploaded_at: Optional[datetime] = None
 
+    # === Target product (version-specific analysis) ===
+    target_product: Optional[str] = None
+    target_version: Optional[str] = None
+
     # === Parser outputs (immutable after parsing) ===
     ast: List[dict] = Field(default_factory=list)
     features: List[dict] = Field(default_factory=list)
@@ -72,6 +76,7 @@ class WritePermission:
             "asset_id", "tenant_id", "asset_type", "dialect",
             "pipeline_status", "change_requests", "audit_trail",
             "file_path", "file_name", "loc_count", "uploaded_at",
+            "target_product", "target_version",
         },
         AgentRole.COBOL_EXPERT: {
             "ast", "features", "trace_evidence", "parse_errors", "confidence", "stats",

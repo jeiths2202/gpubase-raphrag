@@ -185,7 +185,7 @@ export const AgenticRAGPage: React.FC = () => {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as globalThis.Node)) {
         setShowProductSelector(false);
       }
     };
@@ -818,7 +818,7 @@ export const AgenticRAGPage: React.FC = () => {
                 <details className="graph-mini-container">
                   <summary>
                     <GitBranch size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                    {t('knowledgeGraph.relatedGraph', '関連エンティティグラフ')} ({msg.graphData.nodes.length})
+                    {t('knowledgeGraph.relatedGraph')} ({msg.graphData.nodes.length})
                   </summary>
                   <div style={{ height: 280 }}>
                     <KnowledgeGraphView

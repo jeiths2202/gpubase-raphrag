@@ -1,30 +1,83 @@
-"""Analysis API Router — POST /analyze, GET /status, GET /stream, GET /results.
+"""Analysis API Router — POST /analyze, GET /status, GET /stream, GET /results, GET /products.
 
 Endpoints:
-  POST   /api/v1/legacy/analyze                    — Start analysis
-  GET    /api/v1/legacy/analyze/{id}/status         — Get progress
-  GET    /api/v1/legacy/analyze/{id}/stream         — SSE event stream
-  GET    /api/v1/legacy/analyze/{id}/results        — Get full results
+  GET    /api/v1/legacy/products                    — List available products
+  POST   /api/v1/legacy/analyze                     — Start analysis
+  GET    /api/v1/legacy/analyze/{id}/status          — Get progress
+  GET    /api/v1/legacy/analyze/{id}/stream          — SSE event stream
+  GET    /api/v1/legacy/analyze/{id}/results         — Get full results
 """
 
 import json
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
+from ..capabilities.registry import get_product_registry
 from ..services.analysis_service import get_analysis_service
 from .schemas import (
     AnalysisRequest,
     AnalysisResponse,
     AnalysisResultsResponse,
     AnalysisStatusResponse,
+    ProductFamilyItem,
+    ProductListResponse,
+    ProductVersionItem,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/legacy", tags=["Legacy Modernization"])
+
+
+@router.get(
+    "/products",
+    response_model=ProductListResponse,
+    summary="List available OpenFrame products",
+    description="Returns all available OpenFrame products grouped by family, optionally filtered by asset type.",
+)
+async def list_products(
+    asset_type: Optional[str] = Query(
+        None, description="Filter by asset type (e.g., 'cobol', 'jcl', 'map', 'assembler')",
+    ),
+    lang: str = Query("en", description="Language for display names (en, ko, ja)"),
+) -> ProductListResponse:
+    """List available OpenFrame products for the version selector."""
+    registry = get_product_registry()
+    families = registry.list_families()
+
+    result_families = []
+    total = 0
+    for fam in families:
+        versions = fam.versions
+        if asset_type:
+            versions = [v for v in versions if asset_type in v.asset_types]
+        if not versions:
+            continue
+
+        display_attr = {
+            "ko": "display_name_ko",
+            "ja": "display_name_ja",
+        }.get(lang, "display_name")
+
+        result_families.append(ProductFamilyItem(
+            family=fam.family,
+            display_name=fam.display_name,
+            versions=[
+                ProductVersionItem(
+                    product=v.product,
+                    version=v.version,
+                    display_name=getattr(v, display_attr, v.display_name),
+                    asset_types=v.asset_types,
+                )
+                for v in versions
+            ],
+        ))
+        total += len(versions)
+
+    return ProductListResponse(families=result_families, total_products=total)
 
 
 @router.post(
@@ -39,7 +92,8 @@ async def start_analysis(
     """Start a new analysis session.
 
     Accepts source code inline (JSON body) and kicks off the
-    8-agent analysis pipeline.
+    8-agent analysis pipeline. Optionally specify target_product and
+    target_version for version-specific compatibility analysis.
     """
     service = get_analysis_service()
 
@@ -49,7 +103,12 @@ async def start_analysis(
         tenant_id="default",  # TODO: extract from auth token
         vendors=request.vendors,
         options=request.options.model_dump(),
+        target_product=request.target_product,
+        target_version=request.target_version,
     )
+
+    if result.get("status") == "validation_error":
+        raise HTTPException(status_code=400, detail=result["message"])
 
     return AnalysisResponse(
         analysis_id=result["analysis_id"],

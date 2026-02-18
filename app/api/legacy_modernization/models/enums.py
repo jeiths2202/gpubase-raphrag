@@ -50,6 +50,21 @@ class FeatureCategory(str, Enum):
     SYSTEM_MACRO = "system_macro"
 
 
+class OpenFrameProduct(str, Enum):
+    """OpenFrame 제품군 (11개)"""
+    AIM_XSP = "aim_xsp"
+    AIM_MSP = "aim_msp"
+    OSC = "osc"
+    OSI = "osi"
+    ASM = "asm"
+    COBOL_OSVS = "cobol_osvs"
+    COBOL_ENT = "cobol_ent"
+    COBOL_MVS = "cobol_mvs"
+    BATCH = "batch"
+    HIDB = "hidb"
+    TACF = "tacf"
+
+
 class ComplexityLevel(str, Enum):
     LOW = "low"
     MEDIUM = "medium"

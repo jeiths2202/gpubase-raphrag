@@ -1,0 +1,10 @@
+{
+  "product": "batch",
+  "version": "7.3",
+  "inherits": "batch/v7_1.json",
+  "capabilities": [
+    {"category": "utility", "pattern": "ICETOOL", "support": "full", "notes": "7.3 신규 유틸리티 지원"},
+    {"category": "utility", "pattern": "ADRDSSU", "support": "partial", "notes": "DUMP/RESTORE만 지원"}
+  ],
+  "removed": []
+}

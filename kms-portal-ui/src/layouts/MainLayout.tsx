@@ -23,7 +23,7 @@ import { AISidebar } from '../components/AISidebar';
 import { useUIStore } from '../store/uiStore';
 
 // Routes where AISidebar should be hidden (they have their own chat interface)
-const HIDE_AI_SIDEBAR_ROUTES = ['/openframe-rag', '/open-agent', '/agentic-rag'];
+const HIDE_AI_SIDEBAR_ROUTES = ['/openframe-rag', '/open-agent', '/agentic-rag', '/legacy-modernization'];
 
 // Breakpoint for mobile/tablet detection
 const MOBILE_BREAKPOINT = 1024;

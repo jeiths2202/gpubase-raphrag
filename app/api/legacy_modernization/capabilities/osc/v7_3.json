@@ -1,0 +1,10 @@
+{
+  "product": "osc",
+  "version": "7.3",
+  "inherits": "osc/v7_1.json",
+  "capabilities": [
+    {"category": "cics", "pattern": "EXEC CICS WEB", "support": "full", "notes": "7.3에서 CONVERSE 포함 전체 지원"},
+    {"category": "cics", "pattern": "EXEC CICS DOCUMENT", "support": "partial", "notes": "CREATE/INSERT 지원, SET 미지원"}
+  ],
+  "removed": []
+}

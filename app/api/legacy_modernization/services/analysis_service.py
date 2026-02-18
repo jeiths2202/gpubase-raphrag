@@ -85,19 +85,41 @@ class AnalysisService:
         tenant_id: str,
         vendors: Optional[List[str]] = None,
         options: Optional[dict] = None,
+        target_product: Optional[str] = None,
+        target_version: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a workspace and start the analysis pipeline.
+
+        Args:
+            target_product: OpenFrame 제품 ID (e.g., 'osc', 'batch')
+            target_version: 제품 버전 (e.g., '7.1', '8.0')
 
         Returns:
             Dict with analysis_id, status, message.
         """
+        # Validate target product/version if provided
+        if target_product and target_version:
+            from ..capabilities.registry import get_product_registry
+            registry = get_product_registry()
+            if not registry.validate_product(target_product, target_version):
+                available = registry.get_versions(target_product)
+                return {
+                    "analysis_id": "",
+                    "status": "validation_error",
+                    "message": (
+                        f"Invalid product/version: {target_product} {target_version}. "
+                        f"Available versions: {', '.join(available) if available else 'none'}"
+                    ),
+                    "estimated_duration_minutes": None,
+                }
+
         analysis_id = str(uuid4())
         asset_id = f"asset_{analysis_id[:8]}"
         asset_type = self._detect_asset_type(file_name)
         vendors = vendors or ["openframe"]
         options = options or {}
 
-        # Create workspace
+        # Create workspace with target product info
         workspace = SharedWorkspaceState(
             asset_id=asset_id,
             tenant_id=tenant_id,
@@ -105,11 +127,21 @@ class AnalysisService:
             file_path=file_name,
             file_name=file_name,
             loc_count=source_code.count("\n") + 1,
+            target_product=target_product,
+            target_version=target_version,
         )
+        changed_fields = {
+            "asset_id", "tenant_id", "asset_type", "file_path",
+            "file_name", "loc_count",
+        }
+        if target_product:
+            changed_fields.add("target_product")
+        if target_version:
+            changed_fields.add("target_version")
+
         await self._shared_state.save_workspace(
             workspace, AgentRole.ORCHESTRATOR,
-            changed_fields={"asset_id", "tenant_id", "asset_type", "file_path",
-                            "file_name", "loc_count"},
+            changed_fields=changed_fields,
         )
 
         # Track session
@@ -133,6 +165,8 @@ class AnalysisService:
                 "analysis_id": analysis_id,
                 "vendors": vendors,
                 "options": options,
+                "target_product": target_product,
+                "target_version": target_version,
             },
         )
         await self._event_bus.publish(

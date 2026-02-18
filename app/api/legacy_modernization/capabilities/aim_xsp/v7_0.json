@@ -1,0 +1,21 @@
+{
+  "product": "aim_xsp",
+  "version": "7.0",
+  "inherits": null,
+  "capabilities": [
+    {"category": "cics", "pattern": "EXEC CICS SEND MAP", "support": "full", "notes": null},
+    {"category": "cics", "pattern": "EXEC CICS RECEIVE MAP", "support": "full", "notes": null},
+    {"category": "cics", "pattern": "EXEC CICS LINK", "support": "full", "notes": null},
+    {"category": "cics", "pattern": "EXEC CICS XCTL", "support": "full", "notes": null},
+    {"category": "cics", "pattern": "EXEC CICS RETURN", "support": "full", "notes": null},
+    {"category": "cics", "pattern": "EXEC CICS READ", "support": "full", "notes": null},
+    {"category": "cics", "pattern": "EXEC CICS WRITE", "support": "full", "notes": null},
+    {"category": "cics", "pattern": "EXEC CICS START", "support": "full", "notes": null},
+    {"category": "cics", "pattern": "EXEC CICS HANDLE CONDITION", "support": "full", "notes": null},
+    {"category": "cics", "pattern": "EXEC CICS ASSIGN", "support": "partial", "notes": "XSP 제한적 시스템 변수"},
+    {"category": "screen_layout", "pattern": "DFHMSD", "support": "full", "notes": null},
+    {"category": "screen_layout", "pattern": "DFHMDI", "support": "full", "notes": null},
+    {"category": "field_definition", "pattern": "DFHMDF", "support": "full", "notes": null}
+  ],
+  "removed": []
+}

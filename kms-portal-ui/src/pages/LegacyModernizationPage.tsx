@@ -24,12 +24,14 @@ import {
   Clock,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
+import { ModernizationAIAssistant } from '../components/ModernizationAI';
 import {
   startAnalysis,
   getAnalysisStatus,
   getAnalysisResults,
   getReportList,
   getReport,
+  getProducts,
 } from '../api/legacy.api';
 import type {
   AnalysisResponse,
@@ -39,6 +41,7 @@ import type {
   ReportDetail,
   PipelineStatus,
   LegacyAssetType,
+  ProductFamilyInfo,
 } from '../api/legacy.api';
 import './LegacyModernizationPage.css';
 
@@ -97,6 +100,12 @@ export const LegacyModernizationPage: React.FC = () => {
   const [vendor, setVendor] = useState('openframe');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Product/version selector state
+  const [productFamilies, setProductFamilies] = useState<ProductFamilyInfo[]>([]);
+  const [selectedFamily, setSelectedFamily] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState('');
+  const [selectedVersion, setSelectedVersion] = useState('');
+
   // Analysis state
   const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -119,6 +128,13 @@ export const LegacyModernizationPage: React.FC = () => {
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
+  }, []);
+
+  // Load products on mount
+  useEffect(() => {
+    getProducts(undefined, 'en')
+      .then((res) => setProductFamilies(res.families))
+      .catch(() => {});
   }, []);
 
   // Poll for status updates
@@ -173,6 +189,9 @@ export const LegacyModernizationPage: React.FC = () => {
         file_name: fileName,
         source_code: sourceCode,
         vendors: [vendor],
+        ...(selectedProduct && selectedVersion
+          ? { target_product: selectedProduct, target_version: selectedVersion }
+          : {}),
       });
 
       setAnalysisId(response.analysis_id);
@@ -305,6 +324,77 @@ export const LegacyModernizationPage: React.FC = () => {
               <option value="microfocus">Micro Focus</option>
               <option value="ibm">IBM zOS</option>
             </select>
+
+            {vendor === 'openframe' && productFamilies.length > 0 && (
+              <>
+                <label style={{ fontSize: '0.8125rem', fontWeight: 500, marginLeft: '0.5rem' }}>
+                  {t('legacy.targetProduct')}:
+                </label>
+                <select
+                  className="legacy-mod-vendor-select"
+                  value={selectedFamily}
+                  onChange={(e) => {
+                    setSelectedFamily(e.target.value);
+                    setSelectedProduct('');
+                    setSelectedVersion('');
+                  }}
+                >
+                  <option value="">{t('legacy.selectFamily')}</option>
+                  {productFamilies.map((f) => (
+                    <option key={f.family} value={f.family}>
+                      {f.display_name}
+                    </option>
+                  ))}
+                </select>
+
+                {selectedFamily && (() => {
+                  const family = productFamilies.find((f) => f.family === selectedFamily);
+                  if (!family) return null;
+                  // unique product ids within this family
+                  const productIds = [...new Set(family.versions.map((v) => v.product))];
+                  return (
+                    <select
+                      className="legacy-mod-vendor-select"
+                      value={selectedProduct}
+                      onChange={(e) => {
+                        setSelectedProduct(e.target.value);
+                        setSelectedVersion('');
+                      }}
+                    >
+                      <option value="">{t('legacy.selectProduct')}</option>
+                      {productIds.map((pid) => {
+                        const pv = family.versions.find((v) => v.product === pid);
+                        return (
+                          <option key={pid} value={pid}>
+                            {pv?.display_name?.replace(/ \d+\.\d+$/, '') || pid}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  );
+                })()}
+
+                {selectedProduct && (() => {
+                  const family = productFamilies.find((f) => f.family === selectedFamily);
+                  if (!family) return null;
+                  const versions = family.versions.filter((v) => v.product === selectedProduct);
+                  return (
+                    <select
+                      className="legacy-mod-vendor-select"
+                      value={selectedVersion}
+                      onChange={(e) => setSelectedVersion(e.target.value)}
+                    >
+                      <option value="">{t('legacy.selectVersion')}</option>
+                      {versions.map((v) => (
+                        <option key={v.version} value={v.version}>
+                          v{v.version}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()}
+              </>
+            )}
 
             <button
               className="legacy-mod-analyze-btn"
@@ -500,6 +590,17 @@ export const LegacyModernizationPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Modernization AI Assistant */}
+      <ModernizationAIAssistant
+        analysisContext={analysisId ? {
+          analysisId,
+          fileName,
+          assetType: detectLanguage(fileName),
+          sourceCodeSnippet: sourceCode.slice(0, 2000),
+          targetProduct: selectedProduct || undefined,
+        } : undefined}
+      />
     </div>
   );
 };

@@ -1,0 +1,9 @@
+{
+  "product": "aim_xsp",
+  "version": "7.3",
+  "inherits": "aim_xsp/v7_1.json",
+  "capabilities": [
+    {"category": "cics", "pattern": "EXEC CICS WEB", "support": "partial", "notes": "XSP 7.3에서 기본 WEB 지원 추가"}
+  ],
+  "removed": []
+}

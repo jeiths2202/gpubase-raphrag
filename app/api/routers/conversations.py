@@ -53,7 +53,7 @@ async def list_conversations(
     skip: int = Query(0, ge=0, description="건너뛸 항목 수"),
     limit: int = Query(50, ge=1, le=100, description="최대 조회 수"),
     include_archived: bool = Query(False, description="보관된 대화 포함 여부"),
-    agent_type: Optional[str] = Query(None, pattern="^(auto|rag|ims|vision|code|planner)$", description="에이전트 유형 필터"),
+    agent_type: Optional[str] = Query(None, pattern="^(auto|rag|ims|vision|code|planner|legacy_chat)$", description="에이전트 유형 필터"),
     current_user: dict = Depends(get_current_user),
     service: ConversationService = Depends(get_conversation_service)
 ):

@@ -6,6 +6,10 @@
   "lines": "行",
   "chars": "文字",
   "targetVendor": "ターゲットベンダー",
+  "targetProduct": "ターゲット製品",
+  "selectFamily": "製品ファミリー選択",
+  "selectProduct": "製品選択",
+  "selectVersion": "バージョン選択",
   "startAnalysis": "分析開始",
   "analyzing": "分析中...",
   "pipeline": {
@@ -30,5 +34,23 @@
   },
   "errors": {
     "analyzeFailed": "分析に失敗しました。もう一度お試しください。"
+  },
+  "ai": {
+    "title": "モダナイゼーション AI",
+    "systemSelector": "システム",
+    "systemHost": "HOST",
+    "systemOpenFrame": "OpenFrame",
+    "systemAll": "ALL",
+    "tabChat": "チャット",
+    "tabHistory": "履歴",
+    "tabSources": "ソース",
+    "tabNotes": "メモ",
+    "inputPlaceholder": "レガシーモダナイゼーションについて質問...",
+    "welcomeMessage": "レガシーコード分析、移行パターン、OpenFrame互換性についてお気軽にご質問ください。",
+    "noHistory": "会話履歴がありません。",
+    "clearHistory": "履歴をクリア",
+    "noSources": "参照されたソースはまだありません。",
+    "noNotes": "メモはまだありません。重要な発見をメモしましょう。",
+    "notePlaceholder": "メモを追加..."
   }
 }

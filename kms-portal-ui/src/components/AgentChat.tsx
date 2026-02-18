@@ -894,8 +894,8 @@ export const AgentChat: React.FC<AgentChatProps> = ({
             </button>
           )}
 
-          {/* Trace panel toggle button - Planner only */}
-          {selectedAgent === 'planner' && currentTrace.dag && (
+          {/* Trace panel toggle button - shown when DAG data is available */}
+          {currentTrace.dag && (
             <button
               className={`agent-chat-trace-toggle ${tracePanel.isOpen ? 'active' : ''}`}
               onClick={toggleTracePanel}

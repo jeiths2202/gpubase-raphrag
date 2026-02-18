@@ -41,6 +41,7 @@ from .routers import query, documents, history, stats, health, settings, auth, m
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 from .admin_dashboard.router import router as admin_dashboard_router
 from .legacy_modernization.routers import analysis_router as legacy_analysis_router, reports_router as legacy_reports_router
+from .legacy_modernization.routers.chat import router as legacy_chat_router
 
 
 # Initialize mode manager and logger
@@ -825,6 +826,7 @@ app.include_router(graph_visualization.router, prefix=API_PREFIX)  # Graph Visua
 app.include_router(agent_teams.router, prefix=API_PREFIX)  # Agent Teams: Self-Improvement Feedback API
 app.include_router(legacy_analysis_router, prefix=API_PREFIX)  # Legacy Modernization: COBOL/JCL/MAP/ASM analysis
 app.include_router(legacy_reports_router, prefix=API_PREFIX)  # Legacy Modernization: Migration reports
+app.include_router(legacy_chat_router, prefix=API_PREFIX)  # Legacy Modernization: AI chat assistant
 
 # Static file serving for PDF-extracted images
 from starlette.staticfiles import StaticFiles as _StaticFiles

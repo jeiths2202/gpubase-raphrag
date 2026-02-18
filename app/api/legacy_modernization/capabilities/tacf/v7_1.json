@@ -1,0 +1,11 @@
+{
+  "product": "tacf",
+  "version": "7.1",
+  "inherits": "tacf/v7_0.json",
+  "capabilities": [
+    {"category": "tacf_resource", "pattern": "TSOAUTH", "support": "full", "notes": "7.1에서 TSO 인가 전체 지원"},
+    {"category": "tacf_auth", "pattern": "RACF SEARCH", "support": "full", "notes": "7.1에서 프로필 검색 지원 추가"},
+    {"category": "tacf_auth", "pattern": "RACF RLIST", "support": "full", "notes": "7.1에서 리소스 목록 조회 추가"}
+  ],
+  "removed": []
+}

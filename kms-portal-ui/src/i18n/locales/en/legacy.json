@@ -6,6 +6,10 @@
   "lines": "lines",
   "chars": "chars",
   "targetVendor": "Target Vendor",
+  "targetProduct": "Target Product",
+  "selectFamily": "Select Family",
+  "selectProduct": "Select Product",
+  "selectVersion": "Select Version",
   "startAnalysis": "Start Analysis",
   "analyzing": "Analyzing...",
   "pipeline": {
@@ -30,5 +34,23 @@
   },
   "errors": {
     "analyzeFailed": "Analysis failed. Please try again."
+  },
+  "ai": {
+    "title": "Modernization AI",
+    "systemSelector": "System",
+    "systemHost": "HOST",
+    "systemOpenFrame": "OpenFrame",
+    "systemAll": "ALL",
+    "tabChat": "Chat",
+    "tabHistory": "History",
+    "tabSources": "Sources",
+    "tabNotes": "Notes",
+    "inputPlaceholder": "Ask about legacy modernization...",
+    "welcomeMessage": "Ask me anything about legacy code analysis, migration patterns, and OpenFrame compatibility.",
+    "noHistory": "No conversation history yet.",
+    "clearHistory": "Clear History",
+    "noSources": "No sources referenced yet.",
+    "noNotes": "No notes yet. Add a note to remember key findings.",
+    "notePlaceholder": "Add a note..."
   }
 }

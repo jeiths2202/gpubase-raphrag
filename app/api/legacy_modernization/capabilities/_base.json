@@ -1,0 +1,31 @@
+{
+  "description": "Base capabilities shared across all OpenFrame products",
+  "capabilities": [
+    {"category": "file_io", "pattern": "OPEN", "support": "full", "notes": null},
+    {"category": "file_io", "pattern": "CLOSE", "support": "full", "notes": null},
+    {"category": "file_io", "pattern": "READ", "support": "full", "notes": null},
+    {"category": "file_io", "pattern": "WRITE", "support": "full", "notes": null},
+    {"category": "file_io", "pattern": "REWRITE", "support": "full", "notes": null},
+    {"category": "file_io", "pattern": "DELETE", "support": "full", "notes": null},
+    {"category": "file_io", "pattern": "START", "support": "full", "notes": null},
+    {"category": "arithmetic", "pattern": "COMPUTE", "support": "full", "notes": null},
+    {"category": "arithmetic", "pattern": "ADD", "support": "full", "notes": null},
+    {"category": "arithmetic", "pattern": "SUBTRACT", "support": "full", "notes": null},
+    {"category": "arithmetic", "pattern": "MULTIPLY", "support": "full", "notes": null},
+    {"category": "arithmetic", "pattern": "DIVIDE", "support": "full", "notes": null},
+    {"category": "string_op", "pattern": "STRING", "support": "full", "notes": null},
+    {"category": "string_op", "pattern": "UNSTRING", "support": "full", "notes": null},
+    {"category": "string_op", "pattern": "INSPECT", "support": "full", "notes": null},
+    {"category": "flow_control", "pattern": "PERFORM", "support": "full", "notes": null},
+    {"category": "flow_control", "pattern": "GO TO", "support": "full", "notes": null},
+    {"category": "flow_control", "pattern": "IF", "support": "full", "notes": null},
+    {"category": "flow_control", "pattern": "EVALUATE", "support": "full", "notes": null},
+    {"category": "flow_control", "pattern": "CALL", "support": "full", "notes": null},
+    {"category": "flow_control", "pattern": "STOP RUN", "support": "full", "notes": null},
+    {"category": "flow_control", "pattern": "GOBACK", "support": "full", "notes": null},
+    {"category": "copybook", "pattern": "COPY", "support": "full", "notes": null},
+    {"category": "data_definition", "pattern": "WORKING-STORAGE", "support": "full", "notes": null},
+    {"category": "data_definition", "pattern": "LINKAGE SECTION", "support": "full", "notes": null},
+    {"category": "data_definition", "pattern": "LOCAL-STORAGE", "support": "full", "notes": null}
+  ]
+}

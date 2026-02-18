@@ -1,0 +1,9 @@
+{
+  "product": "aim_msp",
+  "version": "7.3",
+  "inherits": "aim_msp/v7_1.json",
+  "capabilities": [
+    {"category": "ims", "pattern": "EXEC DLI PCB", "support": "full", "notes": "7.3에서 PCB 동적 할당 지원"}
+  ],
+  "removed": []
+}

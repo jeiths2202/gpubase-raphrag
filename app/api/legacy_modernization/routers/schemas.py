@@ -34,6 +34,16 @@ class AnalysisRequest(BaseModel):
     source_code: str = Field(
         ..., min_length=1, description="Legacy source code content",
     )
+    target_product: Optional[str] = Field(
+        None,
+        description="Target OpenFrame product (e.g., 'osc', 'batch', 'aim_xsp')",
+        examples=["osc"],
+    )
+    target_version: Optional[str] = Field(
+        None,
+        description="Target product version (e.g., '7.1', '8.0')",
+        examples=["7.1"],
+    )
     vendors: List[str] = Field(
         default=["openframe"],
         description="Target vendors for compatibility analysis",
@@ -108,6 +118,30 @@ class ReportListResponse(BaseModel):
         default_factory=list,
         description="Available report summaries (type, title, generated_at)",
     )
+
+
+class ProductVersionItem(BaseModel):
+    """Single product+version entry."""
+
+    product: str = Field(..., description="Product ID (e.g., 'osc')")
+    version: str = Field(..., description="Version string (e.g., '7.1')")
+    display_name: str = Field(..., description="Localized display name")
+    asset_types: List[str] = Field(default_factory=list)
+
+
+class ProductFamilyItem(BaseModel):
+    """Product family with grouped versions."""
+
+    family: str = Field(..., description="Family name (e.g., 'OSC')")
+    display_name: str
+    versions: List[ProductVersionItem]
+
+
+class ProductListResponse(BaseModel):
+    """Response for GET /products endpoint."""
+
+    families: List[ProductFamilyItem] = Field(default_factory=list)
+    total_products: int = Field(0, description="Total number of product+version combinations")
 
 
 class ErrorResponse(BaseModel):

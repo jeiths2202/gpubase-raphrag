@@ -124,6 +124,7 @@ class CompatibilityEngine:
     """Feature → Capability 매핑 엔진 (결정론적).
 
     No LLM calls — purely deterministic database lookup.
+    Supports version-specific analysis via ProductRegistry.
     """
 
     def __init__(self, capability_models: dict[str, CapabilityModel]) -> None:
@@ -134,12 +135,28 @@ class CompatibilityEngine:
         features: List[NormalizedFeature],
         evidence: List[TraceEvidence],
         vendors: Optional[List[str]] = None,
+        target_product: Optional[str] = None,
+        target_version: Optional[str] = None,
     ) -> List[CompatibilityFinding]:
-        """모든 feature × vendor 조합에 대해 Finding 생성."""
+        """모든 feature × vendor 조합에 대해 Finding 생성.
+
+        target_product/target_version이 지정되면 ProductRegistry에서
+        버전별 capability를 조회하여 더 정확한 매칭을 수행합니다.
+        """
         target_vendors = vendors or list(self._models.keys())
         findings: List[CompatibilityFinding] = []
         for feature in features:
             for vendor in target_vendors:
+                # 버전별 매칭 우선 시도
+                if target_product and target_version and vendor == "openframe":
+                    finding = self._match_with_registry(
+                        feature, target_product, target_version, evidence,
+                    )
+                    if finding:
+                        findings.append(finding)
+                        continue
+
+                # 기존 CapabilityModel 기반 매칭 (fallback)
                 model = self._models.get(vendor)
                 if not model:
                     continue
@@ -147,6 +164,38 @@ class CompatibilityEngine:
                 finding = self._create_finding(feature, entry, vendor, model.version, evidence)
                 findings.append(finding)
         return findings
+
+    def _match_with_registry(
+        self,
+        feature: NormalizedFeature,
+        target_product: str,
+        target_version: str,
+        evidence: List[TraceEvidence],
+    ) -> Optional[CompatibilityFinding]:
+        """ProductRegistry를 통한 버전별 capability 매칭."""
+        try:
+            from ..capabilities.registry import get_product_registry
+            registry = get_product_registry()
+            cap = registry.lookup_capability(target_product, target_version, feature.name)
+
+            if cap is None:
+                return None  # fallback to existing CapabilityModel
+
+            support = SupportLevel(cap.support) if cap.support in [s.value for s in SupportLevel] else SupportLevel.UNSUPPORTED
+            return CompatibilityFinding(
+                finding_id=f"openframe-{feature.feature_id}-{support.value.upper()}",
+                feature=feature,
+                vendor="openframe",
+                vendor_version=target_version,
+                support_level=support,
+                migration_effort=_SUPPORT_TO_EFFORT.get(support, EffortLevel.MEDIUM),
+                severity=_SUPPORT_TO_SEVERITY.get(support, Severity.WARNING),
+                description=cap.notes or f"Feature '{feature.name}' is {support.value} in {target_product} {target_version}",
+                confidence=0.95 if support == SupportLevel.FULL else 0.85,
+                trace_evidence=self._find_evidence(feature, evidence),
+            )
+        except Exception:
+            return None  # fallback to existing CapabilityModel
 
     def _create_finding(
         self,
