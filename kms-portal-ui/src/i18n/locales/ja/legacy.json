@@ -1,0 +1,34 @@
+{
+  "title": "レガシーモダナイゼーション",
+  "subtitle": "COBOL/JCL/MAP/ASM 分析インテリジェンスプラットフォーム",
+  "upload": "アップロード",
+  "codePlaceholder": "COBOL、JCL、MAP、またはASMソースコードをここに貼り付けてください...\n\n       IDENTIFICATION DIVISION.\n       PROGRAM-ID. HELLO.\n       PROCEDURE DIVISION.\n           DISPLAY 'HELLO WORLD'.\n           STOP RUN.",
+  "lines": "行",
+  "chars": "文字",
+  "targetVendor": "ターゲットベンダー",
+  "startAnalysis": "分析開始",
+  "analyzing": "分析中...",
+  "pipeline": {
+    "title": "分析パイプライン",
+    "parsing": "ソース解析",
+    "domainAnalysis": "ドメインエキスパート分析",
+    "knowledgeEnrichment": "知識エンリッチメント",
+    "review": "ピアレビュー",
+    "qaCheck": "QAチェック",
+    "e2eValidation": "E2E検証",
+    "riskAssessment": "リスク評価",
+    "competitorAnalysis": "競合分析",
+    "reportGeneration": "レポート生成"
+  },
+  "results": {
+    "title": "分析結果",
+    "assetType": "資産タイプ",
+    "loc": "コード行数",
+    "status": "ステータス",
+    "qaStatus": "QAステータス",
+    "empty": "ソースコードを送信して分析を開始してください"
+  },
+  "errors": {
+    "analyzeFailed": "分析に失敗しました。もう一度お試しください。"
+  }
+}

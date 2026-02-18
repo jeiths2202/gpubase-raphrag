@@ -1,0 +1,34 @@
+{
+  "title": "레거시 모더나이제이션",
+  "subtitle": "COBOL/JCL/MAP/ASM 분석 인텔리전스 플랫폼",
+  "upload": "업로드",
+  "codePlaceholder": "COBOL, JCL, MAP 또는 ASM 소스 코드를 여기에 붙여넣으세요...\n\n       IDENTIFICATION DIVISION.\n       PROGRAM-ID. HELLO.\n       PROCEDURE DIVISION.\n           DISPLAY 'HELLO WORLD'.\n           STOP RUN.",
+  "lines": "줄",
+  "chars": "자",
+  "targetVendor": "대상 벤더",
+  "startAnalysis": "분석 시작",
+  "analyzing": "분석 중...",
+  "pipeline": {
+    "title": "분석 파이프라인",
+    "parsing": "소스 파싱",
+    "domainAnalysis": "도메인 전문가 분석",
+    "knowledgeEnrichment": "지식 보강",
+    "review": "피어 리뷰",
+    "qaCheck": "QA 검사",
+    "e2eValidation": "E2E 검증",
+    "riskAssessment": "리스크 평가",
+    "competitorAnalysis": "경쟁사 분석",
+    "reportGeneration": "보고서 생성"
+  },
+  "results": {
+    "title": "분석 결과",
+    "assetType": "자산 유형",
+    "loc": "코드 라인 수",
+    "status": "상태",
+    "qaStatus": "QA 상태",
+    "empty": "소스 코드를 제출하여 분석을 시작하세요"
+  },
+  "errors": {
+    "analyzeFailed": "분석에 실패했습니다. 다시 시도해주세요."
+  }
+}

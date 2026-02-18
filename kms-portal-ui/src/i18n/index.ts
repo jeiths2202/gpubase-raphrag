@@ -18,6 +18,7 @@ import enFaq from './locales/en/faq.json';
 import enSettings from './locales/en/settings.json';
 import enImprovements from './locales/en/improvements.json';
 import enAdmin from './locales/en/admin.json';
+import enLegacy from './locales/en/legacy.json';
 
 // Import Korean translations
 import koCommon from './locales/ko/common.json';
@@ -31,6 +32,7 @@ import koFaq from './locales/ko/faq.json';
 import koSettings from './locales/ko/settings.json';
 import koImprovements from './locales/ko/improvements.json';
 import koAdmin from './locales/ko/admin.json';
+import koLegacy from './locales/ko/legacy.json';
 
 // Import Japanese translations
 import jaCommon from './locales/ja/common.json';
@@ -44,6 +46,7 @@ import jaFaq from './locales/ja/faq.json';
 import jaSettings from './locales/ja/settings.json';
 import jaImprovements from './locales/ja/improvements.json';
 import jaAdmin from './locales/ja/admin.json';
+import jaLegacy from './locales/ja/legacy.json';
 
 // Merge translations by namespace
 const translations: Record<LanguageCode, Record<string, unknown>> = {
@@ -59,6 +62,7 @@ const translations: Record<LanguageCode, Record<string, unknown>> = {
     settings: enSettings,
     improvements: enImprovements,
     admin: enAdmin,
+    legacy: enLegacy,
   },
   ko: {
     common: koCommon,
@@ -72,6 +76,7 @@ const translations: Record<LanguageCode, Record<string, unknown>> = {
     settings: koSettings,
     improvements: koImprovements,
     admin: koAdmin,
+    legacy: koLegacy,
   },
   ja: {
     common: jaCommon,
@@ -85,6 +90,7 @@ const translations: Record<LanguageCode, Record<string, unknown>> = {
     settings: jaSettings,
     improvements: jaImprovements,
     admin: jaAdmin,
+    legacy: jaLegacy,
   },
 };
 

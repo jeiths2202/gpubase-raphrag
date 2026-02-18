@@ -40,6 +40,7 @@ from .core.exceptions import (
 from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management, agent_navigation, agent_session, clarification, verified_knowledge, openagent, openframe_rag, admin_scoring, admin_prompts, query_rag, agentic_rag, graph_visualization, agent_teams
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 from .admin_dashboard.router import router as admin_dashboard_router
+from .legacy_modernization.routers import analysis_router as legacy_analysis_router, reports_router as legacy_reports_router
 
 
 # Initialize mode manager and logger
@@ -822,6 +823,8 @@ app.include_router(query_rag.router)  # RAG Anti-Hallucination Query (prefix alr
 app.include_router(agentic_rag.router, prefix=API_PREFIX)  # Agentic RAG: Product-specific Agent-based RAG
 app.include_router(graph_visualization.router, prefix=API_PREFIX)  # Graph Visualization: Neo4j → ReactFlow JSON
 app.include_router(agent_teams.router, prefix=API_PREFIX)  # Agent Teams: Self-Improvement Feedback API
+app.include_router(legacy_analysis_router, prefix=API_PREFIX)  # Legacy Modernization: COBOL/JCL/MAP/ASM analysis
+app.include_router(legacy_reports_router, prefix=API_PREFIX)  # Legacy Modernization: Migration reports
 
 # Static file serving for PDF-extracted images
 from starlette.staticfiles import StaticFiles as _StaticFiles

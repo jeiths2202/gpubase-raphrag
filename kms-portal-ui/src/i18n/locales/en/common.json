@@ -49,6 +49,7 @@
     "openAgent": "OpenAgent",
     "openframeRag": "OpenFrame RAG",
     "scoring": "Scoring Config",
+    "legacyModernization": "Legacy Modernization",
     "mainNavigation": "Main navigation"
   },
   "products": {

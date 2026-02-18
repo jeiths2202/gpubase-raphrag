@@ -255,6 +255,30 @@ export type {
   MindmapListResponse,
 } from './mindmap.api';
 
+// Legacy Modernization API
+export { default as legacyApi } from './legacy.api';
+export {
+  startAnalysis as startLegacyAnalysis,
+  getAnalysisStatus as getLegacyAnalysisStatus,
+  getAnalysisResults as getLegacyAnalysisResults,
+  getReportList as getLegacyReportList,
+  getReport as getLegacyReport,
+  streamAnalysisEvents,
+} from './legacy.api';
+export type {
+  LegacyAssetType,
+  PipelineStatus,
+  ReportType,
+  AnalysisRequest as LegacyAnalysisRequest,
+  AnalysisResponse as LegacyAnalysisResponse,
+  AnalysisStatus as LegacyAnalysisStatus,
+  AnalysisResults as LegacyAnalysisResults,
+  ReportListResponse as LegacyReportListResponse,
+  ReportListItem as LegacyReportListItem,
+  ReportDetail as LegacyReportDetail,
+  SSEEvent as LegacySSEEvent,
+} from './legacy.api';
+
 // Web Pages API
 export { default as webPagesApi } from './webPages.api';
 export {

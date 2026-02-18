@@ -1,0 +1,34 @@
+{
+  "title": "Legacy Modernization",
+  "subtitle": "COBOL/JCL/MAP/ASM Analysis Intelligence Platform",
+  "upload": "Upload",
+  "codePlaceholder": "Paste your COBOL, JCL, MAP, or ASM source code here...\n\n       IDENTIFICATION DIVISION.\n       PROGRAM-ID. HELLO.\n       PROCEDURE DIVISION.\n           DISPLAY 'HELLO WORLD'.\n           STOP RUN.",
+  "lines": "lines",
+  "chars": "chars",
+  "targetVendor": "Target Vendor",
+  "startAnalysis": "Start Analysis",
+  "analyzing": "Analyzing...",
+  "pipeline": {
+    "title": "Analysis Pipeline",
+    "parsing": "Source Parsing",
+    "domainAnalysis": "Domain Expert Analysis",
+    "knowledgeEnrichment": "Knowledge Enrichment",
+    "review": "Peer Review",
+    "qaCheck": "QA Check",
+    "e2eValidation": "E2E Validation",
+    "riskAssessment": "Risk Assessment",
+    "competitorAnalysis": "Competitor Analysis",
+    "reportGeneration": "Report Generation"
+  },
+  "results": {
+    "title": "Analysis Results",
+    "assetType": "Asset Type",
+    "loc": "Lines of Code",
+    "status": "Status",
+    "qaStatus": "QA Status",
+    "empty": "Submit source code to start analysis"
+  },
+  "errors": {
+    "analyzeFailed": "Analysis failed. Please try again."
+  }
+}

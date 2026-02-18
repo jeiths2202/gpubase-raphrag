@@ -1,0 +1,1 @@
+"""Core infrastructure: errors, protocol, shared state, event bus."""

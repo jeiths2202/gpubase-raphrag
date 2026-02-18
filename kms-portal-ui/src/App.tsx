@@ -48,6 +48,7 @@ import { KnowledgeGraphPage } from './pages/KnowledgeGraphPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { ImprovementsPage, SubmitImprovementPage, ImprovementDetailPage } from './pages/improvements';
+import { LegacyModernizationPage } from './pages/LegacyModernizationPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 
 // Import global styles
@@ -106,6 +107,9 @@ export const App: React.FC = () => {
 
               {/* Knowledge Graph Explorer */}
               <Route path="/knowledge-graph" element={<KnowledgeGraphPage />} />
+
+              {/* Legacy Modernization - COBOL/JCL/MAP/ASM Analysis */}
+              <Route path="/legacy-modernization" element={<LegacyModernizationPage />} />
 
               {/* Improvements - AI-Driven Enhancement Management */}
               <Route path="/improvements" element={<ImprovementsPage />} />
