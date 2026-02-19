@@ -46,17 +46,16 @@ import FileAccordion from '../components/ModernizationAI/FileAccordion';
 import AnalysisDataTable from '../components/ModernizationAI/AnalysisDataTable';
 import './LegacyModernizationPage.css';
 
-// Pipeline step definitions
-const PIPELINE_STEPS: { status: PipelineStatus; labelKey: string }[] = [
-  { status: 'parsing', labelKey: 'legacy.pipeline.parsing' },
-  { status: 'domain_analysis', labelKey: 'legacy.pipeline.domainAnalysis' },
-  { status: 'knowledge_enrichment', labelKey: 'legacy.pipeline.knowledgeEnrichment' },
-  { status: 'review', labelKey: 'legacy.pipeline.review' },
-  { status: 'qa_check', labelKey: 'legacy.pipeline.qaCheck' },
-  { status: 'e2e_validation', labelKey: 'legacy.pipeline.e2eValidation' },
-  { status: 'risk_assessment', labelKey: 'legacy.pipeline.riskAssessment' },
-  { status: 'competitor_analysis', labelKey: 'legacy.pipeline.competitorAnalysis' },
-  { status: 'report_generation', labelKey: 'legacy.pipeline.reportGeneration' },
+// Pipeline step definitions - matches backend PipelineStatus enum + AgentRole
+const PIPELINE_STEPS: { status: PipelineStatus; labelKey: string; agentKey: string }[] = [
+  { status: 'parsing', labelKey: 'legacy.pipeline.parsing', agentKey: 'legacy.pipeline.agents.domainExpert' },
+  { status: 'knowledge_enrichment', labelKey: 'legacy.pipeline.knowledgeEnrichment', agentKey: 'legacy.pipeline.agents.legacyKnowledge' },
+  { status: 'compatibility_analysis', labelKey: 'legacy.pipeline.compatibilityAnalysis', agentKey: 'legacy.pipeline.agents.competitorIntel' },
+  { status: 'risk_assessment', labelKey: 'legacy.pipeline.riskAssessment', agentKey: 'legacy.pipeline.agents.riskIntel' },
+  { status: 'reviewing', labelKey: 'legacy.pipeline.reviewing', agentKey: 'legacy.pipeline.agents.reviewer' },
+  { status: 'qa_validation', labelKey: 'legacy.pipeline.qaValidation', agentKey: 'legacy.pipeline.agents.qa' },
+  { status: 'e2e_testing', labelKey: 'legacy.pipeline.e2eTesting', agentKey: 'legacy.pipeline.agents.e2eTest' },
+  { status: 'report_generation', labelKey: 'legacy.pipeline.reportGeneration', agentKey: 'legacy.pipeline.agents.reportGenerator' },
 ];
 
 // XSP JCL statement prefixes (Fujitsu OSIV/XSP)
@@ -488,7 +487,7 @@ export const LegacyModernizationPage: React.FC = () => {
               <option value="ibm">IBM zOS</option>
             </select>
 
-            {vendor === 'openframe' && productFamilies.length > 0 && (
+            {vendor === 'openframe' && (
               <>
                 <label style={{ fontSize: '0.8125rem', fontWeight: 500, marginLeft: '0.5rem' }}>
                   {t('legacy.targetProduct')}:
@@ -611,6 +610,11 @@ export const LegacyModernizationPage: React.FC = () => {
             <div className="legacy-mod-pipeline-steps">
               {PIPELINE_STEPS.map((step) => {
                 const state = getStepState(step.status, pipelineStatus);
+                // For active parsing step, show the real agent name from polling (e.g., "JCL Expert")
+                const agentLabel =
+                  state === 'active' && step.status === 'parsing' && currentAgent
+                    ? currentAgent
+                    : t(step.agentKey);
                 return (
                   <div
                     key={step.status}
@@ -622,7 +626,10 @@ export const LegacyModernizationPage: React.FC = () => {
                       {state === 'failed' && <XCircle size={16} />}
                       {state === 'pending' && <span className="pending-dot" />}
                     </span>
-                    <span>{t(step.labelKey)}</span>
+                    <span className="legacy-mod-step-label">
+                      {t(step.labelKey)}
+                      <span className="legacy-mod-step-agent">{agentLabel}</span>
+                    </span>
                   </div>
                 );
               })}

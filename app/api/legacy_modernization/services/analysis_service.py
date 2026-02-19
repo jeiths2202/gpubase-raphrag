@@ -403,7 +403,12 @@ class AnalysisService:
 
             features = workspace.features
             findings = workspace.compatibility_findings
-            incomp = len(findings)
+            # STMT_ERROR 피처도 비호환으로 카운트 (parse error = HIGH risk)
+            error_feature_count = sum(
+                1 for feat in features
+                if isinstance(feat, dict) and feat.get("subcategory") == "STMT_ERROR"
+            )
+            incomp = len(findings) + error_feature_count
             supp = max(len(features) - incomp, 0)
             rate = round((supp / max(len(features), 1)) * 100, 1)
 
@@ -412,6 +417,8 @@ class AnalysisService:
                 sev = f.get("severity", "info").upper() if isinstance(f, dict) else "LOW"
                 if sev in risk_counts:
                     risk_counts[sev] += 1
+            # STMT_ERROR는 HIGH risk로 카운트
+            risk_counts["HIGH"] += error_feature_count
 
             # Build incompatibility report
             incompat_report = None
@@ -794,9 +801,15 @@ class AnalysisService:
                 if sev in risk_counts:
                     risk_counts[sev] += 1
 
-            incomp = len(findings)
+            # STMT_ERROR 피처도 비호환으로 카운트
+            error_feature_count = sum(
+                1 for feat in features
+                if isinstance(feat, dict) and feat.get("subcategory") == "STMT_ERROR"
+            )
+            incomp = len(findings) + error_feature_count
             supp = max(len(features) - incomp, 0)
             rate = round((supp / max(len(features), 1)) * 100, 1)
+            risk_counts["HIGH"] += error_feature_count
 
             # Build incompatibility report
             incompat_report = await builder.build(ws)
@@ -892,7 +905,12 @@ class AnalysisService:
                     ws = results.get("workspace", {})
                     features = ws.get("features", [])
                     findings = ws.get("compatibility_findings", [])
-                    incomp = len(findings)
+                    # STMT_ERROR 피처도 비호환으로 카운트
+                    error_feat_count = sum(
+                        1 for feat in features
+                        if isinstance(feat, dict) and feat.get("subcategory") == "STMT_ERROR"
+                    )
+                    incomp = len(findings) + error_feat_count
                     supp = max(len(features) - incomp, 0)
                     rate = round((supp / max(len(features), 1)) * 100, 1)
 

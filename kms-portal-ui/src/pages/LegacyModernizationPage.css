@@ -315,6 +315,24 @@
   opacity: 0.4;
 }
 
+.legacy-mod-step-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.3;
+}
+
+.legacy-mod-step-agent {
+  font-size: 0.6875rem;
+  opacity: 0.6;
+  font-weight: 400;
+}
+
+.legacy-mod-step--active .legacy-mod-step-agent {
+  opacity: 0.85;
+  font-weight: 500;
+}
+
 /* Progress bar */
 .legacy-mod-progress {
   margin-top: 1rem;

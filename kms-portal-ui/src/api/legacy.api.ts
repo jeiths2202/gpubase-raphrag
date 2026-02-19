@@ -16,16 +16,16 @@ export type LegacyAssetType = 'cobol' | 'jcl' | 'map' | 'asm';
 export type PipelineStatus =
   | 'pending'
   | 'parsing'
-  | 'domain_analysis'
   | 'knowledge_enrichment'
-  | 'review'
-  | 'qa_check'
-  | 'e2e_validation'
+  | 'compatibility_analysis'
   | 'risk_assessment'
-  | 'competitor_analysis'
+  | 'reviewing'
+  | 'qa_validation'
+  | 'e2e_testing'
   | 'report_generation'
   | 'completed'
-  | 'failed';
+  | 'failed'
+  | 'blocked';
 
 export type ReportType =
   | 'technical_findings'

@@ -15,14 +15,23 @@
   "pipeline": {
     "title": "Analysis Pipeline",
     "parsing": "Source Parsing",
-    "domainAnalysis": "Domain Expert Analysis",
     "knowledgeEnrichment": "Knowledge Enrichment",
-    "review": "Peer Review",
-    "qaCheck": "QA Check",
-    "e2eValidation": "E2E Validation",
+    "compatibilityAnalysis": "Compatibility Analysis",
     "riskAssessment": "Risk Assessment",
-    "competitorAnalysis": "Competitor Analysis",
-    "reportGeneration": "Report Generation"
+    "reviewing": "Peer Review",
+    "qaValidation": "QA Validation",
+    "e2eTesting": "E2E Testing",
+    "reportGeneration": "Report Generation",
+    "agents": {
+      "domainExpert": "Domain Expert",
+      "legacyKnowledge": "Legacy Knowledge Expert",
+      "competitorIntel": "Competitor Intelligence",
+      "riskIntel": "Risk Intelligence",
+      "reviewer": "Reviewer Agent",
+      "qa": "QA Agent",
+      "e2eTest": "E2E Test Agent",
+      "reportGenerator": "Report Generator"
+    }
   },
   "results": {
     "title": "Analysis Results",

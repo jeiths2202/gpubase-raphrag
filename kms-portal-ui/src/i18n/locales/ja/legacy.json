@@ -15,14 +15,23 @@
   "pipeline": {
     "title": "分析パイプライン",
     "parsing": "ソース解析",
-    "domainAnalysis": "ドメインエキスパート分析",
     "knowledgeEnrichment": "知識エンリッチメント",
-    "review": "ピアレビュー",
-    "qaCheck": "QAチェック",
-    "e2eValidation": "E2E検証",
+    "compatibilityAnalysis": "互換性分析",
     "riskAssessment": "リスク評価",
-    "competitorAnalysis": "競合分析",
-    "reportGeneration": "レポート生成"
+    "reviewing": "ピアレビュー",
+    "qaValidation": "QA検証",
+    "e2eTesting": "E2Eテスト",
+    "reportGeneration": "レポート生成",
+    "agents": {
+      "domainExpert": "ドメインエキスパート",
+      "legacyKnowledge": "レガシー知識エキスパート",
+      "competitorIntel": "コンペティターインテリジェンス",
+      "riskIntel": "リスクインテリジェンス",
+      "reviewer": "レビューアーエージェント",
+      "qa": "QAエージェント",
+      "e2eTest": "E2Eテストエージェント",
+      "reportGenerator": "レポートジェネレーター"
+    }
   },
   "results": {
     "title": "分析結果",

@@ -15,14 +15,23 @@
   "pipeline": {
     "title": "분석 파이프라인",
     "parsing": "소스 파싱",
-    "domainAnalysis": "도메인 전문가 분석",
     "knowledgeEnrichment": "지식 보강",
-    "review": "피어 리뷰",
-    "qaCheck": "QA 검사",
-    "e2eValidation": "E2E 검증",
+    "compatibilityAnalysis": "호환성 분석",
     "riskAssessment": "리스크 평가",
-    "competitorAnalysis": "경쟁사 분석",
-    "reportGeneration": "보고서 생성"
+    "reviewing": "피어 리뷰",
+    "qaValidation": "QA 검증",
+    "e2eTesting": "E2E 테스트",
+    "reportGeneration": "보고서 생성",
+    "agents": {
+      "domainExpert": "도메인 전문가",
+      "legacyKnowledge": "레거시 지식 전문가",
+      "competitorIntel": "경쟁사 인텔리전스",
+      "riskIntel": "리스크 인텔리전스",
+      "reviewer": "리뷰어 에이전트",
+      "qa": "QA 에이전트",
+      "e2eTest": "E2E 테스트 에이전트",
+      "reportGenerator": "보고서 생성기"
+    }
   },
   "results": {
     "title": "분석 결과",

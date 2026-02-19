@@ -64,7 +64,12 @@ class IncompatibilityReportBuilder:
         recommendations = self._generate_recommendations(findings)
 
         # Section 7: Summary
-        incompatible_count = len(findings)
+        # STMT_ERROR 피처도 비호환으로 카운트 (parse error = HIGH risk)
+        error_feature_count = sum(
+            1 for feat in features
+            if isinstance(feat, dict) and feat.get("subcategory") == "STMT_ERROR"
+        )
+        incompatible_count = len(findings) + error_feature_count
         supported_count = max(len(features) - incompatible_count, 0)
         total = max(len(features), 1)
         rate = round((supported_count / total) * 100, 1)
@@ -74,6 +79,8 @@ class IncompatibilityReportBuilder:
             sev = f.get("severity", "info").upper()
             if sev in risk_counts:
                 risk_counts[sev] += 1
+        # STMT_ERROR는 HIGH risk로 카운트
+        risk_counts["HIGH"] += error_feature_count
 
         summary = {
             "total_features": len(features),
@@ -131,11 +138,17 @@ class IncompatibilityReportBuilder:
                 continue
             name = feat.get("name", "")
             metadata = feat.get("metadata", {}) or {}
+            subcategory = feat.get("subcategory", "")
+            # STMT_ERROR 피처는 파서 에러 → SYNTAX_ERROR로 표시
+            if subcategory == "STMT_ERROR":
+                support = "SYNTAX_ERROR"
+            else:
+                support = metadata.get("support", "SUPPORTED")
             results.append({
                 "statement": name,
                 "of7_token": metadata.get("of7_token", ""),
                 "stmt_type": metadata.get("stmt_type", ""),
-                "support": metadata.get("support", "SUPPORTED"),
+                "support": support,
             })
         return results
 
@@ -210,6 +223,18 @@ class IncompatibilityReportBuilder:
 
             status = "UNKNOWN"
             notes = ""
+            # STMT_ERROR 피처는 capability lookup 불필요 → 즉시 SYNTAX_ERROR
+            subcategory = feat.get("subcategory", "")
+            if subcategory == "STMT_ERROR":
+                status = "SYNTAX_ERROR"
+                notes = "Unknown JCL statement detected by parser"
+                results.append({
+                    "feature": name,
+                    "capability_key": cap_key,
+                    "status": status,
+                    "notes": notes,
+                })
+                continue
             if can_lookup:
                 # Strategy 1: Direct lookup (exact, prefix, utility, param-level)
                 cap = self._registry.lookup_capability(product, version, name)
