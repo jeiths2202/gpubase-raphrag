@@ -1,8 +1,7 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-02-19T03:30:46.037Z",
+  "lastUpdated": "2026-02-19T04:09:30.539Z",
   "activeFeatures": [
-    "vllm-hybrid-search-artifact-view",
     "legacy-analysis-datatable-persistence",
     "fujitsu-aim-xsp-spec",
     "enterprise-legacy-modernization",
@@ -30,29 +29,14 @@
     "of7_extractor",
     "kms-docker-remote"
   ],
-  "primaryFeature": "vllm-hybrid-search-artifact-view",
+  "primaryFeature": "legacy-analysis-datatable-persistence",
   "features": {
     "vllm-hybrid-search-artifact-view": {
-      "phase": "plan",
-      "phaseNumber": 1,
-      "matchRate": null,
-      "iterationCount": 0,
-      "requirements": [
-        "FR-01",
-        "FR-02",
-        "FR-03",
-        "FR-04"
-      ],
-      "documents": {
-        "plan": "docs/01-plan/features/vllm-hybrid-search-artifact-view.plan.md"
-      },
-      "history": [
-        {
-          "action": "plan_created",
-          "timestamp": "2026-02-19T12:00:00.000Z",
-          "details": "Plan document created: vLLM hybrid search + artifact view"
-        }
-      ]
+      "phase": "archived",
+      "matchRate": 97,
+      "iterationCount": 1,
+      "archivedAt": "2026-02-19T16:00:00.000Z",
+      "archivedTo": "docs/archive/2026-02/vllm-hybrid-search-artifact-view/"
     },
     "fujitsu-aim-xsp-spec": {
       "phase": "plan",
@@ -142,7 +126,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-16T16:00:47.458Z",
-        "lastUpdated": "2026-02-19T02:29:20.846Z"
+        "lastUpdated": "2026-02-19T04:09:30.539Z"
       },
       "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\services\\structured_knowledge_store.py"
     },
@@ -423,7 +407,7 @@
   "session": {
     "startedAt": "2026-01-30T11:33:36.280Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-02-19T03:30:46.037Z"
+    "lastActivity": "2026-02-19T04:09:30.539Z"
   },
   "history": [
     {
@@ -3675,6 +3659,12 @@
     {
       "timestamp": "2026-02-19T03:30:46.037Z",
       "feature": "ModernizationAI",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-19T04:09:30.539Z",
+      "feature": "api",
       "phase": "do",
       "action": "updated"
     }

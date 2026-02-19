@@ -917,8 +917,8 @@ class StructuredKnowledgeStore:
         """vLLM 임베딩 서비스로 텍스트 배치 임베딩. 실패 시 None 반환."""
         try:
             import httpx
-            from ..core.config import settings
-            url = f"{settings.EMBEDDING_URL}/embeddings"
+            from ..core.config import api_settings
+            url = f"{api_settings.EMBEDDING_URL}/embeddings"
 
             # 텍스트 길이 제한 (임베딩 모델 max token 고려)
             truncated = [t[:512] for t in texts]

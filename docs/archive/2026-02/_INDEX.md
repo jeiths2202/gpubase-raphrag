@@ -12,7 +12,12 @@
 | [strategy-aware-learning-dataset](./strategy-aware-learning-dataset/) | 2026-02-03 | 100% | ✅ Completed |
 | [chatgpt-quality-pipeline](./chatgpt-quality-pipeline/) | 2026-02-03 | 100% | ✅ Completed |
 | [chatgpt-style-webui](./chatgpt-style-webui/) | 2026-02-03 | 91% | ✅ Completed |
+| [parallel-orchestrator-dag](./parallel-orchestrator-dag/) | 2026-02-17 | 91% | ✅ Completed |
+| [enterprise-legacy-modernization](./enterprise-legacy-modernization/) | 2026-02-18 | 99% | ✅ Completed |
+| [legacy-host-openframe-agents](./legacy-host-openframe-agents/) | 2026-02-18 | 100% | ✅ Completed |
 | [mindmap-embedding-verification](./mindmap-embedding-verification/) | 2026-02-02 | 100% | ✅ Completed |
+| [legacy-modernization-analysis-ui](./legacy-modernization-analysis-ui/) | 2026-02-19 | 98% | ✅ Completed |
+| [vllm-hybrid-search-artifact-view](./vllm-hybrid-search-artifact-view/) | 2026-02-19 | 97% | ✅ Completed |
 
 ---
 
@@ -223,4 +228,130 @@ Start-Process python -PassThru -RedirectStandardOutput
 
 ---
 
-*Last updated: 2026-02-03 (server-script-improvement archived)*
+## parallel-orchestrator-dag
+
+**Purpose**: Parallel/sequential query orchestration with DAG visualization for Agentic RAG pipeline
+
+**Documents**:
+- `parallel-orchestrator-dag.plan.md` - Feature plan (comparison/pipeline detection)
+- `parallel-orchestrator-dag.design.md` - DAG execution architecture design
+- `parallel-orchestrator-dag.analysis.md` - Gap analysis (91% match rate)
+- `parallel-orchestrator-dag.report.md` - Completion report
+
+**Key Deliverables**:
+- `_analyze_query_pattern()` - Regex-based comparison/sequential detection (ja/ko/en)
+- `_stream_parallel_comparison()` - asyncio.gather parallel search + LLM synthesis
+- `_stream_pipeline()` - Sequential task execution with accumulated context
+- Frontend DAG auto-open on trace_data SSE events
+
+**Files Modified**:
+- `app/api/services/agentic_rag_service.py` (~250 lines added)
+- `kms-portal-ui/src/components/AgentChat.tsx` (1 line)
+- `kms-portal-ui/src/pages/AgenticRAGPage.tsx` (6 lines)
+
+**Key Metrics**:
+| Metric | Value |
+|--------|-------|
+| Match Rate | 91% |
+| Gaps Fixed | 3 (casing, trace_id, semaphore) |
+| Iterations | 1 |
+
+---
+
+## enterprise-legacy-modernization
+
+**Purpose**: Enterprise Legacy Modernization Intelligence Platform — 8 autonomous agents analyzing COBOL/JCL/MAP/ASM for OpenFrame migration
+
+**Documents**:
+- `enterprise-legacy-modernization.plan.md` - Feature plan (5 FRs, 10 deliverables, 6 phases)
+- `enterprise-legacy-modernization.design.md` - Full design (3,312 lines, 30 sections)
+- `enterprise-legacy-modernization.design-review.md` - Design review (83→99/100)
+- `enterprise-legacy-modernization.analysis.md` - Gap analysis (99% match rate, 133/133 items)
+- `enterprise-legacy-modernization.report.md` - Completion report
+
+**Key Architecture**:
+- 8 Autonomous Agents: COBOL Expert, JCL Expert, MAP Expert, ASM Expert, Compatibility Analyzer, QA Agent, Reviewer, Report Generator
+- Deterministic Parser Supremacy: Tree-sitter AST (COBOL/JCL), Regex-based (MAP/ASM)
+- 5-Rule Conflict Resolution: Parser immutable → QA veto → Reviewer escalation → Confidence-based → Orchestrator
+- Redis Streams Event Bus with OpenTelemetry trace propagation
+- SharedWorkspaceState with field-level write permissions per agent role
+- PipelineStateMachine: 12 states, max 5 reanalysis iterations
+- PostgreSQL (6 tables with RLS) + Redis (state/pub-sub) + MinIO (assets)
+- Plugin System: 5 plugin types (PARSER, QA_RULE, REPORT_FORMAT, CAPABILITY_DB, AGENT)
+
+**Functional Requirements**:
+| FR | Description | Coverage |
+|----|-------------|----------|
+| FR-01 | Deterministic Parser Core (COBOL/JCL/MAP/ASM) | 6/6 (100%) |
+| FR-02 | Compatibility Analysis Engine | 5/5 (100%) |
+| FR-03 | Autonomous Agent Teamwork | 7/7 (100%) |
+| FR-04 | Report Generation | 9/9 (100%) |
+| FR-05 | Enterprise Deployment | 8/8 (100%) |
+
+**PDCA Metrics**:
+| Metric | Value |
+|--------|-------|
+| Match Rate | 99% |
+| Design Review | 83 → 99/100 |
+| Gaps Resolved | 28 (3 Critical, 7 Significant, 12 Minor, 6 IC) |
+| Document Growth | 1,912 → 3,312 lines (+73%) |
+| Iterations | 0 (passed first check) |
+
+---
+
+## legacy-host-openframe-agents
+
+**Purpose**: Claude Code specialist agents for Legacy HOST mainframe analysis and TmaxSoft OpenFrame migration guidance
+
+**Documents**:
+- `legacy-host-openframe-agents.plan.md` - Feature plan (8 agents + 2 commands)
+- `legacy-host-openframe-agents.analysis.md` - Gap analysis (97% → 100% match rate)
+- `legacy-host-openframe-agents.report.md` - Completion report
+
+**Key Deliverables**:
+- 8 Claude Code agents in `.claude/agents/` (legacy-cobol/jcl/asm/map-expert, openframe-batch/online/cobol/infra-expert)
+- 2 Slash commands in `.claude/commands/` (`/legacy-analyze`, `/openframe-migrate`)
+- 35 domain responsibilities covered (19 Legacy + 16 OpenFrame)
+- 25 product-version entries across 11 OpenFrame products
+- 4 Fujitsu XSP spec documents integrated
+
+**Quality Metrics**:
+| Metric | Value |
+|--------|-------|
+| Match Rate | 97% → 100% |
+| Deliverables | 10/10 (100%) |
+| Domain Coverage | 35/35 (100%) |
+| Product Coverage | 25/25 (100%) |
+| Iterations | 0 |
+
+---
+
+## legacy-modernization-analysis-ui
+
+**Purpose**: Multi-file batch analysis UI for Legacy Modernization — upload up to 10 COBOL/JCL/MAP/ASM files, get per-file incompatibility reports with summary dashboard
+
+**Documents**:
+- `legacy-modernization-analysis-ui.plan.md` - Feature plan (5 FRs, 10 steps)
+- `legacy-modernization-analysis-ui.design.md` - Component design (API, SSE, UI)
+- `legacy-modernization-analysis-ui.analysis.md` - Gap analysis (98% match rate)
+- `legacy-modernization-analysis-ui.report.md` - Completion report
+
+**Key Deliverables**:
+- Backend: `POST /api/v1/legacy/batch-analyze` with SSE streaming
+- `BatchAnalysisService` with asyncio.Semaphore(3) concurrency
+- `BatchSummaryCard` component (aggregate stats, risk breakdown, support rate bar)
+- `FileAccordion` component (expandable per-file results)
+- `IncompatibilityReportView` component (7-section report)
+- i18n translations (EN, KO, JA) — 28 keys added
+
+**PDCA Metrics**:
+| Metric | Value |
+|--------|-------|
+| Match Rate | 98% |
+| Iterations | 0 |
+| Steps Completed | 10/10 |
+| TypeScript Errors Fixed | 26 |
+
+---
+
+*Last updated: 2026-02-19 (legacy-modernization-analysis-ui archived)*
