@@ -140,6 +140,7 @@
     "untitledConversation": "無題の会話",
     "deleteConversation": "会話を削除",
     "viewFull": "全文表示",
-    "fullResponse": "全文回答"
+    "fullResponse": "全文回答",
+    "sourceExplanationHint": "「このソースについて説明して」と入力すると行ごとの分析が表示されます"
   }
 }

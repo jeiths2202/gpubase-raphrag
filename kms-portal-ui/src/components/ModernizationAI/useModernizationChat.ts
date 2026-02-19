@@ -176,6 +176,7 @@ export function useModernizationChat() {
             file_name: analysisContext.fileName,
             asset_type: analysisContext.assetType,
             source_code_snippet: analysisContext.sourceCodeSnippet,
+            source_code_full: analysisContext.sourceCodeFull,
             target_product: analysisContext.targetProduct,
           };
         }

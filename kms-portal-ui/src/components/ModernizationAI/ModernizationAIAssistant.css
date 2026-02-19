@@ -259,6 +259,17 @@
   line-height: 1.5;
 }
 
+.mod-ai-source-hint {
+  font-size: 11px;
+  color: var(--color-primary, #6366f1);
+  background: var(--color-primary-light, rgba(99, 102, 241, 0.08));
+  padding: 6px 12px;
+  border-radius: 6px;
+  margin-top: 4px;
+  max-width: 300px;
+  line-height: 1.4;
+}
+
 .mod-ai-suggestions {
   display: flex;
   flex-direction: column;

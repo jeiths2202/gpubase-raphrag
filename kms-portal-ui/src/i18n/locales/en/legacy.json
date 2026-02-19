@@ -140,6 +140,7 @@
     "untitledConversation": "Untitled Conversation",
     "deleteConversation": "Delete Conversation",
     "viewFull": "View Full",
-    "fullResponse": "Full Response"
+    "fullResponse": "Full Response",
+    "sourceExplanationHint": "Try: \"Explain this source code\" to get a line-by-line analysis"
   }
 }

@@ -536,6 +536,9 @@ export const ModernizationAIAssistant: React.FC<ModernizationAIAssistantProps> =
                 <div className="mod-ai-welcome">
                   <Sparkles size={32} className="mod-ai-welcome-icon" />
                   <p className="mod-ai-welcome-text">{t('legacy.ai.welcomeMessage')}</p>
+                  {analysisContext?.sourceCodeFull && (
+                    <p className="mod-ai-source-hint">{t('legacy.ai.sourceExplanationHint')}</p>
+                  )}
                   <div className="mod-ai-suggestions">
                     {suggestionList.map((s, i) => (
                       <button

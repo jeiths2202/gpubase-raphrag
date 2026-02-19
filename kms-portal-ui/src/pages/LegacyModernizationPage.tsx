@@ -706,11 +706,12 @@ export const LegacyModernizationPage: React.FC = () => {
 
       {/* Modernization AI Assistant */}
       <ModernizationAIAssistant
-        analysisContext={analysisId ? {
-          analysisId,
+        analysisContext={sourceCode.trim() ? {
+          analysisId: analysisId || undefined,
           fileName,
           assetType: detectLanguage(fileName, sourceCode),
           sourceCodeSnippet: sourceCode.slice(0, 2000),
+          sourceCodeFull: sourceCode,
           targetProduct: selectedProduct || undefined,
         } : undefined}
       />

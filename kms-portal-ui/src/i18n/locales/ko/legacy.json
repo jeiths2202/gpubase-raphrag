@@ -140,6 +140,7 @@
     "untitledConversation": "제목 없는 대화",
     "deleteConversation": "대화 삭제",
     "viewFull": "전체 보기",
-    "fullResponse": "전체 답변"
+    "fullResponse": "전체 답변",
+    "sourceExplanationHint": "\"이 소스에 대해서 설명해줘\"를 입력하면 라인별 분석을 받을 수 있습니다"
   }
 }

@@ -21,6 +21,9 @@ class AnalysisContext(BaseModel):
     source_code_snippet: Optional[str] = Field(
         None, max_length=2000, description="First 2000 chars of source code",
     )
+    source_code_full: Optional[str] = Field(
+        None, max_length=100000, description="Full source code for line-by-line explanation",
+    )
     target_product: Optional[str] = Field(None, description="Target OpenFrame product")
 
 

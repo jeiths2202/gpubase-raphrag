@@ -49,6 +49,7 @@ export interface AnalysisContextInfo {
   fileName?: string;
   assetType?: string;
   sourceCodeSnippet?: string;
+  sourceCodeFull?: string;
   targetProduct?: string;
 }
 
