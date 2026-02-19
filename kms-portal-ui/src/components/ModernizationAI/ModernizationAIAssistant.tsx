@@ -7,7 +7,8 @@
  * - 4 tabs: Chat, History, Sources, Notes
  * - SSE streaming chat via fetch+ReadableStream
  * - Drag/resize with localStorage persistence
- * - Notes persistence in localStorage
+ * - Chat history persisted in PostgreSQL
+ * - Notes persisted in PostgreSQL
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -26,14 +27,17 @@ import {
   Server,
   Database,
   Layers,
+  RefreshCw,
+  Maximize2,
 } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useFloatingPanel } from './useFloatingPanel';
 import { useModernizationChat } from './useModernizationChat';
+import { getNotes, createNote, deleteNote as apiDeleteNote } from '../../api/legacy.api';
+import type { ModernizationNote } from '../../api/legacy.api';
 import type {
   SystemType,
   ChatTab,
-  ChatNote,
   AnalysisContextInfo,
 } from './types';
 import './ModernizationAIAssistant.css';
@@ -72,6 +76,61 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
   return parts;
 }
 
+/**
+ * Markdown table row인지 판별 (| col1 | col2 | 형식)
+ */
+function isTableRow(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.split('|').length >= 3;
+}
+
+/**
+ * Markdown separator row인지 판별 (|---|---|)
+ */
+function isTableSeparator(line: string): boolean {
+  const trimmed = line.trim();
+  return /^\|[\s\-:]+(\|[\s\-:]+)+\|$/.test(trimmed);
+}
+
+/**
+ * Markdown table 블록을 HTML table로 렌더링
+ */
+function renderMarkdownTable(tableLines: string[], startKey: number): React.ReactNode {
+  const rows = tableLines
+    .filter((l) => !isTableSeparator(l))
+    .map((line) =>
+      line.trim().replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim())
+    );
+
+  if (rows.length === 0) return null;
+
+  const headerCells = rows[0];
+  const bodyRows = rows.slice(1);
+
+  return (
+    <div key={startKey} className="mod-ai-table-wrapper">
+      <table className="mod-ai-table">
+        <thead>
+          <tr>
+            {headerCells.map((cell, i) => (
+              <th key={i}>{renderInlineMarkdown(cell)}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {bodyRows.map((cells, rowIdx) => (
+            <tr key={rowIdx}>
+              {cells.map((cell, cellIdx) => (
+                <td key={cellIdx}>{renderInlineMarkdown(cell)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function renderMessageContent(content: string): React.ReactNode {
   if (!content) return null;
 
@@ -81,9 +140,18 @@ function renderMessageContent(content: string): React.ReactNode {
   let codeLines: string[] = [];
   let codeLang = '';
   let blockKey = 0;
+  let tableLines: string[] = [];
+
+  const flushTable = () => {
+    if (tableLines.length > 0) {
+      blocks.push(renderMarkdownTable(tableLines, blockKey++));
+      tableLines = [];
+    }
+  };
 
   for (const line of lines) {
     if (line.startsWith('```') && !inCode) {
+      flushTable();
       inCode = true;
       codeLang = line.slice(3).trim();
       codeLines = [];
@@ -97,23 +165,34 @@ function renderMessageContent(content: string): React.ReactNode {
       );
     } else if (inCode) {
       codeLines.push(line);
-    } else if (line.startsWith('### ')) {
-      blocks.push(<h4 key={blockKey++} className="mod-ai-heading">{line.slice(4)}</h4>);
-    } else if (line.startsWith('## ')) {
-      blocks.push(<h3 key={blockKey++} className="mod-ai-heading">{line.slice(3)}</h3>);
-    } else if (line.startsWith('- ') || line.startsWith('* ')) {
-      blocks.push(
-        <div key={blockKey++} className="mod-ai-list-item">
-          <span className="mod-ai-bullet" />
-          <span>{renderInlineMarkdown(line.slice(2))}</span>
-        </div>
-      );
-    } else if (line.trim() === '') {
-      blocks.push(<div key={blockKey++} className="mod-ai-spacer" />);
+    } else if (isTableRow(line) || isTableSeparator(line)) {
+      // Markdown table 행 수집
+      tableLines.push(line);
     } else {
-      blocks.push(<p key={blockKey++} className="mod-ai-paragraph">{renderInlineMarkdown(line)}</p>);
+      // 테이블 종료 → flush
+      flushTable();
+
+      if (line.startsWith('### ')) {
+        blocks.push(<h4 key={blockKey++} className="mod-ai-heading">{line.slice(4)}</h4>);
+      } else if (line.startsWith('## ')) {
+        blocks.push(<h3 key={blockKey++} className="mod-ai-heading">{line.slice(3)}</h3>);
+      } else if (line.startsWith('- ') || line.startsWith('* ')) {
+        blocks.push(
+          <div key={blockKey++} className="mod-ai-list-item">
+            <span className="mod-ai-bullet" />
+            <span>{renderInlineMarkdown(line.slice(2))}</span>
+          </div>
+        );
+      } else if (line.trim() === '') {
+        blocks.push(<div key={blockKey++} className="mod-ai-spacer" />);
+      } else {
+        blocks.push(<p key={blockKey++} className="mod-ai-paragraph">{renderInlineMarkdown(line)}</p>);
+      }
     }
   }
+
+  // 마지막 테이블 flush
+  flushTable();
 
   return <>{blocks}</>;
 }
@@ -147,26 +226,61 @@ const SUGGESTIONS: Record<string, string[]> = {
 };
 
 // ============================================================================
-// Notes persistence
-// ============================================================================
-
-const NOTES_KEY = 'mod-ai-notes';
-
-function loadNotes(): ChatNote[] {
-  try {
-    const stored = localStorage.getItem(NOTES_KEY);
-    if (stored) return JSON.parse(stored);
-  } catch { /* ignore */ }
-  return [];
-}
-
-function saveNotes(notes: ChatNote[]) {
-  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
-}
-
-// ============================================================================
 // Component Props
 // ============================================================================
+
+// Artifact 뷰 전환 문자 수 임계값
+const ARTIFACT_THRESHOLD = 500;
+
+/**
+ * 긴 응답에서 요약 프리뷰를 추출한다.
+ * - markdown table, code block을 건너뛰고 일반 텍스트 행만 수집
+ * - 최소 1행, 최대 maxLines행 또는 maxChars자까지 수집
+ * - 항상 읽을 수 있는 텍스트를 반환하여 빈 프리뷰를 방지
+ */
+function extractPreviewText(content: string, maxLines = 6, maxChars = 400): string {
+  const lines = content.split('\n');
+  const preview: string[] = [];
+  let charCount = 0;
+  let inCodeBlock = false;
+  let inTable = false;
+
+  for (const line of lines) {
+    if (line.startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+    if (inCodeBlock) continue;
+
+    // table 행은 건너뜀
+    if (isTableRow(line) || isTableSeparator(line)) {
+      inTable = true;
+      continue;
+    }
+    if (inTable && line.trim() === '') {
+      inTable = false;
+      continue;
+    }
+
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (preview.length > 0) preview.push('');
+      continue;
+    }
+
+    preview.push(trimmed);
+    charCount += trimmed.length;
+    if (preview.length >= maxLines || charCount >= maxChars) break;
+  }
+
+  // table/code만으로 이루어진 경우 → 첫 줄이라도 표시
+  if (preview.filter((l) => l.trim()).length === 0) {
+    const first = lines.find((l) => l.trim())?.trim();
+    if (first) preview.push(first.slice(0, maxChars));
+  }
+
+  return preview.join('\n') + '\n\n...';
+}
 
 interface ModernizationAIAssistantProps {
   analysisContext?: AnalysisContextInfo;
@@ -181,8 +295,19 @@ export const ModernizationAIAssistant: React.FC<ModernizationAIAssistantProps> =
 }) => {
   const { t, language } = useTranslation();
   const { position, size, onDragStart, onResizeStart } = useFloatingPanel();
-  const { messages, isStreaming, sources, sendMessage, cancelStream, clearMessages } =
-    useModernizationChat();
+  const {
+    messages,
+    isStreaming,
+    sources,
+    conversations,
+    loadingConversations,
+    sendMessage,
+    cancelStream,
+    loadConversations,
+    loadConversation,
+    newConversation,
+    deleteConversation,
+  } = useModernizationChat();
 
   // Panel state
   const [isOpen, setIsOpen] = useState(false);
@@ -190,8 +315,14 @@ export const ModernizationAIAssistant: React.FC<ModernizationAIAssistantProps> =
   const [activeTab, setActiveTab] = useState<ChatTab>('chat');
   const [systemType, setSystemType] = useState<SystemType>('host');
   const [inputText, setInputText] = useState('');
-  const [notes, setNotes] = useState<ChatNote[]>(loadNotes);
+
+  // Notes state (DB-backed)
+  const [notes, setNotes] = useState<ModernizationNote[]>([]);
   const [noteInput, setNoteInput] = useState('');
+  const [notesLoading, setNotesLoading] = useState(false);
+
+  // Artifact view state (for long responses)
+  const [artifactContent, setArtifactContent] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -201,10 +332,27 @@ export const ModernizationAIAssistant: React.FC<ModernizationAIAssistantProps> =
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Save notes on change
+  // Load conversations and notes when panel opens
   useEffect(() => {
-    saveNotes(notes);
-  }, [notes]);
+    if (isOpen) {
+      loadConversations();
+      loadNotesFromDB();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Load notes from DB
+  const loadNotesFromDB = useCallback(async () => {
+    setNotesLoading(true);
+    try {
+      const dbNotes = await getNotes();
+      setNotes(dbNotes);
+    } catch (err) {
+      console.error('Failed to load notes:', err);
+    } finally {
+      setNotesLoading(false);
+    }
+  }, []);
 
   // Handle send
   const handleSend = useCallback(() => {
@@ -224,19 +372,26 @@ export const ModernizationAIAssistant: React.FC<ModernizationAIAssistantProps> =
     [handleSend]
   );
 
-  // Add note
-  const addNote = useCallback(() => {
+  // Add note via API
+  const addNote = useCallback(async () => {
     if (!noteInput.trim()) return;
-    setNotes((prev) => [
-      ...prev,
-      { id: `note-${Date.now()}`, content: noteInput.trim(), createdAt: Date.now() },
-    ]);
-    setNoteInput('');
+    try {
+      const created = await createNote(noteInput.trim());
+      setNotes((prev) => [...prev, created]);
+      setNoteInput('');
+    } catch (err) {
+      console.error('Failed to create note:', err);
+    }
   }, [noteInput]);
 
-  // Delete note
-  const deleteNote = useCallback((id: string) => {
-    setNotes((prev) => prev.filter((n) => n.id !== id));
+  // Delete note via API
+  const handleDeleteNote = useCallback(async (id: string) => {
+    try {
+      await apiDeleteNote(id);
+      setNotes((prev) => prev.filter((n) => n.id !== id));
+    } catch (err) {
+      console.error('Failed to delete note:', err);
+    }
   }, []);
 
   // Suggestion click
@@ -247,6 +402,21 @@ export const ModernizationAIAssistant: React.FC<ModernizationAIAssistantProps> =
     },
     []
   );
+
+  // Handle history item click - load conversation
+  const handleLoadConversation = useCallback(
+    (convId: string) => {
+      loadConversation(convId);
+      setActiveTab('chat');
+    },
+    [loadConversation]
+  );
+
+  // Handle new conversation
+  const handleNewConversation = useCallback(() => {
+    newConversation();
+    setActiveTab('chat');
+  }, [newConversation]);
 
   // ========================================================================
   // Render
@@ -380,38 +550,55 @@ export const ModernizationAIAssistant: React.FC<ModernizationAIAssistantProps> =
                 </div>
               )}
 
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`mod-ai-message mod-ai-message-${msg.role}`}
-                >
-                  {msg.role === 'assistant' && msg.sourceSystem && (
-                    <span className={`mod-ai-source-badge mod-ai-badge-${msg.sourceSystem}`}>
-                      {msg.sourceSystem === 'host' ? 'HOST' : 'OpenFrame'}
-                    </span>
-                  )}
-                  <div className="mod-ai-message-content">
-                    {msg.role === 'assistant'
-                      ? renderMessageContent(msg.content)
-                      : msg.content}
-                  </div>
-                  {msg.sources && msg.sources.length > 0 && (
-                    <div className="mod-ai-message-sources">
-                      {msg.sources.map((src, i) => (
-                        <span key={i} className="mod-ai-source-tag">
-                          {src.url ? (
-                            <a href={src.url} target="_blank" rel="noopener noreferrer">
-                              {src.title}
-                            </a>
-                          ) : (
-                            src.title
-                          )}
-                        </span>
-                      ))}
+              {messages.map((msg) => {
+                const isLongResponse = msg.role === 'assistant' && msg.content.length > ARTIFACT_THRESHOLD;
+
+                return (
+                  <div
+                    key={msg.id}
+                    className={`mod-ai-message mod-ai-message-${msg.role}`}
+                  >
+                    {msg.role === 'assistant' && msg.sourceSystem && (
+                      <span className={`mod-ai-source-badge mod-ai-badge-${msg.sourceSystem}`}>
+                        {msg.sourceSystem === 'host' ? 'HOST' : 'OpenFrame'}
+                      </span>
+                    )}
+                    <div className={`mod-ai-message-content ${isLongResponse ? 'mod-ai-preview-fade' : ''}`}>
+                      {msg.role === 'assistant'
+                        ? renderMessageContent(
+                            isLongResponse
+                              ? extractPreviewText(msg.content)
+                              : msg.content
+                          )
+                        : msg.content}
                     </div>
-                  )}
-                </div>
-              ))}
+                    {isLongResponse && (
+                      <button
+                        className="mod-ai-artifact-btn"
+                        onClick={() => setArtifactContent(msg.content)}
+                      >
+                        <Maximize2 size={14} />
+                        <span>{t('legacy.ai.viewFull') || 'View Full'}</span>
+                      </button>
+                    )}
+                    {msg.sources && msg.sources.length > 0 && (
+                      <div className="mod-ai-message-sources">
+                        {msg.sources.map((src, i) => (
+                          <span key={i} className="mod-ai-source-tag">
+                            {src.url ? (
+                              <a href={src.url} target="_blank" rel="noopener noreferrer">
+                                {src.title}
+                              </a>
+                            ) : (
+                              src.title
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
               {isStreaming && (
                 <div className="mod-ai-typing">
@@ -457,23 +644,60 @@ export const ModernizationAIAssistant: React.FC<ModernizationAIAssistantProps> =
         {/* History Tab */}
         {activeTab === 'history' && (
           <div className="mod-ai-history">
-            {messages.length === 0 ? (
+            <div className="mod-ai-history-toolbar">
+              <button
+                className="mod-ai-new-conv-btn"
+                onClick={handleNewConversation}
+              >
+                <Plus size={14} />
+                <span>{t('legacy.ai.newConversation')}</span>
+              </button>
+              <button
+                className="mod-ai-refresh-btn"
+                onClick={loadConversations}
+                disabled={loadingConversations}
+              >
+                <RefreshCw size={14} className={loadingConversations ? 'mod-ai-spin' : ''} />
+              </button>
+            </div>
+
+            {loadingConversations && conversations.length === 0 ? (
+              <p className="mod-ai-empty">{t('legacy.ai.loading')}</p>
+            ) : conversations.length === 0 ? (
               <p className="mod-ai-empty">{t('legacy.ai.noHistory')}</p>
             ) : (
               <div className="mod-ai-history-list">
-                <button className="mod-ai-clear-btn" onClick={clearMessages}>
-                  {t('legacy.ai.clearHistory')}
-                </button>
-                {messages
-                  .filter((m) => m.role === 'user')
-                  .map((m) => (
-                    <div key={m.id} className="mod-ai-history-item">
-                      <span className="mod-ai-history-text">{m.content.slice(0, 80)}</span>
-                      <span className="mod-ai-history-time">
-                        {new Date(m.timestamp).toLocaleTimeString()}
+                {conversations.map((conv) => (
+                  <div
+                    key={conv.id}
+                    className="mod-ai-history-item"
+                    onClick={() => handleLoadConversation(conv.id)}
+                  >
+                    <div className="mod-ai-history-item-main">
+                      <span className="mod-ai-history-text">
+                        {conv.title || t('legacy.ai.untitledConversation')}
+                      </span>
+                      <span className="mod-ai-history-meta">
+                        {conv.message_count} {t('legacy.ai.messages')}
                       </span>
                     </div>
-                  ))}
+                    <div className="mod-ai-history-item-right">
+                      <span className="mod-ai-history-time">
+                        {new Date(conv.updated_at).toLocaleDateString()}
+                      </span>
+                      <button
+                        className="mod-ai-history-delete"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteConversation(conv.id);
+                        }}
+                        title={t('legacy.ai.deleteConversation')}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -524,7 +748,9 @@ export const ModernizationAIAssistant: React.FC<ModernizationAIAssistantProps> =
                 <Plus size={16} />
               </button>
             </div>
-            {notes.length === 0 ? (
+            {notesLoading ? (
+              <p className="mod-ai-empty">{t('legacy.ai.loading')}</p>
+            ) : notes.length === 0 ? (
               <p className="mod-ai-empty">{t('legacy.ai.noNotes')}</p>
             ) : (
               notes.map((note) => (
@@ -532,11 +758,11 @@ export const ModernizationAIAssistant: React.FC<ModernizationAIAssistantProps> =
                   <p className="mod-ai-note-content">{note.content}</p>
                   <div className="mod-ai-note-footer">
                     <span className="mod-ai-note-time">
-                      {new Date(note.createdAt).toLocaleString()}
+                      {new Date(note.created_at).toLocaleString()}
                     </span>
                     <button
                       className="mod-ai-note-delete"
-                      onClick={() => deleteNote(note.id)}
+                      onClick={() => handleDeleteNote(note.id)}
                     >
                       <Trash2 size={12} />
                     </button>
@@ -550,6 +776,28 @@ export const ModernizationAIAssistant: React.FC<ModernizationAIAssistantProps> =
 
       {/* Resize handle */}
       <div className="mod-ai-resize-handle" onMouseDown={onResizeStart} />
+
+      {/* Artifact overlay - full response view */}
+      {artifactContent && (
+        <div className="mod-ai-artifact-overlay" onClick={() => setArtifactContent(null)}>
+          <div className="mod-ai-artifact-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="mod-ai-artifact-header">
+              <span className="mod-ai-artifact-title">
+                {t('legacy.ai.fullResponse') || 'Full Response'}
+              </span>
+              <button
+                className="mod-ai-artifact-close"
+                onClick={() => setArtifactContent(null)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="mod-ai-artifact-body">
+              {renderMessageContent(artifactContent)}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -479,7 +479,13 @@ class VLLMAdapter:
         72B CPT+DPO 모델은 context 기반 응답 생성을 지원합니다.
         context가 있으면 RAG 형식으로 포함, 없으면 단순 질문 형식.
         """
-        system_prompt = "あなたはOpenFrame KMSのアシスタントです。技術的な質問に正確に回答してください。"
+        system_prompt = (
+            "あなたはOpenFrame KMSのアシスタントです。技術的な質問に正確に回答してください。\n"
+            "検索結果が複数ある場合は、以下のようなmarkdown table形式で整理して回答してください：\n"
+            "| No | 項目 | 内容 | ソース |\n"
+            "|----|------|------|--------|\n"
+            "回答の最後に、参考にした資料のソース情報を含めてください。"
+        )
 
         messages = [
             {

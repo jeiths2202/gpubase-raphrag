@@ -32,6 +32,79 @@
     "qaStatus": "QAステータス",
     "empty": "ソースコードを送信して分析を開始してください"
   },
+  "batch": {
+    "uploadFiles": "ファイルアップロード",
+    "dropHere": "ファイルをドラッグまたはクリックしてアップロード",
+    "fileLimit": "最大10ファイル（COBOL, JCL, MAP, ASM）",
+    "filesSelected": "ファイル選択済み",
+    "totalLines": "合計行数",
+    "clearFiles": "ファイルクリア",
+    "analyzing": "一括分析中..."
+  },
+  "summary": {
+    "title": "分析サマリー",
+    "filesCompleted": "ファイル",
+    "featuresAnalyzed": "機能",
+    "incompatibleItems": "非互換",
+    "supportRate": "サポート率",
+    "riskBreakdown": "リスク",
+    "topIssues": "主要課題"
+  },
+  "accordion": {
+    "expandAll": "すべて展開",
+    "collapseAll": "すべて折りたたむ"
+  },
+  "report": {
+    "fileOverview": "ファイル概要",
+    "parserVerification": "パーサー検証",
+    "lineAnalysis": "行分析",
+    "capabilityLookup": "機能照会",
+    "incompatibleFindings": "非互換項目",
+    "recommendations": "推奨事項",
+    "analysisSummary": "サマリー",
+    "fileName": "ファイル",
+    "format": "フォーマット",
+    "purpose": "用途",
+    "program": "プログラム",
+    "totalLines": "行数"
+  },
+  "verdict": {
+    "ok": "OK",
+    "warning": "警告",
+    "incompatible": "非互換",
+    "syntaxError": "構文エラー",
+    "supported": "サポート済",
+    "notFound": "未検出"
+  },
+  "dataTable": {
+    "title": "分析履歴",
+    "allTypes": "全タイプ",
+    "fileName": "ファイル名",
+    "type": "タイプ",
+    "product": "製品",
+    "supportRate": "サポート率",
+    "features": "機能数",
+    "incompatible": "非互換",
+    "risk": "リスク",
+    "date": "日付",
+    "loading": "読み込み中...",
+    "empty": "分析結果はまだありません",
+    "delete": "削除",
+    "fetchError": "データの取得に失敗しました"
+  },
+  "detail": {
+    "tabOverview": "概要",
+    "tabIncompatibility": "非互換性",
+    "tabSource": "ソースコード",
+    "tabReports": "レポート",
+    "item": "項目",
+    "description": "説明",
+    "mitigation": "対応策",
+    "statement": "ステートメント",
+    "noIncompatibility": "非互換性の問題は見つかりませんでした",
+    "noSource": "ソースコードは利用できません",
+    "noReports": "レポートは利用できません"
+  },
   "errors": {
     "analyzeFailed": "分析に失敗しました。もう一度お試しください。"
   },
@@ -51,6 +124,13 @@
     "clearHistory": "履歴をクリア",
     "noSources": "参照されたソースはまだありません。",
     "noNotes": "メモはまだありません。重要な発見をメモしましょう。",
-    "notePlaceholder": "メモを追加..."
+    "notePlaceholder": "メモを追加...",
+    "newConversation": "新しい会話",
+    "loading": "読み込み中...",
+    "messages": "件のメッセージ",
+    "untitledConversation": "無題の会話",
+    "deleteConversation": "会話を削除",
+    "viewFull": "全文表示",
+    "fullResponse": "全文回答"
   }
 }

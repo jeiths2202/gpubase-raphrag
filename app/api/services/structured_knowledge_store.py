@@ -1,9 +1,11 @@
 """
 Structured Knowledge Store
 
-파일 시스템 기반 구조화 지식 검색 (LLM 없음).
-요약본 파일에서 명령어, 에러코드, 설정, 용어를 검색합니다.
+파일 시스템 기반 구조화 지식 검색 + vLLM 시맨틱 검색 (Hybrid).
+요약본 파일에서 명령어, 에러코드, 설정, 용어를 키워드+IDF로 검색하고,
+vLLM 임베딩으로 시맨틱 유사도를 보강하여 최종 top 3 결과를 반환합니다.
 """
+import asyncio
 import glob
 import json as json_module
 import logging
@@ -903,11 +905,100 @@ class StructuredKnowledgeStore:
 
         return idf_weights
 
+    # =========================================================================
+    # vLLM Embedding (Semantic Search)
+    # =========================================================================
+
+    _EMBED_TIMEOUT = 3.0  # 임베딩 API 타임아웃 (초)
+    _EMBED_TOP_N = 20     # 시맨틱 검색 대상 키워드 후보 수
+    _HYBRID_ALPHA = 0.6   # 키워드 가중치 (1-α = semantic 가중치)
+
+    async def _embed_texts(self, texts: List[str]) -> Optional[List[List[float]]]:
+        """vLLM 임베딩 서비스로 텍스트 배치 임베딩. 실패 시 None 반환."""
+        try:
+            import httpx
+            from ..core.config import settings
+            url = f"{settings.EMBEDDING_URL}/embeddings"
+
+            # 텍스트 길이 제한 (임베딩 모델 max token 고려)
+            truncated = [t[:512] for t in texts]
+
+            async with httpx.AsyncClient(timeout=self._EMBED_TIMEOUT) as client:
+                resp = await client.post(url, json={
+                    "input": truncated,
+                    "model": "NV-Embed-QA",
+                })
+                resp.raise_for_status()
+                data = resp.json()
+                return [item["embedding"] for item in data["data"]]
+        except Exception as e:
+            logger.debug(f"Embedding API failed (graceful fallback): {e}")
+            return None
+
+    @staticmethod
+    def _cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
+        """두 벡터의 코사인 유사도 계산"""
+        dot = sum(a * b for a, b in zip(vec_a, vec_b))
+        norm_a = math.sqrt(sum(a * a for a in vec_a))
+        norm_b = math.sqrt(sum(b * b for b in vec_b))
+        if norm_a == 0 or norm_b == 0:
+            return 0.0
+        return dot / (norm_a * norm_b)
+
+    async def _apply_semantic_reranking(
+        self,
+        query: str,
+        results: List[SearchResult],
+    ) -> List[SearchResult]:
+        """
+        키워드 검색 상위 결과에 vLLM 시맨틱 유사도를 적용하여 hybrid 점수로 재정렬.
+        임베딩 실패 시 원래 결과를 그대로 반환 (graceful degradation).
+        """
+        if not results:
+            return results
+
+        # 상위 N개만 시맨틱 검색 대상
+        candidates = results[:self._EMBED_TOP_N]
+
+        # 쿼리 + 후보 content를 한 번에 배치 임베딩
+        texts = [query] + [r.content[:300] for r in candidates]
+        embeddings = await self._embed_texts(texts)
+
+        if embeddings is None or len(embeddings) < 2:
+            # 임베딩 실패 → 키워드 점수만 사용
+            return results
+
+        query_emb = embeddings[0]
+        candidate_embs = embeddings[1:]
+
+        # 키워드 점수 정규화 (0~1)
+        max_kw = max(r.relevance_score for r in candidates) if candidates else 1.0
+        if max_kw == 0:
+            max_kw = 1.0
+
+        for i, result in enumerate(candidates):
+            if i < len(candidate_embs):
+                sem_score = self._cosine_similarity(query_emb, candidate_embs[i])
+                kw_norm = result.relevance_score / max_kw
+                # Hybrid score = α * keyword + (1-α) * semantic
+                result.relevance_score = (
+                    self._HYBRID_ALPHA * kw_norm
+                    + (1 - self._HYBRID_ALPHA) * sem_score
+                )
+
+        # 남은 결과(N개 이후)는 키워드 점수 정규화만 적용
+        for result in results[self._EMBED_TOP_N:]:
+            result.relevance_score = result.relevance_score / max_kw * self._HYBRID_ALPHA
+
+        # hybrid score로 재정렬
+        results.sort(key=lambda r: r.relevance_score, reverse=True)
+        return results
+
     async def search(
         self,
         query: str,
         domains: Optional[List[str]] = None,
-        top_k: int = 5,
+        top_k: int = 3,
     ) -> List[SearchResult]:
         """
         Progressive Token + IDF 기반 구조화 검색 (LLM 없음)
@@ -1046,10 +1137,15 @@ class StructuredKnowledgeStore:
                 source_path=section.get("source_path", ""),
             ))
 
-            if len(results) >= top_k:
+            # 시맨틱 리랭킹용으로 여유 있게 수집 (top_k의 최대 7배)
+            if len(results) >= max(top_k * 7, self._EMBED_TOP_N):
                 break
 
-        return results
+        # Phase 2: vLLM 시맨틱 유사도 리랭킹 (키워드 결과에 시맨틱 점수 병합)
+        results = await self._apply_semantic_reranking(query, results)
+
+        # 최종 top_k 제한
+        return results[:top_k]
 
     def get_stats(self) -> Dict[str, int]:
         """도메인별 섹션 수 반환"""

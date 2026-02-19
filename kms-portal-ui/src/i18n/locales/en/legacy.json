@@ -32,6 +32,79 @@
     "qaStatus": "QA Status",
     "empty": "Submit source code to start analysis"
   },
+  "batch": {
+    "uploadFiles": "Upload Files",
+    "dropHere": "Drop files here or click to upload",
+    "fileLimit": "Up to 10 files (COBOL, JCL, MAP, ASM)",
+    "filesSelected": "files selected",
+    "totalLines": "Total Lines",
+    "clearFiles": "Clear Files",
+    "analyzing": "Batch Analyzing..."
+  },
+  "summary": {
+    "title": "Analysis Summary",
+    "filesCompleted": "Files",
+    "featuresAnalyzed": "Features",
+    "incompatibleItems": "Incompatible",
+    "supportRate": "Support Rate",
+    "riskBreakdown": "Risk",
+    "topIssues": "Top Issues"
+  },
+  "accordion": {
+    "expandAll": "Expand All",
+    "collapseAll": "Collapse All"
+  },
+  "report": {
+    "fileOverview": "File Overview",
+    "parserVerification": "Parser Verification",
+    "lineAnalysis": "Line Analysis",
+    "capabilityLookup": "Capability Lookup",
+    "incompatibleFindings": "Incompatible Items",
+    "recommendations": "Recommendations",
+    "analysisSummary": "Summary",
+    "fileName": "File",
+    "format": "Format",
+    "purpose": "Purpose",
+    "program": "Program",
+    "totalLines": "Lines"
+  },
+  "verdict": {
+    "ok": "OK",
+    "warning": "Warning",
+    "incompatible": "Incompatible",
+    "syntaxError": "Syntax Error",
+    "supported": "Supported",
+    "notFound": "Not Found"
+  },
+  "dataTable": {
+    "title": "Analysis History",
+    "allTypes": "All Types",
+    "fileName": "File Name",
+    "type": "Type",
+    "product": "Product",
+    "supportRate": "Support Rate",
+    "features": "Features",
+    "incompatible": "Incompatible",
+    "risk": "Risk",
+    "date": "Date",
+    "loading": "Loading...",
+    "empty": "No analysis results yet",
+    "delete": "Delete",
+    "fetchError": "Failed to load data"
+  },
+  "detail": {
+    "tabOverview": "Overview",
+    "tabIncompatibility": "Incompatibility",
+    "tabSource": "Source Code",
+    "tabReports": "Reports",
+    "item": "Item",
+    "description": "Description",
+    "mitigation": "Mitigation",
+    "statement": "Statement",
+    "noIncompatibility": "No incompatibility issues found",
+    "noSource": "Source code not available",
+    "noReports": "No reports available"
+  },
   "errors": {
     "analyzeFailed": "Analysis failed. Please try again."
   },
@@ -51,6 +124,13 @@
     "clearHistory": "Clear History",
     "noSources": "No sources referenced yet.",
     "noNotes": "No notes yet. Add a note to remember key findings.",
-    "notePlaceholder": "Add a note..."
+    "notePlaceholder": "Add a note...",
+    "newConversation": "New Conversation",
+    "loading": "Loading...",
+    "messages": "messages",
+    "untitledConversation": "Untitled Conversation",
+    "deleteConversation": "Delete Conversation",
+    "viewFull": "View Full",
+    "fullResponse": "Full Response"
   }
 }
