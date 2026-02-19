@@ -15,7 +15,28 @@
     {"category": "cics", "pattern": "EXEC CICS ASSIGN", "support": "partial", "notes": "XSP 제한적 시스템 변수"},
     {"category": "screen_layout", "pattern": "DFHMSD", "support": "full", "notes": null},
     {"category": "screen_layout", "pattern": "DFHMDI", "support": "full", "notes": null},
-    {"category": "field_definition", "pattern": "DFHMDF", "support": "full", "notes": null}
+    {"category": "field_definition", "pattern": "DFHMDF", "support": "full", "notes": null},
+
+    {"category": "xsp_control", "pattern": "JOB", "support": "full", "notes": "XSP \\ JOB statement → OpenFrame JCL JOB 변환"},
+    {"category": "xsp_control", "pattern": "PGM", "support": "full", "notes": "XSP \\ EX program execution → OpenFrame EXEC PGM 변환"},
+    {"category": "xsp_control", "pattern": "EXEC", "support": "full", "notes": "XSP \\ EX statement → OpenFrame EXEC 변환"},
+    {"category": "xsp_control", "pattern": "DD", "support": "full", "notes": "XSP \\ FD statement → OpenFrame DD 변환"},
+    {"category": "xsp_control", "pattern": "DD DSN", "support": "full", "notes": "XSP \\ FD dataset → OpenFrame DD DSN 변환"},
+    {"category": "xsp_control", "pattern": "DD SYSOUT", "support": "full", "notes": "XSP \\ FD SOUT → OpenFrame DD SYSOUT 변환"},
+    {"category": "xsp_control", "pattern": "DD DUMMY", "support": "full", "notes": "XSP \\ FD DUMMY → OpenFrame DD DUMMY 변환"},
+    {"category": "xsp_control", "pattern": "DD *", "support": "full", "notes": "XSP \\ FD inline data → OpenFrame DD * 변환"},
+    {"category": "xsp_control", "pattern": "/EXPAN", "support": "full", "notes": "XSP /EXPAN procedure expansion → OpenFrame PROC/PEND 변환"},
+    {"category": "xsp_control", "pattern": "/ SET", "support": "full", "notes": "XSP / SET variable → OpenFrame SET/symbolic parameter 변환"},
+    {"category": "xsp_control", "pattern": "\\ MSG", "support": "partial", "notes": "XSP \\ MSG message output → OpenFrame에서 직접 대응 없음, 스크립트 변환 필요"},
+    {"category": "xsp_control", "pattern": "\\ JEND", "support": "full", "notes": "XSP \\ JEND job end → OpenFrame JCL 종료 구조 변환"},
+    {"category": "xsp_control", "pattern": "/ DEFEND", "support": "full", "notes": "XSP / DEFEND define end → OpenFrame PEND 변환"},
+    {"category": "xsp_control", "pattern": "EXEC PROC", "support": "full", "notes": "XSP procedure call → OpenFrame EXEC PROC 변환"},
+    {"category": "xsp_control", "pattern": "PROC", "support": "full", "notes": "XSP procedure definition → OpenFrame PROC 변환"},
+    {"category": "xsp_control", "pattern": "IF/THEN/ELSE", "support": "full", "notes": "XSP conditional → OpenFrame IF/THEN/ELSE 변환"},
+    {"category": "xsp_control", "pattern": "COND", "support": "full", "notes": "XSP COND parameter → OpenFrame COND 변환"},
+    {"category": "xsp_control", "pattern": "DISP", "support": "full", "notes": "XSP dataset disposition → OpenFrame DISP 변환"},
+    {"category": "xsp_control", "pattern": "SPACE", "support": "full", "notes": "XSP space allocation → OpenFrame SPACE 변환"},
+    {"category": "xsp_control", "pattern": "DCB", "support": "full", "notes": "XSP DCB attributes → OpenFrame DCB 변환"}
   ],
   "removed": []
 }
