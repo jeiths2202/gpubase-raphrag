@@ -1,6 +1,7 @@
 """Modernization Chat Service - Routes chat to HOST/OpenFrame/ALL handlers.
 
 Integrates with ConversationService for PostgreSQL persistence.
+Source code explanation requests are always routed to HOST handler.
 Singleton pattern following project conventions.
 """
 
@@ -8,6 +9,7 @@ import asyncio
 import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
+from ..agents.chat_adapter import _is_source_explanation_request
 from ..routers.chat_schemas import ModernizationChatRequest, SystemType
 
 logger = logging.getLogger(__name__)
@@ -81,7 +83,17 @@ class ModernizationChatService:
         full_response = ""
         all_sources: List[Dict[str, Any]] = []
 
-        if request.system_type == SystemType.HOST:
+        # Source explanation requests always route to HOST handler
+        has_source = bool(
+            request.analysis_context
+            and (request.analysis_context.source_code_full or request.analysis_context.source_code_snippet)
+        )
+        use_host = (
+            request.system_type == SystemType.HOST
+            or (_is_source_explanation_request(request.message) and has_source)
+        )
+
+        if use_host:
             async for event in self._stream_host(request):
                 if event.get("type") == "llm_token":
                     full_response += event.get("token", "")
@@ -139,10 +151,16 @@ class ModernizationChatService:
 
         yield {"type": "system_info", "system_type": "openframe"}
 
+        # Use selected product from UI dropdown, fallback to auto-detection
+        product = "auto"
+        if request.analysis_context and request.analysis_context.target_product:
+            product = request.analysis_context.target_product
+            logger.info(f"OpenFrame RAG using selected product: {product}")
+
         rag_request = AgenticRAGRequest(
             message=request.message,
             language=request.language,
-            product="auto",
+            product=product,
             user_id=user_id,
         )
 
