@@ -100,33 +100,51 @@ _ASSET_TYPE_GUIDES = {
 
 # Intent detection patterns for source code explanation requests
 _SOURCE_EXPLAIN_PATTERNS = [
-    # Korean
-    r"이\s*소스.*(설명|분석|해석|알려)",
-    r"소스\s*코드.*(설명|분석|해석|알려)",
-    r"코드.*(설명|분석|해석).*해",
+    # Korean - explicit source/code mention + action
+    r"이\s*소스.*(설명|분석|해석|알려|요약|정리)",
+    r"소스\s*코드.*(설명|분석|해석|알려|요약|정리)",
+    r"코드.*(설명|분석|해석|요약|정리).*해",
     r"라인\s*별.*설명",
     r"소스.*읽어",
-    # Japanese
-    r"このソース.*(説明|分析|解析|教)",
-    r"ソースコード.*(説明|分析|解析|教)",
-    r"コード.*(説明|分析|解析).*して",
+    r"소스.*(대해|관해).*(설명|분석|해석|알려|요약)",
+    r"화면.*(소스|코드).*(설명|분석|해석|알려|요약|정리)",
+    r"출력.*(소스|코드).*(설명|분석|해석|알려|요약|정리)",
+    # Japanese - explicit source/code mention + action
+    r"このソース.*(説明|分析|解析|教|要約|まとめ)",
+    r"ソースコード.*(説明|分析|解析|教|要約|まとめ)",
+    r"コード.*(説明|分析|解析|要約|まとめ).*して",
     r"行ごと.*説明",
     r"ソース.*読[んみ]",
     r"ソース.*解説",
-    # English
+    r"画面.*(ソース|コード).*(説明|分析|解析|教|要約|まとめ)",
+    r"表示.*(ソース|コード).*(説明|分析|解析|教|要約|まとめ)",
+    r"ソース.*(について|に関して).*(説明|分析|解析|教|要約)",
+    # English - explicit source/code mention + action
     r"explain\s+(this\s+)?(source|code)",
-    r"(describe|analyze)\s+(this\s+)?(source|code)",
+    r"(describe|analyze|summarize)\s+(this\s+)?(source|code)",
     r"line[\s-]*by[\s-]*line",
     r"what\s+does\s+this\s+(source|code)\s+do",
     r"walk.*through.*(source|code)",
+    r"(source|code).*(summary|overview|explain|describe|analyze)",
 ]
 
 _SOURCE_EXPLAIN_COMPILED = [re.compile(p, re.IGNORECASE) for p in _SOURCE_EXPLAIN_PATTERNS]
+
+# Broad keyword patterns - if source code IS present and message mentions these, treat as explanation
+_SOURCE_KEYWORD_PATTERNS = [
+    r"소스", r"코드", r"ソース", r"コード", r"source", r"code",
+]
+_SOURCE_KEYWORD_COMPILED = [re.compile(p, re.IGNORECASE) for p in _SOURCE_KEYWORD_PATTERNS]
 
 
 def _is_source_explanation_request(message: str) -> bool:
     """Detect if the user is asking for source code explanation."""
     return any(p.search(message) for p in _SOURCE_EXPLAIN_COMPILED)
+
+
+def _mentions_source_code(message: str) -> bool:
+    """Check if message mentions source/code keywords (broad match)."""
+    return any(p.search(message) for p in _SOURCE_KEYWORD_COMPILED)
 
 
 def _build_migration_context() -> str:
@@ -199,8 +217,13 @@ class LegacyChatAdapter:
         lang_name = lang_map.get(language, "Japanese")
 
         # Check if this is a source explanation request
+        # 1) Strict match: explicit source explanation intent patterns
+        # 2) Broad match: source code present + message mentions source/code keyword
         source_code = self._extract_source_code(analysis_context)
-        is_explain = _is_source_explanation_request(message) and source_code
+        is_explain = source_code and (
+            _is_source_explanation_request(message)
+            or _mentions_source_code(message)
+        )
 
         if is_explain:
             asset_type = (analysis_context or {}).get("asset_type", "cobol")

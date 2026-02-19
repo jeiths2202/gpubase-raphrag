@@ -9,7 +9,7 @@ import asyncio
 import logging
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
-from ..agents.chat_adapter import _is_source_explanation_request
+from ..agents.chat_adapter import _is_source_explanation_request, _mentions_source_code
 from ..routers.chat_schemas import ModernizationChatRequest, SystemType
 
 logger = logging.getLogger(__name__)
@@ -83,14 +83,19 @@ class ModernizationChatService:
         full_response = ""
         all_sources: List[Dict[str, Any]] = []
 
-        # Source explanation requests always route to HOST handler
+        # Source-related requests always route to HOST handler
+        # (explicit intent patterns OR broad keyword match when source code is present)
         has_source = bool(
             request.analysis_context
             and (request.analysis_context.source_code_full or request.analysis_context.source_code_snippet)
         )
+        mentions_source = (
+            _is_source_explanation_request(request.message)
+            or _mentions_source_code(request.message)
+        )
         use_host = (
             request.system_type == SystemType.HOST
-            or (_is_source_explanation_request(request.message) and has_source)
+            or (mentions_source and has_source)
         )
 
         if use_host:
