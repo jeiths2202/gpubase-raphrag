@@ -225,13 +225,20 @@ class ProductRegistry:
             return caps[pattern]
 
         # 2. Prefix match (longer pattern contains shorter query)
+        #    e.g., "DD SYSTSPRT" matches cap "DD" (pattern starts with cap + separator)
+        #    Separators: space, "=", "," to handle XSP patterns like "PGM=KEQEFT01,..."
         for cap_pattern, cap in caps.items():
             if cap_pattern.startswith(pattern + " ") or pattern.startswith(cap_pattern + " "):
                 return cap
+            # Also match "PGM=..." against "PGM" capability
+            if pattern.startswith(cap_pattern + "=") or pattern.startswith(cap_pattern + ","):
+                return cap
 
         # 3. Utility program match: "PGM=IDCAMS" → look up "PGM=IDCAMS"
+        #    Handle comma-separated params: "PGM=KEQEFT01,RSIZE=4096" → extract "KEQEFT01"
         if pattern.startswith("PGM="):
-            pgm_name = pattern.split("=", 1)[1].upper()
+            raw_pgm = pattern.split("=", 1)[1].upper()
+            pgm_name = raw_pgm.split(",")[0]  # Strip trailing params
             pgm_key = f"PGM={pgm_name}"
             if pgm_key in caps:
                 return caps[pgm_key]
