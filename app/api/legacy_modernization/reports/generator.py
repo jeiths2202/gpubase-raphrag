@@ -285,7 +285,8 @@ class ReportGenerator:
 
     async def _gen_vendor(self, ws: SharedWorkspaceState) -> Report:
         """FR-04-G: Vendor Comparison matrix."""
-        vc = ws.vendor_comparison or {}
+        vc_list = ws.vendor_comparison or []
+        vc = vc_list[0] if vc_list else {}
         content = {
             "vendors": vc.get("vendors", []),
             "matrix": vc.get("matrix", []),
@@ -341,7 +342,8 @@ class ReportGenerator:
     @staticmethod
     def _extract_recommended_vendor(ws: SharedWorkspaceState) -> str:
         if ws.vendor_comparison:
-            return ws.vendor_comparison.get(
+            vc = ws.vendor_comparison[0] if isinstance(ws.vendor_comparison, list) else ws.vendor_comparison
+            return vc.get(
                 "summary", {},
             ).get("recommended_vendor", "unknown")
         return "openframe"  # Default

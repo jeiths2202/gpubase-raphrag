@@ -138,6 +138,132 @@ export interface SSEEvent {
 }
 
 // ============================================================================
+// Batch Analysis Types
+// ============================================================================
+
+export interface FileItem {
+  file_name: string;
+  source_code: string;
+}
+
+export interface BatchAnalysisRequest {
+  files: FileItem[];
+  target_product?: string;
+  target_version?: string;
+  vendors?: string[];
+  options?: AnalysisOptions;
+}
+
+export interface BatchAnalysisResponse {
+  batch_id: string;
+  total_files: number;
+  analysis_ids: string[];
+  status: string;
+  message: string;
+}
+
+export interface FileAnalysisResult {
+  file_name: string;
+  analysis_id: string;
+  status: 'completed' | 'failed' | 'in_progress';
+  asset_type: string;
+  total_features: number;
+  supported_count: number;
+  incompatible_count: number;
+  support_rate: number;
+  risk_summary: Record<string, number>;
+  incompatibility_report: IncompatibilityReport | null;
+}
+
+export interface IncompatibilityReport {
+  file_overview: {
+    file_name: string;
+    format: string;
+    purpose: string;
+    program: string;
+    total_lines: number;
+  };
+  parser_verification: Array<{
+    statement: string;
+    of7_token: string;
+    stmt_type: string;
+    support: string;
+  }>;
+  line_analysis: Array<{
+    line: number;
+    source: string;
+    syntax_type: string;
+    verdict: 'OK' | 'WARNING' | 'INCOMPATIBLE' | 'SYNTAX_ERROR';
+  }>;
+  capability_lookup: Array<{
+    feature: string;
+    capability_key: string;
+    status: string;
+    notes: string;
+  }>;
+  incompatible_items: Array<{
+    id: number;
+    item: string;
+    risk: 'HIGH' | 'MEDIUM' | 'LOW';
+    description: string;
+    mitigation: string;
+  }>;
+  recommendations: string[];
+  summary: {
+    total_features: number;
+    supported: number;
+    incompatible: number;
+    support_rate: number;
+    risk_high: number;
+    risk_medium: number;
+    risk_low: number;
+  };
+}
+
+export interface BatchSummary {
+  batch_id: string;
+  total_files: number;
+  completed_files: number;
+  failed_files: number;
+  total_features: number;
+  total_supported: number;
+  total_incompatible: number;
+  overall_support_rate: number;
+  risk_breakdown: Record<string, number>;
+  top_incompatible_items: Array<{
+    file_name: string;
+    item: string;
+    risk: string;
+    description: string;
+  }>;
+}
+
+export interface BatchResultsResponse {
+  batch_id: string;
+  summary: BatchSummary;
+  file_results: FileAnalysisResult[];
+}
+
+export interface BatchSSEEvent {
+  event: 'file_started' | 'file_progress' | 'file_completed' | 'file_failed' | 'batch_completed';
+  data: {
+    batch_id: string;
+    file_name?: string;
+    analysis_id?: string;
+    progress_percent?: number;
+    current_agent?: string;
+    status?: string;
+    support_rate?: number;
+    incompatible_count?: number;
+    error?: string;
+    total_files?: number;
+    completed?: number;
+    failed?: number;
+    overall_progress?: number;
+  };
+}
+
+// ============================================================================
 // API Functions
 // ============================================================================
 
@@ -264,6 +390,63 @@ export const streamAnalysisEvents = (
 };
 
 // ============================================================================
+// Batch Analysis API Functions
+// ============================================================================
+
+/**
+ * Start a batch analysis for multiple files
+ */
+export const startBatchAnalysis = async (
+  request: BatchAnalysisRequest
+): Promise<BatchAnalysisResponse> => {
+  const response = await apiClient.post<BatchAnalysisResponse>(
+    '/legacy/analyze/batch',
+    request
+  );
+  return response.data;
+};
+
+/**
+ * Get batch analysis results
+ */
+export const getBatchResults = async (
+  batchId: string
+): Promise<BatchResultsResponse> => {
+  const response = await apiClient.get<BatchResultsResponse>(
+    `/legacy/analyze/batch/${batchId}/results`
+  );
+  return response.data;
+};
+
+/**
+ * Stream batch analysis events via SSE
+ */
+export const streamBatchEvents = (
+  batchId: string,
+  onEvent: (event: BatchSSEEvent) => void,
+  onError?: (error: Event) => void
+): EventSource => {
+  const baseUrl = apiClient.defaults.baseURL || '/api/v1';
+  const url = `${baseUrl}/legacy/analyze/batch/${batchId}/stream`;
+
+  const eventSource = new EventSource(url, { withCredentials: true });
+
+  const eventTypes = ['file_started', 'file_progress', 'file_completed', 'file_failed', 'batch_completed'] as const;
+  for (const type of eventTypes) {
+    eventSource.addEventListener(type, (e: MessageEvent) => {
+      onEvent({ event: type, data: JSON.parse(e.data) });
+    });
+  }
+
+  eventSource.onerror = (e: Event) => {
+    if (onError) onError(e);
+    eventSource.close();
+  };
+
+  return eventSource;
+};
+
+// ============================================================================
 // Modernization AI Chat Types
 // ============================================================================
 
@@ -292,6 +475,148 @@ export const getModernizationChatUrl = (): string => {
   return `${baseUrl}/legacy/chat/stream`;
 };
 
+// ============================================================================
+// Notes API
+// ============================================================================
+
+export interface ModernizationNote {
+  id: string;
+  content: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * List modernization notes
+ */
+export const getNotes = async (): Promise<ModernizationNote[]> => {
+  const response = await apiClient.get<ModernizationNote[]>('/legacy/notes');
+  return response.data;
+};
+
+/**
+ * Create a modernization note
+ */
+export const createNote = async (
+  content: string,
+  tags?: string[]
+): Promise<ModernizationNote> => {
+  const response = await apiClient.post<ModernizationNote>('/legacy/notes', {
+    content,
+    tags,
+  });
+  return response.data;
+};
+
+/**
+ * Delete a modernization note
+ */
+export const deleteNote = async (
+  noteId: string
+): Promise<{ deleted: boolean; note_id: string }> => {
+  const response = await apiClient.delete<{ deleted: boolean; note_id: string }>(
+    `/legacy/notes/${noteId}`
+  );
+  return response.data;
+};
+
+// ============================================================================
+// Persisted Analysis Types (Data Table & Detail Popup)
+// ============================================================================
+
+export interface PersistedAnalysisItem {
+  id: string;
+  batch_id?: string | null;
+  file_name: string;
+  asset_type: string;
+  loc_count: number;
+  target_product?: string | null;
+  target_version?: string | null;
+  status: string;
+  total_features: number;
+  supported_count: number;
+  incompatible_count: number;
+  support_rate: number;
+  risk_high: number;
+  risk_medium: number;
+  risk_low: number;
+  analysis_duration_seconds?: number | null;
+  pipeline_status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface PersistedAnalysisListResponse {
+  items: PersistedAnalysisItem[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+export interface PersistedAnalysisDetail extends PersistedAnalysisItem {
+  user_id?: string | null;
+  source_code?: string | null;
+  vendors: string[];
+  incompatibility_report: IncompatibilityReport | null;
+  reports: Record<string, unknown>;
+  workspace_snapshot?: Record<string, unknown> | null;
+}
+
+export interface AnalysisListParams {
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
+  asset_type?: string;
+  status?: string;
+  user_id?: string;
+}
+
+// ============================================================================
+// Persisted Analysis API Functions
+// ============================================================================
+
+/**
+ * List persisted analysis results (for Data Table)
+ */
+export const getPersistedAnalyses = async (
+  params: AnalysisListParams = {}
+): Promise<PersistedAnalysisListResponse> => {
+  const response = await apiClient.get<PersistedAnalysisListResponse>(
+    '/legacy/analyses',
+    { params }
+  );
+  return response.data;
+};
+
+/**
+ * Get persisted analysis detail (for popup page)
+ */
+export const getPersistedAnalysisDetail = async (
+  analysisId: string
+): Promise<PersistedAnalysisDetail> => {
+  const response = await apiClient.get<PersistedAnalysisDetail>(
+    `/legacy/analyses/${analysisId}`
+  );
+  return response.data;
+};
+
+/**
+ * Delete a persisted analysis
+ */
+export const deletePersistedAnalysis = async (
+  analysisId: string,
+  userId: string = 'default'
+): Promise<{ success: boolean; deleted_id: string }> => {
+  const response = await apiClient.delete<{ success: boolean; deleted_id: string }>(
+    `/legacy/analyses/${analysisId}`,
+    { params: { user_id: userId } }
+  );
+  return response.data;
+};
+
 // Default export
 const legacyApi = {
   getProducts,
@@ -301,7 +626,16 @@ const legacyApi = {
   getReportList,
   getReport,
   streamAnalysisEvents,
+  startBatchAnalysis,
+  getBatchResults,
+  streamBatchEvents,
   getModernizationChatUrl,
+  getNotes,
+  createNote,
+  deleteNote,
+  getPersistedAnalyses,
+  getPersistedAnalysisDetail,
+  deletePersistedAnalysis,
 };
 
 export default legacyApi;

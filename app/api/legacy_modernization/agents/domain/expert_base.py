@@ -48,11 +48,12 @@ class DomainExpertBase(BaseAgent):
 
         # 2. Write to SharedWorkspaceState (ACL-enforced)
         workspace = await self.shared_state.get_workspace(task.asset_id)
-        workspace.ast = result.ast.model_dump()
+        workspace.ast = [result.ast.model_dump()]
         workspace.features = [f.model_dump() for f in result.features]
         workspace.trace_evidence = [e.model_dump() for e in result.trace_evidence]
         workspace.parse_errors = [e.model_dump() for e in result.parse_errors]
-        workspace.confidence = self._calculate_confidence(result)
+        confidence_score = self._calculate_confidence(result)
+        workspace.confidence = {"overall": confidence_score}
         workspace.stats = result.stats.model_dump()
         workspace.dialect = result.dialect
 

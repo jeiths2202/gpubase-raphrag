@@ -49,13 +49,24 @@ class EventBus:
             return None
         if self._redis is None:
             try:
+                import asyncio
                 import redis.asyncio as aioredis
-                self._redis = aioredis.from_url(self._redis_url, decode_responses=True)
-                await self._redis.ping()
+                self._redis = aioredis.from_url(
+                    self._redis_url,
+                    decode_responses=True,
+                    socket_timeout=2,
+                    socket_connect_timeout=2,
+                )
+                await asyncio.wait_for(self._redis.ping(), timeout=3)
                 logger.info("EventBus: connected to Redis at %s", self._redis_url)
             except Exception:
                 logger.warning("EventBus: Redis unavailable, using in-memory fallback")
                 self._use_memory = True
+                if self._redis:
+                    try:
+                        await self._redis.close()
+                    except Exception:
+                        pass
                 self._redis = None
                 return None
         return self._redis

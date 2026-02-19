@@ -53,6 +53,9 @@ _EXTENSION_MAP = {
     ".hlasm": AssetType.ASSEMBLER,
 }
 
+# XSP JCL statement prefixes (Fujitsu OSIV/XSP)
+_XSP_STMT_PATTERNS = {"\ JOB", "\ EX ", "\ FD ", "\ JEND", "/EXPAN", "/ SET", "/ DEFEND"}
+
 
 class OrchestratorAgent(BaseAgent):
     """Central coordinator for the 8-agent analysis pipeline."""
@@ -234,10 +237,13 @@ class OrchestratorAgent(BaseAgent):
                 return asset_type
 
         # Content-based fallback
-        upper = source_code[:500].upper()
+        upper = source_code[:1000].upper()
+        # XSP JCL: \ JOB, \ EX, \ FD, /EXPAN, / SET, / DEFEND
+        if any(pat in upper for pat in _XSP_STMT_PATTERNS):
+            return AssetType.JCL
         if "IDENTIFICATION DIVISION" in upper or "PROCEDURE DIVISION" in upper:
             return AssetType.COBOL
-        if upper.startswith("//") and ("JOB" in upper or "EXEC" in upper):
+        if upper.lstrip().startswith("//") and ("JOB" in upper or "EXEC" in upper):
             return AssetType.JCL
         if "DFHMSD" in upper or "DFHMDI" in upper:
             return AssetType.MAP

@@ -1,12 +1,16 @@
 /**
  * useModernizationChat - SSE streaming hook for Modernization AI chat.
  *
- * Follows the same SSE pattern as AISidebar.tsx:741-805
- * using fetch + ReadableStream + TextDecoder.
+ * Integrates with PostgreSQL conversation persistence:
+ * - Receives conversation_id from SSE stream
+ * - Loads past conversations via conversation API
+ * - Supports "new conversation" flow
  */
 
 import { useState, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '../../config/constants';
+import { conversationApi } from '../../api/conversation.api';
+import type { ConversationListItem, ConversationMessage } from '../../api/conversation.api';
 import type {
   ChatMessage,
   ChatSource,
@@ -21,11 +25,105 @@ function generateId(): string {
   return `mod-msg-${Date.now()}-${++messageCounter}`;
 }
 
+const AGENT_TYPE = 'modernization';
+
 export function useModernizationChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [sources, setSources] = useState<ChatSource[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ConversationListItem[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+
+  /**
+   * Load conversation list from DB
+   */
+  const loadConversations = useCallback(async () => {
+    setLoadingConversations(true);
+    try {
+      const result = await conversationApi.list({
+        agent_type: AGENT_TYPE as never,
+        limit: 50,
+      });
+      setConversations(result.conversations);
+    } catch (err) {
+      console.error('Failed to load conversations:', err);
+    } finally {
+      setLoadingConversations(false);
+    }
+  }, []);
+
+  /**
+   * Load a specific conversation's messages from DB
+   */
+  const loadConversation = useCallback(async (convId: string) => {
+    try {
+      const detail = await conversationApi.get(convId);
+      setConversationId(convId);
+
+      // Convert DB messages to ChatMessage format
+      const chatMessages: ChatMessage[] = detail.messages.map(
+        (m: ConversationMessage) => ({
+          id: m.id,
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          timestamp: new Date(m.created_at).getTime(),
+          systemType: 'host' as SystemType, // Default; metadata could refine this
+          sources: m.sources
+            ? m.sources.map((s: { content?: string; source?: string; title?: string; url?: string }) => ({
+                title: s.title || s.source || 'Source',
+                url: s.url,
+                snippet: s.content,
+              }))
+            : undefined,
+        })
+      );
+
+      setMessages(chatMessages);
+
+      // Collect sources
+      const allSources: ChatSource[] = [];
+      for (const m of detail.messages) {
+        if (m.sources) {
+          for (const s of m.sources) {
+            allSources.push({
+              title: (s as { title?: string; source?: string }).title || (s as { source?: string }).source || 'Source',
+              url: (s as { url?: string }).url,
+              snippet: (s as { content?: string }).content,
+            });
+          }
+        }
+      }
+      setSources(allSources);
+    } catch (err) {
+      console.error('Failed to load conversation:', err);
+    }
+  }, []);
+
+  /**
+   * Start a new conversation (clear current state)
+   */
+  const newConversation = useCallback(() => {
+    setMessages([]);
+    setSources([]);
+    setConversationId(null);
+  }, []);
+
+  /**
+   * Delete a conversation
+   */
+  const deleteConversation = useCallback(async (convId: string) => {
+    try {
+      await conversationApi.delete(convId);
+      setConversations((prev) => prev.filter((c) => c.id !== convId));
+      if (conversationId === convId) {
+        newConversation();
+      }
+    } catch (err) {
+      console.error('Failed to delete conversation:', err);
+    }
+  }, [conversationId, newConversation]);
 
   const sendMessage = useCallback(
     async (
@@ -68,6 +166,10 @@ export function useModernizationChat() {
           system_type: systemType,
           language,
         };
+        // Include conversation_id for continuation
+        if (conversationId) {
+          body.conversation_id = conversationId;
+        }
         if (analysisContext) {
           body.analysis_context = {
             analysis_id: analysisContext.analysisId,
@@ -114,6 +216,13 @@ export function useModernizationChat() {
 
             try {
               const event: SSEEvent = JSON.parse(trimmed.slice(6));
+
+              // Handle conversation_id event from backend
+              if (event.type === 'conversation_id' && event.conversation_id) {
+                setConversationId(event.conversation_id as string);
+                continue;
+              }
+
               handleSSEEvent(
                 event,
                 assistantMsg.id,
@@ -152,7 +261,7 @@ export function useModernizationChat() {
         abortRef.current = null;
       }
     },
-    [isStreaming]
+    [isStreaming, conversationId]
   );
 
   function handleSSEEvent(
@@ -252,7 +361,7 @@ export function useModernizationChat() {
         );
         break;
 
-      // system_info, done - no visible action needed
+      // system_info, done, conversation_id - no visible action needed
     }
   }
 
@@ -263,14 +372,22 @@ export function useModernizationChat() {
   const clearMessages = useCallback(() => {
     setMessages([]);
     setSources([]);
+    setConversationId(null);
   }, []);
 
   return {
     messages,
     isStreaming,
     sources,
+    conversationId,
+    conversations,
+    loadingConversations,
     sendMessage,
     cancelStream,
     clearMessages,
+    loadConversations,
+    loadConversation,
+    newConversation,
+    deleteConversation,
   };
 }

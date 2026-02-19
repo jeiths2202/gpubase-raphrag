@@ -15,12 +15,9 @@ import {
   Activity,
   CheckCircle2,
   XCircle,
-  FileText,
-  ChevronRight,
   X,
   Upload,
   Code2,
-  BarChart3,
   Clock,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
@@ -28,21 +25,25 @@ import { ModernizationAIAssistant } from '../components/ModernizationAI';
 import {
   startAnalysis,
   getAnalysisStatus,
-  getAnalysisResults,
-  getReportList,
-  getReport,
   getProducts,
+  startBatchAnalysis,
+  getBatchResults,
+  streamBatchEvents,
 } from '../api/legacy.api';
 import type {
   AnalysisResponse,
   AnalysisStatus,
-  AnalysisResults,
-  ReportListItem,
-  ReportDetail,
   PipelineStatus,
   LegacyAssetType,
   ProductFamilyInfo,
+  FileItem,
+  BatchSummary,
+  FileAnalysisResult,
+  BatchSSEEvent,
 } from '../api/legacy.api';
+import BatchSummaryCard from '../components/ModernizationAI/BatchSummaryCard';
+import FileAccordion from '../components/ModernizationAI/FileAccordion';
+import AnalysisDataTable from '../components/ModernizationAI/AnalysisDataTable';
 import './LegacyModernizationPage.css';
 
 // Pipeline step definitions
@@ -58,13 +59,32 @@ const PIPELINE_STEPS: { status: PipelineStatus; labelKey: string }[] = [
   { status: 'report_generation', labelKey: 'legacy.pipeline.reportGeneration' },
 ];
 
-// Detect language from file extension
-function detectLanguage(fileName: string): LegacyAssetType {
+// XSP JCL statement prefixes (Fujitsu OSIV/XSP)
+const XSP_PATTERNS = ['\\ JOB', '\\ EX ', '\\ FD ', '\\ JEND', '/EXPAN', '/ SET', '/ DEFEND'];
+
+// Detect language from file extension + content heuristics
+function detectLanguage(fileName: string, sourceContent?: string): LegacyAssetType {
   const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
   if (['cob', 'cbl', 'cobol'].includes(ext)) return 'cobol';
   if (['jcl', 'proc'].includes(ext)) return 'jcl';
   if (['map', 'bms'].includes(ext)) return 'map';
   if (['asm', 's'].includes(ext)) return 'asm';
+
+  // Content-based detection when extension is ambiguous
+  if (sourceContent) {
+    const upper = sourceContent.slice(0, 1000).toUpperCase();
+    // XSP JCL: \ JOB, \ EX, \ FD, /EXPAN, / SET, / DEFEND
+    if (XSP_PATTERNS.some((pat) => upper.includes(pat))) return 'jcl';
+    // MVS JCL: // JOB, // EXEC
+    if (upper.trimStart().startsWith('//') && (upper.includes('JOB') || upper.includes('EXEC'))) return 'jcl';
+    // COBOL
+    if (upper.includes('IDENTIFICATION DIVISION') || upper.includes('PROCEDURE DIVISION')) return 'cobol';
+    // MAP (BMS)
+    if (upper.includes('DFHMSD') || upper.includes('DFHMDI')) return 'map';
+    // ASM
+    if (upper.includes(' CSECT') || upper.includes(' USING ')) return 'asm';
+  }
+
   return 'cobol';
 }
 
@@ -115,18 +135,28 @@ export const LegacyModernizationPage: React.FC = () => {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   // Results state
-  const [reports, setReports] = useState<ReportListItem[]>([]);
-  const [selectedReport, setSelectedReport] = useState<ReportDetail | null>(null);
-  const [workspace, setWorkspace] = useState<AnalysisResults['workspace'] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Batch analysis state
+  const [uploadedFiles, setUploadedFiles] = useState<FileItem[]>([]);
+  const [_batchId, setBatchId] = useState<string | null>(null);
+  const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
+  const [fileResults, setFileResults] = useState<FileAnalysisResult[]>([]);
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const batchEventSourceRef = useRef<EventSource | null>(null);
+
+  // Data Table refresh trigger - increment when new analysis completes
+  const [dataTableRefresh, setDataTableRefresh] = useState(0);
 
   // Polling ref
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Cleanup polling
+  // Cleanup polling + batch SSE
   useEffect(() => {
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
+      if (batchEventSourceRef.current) batchEventSourceRef.current.close();
     };
   }, []);
 
@@ -155,13 +185,8 @@ export const LegacyModernizationPage: React.FC = () => {
             setIsAnalyzing(false);
 
             if (status.status === 'completed') {
-              // Fetch results
-              const [results, reportList] = await Promise.all([
-                getAnalysisResults(id),
-                getReportList(id),
-              ]);
-              setWorkspace(results.workspace);
-              setReports(reportList.reports || []);
+              // Refresh Data Table to show new persisted result
+              setDataTableRefresh((prev) => prev + 1);
             }
           }
         } catch {
@@ -172,70 +197,173 @@ export const LegacyModernizationPage: React.FC = () => {
     []
   );
 
-  // Start analysis
-  const handleAnalyze = useCallback(async () => {
-    if (!sourceCode.trim()) return;
+  // Batch SSE subscription
+  const subscribeBatchSSE = useCallback((id: string) => {
+    if (batchEventSourceRef.current) batchEventSourceRef.current.close();
 
+    const es = streamBatchEvents(
+      id,
+      (event: BatchSSEEvent) => {
+        if (event.event === 'file_completed') {
+          setFileResults((prev) =>
+            prev.map((f) =>
+              f.file_name === event.data.file_name
+                ? {
+                    ...f,
+                    status: 'completed' as const,
+                    support_rate: event.data.support_rate ?? f.support_rate,
+                    incompatible_count: event.data.incompatible_count ?? f.incompatible_count,
+                  }
+                : f
+            )
+          );
+        } else if (event.event === 'file_failed') {
+          setFileResults((prev) =>
+            prev.map((f) =>
+              f.file_name === event.data.file_name
+                ? { ...f, status: 'failed' as const }
+                : f
+            )
+          );
+        } else if (event.event === 'batch_completed') {
+          setIsAnalyzing(false);
+          // Fetch full results
+          getBatchResults(id).then((results) => {
+            setBatchSummary(results.summary);
+            setFileResults(results.file_results);
+          }).catch(() => {});
+          // Refresh Data Table
+          setDataTableRefresh((prev) => prev + 1);
+        }
+      },
+      () => {
+        // On error, stop
+        setIsAnalyzing(false);
+      }
+    );
+
+    batchEventSourceRef.current = es;
+  }, []);
+
+  // Start analysis (single or batch)
+  const handleAnalyze = useCallback(async () => {
     setError(null);
     setIsAnalyzing(true);
     setPipelineStatus('pending');
     setProgressPercent(0);
-    setReports([]);
-    setSelectedReport(null);
-    setWorkspace(null);
+    setBatchSummary(null);
+    setFileResults([]);
+
+    const targetOpts = selectedProduct && selectedVersion
+      ? { target_product: selectedProduct, target_version: selectedVersion }
+      : {};
 
     try {
-      const response: AnalysisResponse = await startAnalysis({
-        file_name: fileName,
-        source_code: sourceCode,
-        vendors: [vendor],
-        ...(selectedProduct && selectedVersion
-          ? { target_product: selectedProduct, target_version: selectedVersion }
-          : {}),
-      });
+      if (isBatchMode && uploadedFiles.length > 1) {
+        // Batch mode
+        const response = await startBatchAnalysis({
+          files: uploadedFiles,
+          vendors: [vendor],
+          ...targetOpts,
+        });
 
-      setAnalysisId(response.analysis_id);
-      setPipelineStatus(response.status as PipelineStatus);
-      startPolling(response.analysis_id);
+        setBatchId(response.batch_id);
+        // Initialize file results as in_progress
+        setFileResults(
+          uploadedFiles.map((f) => ({
+            file_name: f.file_name,
+            analysis_id: '',
+            status: 'in_progress' as const,
+            asset_type: detectLanguage(f.file_name, f.source_code),
+            total_features: 0,
+            supported_count: 0,
+            incompatible_count: 0,
+            support_rate: 0,
+            risk_summary: {},
+            incompatibility_report: null,
+          }))
+        );
+        subscribeBatchSSE(response.batch_id);
+      } else {
+        // Single file mode
+        if (!sourceCode.trim()) {
+          setIsAnalyzing(false);
+          return;
+        }
+        const response: AnalysisResponse = await startAnalysis({
+          file_name: fileName,
+          source_code: sourceCode,
+          vendors: [vendor],
+          ...targetOpts,
+        });
+
+        setAnalysisId(response.analysis_id);
+        setPipelineStatus(response.status as PipelineStatus);
+        startPolling(response.analysis_id);
+      }
     } catch (err: unknown) {
       setIsAnalyzing(false);
       setError(
         err instanceof Error ? err.message : t('legacy.errors.analyzeFailed')
       );
     }
-  }, [sourceCode, fileName, vendor, startPolling, t]);
+  }, [sourceCode, fileName, vendor, startPolling, t, isBatchMode, uploadedFiles, selectedProduct, selectedVersion, subscribeBatchSSE]);
 
-  // Handle file upload
+  // Handle single file upload (existing)
   const handleFileUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
 
-      setFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setSourceCode((ev.target?.result as string) || '');
-      };
-      reader.readAsText(file);
+      if (files.length === 1) {
+        // Single file: set in editor
+        const file = files[0];
+        setFileName(file.name);
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setSourceCode((ev.target?.result as string) || '');
+        };
+        reader.readAsText(file);
+        setUploadedFiles([]);
+        setIsBatchMode(false);
+      } else {
+        // Multiple files: batch mode
+        const filePromises = Array.from(files).slice(0, 10).map(
+          (file) =>
+            new Promise<FileItem>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                resolve({
+                  file_name: file.name,
+                  source_code: (ev.target?.result as string) || '',
+                });
+              };
+              reader.readAsText(file);
+            })
+        );
+        Promise.all(filePromises).then((items) => {
+          setUploadedFiles(items);
+          setIsBatchMode(true);
+          if (items.length > 0) {
+            setFileName(items[0].file_name);
+            setSourceCode(items[0].source_code);
+          }
+        });
+      }
     },
     []
   );
 
-  // View report detail
-  const handleViewReport = useCallback(
-    async (reportType: string) => {
-      if (!analysisId) return;
-      try {
-        const detail = await getReport(analysisId, reportType as any);
-        setSelectedReport(detail);
-      } catch {
-        // Silently handle
-      }
-    },
-    [analysisId]
-  );
+  // Remove a file from batch
+  const handleRemoveFile = useCallback((fileName: string) => {
+    setUploadedFiles((prev) => {
+      const next = prev.filter((f) => f.file_name !== fileName);
+      if (next.length <= 1) setIsBatchMode(false);
+      return next;
+    });
+  }, []);
 
-  const detectedLang = detectLanguage(fileName);
+  const detectedLang = detectLanguage(fileName, sourceCode);
   const lineCount = sourceCode.split('\n').length;
   const charCount = sourceCode.length;
 
@@ -289,10 +417,45 @@ export const LegacyModernizationPage: React.FC = () => {
                 ref={fileInputRef}
                 type="file"
                 accept=".cob,.cbl,.cobol,.jcl,.proc,.map,.bms,.asm,.s,.txt"
+                multiple
                 onChange={handleFileUpload}
                 style={{ display: 'none' }}
               />
             </div>
+
+            {/* Batch file list */}
+            {isBatchMode && uploadedFiles.length > 1 && (
+              <div className="legacy-mod-batch-files">
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: 6 }}>
+                  {uploadedFiles.length} {t('legacy.batch.filesSelected')}
+                  {' '}(Max: 10)
+                  <button
+                    style={{ marginLeft: 8, fontSize: '0.7rem', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}
+                    onClick={() => { setUploadedFiles([]); setIsBatchMode(false); }}
+                  >
+                    {t('legacy.batch.clearFiles')}
+                  </button>
+                </div>
+                {uploadedFiles.map((f) => (
+                  <div key={f.file_name} className="legacy-mod-batch-file-item">
+                    <FileCode2 size={12} />
+                    <span style={{ flex: 1, fontFamily: 'monospace', fontSize: '0.75rem' }}>{f.file_name}</span>
+                    <span className="legacy-mod-lang-badge" style={{ fontSize: '0.625rem', padding: '1px 6px' }}>
+                      {detectLanguage(f.file_name, f.source_code).toUpperCase()}
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>
+                      {f.source_code.split('\n').length}L
+                    </span>
+                    <button
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '0 4px' }}
+                      onClick={() => handleRemoveFile(f.file_name)}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <textarea
               className="legacy-mod-editor-textarea"
@@ -399,7 +562,7 @@ export const LegacyModernizationPage: React.FC = () => {
             <button
               className="legacy-mod-analyze-btn"
               onClick={handleAnalyze}
-              disabled={isAnalyzing || !sourceCode.trim()}
+              disabled={isAnalyzing || (!sourceCode.trim() && uploadedFiles.length === 0)}
             >
               {isAnalyzing ? (
                 <>
@@ -496,99 +659,42 @@ export const LegacyModernizationPage: React.FC = () => {
             )}
           </div>
 
-          {/* Results */}
-          <div className="legacy-mod-results">
-            <div className="legacy-mod-results-title">
-              <BarChart3 size={16} />
-              {t('legacy.results.title')}
+          {/* Batch Results */}
+          {isBatchMode && (batchSummary || fileResults.length > 0) && (
+            <div className="legacy-mod-batch-results" style={{ marginBottom: 16 }}>
+              {batchSummary && (
+                <BatchSummaryCard
+                  summary={batchSummary}
+                  isLoading={isAnalyzing}
+                />
+              )}
+              {fileResults.length > 0 && (
+                <FileAccordion
+                  fileResults={fileResults}
+                  expandedFiles={expandedFiles}
+                  onToggle={(fn) =>
+                    setExpandedFiles((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(fn)) next.delete(fn);
+                      else next.add(fn);
+                      return next;
+                    })
+                  }
+                  onExpandAll={() =>
+                    setExpandedFiles(new Set(fileResults.map((f) => f.file_name)))
+                  }
+                  onCollapseAll={() => setExpandedFiles(new Set())}
+                />
+              )}
             </div>
+          )}
 
-            {/* Workspace info */}
-            {workspace && (
-              <div className="legacy-mod-workspace">
-                <div className="legacy-mod-workspace-item">
-                  <span className="legacy-mod-workspace-label">
-                    {t('legacy.results.assetType')}
-                  </span>
-                  <span className="legacy-mod-workspace-value">
-                    {workspace.asset_type?.toUpperCase()}
-                  </span>
-                </div>
-                <div className="legacy-mod-workspace-item">
-                  <span className="legacy-mod-workspace-label">
-                    {t('legacy.results.loc')}
-                  </span>
-                  <span className="legacy-mod-workspace-value">
-                    {workspace.loc_count}
-                  </span>
-                </div>
-                <div className="legacy-mod-workspace-item">
-                  <span className="legacy-mod-workspace-label">
-                    {t('legacy.results.status')}
-                  </span>
-                  <span className="legacy-mod-workspace-value">
-                    {workspace.pipeline_status}
-                  </span>
-                </div>
-                <div className="legacy-mod-workspace-item">
-                  <span className="legacy-mod-workspace-label">
-                    {t('legacy.results.qaStatus')}
-                  </span>
-                  <span className="legacy-mod-workspace-value">
-                    {workspace.qa_passed === null
-                      ? '—'
-                      : workspace.qa_passed
-                      ? 'PASSED'
-                      : 'FAILED'}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Report list */}
-            {reports.length > 0 ? (
-              reports.map((r) => (
-                <div
-                  key={r.report_type}
-                  className="legacy-mod-report-item"
-                  onClick={() => handleViewReport(r.report_type)}
-                >
-                  <FileText
-                    size={16}
-                    className="legacy-mod-report-item-icon"
-                  />
-                  <span className="legacy-mod-report-item-name">{r.title}</span>
-                  <ChevronRight size={14} />
-                </div>
-              ))
-            ) : (
-              <div className="legacy-mod-empty">
-                <FileText size={32} className="legacy-mod-empty-icon" />
-                <p className="legacy-mod-empty-text">
-                  {t('legacy.results.empty')}
-                </p>
-              </div>
-            )}
-
-            {/* Report detail */}
-            {selectedReport && (
-              <div className="legacy-mod-report-detail">
-                <div className="legacy-mod-report-detail-header">
-                  <h4>{selectedReport.title}</h4>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => setSelectedReport(null)}
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-                <div className="legacy-mod-report-detail-content">
-                  {JSON.stringify(selectedReport.content, null, 2)}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
+      </div>
+
+      {/* Data Table - Persisted Analysis Results */}
+      <div className="legacy-mod-datatable-section">
+        <AnalysisDataTable refreshTrigger={dataTableRefresh} />
       </div>
 
       {/* Modernization AI Assistant */}
@@ -596,7 +702,7 @@ export const LegacyModernizationPage: React.FC = () => {
         analysisContext={analysisId ? {
           analysisId,
           fileName,
-          assetType: detectLanguage(fileName),
+          assetType: detectLanguage(fileName, sourceCode),
           sourceCodeSnippet: sourceCode.slice(0, 2000),
           targetProduct: selectedProduct || undefined,
         } : undefined}

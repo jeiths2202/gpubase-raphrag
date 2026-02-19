@@ -32,6 +32,7 @@ class FeatureCategory(str, Enum):
     CONDITIONAL = "conditional"
     GDG = "gdg"
     VSAM = "vsam"
+    XSP_CONTROL = "xsp_control"
     # MAP
     SCREEN_LAYOUT = "screen_layout"
     FIELD_DEFINITION = "field_definition"

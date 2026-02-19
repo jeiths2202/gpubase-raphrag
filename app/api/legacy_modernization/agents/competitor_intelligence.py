@@ -78,7 +78,7 @@ class CompetitorIntelligenceAgent(BaseAgent):
 
         # Write results to workspace
         workspace.compatibility_findings = [f.model_dump() for f in findings]
-        workspace.vendor_comparison = matrix.model_dump()
+        workspace.vendor_comparison = [matrix.model_dump()]
         await self.shared_state.save_workspace(
             workspace, AgentRole.COMPETITOR_INTELLIGENCE,
             changed_fields={"compatibility_findings", "vendor_comparison"},

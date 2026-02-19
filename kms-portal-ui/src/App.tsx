@@ -49,6 +49,7 @@ import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { ImprovementsPage, SubmitImprovementPage, ImprovementDetailPage } from './pages/improvements';
 import { LegacyModernizationPage } from './pages/LegacyModernizationPage';
+import { LegacyAnalysisDetailPage } from './pages/LegacyAnalysisDetailPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 
 // Import global styles
@@ -119,6 +120,11 @@ export const App: React.FC = () => {
               {/* Settings */}
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
+          </Route>
+
+          {/* Legacy Analysis Detail - Standalone popup (no sidebar) */}
+          <Route element={<AuthGuard />}>
+            <Route path="/legacy/analysis/:analysisId" element={<LegacyAnalysisDetailPage />} />
           </Route>
 
           {/* Admin routes - requires admin role */}

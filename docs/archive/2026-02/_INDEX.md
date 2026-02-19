@@ -18,6 +18,8 @@
 | [mindmap-embedding-verification](./mindmap-embedding-verification/) | 2026-02-02 | 100% | ✅ Completed |
 | [legacy-modernization-analysis-ui](./legacy-modernization-analysis-ui/) | 2026-02-19 | 98% | ✅ Completed |
 | [vllm-hybrid-search-artifact-view](./vllm-hybrid-search-artifact-view/) | 2026-02-19 | 97% | ✅ Completed |
+| [xsp-jcl-c-parser-wrapper](./xsp-jcl-c-parser-wrapper/) | 2026-02-19 | 95% | ✅ Completed |
+| [legacy-analysis-datatable-persistence](./legacy-analysis-datatable-persistence/) | 2026-02-19 | 97% | ✅ Completed |
 
 ---
 
@@ -354,4 +356,64 @@ Start-Process python -PassThru -RedirectStandardOutput
 
 ---
 
-*Last updated: 2026-02-19 (legacy-modernization-analysis-ui archived)*
+## xsp-jcl-c-parser-wrapper
+
+**Purpose**: OF7 XSP JCL C파서를 Python ctypes로 직접 호출하는 공통모듈 — 기존 Python regex 파서(8 패턴) 대체
+
+**Documents**:
+- `xsp-jcl-c-parser-wrapper.plan.md` - Feature plan (8 FRs, 5 phases)
+- `xsp-jcl-c-parser-wrapper.design.md` - Architecture design (1,047 lines)
+- `xsp-jcl-c-parser-wrapper.analysis.md` - Gap analysis (95% match rate)
+- `xsp-jcl-c-parser-wrapper.report.md` - Completion report
+
+**Key Deliverables**:
+- `parsers/xspjcl/lib/kms_xspjcl_wrapper.c` - C wrapper with JSON serialization (750 lines)
+- `parsers/xspjcl/models.py` - 15 Pydantic models + 3 enums (379 lines)
+- `parsers/xspjcl/converter.py` - XSPParseResult → ParserResult converter (389 lines)
+- `parsers/xspjcl/wrapper.py` - ctypes C library wrapper (249 lines)
+- `parsers/xspjcl/__init__.py` - XSPParserAdapter (136 lines)
+- `parsers/xspjcl/lib/Makefile` + `build.sh` - Build system
+
+**Key Metrics**:
+| Metric | Value |
+|--------|-------|
+| Match Rate | 95% |
+| Files Created | 7 (2,039 lines) |
+| Statement Types | 46 (design: 41) |
+| Error Codes | 22 (design: 9) |
+| Parser Features | 15/15 (100%) |
+| Design Exceedances | 8 areas |
+| Iterations | 0 |
+
+---
+
+## legacy-analysis-datatable-persistence
+
+**Purpose**: Legacy Modernization 분석 결과의 PostgreSQL 영구 저장, Data Table UI, 팝업 상세 페이지
+
+**Documents**:
+- `legacy-analysis-datatable-persistence.plan.md` - Feature plan (10 phases, 17 files)
+- `legacy-analysis-datatable-persistence.analysis.md` - Gap analysis (97% match rate)
+- `legacy-analysis-datatable-persistence.report.md` - Completion report
+
+**Key Deliverables**:
+- `app/api/infrastructure/postgres/legacy_analysis_repository.py` - PostgreSQL CRUD (340 lines)
+- `kms-portal-ui/src/components/ModernizationAI/AnalysisDataTable.tsx` - Data Table (393 lines)
+- `kms-portal-ui/src/pages/LegacyAnalysisDetailPage.tsx` - Popup detail page (437 lines)
+- 3 API endpoints: GET/DELETE `/legacy/analyses`, GET `/legacy/analyses/{id}`
+- i18n translations (EN, KO, JA) — 24 keys per locale
+
+**Key Metrics**:
+| Metric | Value |
+|--------|-------|
+| Match Rate | 97% |
+| Files Created | 5 (1,958 lines) |
+| Files Modified | 11 |
+| Code Quality | 9.7/10 |
+| DB Columns | 25 (5 indexes, 4 JSONB) |
+| Design Exceedances | 5 areas |
+| Iterations | 0 |
+
+---
+
+*Last updated: 2026-02-19 (legacy-analysis-datatable-persistence archived)*

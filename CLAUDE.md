@@ -167,6 +167,7 @@ gpubase-raphrag/
 ### Sub-CLAUDE.md Files
 | Path | Content |
 |------|---------|
+| `AGENT.md` | **Agent system, Agentic RAG, Agent Teams, QLoRA training pipeline** |
 | `app/api/CLAUDE.md` | Backend structure, API endpoints, services |
 | `app/api/agents/CLAUDE.md` | Agent system, Deep Agents implementation |
 | `kms-portal-ui/CLAUDE.md` | Frontend structure, components, stores |

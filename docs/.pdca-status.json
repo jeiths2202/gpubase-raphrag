@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-02-19T04:09:30.539Z",
+  "lastUpdated": "2026-02-19T05:58:19.744Z",
   "activeFeatures": [
     "legacy-analysis-datatable-persistence",
     "fujitsu-aim-xsp-spec",
@@ -27,7 +27,8 @@
     "ModernizationAI",
     "KnowledgeGraph",
     "of7_extractor",
-    "kms-docker-remote"
+    "kms-docker-remote",
+    "xspjcl"
   ],
   "primaryFeature": "legacy-analysis-datatable-persistence",
   "features": {
@@ -243,7 +244,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-18T04:20:07.925Z",
-        "lastUpdated": "2026-02-18T16:58:15.795Z"
+        "lastUpdated": "2026-02-19T05:58:19.744Z"
       },
       "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\legacy_modernization\\parsers\\jcl_parser.py"
     },
@@ -321,7 +322,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-18T06:33:43.701Z",
-        "lastUpdated": "2026-02-18T15:14:31.735Z"
+        "lastUpdated": "2026-02-19T05:16:03.921Z"
       },
       "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\legacy_modernization\\capabilities\\registry.py"
     },
@@ -397,6 +398,19 @@
         "lastUpdated": "2026-02-19T01:22:24.855Z"
       },
       "lastFile": "C:/Users/endur/Downloads/tmaxjapan/kms/kms-docker-remote/test_legacy_api.py"
+    },
+    "xspjcl": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-19T05:46:50.544Z",
+        "lastUpdated": "2026-02-19T05:57:13.895Z"
+      },
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\legacy_modernization\\parsers\\xspjcl\\lib\\kms_xspjcl_wrapper.c"
     }
   },
   "pipeline": {
@@ -407,7 +421,7 @@
   "session": {
     "startedAt": "2026-01-30T11:33:36.280Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-02-19T04:09:30.539Z"
+    "lastActivity": "2026-02-19T05:58:19.744Z"
   },
   "history": [
     {
@@ -3665,6 +3679,66 @@
     {
       "timestamp": "2026-02-19T04:09:30.539Z",
       "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-19T05:16:03.921Z",
+      "feature": "capabilities",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-19T05:46:50.544Z",
+      "feature": "xspjcl",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-19T05:47:13.457Z",
+      "feature": "xspjcl",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-19T05:52:29.659Z",
+      "feature": "xspjcl",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-19T05:53:28.368Z",
+      "feature": "xspjcl",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-19T05:54:44.538Z",
+      "feature": "xspjcl",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-19T05:55:13.222Z",
+      "feature": "xspjcl",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-19T05:57:13.895Z",
+      "feature": "xspjcl",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-19T05:58:01.974Z",
+      "feature": "parsers",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-19T05:58:19.744Z",
+      "feature": "parsers",
       "phase": "do",
       "action": "updated"
     }

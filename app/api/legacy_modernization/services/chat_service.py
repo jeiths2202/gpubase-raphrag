@@ -1,35 +1,118 @@
 """Modernization Chat Service - Routes chat to HOST/OpenFrame/ALL handlers.
 
+Integrates with ConversationService for PostgreSQL persistence.
 Singleton pattern following project conventions.
 """
 
 import asyncio
 import logging
-from typing import Any, AsyncGenerator, Dict, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from ..routers.chat_schemas import ModernizationChatRequest, SystemType
 
 logger = logging.getLogger(__name__)
 
+# Agent type used for filtering modernization conversations
+AGENT_TYPE = "modernization"
+
 
 class ModernizationChatService:
-    """Chat routing service for Legacy Modernization AI Assistant."""
+    """Chat routing service for Legacy Modernization AI Assistant.
+
+    Persists chat history to PostgreSQL via ConversationService.
+    """
 
     _instance: Optional["ModernizationChatService"] = None
+
+    def __init__(self):
+        self._conversation_service = None
+
+    def _get_conversation_service(self):
+        """Lazy-load ConversationService to avoid circular imports."""
+        if self._conversation_service is None:
+            try:
+                from ...services.conversation_service import get_conversation_service
+                self._conversation_service = get_conversation_service()
+                logger.info("ModernizationChatService: ConversationService loaded")
+            except Exception as e:
+                logger.warning(f"ConversationService not available: {e}")
+        return self._conversation_service
 
     async def stream_chat(
         self, request: ModernizationChatRequest, user_id: str = "anonymous"
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        """Route and stream chat based on system_type."""
+        """Route and stream chat based on system_type, with DB persistence."""
+
+        # 1. Get or create conversation
+        conv_id = request.conversation_id
+        conv_service = self._get_conversation_service()
+
+        if conv_service and not conv_id:
+            try:
+                conv = await conv_service.create_conversation(
+                    user_id=user_id,
+                    agent_type=AGENT_TYPE,
+                    language=request.language,
+                    metadata={
+                        "system_type": request.system_type.value,
+                    },
+                )
+                conv_id = conv.id
+                logger.info(f"Created modernization conversation: {conv_id}")
+            except Exception as e:
+                logger.error(f"Failed to create conversation: {e}")
+
+        # 2. Save user message
+        if conv_service and conv_id:
+            try:
+                await conv_service.add_user_message(
+                    conversation_id=conv_id,
+                    user_id=user_id,
+                    content=request.message,
+                )
+            except Exception as e:
+                logger.error(f"Failed to save user message: {e}")
+
+        # 3. Emit conversation_id so frontend can track it
+        if conv_id:
+            yield {"type": "conversation_id", "conversation_id": conv_id}
+
+        # 4. Stream response and accumulate for persistence
+        full_response = ""
+        all_sources: List[Dict[str, Any]] = []
+
         if request.system_type == SystemType.HOST:
             async for event in self._stream_host(request):
+                if event.get("type") == "llm_token":
+                    full_response += event.get("token", "")
+                elif event.get("type") == "sources":
+                    all_sources.extend(event.get("sources", []))
                 yield event
         elif request.system_type == SystemType.OPENFRAME:
             async for event in self._stream_openframe(request, user_id):
+                if event.get("type") == "llm_token":
+                    full_response += event.get("token", "")
+                elif event.get("type") == "sources":
+                    all_sources.extend(event.get("results", event.get("sources", [])))
                 yield event
         else:  # ALL
             async for event in self._stream_combined(request, user_id):
+                if event.get("type") == "llm_token":
+                    full_response += event.get("token", "")
+                elif event.get("type") == "sources":
+                    all_sources.extend(event.get("results", event.get("sources", [])))
                 yield event
+
+        # 5. Save assistant response after streaming completes
+        if conv_service and conv_id and full_response.strip():
+            try:
+                await conv_service.add_assistant_message(
+                    conversation_id=conv_id,
+                    content=full_response,
+                    sources=all_sources if all_sources else None,
+                )
+            except Exception as e:
+                logger.error(f"Failed to save assistant message: {e}")
 
     async def _stream_host(
         self, request: ModernizationChatRequest

@@ -149,3 +149,157 @@ class ErrorResponse(BaseModel):
 
     detail: str = Field(..., description="Error description")
     error_code: Optional[str] = Field(None, description="Machine-readable error code")
+
+
+# ---------------------------------------------------------------------------
+# Batch Analysis Models
+# ---------------------------------------------------------------------------
+
+
+class FileItem(BaseModel):
+    """Individual file for batch analysis."""
+
+    file_name: str = Field(..., min_length=1, description="Source file name")
+    source_code: str = Field(..., min_length=1, description="Source code content")
+
+
+class BatchAnalysisRequest(BaseModel):
+    """Multi-file batch analysis request."""
+
+    files: List[FileItem] = Field(
+        ..., min_length=1, max_length=10,
+        description="Files to analyze (1-10)",
+    )
+    target_product: Optional[str] = Field(None, description="Target OpenFrame product")
+    target_version: Optional[str] = Field(None, description="Target product version")
+    vendors: List[str] = Field(default=["openframe"])
+    options: AnalysisOptions = Field(default_factory=AnalysisOptions)
+
+
+class FileAnalysisResult(BaseModel):
+    """Per-file analysis result within a batch."""
+
+    file_name: str
+    analysis_id: str
+    status: str  # "completed" | "failed" | "in_progress"
+    asset_type: str = ""
+    total_features: int = 0
+    supported_count: int = 0
+    incompatible_count: int = 0
+    support_rate: float = 0.0
+    risk_summary: Dict[str, int] = Field(default_factory=dict)
+    incompatibility_report: Optional[Dict[str, Any]] = None
+
+
+class BatchSummary(BaseModel):
+    """Aggregate summary across all files in a batch."""
+
+    batch_id: str
+    total_files: int
+    completed_files: int
+    failed_files: int
+    total_features: int = 0
+    total_supported: int = 0
+    total_incompatible: int = 0
+    overall_support_rate: float = 0.0
+    risk_breakdown: Dict[str, int] = Field(default_factory=dict)
+    top_incompatible_items: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class BatchAnalysisResponse(BaseModel):
+    """Response after starting a batch analysis."""
+
+    batch_id: str
+    total_files: int
+    analysis_ids: List[str]
+    status: str
+    message: str
+
+
+class BatchStatusResponse(BaseModel):
+    """Batch analysis progress."""
+
+    batch_id: str
+    total_files: int
+    completed: int
+    failed: int
+    in_progress: int
+    overall_progress: float = 0.0
+    file_statuses: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class BatchResultsResponse(BaseModel):
+    """Complete batch results with summary + per-file details."""
+
+    batch_id: str
+    summary: BatchSummary
+    file_results: List[FileAnalysisResult]
+
+
+# ---------------------------------------------------------------------------
+# Persisted Analysis Models (Data Table & Detail Popup)
+# ---------------------------------------------------------------------------
+
+
+class AnalysisListItem(BaseModel):
+    """Data Table row item (no JSONB, for fast list queries)."""
+
+    id: str
+    batch_id: Optional[str] = None
+    file_name: str
+    asset_type: str
+    loc_count: int = 0
+    target_product: Optional[str] = None
+    target_version: Optional[str] = None
+    status: str = "completed"
+    total_features: int = 0
+    supported_count: int = 0
+    incompatible_count: int = 0
+    support_rate: float = 0.0
+    risk_high: int = 0
+    risk_medium: int = 0
+    risk_low: int = 0
+    analysis_duration_seconds: Optional[float] = None
+    pipeline_status: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class AnalysisListResponse(BaseModel):
+    """Paginated Data Table response."""
+
+    items: List[AnalysisListItem]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+
+
+class AnalysisDetailResponse(BaseModel):
+    """Full detail for popup page (includes JSONB fields)."""
+
+    id: str
+    user_id: Optional[str] = None
+    batch_id: Optional[str] = None
+    file_name: str
+    asset_type: str
+    source_code: Optional[str] = None
+    loc_count: int = 0
+    target_product: Optional[str] = None
+    target_version: Optional[str] = None
+    vendors: List[str] = Field(default_factory=list)
+    status: str = "completed"
+    total_features: int = 0
+    supported_count: int = 0
+    incompatible_count: int = 0
+    support_rate: float = 0.0
+    risk_high: int = 0
+    risk_medium: int = 0
+    risk_low: int = 0
+    incompatibility_report: Optional[Dict[str, Any]] = None
+    reports: Dict[str, Any] = Field(default_factory=dict)
+    workspace_snapshot: Optional[Dict[str, Any]] = None
+    analysis_duration_seconds: Optional[float] = None
+    pipeline_status: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
