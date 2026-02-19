@@ -65,6 +65,26 @@ _XSP_COMMENT_RE = re.compile(r"^\\\s*\*")
 # XSP statement detector (any \ or / prefix used in XSP)
 _XSP_DETECT_PATTERNS = {"\ JOB", "\ EX ", "\ FD ", "\ JEND", "/EXPAN", "/ SET", "/ DEFEND"}
 
+# OF7 C 파서가 인식하는 XSP 키워드 전체 (xspjcl.l:472-549)
+# 이 목록에 없는 키워드가 \ prefix로 나타나면 STMT_ERROR
+_XSP_KNOWN_KEYWORDS = {
+    "JOBG", "CODE", "JOB", "EX", "PARA", "FD", "SW", "PAUSE", "MSG",
+    "NOTE", "JEND", "JGEND", "FIN", "SYSIN", "FDR", "FDDS", "FDDE",
+    "STACK", "CAT", "UNCAT", "DATA", "END", "SCAN", "SCEND",
+    "USER", "UEND", "NOP",
+}
+
+
+def _is_xsp_statement(line: str) -> bool:
+    """\ prefix로 시작하는 XSP JCL 문인지 판단 (코멘트 제외)."""
+    return line.startswith("\\") and not _XSP_COMMENT_RE.match(line)
+
+
+def _extract_xsp_keyword(line: str) -> str:
+    """XSP 문에서 키워드 추출 (예: '\\ F1 ...' → 'F1')."""
+    parts = line.lstrip("\\").strip().split()
+    return parts[0].upper() if parts else "UNKNOWN"
+
 # 유틸리티 프로그램 목록
 UTILITY_PROGRAMS = {
     "IDCAMS", "IEBGENER", "IEBCOPY", "IEFBR14", "DFSORT", "SORT",
@@ -109,9 +129,9 @@ class JCLParser(BaseParser):
         # MVS/JES2/JES3 또는 C 파서 불가 시 Python 폴백
         lines = self._preprocess_continuation(source)
         ast = self._build_ast(lines, file_path)
-        features = self._extract_features(lines, file_path)
+        features, parse_errors = self._extract_features(lines, file_path)
         evidence = self._build_trace_evidence(features, source, file_path)
-        stats = self._compute_stats(source.splitlines(), features, dialect)
+        stats = self._compute_stats(source.splitlines(), features, dialect, len(parse_errors))
 
         return ParserResult(
             asset_type=AssetType.JCL,
@@ -119,6 +139,7 @@ class JCLParser(BaseParser):
             ast=ast,
             features=features,
             trace_evidence=evidence,
+            parse_errors=parse_errors,
             stats=stats,
         )
 
@@ -209,6 +230,23 @@ class JCLParser(BaseParser):
                 else:
                     children.append(dd)
 
+            # 미인식 XSP 문 → STMT_ERROR (OF7 C 파서와 동일 동작)
+            elif _is_xsp_statement(line):
+                keyword = _extract_xsp_keyword(line)
+                if keyword not in _XSP_KNOWN_KEYWORDS:
+                    error_node = ASTNode(
+                        node_type="STMT_ERROR",
+                        source_line=line_no,
+                        source_end_line=line_no,
+                        properties={
+                            "error_message": f"Unknown JCL statement - {keyword}",
+                        },
+                    )
+                    if current_job:
+                        current_job.children.append(error_node)
+                    else:
+                        children.append(error_node)
+
         return ASTNode(
             node_type="JCL_FILE", name=file_path,
             source_line=1,
@@ -218,8 +256,9 @@ class JCLParser(BaseParser):
 
     def _extract_features(
         self, lines: List[tuple[int, str]], file_path: str
-    ) -> List[NormalizedFeature]:
+    ) -> tuple[List[NormalizedFeature], List[ParseError]]:
         features: List[NormalizedFeature] = []
+        parse_errors: List[ParseError] = []
         counter = 0
 
         for line_no, line in lines:
@@ -394,7 +433,29 @@ class JCLParser(BaseParser):
                     complexity=ComplexityLevel.MEDIUM,
                 ))
 
-        return features
+            # 미인식 XSP 문 → STMT_ERROR (OF7 C 파서와 동일 동작)
+            if _is_xsp_statement(line):
+                keyword = _extract_xsp_keyword(line)
+                if keyword not in _XSP_KNOWN_KEYWORDS:
+                    counter += 1
+                    parse_errors.append(ParseError(
+                        line=line_no,
+                        column=0,
+                        message=f"Syntax Error [Line:{line_no};Column: ;Keyword: ;Message:Unknown JCL statement - {keyword}]",
+                        severity="error",
+                    ))
+                    features.append(NormalizedFeature(
+                        feature_id=f"JCL-ERR-{counter:03d}",
+                        category=FeatureCategory.XSP_CONTROL,
+                        subcategory="STMT_ERROR",
+                        name=f"Unknown JCL statement - {keyword}",
+                        source_reference=SourceReference(
+                            file_path=file_path, line_start=line_no, line_end=line_no
+                        ),
+                        complexity=ComplexityLevel.HIGH,
+                    ))
+
+        return features, parse_errors
 
     def _build_trace_evidence(
         self,
@@ -417,7 +478,8 @@ class JCLParser(BaseParser):
         return evidence
 
     def _compute_stats(
-        self, lines: List[str], features: List[NormalizedFeature], dialect: Optional[str]
+        self, lines: List[str], features: List[NormalizedFeature], dialect: Optional[str],
+        error_count: int = 0,
     ) -> ParseStats:
         total = len(lines)
         comment = sum(1 for l in lines if _COMMENT_RE.match(l) or _XSP_COMMENT_RE.match(l))
@@ -428,6 +490,7 @@ class JCLParser(BaseParser):
             comment_lines=comment,
             blank_lines=blank,
             feature_count=len(features),
+            error_count=error_count,
             dialect=dialect,
         )
 
