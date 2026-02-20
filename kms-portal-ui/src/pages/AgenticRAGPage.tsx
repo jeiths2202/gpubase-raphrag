@@ -496,6 +496,12 @@ export const AgenticRAGPage: React.FC = () => {
               );
               break;
 
+            case 'vllm_direct_fallthrough':
+              // vLLM 직접 응답 불충분 → 부분 출력 클리어, RAG로 전환
+              currentContent = '';
+              setMessages(prev => prev.filter(m => m.id !== assistantId));
+              break;
+
             case 'web_doc_match':
               // Web doc 매칭 알림 (score >= 0.9)
               break;

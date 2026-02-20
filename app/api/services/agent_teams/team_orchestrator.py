@@ -178,6 +178,19 @@ class TeamOrchestrator:
             return
 
         # =================================================================
+        # vLLM Direct Search (최우선: QLoRA 학습 지식으로 직접 응답)
+        # =================================================================
+        vllm_done = False
+        async for event in rag._try_vllm_direct_search(
+            request, primary_product, product_ids, start,
+        ):
+            yield event
+            if event.get("type") == "done":
+                vllm_done = True
+        if vllm_done:
+            return
+
+        # =================================================================
         # Pattern D: Multi-Product Collaboration
         # =================================================================
         if (

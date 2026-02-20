@@ -893,6 +893,26 @@ class AgenticRAGService:
             "type": "search_progress",
             "product": primary_product,
             "products": product_ids,
+            "step": "vllm_search",
+            "progress": 0.2,
+        }
+
+        # === vLLM Direct Search (최우선: QLoRA 학습된 도메인 지식으로 직접 응답) ===
+        vllm_done = False
+        async for event in self._try_vllm_direct_search(
+            request, primary_product, product_ids, start,
+        ):
+            yield event
+            if event.get("type") == "done":
+                vllm_done = True
+        if vllm_done:
+            return
+        # === End vLLM Direct Search ===
+
+        yield {
+            "type": "search_progress",
+            "product": primary_product,
+            "products": product_ids,
             "step": "structured_search",
             "progress": 0.3,
         }
@@ -1498,6 +1518,126 @@ class AgenticRAGService:
                 search_context.structured_results
             ) if search_context.structured_results else f"生成エラー: {str(e)}"
             yield fallback
+
+    # =========================================================================
+    # vLLM Direct Search (QLoRA 학습 지식 기반 직접 응답)
+    # =========================================================================
+
+    # vLLM 직접 응답의 최소 품질 기준 (문자 수)
+    _VLLM_DIRECT_MIN_CHARS = 80
+
+    async def _try_vllm_direct_search(
+        self,
+        request: AgenticRAGRequest,
+        primary_product: str,
+        product_ids: List[str],
+        start: float,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        vLLM 직접 검색: QLoRA 학습된 모델에 RAG 컨텍스트 없이 직접 질문.
+
+        학습된 도메인 지식이 있으면 즉시 응답하고, 없으면 빈 스트림(fallthrough).
+        """
+        try:
+            from .learning_llm_service import get_learning_llm_service
+            llm_service = get_learning_llm_service()
+
+            if not llm_service or not llm_service.is_available:
+                logger.debug("vLLM direct search skipped: service unavailable")
+                return
+
+            adapter_product = self._map_product_for_llm(primary_product)
+            language = request.language or "ja"
+
+            # 대화 이력 포함
+            history_section = self._format_history_for_context(request.history)
+
+            # vLLM에 RAG 컨텍스트 없이 직접 질문 (학습된 지식만 사용)
+            direct_context = (
+                f"あなたは{adapter_product}製品の専門家です。"
+                f"学習済みの知識のみを使って、正確に回答してください。"
+                f"確信がない場合は「情報が不足しています」と回答してください。"
+            )
+            if history_section:
+                direct_context = history_section + "\n\n" + direct_context
+
+            logger.info(
+                f"vLLM direct search: product={primary_product}, "
+                f"adapter={adapter_product}, query={request.message[:80]}"
+            )
+
+            yield {
+                "type": "search_progress",
+                "product": primary_product,
+                "products": product_ids,
+                "step": "vllm_direct_search",
+                "progress": 0.25,
+            }
+
+            full_response = ""
+            async for token in llm_service.generate_stream(
+                question=request.message,
+                context=direct_context,
+                max_tokens=2048,
+                temperature=0.3,
+                product=adapter_product,
+            ):
+                full_response += token
+                yield {"type": "llm_token", "token": token}
+
+            # 응답 품질 검증: 충분한 내용이 있는지 확인
+            stripped = full_response.strip()
+            _insufficient_markers = [
+                "情報が不足", "わかりません", "不明です",
+                "情報がありません", "確認できません",
+                "該当する情報", "見つかりません",
+            ]
+            is_insufficient = (
+                len(stripped) < self._VLLM_DIRECT_MIN_CHARS
+                or any(m in stripped for m in _insufficient_markers)
+            )
+
+            if is_insufficient:
+                # vLLM 응답 불충분 → fallthrough (이미 출력된 토큰 클리어)
+                logger.info(
+                    f"vLLM direct search: insufficient response "
+                    f"(len={len(stripped)}), falling through to RAG"
+                )
+                # 이미 스트리밍된 불충분 응답을 클리어하고 RAG로 전환
+                yield {
+                    "type": "vllm_direct_fallthrough",
+                    "reason": "insufficient_response",
+                    "response_length": len(stripped),
+                }
+                return
+
+            # vLLM 직접 응답 성공
+            query_type = self.query_type_classifier.classify(request.message)
+
+            yield {
+                "type": "sources",
+                "results": [{
+                    "doc_name": f"Learning LLM ({adapter_product})",
+                    "source_page": "",
+                    "content": stripped[:200],
+                    "score": 1.0,
+                    "domain": "learning_llm",
+                    "product": primary_product,
+                }],
+                "total": 1,
+            }
+            yield {
+                "type": "done",
+                "processing_time_ms": int((time.time() - start) * 1000),
+                "product": primary_product,
+                "products": product_ids,
+                "query_type": query_type.value,
+                "search_method": "vllm_direct",
+            }
+
+        except Exception as e:
+            logger.warning(f"vLLM direct search failed: {type(e).__name__}: {e}")
+            # 예외 발생 시 조용히 fallthrough → 기존 RAG 파이프라인 진행
 
     # =========================================================================
     # Web Doc Fast Path (docs.tmaxsoft.com 실시간 검색)
