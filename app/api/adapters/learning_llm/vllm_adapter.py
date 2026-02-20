@@ -323,6 +323,7 @@ class VLLMAdapter:
         temperature: float = 0.7,
         top_p: float = 0.9,
         product: Optional[str] = None,
+        system_prompt: Optional[str] = None,
         **kwargs
     ) -> str:
         """
@@ -334,20 +335,20 @@ class VLLMAdapter:
             max_new_tokens: 최대 생성 토큰
             temperature: 샘플링 온도
             product: Multi-LoRA 제품명 (예: "tibero7", "openframe_base")
+            system_prompt: 커스텀 시스템 프롬프트 (제공 시 default 생략, context 잘라내기 안 함)
 
         Returns:
             생성된 응답
         """
-        detected_product = self.detect_product_from_query(question)
-        if detected_product:
-            product = detected_product
-            logger.info(f"Query-based product detection: '{detected_product}' from query")
-        elif not product:
-            product = None
+        if not product:
+            detected_product = self.detect_product_from_query(question)
+            if detected_product:
+                product = detected_product
+                logger.info(f"Query-based product detection: '{detected_product}' from query")
 
         base_url, model_name = self.get_url_for_product(product)
 
-        messages = self._build_messages(question, context)
+        messages = self._build_messages(question, context, system_prompt=system_prompt)
 
         payload = {
             "model": model_name,
@@ -386,6 +387,7 @@ class VLLMAdapter:
         temperature: float = 0.7,
         top_p: float = 0.9,
         product: Optional[str] = None,
+        system_prompt: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """
         vLLM OpenAI-compatible API 스트리밍 응답 생성
@@ -396,17 +398,17 @@ class VLLMAdapter:
             max_new_tokens: 최대 생성 토큰
             temperature: 샘플링 온도
             product: Multi-LoRA 제품명 (예: "tibero7", "openframe_base")
+            system_prompt: 커스텀 시스템 프롬프트 (제공 시 default 생략, context 잘라내기 안 함)
         """
-        detected_product = self.detect_product_from_query(question)
-        if detected_product:
-            product = detected_product
-            logger.info(f"Query-based product detection: '{detected_product}' from query")
-        elif not product:
-            product = None
+        if not product:
+            detected_product = self.detect_product_from_query(question)
+            if detected_product:
+                product = detected_product
+                logger.info(f"Query-based product detection: '{detected_product}' from query")
 
         base_url, model_name = self.get_url_for_product(product)
 
-        messages = self._build_messages(question, context)
+        messages = self._build_messages(question, context, system_prompt=system_prompt)
 
         logger.info(f"generate_stream: product={product}, model={model_name}, context_len={len(context) if context else 0}")
 
@@ -471,15 +473,25 @@ class VLLMAdapter:
         self,
         question: str,
         context: Optional[str] = None,
-        product: Optional[str] = None
+        product: Optional[str] = None,
+        system_prompt: Optional[str] = None,
     ) -> list:
         """
         OpenAI 형식 메시지 빌드 (RAG context 포함)
 
         72B CPT+DPO 모델은 context 기반 응답 생성을 지원합니다.
-        context가 있으면 RAG 형식으로 포함, 없으면 단순 질문 형식.
+        system_prompt가 제공되면 그것을 system message로 사용하고 context 잘라내기 안 함.
+        system_prompt 미제공 시 기존 동작 유지 (RAG 경로 호환).
         """
-        system_prompt = (
+        if system_prompt:
+            # 커스텀 시스템 프롬프트 모드: 소스코드 설명 등 전용 프롬프트 사용
+            messages = [{"role": "system", "content": system_prompt}]
+            # context 잘라내기 없이 질문만 전달 (소스코드는 system_prompt에 이미 포함)
+            messages.append({"role": "user", "content": question.strip()})
+            logger.debug(f"_build_messages (custom system_prompt): '{question[:30]}...'")
+            return messages
+
+        default_prompt = (
             "あなたはOpenFrame KMSのアシスタントです。技術的な質問に正確に回答してください。\n"
             "検索結果が複数ある場合は、以下のようなmarkdown table形式で整理して回答してください：\n"
             "| No | 項目 | 内容 | ソース |\n"
@@ -487,12 +499,7 @@ class VLLMAdapter:
             "回答の最後に、参考にした資料のソース情報を含めてください。"
         )
 
-        messages = [
-            {
-                "role": "system",
-                "content": system_prompt
-            }
-        ]
+        messages = [{"role": "system", "content": default_prompt}]
 
         user_content = question.strip()
 
@@ -516,14 +523,37 @@ class VLLMAdapter:
         return messages
 
     def _extract_core_content(self, context: str) -> str:
-        """컨텍스트에서 메타데이터를 제거하고 핵심 내용 추출"""
+        """컨텍스트에서 메타데이터를 제거하고 핵심 내용 추출
+
+        검색 결과와 대화 이력이 ===会話履歴=== 구분자로 분리된 경우,
+        검색 결과를 우선 보존하고 대화 이력은 제한적으로 포함합니다.
+        """
         if not context:
             return ""
 
+        # 대화 이력 구분자 탐지 → 검색 결과 우선 보존
+        history_marker = "===会話履歴==="
+        if history_marker in context:
+            parts = context.split(history_marker, 1)
+            search_part = parts[0].strip()
+            history_part = parts[1].strip() if len(parts) > 1 else ""
+
+            search_lines = self._filter_metadata_lines(search_part)[:15]
+            history_lines = self._filter_metadata_lines(history_part)[:5]
+
+            if history_lines:
+                return '\n'.join(search_lines + ['---'] + history_lines)
+            return '\n'.join(search_lines)
+
+        # 구분자 없으면 기존 동작 (backward compatible)
+        lines = self._filter_metadata_lines(context)
+        return '\n'.join(lines[:20])
+
+    def _filter_metadata_lines(self, text: str) -> list:
+        """메타데이터 라인을 제거하고 핵심 라인만 반환"""
         lines = []
-        for line in context.split('\n'):
+        for line in text.split('\n'):
             line = line.strip()
-            # 메타데이터 라인 제거
             if line.startswith('[Document:') or line.startswith('[Cross-Product:'):
                 continue
             if line.startswith('[Entity:'):
@@ -534,8 +564,7 @@ class VLLMAdapter:
                 continue
             if line:
                 lines.append(line)
-
-        return '\n'.join(lines[:20])  # 최대 20줄
+        return lines
 
     def _get_product_display_name(self, product: str) -> str:
         """제품 ID를 표시 이름으로 변환"""

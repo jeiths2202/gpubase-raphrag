@@ -265,7 +265,7 @@ class LegacyChatAdapter:
             token_count = 0
             async for token in adapter.generate_stream(
                 question=message,
-                context=system_prompt,
+                system_prompt=system_prompt,
                 max_new_tokens=max_tokens,
                 temperature=temperature,
                 product="openframe_base",

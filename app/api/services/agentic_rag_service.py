@@ -1774,7 +1774,8 @@ class AgenticRAGService:
         search_section = "\n\n---\n\n".join(parts)
 
         if history_section and search_section:
-            return history_section + "\n\n" + search_section
+            # 검색 결과를 앞에 배치 → _extract_core_content() 절단 시 검색 결과 보존
+            return search_section + "\n\n===会話履歴===\n" + history_section
         return search_section or history_section
 
     def _format_history_for_context(self, history) -> str:

@@ -713,7 +713,7 @@ export const LegacyModernizationPage: React.FC = () => {
           sourceCodeSnippet: sourceCode.slice(0, 2000),
           sourceCodeFull: sourceCode,
           targetProduct: selectedProduct || undefined,
-        } : undefined}
+        } : (selectedProduct ? { targetProduct: selectedProduct } : undefined)}
       />
     </div>
   );

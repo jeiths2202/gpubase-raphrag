@@ -93,9 +93,13 @@ class ModernizationChatService:
             _is_source_explanation_request(request.message)
             or _mentions_source_code(request.message)
         )
+        # Bug 4 fix: explicit source explanation requests always route to HOST
+        # (even without source code present, HOST handler will provide general response)
+        is_explicit_source_request = _is_source_explanation_request(request.message)
         use_host = (
             request.system_type == SystemType.HOST
             or (mentions_source and has_source)
+            or is_explicit_source_request
         )
 
         if use_host:
