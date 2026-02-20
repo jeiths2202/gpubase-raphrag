@@ -20,6 +20,7 @@
 | [vllm-hybrid-search-artifact-view](./vllm-hybrid-search-artifact-view/) | 2026-02-19 | 97% | ✅ Completed |
 | [xsp-jcl-c-parser-wrapper](./xsp-jcl-c-parser-wrapper/) | 2026-02-19 | 95% | ✅ Completed |
 | [legacy-analysis-datatable-persistence](./legacy-analysis-datatable-persistence/) | 2026-02-19 | 97% | ✅ Completed |
+| [xsp-parser-faithful-wrapper](./xsp-parser-faithful-wrapper/) | 2026-02-19 | 100% | ✅ Completed |
 
 ---
 
@@ -416,4 +417,29 @@ Start-Process python -PassThru -RedirectStandardOutput
 
 ---
 
-*Last updated: 2026-02-19 (legacy-analysis-datatable-persistence archived)*
+## xsp-parser-faithful-wrapper
+
+**Purpose**: Python 폴백 XSP JCL 파서를 OF7 C 파서와 동일하게 미인식 문을 STMT_ERROR로 보고하도록 개선
+
+**Documents**:
+- `xsp-parser-faithful-wrapper.plan.md` - Feature plan (6 phases, 1 file)
+- `xsp-parser-faithful-wrapper.analysis.md` - Gap analysis (100% match rate)
+- `xsp-parser-faithful-wrapper.report.md` - Completion report
+
+**Key Deliverables**:
+- `_XSP_KNOWN_KEYWORDS` set (27 keywords from OF7 C parser xspjcl.l)
+- `_is_xsp_statement()` / `_extract_xsp_keyword()` helpers
+- STMT_ERROR nodes in AST + error features + parse_errors
+- Error format matching C parser: "Unknown JCL statement - {keyword}"
+
+**Key Metrics**:
+| Metric | Value |
+|--------|-------|
+| Match Rate | 100% |
+| Files Modified | 1 (jcl_parser.py, ~40 lines added) |
+| Success Criteria | 6/6 (100%) |
+| Iterations | 0 |
+
+---
+
+*Last updated: 2026-02-19 (xsp-parser-faithful-wrapper archived)*

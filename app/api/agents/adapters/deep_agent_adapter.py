@@ -147,14 +147,24 @@ try:
 except ImportError:
     LANGGRAPH_STORE_AVAILABLE = False
 
-# LangGraph checkpointer for conversation state
+# LangGraph checkpointer for conversation state (prefer SqliteSaver for persistence)
+try:
+    import sqlite3
+    from langgraph.checkpoint.sqlite import SqliteSaver
+    LANGGRAPH_SQLITE_CHECKPOINTER_AVAILABLE = True
+except ImportError:
+    SqliteSaver = None
+    LANGGRAPH_SQLITE_CHECKPOINTER_AVAILABLE = False
+    logger.info("LangGraph SqliteSaver not available, trying MemorySaver fallback")
+
 try:
     from langgraph.checkpoint.memory import MemorySaver
     LANGGRAPH_CHECKPOINTER_AVAILABLE = True
 except ImportError:
     MemorySaver = None
-    LANGGRAPH_CHECKPOINTER_AVAILABLE = False
-    logger.info("LangGraph checkpointer not available, conversation state disabled")
+    LANGGRAPH_CHECKPOINTER_AVAILABLE = LANGGRAPH_SQLITE_CHECKPOINTER_AVAILABLE
+    if not LANGGRAPH_CHECKPOINTER_AVAILABLE:
+        logger.info("LangGraph checkpointer not available, conversation state disabled")
 
 try:
     from langchain_ollama import ChatOllama
@@ -312,6 +322,31 @@ class DeepAgentAdapter(BaseAgent):
             logger.warning(f"[{self.name}] Failed to get LangGraph store: {e}")
             return None
 
+    def _create_checkpointer(self):
+        """
+        대화 상태 체크포인터 생성.
+        SqliteSaver 우선 (영속), MemorySaver fallback (비영속).
+        """
+        if LANGGRAPH_SQLITE_CHECKPOINTER_AVAILABLE:
+            try:
+                db_dir = Path(os.getenv("CHECKPOINT_DB_DIR", "data/checkpoints"))
+                db_dir.mkdir(parents=True, exist_ok=True)
+                db_path = str(db_dir / "deep_agent.db")
+                conn = sqlite3.connect(db_path, check_same_thread=False)
+                saver = SqliteSaver(conn)
+                saver.setup()
+                logger.info(f"[{self.name}] Using SqliteSaver (persistent) at {db_path}")
+                return saver
+            except Exception as e:
+                logger.warning(f"[{self.name}] SqliteSaver failed ({e}), falling back to MemorySaver")
+
+        if LANGGRAPH_CHECKPOINTER_AVAILABLE and MemorySaver is not None:
+            logger.info(f"[{self.name}] Using MemorySaver (non-persistent)")
+            return MemorySaver()
+
+        logger.warning(f"[{self.name}] No checkpointer available")
+        return None
+
     def _get_composite_backend_factory(self):
         """
         CompositeBackend 팩토리 함수 반환 (Long-term Memory 지원)
@@ -398,11 +433,12 @@ class DeepAgentAdapter(BaseAgent):
             logger.info(f"[{self.name}] LangGraph store configured for persistence")
 
         # Add checkpointer for conversation state persistence
-        if LANGGRAPH_CHECKPOINTER_AVAILABLE and self._enable_long_term_memory:
+        if (LANGGRAPH_SQLITE_CHECKPOINTER_AVAILABLE or LANGGRAPH_CHECKPOINTER_AVAILABLE) and self._enable_long_term_memory:
             if self._checkpointer is None:
-                self._checkpointer = MemorySaver()
-            agent_kwargs["checkpointer"] = self._checkpointer
-            logger.info(f"[{self.name}] Checkpointer configured for conversation state")
+                self._checkpointer = self._create_checkpointer()
+            if self._checkpointer is not None:
+                agent_kwargs["checkpointer"] = self._checkpointer
+                logger.info(f"[{self.name}] Checkpointer configured for conversation state")
 
         # Add CompositeBackend factory for file system routing
         backend_factory = self._get_composite_backend_factory()

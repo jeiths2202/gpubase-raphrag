@@ -1,27 +1,106 @@
 """
 Product Context Memory Service
 
-LangGraph Store 기반의 제품 라우팅 컨텍스트 영속 서비스.
+파일 기반 영속 저장소를 사용하는 제품 라우팅 컨텍스트 서비스.
 Agentic RAG의 Auto 모드에서 이전 대화의 제품 컨텍스트를 기억합니다.
 
-Deep Agents의 Long-term Memory 패턴 활용:
-- InMemoryStore (개발용) 또는 PostgresStore (프로덕션) 사용
+- FileBackedStore: JSON 파일 영속화 (프로세스 재시작 후에도 유지)
+- InMemoryStore: fallback (파일 시스템 오류 시)
 - 사용자/세션별 네임스페이스 분리
 """
+import json
 import logging
+import os
 import time
-from typing import Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
-# LangGraph Store import
+# LangGraph Store import (fallback용)
 try:
     from langgraph.store.memory import InMemoryStore
     STORE_AVAILABLE = True
 except ImportError:
     STORE_AVAILABLE = False
     logger.warning("LangGraph store not available, product context memory disabled")
+
+
+class _Item:
+    """InMemoryStore의 Item과 호환되는 간단한 래퍼"""
+    def __init__(self, value: Any):
+        self.value = value
+
+
+class FileBackedStore:
+    """
+    InMemoryStore와 동일한 sync .get()/.put() 인터페이스를 제공하는 파일 영속 저장소.
+
+    내부에 dict 캐시를 유지하면서 모든 변경 사항을 JSON 파일에 즉시 기록합니다.
+    프로세스 시작 시 파일에서 기존 데이터를 로드합니다.
+    """
+
+    def __init__(self, storage_dir: Optional[str] = None):
+        self._storage_dir = Path(
+            storage_dir
+            or os.getenv("PRODUCT_CONTEXT_MEMORY_DIR", "data/product_context")
+        )
+        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._load_from_disk()
+
+    def _ns_key(self, namespace: tuple) -> str:
+        """namespace tuple을 파일명 안전한 문자열로 변환"""
+        return "__".join(str(part) for part in namespace)
+
+    def _file_path(self, ns_key: str) -> Path:
+        return self._storage_dir / f"{ns_key}.json"
+
+    def _load_from_disk(self) -> None:
+        """디스크에서 기존 데이터를 캐시로 로드"""
+        if not self._storage_dir.exists():
+            return
+        loaded = 0
+        for fp in self._storage_dir.glob("*.json"):
+            try:
+                with open(fp, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self._cache[fp.stem] = data
+                loaded += 1
+            except Exception as e:
+                logger.warning(f"[FileBackedStore] Failed to load {fp.name}: {e}")
+        if loaded:
+            logger.info(f"[FileBackedStore] Loaded {loaded} namespace(s) from {self._storage_dir}")
+
+    def _persist(self, ns_key: str) -> None:
+        """캐시의 특정 namespace를 디스크에 기록"""
+        try:
+            self._storage_dir.mkdir(parents=True, exist_ok=True)
+            fp = self._file_path(ns_key)
+            with open(fp, "w", encoding="utf-8") as f:
+                json.dump(self._cache.get(ns_key, {}), f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"[FileBackedStore] Failed to persist {ns_key}: {e}")
+
+    def get(self, namespace: tuple, key: str) -> Optional[_Item]:
+        """
+        InMemoryStore 호환 .get() - _Item(value) 또는 None 반환
+        """
+        ns_key = self._ns_key(namespace)
+        ns_data = self._cache.get(ns_key, {})
+        if key in ns_data:
+            return _Item(ns_data[key])
+        return None
+
+    def put(self, namespace: tuple, key: str, value: Any) -> None:
+        """
+        InMemoryStore 호환 .put() - 캐시 업데이트 + 즉시 파일 쓰기
+        """
+        ns_key = self._ns_key(namespace)
+        if ns_key not in self._cache:
+            self._cache[ns_key] = {}
+        self._cache[ns_key][key] = value
+        self._persist(ns_key)
 
 
 @dataclass
@@ -54,11 +133,19 @@ class ProductContextMemory:
     def __init__(self, store=None):
         if store is not None:
             self._store = store
-        elif STORE_AVAILABLE:
-            self._store = InMemoryStore()
         else:
-            self._store = None
-            logger.warning("No store available, product context memory is disabled")
+            # FileBackedStore 우선 사용 (영속), InMemoryStore fallback
+            try:
+                self._store = FileBackedStore()
+                logger.info("[ProductContextMemory] Using FileBackedStore (persistent)")
+            except Exception as e:
+                logger.warning(f"[ProductContextMemory] FileBackedStore failed ({e}), falling back")
+                if STORE_AVAILABLE:
+                    self._store = InMemoryStore()
+                    logger.info("[ProductContextMemory] Using InMemoryStore (non-persistent)")
+                else:
+                    self._store = None
+                    logger.warning("No store available, product context memory is disabled")
 
     @property
     def available(self) -> bool:

@@ -535,6 +535,14 @@ async def lifespan(app: FastAPI):
             category=LogCategory.BUSINESS
         )
 
+    # ==================== Memory Store Service Initialization ====================
+    from .services.memory_store_service import initialize_memory_store
+    try:
+        memory_store = await initialize_memory_store()
+        logger.info("[OK] Memory Store service initialized", category=LogCategory.BUSINESS)
+    except Exception as e:
+        logger.warning(f"Memory Store init failed (non-fatal): {e}", category=LogCategory.BUSINESS)
+
     # ==================== Background Task Queue Initialization ====================
     from .ims_crawler.infrastructure.services import get_task_queue
     try:
