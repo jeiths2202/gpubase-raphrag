@@ -1,92 +1,26 @@
 {
-  "sessionCount": 281,
+  "sessionCount": 309,
   "lastSession": {
-    "startedAt": "2026-02-19T08:09:30.526Z",
+    "startedAt": "2026-02-22T10:26:15.641Z",
     "platform": "claude",
     "level": "Enterprise"
   },
-  "activeFeature": "source-code-explanation",
-  "pdcaPhase": "plan",
+  "activeFeature": "unified-lora-dataset-v2",
+  "pdcaPhase": "do",
   "matchRate": null,
-  "designVersion": null,
-  "planPath": "docs/01-plan/features/source-code-explanation.plan.md",
+  "designVersion": "v0.1",
+  "planPath": "docs/01-plan/features/unified-lora-dataset-v2.plan.md",
+  "designPath": "docs/02-design/features/unified-lora-dataset-v2.design.md",
   "analysisPath": null,
   "reportPath": null,
-  "implementationProgress": {
-    "scriptsCreated": [
-      "scripts/training/comprehensive_clean_v7.py",
-      "scripts/training/verify_v7_quality.py",
-      "scripts/training/augment_v7_dataset.py",
-      "scripts/training/create_v8_final_dataset.py"
-    ],
-    "datasetsGenerated": [
-      "multi_lora_v7_clean",
-      "multi_lora_v7_augmented",
-      "multi_lora_v8_final"
-    ],
-    "originalRecords": 6687,
-    "cleanedRecords": 2721,
-    "augmentedRecords": 3004,
-    "finalRecords": 2886,
-    "trainRecords": 2406,
-    "evalRecords": 480,
-    "removalRate": "59.3%",
-    "qualityScore": "98.3%",
-    "productsRemoved": [
-      "openframe_ndb_v2",
-      "ofasm_v2"
-    ],
-    "finalProductCount": 22,
-    "removalBreakdown": {
-      "truncated_answer": 1806,
-      "duplicate": 1187,
-      "truncated_question": 475,
-      "meaningless_answer": 459,
-      "path_fragment": 39,
-      "bad_answer_v8": 3
-    },
-    "augmentationBreakdown": {
-      "recovered_from_v6": 167,
-      "generated_from_summaries": 130,
-      "products_augmented": 6
-    }
-  },
-  "iterationCount": 0,
-  "completedAt": "2026-02-19T07:00:00.000Z",
-  "v9Improvement": {
-    "shortAnswersRemoved": 264,
-    "contextQuestionsFixed": 0,
-    "productsAugmented": 9,
-    "recordsAugmented": 25,
-    "finalRecords": 2647,
-    "finalTrain": 2173,
-    "finalEval": 474,
-    "qualityScore": "98.5%"
-  },
-  "gaps": [
-    "RESOLVED: Data-poor products augmented (ofasm:4→44, ofpli:9→101, ofcobol:17→71)",
-    "RESOLVED: Quality verification passed (98.3% average score)",
-    "RESOLVED: G9 - openframe_ndb_v2 Q-A mismatch (entire product removed)",
-    "RESOLVED: G10 - ofasm_v2 quality issues (entire product removed)",
-    "REMAINING: openframe_gateway_v2 still low at 22 records"
-  ],
-  "verifiedItems": [
-    "Semantic deduplication: 1,187 duplicates removed",
-    "Truncated answers: 1,806 removed (45.5%)",
-    "Truncated questions: 475 removed (12.0%)",
-    "Meaningless answers: 459 removed (11.6%)",
-    "Path fragments: 39 removed (1.0%)",
-    "All 6 quality issues from v6 review addressed",
-    "Quality verification: 98.3% average score",
-    "Data augmentation: +297 records recovered, +130 generated",
-    "Iteration 2: Critical Q-A mismatch products removed (ndb, ofasm)",
-    "v8 Final dataset: 2,886 records (2,406 train + 480 eval), 22 products"
-  ],
+  "implementationProgress": null,
+  "iterationCount": null,
+  "completedAt": null,
   "previousFeature": {
-    "feature": "comprehensive-search-response",
+    "feature": "unified-lora-dataset",
     "phase": "archived",
-    "matchRate": 92,
-    "archivedAt": "2026-02-04T10:00:00.000Z"
+    "matchRate": 97,
+    "archivedAt": "2026-02-22T10:00:00.000Z"
   },
   "keyDeliverables": null,
   "archivedFeatures": [
@@ -438,6 +372,36 @@
           "STMT_ERROR detection for unrecognized XSP statements",
           "Error format matching C parser: Unknown JCL statement - {keyword}",
           "parse_errors + error_count in stats"
+        ]
+      }
+    },
+    {
+      "feature": "unified-lora-dataset",
+      "phase": "archived",
+      "matchRate": 97,
+      "iterationCount": 0,
+      "startedAt": "2026-02-22T09:00:00.000Z",
+      "archivedAt": "2026-02-22T10:00:00.000Z",
+      "archivedTo": "docs/archive/2026-02/unified-lora-dataset/",
+      "completedAt": "2026-02-22T09:50:00.000Z",
+      "keyDeliverables": {
+        "filesCreated": 5,
+        "linesAdded": 1940,
+        "filesModified": 3,
+        "implementationFiles": [
+          "scripts/manual_processor/data/product_relations.json",
+          "scripts/manual_processor/data/relation_seeds.json",
+          "scripts/manual_processor/generators/unified_sft_generator.py",
+          "scripts/manual_processor/generators/unified_dpo_generator.py",
+          "scripts/manual_processor/generators/unified_cpt_generator.py"
+        ],
+        "keyFeatures": [
+          "25th unified QLoRA adapter for cross-product relationships",
+          "7 relation types (R-01~R-07)",
+          "3-source SFT: relation_seeds + summary_pairs + pdf_extraction",
+          "3-strategy DPO: cross_product + fact_mutation + summary_cross",
+          "Relation-section CPT extraction (TOC-based + keyword fallback)",
+          "--unified CLI flag in gen-training command"
         ]
       }
     }

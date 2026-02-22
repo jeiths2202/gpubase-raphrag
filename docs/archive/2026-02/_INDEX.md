@@ -21,6 +21,8 @@
 | [xsp-jcl-c-parser-wrapper](./xsp-jcl-c-parser-wrapper/) | 2026-02-19 | 95% | ✅ Completed |
 | [legacy-analysis-datatable-persistence](./legacy-analysis-datatable-persistence/) | 2026-02-19 | 97% | ✅ Completed |
 | [xsp-parser-faithful-wrapper](./xsp-parser-faithful-wrapper/) | 2026-02-19 | 100% | ✅ Completed |
+| [unified-lora-dataset](./unified-lora-dataset/) | 2026-02-22 | 97% | ✅ Completed |
+| [unified-lora-dataset-v2](./unified-lora-dataset-v2/) | 2026-02-22 | 100% | ✅ Completed |
 
 ---
 
@@ -442,4 +444,76 @@ Start-Process python -PassThru -RedirectStandardOutput
 
 ---
 
-*Last updated: 2026-02-19 (xsp-parser-faithful-wrapper archived)*
+## unified-lora-dataset
+
+**Purpose**: 25th "unified" QLoRA adapter for cross-product relationship learning (R-01~R-07 relation types)
+
+**Documents**:
+- `unified-lora-dataset.plan.md` - Feature plan (7 relation types, 3-phase pipeline)
+- `unified-lora-dataset.design.md` - Architecture design (8 implementation steps)
+- `unified-lora-dataset.analysis.md` - Gap analysis (97% match rate, 1 bug found & fixed)
+- `unified-lora-dataset.report.md` - Completion report
+
+**Key Deliverables**:
+- `scripts/manual_processor/data/product_relations.json` - 42 relations, boot sequence, migration map
+- `scripts/manual_processor/data/relation_seeds.json` - 18 manual seed Q-A entries
+- `scripts/manual_processor/generators/unified_sft_generator.py` - 3-source SFT generator
+- `scripts/manual_processor/generators/unified_dpo_generator.py` - 3-strategy DPO generator
+- `scripts/manual_processor/generators/unified_cpt_generator.py` - Relation section CPT extractor
+- `scripts/manual_processor/models/training.py` - UnifiedSFTRecord, UnifiedDPORecord models
+- `scripts/manual_processor/config.py` - UNIFIED_SYSTEM_PROMPTS, PRODUCT_DISPLAY_NAMES
+- `scripts/manual_processor/main.py` - `--unified` CLI flag integration
+
+**Key Metrics**:
+| Metric | Value |
+|--------|-------|
+| Match Rate | 97% |
+| Files Created | 5 (~1,940 lines) |
+| Files Modified | 3 (~245 lines) |
+| Relation Types | 7 (Dependency, Integration, Comparison, Boot Seq, Error Prop, Migration, Shared Config) |
+| Bugs Found | 1 (BUG-001: constructor arg type mismatch, fixed) |
+| Iterations | 0 |
+
+---
+
+## unified-lora-dataset-v2
+
+**Purpose**: v1 unified LoRA dataset expansion — 100% product coverage (23/23), platform differences (MVS/MSP/XSP), missing products, BMS vs MFS comparisons
+
+**Documents**:
+- `unified-lora-dataset-v2.plan.md` - Feature plan (8 success criteria, 245 PDFs analysis)
+- `unified-lora-dataset-v2.design.md` - Architecture design (8 implementation steps)
+- `unified-lora-dataset-v2.analysis.md` - Gap analysis (97% → 100% match rate)
+- `unified-lora-dataset-v2.report.md` - Completion report
+
+**Key Deliverables**:
+- `product_relations.json` v2.0: 82 relations (+95%), platform_differences section, 16 migration_map
+- `relation_seeds.json` v2.0: 51 seeds (+183%), 12 categories
+- `unified_sft_generator.py`: R-08 templates, platform_differences Q-A generation
+- `unified_dpo_generator.py`: 4 strategies (45/25/20/10), platform_confusion swap pairs
+- `unified_cpt_generator.py`: TARGETED_GUIDES (22 patterns), relaxed extraction
+- `config.py`: 14 new keywords, R-08 relation type
+
+**Output Statistics**:
+| Component | v1 | v2 | Growth |
+|-----------|----|----|--------|
+| Unified SFT | ~148 | 250 | +69% |
+| Unified DPO | ~250 | 353 | +41% |
+| Unified CPT | ~240 | 3,795 | +1,481% |
+| Relations | 42 | 82 | +95% |
+| Seeds | 18 | 51 | +183% |
+| Products | 17/23 | 23/23 | 100% |
+
+**Key Metrics**:
+| Metric | Value |
+|--------|-------|
+| Match Rate | 100% |
+| Files Modified | 6 |
+| Bugs Fixed | 3 (comment guard, R-06 fmt, glob patterns) |
+| Iterations | 0 |
+| New Products | 6 (VOS3, OFMiner, OFStudio, OFPli, ProSync, ProTrieve) |
+| New Relation Type | R-08 (Platform Difference) |
+
+---
+
+*Last updated: 2026-02-22 (unified-lora-dataset-v2 archived)*

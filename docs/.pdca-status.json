@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-02-20T05:47:56.531Z",
+  "lastUpdated": "2026-02-22T10:41:02.101Z",
   "activeFeatures": [
     "source-code-explanation",
     "legacy-analysis-datatable-persistence",
@@ -30,7 +30,10 @@
     "of7_extractor",
     "kms-docker-remote",
     "xspjcl",
-    "adapters"
+    "adapters",
+    "manual_processor",
+    "generators",
+    "validators"
   ],
   "primaryFeature": "legacy-analysis-datatable-persistence",
   "features": {
@@ -116,7 +119,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-16T15:58:05.462Z",
-        "lastUpdated": "2026-02-20T02:48:44.653Z"
+        "lastUpdated": "2026-02-20T06:53:45.134Z"
       },
       "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\adapters\\learning_llm\\vllm_adapter.py"
     },
@@ -129,9 +132,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-16T16:00:47.458Z",
-        "lastUpdated": "2026-02-20T05:47:26.947Z"
+        "lastUpdated": "2026-02-20T06:54:33.522Z"
       },
-      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\main.py"
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\services\\agentic_rag_service.py"
     },
     "agent_teams": {
       "phase": "do",
@@ -142,9 +145,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-16T16:42:32.433Z",
-        "lastUpdated": "2026-02-17T15:11:16.894Z"
+        "lastUpdated": "2026-02-20T06:37:42.598Z"
       },
-      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\services\\agent_teams\\multi_product_collab.py"
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\services\\agent_teams\\team_orchestrator.py"
     },
     "temp": {
       "phase": "do",
@@ -168,9 +171,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-16T18:12:36.923Z",
-        "lastUpdated": "2026-02-20T01:57:22.302Z"
+        "lastUpdated": "2026-02-20T06:31:40.830Z"
       },
-      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\kms-portal-ui\\src\\pages\\LegacyModernizationPage.tsx"
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\kms-portal-ui\\src\\pages\\AgenticRAGPage.tsx"
     },
     "core": {
       "phase": "do",
@@ -207,9 +210,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-17T07:48:35.562Z",
-        "lastUpdated": "2026-02-17T08:05:14.273Z"
+        "lastUpdated": "2026-02-20T14:01:18.817Z"
       },
-      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\scripts\\server.ps1"
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\uploads\\training\\v10\\scripts\\run_all.sh"
     },
     "TracePanel": {
       "phase": "do",
@@ -426,6 +429,53 @@
         "lastUpdated": "2026-02-20T05:47:56.531Z"
       },
       "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\agents\\adapters\\deep_agent_adapter.py"
+    },
+    "manual_processor": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-20T08:23:21.953Z",
+        "lastUpdated": "2026-02-22T09:50:53.359Z"
+      },
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\scripts\\manual_processor\\config.py"
+    },
+    "generators": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-20T08:25:27.992Z",
+        "lastUpdated": "2026-02-22T10:41:02.101Z"
+      },
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\scripts\\manual_processor\\generators\\unified_cpt_generator.py"
+    },
+    "validators": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-20T08:29:23.914Z",
+        "lastUpdated": "2026-02-20T15:30:57.684Z"
+      },
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\scripts\\manual_processor\\validators\\training_validator.py"
+    },
+    "unified-lora-dataset-v2": {
+      "phase": "archived",
+      "matchRate": 100,
+      "iterationCount": 0,
+      "startedAt": "2026-02-22T10:00:00Z",
+      "archivedAt": "2026-02-22T19:50:00Z",
+      "archivedTo": "docs/archive/2026-02/unified-lora-dataset-v2/"
     }
   },
   "pipeline": {
@@ -436,7 +486,7 @@
   "session": {
     "startedAt": "2026-01-30T11:33:36.280Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-02-20T05:47:56.531Z"
+    "lastActivity": "2026-02-22T10:41:02.101Z"
   },
   "history": [
     {
@@ -4006,6 +4056,624 @@
     {
       "timestamp": "2026-02-20T05:47:56.531Z",
       "feature": "adapters",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T06:30:38.966Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T06:31:08.262Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T06:31:40.830Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T06:37:42.598Z",
+      "feature": "agent_teams",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T06:51:48.135Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T06:53:45.134Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T06:53:57.179Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T06:54:33.522Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T07:57:27.040Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T07:57:45.205Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T07:58:54.491Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:00:35.938Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:00:48.216Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:01:05.041Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:01:25.835Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:02:12.438Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:02:30.137Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:23:21.953Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:24:00.312Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:25:27.992Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:28:22.962Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:29:04.930Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:29:23.914Z",
+      "feature": "validators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:30:24.600Z",
+      "feature": "validators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:31:09.765Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:31:42.138Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:31:48.143Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:31:56.393Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:49:08.440Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:50:57.806Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:51:03.237Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:57:51.374Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:58:12.514Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:58:29.777Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:58:41.380Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T08:58:53.154Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T13:59:11.064Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T14:00:09.174Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T14:00:48.830Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T14:01:18.817Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T14:38:49.660Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T14:39:04.204Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T14:39:11.913Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T14:39:18.628Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T14:39:34.749Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T14:39:57.468Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:11:11.453Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:11:22.113Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:11:30.501Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:12:46.226Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:12:58.134Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:13:06.035Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:20:03.477Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:20:09.191Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:20:39.191Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:20:50.958Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:21:00.121Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:21:11.470Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:21:28.868Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:21:52.136Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:22:04.493Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:22:35.274Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:22:48.026Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:23:09.865Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:28:35.076Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:28:41.073Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:28:52.475Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:29:10.571Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:29:17.323Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:29:31.082Z",
+      "feature": "validators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:30:57.684Z",
+      "feature": "validators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:39:36.635Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:39:49.298Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:40:02.283Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:40:34.638Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-20T15:40:49.445Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T08:43:33.587Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T08:44:00.243Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T08:44:40.221Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T08:51:37.902Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T08:52:32.731Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T08:56:11.930Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T08:57:15.454Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T08:57:22.530Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T08:57:27.631Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T08:57:32.468Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T09:08:01.972Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T09:50:48.549Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T09:50:53.359Z",
+      "feature": "manual_processor",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T10:22:16.395Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T10:22:23.420Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T10:22:38.080Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T10:23:01.109Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T10:23:13.189Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T10:23:39.985Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T10:24:08.545Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T10:24:21.907Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T10:24:38.765Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T10:27:54.717Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T10:29:26.190Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T10:29:39.167Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T10:31:44.206Z",
+      "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-22T10:41:02.101Z",
+      "feature": "generators",
       "phase": "do",
       "action": "updated"
     }

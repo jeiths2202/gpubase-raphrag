@@ -1,0 +1,751 @@
+{
+  "version": "2.0",
+  "description": "TmaxSoft 제품 간 관계 그래프 v2 - 23/23 제품 완전 커버리지, 80+ 관계",
+  "relation_types": {
+    "R-01": {"name_ja": "依存関係", "name_ko": "의존관계", "name_en": "Dependency"},
+    "R-02": {"name_ja": "連携方法", "name_ko": "연동방법", "name_en": "Integration"},
+    "R-03": {"name_ja": "比較", "name_ko": "비교", "name_en": "Comparison"},
+    "R-04": {"name_ja": "起動順序", "name_ko": "기동순서", "name_en": "Boot Sequence"},
+    "R-05": {"name_ja": "エラー伝播", "name_ko": "에러전파", "name_en": "Error Propagation"},
+    "R-06": {"name_ja": "マイグレーション", "name_ko": "마이그레이션", "name_en": "Migration Path"},
+    "R-07": {"name_ja": "共通設定", "name_ko": "공통설정", "name_en": "Shared Config"},
+    "R-08": {"name_ja": "プラットフォーム差異", "name_ko": "플랫폼차이", "name_en": "Platform Difference"}
+  },
+  "relations": [
+    {
+      "product_a": "openframe_batch_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-01",
+      "description_ja": "BatchはBase上で動作し、データセット管理にBaseのTSAM/DSIOモジュールを使用します。Baseが起動していないとBatchジョブは実行できません。",
+      "description_ko": "Batch는 Base 위에서 동작하며, 데이터셋 관리에 Base의 TSAM/DSIO 모듈을 사용합니다. Base가 기동되어 있지 않으면 Batch 작업을 실행할 수 없습니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_batch_v2",
+      "product_b": "openframe_tacf_v2",
+      "type": "R-01",
+      "description_ja": "BatchジョブはTACFで認証されたユーザーとして実行されます。TACFのセキュリティポリシーがジョブ実行権限を制御します。",
+      "description_ko": "Batch 작업은 TACF로 인증된 사용자로 실행됩니다. TACF의 보안 정책이 작업 실행 권한을 제어합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_batch_v2",
+      "product_b": "openframe_tacf_v2",
+      "type": "R-02",
+      "description_ja": "tjes.confのSECURITY設定セクションでTACF連携を有効化します。USE_SECURITY=YESに設定することでジョブ投入時にTACF認証が実行されます。",
+      "description_ko": "tjes.conf의 SECURITY 설정 섹션에서 TACF 연동을 활성화합니다. USE_SECURITY=YES로 설정하면 작업 제출 시 TACF 인증이 실행됩니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_osc_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-01",
+      "description_ja": "OSCはBase上で動作し、データセットやVSAMファイルのアクセスにBaseの機能を利用します。",
+      "description_ko": "OSC는 Base 위에서 동작하며, 데이터셋이나 VSAM 파일 접근에 Base의 기능을 이용합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_osc_v2",
+      "product_b": "openframe_tacf_v2",
+      "type": "R-01",
+      "description_ja": "OSCトランザクションはTACFでリソースアクセス制御されます。トランザクションID、プログラム、ファイルへのアクセス権限をTACFが管理します。",
+      "description_ko": "OSC 트랜잭션은 TACF로 리소스 접근 제어됩니다. 트랜잭션 ID, 프로그램, 파일에 대한 접근 권한을 TACF가 관리합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_osc_v2",
+      "product_b": "openframe_hidb_v2",
+      "type": "R-02",
+      "description_ja": "OSCトランザクションからHiDBのDL/Iコールでデータベースにアクセスします。osc.region.confでHiDB連携を設定し、CICSプログラム内でDL/I APIを使用します。",
+      "description_ko": "OSC 트랜잭션에서 HiDB의 DL/I 호출로 데이터베이스에 접근합니다. osc.region.conf에서 HiDB 연동을 설정하고, CICS 프로그램 내에서 DL/I API를 사용합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_osc_v2",
+      "product_b": "openframe_osi_v2",
+      "type": "R-03",
+      "description_ja": "OSCはIBM CICS互換のオンラインシステム、OSIはIBM IMS/DC互換のオンラインシステムです。OSCはCICSコマンド(EXEC CICS)を使用し、OSIはIMS/DCのMFS/PSBを使用します。目的に応じて選択します。",
+      "description_ko": "OSC는 IBM CICS 호환 온라인 시스템, OSI는 IBM IMS/DC 호환 온라인 시스템입니다. OSC는 CICS 명령(EXEC CICS)을 사용하고, OSI는 IMS/DC의 MFS/PSB를 사용합니다. 용도에 따라 선택합니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_osc_v2",
+      "product_b": "openframe_batch_v2",
+      "type": "R-02",
+      "description_ja": "OSCのオンライントランザクションからBatchジョブを投入(START TRANSID)できます。また、Batchで処理したデータをOSCのTDキューで参照することも可能です。",
+      "description_ko": "OSC의 온라인 트랜잭션에서 Batch 작업을 제출(START TRANSID)할 수 있습니다. 또한 Batch로 처리한 데이터를 OSC의 TD 큐에서 참조하는 것도 가능합니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_osi_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-01",
+      "description_ja": "OSIはBase上で動作し、IMS/DC互換のオンライン処理を提供します。Baseの基盤機能に依存しています。",
+      "description_ko": "OSI는 Base 위에서 동작하며, IMS/DC 호환 온라인 처리를 제공합니다. Base의 기반 기능에 의존합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_osi_v2",
+      "product_b": "openframe_hidb_v2",
+      "type": "R-02",
+      "description_ja": "OSIトランザクションからHiDBデータベースにDL/Iコールでアクセスします。IMS/DCと同様のPSB/PCB定義でデータベースアクセスを制御します。",
+      "description_ko": "OSI 트랜잭션에서 HiDB 데이터베이스에 DL/I 호출로 접근합니다. IMS/DC와 동일한 PSB/PCB 정의로 데이터베이스 접근을 제어합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_hidb_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-01",
+      "description_ja": "HiDBはBase上で動作するIMS/DB互換の階層型データベースです。Baseのデータセット管理機能を基盤として使用します。",
+      "description_ko": "HiDB는 Base 위에서 동작하는 IMS/DB 호환 계층형 데이터베이스입니다. Base의 데이터셋 관리 기능을 기반으로 사용합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_tacf_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-01",
+      "description_ja": "TACFはBase上で動作するセキュリティ管理製品です。Baseの認証フレームワーク(SAF)を通じてアクセス制御を提供します。",
+      "description_ko": "TACF는 Base 위에서 동작하는 보안 관리 제품입니다. Base의 인증 프레임워크(SAF)를 통해 접근 제어를 제공합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "jeus_v2",
+      "product_b": "webtob_v2",
+      "type": "R-01",
+      "description_ja": "JEUSはWebtoBをWebサーバーフロントエンドとして使用します。WebtoBがHTTPリクエストを受信し、JEUSのWebコンテナにサーブレット/JSPリクエストを転送します。",
+      "description_ko": "JEUS는 WebtoB를 웹 서버 프론트엔드로 사용합니다. WebtoB가 HTTP 요청을 수신하고, JEUS의 웹 컨테이너에 서블릿/JSP 요청을 전달합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "jeus_v2",
+      "product_b": "webtob_v2",
+      "type": "R-02",
+      "description_ja": "JEUSのhttp-listener設定でWebtoB接続先を定義します。server.xmlのwebtob-connector要素でWebtoB接続ポートやワーカー数を設定します。",
+      "description_ko": "JEUS의 http-listener 설정에서 WebtoB 접속처를 정의합니다. server.xml의 webtob-connector 요소에서 WebtoB 접속 포트나 워커 수를 설정합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "jeus_v2",
+      "product_b": "tibero7_v2",
+      "type": "R-02",
+      "description_ja": "JEUSのデータソース設定でTiberoをJDBC接続します。domain.xmlでTibero JDBC ドライバーの接続プール、URL、認証情報を設定します。",
+      "description_ko": "JEUS의 데이터소스 설정에서 Tibero를 JDBC 접속합니다. domain.xml에서 Tibero JDBC 드라이버의 커넥션 풀, URL, 인증 정보를 설정합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_batch_v2",
+      "product_b": "tibero7_v2",
+      "type": "R-02",
+      "description_ja": "バッチジョブからTiberoにDB2互換SQLでアクセスします。JCLのDD文でTiberoデータソースを指定し、COBOLプログラム内でEXEC SQLを使用します。",
+      "description_ko": "배치 작업에서 Tibero에 DB2 호환 SQL로 접근합니다. JCL의 DD문에서 Tibero 데이터소스를 지정하고, COBOL 프로그램 내에서 EXEC SQL을 사용합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_osc_v2",
+      "product_b": "tibero7_v2",
+      "type": "R-02",
+      "description_ja": "OSCトランザクションからTiberoにDB2互換SQLでアクセスします。EXEC SQL文をCICSプログラム内で使用し、Tiberoのテーブルを操作します。",
+      "description_ko": "OSC 트랜잭션에서 Tibero에 DB2 호환 SQL로 접근합니다. EXEC SQL문을 CICS 프로그램 내에서 사용하여 Tibero의 테이블을 조작합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_base_v2",
+      "product_b": "tibero7_v2",
+      "type": "R-01",
+      "description_ja": "OpenFrame Baseはカタログ管理やシステムメタデータの保存にTiberoを使用します。ds.conf等でTibero接続情報を設定します。",
+      "description_ko": "OpenFrame Base는 카탈로그 관리나 시스템 메타데이터 저장에 Tibero를 사용합니다. ds.conf 등에서 Tibero 접속 정보를 설정합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "ofcobol_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-01",
+      "description_ja": "OFCOBOLでコンパイルしたプログラムはBase環境で実行されます。OFCOBOL はCOBOLソースをC言語に変換し、Base上で動作する実行モジュールを生成します。",
+      "description_ko": "OFCOBOL로 컴파일한 프로그램은 Base 환경에서 실행됩니다. OFCOBOL은 COBOL 소스를 C 언어로 변환하여 Base 위에서 동작하는 실행 모듈을 생성합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "ofasm_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-01",
+      "description_ja": "OFAsmでアセンブルしたプログラムはBase環境で実行されます。OFAsmはSystem/370互換アセンブラで、Base上で動作する実行モジュールを生成します。",
+      "description_ko": "OFAsm으로 어셈블한 프로그램은 Base 환경에서 실행됩니다. OFAsm은 System/370 호환 어셈블러로, Base 위에서 동작하는 실행 모듈을 생성합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "ofmanager_v2",
+      "product_b": "openframe_common_v2",
+      "type": "R-02",
+      "description_ja": "OFManagerはOpenFrame全コンポーネントの状態監視・管理を行います。Webブラウザからログイン後、各製品の起動/停止/モニタリングを統合的に実施できます。",
+      "description_ko": "OFManager는 OpenFrame 전 컴포넌트의 상태 감시/관리를 수행합니다. 웹 브라우저에서 로그인 후 각 제품의 기동/정지/모니터링을 통합적으로 수행할 수 있습니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_base_v2",
+      "product_b": "openframe_batch_v2",
+      "type": "R-05",
+      "description_ja": "Baseのデータセットエラー（-5212 DSALC_ERR_DATASET_NOT_FOUND等）はBatchジョブのABENDを引き起こします。BaseのVSAMエラーもBatchジョブの異常終了の原因となります。",
+      "description_ko": "Base의 데이터셋 에러(-5212 DSALC_ERR_DATASET_NOT_FOUND 등)는 Batch 작업의 ABEND를 유발합니다. Base의 VSAM 에러도 Batch 작업 이상 종료의 원인이 됩니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_base_v2",
+      "product_b": "openframe_osc_v2",
+      "type": "R-05",
+      "description_ja": "Baseのデータセットエラーが発生すると、OSCトランザクションでもファイルアクセスエラーが発生します。Baseのカタログ障害は全オンラインサービスに影響します。",
+      "description_ko": "Base의 데이터셋 에러가 발생하면 OSC 트랜잭션에서도 파일 접근 에러가 발생합니다. Base의 카탈로그 장애는 모든 온라인 서비스에 영향을 줍니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "tibero7_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-05",
+      "description_ja": "TiberoのDB接続障害が発生すると、Baseのカタログ参照ができなくなり、全OpenFrameコンポーネントに影響します。Tiberoは全システムの基盤DBです。",
+      "description_ko": "Tibero의 DB 접속 장애가 발생하면 Base의 카탈로그 참조가 불가능해지고, 전체 OpenFrame 컴포넌트에 영향을 줍니다. Tibero는 전 시스템의 기반 DB입니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_tacf_v2",
+      "product_b": "openframe_batch_v2",
+      "type": "R-05",
+      "description_ja": "TACFの認証サービスが停止すると、Batchジョブの投入時に認証エラー(-18xxx)が発生し、新規ジョブを実行できなくなります。",
+      "description_ko": "TACF의 인증 서비스가 중지되면 Batch 작업 제출 시 인증 에러(-18xxx)가 발생하여 신규 작업을 실행할 수 없게 됩니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_tacf_v2",
+      "product_b": "openframe_osc_v2",
+      "type": "R-05",
+      "description_ja": "TACFの認証サービスが停止すると、OSCトランザクションのリソースアクセス制御が機能しなくなり、セキュリティ違反エラーが発生します。",
+      "description_ko": "TACF의 인증 서비스가 중지되면 OSC 트랜잭션의 리소스 접근 제어가 기능하지 않게 되어 보안 위반 에러가 발생합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_gateway_v2",
+      "product_b": "openframe_osc_v2",
+      "type": "R-02",
+      "description_ja": "GatewayはWebブラウザからOSCの3270端末画面にアクセスするためのWebターミナルを提供します。ofgw.confでOSCリージョンへの接続先を設定します。",
+      "description_ko": "Gateway는 웹 브라우저에서 OSC의 3270 단말 화면에 접근하기 위한 웹 터미널을 제공합니다. ofgw.conf에서 OSC 리전으로의 접속처를 설정합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_ndb_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-01",
+      "description_ja": "NDBはBase上で動作するネットワーク型データベースです。CODASYLデータモデルを採用し、Baseの基盤機能に依存します。",
+      "description_ko": "NDB는 Base 위에서 동작하는 네트워크형 데이터베이스입니다. CODASYL 데이터 모델을 채택하며, Base의 기반 기능에 의존합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_aim_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-01",
+      "description_ja": "AIMはBase上で動作するFujitsu XSP互換のDB/DCシステムです。AIM/DB(ネットワーク型DB)とAIM/DC(オンライン処理)を統合的に提供します。",
+      "description_ko": "AIM은 Base 위에서 동작하는 Fujitsu XSP 호환 DB/DC 시스템입니다. AIM/DB(네트워크형 DB)와 AIM/DC(온라인 처리)를 통합적으로 제공합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "prosort_v2",
+      "product_b": "openframe_batch_v2",
+      "type": "R-02",
+      "description_ja": "ProSortはBatchジョブ内でJCLのSORT/MERGEステップとして使用されます。JCLのPGM=SORTまたはPGM=DFSORTで呼び出されます。",
+      "description_ko": "ProSort는 Batch 작업 내에서 JCL의 SORT/MERGE 스텝으로 사용됩니다. JCL의 PGM=SORT 또는 PGM=DFSORT로 호출됩니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "ofcobol_v2",
+      "product_b": "ofasm_v2",
+      "type": "R-03",
+      "description_ja": "OFCOBOLはCOBOLコンパイラ、OFAsmはアセンブラです。COBOLプログラムからアセンブラサブルーチンをCALLで呼び出す混合言語プログラミングが可能です。",
+      "description_ko": "OFCOBOL은 COBOL 컴파일러, OFAsm은 어셈블러입니다. COBOL 프로그램에서 어셈블러 서브루틴을 CALL로 호출하는 혼합 언어 프로그래밍이 가능합니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_hidb_v2",
+      "product_b": "openframe_ndb_v2",
+      "type": "R-03",
+      "description_ja": "HiDBはIMS/DB互換の階層型データベース、NDBはCODASYL互換のネットワーク型データベースです。HiDBは親子関係のツリー構造、NDBは多対多のネットワーク構造をサポートします。",
+      "description_ko": "HiDB는 IMS/DB 호환 계층형 데이터베이스, NDB는 CODASYL 호환 네트워크형 데이터베이스입니다. HiDB는 부모-자식 관계의 트리 구조, NDB는 다대다 네트워크 구조를 지원합니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_batch_v2",
+      "product_b": "openframe_osc_v2",
+      "type": "R-03",
+      "description_ja": "Batchはバッチ処理（大量データの一括処理）、OSCはオンライン処理（リアルタイム対話型処理）を担当します。相互にデータ連携が可能です。",
+      "description_ko": "Batch는 배치 처리(대량 데이터 일괄 처리), OSC는 온라인 처리(실시간 대화형 처리)를 담당합니다. 상호 데이터 연동이 가능합니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "jeus_v2",
+      "product_b": "tmax_v2",
+      "type": "R-03",
+      "description_ja": "JEUSはJava EE Webアプリケーションサーバー、TmaxはTPモニター(トランザクション処理基盤)です。JEUSはWeb/EJBコンテナを提供し、TmaxはC/COBOL向けのTP処理を提供します。",
+      "description_ko": "JEUS는 Java EE 웹 애플리케이션 서버, Tmax는 TP 모니터(트랜잭션 처리 기반)입니다. JEUS는 Web/EJB 컨테이너를 제공하고, Tmax는 C/COBOL 대상 TP 처리를 제공합니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "tibero7_v2",
+      "product_b": "jeus_v2",
+      "type": "R-03",
+      "description_ja": "TiberoはRDBMS（DB2/Oracle互換）、JEUSはJava EEアプリケーションサーバーです。JEUSアプリケーションがTiberoにJDBC経由でデータアクセスします。",
+      "description_ko": "Tibero는 RDBMS(DB2/Oracle 호환), JEUS는 Java EE 애플리케이션 서버입니다. JEUS 애플리케이션이 Tibero에 JDBC를 통해 데이터 접근합니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_common_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-07",
+      "description_ja": "oframe.confはOpenFrame全製品共通の設定ファイルです。Base、Batch、OSC、TACF等すべてのコンポーネントがこの設定を参照します。OPENFRAME_HOME環境変数も全製品共通です。",
+      "description_ko": "oframe.conf는 OpenFrame 전 제품 공통 설정 파일입니다. Base, Batch, OSC, TACF 등 모든 컴포넌트가 이 설정을 참조합니다. OPENFRAME_HOME 환경변수도 전 제품 공통입니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_batch_v2",
+      "product_b": "openframe_osc_v2",
+      "type": "R-07",
+      "description_ja": "BatchとOSCはds.conf(データセット設定)やtacf.conf(セキュリティ設定)を共通で参照します。これらの設定変更は両コンポーネントに影響します。",
+      "description_ko": "Batch와 OSC는 ds.conf(데이터셋 설정)나 tacf.conf(보안 설정)를 공통으로 참조합니다. 이들 설정 변경은 양 컴포넌트에 영향을 줍니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_gateway_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-01",
+      "description_ja": "Gatewayは OpenFrame Base環境で動作し、Webブラウザから3270端末をエミュレートします。",
+      "description_ko": "Gateway는 OpenFrame Base 환경에서 동작하며, 웹 브라우저에서 3270 단말을 에뮬레이트합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "tmax_v2",
+      "product_b": "tibero7_v2",
+      "type": "R-02",
+      "description_ja": "TmaxのXAトランザクション機能でTiberoデータベースと連携します。Tmaxのサービス設定でTiberoリソースマネージャを定義します。",
+      "description_ko": "Tmax의 XA 트랜잭션 기능으로 Tibero 데이터베이스와 연동합니다. Tmax의 서비스 설정에서 Tibero 리소스 매니저를 정의합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "webtob_v2",
+      "product_b": "tmax_v2",
+      "type": "R-02",
+      "description_ja": "WebtoBからTmaxサーバーにWJP(WebtoB-Jeus Protocol)またはWSM(Web Service Module)で接続し、TmaxサービスをWeb経由で呼び出せます。",
+      "description_ko": "WebtoB에서 Tmax 서버에 WJP(WebtoB-Jeus Protocol) 또는 WSM(Web Service Module)으로 접속하여 Tmax 서비스를 웹을 통해 호출할 수 있습니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "ofcobol_v2",
+      "product_b": "tibero7_v2",
+      "type": "R-02",
+      "description_ja": "OFCOBOLプログラム内でEXEC SQLを使用してTiberoデータベースにアクセスします。ofcbppfプリプロセッサがSQL文を処理します。",
+      "description_ko": "OFCOBOL 프로그램 내에서 EXEC SQL을 사용하여 Tibero 데이터베이스에 접근합니다. ofcbppf 프리프로세서가 SQL문을 처리합니다.",
+      "bidirectional": false
+    },
+
+    {"_comment": "===== v2 신규: 누락 제품 관계 (12개) ====="},
+
+    {
+      "product_a": "openframe_vos3_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-01",
+      "description_ja": "VOS3 OpenFrameはBase上で動作するVOS3/HOS互換のメインフレームエミュレーション環境です。VOS3固有のジョブ制御やデータセット管理をBase基盤上で提供します。",
+      "description_ko": "VOS3 OpenFrame는 Base 위에서 동작하는 VOS3/HOS 호환 메인프레임 에뮬레이션 환경입니다. VOS3 고유의 작업 제어나 데이터셋 관리를 Base 기반 위에서 제공합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_vos3_v2",
+      "product_b": "openframe_batch_v2",
+      "type": "R-03",
+      "description_ja": "VOS3のバッチ処理とOpenFrame Batchの比較: VOS3はHitachi VOS3/HOS互換のJCL構文を使用し、TJESはIBM JES2/JES3互換です。DD文の記述形式やプロシージャ参照方式に差異があります。",
+      "description_ko": "VOS3의 배치 처리와 OpenFrame Batch 비교: VOS3는 Hitachi VOS3/HOS 호환 JCL 구문을 사용하고, TJES는 IBM JES2/JES3 호환입니다. DD문 기술 형식이나 프로시저 참조 방식에 차이가 있습니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "ofminer_v2",
+      "product_b": "ofcobol_v2",
+      "type": "R-02",
+      "description_ja": "OFMinerはCOBOLソースコードを静的解析し、プログラム間のCALL関係、COPY文の依存関係、DB2 SQL使用箇所を自動検出します。マイグレーション影響度分析に使用します。",
+      "description_ko": "OFMiner는 COBOL 소스코드를 정적 분석하여 프로그램 간 CALL 관계, COPY문 의존관계, DB2 SQL 사용 부분을 자동 검출합니다. 마이그레이션 영향도 분석에 사용합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "ofminer_v2",
+      "product_b": "ofasm_v2",
+      "type": "R-02",
+      "description_ja": "OFMinerはアセンブラソースを解析し、マクロ使用状況、レジスタ規約、SVC呼び出しパターンを検出します。OFAsmへの変換に必要な修正箇所を特定します。",
+      "description_ko": "OFMiner는 어셈블러 소스를 분석하여 매크로 사용 현황, 레지스터 규약, SVC 호출 패턴을 검출합니다. OFAsm으로의 변환에 필요한 수정 부분을 특정합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "ofminer_v2",
+      "product_b": "tibero7_v2",
+      "type": "R-02",
+      "description_ja": "OFMinerはCOBOL/アセンブラ内のDB2 SQL文を検出・分析し、Tiberoへの変換が必要な固有関数や構文を一覧化します。移行対象の影響範囲を自動算出します。",
+      "description_ko": "OFMiner는 COBOL/어셈블러 내 DB2 SQL문을 검출/분석하여 Tibero로의 변환이 필요한 고유 함수나 구문을 목록화합니다. 이행 대상의 영향 범위를 자동 산출합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "ofstudio_v2",
+      "product_b": "ofcobol_v2",
+      "type": "R-02",
+      "description_ja": "OFStudioはOFCOBOL開発用の統合開発環境(IDE)を提供します。ソース編集、コンパイル、デバッグ、COPYBOOKの参照をGUIで実行できます。",
+      "description_ko": "OFStudio는 OFCOBOL 개발용 통합 개발 환경(IDE)을 제공합니다. 소스 편집, 컴파일, 디버그, COPYBOOK 참조를 GUI로 수행할 수 있습니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "ofstudio_v2",
+      "product_b": "jeus_v2",
+      "type": "R-02",
+      "description_ja": "OFStudioはJEUS上で動作するEclipseベースのWeb IDEです。JEUSのWebコンテナがOFStudioのUIをホスティングし、開発者はブラウザからアクセスします。",
+      "description_ko": "OFStudio는 JEUS 위에서 동작하는 Eclipse 기반 Web IDE입니다. JEUS의 웹 컨테이너가 OFStudio의 UI를 호스팅하며, 개발자는 브라우저에서 접근합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "ofpli_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-01",
+      "description_ja": "OFPliでコンパイルしたPL/IプログラムはBase環境で実行されます。OFPliはIBM PL/I互換のコンパイラで、Base上で動作する実行モジュールを生成します。",
+      "description_ko": "OFPli로 컴파일한 PL/I 프로그램은 Base 환경에서 실행됩니다. OFPli는 IBM PL/I 호환 컴파일러로, Base 위에서 동작하는 실행 모듈을 생성합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "ofpli_v2",
+      "product_b": "ofcobol_v2",
+      "type": "R-03",
+      "description_ja": "OFPliはPL/Iコンパイラ、OFCOBOLはCOBOLコンパイラです。PL/Iは構造体・ポインタ・例外処理が強力で科学技術計算向き、COBOLはビジネス処理・帳票生成向きです。両言語プログラムの相互CALL可能です。",
+      "description_ko": "OFPli는 PL/I 컴파일러, OFCOBOL은 COBOL 컴파일러입니다. PL/I는 구조체/포인터/예외처리가 강력하여 과학기술 계산 적합, COBOL은 비즈니스 처리/장표 생성 적합입니다. 양 언어 프로그램 상호 CALL 가능합니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "prosync_v2",
+      "product_b": "openframe_batch_v2",
+      "type": "R-02",
+      "description_ja": "ProSyncはバッチ環境でファイル同期を実行します。JCLステップでProSyncを呼び出し、ホストとOpenFrame間のデータセット同期やファイル転送を自動化します。",
+      "description_ko": "ProSync는 배치 환경에서 파일 동기화를 수행합니다. JCL 스텝에서 ProSync를 호출하여 호스트와 OpenFrame 간 데이터셋 동기화나 파일 전송을 자동화합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "prosync_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-01",
+      "description_ja": "ProSyncはBase上で動作し、Baseのデータセット管理機能を使用してファイル同期処理を実行します。",
+      "description_ko": "ProSync는 Base 위에서 동작하며, Base의 데이터셋 관리 기능을 사용하여 파일 동기화 처리를 수행합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "protrieve_v2",
+      "product_b": "openframe_batch_v2",
+      "type": "R-02",
+      "description_ja": "ProTrieveはバッチジョブ内でレポート生成ツールとして使用されます。JCLステップでProTrieveを呼び出し、データセットからフォーマットされたレポートを生成します。",
+      "description_ko": "ProTrieve는 배치 작업 내에서 리포트 생성 도구로 사용됩니다. JCL 스텝에서 ProTrieve를 호출하여 데이터셋에서 포맷된 리포트를 생성합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "protrieve_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-01",
+      "description_ja": "ProTrieveはBase上で動作し、Baseのデータセット管理機能を使用してレポート対象データにアクセスします。",
+      "description_ko": "ProTrieve는 Base 위에서 동작하며, Base의 데이터셋 관리 기능을 사용하여 리포트 대상 데이터에 접근합니다.",
+      "bidirectional": false
+    },
+
+    {"_comment": "===== v2 신규: 기술 상세 비교 R-03 (13개) ====="},
+
+    {
+      "product_a": "openframe_osc_v2",
+      "product_b": "openframe_osi_v2",
+      "type": "R-03",
+      "description_ja": "BMS(Basic Mapping Support)とMFS(Message Format Service)の画面定義マクロ比較: BMSはDFHMSD/DFHMDI/DFHMDFマクロで画面を定義し、OSCで使用します。MFSはMSG/SEG/LPAGE/MIDで画面を定義し、OSIで使用します。BMSはフィールド単位の属性制御、MFSはセグメント単位のメッセージ制御が特徴です。",
+      "description_ko": "BMS(Basic Mapping Support)와 MFS(Message Format Service)의 화면 정의 매크로 비교: BMS는 DFHMSD/DFHMDI/DFHMDF 매크로로 화면을 정의하며 OSC에서 사용합니다. MFS는 MSG/SEG/LPAGE/MID로 화면을 정의하며 OSI에서 사용합니다. BMS는 필드 단위 속성 제어, MFS는 세그먼트 단위 메시지 제어가 특징입니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_osc_v2",
+      "product_b": "openframe_osi_v2",
+      "type": "R-03",
+      "description_ja": "BMS vs MFS フィールド属性・カーソル制御比較: BMSはATTRIB=(ASKIP,BRT,IC)でフィールド属性とカーソル位置を制御。MFSはDFLD/MFLDでフィールドを定義しFORMAT=でフォーマットを指定。BMSは個別フィールドの動的属性変更が容易、MFSは入出力メッセージの構造化が特徴です。",
+      "description_ko": "BMS vs MFS 필드 속성/커서 제어 비교: BMS는 ATTRIB=(ASKIP,BRT,IC)로 필드 속성과 커서 위치를 제어. MFS는 DFLD/MFLD로 필드를 정의하고 FORMAT=으로 포맷을 지정. BMS는 개별 필드의 동적 속성 변경이 용이, MFS는 입출력 메시지 구조화가 특징입니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_osc_v2",
+      "product_b": "openframe_osi_v2",
+      "type": "R-03",
+      "description_ja": "BMS-MFS間の画面変換マイグレーション: MFSからBMSへの変換ではMSG→DFHMSD、SEG→DFHMDI、MFLD→DFHMDFへのマクロ変換が必要。PSAM(Fujitsu)からBMSへの変換も同様の手順。自動変換ツールによる一括変換後、画面レイアウトの検証が推奨されます。",
+      "description_ko": "BMS-MFS 간 화면 변환 마이그레이션: MFS에서 BMS로의 변환에서는 MSG→DFHMSD, SEG→DFHMDI, MFLD→DFHMDF로의 매크로 변환이 필요. PSAM(Fujitsu)에서 BMS로의 변환도 유사한 절차. 자동 변환 도구에 의한 일괄 변환 후 화면 레이아웃 검증이 권장됩니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_hidb_v2",
+      "product_b": "openframe_ndb_v2",
+      "type": "R-03",
+      "description_ja": "HiDB DL/I API vs NDB CODASYL DML API 詳細比較: HiDBはGU(Get Unique)/GN(Get Next)/ISRT(Insert)/DLET(Delete)/REPL(Replace)のDL/Iコールを使用。NDBはFIND/GET/STORE/MODIFY/ERASEのCODASYL DMLを使用。HiDBはセグメント指向、NDBはレコード指向のアクセスパターンです。",
+      "description_ko": "HiDB DL/I API vs NDB CODASYL DML API 상세 비교: HiDB는 GU(Get Unique)/GN(Get Next)/ISRT(Insert)/DLET(Delete)/REPL(Replace)의 DL/I 호출 사용. NDB는 FIND/GET/STORE/MODIFY/ERASE의 CODASYL DML 사용. HiDB는 세그먼트 지향, NDB는 레코드 지향의 접근 패턴입니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_hidb_v2",
+      "product_b": "openframe_aim_v2",
+      "type": "R-03",
+      "description_ja": "HiDB(IMS/DB互換 階層型)とAIM/DB(Fujitsu CODASYL ネットワーク型)のデータモデル比較: HiDBはセグメント単位の親子ツリー構造で、SSA(Segment Search Argument)でナビゲーション。AIM/DBはSET/RECORD/AREAのネットワーク構造で、FIND/GET DMLでアクセス。HiDBは1:N関係に最適、AIM/DBはM:N関係を自然に表現できます。",
+      "description_ko": "HiDB(IMS/DB 호환 계층형)와 AIM/DB(Fujitsu CODASYL 네트워크형)의 데이터 모델 비교: HiDB는 세그먼트 단위 부모-자식 트리 구조로 SSA(Segment Search Argument)로 내비게이션. AIM/DB는 SET/RECORD/AREA의 네트워크 구조로 FIND/GET DML로 접근. HiDB는 1:N 관계에 최적, AIM/DB는 M:N 관계를 자연스럽게 표현할 수 있습니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "tibero7_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-03",
+      "description_ja": "Tibero SQL vs DB2 SQL 関数・構文互換性詳細: 基本SQL(SELECT/INSERT/UPDATE/DELETE)は完全互換。相違点: DAYS()→TO_NUMBER(TO_CHAR()), DECIMAL()→CAST(), NEXT VALUE FOR→seq.NEXTVAL, CURRENT TIMESTAMP→SYSTIMESTAMP。特にDATE/TIME関数と型変換関数に差異が集中します。",
+      "description_ko": "Tibero SQL vs DB2 SQL 함수/구문 호환성 상세: 기본 SQL(SELECT/INSERT/UPDATE/DELETE)은 완전 호환. 상이점: DAYS()→TO_NUMBER(TO_CHAR()), DECIMAL()→CAST(), NEXT VALUE FOR→seq.NEXTVAL, CURRENT TIMESTAMP→SYSTIMESTAMP. 특히 DATE/TIME 함수와 형변환 함수에 차이가 집중됩니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "prosort_v2",
+      "product_b": "openframe_batch_v2",
+      "type": "R-03",
+      "description_ja": "ProSort vs DFSORT パラメータ互換性: SORT FIELDS/INCLUDE/OMIT/OUTREC/INRECは互換。ProSort固有の性能最適化オプション(DYNALLOC, FILSZ)あり。ICETOOL機能は一部非サポート。JCLでのPGM=SORT/PGM=DFSORTどちらでも呼び出し可能です。",
+      "description_ko": "ProSort vs DFSORT 파라미터 호환성: SORT FIELDS/INCLUDE/OMIT/OUTREC/INREC은 호환. ProSort 고유 성능 최적화 옵션(DYNALLOC, FILSZ) 있음. ICETOOL 기능은 일부 미지원. JCL에서 PGM=SORT/PGM=DFSORT 어느 쪽으로든 호출 가능합니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_osc_v2",
+      "product_b": "openframe_osc_v2",
+      "type": "R-03",
+      "description_ja": "OSC CTG(CICS Transaction Gateway) vs 直接接続比較: CTGはJavaクライアントからOSCトランザクションにJCA/ECI経由でアクセスする方式。直接接続は3270エミュレータまたはGateway経由でOSC画面に直接アクセスする方式。CTGはJavaアプリケーション統合に適し、直接接続はレガシー端末操作に適しています。",
+      "description_ko": "OSC CTG(CICS Transaction Gateway) vs 직접 접속 비교: CTG는 Java 클라이언트에서 OSC 트랜잭션에 JCA/ECI를 통해 접근하는 방식. 직접 접속은 3270 에뮬레이터 또는 Gateway를 통해 OSC 화면에 직접 접근하는 방식. CTG는 Java 애플리케이션 통합에 적합, 직접 접속은 레거시 단말 조작에 적합합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_aim_v2",
+      "product_b": "openframe_osc_v2",
+      "type": "R-03",
+      "description_ja": "AIM/DC vs OSC オンライン処理モデル比較: AIM/DCはFujitsu XSP互換のDB/DC統合オンラインシステムで、PSAM画面定義とCODASYL DMLを統合使用。OSCはIBM CICS互換でBMS画面定義とEXEC CICSコマンドを使用。AIM/DCからOSCへの移行時はPSAM→BMS変換とDML→SQL変換が必要です。",
+      "description_ko": "AIM/DC vs OSC 온라인 처리 모델 비교: AIM/DC는 Fujitsu XSP 호환 DB/DC 통합 온라인 시스템으로 PSAM 화면 정의와 CODASYL DML을 통합 사용. OSC는 IBM CICS 호환으로 BMS 화면 정의와 EXEC CICS 명령을 사용. AIM/DC에서 OSC로 이행 시 PSAM→BMS 변환과 DML→SQL 변환이 필요합니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_ndb_v2",
+      "product_b": "openframe_aim_v2",
+      "type": "R-03",
+      "description_ja": "NDB vs AIM/DB CODASYL DML互換性: 両製品ともCODASYLネットワーク型DBですが、NDBはMSP環境向け、AIM/DBはXSP環境向け。DMLコマンド(FIND/GET/STORE/MODIFY/ERASE)は互換性高い。スキーマ定義のDDL構文に若干の差異あり。SET/RECORD定義の構文は基本的に互換です。",
+      "description_ko": "NDB vs AIM/DB CODASYL DML 호환성: 양 제품 모두 CODASYL 네트워크형 DB이지만 NDB는 MSP 환경용, AIM/DB는 XSP 환경용. DML 명령(FIND/GET/STORE/MODIFY/ERASE)은 호환성 높음. 스키마 정의 DDL 구문에 약간의 차이 있음. SET/RECORD 정의 구문은 기본적으로 호환입니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "jeus_v2",
+      "product_b": "tmax_v2",
+      "type": "R-03",
+      "description_ja": "JEUS WAS vs Tmax TPモニター サービスモデル詳細比較: JEUSはServlet/JSP/EJBのJava EEコンポーネントモデル。TmaxはC/COBOL/PLIのサービス関数モデル。JEUSはHTTP/RESTベース、TmaxはTP-Protocol(同期/非同期)ベース。混在環境ではJEUSからTmaxサービスをJCA経由で呼び出し可能です。",
+      "description_ko": "JEUS WAS vs Tmax TP모니터 서비스 모델 상세 비교: JEUS는 Servlet/JSP/EJB의 Java EE 컴포넌트 모델. Tmax는 C/COBOL/PLI의 서비스 함수 모델. JEUS는 HTTP/REST 기반, Tmax는 TP-Protocol(동기/비동기) 기반. 혼재 환경에서는 JEUS에서 Tmax 서비스를 JCA를 통해 호출 가능합니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "ofcobol_v2",
+      "product_b": "ofpli_v2",
+      "type": "R-03",
+      "description_ja": "OFCOBOL vs OFPli 言語機能比較: COBOLはビジネスデータ処理(PICTURE句、DECIMAL演算)に最適。PL/Iは構造体、ポインタ、ON条件(例外処理)、再帰が可能で科学技術計算向き。COBOLは固定長レコード処理が得意、PL/Iは可変長・動的メモリ管理が得意です。",
+      "description_ko": "OFCOBOL vs OFPli 언어 기능 비교: COBOL은 비즈니스 데이터 처리(PICTURE구, DECIMAL 연산)에 최적. PL/I는 구조체, 포인터, ON조건(예외처리), 재귀가 가능하여 과학기술 계산 적합. COBOL은 고정길이 레코드 처리가 강점, PL/I는 가변길이/동적 메모리 관리가 강점입니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "ofasm_v2",
+      "product_b": "ofpli_v2",
+      "type": "R-03",
+      "description_ja": "OFAsm vs OFPli コンパイラ特性比較: OFAsmはSystem/370互換アセンブラで低レベルハードウェア制御・高性能処理向き。OFPliは高級言語PL/Iコンパイラで構造化プログラミング向き。アセンブラはマクロ・レジスタ直接操作可能、PL/Iはコンパイラが最適化を担当します。",
+      "description_ko": "OFAsm vs OFPli 컴파일러 특성 비교: OFAsm은 System/370 호환 어셈블러로 저수준 하드웨어 제어/고성능 처리 적합. OFPli는 고급 언어 PL/I 컴파일러로 구조화 프로그래밍 적합. 어셈블러는 매크로/레지스터 직접 조작 가능, PL/I는 컴파일러가 최적화를 담당합니다.",
+      "bidirectional": true
+    },
+
+    {"_comment": "===== v2 신규: 플랫폼별 차이 R-08 (8개) ====="},
+
+    {
+      "product_a": "openframe_batch_v2",
+      "product_b": "openframe_batch_v2",
+      "type": "R-08",
+      "description_ja": "MVS JCL vs MSP JCL プラットフォーム差異: MVSはJES2/JES3ベース、MSPはJES/JSS(JSS3)ベースのジョブスケジューリング。DD文の一部構文(MSP固有拡張)やプロシージャ参照方式に差異あり。条件分岐のIF/THEN/ELSE構文はMVSの方が拡張的です。",
+      "description_ko": "MVS JCL vs MSP JCL 플랫폼 차이: MVS는 JES2/JES3 기반, MSP는 JES/JSS(JSS3) 기반 작업 스케줄링. DD문의 일부 구문(MSP 고유 확장)이나 프로시저 참조 방식에 차이 있음. 조건분기의 IF/THEN/ELSE 구문은 MVS 쪽이 더 확장적입니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_batch_v2",
+      "product_b": "openframe_aim_v2",
+      "type": "R-08",
+      "description_ja": "MVS JCL vs XSP JCL プラットフォーム差異: XSPはAIMPED拡張によるJCL構文を使用。XSP固有のジョブ制御文、DD文拡張、AIM/DB連携用DD定義が存在。MVS標準JCLからXSP JCLへの変換には専用パーサー(xspjcl.l/xspjcl.y)が必要です。",
+      "description_ko": "MVS JCL vs XSP JCL 플랫폼 차이: XSP는 AIMPED 확장에 의한 JCL 구문을 사용. XSP 고유의 작업 제어문, DD문 확장, AIM/DB 연동용 DD 정의가 존재. MVS 표준 JCL에서 XSP JCL로의 변환에는 전용 파서(xspjcl.l/xspjcl.y)가 필요합니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_batch_v2",
+      "product_b": "openframe_aim_v2",
+      "type": "R-08",
+      "description_ja": "MSP JCL vs XSP JCL: MSPのJES/JSSとXSPのAIMPEDは同じFujitsuプラットフォームでも異なるジョブ管理方式。MSPは大型機向けでMVSに近い構文、XSPは中型機向けでAIM統合構文。OF7パーサーは両方のJCL変換に対応しますが、変換ルールが異なります。",
+      "description_ko": "MSP JCL vs XSP JCL: MSP의 JES/JSS와 XSP의 AIMPED는 같은 Fujitsu 플랫폼이어도 다른 작업 관리 방식. MSP는 대형기 대상으로 MVS에 가까운 구문, XSP는 중형기 대상으로 AIM 통합 구문. OF7 파서는 양쪽 JCL 변환에 대응하지만 변환 규칙이 다릅니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_osc_v2",
+      "product_b": "openframe_aim_v2",
+      "type": "R-08",
+      "description_ja": "MVSオンライン(OSC+OSI) vs MSPオンライン(OSC+AIM/DC) プラットフォーム差異: MVSではOSC(CICS互換)+OSI(IMS/DC互換)の2系統。MSPではOSC(CICS互換)+AIM/DC(Fujitsu独自オンライン)。AIM/DCはPSAM画面定義+CODASYL DMLの統合環境で、OSCのBMS+SQLとは異なるプログラミングモデルです。",
+      "description_ko": "MVS 온라인(OSC+OSI) vs MSP 온라인(OSC+AIM/DC) 플랫폼 차이: MVS에서는 OSC(CICS 호환)+OSI(IMS/DC 호환)의 2계통. MSP에서는 OSC(CICS 호환)+AIM/DC(Fujitsu 독자 온라인). AIM/DC는 PSAM 화면 정의+CODASYL DML의 통합 환경으로, OSC의 BMS+SQL과는 다른 프로그래밍 모델입니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_hidb_v2",
+      "product_b": "openframe_aim_v2",
+      "type": "R-08",
+      "description_ja": "MVS DB(HiDB) vs MSP DB(NDB+AIM/DB) プラットフォーム差異: MVSはHiDB(IMS/DB互換の階層型)が主力DB。MSPはNDB(CODASYL互換)+AIM/DBが主力。HiDBはDL/Iセグメントアクセス、NDB+AIM/DBはCODASYL SET/RECORD DMLでアクセス。マイグレーション時のDB API変換が最も大きな作業です。",
+      "description_ko": "MVS DB(HiDB) vs MSP DB(NDB+AIM/DB) 플랫폼 차이: MVS는 HiDB(IMS/DB 호환 계층형)가 주력 DB. MSP는 NDB(CODASYL 호환)+AIM/DB가 주력. HiDB는 DL/I 세그먼트 접근, NDB+AIM/DB는 CODASYL SET/RECORD DML로 접근. 마이그레이션 시 DB API 변환이 가장 큰 작업입니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_hidb_v2",
+      "product_b": "openframe_aim_v2",
+      "type": "R-08",
+      "description_ja": "MVS DB(HiDB) vs XSP DB(RDBII+AIM/DB) プラットフォーム差異: MVSのHiDB(階層型)に対し、XSPのRDBIIはリレーショナル型DB。RDBIIはSQL互換のアクセスが可能でTiberoへの変換が比較的容易。HiDBのDL/I→SQL変換はデータモデル変換を伴うため工数が大きくなります。",
+      "description_ko": "MVS DB(HiDB) vs XSP DB(RDBII+AIM/DB) 플랫폼 차이: MVS의 HiDB(계층형)에 비해 XSP의 RDBII는 관계형 DB. RDBII는 SQL 호환 접근이 가능하여 Tibero로의 변환이 비교적 용이. HiDB의 DL/I→SQL 변환은 데이터 모델 변환을 수반하므로 공수가 커집니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_osc_v2",
+      "product_b": "openframe_aim_v2",
+      "type": "R-08",
+      "description_ja": "MVS画面定義(BMS) vs XSP画面定義(PSAM) プラットフォーム差異: BMS(Basic Mapping Support)はDFHMSD/DFHMDI/DFHMDFマクロで画面定義。PSAM(Fujitsu XSP)は独自の画面定義マクロを使用。PSAM→BMS変換はフィールド属性マッピング(位置、長さ、属性バイト)の変換が核心作業です。",
+      "description_ko": "MVS 화면 정의(BMS) vs XSP 화면 정의(PSAM) 플랫폼 차이: BMS(Basic Mapping Support)는 DFHMSD/DFHMDI/DFHMDF 매크로로 화면 정의. PSAM(Fujitsu XSP)은 독자 화면 정의 매크로를 사용. PSAM→BMS 변환은 필드 속성 매핑(위치, 길이, 속성 바이트) 변환이 핵심 작업입니다.",
+      "bidirectional": true
+    },
+    {
+      "product_a": "openframe_base_v2",
+      "product_b": "openframe_aim_v2",
+      "type": "R-08",
+      "description_ja": "3プラットフォーム ユーティリティ比較: MVS/MSPはIDCAMS(VSAM管理)、IEBGENER(データ複写)、IEBCOPY(PDS複写)等の標準ユーティリティを使用。XSPはAIM固有ユーティリティ(AIMUTIL等)を使用し、VSAM操作コマンドの構文も一部異なります。OpenFrameは3プラットフォーム全てのユーティリティに対応します。",
+      "description_ko": "3개 플랫폼 유틸리티 비교: MVS/MSP는 IDCAMS(VSAM 관리), IEBGENER(데이터 복사), IEBCOPY(PDS 복사) 등 표준 유틸리티 사용. XSP는 AIM 고유 유틸리티(AIMUTIL 등)를 사용하며, VSAM 조작 명령 구문도 일부 다름. OpenFrame은 3개 플랫폼 전체 유틸리티에 대응합니다.",
+      "bidirectional": true
+    },
+
+    {"_comment": "===== v2 신규: 마이그레이션 확장 R-06 (5개) ====="},
+
+    {
+      "product_a": "openframe_vos3_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-06",
+      "description_ja": "VOS3/HOSホストからOpenFrameへの移行: VOS3はHitachi互換メインフレームOS。JCL構文の変換(VOS3 JCL→MVS JCL互換→TJES)、VSAM/PDS データセットのdsmigin変換、文字コード(EBCDIK→UTF-8)変換が必要。VOS3固有のシステムマクロは個別対応が必要です。",
+      "description_ko": "VOS3/HOS 호스트에서 OpenFrame으로의 이행: VOS3는 Hitachi 호환 메인프레임 OS. JCL 구문 변환(VOS3 JCL→MVS JCL 호환→TJES), VSAM/PDS 데이터셋의 dsmigin 변환, 문자 코드(EBCDIK→UTF-8) 변환이 필요. VOS3 고유 시스템 매크로는 개별 대응이 필요합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_aim_v2",
+      "product_b": "openframe_osc_v2",
+      "type": "R-06",
+      "description_ja": "PSAM画面定義→BMS変換の詳細手順: 1) PSAM画面定義ソースの構文解析 2) フィールド位置・長さ・属性のBMS互換マッピング 3) DFHMSD/DFHMDI/DFHMDFマクロ自動生成 4) カーソル制御・保護属性の変換 5) テスト画面での表示確認。自動変換後は文字位置ずれの手動調整が必要な場合があります。",
+      "description_ko": "PSAM 화면 정의→BMS 변환 상세 절차: 1) PSAM 화면 정의 소스의 구문 분석 2) 필드 위치/길이/속성의 BMS 호환 매핑 3) DFHMSD/DFHMDI/DFHMDF 매크로 자동 생성 4) 커서 제어/보호 속성 변환 5) 테스트 화면에서 표시 확인. 자동 변환 후 문자 위치 어긋남의 수동 조정이 필요한 경우가 있습니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_aim_v2",
+      "product_b": "openframe_base_v2",
+      "type": "R-06",
+      "description_ja": "JEF文字コード→UTF-8変換: Fujitsuメインフレームのデータ移行で最も重要な工程。JEF(EBCDIC + JIS X 0208 + Fujitsu拡張)からUTF-8への変換にはTF-MDPORTツールを推奨。外字(Fujitsu固有文字)、半角カナ、機種依存文字の変換テーブルを事前に定義する必要があります。",
+      "description_ko": "JEF 문자 코드→UTF-8 변환: Fujitsu 메인프레임 데이터 이행에서 가장 중요한 공정. JEF(EBCDIC + JIS X 0208 + Fujitsu 확장)에서 UTF-8로의 변환에는 TF-MDPORT 도구를 권장. 외자(Fujitsu 고유 문자), 반각 가나, 기종 의존 문자의 변환 테이블을 사전에 정의해야 합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "ofpli_v2",
+      "product_b": "ofpli_v2",
+      "type": "R-06",
+      "description_ja": "IBM PL/I→OFPli移行: IBM Enterprise PL/IプログラムをOFPliでコンパイル可能。基本データ型、構造体、配列は互換。注意点: IBM固有のPREPROCESSOR機能の一部非サポート、FETCH/RELEASE動的呼び出しの実行モジュール形式差異、OS固有サービスルーチン(MVS SVC)の置換が必要です。",
+      "description_ko": "IBM PL/I→OFPli 이행: IBM Enterprise PL/I 프로그램을 OFPli로 컴파일 가능. 기본 데이터형, 구조체, 배열은 호환. 주의점: IBM 고유 PREPROCESSOR 기능 일부 미지원, FETCH/RELEASE 동적 호출의 실행 모듈 형식 차이, OS 고유 서비스 루틴(MVS SVC) 대체가 필요합니다.",
+      "bidirectional": false
+    },
+    {
+      "product_a": "openframe_aim_v2",
+      "product_b": "tibero7_v2",
+      "type": "R-06",
+      "description_ja": "RDBII→Tibero SQL変換: Fujitsu RDBIIのSQL文をTibero互換SQLに変換。RDBIIはSQL-86準拠でTibero(SQL-99+)への変換は比較的容易。固有関数(RDBII独自のDATE/TIME関数等)の変換表を作成し、OFMinerで自動検出・変換候補を列挙できます。",
+      "description_ko": "RDBII→Tibero SQL 변환: Fujitsu RDBII의 SQL문을 Tibero 호환 SQL로 변환. RDBII는 SQL-86 준거로 Tibero(SQL-99+)로의 변환은 비교적 용이. 고유 함수(RDBII 독자 DATE/TIME 함수 등)의 변환표를 작성하여 OFMiner로 자동 검출/변환 후보를 열거할 수 있습니다.",
+      "bidirectional": false
+    }
+  ],
+  "boot_sequence": {
+    "description_ja": "OpenFrame全体の推奨起動順序",
+    "description_ko": "OpenFrame 전체의 권장 기동 순서",
+    "order": [
+      {"step": 1, "product": "tibero7_v2", "command": "tbboot", "description_ja": "データベース起動", "description_ko": "데이터베이스 기동"},
+      {"step": 2, "product": "openframe_base_v2", "command": "tmboot", "description_ja": "基盤サービス起動", "description_ko": "기반 서비스 기동"},
+      {"step": 3, "product": "openframe_tacf_v2", "command": "tacfmgr BOOT", "description_ja": "セキュリティ起動", "description_ko": "보안 기동"},
+      {"step": 4, "product": "openframe_batch_v2", "command": "tjesmgr BOOT", "description_ja": "バッチシステム起動", "description_ko": "배치 시스템 기동"},
+      {"step": 5, "product": "openframe_osc_v2", "command": "oscmgr BOOT", "description_ja": "オンラインCICS起動", "description_ko": "온라인 CICS 기동"},
+      {"step": 6, "product": "openframe_osi_v2", "command": "osimgr BOOT", "description_ja": "オンラインIMS起動", "description_ko": "온라인 IMS 기동"},
+      {"step": 7, "product": "ofmanager_v2", "command": "ofmanager start", "description_ja": "管理ツール起動", "description_ko": "관리 도구 기동"}
+    ],
+    "shutdown_order": "reverse",
+    "middleware_boot": [
+      {"step": 1, "product": "tibero7_v2", "command": "tbboot", "description_ja": "DB起動", "description_ko": "DB 기동"},
+      {"step": 2, "product": "webtob_v2", "command": "wsboot", "description_ja": "Webサーバー起動", "description_ko": "웹 서버 기동"},
+      {"step": 3, "product": "jeus_v2", "command": "startDomainAdminServer", "description_ja": "WAS起動", "description_ko": "WAS 기동"}
+    ]
+  },
+  "migration_map": [
+    {"host": "CICS", "openframe": "openframe_osc_v2", "compatibility": "high", "description_ja": "CICSアプリケーションはOSCに移行可能。EXEC CICSコマンド互換。", "description_ko": "CICS 애플리케이션은 OSC로 이행 가능. EXEC CICS 명령 호환."},
+    {"host": "IMS/DC", "openframe": "openframe_osi_v2", "compatibility": "high", "description_ja": "IMS/DCアプリケーションはOSIに移行可能。MFS/PSB互換。", "description_ko": "IMS/DC 애플리케이션은 OSI로 이행 가능. MFS/PSB 호환."},
+    {"host": "IMS/DB", "openframe": "openframe_hidb_v2", "compatibility": "high", "description_ja": "IMS/DBデータベースはHiDBに移行可能。DL/Iコール互換。", "description_ko": "IMS/DB 데이터베이스는 HiDB로 이행 가능. DL/I 호출 호환."},
+    {"host": "JES2/JES3", "openframe": "openframe_batch_v2", "compatibility": "high", "description_ja": "JES2/JES3のジョブスケジューリングはTJESに移行可能。JCL互換。", "description_ko": "JES2/JES3의 작업 스케줄링은 TJES로 이행 가능. JCL 호환."},
+    {"host": "RACF/ACF2/TopSecret", "openframe": "openframe_tacf_v2", "compatibility": "high", "description_ja": "RACF等のセキュリティ製品はTACFに移行可能。コマンド互換。", "description_ko": "RACF 등의 보안 제품은 TACF로 이행 가능. 명령 호환."},
+    {"host": "VSAM", "openframe": "openframe_base_v2", "compatibility": "high", "description_ja": "VSAMデータセット(KSDS/ESDS/RRDS)はBase上で互換動作。dsmigin/dsmigoutで移行。", "description_ko": "VSAM 데이터셋(KSDS/ESDS/RRDS)은 Base 위에서 호환 동작. dsmigin/dsmigout으로 이행."},
+    {"host": "DB2", "openframe": "tibero7_v2", "compatibility": "medium", "description_ja": "DB2のSQLはTiberoで大部分互換。一部の固有関数は変換が必要。", "description_ko": "DB2의 SQL은 Tibero에서 대부분 호환. 일부 고유 함수는 변환이 필요."},
+    {"host": "COBOL", "openframe": "ofcobol_v2", "compatibility": "high", "description_ja": "IBM COBOLプログラムはOFCOBOLでコンパイル可能。EXEC SQL/EXEC CICS互換。", "description_ko": "IBM COBOL 프로그램은 OFCOBOL로 컴파일 가능. EXEC SQL/EXEC CICS 호환."},
+    {"host": "Assembler", "openframe": "ofasm_v2", "compatibility": "medium", "description_ja": "System/370アセンブラプログラムはOFAsmで実行可能。一部マクロは変換が必要。", "description_ko": "System/370 어셈블러 프로그램은 OFAsm으로 실행 가능. 일부 매크로는 변환이 필요."},
+    {"host": "AIM/DB (Fujitsu)", "openframe": "openframe_aim_v2", "compatibility": "medium", "description_ja": "Fujitsu AIM/DBのネットワーク型DBはAIMモジュールで互換動作。CODASYL DML互換。", "description_ko": "Fujitsu AIM/DB의 네트워크형 DB는 AIM 모듈에서 호환 동작. CODASYL DML 호환."},
+    {"host": "AIM/DC (Fujitsu)", "openframe": "openframe_osc_v2", "compatibility": "medium", "description_ja": "Fujitsu AIM/DCのオンライン処理はOSCに移行可能。画面定義の変換が必要。", "description_ko": "Fujitsu AIM/DC의 온라인 처리는 OSC로 이행 가능. 화면 정의 변환이 필요."},
+    {"host": "VOS3/HOS", "openframe": "openframe_vos3_v2", "compatibility": "medium", "description_ja": "VOS3/HOSシステムはOpenFrame VOS3環境に移行可能。JCL変換と文字コード変換が必要。", "description_ko": "VOS3/HOS 시스템은 OpenFrame VOS3 환경으로 이행 가능. JCL 변환과 문자 코드 변환이 필요."},
+    {"host": "PL/I (IBM)", "openframe": "ofpli_v2", "compatibility": "high", "description_ja": "IBM PL/IプログラムはOFPliでコンパイル可能。基本データ型・構造体互換。", "description_ko": "IBM PL/I 프로그램은 OFPli로 컴파일 가능. 기본 데이터형/구조체 호환."},
+    {"host": "RDBII (Fujitsu)", "openframe": "tibero7_v2", "compatibility": "medium", "description_ja": "Fujitsu RDBIIのSQLはTiberoに変換可能。SQL-86準拠のためSQL-99+への変換は比較的容易。", "description_ko": "Fujitsu RDBII의 SQL은 Tibero로 변환 가능. SQL-86 준거이므로 SQL-99+로의 변환은 비교적 용이."},
+    {"host": "PSAM (Fujitsu)", "openframe": "openframe_osc_v2", "compatibility": "medium", "description_ja": "FujitsuのPSAM画面定義はBMSに変換可能。マクロ構文変換とフィールド属性マッピングが必要。", "description_ko": "Fujitsu의 PSAM 화면 정의는 BMS로 변환 가능. 매크로 구문 변환과 필드 속성 매핑이 필요."},
+    {"host": "JEF (Fujitsu)", "openframe": "openframe_base_v2", "compatibility": "medium", "description_ja": "Fujitsu JEF文字コードはUTF-8に変換が必要。TF-MDPORTツールで一括変換。外字マッピングの事前定義が重要。", "description_ko": "Fujitsu JEF 문자 코드는 UTF-8로 변환 필요. TF-MDPORT 도구로 일괄 변환. 외자 매핑의 사전 정의가 중요."}
+  ],
+  "platform_differences": {
+    "description_ja": "MVS/MSP/XSP プラットフォーム間の主要な違い",
+    "description_ko": "MVS/MSP/XSP 플랫폼 간 주요 차이점",
+    "categories": [
+      {
+        "category": "JCL",
+        "mvs": "JES2/JES3 기반, 표준 MVS JCL",
+        "msp": "JES/JSS 기반, MSP 확장 구문",
+        "xsp": "AIMPED 확장, XSP 고유 JCL 구문",
+        "key_differences_ja": "DD文の記述差異、プロシージャの参照方法、条件分岐の構文差。MVSのIF/THEN/ELSEはMSP/XSPで異なる構文。XSPはAIMPED拡張によりAIM/DB連携用DD定義が追加。",
+        "key_differences_ko": "DD문 기술 차이, 프로시저 참조 방법, 조건분기 구문 차이. MVS의 IF/THEN/ELSE는 MSP/XSP에서 다른 구문. XSP는 AIMPED 확장으로 AIM/DB 연동용 DD 정의가 추가."
+      },
+      {
+        "category": "Online",
+        "mvs": "OSC(CICS) + OSI(IMS/DC)",
+        "msp": "OSC(CICS) + AIM/DC",
+        "xsp": "AIM/DC 전용",
+        "key_differences_ja": "オンライン処理モデルの差異。MVSは2系統(CICS+IMS/DC)、MSPはCICS+Fujitsu独自、XSPはFujitsu独自のみ。画面定義もBMS(MVS/MSP) vs PSAM(XSP)で異なる。",
+        "key_differences_ko": "온라인 처리 모델 차이. MVS는 2계통(CICS+IMS/DC), MSP는 CICS+Fujitsu 독자, XSP는 Fujitsu 독자만. 화면 정의도 BMS(MVS/MSP) vs PSAM(XSP)으로 다름."
+      },
+      {
+        "category": "Database",
+        "mvs": "HiDB (IMS/DB 호환)",
+        "msp": "NDB (CODASYL) + AIM/DB",
+        "xsp": "RDBII (관계형) + AIM/DB",
+        "key_differences_ja": "データモデルの違い。MVS: 階層型(DL/I)、MSP: ネットワーク型(CODASYL DML)、XSP: リレーショナル(SQL)+ネットワーク型。Tiberoへの移行はRDBII(SQL→SQL)が最も容易、HiDB(DL/I→SQL)が最も困難。",
+        "key_differences_ko": "데이터 모델 차이. MVS: 계층형(DL/I), MSP: 네트워크형(CODASYL DML), XSP: 관계형(SQL)+네트워크형. Tibero로의 이행은 RDBII(SQL→SQL)가 가장 용이, HiDB(DL/I→SQL)가 가장 어려움."
+      },
+      {
+        "category": "Screen Definition",
+        "mvs": "BMS (Basic Mapping Support)",
+        "msp": "BMS (Basic Mapping Support)",
+        "xsp": "PSAM (Fujitsu 고유)",
+        "key_differences_ja": "BMS(DFHMSD/DFHMDI/DFHMDF)とPSAM(画面定義マクロ)の構文・属性差異。BMS→PSAM間ではフィールド位置、長さ、属性バイトのマッピング変換が必要。MVSとMSPは同じBMSを使用。",
+        "key_differences_ko": "BMS(DFHMSD/DFHMDI/DFHMDF)와 PSAM(화면 정의 매크로)의 구문/속성 차이. BMS→PSAM 간에는 필드 위치, 길이, 속성 바이트의 매핑 변환이 필요. MVS와 MSP는 같은 BMS를 사용."
+      },
+      {
+        "category": "Utility",
+        "mvs": "IDCAMS, IEBGENER, IEBCOPY 등",
+        "msp": "IDCAMS, IEBGENER, IEBCOPY 등",
+        "xsp": "XSP 고유 유틸리티",
+        "key_differences_ja": "MVS/MSP標準ユーティリティ(IDCAMS, IEBGENER, IEBCOPY, DFSORT)とXSP固有ユーティリティの差異。XSPはAIMUTIL等のAIM固有ユーティリティを使用。OpenFrameは全プラットフォームのユーティリティをサポート。",
+        "key_differences_ko": "MVS/MSP 표준 유틸리티(IDCAMS, IEBGENER, IEBCOPY, DFSORT)와 XSP 고유 유틸리티 차이. XSP는 AIMUTIL 등 AIM 고유 유틸리티 사용. OpenFrame은 전 플랫폼의 유틸리티를 지원."
+      }
+    ]
+  }
+}

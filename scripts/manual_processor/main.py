@@ -11,6 +11,10 @@ Usage:
     python -m scripts.manual_processor.main extract-comprehensive
     python -m scripts.manual_processor.main extract-structure --input /path/to/manual.pdf
     python -m scripts.manual_processor.main rebuild-index
+    python -m scripts.manual_processor.main gen-training
+    python -m scripts.manual_processor.main gen-training --formats sft cpt --languages ja ko
+    python -m scripts.manual_processor.main gen-training --unified
+    python -m scripts.manual_processor.main validate-training
 """
 
 import argparse
@@ -331,6 +335,407 @@ class ManualProcessor:
         logger.info(f"\n소요 시간: {elapsed}")
         logger.info(f"품질 점수 변화: {report.quality_score:.1f}% → {final_report.quality_score:.1f}%")
 
+    def gen_training(
+        self,
+        formats: List[str] = None,
+        languages: List[str] = None,
+        dpo_count: int = 2000,
+        unified: bool = False,
+        unified_dpo_count: int = 500,
+    ) -> None:
+        """학습 데이터 생성 (SFT/CPT/DPO)
+
+        Args:
+            formats: 생성할 포맷 (sft, cpt, dpo 중 선택, 기본: 전부)
+            languages: 대상 언어 (ja, ko, en 중 선택, 기본: 전부)
+            dpo_count: DPO 쌍 목표 수 (기본: 2000)
+            unified: 통합 LoRA 데이터셋도 생성 (기본: False)
+            unified_dpo_count: 통합 DPO 쌍 목표 수 (기본: 500)
+        """
+        logger.info("=== 학습 데이터 생성 시작 ===")
+        start_time = datetime.now()
+
+        if formats is None:
+            formats = ["sft", "cpt", "dpo"]
+        if languages is None:
+            languages = ["ja", "ko", "en"]
+
+        output_dir = Path(config.training_output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        all_stats = {}
+        sft_records = []
+
+        # 1. SFT 생성
+        if "sft" in formats:
+            logger.info("\n[1/3] SFT ChatML 학습 데이터 생성...")
+            from .generators.sft_generator import SFTGenerator
+
+            sft_gen = SFTGenerator(config.manuals_dir, output_dir)
+            sft_stats = sft_gen.generate_all(languages=languages)
+            sft_records = sft_gen.records  # DPO에서 재사용
+            all_stats["sft"] = sft_stats.to_dict()
+
+            logger.info(f"  SFT: {sft_stats.total_records} records")
+            logger.info(f"    Train: {sft_stats.train_count}, Eval: {sft_stats.eval_count}")
+        else:
+            logger.info("\n[1/3] SFT 건너뜀")
+
+        # 2. CPT 생성
+        if "cpt" in formats:
+            logger.info("\n[2/3] CPT Plain Text 코퍼스 생성...")
+            from .generators.cpt_generator import CPTGenerator
+
+            cpt_gen = CPTGenerator(config.manuals_dir, output_dir)
+            cpt_stats = cpt_gen.generate_all(languages=languages)
+            all_stats["cpt"] = cpt_stats.to_dict()
+
+            logger.info(f"  CPT: {cpt_stats.total_records} chunks")
+            for lang, count in cpt_stats.by_language.items():
+                logger.info(f"    {lang}: {count} chunks")
+        else:
+            logger.info("\n[2/3] CPT 건너뜀")
+
+        # 3. DPO 생성 (SFT 레코드 필요)
+        if "dpo" in formats:
+            if not sft_records and "sft" not in formats:
+                # SFT를 먼저 생성하여 레코드 확보
+                logger.info("\n  DPO 생성을 위해 SFT 레코드를 먼저 생성합니다...")
+                from .generators.sft_generator import SFTGenerator
+                sft_gen = SFTGenerator(config.manuals_dir, output_dir)
+                sft_gen.generate_all(languages=languages)
+                sft_records = sft_gen.records
+
+            logger.info(f"\n[3/3] DPO Preference Pairs 생성 (목표: {dpo_count}쌍)...")
+            from .generators.dpo_generator import DPOGenerator
+
+            dpo_gen = DPOGenerator(output_dir)
+            dpo_stats = dpo_gen.generate_all(
+                sft_records=sft_records,
+                target_count=dpo_count,
+            )
+            all_stats["dpo"] = dpo_stats.to_dict()
+
+            logger.info(f"  DPO: {dpo_stats.total_records} pairs")
+        else:
+            logger.info("\n[3/3] DPO 건너뜀")
+
+        # 4. 통합 LoRA 데이터셋 생성
+        if unified:
+            self._gen_unified_training(
+                output_dir, languages, unified_dpo_count, all_stats
+            )
+
+        # 통계 저장
+        import json
+        stats_path = output_dir / "generation_stats.json"
+        with open(stats_path, "w", encoding="utf-8") as f:
+            json.dump(all_stats, f, ensure_ascii=False, indent=2)
+
+        elapsed = datetime.now() - start_time
+        logger.info(f"\n=== 학습 데이터 생성 완료 ===")
+        logger.info(f"출력 디렉토리: {output_dir}")
+        logger.info(f"소요 시간: {elapsed}")
+
+    def _gen_unified_training(
+        self,
+        output_dir: Path,
+        languages: List[str],
+        unified_dpo_count: int,
+        all_stats: dict,
+    ) -> None:
+        """통합 LoRA 학습 데이터 생성 (SFT + DPO + CPT)
+
+        제품 간 관계(R-01~R-07)를 학습하기 위한 25번째 통합 어댑터용 데이터셋.
+        """
+        import json
+
+        logger.info("\n=== 통합 LoRA 데이터셋 생성 ===")
+
+        # 4-1. 통합 SFT
+        logger.info("\n[Unified 1/3] 통합 SFT 생성...")
+        from .generators.unified_sft_generator import UnifiedSFTGenerator
+
+        unified_sft_gen = UnifiedSFTGenerator(config)
+        unified_sft_records = unified_sft_gen.generate_all()
+        self._save_unified_sft(unified_sft_records, output_dir)
+        all_stats["unified_sft"] = {
+            "total": len(unified_sft_records),
+            "by_relation": {},
+            "by_language": {},
+            "by_source": {},
+        }
+        for r in unified_sft_records:
+            rt = r.relation_type
+            all_stats["unified_sft"]["by_relation"][rt] = (
+                all_stats["unified_sft"]["by_relation"].get(rt, 0) + 1
+            )
+            lang = r.language.value
+            all_stats["unified_sft"]["by_language"][lang] = (
+                all_stats["unified_sft"]["by_language"].get(lang, 0) + 1
+            )
+            src = r.source
+            all_stats["unified_sft"]["by_source"][src] = (
+                all_stats["unified_sft"]["by_source"].get(src, 0) + 1
+            )
+        logger.info(f"  통합 SFT: {len(unified_sft_records)} records")
+
+        # 4-2. 통합 DPO
+        logger.info(
+            f"\n[Unified 2/3] 통합 DPO 생성 (목표: {unified_dpo_count}쌍)..."
+        )
+        from .generators.unified_dpo_generator import UnifiedDPOGenerator
+
+        unified_dpo_gen = UnifiedDPOGenerator(unified_sft_records)
+        unified_dpo_records = unified_dpo_gen.generate_all(
+            target_count=unified_dpo_count
+        )
+        self._save_unified_dpo(unified_dpo_records, output_dir)
+        all_stats["unified_dpo"] = {
+            "total": len(unified_dpo_records),
+            "by_strategy": {},
+        }
+        for r in unified_dpo_records:
+            s = r.strategy
+            all_stats["unified_dpo"]["by_strategy"][s] = (
+                all_stats["unified_dpo"]["by_strategy"].get(s, 0) + 1
+            )
+        logger.info(f"  통합 DPO: {len(unified_dpo_records)} pairs")
+
+        # 4-3. 통합 CPT
+        logger.info("\n[Unified 3/3] 통합 CPT 생성...")
+        from .generators.unified_cpt_generator import UnifiedCPTGenerator
+
+        unified_cpt_gen = UnifiedCPTGenerator(config.manuals_dir, output_dir)
+        unified_cpt_chunks = unified_cpt_gen.generate_all(languages=languages)
+        all_stats["unified_cpt"] = {
+            "total": len(unified_cpt_chunks),
+            "total_tokens": sum(c.token_count for c in unified_cpt_chunks),
+        }
+        logger.info(f"  통합 CPT: {len(unified_cpt_chunks)} chunks")
+
+        logger.info(
+            f"\n통합 LoRA 데이터셋 완료: "
+            f"SFT {len(unified_sft_records)}, "
+            f"DPO {len(unified_dpo_records)}, "
+            f"CPT {len(unified_cpt_chunks)}"
+        )
+
+    def _save_unified_sft(
+        self, records: list, output_dir: Path
+    ) -> None:
+        """통합 SFT 데이터 저장"""
+        import json
+
+        sft_dir = output_dir / "sft_unified"
+        sft_dir.mkdir(parents=True, exist_ok=True)
+
+        # Train/Eval 분할 (90/10)
+        split_idx = int(len(records) * 0.9)
+        train_records = records[:split_idx]
+        eval_records = records[split_idx:]
+
+        with open(sft_dir / "train_all.jsonl", "w", encoding="utf-8") as f:
+            for r in train_records:
+                f.write(json.dumps(r.to_jsonl(), ensure_ascii=False) + "\n")
+
+        with open(sft_dir / "eval_all.jsonl", "w", encoding="utf-8") as f:
+            for r in eval_records:
+                f.write(json.dumps(r.to_jsonl(), ensure_ascii=False) + "\n")
+
+        # 관계 유형별 분류
+        by_relation_dir = sft_dir / "by_relation"
+        by_relation_dir.mkdir(exist_ok=True)
+        relation_names = {
+            "R-01": "dependency", "R-02": "integration", "R-03": "comparison",
+            "R-04": "boot_sequence", "R-05": "error_propagation",
+            "R-06": "migration", "R-07": "shared_config",
+        }
+        for relation_type, relation_name in relation_names.items():
+            type_records = [r for r in records if r.relation_type == relation_type]
+            if type_records:
+                with open(
+                    by_relation_dir / f"{relation_type}_{relation_name}.jsonl",
+                    "w",
+                    encoding="utf-8",
+                ) as f:
+                    for r in type_records:
+                        f.write(json.dumps(r.to_jsonl(), ensure_ascii=False) + "\n")
+
+        logger.info(
+            f"  통합 SFT 저장: train={len(train_records)}, "
+            f"eval={len(eval_records)} → {sft_dir}"
+        )
+
+    def _save_unified_dpo(
+        self, records: list, output_dir: Path
+    ) -> None:
+        """통합 DPO 데이터 저장"""
+        import json
+
+        dpo_dir = output_dir / "dpo_unified"
+        dpo_dir.mkdir(parents=True, exist_ok=True)
+
+        with open(dpo_dir / "dpo_all.jsonl", "w", encoding="utf-8") as f:
+            for r in records:
+                f.write(json.dumps(r.to_jsonl(), ensure_ascii=False) + "\n")
+
+        logger.info(f"  통합 DPO 저장: {len(records)}쌍 → {dpo_dir}")
+
+    def validate_training(
+        self,
+        data_dir: Optional[Path] = None,
+        output_path: Optional[Path] = None,
+    ) -> None:
+        """학습 데이터 품질 검증
+
+        Args:
+            data_dir: 학습 데이터 디렉토리 (기본: config.training_output_dir)
+            output_path: 리포트 출력 경로
+        """
+        logger.info("=== 학습 데이터 품질 검증 시작 ===")
+        start_time = datetime.now()
+
+        import json
+        from .models.training import SFTRecord, DataLanguage
+        from .validators.training_validator import TrainingValidator
+
+        if data_dir is None:
+            data_dir = Path(config.training_output_dir)
+
+        validator = TrainingValidator()
+        reports = {}
+
+        # 1. SFT 검증
+        sft_train = data_dir / "sft" / "train_all.jsonl"
+        if sft_train.exists():
+            logger.info("\n[1/3] SFT 데이터 검증...")
+            records = self._load_sft_jsonl(sft_train)
+            reports["sft"] = validator.validate_sft(records)
+            logger.info(
+                f"  SFT 품질: {reports['sft']['quality_score']}% "
+                f"({reports['sft']['passed']}/{reports['sft']['total']})"
+            )
+            for rec in reports["sft"].get("recommendations", []):
+                logger.info(f"    → {rec}")
+        else:
+            logger.info("\n[1/3] SFT 데이터 없음, 건너뜀")
+
+        # 2. CPT 검증
+        cpt_dir = data_dir / "cpt"
+        if cpt_dir.exists():
+            logger.info("\n[2/3] CPT 코퍼스 검증...")
+            reports["cpt"] = {}
+            for corpus_file in sorted(cpt_dir.glob("corpus_*.txt")):
+                lang = corpus_file.stem.replace("corpus_", "")
+                report = validator.validate_cpt(corpus_file)
+                reports["cpt"][lang] = report
+                logger.info(
+                    f"  {lang}: {report['checks'].get('chunk_count', 0)} chunks, "
+                    f"{report['checks'].get('file_size_mb', 0)} MB, "
+                    f"품질: {report.get('quality_score', 0)}%"
+                )
+        else:
+            logger.info("\n[2/3] CPT 데이터 없음, 건너뜀")
+
+        # 3. DPO 검증
+        dpo_all = data_dir / "dpo" / "dpo_all.jsonl"
+        if dpo_all.exists():
+            logger.info("\n[3/3] DPO 데이터 검증...")
+            from .models.training import DPORecord
+            dpo_records = self._load_dpo_jsonl(dpo_all)
+            reports["dpo"] = validator.validate_dpo(dpo_records)
+            logger.info(
+                f"  DPO 품질: {reports['dpo']['quality_score']}% "
+                f"({reports['dpo']['passed']}/{reports['dpo']['total']})"
+            )
+        else:
+            logger.info("\n[3/3] DPO 데이터 없음, 건너뜀")
+
+        # 리포트 저장
+        if output_path is None:
+            output_path = data_dir / "validation_report.json"
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(reports, f, ensure_ascii=False, indent=2)
+
+        elapsed = datetime.now() - start_time
+        logger.info(f"\n=== 검증 완료 ===")
+        logger.info(f"리포트 저장: {output_path}")
+        logger.info(f"소요 시간: {elapsed}")
+
+    def _load_sft_jsonl(self, path: Path) -> List:
+        """JSONL에서 SFT 레코드 로드"""
+        import json
+        from .models.training import SFTRecord, DataLanguage
+
+        records = []
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                data = json.loads(line)
+                # ChatML text에서 instruction/response 추출
+                text = data.get("text", "")
+                parts = text.split("<|im_end|>")
+                instruction = ""
+                response = ""
+                system_prompt = ""
+                for part in parts:
+                    if "<|im_start|>system" in part:
+                        system_prompt = part.split("<|im_start|>system\n", 1)[-1].strip()
+                    elif "<|im_start|>user" in part:
+                        instruction = part.split("<|im_start|>user\n", 1)[-1].strip()
+                    elif "<|im_start|>assistant" in part:
+                        response = part.split("<|im_start|>assistant\n", 1)[-1].strip()
+
+                lang_str = data.get("language", "ja")
+                try:
+                    lang = DataLanguage(lang_str)
+                except ValueError:
+                    lang = DataLanguage.JA
+
+                records.append(SFTRecord(
+                    instruction=instruction,
+                    response=response,
+                    system_prompt=system_prompt,
+                    product=data.get("product", ""),
+                    language=lang,
+                    source_file=data.get("source", ""),
+                    item_type=data.get("type", ""),
+                ))
+        return records
+
+    def _load_dpo_jsonl(self, path: Path) -> List:
+        """JSONL에서 DPO 레코드 로드"""
+        import json
+        from .models.training import DPORecord, DataLanguage
+
+        records = []
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                data = json.loads(line)
+                lang_str = data.get("language", "ja")
+                try:
+                    lang = DataLanguage(lang_str)
+                except ValueError:
+                    lang = DataLanguage.JA
+
+                records.append(DPORecord(
+                    prompt=data.get("prompt", ""),
+                    chosen=data.get("chosen", ""),
+                    rejected=data.get("rejected", ""),
+                    product=data.get("product", ""),
+                    language=lang,
+                    strategy=data.get("strategy", ""),
+                ))
+        return records
+
     def extract_comprehensive(self) -> None:
         """포괄적 추출 - 모든 매뉴얼에서 모든 정보 추출"""
         logger.info("=== 포괄적 추출 시작 ===")
@@ -598,6 +1003,61 @@ def main():
         help="기존 파일도 다시 처리"
     )
 
+    # gen-training 명령
+    gen_train_parser = subparsers.add_parser(
+        "gen-training",
+        help="학습 데이터 생성 (SFT/CPT/DPO)"
+    )
+    gen_train_parser.add_argument(
+        "--formats", "-f",
+        nargs="+",
+        choices=["sft", "cpt", "dpo"],
+        default=None,
+        help="생성할 포맷 (기본: sft cpt dpo 전부)"
+    )
+    gen_train_parser.add_argument(
+        "--languages", "-l",
+        nargs="+",
+        choices=["ja", "ko", "en"],
+        default=None,
+        help="대상 언어 (기본: ja ko en 전부)"
+    )
+    gen_train_parser.add_argument(
+        "--dpo-count",
+        type=int,
+        default=2000,
+        help="DPO 쌍 목표 수 (기본: 2000)"
+    )
+    gen_train_parser.add_argument(
+        "--unified",
+        action="store_true",
+        help="통합 LoRA 데이터셋도 생성 (제품 간 관계 학습용)"
+    )
+    gen_train_parser.add_argument(
+        "--unified-dpo-count",
+        type=int,
+        default=500,
+        help="통합 DPO 쌍 목표 수 (기본: 500)"
+    )
+
+    # validate-training 명령
+    val_train_parser = subparsers.add_parser(
+        "validate-training",
+        help="학습 데이터 품질 검증"
+    )
+    val_train_parser.add_argument(
+        "--data-dir", "-d",
+        type=Path,
+        default=None,
+        help="학습 데이터 디렉토리 (기본: uploads/training/v10)"
+    )
+    val_train_parser.add_argument(
+        "--output", "-o",
+        type=Path,
+        default=None,
+        help="리포트 출력 경로"
+    )
+
     # rebuild-index 명령
     subparsers.add_parser("rebuild-index", help="인덱스 재생성")
 
@@ -671,6 +1131,19 @@ def main():
             language=args.language,
             validate=args.validate,
             skip_existing=not args.no_skip
+        )
+    elif args.command == "gen-training":
+        processor.gen_training(
+            formats=args.formats,
+            languages=args.languages,
+            dpo_count=args.dpo_count,
+            unified=args.unified,
+            unified_dpo_count=args.unified_dpo_count,
+        )
+    elif args.command == "validate-training":
+        processor.validate_training(
+            data_dir=args.data_dir,
+            output_path=args.output,
         )
     elif args.command == "rebuild-index":
         processor.rebuild_index()
