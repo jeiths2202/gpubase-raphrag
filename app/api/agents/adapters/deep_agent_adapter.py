@@ -249,10 +249,10 @@ class DeepAgentAdapter(BaseAgent):
             llm_model = os.getenv("CODE_LLM_MODEL", "mistralai/Mistral-Nemo-Instruct-2407")
             context_info = "Large Context (128K)"
         else:
-            # Default: Nemotron Nano 9B (8K context)
+            # Default: Qwen2.5-72B v10 unified v2 (4K context)
             llm_api_url = os.getenv("LLM_API_URL")
-            llm_model = os.getenv("LLM_MODEL", "nvidia/nvidia-nemotron-nano-9b-v2")
-            context_info = "Standard (8K)"
+            llm_model = os.getenv("LLM_MODEL", "/opt/models/merged_cpt_72b")
+            context_info = "Standard (4K)"
 
         if llm_api_url and LANGCHAIN_OPENAI_AVAILABLE:
             base_url = llm_api_url.replace("/chat/completions", "")

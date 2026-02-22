@@ -29,9 +29,9 @@ if USE_LARGE_CONTEXT:
     NIM_MODEL = os.getenv("CODE_LLM_MODEL", "mistralai/Mistral-Nemo-Instruct-2407")
     logger.info(f"RAG LLM: Large Context Mode (128K) - Model: {NIM_MODEL}")
 else:
-    # Standard mode: Nemotron Nano 9B (8K context)
+    # Standard mode: Qwen2.5-72B v10 unified v2 (4K context)
     NIM_API_URL = os.getenv("LLM_API_URL")
-    NIM_MODEL = os.getenv("LLM_MODEL", "nvidia/nvidia-nemotron-nano-9b-v2")
+    NIM_MODEL = os.getenv("LLM_MODEL", "/opt/models/merged_cpt_72b")
 
 # Ollama settings (fallback)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")

@@ -103,9 +103,9 @@ services:
       retries: 10
       start_period: 180s
 
-  # Multi-LoRA DPO LLM - Qwen2.5-72B + 15 DPO Adapters (GPU 4,5,6,7, port 12810)
-  multi-lora-dpo:
-    container_name: multi-lora-dpo
+  # Multi-LoRA v10 Unified v2 - Qwen2.5-72B (CPT+SFT_v2+DPO) + 22 LoRA Adapters (GPU 4,5,6,7, port 12810)
+  multi-lora-v10-unified-v2:
+    container_name: vllm_v10_unified_v2
     image: vllm/vllm-openai:latest
     restart: unless-stopped
     runtime: nvidia
@@ -118,7 +118,7 @@ services:
       - NCCL_DEBUG=WARN
       - VLLM_USE_V1=false
     volumes:
-      - /raid/users/ofuser/qlora/outputs/merged_cpt_72b:/opt/models/merged_cpt_72b:ro
+      - /raid/users/ofuser/qlora/outputs/merged_cpt_unified_v2_72b_v10:/opt/models/merged_cpt_72b:ro
       - /raid/users/ofuser/qlora/outputs/dpo:/opt/adapters:ro
     command: >
       --model /opt/models/merged_cpt_72b
@@ -131,7 +131,7 @@ services:
       --enable-lora
       --max-loras 4
       --max-lora-rank 64
-      --max-cpu-loras 15
+      --max-cpu-loras 24
       --lora-modules
         openframe_base=/opt/adapters/openframe_base_v2
         openframe_batch=/opt/adapters/openframe_batch_v2
@@ -141,13 +141,20 @@ services:
         openframe_osi=/opt/adapters/openframe_osi_v2
         openframe_tacf=/opt/adapters/openframe_tacf_v2
         openframe_vos3=/opt/adapters/openframe_vos3_v2
+        openframe_aim=/opt/adapters/openframe_aim_v2
+        openframe_gateway=/opt/adapters/openframe_gateway_v2
         ofcobol=/opt/adapters/ofcobol_v2
         ofpli=/opt/adapters/ofpli_v2
         ofmanager=/opt/adapters/ofmanager_v2
+        ofminer=/opt/adapters/ofminer_v2
+        ofstudio=/opt/adapters/ofstudio_v2
+        jeus=/opt/adapters/jeus_v2
         tmax=/opt/adapters/tmax_v2
         tibero7=/opt/adapters/tibero7_v2
+        webtob=/opt/adapters/webtob_v2
         protrieve=/opt/adapters/protrieve_v2
         prosort=/opt/adapters/prosort_v2
+        prosync=/opt/adapters/prosync_v2
       --dtype bfloat16
       --trust-remote-code
     shm_size: '16gb'

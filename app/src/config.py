@@ -10,9 +10,9 @@ load_dotenv()
 
 @dataclass
 class LLMConfig:
-    """Text LLM (Qwen2.5-7B-Instruct) configuration - GPU 4, port 12800"""
-    api_url: str = os.getenv("LLM_API_URL", "http://localhost:12800/v1/chat/completions")
-    model: str = os.getenv("LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+    """Text LLM (Qwen2.5-72B v10 unified v2) configuration - GPU 4,5,6,7, port 12810"""
+    api_url: str = os.getenv("LLM_API_URL", "http://localhost:12810/v1/chat/completions")
+    model: str = os.getenv("LLM_MODEL", "/opt/models/merged_cpt_72b")
     temperature: float = 0.1
 
 

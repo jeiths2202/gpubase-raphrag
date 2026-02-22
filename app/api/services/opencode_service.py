@@ -447,8 +447,8 @@ def _find_matching_section(hierarchy: List[Dict], query: str) -> Optional[Dict]:
 @dataclass
 class OpenAgentConfig:
     """Configuration for OpenAgent vLLM connection."""
-    base_url: str = "http://192.168.8.11:12800/v1"
-    model: str = "Qwen/Qwen2.5-7B-Instruct"
+    base_url: str = "http://localhost:12810/v1"
+    model: str = "/opt/models/merged_cpt_72b"
     max_tokens: int = 2048
     temperature: float = 0.7
     timeout: int = 120
@@ -487,8 +487,8 @@ class OpenAgentService:
     def _load_config(self) -> OpenAgentConfig:
         """Load configuration from environment or opencode.json."""
         # Check environment variables first
-        base_url = os.getenv("VLLM_BASE_URL", "http://192.168.8.11:12800/v1")
-        model = os.getenv("VLLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+        base_url = os.getenv("VLLM_BASE_URL", "http://localhost:12810/v1")
+        model = os.getenv("VLLM_MODEL", "/opt/models/merged_cpt_72b")
         max_tokens = int(os.getenv("VLLM_MAX_TOKENS", "2048"))
         temperature = float(os.getenv("VLLM_TEMPERATURE", "0.7"))
 
