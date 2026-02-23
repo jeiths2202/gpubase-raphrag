@@ -46,6 +46,7 @@ class AgentMode(str, Enum):
     CODE = "code"
     PLANNER = "planner"
     AUTO = "auto"
+    SPECIAL = "special"
 
 
 # =============================================================================

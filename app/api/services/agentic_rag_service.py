@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
+from ..core.config import get_api_settings
 from ..core.logging_framework import get_logger
 from ..models.agentic_rag import (
     AgenticRAGRequest,
@@ -784,8 +785,12 @@ class AgenticRAGService:
         start = time.time()
 
         # 0. Query Pattern Analysis (비교/순차 → DAG 실행)
+        # Special Agent 모드에서는 패턴 분석 건너뛰기 (모든 질문을 Special Agent로 처리)
         try:
-            pattern = self._analyze_query_pattern(request.message)
+            if request.agent_mode == AgentMode.SPECIAL:
+                pattern = QueryPatternResult(pattern=QueryPatternType.SINGLE, subjects=[], confidence=0.0)
+            else:
+                pattern = self._analyze_query_pattern(request.message)
             if pattern.pattern == QueryPatternType.PARALLEL:
                 _dag_done = False
                 async for event in self._stream_parallel_comparison(
@@ -874,6 +879,13 @@ class AgenticRAGService:
                 "auto_detected": request.agent_mode == AgentMode.AUTO,
             }
 
+        if effective_mode == AgentMode.SPECIAL:
+            async for event in self._stream_special_agent(
+                request, product_ids, router_result, start,
+            ):
+                yield event
+            return
+
         if effective_mode == AgentMode.CODE:
             async for event in self._stream_code_agent(
                 request, product_ids, router_result, start,
@@ -897,16 +909,18 @@ class AgenticRAGService:
             "progress": 0.2,
         }
 
-        # === vLLM Direct Search (최우선: QLoRA 학습된 도메인 지식으로 직접 응답) ===
-        vllm_done = False
-        async for event in self._try_vllm_direct_search(
-            request, primary_product, product_ids, start,
-        ):
-            yield event
-            if event.get("type") == "done":
-                vllm_done = True
-        if vllm_done:
-            return
+        # === vLLM Direct Search (QLoRA 학습된 도메인 지식으로 직접 응답, feature flag로 제어) ===
+        settings = get_api_settings()
+        if settings.VLLM_DIRECT_SEARCH_ENABLED:
+            vllm_done = False
+            async for event in self._try_vllm_direct_search(
+                request, primary_product, product_ids, start,
+            ):
+                yield event
+                if event.get("type") == "done":
+                    vllm_done = True
+            if vllm_done:
+                return
         # === End vLLM Direct Search ===
 
         yield {
@@ -2434,6 +2448,174 @@ class AgenticRAGService:
         elif ratio >= 0.4:
             return ConfidenceLevel.MEDIUM
         return ConfidenceLevel.LOW
+
+    # =========================================================================
+    # Special Agent Branch (Anthropic Claude API)
+    # =========================================================================
+
+    async def _stream_special_agent(
+        self,
+        request: AgenticRAGRequest,
+        product_ids: List[str],
+        router_result: RouterResult,
+        start: float,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Special Agent: 요약본 + PDF + Web Doc 검색 → Claude API 응답 생성.
+        vLLM 완전 우회. Anthropic Claude API 사용.
+        """
+        primary_product = product_ids[0] if product_ids else "auto"
+        language = request.language or "ja"
+
+        yield {
+            "type": "search_progress",
+            "product": primary_product,
+            "step": "special_search",
+            "progress": 0.2,
+        }
+
+        # Phase 1: 3개 소스 병렬 검색
+        summary_task = self._search_summaries(request.message, product_ids)
+        pdf_task = self._multi_product_search(
+            request.message, product_ids, QueryType.FREEFORM,
+        )
+        web_task = self._search_web_docs(request.message, product_ids)
+
+        summary_results, pdf_context, web_results = await asyncio.gather(
+            summary_task, pdf_task, web_task,
+        )
+
+        yield {
+            "type": "search_progress",
+            "product": primary_product,
+            "step": "special_generating",
+            "progress": 0.6,
+        }
+
+        # Phase 2: 컨텍스트 조합
+        context_parts: List[str] = []
+        if summary_results:
+            context_parts.append(f"## Summary Knowledge\n{summary_results}")
+        if pdf_context and pdf_context.structured_results:
+            pdf_text = self._build_llm_context(pdf_context.structured_results)
+            context_parts.append(f"## PDF Documentation\n{pdf_text}")
+        if web_results:
+            context_parts.append(f"## Web Documentation\n{web_results}")
+        combined = "\n\n".join(context_parts) or "No relevant documents found."
+
+        # Phase 3: Claude API 스트리밍
+        full_response = ""
+        async for token in self._stream_claude_response(
+            request.message, combined, language, history=request.history,
+        ):
+            full_response += token
+            yield {"type": "llm_token", "token": token}
+
+        # Phase 4: 소스 정보
+        if pdf_context and pdf_context.structured_results:
+            yield self._build_sources_event(pdf_context.structured_results)
+
+        yield {
+            "type": "done",
+            "processing_time_ms": int((time.time() - start) * 1000),
+            "product": primary_product,
+            "products": product_ids,
+            "agent_mode": "special",
+            "search_method": "special_agent",
+        }
+
+    async def _search_summaries(self, query: str, product_ids: List[str]) -> str:
+        """요약본(commands, error-codes, glossary 등) BM25 검색"""
+        from .summary_bm25_service import get_summary_bm25_service
+        from .summary_search_service import get_summary_search_service
+
+        results: List[str] = []
+        try:
+            # BM25 검색
+            bm25 = get_summary_bm25_service()
+            bm25_results = await bm25.search(query, top_k=5)
+            for r in bm25_results:
+                doc = r.document
+                source = doc.source_file if doc else ""
+                content = doc.content[:500] if doc and doc.content else ""
+                results.append(f"[{source}] {content}")
+
+            # 에러/용어 보강
+            summary_svc = get_summary_search_service()
+            enriched = await summary_svc.enrich_query(query)
+            if enriched != query:
+                results.append(f"[Enriched] {enriched[len(query):]}")
+        except Exception as e:
+            logger.warning(f"Summary search error: {e}")
+
+        return "\n\n".join(results) if results else ""
+
+    async def _search_web_docs(self, query: str, product_ids: List[str]) -> str:
+        """docs.tmaxsoft.com 웹 문서 검색"""
+        from .web_doc_search_service import get_web_doc_search_service
+
+        try:
+            web_svc = get_web_doc_search_service()
+            results = web_svc.search(query, product_ids=product_ids, top_k=3)
+            parts: List[str] = []
+            for r in results:
+                parts.append(f"[{r.title}] ({r.url})\n{r.snippet[:300]}")
+            return "\n\n".join(parts) if parts else ""
+        except Exception as e:
+            logger.warning(f"Web doc search error: {e}")
+            return ""
+
+    async def _stream_claude_response(
+        self,
+        query: str,
+        context: str,
+        language: str,
+        history: Optional[List] = None,
+    ) -> AsyncGenerator[str, None]:
+        """Anthropic Claude API를 사용한 응답 생성 (vLLM 우회)"""
+        import anthropic
+
+        settings = get_api_settings()
+        if not settings.ANTHROPIC_API_KEY:
+            yield "Error: ANTHROPIC_API_KEY not configured."
+            return
+
+        client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+        lang_map = {"ja": "Japanese", "ko": "Korean", "en": "English"}
+        lang_name = lang_map.get(language, "Japanese")
+
+        system_prompt = (
+            f"You are an OpenFrame KMS expert assistant. "
+            f"Answer ONLY based on the provided documentation context. "
+            f"If the context doesn't contain enough information, say so. "
+            f"Respond in {lang_name}."
+        )
+
+        messages: List[Dict[str, str]] = []
+        if history:
+            for h in history[-6:]:
+                role = h.role if hasattr(h, "role") else h.get("role", "user")
+                content = h.content if hasattr(h, "content") else h.get("content", "")
+                if role in ("user", "assistant"):
+                    messages.append({"role": role, "content": content})
+        messages.append({
+            "role": "user",
+            "content": f"Context:\n{context[:12000]}\n\nQuestion: {query}",
+        })
+
+        try:
+            async with client.messages.stream(
+                model=settings.SPECIAL_AGENT_MODEL,
+                max_tokens=4096,
+                system=system_prompt,
+                messages=messages,
+            ) as stream:
+                async for text in stream.text_stream:
+                    yield text
+        except Exception as e:
+            logger.error(f"Claude API error: {e}")
+            yield f"Error generating response: {e}"
 
 
 # =============================================================================

@@ -857,7 +857,8 @@
     "codeGenerating": "Generating code...",
     "planGenerating": "Creating plan...",
     "planSteps": "steps",
-    "autoDetected": "Auto-detected"
+    "autoDetected": "Auto-detected",
+    "specialAgent": "Special Agent"
   },
   "knowledgeGraph": {
     "title": "Knowledge Graph",

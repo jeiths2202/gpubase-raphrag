@@ -503,6 +503,12 @@ class APISettings(BaseSettings):
         description="Min confidence to select winner in competitive patterns"
     )
 
+    # vLLM Direct Search (QLoRA 직접 응답, PDF RAG 스킵)
+    VLLM_DIRECT_SEARCH_ENABLED: bool = Field(
+        default=False,
+        description="vLLM Direct Search 활성화 (True: QLoRA 직접 응답 우선, False: PDF RAG 우선)"
+    )
+
     # LLM Prompt Router Agent (vLLM-based product routing)
     LLM_PROMPT_ROUTER_ENABLED: bool = Field(
         default=True,
@@ -537,6 +543,20 @@ class APISettings(BaseSettings):
     ENHANCEMENT_TEAMS_QUALITY_GATE_THRESHOLD: float = Field(
         default=0.6,
         description="Min quality gate score for phase transition"
+    )
+
+    # Special Agent (Anthropic Claude API)
+    ANTHROPIC_API_KEY: str = Field(
+        default="",
+        description="Anthropic API Key for Special Agent"
+    )
+    SPECIAL_AGENT_MODEL: str = Field(
+        default="claude-haiku-4-5-20251001",
+        description="Claude model for Special Agent"
+    )
+    SPECIAL_AGENT_ENABLED: bool = Field(
+        default=True,
+        description="Special Agent 기능 활성화"
     )
 
     # Corporate SSO

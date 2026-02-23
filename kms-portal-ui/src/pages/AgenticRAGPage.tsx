@@ -136,6 +136,7 @@ export const AgenticRAGPage: React.FC = () => {
   const [productGroups, setProductGroups] = useState<ProductGroup[]>([]);
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
   const [agentMode, setAgentMode] = useState<AgentMode>('rag');
+  const [specialAgent, setSpecialAgent] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -342,7 +343,7 @@ export const AgenticRAGPage: React.FC = () => {
       products: (!isAutoMode && selectedProducts.length > 0) ? selectedProducts : undefined,
       selected_product: overrideProduct || undefined,
       language: 'ja',
-      agent_mode: agentMode,
+      agent_mode: specialAgent ? 'special' : agentMode,
       history: messages
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .slice(-10)
@@ -1030,6 +1031,16 @@ export const AgenticRAGPage: React.FC = () => {
               <span>Plan</span>
             </button>
           </div>
+          {/* Special Agent Checkbox */}
+          <label className="special-agent-toggle" title={t('common.agenticRag.specialAgent') || 'Special Agent'}>
+            <input
+              type="checkbox"
+              checked={specialAgent}
+              onChange={(e) => setSpecialAgent(e.target.checked)}
+            />
+            <Sparkles size={14} />
+            <span>Special</span>
+          </label>
           <div className="product-selector-wrapper" ref={dropdownRef}>
             <button
               className="product-selector-button"

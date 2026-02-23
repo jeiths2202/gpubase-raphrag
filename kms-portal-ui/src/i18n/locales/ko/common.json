@@ -857,7 +857,8 @@
     "codeGenerating": "코드 생성 중...",
     "planGenerating": "플랜 작성 중...",
     "planSteps": "단계",
-    "autoDetected": "자동 감지"
+    "autoDetected": "자동 감지",
+    "specialAgent": "특수 에이전트"
   },
   "knowledgeGraph": {
     "title": "Knowledge Graph",

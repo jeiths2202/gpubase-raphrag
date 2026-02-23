@@ -857,7 +857,8 @@
     "codeGenerating": "コード生成中...",
     "planGenerating": "プラン作成中...",
     "planSteps": "ステップ",
-    "autoDetected": "自動検出"
+    "autoDetected": "自動検出",
+    "specialAgent": "スペシャルエージェント"
   },
   "knowledgeGraph": {
     "title": "ナレッジグラフ",
