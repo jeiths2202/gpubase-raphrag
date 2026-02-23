@@ -509,7 +509,7 @@ class APISettings(BaseSettings):
         description="LLM 기반 프롬프트 라우터 활성화 (1차 라우터, 실패 시 키워드 fallback)"
     )
     LLM_PROMPT_ROUTER_TIMEOUT: int = Field(
-        default=10,
+        default=180,
         description="LLM 라우터 타임아웃 (초)"
     )
     LLM_PROMPT_ROUTER_MIN_CONFIDENCE: float = Field(
