@@ -116,7 +116,7 @@ async def classify_query(
     """쿼리 분류 (다단계 확인)"""
     try:
         service = get_agentic_rag_service()
-        result = service.query_router.classify(request.query, request.language)
+        result = await service.query_router.classify(request.query, request.language)
         return result
     except Exception as e:
         logger.exception(f"Classification error: {e}")

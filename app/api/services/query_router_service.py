@@ -4,10 +4,14 @@ Query Router Service
 다단계 확인 질문 라우터.
 기존 ProductRouterService를 래핑하여 다단계 확인 로직(확정/되묻기/매칭없음)을 추가합니다.
 ManualRegistryService에서 동적 제품 목록을 사용합니다.
+
+LLM Prompt Router (2026-02-23):
+- 1차: vLLM(openframe_common) 기반 LLM 라우터 (의미 기반 제품 판별)
+- 2차: 키워드 라우터 (기존 ProductRouterService) — LLM 실패/타임아웃 시 fallback
 """
 import logging
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 from ..models.agentic_rag import (
     RouterResult,
@@ -18,6 +22,9 @@ from .product_router_service import (
     get_product_router_service,
     ProductRouterService,
 )
+
+if TYPE_CHECKING:
+    from .llm_prompt_router_service import LLMPromptRouterService
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +46,10 @@ class QueryRouter:
     def __init__(
         self,
         product_router: Optional[ProductRouterService] = None,
+        llm_router: Optional["LLMPromptRouterService"] = None,
     ):
         self.product_router = product_router or get_product_router_service()
+        self.llm_router = llm_router
         self._display_names: Optional[Dict[str, Dict[str, str]]] = None
 
     def _get_display_names(self) -> Dict[str, Dict[str, str]]:
@@ -174,13 +183,52 @@ class QueryRouter:
     )
     _FOLLOWUP_MAX_CHARS = 50
 
-    def classify(
+    async def classify(
         self,
         query: str,
         language: str = "ja",
         history: Optional[List] = None,
     ) -> RouterResult:
-        """다단계 확인 분류 (history fallback 포함)"""
+        """
+        다단계 확인 분류 (LLM 우선 + 키워드 fallback)
+
+        1차: LLM Prompt Router (vLLM 기반, 의미론적 제품 판별)
+        2차: 키워드 라우터 (기존 ProductRouterService, LLM 실패 시 fallback)
+        """
+        # ===== 1차: LLM Prompt Router (우선) =====
+        if self.llm_router and self.llm_router.enabled:
+            try:
+                from ..core.config import get_api_settings
+                min_conf = get_api_settings().LLM_PROMPT_ROUTER_MIN_CONFIDENCE
+
+                llm_result = await self.llm_router.route(
+                    query, language, history,
+                )
+                if llm_result and llm_result.confidence >= min_conf:
+                    logger.info(
+                        f"LLM router accepted: {llm_result.product} "
+                        f"(conf={llm_result.confidence:.2f})"
+                    )
+                    return llm_result
+                elif llm_result:
+                    logger.info(
+                        f"LLM router low confidence: {llm_result.product} "
+                        f"(conf={llm_result.confidence:.2f} < {min_conf}), "
+                        f"falling back to keyword"
+                    )
+            except Exception as e:
+                logger.warning(f"LLM router failed, falling back to keyword: {e}")
+
+        # ===== 2차: 키워드 라우터 (fallback) =====
+        return self._classify_keyword(query, language, history)
+
+    def _classify_keyword(
+        self,
+        query: str,
+        language: str = "ja",
+        history: Optional[List] = None,
+    ) -> RouterResult:
+        """키워드 기반 다단계 확인 분류 (기존 로직)"""
         # 1단계: 기존 ProductRouterService로 점수 계산
         classification = self.product_router.classify(query)
         all_scores = classification.all_scores
@@ -328,17 +376,33 @@ _query_router_instance: Optional[QueryRouter] = None
 
 
 def get_query_router() -> QueryRouter:
-    """Get singleton QueryRouter instance"""
+    """Get singleton QueryRouter instance (LLM router 자동 주입)"""
     global _query_router_instance
     if _query_router_instance is None:
-        _query_router_instance = QueryRouter()
+        llm_router = None
+        try:
+            from .llm_prompt_router_service import get_llm_prompt_router_service
+            llm_router = get_llm_prompt_router_service()
+        except Exception:
+            pass
+        _query_router_instance = QueryRouter(llm_router=llm_router)
     return _query_router_instance
 
 
 def initialize_query_router(
     product_router: Optional[ProductRouterService] = None,
+    llm_router: Optional["LLMPromptRouterService"] = None,
 ) -> QueryRouter:
     """Initialize QueryRouter with explicit dependencies"""
     global _query_router_instance
-    _query_router_instance = QueryRouter(product_router=product_router)
+    if llm_router is None:
+        try:
+            from .llm_prompt_router_service import get_llm_prompt_router_service
+            llm_router = get_llm_prompt_router_service()
+        except Exception:
+            pass
+    _query_router_instance = QueryRouter(
+        product_router=product_router,
+        llm_router=llm_router,
+    )
     return _query_router_instance

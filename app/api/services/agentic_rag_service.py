@@ -383,7 +383,7 @@ class AgenticRAGService:
             confidence=1.0,
         )
 
-    def _resolve_search_products(
+    async def _resolve_search_products(
         self,
         request: AgenticRAGRequest,
     ) -> tuple:
@@ -404,8 +404,8 @@ class AgenticRAGService:
                 confidence=1.0,
             )
 
-        # Case 4: Auto 모드 → QueryRouter
-        router_result = self.query_router.classify(
+        # Case 4: Auto 모드 → QueryRouter (async: LLM 우선 + 키워드 fallback)
+        router_result = await self.query_router.classify(
             request.message, request.language or "ja",
             history=request.history,
         )
@@ -659,7 +659,7 @@ class AgenticRAGService:
         start = time.time()
 
         # 1. 통합 제품 해석
-        product_ids, router_result = self._resolve_search_products(request)
+        product_ids, router_result = await self._resolve_search_products(request)
 
         # Long-term Memory에 제품 라우팅 결과 저장
         if product_ids and self.product_memory and self.product_memory.available:
@@ -813,7 +813,7 @@ class AgenticRAGService:
             logger.warning(f"Pattern analysis failed, falling back to SINGLE: {e}")
 
         # 1. 통합 제품 해석
-        product_ids, router_result = self._resolve_search_products(request)
+        product_ids, router_result = await self._resolve_search_products(request)
 
         primary_product = product_ids[0] if product_ids else "auto"
 
@@ -1162,7 +1162,7 @@ class AgenticRAGService:
                 search_query = request.message
 
                 # subject 기반으로 제품 라우팅
-                sub_result = self.query_router.classify(
+                sub_result = await self.query_router.classify(
                     subject, language, history=request.history,
                 )
                 pids = []
@@ -1349,7 +1349,7 @@ class AgenticRAGService:
                 enriched_query = f"{task_text}\n\n[前の結果]\n{prev_context}"
 
             # 제품 라우팅
-            sub_result = self.query_router.classify(
+            sub_result = await self.query_router.classify(
                 task_text, language, history=request.history,
             )
             pids = []
@@ -1575,15 +1575,29 @@ class AgenticRAGService:
             }
 
             full_response = ""
+            repetition_detected = False
             async for token in llm_service.generate_stream(
                 question=request.message,
                 context=direct_context,
                 max_tokens=2048,
                 temperature=0.3,
                 product=adapter_product,
+                repetition_penalty=1.15,
             ):
                 full_response += token
                 yield {"type": "llm_token", "token": token}
+
+                # 스트리밍 중 반복 감지: 200자 이상 생성 후 체크
+                if len(full_response) > 200:
+                    tail = full_response[-150:]
+                    head = full_response[:-150]
+                    if tail in head:
+                        logger.warning(
+                            f"vLLM direct search: repetition detected at {len(full_response)} chars, stopping"
+                        )
+                        repetition_detected = True
+                        full_response = full_response[:-150]
+                        break
 
             # 응답 품질 검증: 충분한 내용이 있는지 확인
             stripped = full_response.strip()

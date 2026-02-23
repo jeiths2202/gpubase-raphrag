@@ -503,6 +503,20 @@ class APISettings(BaseSettings):
         description="Min confidence to select winner in competitive patterns"
     )
 
+    # LLM Prompt Router Agent (vLLM-based product routing)
+    LLM_PROMPT_ROUTER_ENABLED: bool = Field(
+        default=True,
+        description="LLM 기반 프롬프트 라우터 활성화 (1차 라우터, 실패 시 키워드 fallback)"
+    )
+    LLM_PROMPT_ROUTER_TIMEOUT: int = Field(
+        default=10,
+        description="LLM 라우터 타임아웃 (초)"
+    )
+    LLM_PROMPT_ROUTER_MIN_CONFIDENCE: float = Field(
+        default=0.5,
+        description="LLM 라우터 결과 채택 최소 confidence"
+    )
+
     # Enhancement Teams (vLLM-based, no Claude API)
     ENHANCEMENT_TEAMS_PARALLEL_ANALYSIS: bool = Field(
         default=False,

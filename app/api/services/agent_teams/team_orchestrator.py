@@ -118,7 +118,7 @@ class TeamOrchestrator:
         rag = self._get_rag()
 
         # 1. 제품 라우팅 (기존 로직 재사용)
-        product_ids, router_result = rag._resolve_search_products(request)
+        product_ids, router_result = await rag._resolve_search_products(request)
         primary_product = product_ids[0] if product_ids else "auto"
 
         # Long-term Memory 저장
