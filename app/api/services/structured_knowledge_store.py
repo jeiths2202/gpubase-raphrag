@@ -999,6 +999,7 @@ class StructuredKnowledgeStore:
         query: str,
         domains: Optional[List[str]] = None,
         top_k: int = 3,
+        skip_semantic_reranking: bool = False,
     ) -> List[SearchResult]:
         """
         Progressive Token + IDF 기반 구조화 검색 (LLM 없음)
@@ -1007,6 +1008,7 @@ class StructuredKnowledgeStore:
             query: 검색 쿼리
             domains: 검색할 도메인 (None이면 전체)
             top_k: 반환할 최대 결과 수
+            skip_semantic_reranking: True면 vLLM 시맨틱 리랭킹 스킵 (Special Agent용)
 
         Returns:
             검색 결과 리스트 (relevance_score 내림차순)
@@ -1022,8 +1024,12 @@ class StructuredKnowledgeStore:
 
         idf_weights = self._calc_document_frequencies(tokens, search_domains)
 
-        # 에러코드 패턴 추출
+        # 에러코드 패턴 추출 (숫자 패턴 + 에러 키워드)
         error_codes = re.findall(r'-?\d{4,5}', query)
+        _error_keywords = re.search(
+            r'에러|오류|エラー|error|대처|対処|troubleshoot',
+            query, re.IGNORECASE,
+        )
 
         # 전체 후보 섹션 수집 + 점진적 스코어링
         # {(domain, idx): {"score": float, "matched_tokens": set}}
@@ -1088,7 +1094,7 @@ class StructuredKnowledgeStore:
 
         # 도메인 우선순위 보정: 권위 있는 소스를 learning_qa보다 우선 배치.
         # error_codes는 에러코드 패턴(-XXXX)이 있을 때만 부스트 (일반 질문에서 에러코드 오염 방지)
-        _has_error_pattern = bool(error_codes)
+        _has_error_pattern = bool(error_codes) or bool(_error_keywords)
         _DOMAIN_BOOST = {
             "pdf_manuals": 1.5,  # PDF 원본 최우선 (정확한 원본 데이터)
             "commands": 1.3,
@@ -1142,7 +1148,8 @@ class StructuredKnowledgeStore:
                 break
 
         # Phase 2: vLLM 시맨틱 유사도 리랭킹 (키워드 결과에 시맨틱 점수 병합)
-        results = await self._apply_semantic_reranking(query, results)
+        if not skip_semantic_reranking:
+            results = await self._apply_semantic_reranking(query, results)
 
         # 최종 top_k 제한
         return results[:top_k]

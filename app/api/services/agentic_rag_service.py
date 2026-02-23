@@ -631,6 +631,89 @@ class AgenticRAGService:
         )
         return merged
 
+    async def _special_multi_product_search(
+        self,
+        query: str,
+        product_ids: List[str],
+        query_type: Optional[QueryType],
+        max_total: int = 10,
+    ) -> ProductSearchContext:
+        """
+        Special Agent 전용 고속 검색.
+        - vLLM 시맨틱 리랭킹 스킵 (키워드 BM25만 사용)
+        - 높은 동시성 (sem=8)
+        - 제품당 15초 타임아웃
+        """
+        top_k_per_product = 3
+
+        agents = []
+        for pid in product_ids:
+            agent = get_product_agent(pid)
+            if agent:
+                agents.append((pid, agent))
+
+        if not agents:
+            return ProductSearchContext(product=product_ids[0] if product_ids else "auto")
+
+        sem = asyncio.Semaphore(8)
+
+        async def _search_one(pid: str, agent: BaseProductAgent) -> List[SearchResult]:
+            async with sem:
+                try:
+                    # 키워드 전용 검색 (시맨틱 리랭킹 스킵)
+                    store = agent.knowledge_store
+                    store._ensure_loaded()
+
+                    results = await asyncio.wait_for(
+                        store.search(
+                            query=query,
+                            domains=agent._get_domains_for_query_type(query_type),
+                            top_k=top_k_per_product,
+                            skip_semantic_reranking=True,
+                        ),
+                        timeout=15.0,
+                    )
+                    for r in results:
+                        r.product = pid
+                    return results
+                except asyncio.TimeoutError:
+                    logger.warning(f"Special Agent: {pid} search timed out (15s)")
+                    return []
+                except Exception as e:
+                    logger.warning(f"Special Agent: {pid} search error: {e}")
+                    return []
+
+        tasks = [_search_one(pid, agent) for pid, agent in agents]
+        results_lists = await asyncio.gather(*tasks, return_exceptions=True)
+
+        all_results: List[SearchResult] = []
+        for result in results_lists:
+            if isinstance(result, list):
+                all_results.extend(result)
+
+        all_results.sort(key=lambda r: r.relevance_score, reverse=True)
+
+        # fingerprint dedup
+        deduped: List[SearchResult] = []
+        seen_fp: set = set()
+        for r in all_results:
+            raw_fp = r.content[:120].strip().lower()
+            fp = re.sub(r"[^a-z0-9\u3040-\u9fff\uac00-\ud7af]", "", raw_fp)
+            if fp in seen_fp:
+                continue
+            seen_fp.add(fp)
+            deduped.append(r)
+            if len(deduped) >= max_total:
+                break
+
+        merged = ProductSearchContext(product=product_ids[0] if product_ids else "auto")
+        merged.structured_results = deduped
+        logger.info(
+            f"Special multi-product search: {len(agents)} products → "
+            f"{len(all_results)} total, {len(deduped)} after dedup"
+        )
+        return merged
+
     async def health_check(self) -> AgenticRAGHealth:
         """서비스 상태 확인"""
         agents = get_all_product_agents()
@@ -2453,6 +2536,72 @@ class AgenticRAGService:
     # Special Agent Branch (Anthropic Claude API)
     # =========================================================================
 
+    def _prefilter_relevant_products(
+        self,
+        query: str,
+        product_ids: List[str],
+        router_product_ids: List[str],
+        max_products: int = 5,
+    ) -> List[str]:
+        """
+        쿼리 키워드 기반 경량 제품 프리필터.
+        전체 제품(19개)에서 관련성 높은 상위 N개만 선별.
+        ManualVersion.keywords + PDF 파일명으로 빠른 매칭 (<1ms).
+        """
+        from .manual_registry_service import get_manual_registry_service
+
+        query_lower = query.lower()
+        # 쿼리에서 의미 있는 토큰 추출 (2자 이상 영숫자 + CJK)
+        tokens = set(re.findall(r'[a-z0-9]{2,}|[\u3040-\u9fff\uac00-\ud7af]{2,}', query_lower))
+
+        registry = get_manual_registry_service()
+        all_products = registry.get_all_products()
+
+        scored: List[tuple] = []  # (score, product_id)
+        for pid in product_ids:
+            product = all_products.get(pid)
+            if not product:
+                continue
+
+            score = 0.0
+            # 라우터가 선택한 제품은 보너스
+            if pid in router_product_ids:
+                score += 5.0
+
+            # 키워드 매칭
+            for kw in product.keywords:
+                kw_lower = kw.lower()
+                if kw_lower in query_lower:
+                    score += 3.0
+                elif any(t in kw_lower for t in tokens):
+                    score += 1.0
+
+            # PDF 파일명 매칭
+            for pdf_name in product.pdf_files:
+                pdf_lower = pdf_name.lower()
+                for t in tokens:
+                    if len(t) >= 3 and t in pdf_lower:
+                        score += 0.5
+                        break
+
+            if score > 0:
+                scored.append((score, pid))
+
+        # 점수순 정렬 → 상위 N개
+        scored.sort(key=lambda x: x[0], reverse=True)
+        selected = [pid for _, pid in scored[:max_products]]
+
+        # 라우터 제품이 빠졌으면 항상 포함
+        for rpid in router_product_ids:
+            if rpid not in selected:
+                selected.append(rpid)
+
+        logger.info(
+            f"Special Agent prefilter: {len(product_ids)} products → "
+            f"{len(selected)} selected: {selected}"
+        )
+        return selected
+
     async def _stream_special_agent(
         self,
         request: AgenticRAGRequest,
@@ -2463,19 +2612,21 @@ class AgenticRAGService:
         """
         Special Agent: 요약본 + PDF + Web Doc 검색 → Claude API 응답 생성.
         vLLM 완전 우회. Anthropic Claude API 사용.
-        전체 제품을 대상으로 검색 (라우터 결과에 제한되지 않음).
+        전체 제품에서 관련 제품을 프리필터 후 검색 (최적화).
         """
         primary_product = product_ids[0] if product_ids else "auto"
         language = request.language or "ja"
 
-        # Special Agent는 전체 제품을 대상으로 검색
+        # Phase 0: 전체 제품에서 관련성 높은 상위 5개 프리필터 (<1ms)
         try:
             from .manual_registry_service import get_manual_registry_service
             registry = get_manual_registry_service()
             all_product_ids = list(registry.get_all_products().keys())
+            search_product_ids = self._prefilter_relevant_products(
+                request.message, all_product_ids, product_ids, max_products=5,
+            )
         except Exception:
-            all_product_ids = product_ids
-        search_product_ids = all_product_ids if all_product_ids else product_ids
+            search_product_ids = product_ids
 
         yield {
             "type": "search_progress",
@@ -2484,9 +2635,9 @@ class AgenticRAGService:
             "progress": 0.2,
         }
 
-        # Phase 1: 3개 소스 병렬 검색 (전체 제품 대상)
+        # Phase 1: 3개 소스 병렬 검색 (프리필터된 제품 대상)
         summary_task = self._search_summaries(request.message, search_product_ids)
-        pdf_task = self._multi_product_search(
+        pdf_task = self._special_multi_product_search(
             request.message, search_product_ids, QueryType.FREEFORM,
         )
         web_task = self._search_web_docs(request.message, search_product_ids)
