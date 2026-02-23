@@ -2463,9 +2463,19 @@ class AgenticRAGService:
         """
         Special Agent: 요약본 + PDF + Web Doc 검색 → Claude API 응답 생성.
         vLLM 완전 우회. Anthropic Claude API 사용.
+        전체 제품을 대상으로 검색 (라우터 결과에 제한되지 않음).
         """
         primary_product = product_ids[0] if product_ids else "auto"
         language = request.language or "ja"
+
+        # Special Agent는 전체 제품을 대상으로 검색
+        try:
+            from .manual_registry_service import get_manual_registry_service
+            registry = get_manual_registry_service()
+            all_product_ids = list(registry.get_all_products().keys())
+        except Exception:
+            all_product_ids = product_ids
+        search_product_ids = all_product_ids if all_product_ids else product_ids
 
         yield {
             "type": "search_progress",
@@ -2474,12 +2484,12 @@ class AgenticRAGService:
             "progress": 0.2,
         }
 
-        # Phase 1: 3개 소스 병렬 검색
-        summary_task = self._search_summaries(request.message, product_ids)
+        # Phase 1: 3개 소스 병렬 검색 (전체 제품 대상)
+        summary_task = self._search_summaries(request.message, search_product_ids)
         pdf_task = self._multi_product_search(
-            request.message, product_ids, QueryType.FREEFORM,
+            request.message, search_product_ids, QueryType.FREEFORM,
         )
-        web_task = self._search_web_docs(request.message, product_ids)
+        web_task = self._search_web_docs(request.message, search_product_ids)
 
         summary_results, pdf_context, web_results = await asyncio.gather(
             summary_task, pdf_task, web_task,
@@ -2587,8 +2597,14 @@ class AgenticRAGService:
 
         system_prompt = (
             f"You are an OpenFrame KMS expert assistant. "
-            f"Answer ONLY based on the provided documentation context. "
-            f"If the context doesn't contain enough information, say so. "
+            f"You have access to documentation from ALL OpenFrame products "
+            f"(MVS, MSP, VOS3, OSC, OSI, HiDB, TACF, Batch, Base, etc.). "
+            f"Answer based on the provided documentation context. "
+            f"When comparing features across products or components, "
+            f"synthesize information from multiple sources in the context. "
+            f"If the context contains partial information, provide what is available "
+            f"and clearly indicate what additional information would be helpful. "
+            f"Use markdown formatting with headers, tables, and bullet points. "
             f"Respond in {lang_name}."
         )
 
