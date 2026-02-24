@@ -99,6 +99,52 @@ _RETURN_TYPE_RE = re.compile(
     r"(?:戻り値|return|반환)\s*[:：]?\s*(.+?)(?:\n|$)", re.IGNORECASE
 )
 
+# ── Extraction Filters ──────────────────────────────────────────
+
+# Words that should never be extracted as API function names
+_SKIP_API_NAMES: set = {
+    # C keywords and types
+    "if", "else", "for", "while", "do", "switch", "case", "break", "continue",
+    "return", "sizeof", "typeof", "void", "int", "char", "float", "double",
+    "long", "short", "unsigned", "struct", "enum", "union", "class", "typedef",
+    "static", "extern", "const", "register", "volatile",
+    # C standard library
+    "main", "printf", "fprintf", "sprintf", "snprintf", "scanf", "sscanf",
+    "malloc", "calloc", "realloc", "free", "memcpy", "memset", "memmove",
+    "strlen", "strcmp", "strncmp", "strcpy", "strncpy", "strcat", "strncat",
+    "strstr", "strchr", "strrchr", "strtok",
+    "fopen", "fclose", "fread", "fwrite", "fgets", "fputs", "fseek", "ftell",
+    "exit", "abort", "atexit", "atoi", "atol", "atof", "strtol", "strtod",
+    # Common non-API identifiers
+    "true", "false", "null", "NULL", "none", "None",
+    "result", "data", "value", "count", "size", "name", "type", "status",
+    "error", "code", "message", "index", "key", "buf", "len", "ret", "rc",
+    "get", "set", "put", "add", "remove", "delete", "new", "init", "close",
+    "open", "read", "write", "send", "recv",
+}
+
+# Detects lines that are C/programming code (not documentation)
+_CODE_LINE_INDICATOR_RE = re.compile(
+    r"[{};]\s*$|"
+    r"^\s*#\s*(?:include|define|ifdef|ifndef|endif|pragma)|"
+    r"^\s*(?:int|void|char|float|double|unsigned|struct|enum|class|return|static|extern)\s|"
+    r"\*\s*\w+\s*=|&\w+\b|->|<<|>>"
+)
+
+# Value-side patterns indicating code, not config values
+_CODE_VALUE_INDICATOR_RE = re.compile(
+    r"(?:malloc|calloc|sizeof|new\s+\w|NULL|nullptr|"
+    r"\.\w+\(|;\s*$|\)\s*\{|->|<<|>>)"
+)
+
+# Detects error-code-like arguments in function call patterns (e.g., "-57019")
+_ERROR_CODE_ARGS_RE = re.compile(r"^\s*-?\d{3,6}\s*$")
+
+# CJK character ranges — names containing these are descriptions, not identifiers
+_CJK_RE = re.compile(
+    r"[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff\uac00-\ud7af]"
+)
+
 
 class KnowledgeExtractor:
     """Extract structured knowledge from manual sections."""
@@ -240,10 +286,14 @@ class KnowledgeExtractor:
                 ctx_end = min(len(content), m.end() + 400)
                 context = content[ctx_start:ctx_end]
 
+                description = self._extract_nearby_description(
+                    content, m.start(), section.section_title
+                )
+
                 items.append(
                     CommandItem(
                         name=name,
-                        description=section.section_title,
+                        description=description,
                         product=section.product,
                         source_file=section.source_file,
                         source_page=(
@@ -331,6 +381,25 @@ class KnowledgeExtractor:
                 # Skip common false positives
                 if name.lower() in ("true", "false", "null", "none", "yes", "no"):
                     continue
+
+                # Skip names containing CJK characters (descriptions, not identifiers)
+                if _CJK_RE.search(name):
+                    continue
+
+                # Skip if the matched line looks like C/programming code
+                line_start = content.rfind("\n", 0, m.start()) + 1
+                line_end = content.find("\n", m.end())
+                if line_end == -1:
+                    line_end = len(content)
+                matched_line = content[line_start:line_end]
+                if _CODE_LINE_INDICATOR_RE.search(matched_line):
+                    continue
+
+                # Skip if the value part looks like code
+                value_part = m.group(2).strip() if m.lastindex >= 2 else ""
+                if value_part and _CODE_VALUE_INDICATOR_RE.search(value_part):
+                    continue
+
                 found_names.add(name)
 
                 default_val = ""
@@ -351,10 +420,14 @@ class KnowledgeExtractor:
                         config_file = section.section_title
                         break
 
+                description = self._extract_nearby_description(
+                    content, m.start(), section.section_title
+                )
+
                 items.append(
                     ConfigItem(
                         name=name,
-                        description=section.section_title,
+                        description=description,
                         product=section.product,
                         source_file=section.source_file,
                         source_page=(
@@ -382,6 +455,29 @@ class KnowledgeExtractor:
                 name = m.group(1).strip()
                 if len(name) < 2 or len(name) > 80 or name in found_names:
                     continue
+
+                # Skip C/programming keywords and common function names
+                if name.lower() in _SKIP_API_NAMES:
+                    continue
+
+                # Skip names containing CJK characters (descriptions, not identifiers)
+                if _CJK_RE.search(name):
+                    continue
+
+                # Skip if the "arguments" are an error code (e.g., "-57019")
+                args_str = m.group(2).strip() if m.lastindex >= 2 else ""
+                if args_str and _ERROR_CODE_ARGS_RE.match(args_str):
+                    continue
+
+                # Skip if the matched line looks like C/programming code
+                line_start = content.rfind("\n", 0, m.start()) + 1
+                line_end = content.find("\n", m.end())
+                if line_end == -1:
+                    line_end = len(content)
+                matched_line = content[line_start:line_end]
+                if _CODE_LINE_INDICATOR_RE.search(matched_line):
+                    continue
+
                 found_names.add(name)
 
                 signature = m.group(0).strip()[:200]
@@ -406,10 +502,14 @@ class KnowledgeExtractor:
 
                 examples = self._extract_examples(nearby)
 
+                description = self._extract_nearby_description(
+                    content, m.start(), section.section_title
+                )
+
                 items.append(
                     APIItem(
                         name=name,
-                        description=section.section_title,
+                        description=description,
                         product=section.product,
                         source_file=section.source_file,
                         source_page=(
@@ -500,6 +600,18 @@ class KnowledgeExtractor:
     ) -> List[MigrationItem]:
         items: List[MigrationItem] = []
         content = section.content
+        title_lower = (section.section_title or "").lower()
+
+        # Require migration keywords in the SECTION TITLE, not just content body.
+        # This prevents error-code sections that incidentally mention "移行" from
+        # being misclassified as migration content.
+        has_migration_title = bool(re.search(
+            r"(?:移行|migration|마이그레이션|変換|convert|変換)",
+            title_lower,
+            re.IGNORECASE,
+        ))
+        if not has_migration_title:
+            return items
 
         for pattern in _MIGRATION_PATTERNS:
             if pattern.search(content):
@@ -546,6 +658,31 @@ class KnowledgeExtractor:
         return items
 
     # ── Helpers ───────────────────────────────────────────────────
+
+    @staticmethod
+    def _extract_nearby_description(
+        content: str, match_pos: int, fallback: str = ""
+    ) -> str:
+        """Extract a meaningful description from text near a regex match.
+
+        Looks at lines following the matched pattern for descriptive text,
+        rather than using the section title as a generic placeholder.
+        """
+        nearby = content[match_pos:match_pos + 500]
+        lines = nearby.split("\n")
+
+        # Try lines after the match line for a descriptive sentence
+        for line in lines[1:5]:
+            stripped = line.strip()
+            if (
+                len(stripped) > 20
+                and not stripped.startswith(("-", "●", "・", "*", "#", "```", "//"))
+                and not re.match(r"^\s*\d+[.．)）]", stripped)
+                and not re.match(r"^\s*[-=]+\s*$", stripped)
+            ):
+                return stripped[:300]
+
+        return fallback
 
     @staticmethod
     def _extract_parameters(text: str) -> List[Dict[str, str]]:

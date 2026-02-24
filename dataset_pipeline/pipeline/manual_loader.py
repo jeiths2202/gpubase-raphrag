@@ -138,11 +138,11 @@ _TAG_PATTERNS: Dict[ItemType, List[re.Pattern]] = {
     ItemType.CONFIG: [
         re.compile(r"(?:設定|config|configuration|설정)", re.IGNORECASE),
         re.compile(r"(?:パラメータ|parameter|파라미터)", re.IGNORECASE),
-        re.compile(r"\w+\s*=\s*\w+"),
+        # Removed: bare `word=value` pattern — too many false positives from code
     ],
     ItemType.API: [
         re.compile(r"(?:API|関数|function|함수)", re.IGNORECASE),
-        re.compile(r"\w+\s*\([^)]*\)"),
+        # Removed: bare `func()` pattern — too many false positives from code examples
     ],
     ItemType.CONCEPT: [
         re.compile(r"(?:概要|overview|개요)", re.IGNORECASE),

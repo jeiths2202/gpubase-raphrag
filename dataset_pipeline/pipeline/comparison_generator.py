@@ -405,20 +405,37 @@ class ComparisonGenerator:
         rel_type: str,
         lang: Language,
     ) -> str:
-        """Describe integration/migration relationship."""
+        """Describe integration/migration relationship.
+
+        Returns empty string when no real data exists, causing the record
+        to be filtered by qa_min_answer_length check. This prevents
+        generating placeholder answers that don't match any source PDF.
+        """
         if rel_type == "integration":
-            return (
+            # Only generate if both products have real documented knowledge
+            if not (ka.features or ka.commands) or not (kb.features or kb.commands):
+                return ""
+            parts = [
                 f"{ka.display_name} and {kb.display_name} can be integrated "
-                f"within the TmaxSoft product ecosystem. "
-                f"{ka.display_name} provides {ka.total_items} documented items, "
-                f"while {kb.display_name} provides {kb.total_items} documented items."
-            )
+                f"within the TmaxSoft product ecosystem."
+            ]
+            if ka.commands:
+                parts.append(
+                    f"{ka.display_name} management commands: "
+                    f"{', '.join(c.name for c in ka.commands[:5])}"
+                )
+            if kb.commands:
+                parts.append(
+                    f"{kb.display_name} management commands: "
+                    f"{', '.join(c.name for c in kb.commands[:5])}"
+                )
+            return "\n".join(parts)
+
         # migration
         migrations_a = [m for m in ka.migrations if kb.product in m.target_platform.lower()]
         if migrations_a:
             m = migrations_a[0]
             return f"Migration from {ka.display_name} to {kb.display_name}:\n{m.description[:300]}"
-        return (
-            f"Migration between {ka.display_name} and {kb.display_name} "
-            f"should be planned based on official documentation."
-        )
+
+        # No specific migration data — return empty to skip this record
+        return ""
