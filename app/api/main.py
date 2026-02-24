@@ -535,6 +535,28 @@ async def lifespan(app: FastAPI):
             category=LogCategory.BUSINESS
         )
 
+    # ==================== Redis Cache Initialization ====================
+    # Initialize Redis cache for Special Agent search pipeline caching
+    from .services.special_agent_cache import get_special_agent_cache
+    sa_cache = get_special_agent_cache()
+    if api_settings.REDIS_CACHE_ENABLED:
+        try:
+            await sa_cache.initialize()
+            logger.info(
+                "[OK] Special Agent Redis cache initialized",
+                category=LogCategory.BUSINESS
+            )
+        except Exception as redis_e:
+            logger.warning(
+                f"Special Agent Redis cache initialization failed (non-fatal): {redis_e}",
+                category=LogCategory.BUSINESS
+            )
+    else:
+        logger.info(
+            "Special Agent Redis cache disabled via REDIS_CACHE_ENABLED=false",
+            category=LogCategory.BUSINESS
+        )
+
     # ==================== Memory Store Service Initialization ====================
     from .services.memory_store_service import initialize_memory_store
     try:
@@ -653,6 +675,13 @@ async def lifespan(app: FastAPI):
             logger.info("Background task queue stopped", category=LogCategory.BUSINESS)
         except Exception as e:
             logger.warning(f"Error stopping task queue: {e}", category=LogCategory.BUSINESS)
+
+    # Close Redis cache
+    try:
+        await sa_cache.close()
+        logger.info("Special Agent Redis cache closed", category=LogCategory.BUSINESS)
+    except Exception as e:
+        logger.warning(f"Error closing Redis cache: {e}", category=LogCategory.BUSINESS)
 
     # Close database pool
     if db_pool is not None:

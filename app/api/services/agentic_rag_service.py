@@ -2617,13 +2617,13 @@ class AgenticRAGService:
         primary_product = product_ids[0] if product_ids else "auto"
         language = request.language or "ja"
 
-        # Phase 0: 전체 제품에서 관련성 높은 상위 5개 프리필터 (<1ms)
+        # Phase 0: 전체 제품에서 관련성 높은 상위 2개 프리필터 (<1ms)
         try:
             from .manual_registry_service import get_manual_registry_service
             registry = get_manual_registry_service()
             all_product_ids = list(registry.get_all_products().keys())
             search_product_ids = self._prefilter_relevant_products(
-                request.message, all_product_ids, product_ids, max_products=5,
+                request.message, all_product_ids, product_ids, max_products=2,
             )
         except Exception:
             search_product_ids = product_ids
@@ -2635,42 +2635,87 @@ class AgenticRAGService:
             "progress": 0.2,
         }
 
-        # Phase 1: 3개 소스 병렬 검색 (프리필터된 제품 대상)
-        summary_task = self._search_summaries(request.message, search_product_ids)
-        pdf_task = self._special_multi_product_search(
-            request.message, search_product_ids, QueryType.FREEFORM,
-        )
-        web_task = self._search_web_docs(request.message, search_product_ids)
+        # Phase 1: 3개 소스 병렬 검색 (프리필터된 제품 대상) + Redis L2 캐시
+        from .special_agent_cache import get_special_agent_cache
+        cache = get_special_agent_cache()
+        pdf_cache_key = cache.make_key("sa:pdf", request.message, search_product_ids)
 
-        summary_results, pdf_context, web_results = await asyncio.gather(
-            summary_task, pdf_task, web_task,
+        t_search_start = time.time()
+
+        async def _timed_search_summaries():
+            t = time.time()
+            result = await self._search_summaries(request.message, search_product_ids)
+            logger.info(f"[SpecialAgent] summary search: {(time.time() - t)*1000:.0f}ms, len={len(result) if result else 0}")
+            return result
+
+        async def _timed_pdf_search():
+            """PDF search with L2 Redis cache (cache final text, not raw objects)."""
+            cached_pdf = await cache.get(pdf_cache_key)
+            if cached_pdf is not None:
+                logger.info(f"[SpecialAgent] PDF CACHE HIT (len={len(cached_pdf)})")
+                return cached_pdf  # str instead of ProductSearchContext
+            t = time.time()
+            result = await self._special_multi_product_search(
+                request.message, search_product_ids, QueryType.FREEFORM,
+            )
+            logger.info(f"[SpecialAgent] PDF search: {(time.time() - t)*1000:.0f}ms, results={len(result.structured_results) if result and result.structured_results else 0}")
+            return result
+
+        async def _timed_web_search():
+            t = time.time()
+            result = await self._search_web_docs(request.message, search_product_ids)
+            logger.info(f"[SpecialAgent] web search: {(time.time() - t)*1000:.0f}ms, len={len(result) if result else 0}")
+            return result
+
+        summary_results, pdf_result, web_results = await asyncio.gather(
+            _timed_search_summaries(), _timed_pdf_search(), _timed_web_search(),
         )
+        t_search_end = time.time()
+        search_ms = int((t_search_end - t_search_start) * 1000)
+        logger.info(f"[SpecialAgent] Phase1 total: {search_ms}ms (products: {search_product_ids})")
 
         yield {
             "type": "search_progress",
             "product": primary_product,
             "step": "special_generating",
             "progress": 0.6,
+            "search_time_ms": search_ms,
         }
 
-        # Phase 2: 컨텍스트 조합
+        # Phase 2: 컨텍스트 조합 (pdf_result can be str from cache or ProductSearchContext)
         context_parts: List[str] = []
+        pdf_context = None  # for sources event
         if summary_results:
             context_parts.append(f"## Summary Knowledge\n{summary_results}")
-        if pdf_context and pdf_context.structured_results:
-            pdf_text = self._build_llm_context(pdf_context.structured_results)
+        if isinstance(pdf_result, str):
+            # Cache hit: already converted to text
+            if pdf_result:
+                context_parts.append(f"## PDF Documentation\n{pdf_result}")
+        elif pdf_result and pdf_result.structured_results:
+            # Cache miss: convert and cache
+            pdf_context = pdf_result
+            pdf_text = self._build_llm_context(pdf_result.structured_results)
             context_parts.append(f"## PDF Documentation\n{pdf_text}")
+            if pdf_text:
+                await cache.set(pdf_cache_key, pdf_text, ttl_seconds=86400)  # 24h
         if web_results:
             context_parts.append(f"## Web Documentation\n{web_results}")
         combined = "\n\n".join(context_parts) or "No relevant documents found."
 
         # Phase 3: Claude API 스트리밍
+        t_llm_start = time.time()
         full_response = ""
+        first_token_time = None
         async for token in self._stream_claude_response(
             request.message, combined, language, history=request.history,
         ):
+            if first_token_time is None:
+                first_token_time = time.time()
+                logger.info(f"[SpecialAgent] LLM TTFT: {(first_token_time - t_llm_start)*1000:.0f}ms")
             full_response += token
             yield {"type": "llm_token", "token": token}
+        t_llm_end = time.time()
+        logger.info(f"[SpecialAgent] LLM total: {(t_llm_end - t_llm_start)*1000:.0f}ms, context_len: {len(combined)}, response_len: {len(full_response)}")
 
         # Phase 4: 소스 정보
         if pdf_context and pdf_context.structured_results:
@@ -2686,33 +2731,125 @@ class AgenticRAGService:
         }
 
     async def _search_summaries(self, query: str, product_ids: List[str]) -> str:
-        """요약본(commands, error-codes, glossary 등) BM25 검색"""
+        """요약본 검색 (최적화: BM25 1회만 + O(1) 직접 조회만).
+
+        핵심: BM25 search()는 41K 문서 순회 (CPU-bound ~2s/call).
+        따라서 BM25 전체 검색은 딱 1회만 호출.
+        키워드별 직접 조회는 인덱스 dict lookup만 사용 (BM25 fallback 없이).
+        """
+        # --- Redis cache check (L1) ---
+        from .special_agent_cache import get_special_agent_cache
+        cache = get_special_agent_cache()
+        cache_key = cache.make_key("sa:sum", query)
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            logger.info(f"[SpecialAgent] summary CACHE HIT (len={len(cached)})")
+            return cached
+
         from .summary_bm25_service import get_summary_bm25_service
         from .summary_search_service import get_summary_search_service
 
         results: List[str] = []
-        try:
-            # BM25 검색
-            bm25 = get_summary_bm25_service()
-            bm25_results = await bm25.search(query, top_k=5)
-            for r in bm25_results:
-                doc = r.document
-                source = doc.source_file if doc else ""
-                content = doc.content[:500] if doc and doc.content else ""
+        seen: set = set()
+
+        def _add(source: str, content: str):
+            key = f"{source}:{content[:80]}"
+            if key not in seen and content.strip():
+                seen.add(key)
                 results.append(f"[{source}] {content}")
 
-            # 에러/용어 보강
+        try:
+            bm25 = get_summary_bm25_service()
             summary_svc = get_summary_search_service()
-            enriched = await summary_svc.enrich_query(query)
-            if enriched != query:
-                results.append(f"[Enriched] {enriched[len(query):]}")
+
+            # --- Phase 1: 키워드 추출 ---
+            keywords = re.findall(r"([A-Z]{2,}[A-Z0-9]*)", query)
+            keywords = list(dict.fromkeys(keywords))[:5]
+
+            # --- Phase 2a: O(1) 직접 인덱스 조회만 (BM25 fallback 없이, <1ms each) ---
+            for kw in keywords:
+                # Glossary (파일 시스템 기반 직접 조회 - BM25 미사용)
+                try:
+                    g = await summary_svc.search_glossary(kw)
+                    if g:
+                        full = g.get("full_name", "")
+                        desc = g.get("description", "")
+                        _add(f"glossary/{kw}", f"{kw} ({full}): {desc[:400]}" if full else f"{kw}: {desc[:400]}")
+                except Exception:
+                    pass
+
+                # Term - dict 직접 조회만 (BM25 fallback 스킵)
+                kw_upper = kw.upper()
+                if hasattr(bm25, '_glossary_index'):
+                    doc = bm25._glossary_index.get(kw_upper) or bm25._glossary_index.get(kw.lower())
+                    if doc and doc.content:
+                        _add(doc.source_file or f"terms/{kw}", doc.content[:600])
+
+                # Command - dict 직접 조회만 (BM25 fallback 스킵)
+                if hasattr(bm25, '_command_index'):
+                    cmd_docs = bm25._command_index.get(kw.lower(), [])
+                    for doc in cmd_docs[:2]:
+                        if doc and doc.content:
+                            _add(doc.source_file or f"commands/{kw}", doc.content[:500])
+
+                # Error code - dict 직접 조회만
+                if hasattr(bm25, '_error_code_index'):
+                    err_doc = bm25._error_code_index.get(kw)
+                    if err_doc and err_doc.content:
+                        _add(err_doc.source_file or f"errors/{kw}", err_doc.content[:400])
+
+            # --- Phase 2b: BM25 직접 get_scores() (search() 우회 — CJK boosting/title match 스킵) ---
+            # search()는 41K 문서에 대해 re-tokenize + boosting = 175s. get_scores()는 ~3s.
+            try:
+                import numpy as np
+                t_bm25 = time.time()
+                if bm25._initialized and bm25._bm25 is not None:
+                    tokens = bm25._tokenize(query)
+                    scores = bm25._bm25.get_scores(tokens)
+                    top_indices = np.argsort(scores)[::-1][:15]
+                    count = 0
+                    for idx in top_indices:
+                        if scores[idx] <= 0:
+                            break
+                        doc = bm25._documents[idx]
+                        if doc and doc.content:
+                            _add(doc.source_file or "bm25", doc.content[:500])
+                            count += 1
+                    logger.info(f"[SpecialAgent] BM25 get_scores: {(time.time() - t_bm25)*1000:.0f}ms, results={count}")
+                else:
+                    logger.warning("[SpecialAgent] BM25 not initialized, skipping")
+            except Exception as e:
+                logger.warning(f"[SpecialAgent] BM25 search error: {e}")
+
+            # --- Phase 2c: Enrich (에러코드 + 용어 보강) ---
+            try:
+                t_enrich = time.time()
+                enriched = await summary_svc.enrich_query(query)
+                logger.info(f"[SpecialAgent] enrich_query: {(time.time() - t_enrich)*1000:.0f}ms")
+                if enriched and enriched != query:
+                    _add("Enriched", enriched[len(query):])
+            except Exception:
+                pass
+
         except Exception as e:
             logger.warning(f"Summary search error: {e}")
 
-        return "\n\n".join(results) if results else ""
+        result = "\n\n".join(results) if results else ""
+        if result:
+            await cache.set(cache_key, result, ttl_seconds=86400)  # 24h
+        return result
 
     async def _search_web_docs(self, query: str, product_ids: List[str]) -> str:
         """docs.tmaxsoft.com 웹 문서 검색"""
+        # --- Redis cache check (L3) ---
+        from .special_agent_cache import get_special_agent_cache
+        cache = get_special_agent_cache()
+        cache_key = cache.make_key("sa:web", query)
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            logger.info(f"[SpecialAgent] web CACHE HIT (len={len(cached)})")
+            return cached
+
         from .web_doc_search_service import get_web_doc_search_service
 
         try:
@@ -2721,7 +2858,10 @@ class AgenticRAGService:
             parts: List[str] = []
             for r in results:
                 parts.append(f"[{r.title}] ({r.url})\n{r.snippet[:300]}")
-            return "\n\n".join(parts) if parts else ""
+            result = "\n\n".join(parts) if parts else ""
+            if result:
+                await cache.set(cache_key, result, ttl_seconds=21600)  # 6h
+            return result
         except Exception as e:
             logger.warning(f"Web doc search error: {e}")
             return ""

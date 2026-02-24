@@ -545,6 +545,16 @@ class APISettings(BaseSettings):
         description="Min quality gate score for phase transition"
     )
 
+    # Redis Cache
+    REDIS_URL: str = Field(
+        default="redis://localhost:6379/0",
+        description="Redis connection URL"
+    )
+    REDIS_CACHE_ENABLED: bool = Field(
+        default=True,
+        description="Redis 캐시 활성화"
+    )
+
     # Special Agent (Anthropic Claude API)
     ANTHROPIC_API_KEY: str = Field(
         default="",
