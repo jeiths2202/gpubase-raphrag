@@ -22,7 +22,8 @@
 | [legacy-analysis-datatable-persistence](./legacy-analysis-datatable-persistence/) | 2026-02-19 | 97% | ✅ Completed |
 | [xsp-parser-faithful-wrapper](./xsp-parser-faithful-wrapper/) | 2026-02-19 | 100% | ✅ Completed |
 | [unified-lora-dataset](./unified-lora-dataset/) | 2026-02-22 | 97% | ✅ Completed |
-| [unified-lora-dataset-v2](./unified-lora-dataset-v2/) | 2026-02-22 | 100% | ✅ Completed |
+| [unified-lora-dataset-v2](./unified-lora-dataset-v2/) | 2026-02-22 | 100% | Completed |
+| [qwen3-dataset-pipeline](./qwen3-dataset-pipeline/) | 2026-02-24 | 100% | Completed |
 
 ---
 
@@ -516,4 +517,48 @@ Start-Process python -PassThru -RedirectStandardOutput
 
 ---
 
-*Last updated: 2026-02-22 (unified-lora-dataset-v2 archived)*
+## qwen3-dataset-pipeline
+
+**Purpose**: TOC-based 100% coverage QLoRA dataset pipeline for Qwen3 32B — extracts every TOC entry from every PDF across 19 products
+
+**Documents**:
+- `qwen3-dataset-pipeline.plan.md` - Feature plan (12-module architecture, 50-80K target)
+- `qwen3-dataset-pipeline.design.md` - Full design (2,308 lines, regex-based — superseded)
+- `qwen3-dataset-pipeline.analysis.md` - Gap analysis (97% → 100% after paradigm shift)
+- `qwen3-dataset-pipeline.report.md` - Completion report (v2.0)
+
+**Key Deliverables**:
+- `dataset_pipeline/toc_pipeline.py` - TOC-based pipeline (~450 lines, single file)
+- `dataset_pipeline/output/sft_train.jsonl` - 17,229 SFT training records
+- `dataset_pipeline/output/sft_eval.jsonl` - 4,308 SFT eval records
+- `dataset_pipeline/output/dpo_train.jsonl` - 1,720 DPO training records
+- `dataset_pipeline/output/dpo_eval.jsonl` - 431 DPO eval records
+
+**Evolution**:
+- Phase 1: 12-module regex pipeline (150K SFT, 15K DPO) — 97% structural match but 40% content failure
+- Phase 2: TOC-based single-file pipeline (21,537 SFT, 2,151 DPO) — 100% match, 0% quality issues
+
+**Output Statistics**:
+| Metric | Value |
+|--------|-------|
+| SFT Total | 21,537 (train=17,229, eval=4,308) |
+| DPO Total | 2,151 (train=1,720, eval=431) |
+| DPO Ratio | 10.0% of SFT |
+| Products | 19 |
+| PDFs | 245 |
+| Languages | JA=87.9%, KO=9.6%, EN=2.5% |
+| Quality | 30/30 clean, 5/5 PDF-verified |
+| Processing Time | ~44 seconds |
+
+**Key Metrics**:
+| Metric | Value |
+|--------|-------|
+| Match Rate | 100% |
+| Iterations | 1 (paradigm shift) |
+| Lines: Active Pipeline | ~450 |
+| Lines: Superseded | ~4,556 |
+| Architecture Shift | 12-module → single-file |
+
+---
+
+*Last updated: 2026-02-24 (qwen3-dataset-pipeline archived)*

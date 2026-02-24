@@ -1,26 +1,26 @@
 {
-  "sessionCount": 309,
+  "sessionCount": 325,
   "lastSession": {
-    "startedAt": "2026-02-22T10:26:15.641Z",
+    "startedAt": "2026-02-24T14:36:45.785Z",
     "platform": "claude",
     "level": "Enterprise"
   },
-  "activeFeature": "unified-lora-dataset-v2",
-  "pdcaPhase": "do",
+  "activeFeature": null,
+  "pdcaPhase": null,
   "matchRate": null,
-  "designVersion": "v0.1",
-  "planPath": "docs/01-plan/features/unified-lora-dataset-v2.plan.md",
-  "designPath": "docs/02-design/features/unified-lora-dataset-v2.design.md",
+  "designVersion": null,
+  "planPath": null,
+  "designPath": null,
   "analysisPath": null,
   "reportPath": null,
   "implementationProgress": null,
-  "iterationCount": null,
+  "iterationCount": 0,
   "completedAt": null,
   "previousFeature": {
-    "feature": "unified-lora-dataset",
+    "feature": "qwen3-dataset-pipeline",
     "phase": "archived",
-    "matchRate": 97,
-    "archivedAt": "2026-02-22T10:00:00.000Z"
+    "matchRate": 100,
+    "archivedAt": "2026-02-24T21:00:00.000Z"
   },
   "keyDeliverables": null,
   "archivedFeatures": [
@@ -404,6 +404,15 @@
           "--unified CLI flag in gen-training command"
         ]
       }
+    },
+    {
+      "feature": "qwen3-dataset-pipeline",
+      "phase": "archived",
+      "matchRate": 100,
+      "iterationCount": 1,
+      "startedAt": "2026-02-24T14:20:00.000Z",
+      "archivedAt": "2026-02-24T21:00:00.000Z",
+      "archivedTo": "docs/archive/2026-02/qwen3-dataset-pipeline/"
     }
   ]
 }

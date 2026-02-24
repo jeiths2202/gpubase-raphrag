@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-02-22T10:41:02.101Z",
+  "lastUpdated": "2026-02-24T14:52:30.408Z",
   "activeFeatures": [
     "source-code-explanation",
     "legacy-analysis-datatable-persistence",
@@ -33,7 +33,9 @@
     "adapters",
     "manual_processor",
     "generators",
-    "validators"
+    "validators",
+    "pipeline",
+    "dataset_pipeline"
   ],
   "primaryFeature": "legacy-analysis-datatable-persistence",
   "features": {
@@ -476,6 +478,32 @@
       "startedAt": "2026-02-22T10:00:00Z",
       "archivedAt": "2026-02-22T19:50:00Z",
       "archivedTo": "docs/archive/2026-02/unified-lora-dataset-v2/"
+    },
+    "pipeline": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-24T12:29:36.411Z",
+        "lastUpdated": "2026-02-24T13:56:43.994Z"
+      },
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\dataset_pipeline\\pipeline\\knowledge_extractor.py"
+    },
+    "dataset_pipeline": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-24T12:42:04.964Z",
+        "lastUpdated": "2026-02-24T14:52:30.408Z"
+      },
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\dataset_pipeline\\toc_pipeline.py"
     }
   },
   "pipeline": {
@@ -486,7 +514,7 @@
   "session": {
     "startedAt": "2026-01-30T11:33:36.280Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-02-22T10:41:02.101Z"
+    "lastActivity": "2026-02-24T14:52:30.408Z"
   },
   "history": [
     {
@@ -4674,6 +4702,360 @@
     {
       "timestamp": "2026-02-22T10:41:02.101Z",
       "feature": "generators",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:29:36.411Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:30:13.405Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:30:28.779Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:31:43.717Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:34:55.560Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:35:52.464Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:36:47.134Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:38:01.702Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:38:55.266Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:39:35.758Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:39:53.851Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:40:27.500Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:42:04.964Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:42:09.552Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:42:10.806Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:42:23.007Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:47:25.407Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:49:22.887Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:50:06.543Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:57:59.626Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:58:15.634Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:58:27.548Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:58:36.090Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T12:58:41.565Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:05:19.580Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:05:24.080Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:05:28.807Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:05:41.380Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:25:16.630Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:25:26.548Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:25:42.367Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:25:59.619Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:26:07.444Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:26:17.169Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:26:36.123Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:26:59.201Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:45:18.793Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:45:31.927Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:45:47.418Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:46:03.725Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:46:10.060Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:46:19.507Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:46:29.911Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:46:45.275Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:56:27.377Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:56:37.779Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T13:56:43.994Z",
+      "feature": "pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T14:17:51.110Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T14:37:19.786Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T14:37:26.744Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T14:37:37.877Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T14:37:49.551Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T14:39:15.535Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T14:40:23.294Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T14:40:31.546Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T14:43:48.679Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T14:43:55.674Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T14:46:46.729Z",
+      "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T14:52:30.408Z",
+      "feature": "dataset_pipeline",
       "phase": "do",
       "action": "updated"
     }
