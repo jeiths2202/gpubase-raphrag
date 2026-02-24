@@ -639,10 +639,10 @@ class AgenticRAGService:
         max_total: int = 10,
     ) -> ProductSearchContext:
         """
-        Special Agent 전용 고속 검색.
-        - vLLM 시맨틱 리랭킹 스킵 (키워드 BM25만 사용)
+        Special Agent 전용 검색.
+        - BGE-M3 IR Pipeline (Sparse + Dense + RRF) 사용
         - 높은 동시성 (sem=8)
-        - 제품당 15초 타임아웃
+        - 제품당 20초 타임아웃
         """
         top_k_per_product = 3
 
@@ -660,7 +660,7 @@ class AgenticRAGService:
         async def _search_one(pid: str, agent: BaseProductAgent) -> List[SearchResult]:
             async with sem:
                 try:
-                    # 키워드 전용 검색 (시맨틱 리랭킹 스킵)
+                    # BGE-M3 IR Pipeline (Sparse + Dense + RRF) 사용
                     store = agent.knowledge_store
                     store._ensure_loaded()
 
@@ -669,15 +669,15 @@ class AgenticRAGService:
                             query=query,
                             domains=agent._get_domains_for_query_type(query_type),
                             top_k=top_k_per_product,
-                            skip_semantic_reranking=True,
+                            skip_semantic_reranking=False,
                         ),
-                        timeout=15.0,
+                        timeout=20.0,
                     )
                     for r in results:
                         r.product = pid
                     return results
                 except asyncio.TimeoutError:
-                    logger.warning(f"Special Agent: {pid} search timed out (15s)")
+                    logger.warning(f"Special Agent: {pid} search timed out (20s)")
                     return []
                 except Exception as e:
                     logger.warning(f"Special Agent: {pid} search error: {e}")
