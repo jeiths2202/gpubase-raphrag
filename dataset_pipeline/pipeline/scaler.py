@@ -56,6 +56,8 @@ class Scaler:
 
     def __init__(self, config: GenerationConfig):
         self.config = config
+        # Track seen user questions to prevent exact duplicates
+        self._seen_questions: set = set()
 
     def scale_sft(
         self, records: List[SFTRecord], target: int
@@ -70,6 +72,9 @@ class Scaler:
         if current >= target:
             logger.info("SFT scaling: already at %d (target %d)", current, target)
             return records, 0
+
+        # Seed the seen set with existing questions
+        self._seen_questions = {r.user_text for r in records}
 
         total_added = 0
         all_records = list(records)
@@ -123,6 +128,9 @@ class Scaler:
         if current >= target:
             return records, 0
 
+        # Track seen DPO prompts to prevent duplicates
+        seen_prompts: set = {r.prompt for r in records}
+
         total_added = 0
         all_records = list(records)
         max_rounds = 10
@@ -146,7 +154,8 @@ class Scaler:
                 if len(new_records) >= deficit:
                     break
                 paraphrased = self._paraphrase_question(rec.prompt, rec.language)
-                if paraphrased != rec.prompt:
+                if paraphrased != rec.prompt and paraphrased not in seen_prompts:
+                    seen_prompts.add(paraphrased)
                     new_records.append(
                         DPORecord(
                             prompt=paraphrased,
@@ -163,9 +172,19 @@ class Scaler:
             # Method 2: Scenario prefix on prompt
             if len(new_records) < deficit:
                 scenario_prefixes = {
-                    Language.JA: ["本番環境で", "障害時に", "初回設定時、", "パフォーマンス問題で"],
-                    Language.KO: ["운영 환경에서", "장애 시", "초기 설정 시,", "성능 이슈로"],
-                    Language.EN: ["In production, ", "During an outage, ", "During initial setup, ", "For performance issues, "],
+                    Language.JA: [
+                        "本番環境で", "障害時に", "初回設定時、", "パフォーマンス問題で",
+                        "移行作業中に", "テスト環境で", "監視システムから",
+                    ],
+                    Language.KO: [
+                        "운영 환경에서", "장애 시", "초기 설정 시,", "성능 이슈로",
+                        "마이그레이션 중에", "테스트 환경에서", "모니터링 시스템에서",
+                    ],
+                    Language.EN: [
+                        "In production, ", "During an outage, ", "During initial setup, ",
+                        "For performance issues, ", "During migration, ",
+                        "In a test environment, ", "From the monitoring system, ",
+                    ],
                 }
                 random.shuffle(candidates)
                 for rec in candidates:
@@ -173,18 +192,21 @@ class Scaler:
                         break
                     prefixes = scenario_prefixes.get(rec.language, scenario_prefixes[Language.EN])
                     prefix = random.choice(prefixes)
-                    new_records.append(
-                        DPORecord(
-                            prompt=prefix + rec.prompt,
-                            chosen=rec.chosen,
-                            rejected=rec.rejected,
-                            product=rec.product,
-                            language=rec.language,
-                            strategy=rec.strategy,
-                            source_file=rec.source_file,
-                            products_involved=rec.products_involved,
+                    new_prompt = prefix + rec.prompt
+                    if new_prompt not in seen_prompts:
+                        seen_prompts.add(new_prompt)
+                        new_records.append(
+                            DPORecord(
+                                prompt=new_prompt,
+                                chosen=rec.chosen,
+                                rejected=rec.rejected,
+                                product=rec.product,
+                                language=rec.language,
+                                strategy=rec.strategy,
+                                source_file=rec.source_file,
+                                products_involved=rec.products_involved,
+                            )
                         )
-                    )
 
             if not new_records:
                 break
@@ -211,7 +233,8 @@ class Scaler:
                 break
             question = rec.user_text
             paraphrased = self._paraphrase_question(question, rec.language)
-            if paraphrased != question:
+            if paraphrased != question and paraphrased not in self._seen_questions:
+                self._seen_questions.add(paraphrased)
                 new_records.append(
                     SFTRecord(
                         messages=[
@@ -252,9 +275,11 @@ class Scaler:
             for i in range(0, len(group) - 1, 2):
                 if len(new_records) >= budget:
                     break
-                new_records.append(
-                    self._chain_multi_turn(group[i], group[i + 1])
-                )
+                chained = self._chain_multi_turn(group[i], group[i + 1])
+                chain_key = chained.user_text
+                if chain_key not in self._seen_questions:
+                    self._seen_questions.add(chain_key)
+                    new_records.append(chained)
 
         return new_records
 
@@ -272,18 +297,30 @@ class Scaler:
                 "トラブルシューティング時に",
                 "初めて設定する場合、",
                 "エラーが発生した場合、",
+                "運用中のシステムで",
+                "バッチ処理において",
+                "クラスター構成で",
+                "性能改善のために",
             ],
             Language.KO: [
                 "프로덕션 환경에서",
                 "트러블슈팅 시",
                 "처음 설정하는 경우,",
                 "에러가 발생한 경우,",
+                "운영 중인 시스템에서",
+                "배치 처리에서",
+                "클러스터 구성에서",
+                "성능 개선을 위해",
             ],
             Language.EN: [
                 "In a production environment, ",
                 "When troubleshooting, ",
                 "When configuring for the first time, ",
                 "When an error occurs, ",
+                "In a running system, ",
+                "During batch processing, ",
+                "In a cluster setup, ",
+                "For performance tuning, ",
             ],
         }
 
@@ -294,22 +331,24 @@ class Scaler:
             prefix = random.choice(prefixes)
             question = prefix + rec.user_text
 
-            new_records.append(
-                SFTRecord(
-                    messages=[
-                        rec.messages[0],
-                        {"role": "user", "content": question},
-                        rec.messages[2],
-                    ],
-                    product=rec.product,
-                    language=rec.language,
-                    category=rec.category,
-                    item_type=rec.item_type,
-                    source_file=rec.source_file,
-                    source_page=rec.source_page,
-                    products_involved=rec.products_involved,
+            if question not in self._seen_questions:
+                self._seen_questions.add(question)
+                new_records.append(
+                    SFTRecord(
+                        messages=[
+                            rec.messages[0],
+                            {"role": "user", "content": question},
+                            rec.messages[2],
+                        ],
+                        product=rec.product,
+                        language=rec.language,
+                        category=rec.category,
+                        item_type=rec.item_type,
+                        source_file=rec.source_file,
+                        source_page=rec.source_page,
+                        products_involved=rec.products_involved,
+                    )
                 )
-            )
 
         return new_records
 
@@ -329,6 +368,10 @@ class Scaler:
                 "移行プロジェクトにおいて、",
                 "ベストプラクティスとして、",
                 "セキュリティの観点から、",
+                "監査対応のため、",
+                "DR（災害復旧）計画において、",
+                "新規メンバーへの説明として、",
+                "バージョンアップ時に、",
             ],
             Language.KO: [
                 "다음 상황을 고려하여,",
@@ -337,6 +380,10 @@ class Scaler:
                 "마이그레이션 프로젝트에서,",
                 "모범 사례로서,",
                 "보안 관점에서,",
+                "감사 대응을 위해,",
+                "DR(재해복구) 계획에서,",
+                "신규 멤버 교육으로,",
+                "버전 업그레이드 시,",
             ],
             Language.EN: [
                 "Considering the following scenario, ",
@@ -345,6 +392,10 @@ class Scaler:
                 "In a migration project, ",
                 "As a best practice, ",
                 "From a security perspective, ",
+                "For audit compliance, ",
+                "In a disaster recovery plan, ",
+                "When onboarding new team members, ",
+                "During a version upgrade, ",
             ],
         }
 
@@ -355,22 +406,24 @@ class Scaler:
             prefix = random.choice(prefixes)
             question = prefix + rec.user_text
 
-            new_records.append(
-                SFTRecord(
-                    messages=[
-                        rec.messages[0],
-                        {"role": "user", "content": question},
-                        rec.messages[2],
-                    ],
-                    product=rec.product,
-                    language=rec.language,
-                    category=rec.category,
-                    item_type=rec.item_type,
-                    source_file=rec.source_file,
-                    source_page=rec.source_page,
-                    products_involved=rec.products_involved,
+            if question not in self._seen_questions:
+                self._seen_questions.add(question)
+                new_records.append(
+                    SFTRecord(
+                        messages=[
+                            rec.messages[0],
+                            {"role": "user", "content": question},
+                            rec.messages[2],
+                        ],
+                        product=rec.product,
+                        language=rec.language,
+                        category=rec.category,
+                        item_type=rec.item_type,
+                        source_file=rec.source_file,
+                        source_page=rec.source_page,
+                        products_involved=rec.products_involved,
+                    )
                 )
-            )
 
         return new_records
 

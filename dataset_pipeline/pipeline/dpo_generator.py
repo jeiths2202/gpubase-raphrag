@@ -293,28 +293,37 @@ class DPOGenerator:
 
     @staticmethod
     def _build_prompt(record: SFTRecord) -> str:
-        """Build DPO prompt from SFT record (system + user)."""
-        parts: List[str] = []
+        """Build DPO prompt from SFT record (user question only).
+
+        The system prompt is excluded because DPO training frameworks
+        inject it separately.  Including it in the prompt field would
+        cause the model to see it twice during training.
+        """
         for msg in record.messages:
-            if msg["role"] in ("system", "user"):
-                parts.append(msg["content"])
-        return "\n\n".join(parts)
+            if msg["role"] == "user":
+                return msg["content"]
+        return ""
 
     @staticmethod
     def _mutate_answer(text: str, product: str) -> str:
-        """Apply fact mutations to an answer."""
-        mutated = text
+        """Apply fact mutations to an answer.
 
-        # Mutate error codes
+        Multiple mutation strategies ensure meaningful length differences
+        between chosen and rejected, preventing length-shortcut learning.
+        """
+        mutated = text
+        mutations_applied = 0
+
+        # Strategy 1: Mutate error codes
         m = _NUMBER_RE.search(mutated)
         if m:
             original = int(m.group(1))
             delta = random.choice([-1, 1]) * random.randint(100, 999)
             new_val = str(abs(original + delta))
             mutated = mutated[: m.start(1)] + new_val + mutated[m.end(1) :]
-            return mutated
+            mutations_applied += 1
 
-        # Mutate version numbers
+        # Strategy 2: Mutate version numbers
         m = _VERSION_RE.search(mutated)
         if m:
             parts = m.group(1).split(".")
@@ -324,14 +333,38 @@ class DPOGenerator:
                 parts[idx] = "0"
             new_ver = ".".join(parts)
             mutated = mutated[: m.start(1)] + new_ver + mutated[m.end(1) :]
-            return mutated
+            mutations_applied += 1
 
-        # Swap product names
+        # Strategy 3: Swap product names
         all_products = list(PRODUCT_DISPLAY_NAMES.values())
         display = PRODUCT_DISPLAY_NAMES.get(product, product)
         if display in mutated:
             other = random.choice([p for p in all_products if p != display] or all_products)
             mutated = mutated.replace(display, other, 1)
-            return mutated
+            mutations_applied += 1
+
+        # Strategy 4: Sentence reordering (swap two lines to break logical flow)
+        lines = mutated.split("\n")
+        if len(lines) >= 4:
+            i, j = random.sample(range(1, len(lines)), 2)
+            lines[i], lines[j] = lines[j], lines[i]
+            mutated = "\n".join(lines)
+            mutations_applied += 1
+
+        # Strategy 5: Remove a key sentence (creates length difference)
+        if mutations_applied < 2:
+            lines = mutated.split("\n")
+            content_lines = [
+                k for k, line in enumerate(lines)
+                if line.strip() and not line.startswith("#") and len(line.strip()) > 10
+            ]
+            if len(content_lines) >= 3:
+                remove_idx = random.choice(content_lines[1:])
+                lines.pop(remove_idx)
+                mutated = "\n".join(lines)
+                mutations_applied += 1
+
+        if mutated == text:
+            return text
 
         return mutated
