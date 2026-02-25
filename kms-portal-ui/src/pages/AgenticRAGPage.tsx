@@ -964,8 +964,13 @@ export const AgenticRAGPage: React.FC = () => {
               {msg.diagnosisId && (
                 <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
                   <button
-                    className="openagent-btn-send"
-                    style={{ fontSize: '0.8rem', padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 4 }}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '6px 14px', fontSize: '0.82rem', fontWeight: 500,
+                      border: 'none', borderRadius: 8, cursor: 'pointer',
+                      background: 'var(--accent-color, #6366f1)', color: '#fff',
+                      whiteSpace: 'nowrap',
+                    }}
                     onClick={() => window.open(getReportUrl(msg.diagnosisId!), '_blank')}
                   >
                     <FileWarning size={14} />
