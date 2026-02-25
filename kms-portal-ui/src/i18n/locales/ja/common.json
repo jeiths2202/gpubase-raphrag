@@ -51,6 +51,7 @@
     "scoring": "スコアリング設定",
     "legacyModernization": "レガシーモダナイゼーション",
     "jclDiagnosis": "JCL診断",
+    "supportDashboard": "サポートダッシュボード",
     "mainNavigation": "メインナビゲーション"
   },
   "products": {
@@ -622,7 +623,19 @@
       "directDescription": "検索なしの直接LLM応答",
       "opencode": "OpenCode",
       "opencodeDescription": "ハルシネーション検出を含む5ステップワークフロー"
-    }
+    },
+    "premiumSupport": "プレミアムサポート",
+    "premiumSupportDesc": "リモートの専門家がリアルタイムで画面を確認しながら技術サポートを提供します。",
+    "startSession": "セッション開始",
+    "connecting": "接続中...",
+    "waitingForExpert": "専門家の参加を待っています...",
+    "shareScreen": "画面共有",
+    "stopSharing": "共有を停止",
+    "micOn": "マイクON",
+    "micOff": "マイクOFF",
+    "endSession": "セッション終了",
+    "expertConnected": "専門家が接続しました",
+    "sessionError": "サポートセッションの作成に失敗しました。もう一度お試しください。"
   },
   "opencode": {
     "title": "OpenCodeエージェント",
@@ -888,6 +901,21 @@
     "newDiagnosis": "新しい診断",
     "noFileSelected": "ファイルが選択されていません",
     "zipOnly": "zipファイルのみ対応"
+  },
+  "supportDashboard": {
+    "title": "サポートダッシュボード",
+    "waiting": "待機中",
+    "active": "アクティブ",
+    "totalToday": "本日合計",
+    "waitingSessions": "待機中のセッション",
+    "activeSessions": "アクティブセッション",
+    "noSessions": "待機中のセッションはありません",
+    "noActiveSessions": "アクティブなセッションはありません",
+    "joinSession": "参加",
+    "endSession": "セッション終了",
+    "expertView": "エキスパートビュー",
+    "chatContext": "チャットコンテキスト",
+    "waitingForScreen": "ユーザーの画面共有を待っています..."
   },
   "knowledgeGraph": {
     "title": "ナレッジグラフ",

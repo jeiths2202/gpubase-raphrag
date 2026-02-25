@@ -21,6 +21,7 @@ import { Sidebar } from '../components/Sidebar';
 import { SidebarToggleButton } from '../components/SidebarToggleButton';
 import { AISidebar } from '../components/AISidebar';
 import { useUIStore } from '../store/uiStore';
+import { useSupportBadge } from '../hooks/useSupportBadge';
 
 // Routes where AISidebar should be hidden (they have their own chat interface)
 const HIDE_AI_SIDEBAR_ROUTES = ['/openframe-rag', '/open-agent', '/agentic-rag', '/legacy-modernization'];
@@ -37,6 +38,9 @@ export const MainLayout: React.FC = () => {
     isMobile,
     setLeftSidebarOpen,
   } = useUIStore();
+
+  // Background polling for support badge (senior+ only, 15s)
+  useSupportBadge();
 
   // Check if current route should hide AISidebar
   const hideAISidebar = HIDE_AI_SIDEBAR_ROUTES.some(route => location.pathname.startsWith(route));

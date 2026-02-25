@@ -35,6 +35,7 @@ import {
   GitBranch,
   FileCode2,
   FileWarning,
+  Headphones,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useAuthStore } from '../store/authStore';
@@ -53,7 +54,7 @@ interface NavItem {
   path: string;
   icon: React.ReactNode;
   labelKey: string;
-  requiredRole?: 'admin' | 'user' | 'viewer';
+  requiredRole?: 'admin' | 'leader' | 'senior' | 'user' | 'viewer';
   external?: boolean;
   children?: SubNavItem[];
 }
@@ -137,6 +138,13 @@ const NAV_ITEMS: NavItem[] = [
 
 const BOTTOM_NAV_ITEMS: NavItem[] = [
   {
+    id: 'supportDashboard',
+    path: '/support-dashboard',
+    icon: <Headphones size={20} />,
+    labelKey: 'common.nav.supportDashboard',
+    requiredRole: 'senior',
+  },
+  {
     id: 'admin',
     path: '/admin',
     icon: <Shield size={20} />,
@@ -205,7 +213,7 @@ export const Sidebar: React.FC = () => {
   };
 
   // Check if user has required role
-  const hasRole = (requiredRole?: 'admin' | 'user' | 'viewer') => {
+  const hasRole = (requiredRole?: 'admin' | 'leader' | 'senior' | 'user' | 'viewer') => {
     if (!requiredRole) return true;
     if (!user) return false;
 

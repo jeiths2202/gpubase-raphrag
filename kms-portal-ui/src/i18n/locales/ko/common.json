@@ -51,6 +51,7 @@
     "scoring": "스코어링 설정",
     "legacyModernization": "레거시 모더나이제이션",
     "jclDiagnosis": "JCL 진단",
+    "supportDashboard": "지원 대시보드",
     "mainNavigation": "메인 네비게이션"
   },
   "products": {
@@ -622,7 +623,19 @@
       "directDescription": "검색 없이 직접 LLM 응답",
       "opencode": "OpenCode",
       "opencodeDescription": "환각 감지를 포함한 5단계 워크플로우"
-    }
+    },
+    "premiumSupport": "프리미엄 지원",
+    "premiumSupportDesc": "원격 전문가가 실시간으로 화면을 보면서 기술 지원을 제공합니다.",
+    "startSession": "세션 시작",
+    "connecting": "연결 중...",
+    "waitingForExpert": "전문가 접속 대기 중...",
+    "shareScreen": "화면 공유",
+    "stopSharing": "공유 중지",
+    "micOn": "마이크 켜짐",
+    "micOff": "마이크 꺼짐",
+    "endSession": "세션 종료",
+    "expertConnected": "전문가 연결됨",
+    "sessionError": "지원 세션 생성에 실패했습니다. 다시 시도해 주세요."
   },
   "opencode": {
     "title": "OpenCode 에이전트",
@@ -888,6 +901,21 @@
     "newDiagnosis": "새 진단",
     "noFileSelected": "파일이 선택되지 않았습니다",
     "zipOnly": "zip 파일만 지원됩니다"
+  },
+  "supportDashboard": {
+    "title": "지원 대시보드",
+    "waiting": "대기 중",
+    "active": "활성",
+    "totalToday": "오늘 총계",
+    "waitingSessions": "대기 중인 세션",
+    "activeSessions": "활성 세션",
+    "noSessions": "대기 중인 세션이 없습니다",
+    "noActiveSessions": "활성 세션이 없습니다",
+    "joinSession": "참가",
+    "endSession": "세션 종료",
+    "expertView": "전문가 화면",
+    "chatContext": "채팅 컨텍스트",
+    "waitingForScreen": "사용자의 화면 공유를 기다리는 중..."
   },
   "knowledgeGraph": {
     "title": "Knowledge Graph",

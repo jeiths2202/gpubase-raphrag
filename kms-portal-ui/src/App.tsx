@@ -51,6 +51,7 @@ import { ImprovementsPage, SubmitImprovementPage, ImprovementDetailPage } from '
 import { LegacyModernizationPage } from './pages/LegacyModernizationPage';
 import { LegacyAnalysisDetailPage } from './pages/LegacyAnalysisDetailPage';
 import { JCLDiagnosisPage } from './pages/JCLDiagnosisPage';
+import { SupportDashboardPage } from './pages/SupportDashboardPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 
 // Import global styles
@@ -129,6 +130,13 @@ export const App: React.FC = () => {
           {/* Legacy Analysis Detail - Standalone popup (no sidebar) */}
           <Route element={<AuthGuard />}>
             <Route path="/legacy/analysis/:analysisId" element={<LegacyAnalysisDetailPage />} />
+          </Route>
+
+          {/* Support Dashboard - requires senior+ role */}
+          <Route element={<AuthGuard requiredRole="senior" />}>
+            <Route element={<MainLayout />}>
+              <Route path="/support-dashboard" element={<SupportDashboardPage />} />
+            </Route>
           </Route>
 
           {/* Admin routes - requires admin role */}

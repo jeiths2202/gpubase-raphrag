@@ -51,6 +51,7 @@
     "scoring": "Scoring Config",
     "legacyModernization": "Legacy Modernization",
     "jclDiagnosis": "JCL Diagnosis",
+    "supportDashboard": "Support Dashboard",
     "mainNavigation": "Main navigation"
   },
   "products": {
@@ -622,7 +623,19 @@
       "directDescription": "Direct LLM response without retrieval",
       "opencode": "OpenCode",
       "opencodeDescription": "5-step workflow with hallucination detection"
-    }
+    },
+    "premiumSupport": "Premium Support",
+    "premiumSupportDesc": "Connect with a remote expert who can view your screen in real-time and provide technical support.",
+    "startSession": "Start Session",
+    "connecting": "Connecting...",
+    "waitingForExpert": "Waiting for an expert to join...",
+    "shareScreen": "Share Screen",
+    "stopSharing": "Stop Sharing",
+    "micOn": "Microphone On",
+    "micOff": "Microphone Off",
+    "endSession": "End Session",
+    "expertConnected": "Expert Connected",
+    "sessionError": "Failed to create support session. Please try again."
   },
   "opencode": {
     "title": "OpenCode Agent",
@@ -888,6 +901,21 @@
     "newDiagnosis": "New Diagnosis",
     "noFileSelected": "No file selected",
     "zipOnly": "Only zip files are supported"
+  },
+  "supportDashboard": {
+    "title": "Support Dashboard",
+    "waiting": "Waiting",
+    "active": "Active",
+    "totalToday": "Total Today",
+    "waitingSessions": "Waiting Sessions",
+    "activeSessions": "Active Sessions",
+    "noSessions": "No waiting sessions",
+    "noActiveSessions": "No active sessions",
+    "joinSession": "Join",
+    "endSession": "End Session",
+    "expertView": "Expert View",
+    "chatContext": "Chat Context",
+    "waitingForScreen": "Waiting for user's screen share..."
   },
   "knowledgeGraph": {
     "title": "Knowledge Graph",
