@@ -24,6 +24,7 @@
 | [unified-lora-dataset](./unified-lora-dataset/) | 2026-02-22 | 97% | ✅ Completed |
 | [unified-lora-dataset-v2](./unified-lora-dataset-v2/) | 2026-02-22 | 100% | Completed |
 | [qwen3-dataset-pipeline](./qwen3-dataset-pipeline/) | 2026-02-24 | 100% | Completed |
+| [jcl-diagnosis-report-template](./jcl-diagnosis-report-template/) | 2026-02-25 | 100% | Completed |
 
 ---
 
@@ -561,4 +562,31 @@ Start-Process python -PassThru -RedirectStandardOutput
 
 ---
 
-*Last updated: 2026-02-24 (qwen3-dataset-pipeline archived)*
+## jcl-diagnosis-report-template
+
+**Purpose**: HTML Report Templateization for JCL Diagnosis Agent — DiagnosisReport (Pydantic) → report_schema JSON → self-contained HTML
+
+**Documents**:
+- `jcl-diagnosis-report-template.plan.md` - Feature plan (7 steps, data/presentation separation)
+- `jcl-diagnosis-report-template.analysis.md` - Gap analysis (100% match rate, 44/44 items)
+- `jcl-diagnosis-report-template.report.md` - Completion report
+
+**Key Deliverables**:
+- `app/api/services/jcl_diagnosis/locales.py` (321 lines) — 76 i18n keys × 3 locales (ja/ko/en)
+- `app/api/services/jcl_diagnosis/templates/diagnosis_report.html` (769 lines) — Self-contained HTML template
+- `app/api/services/jcl_diagnosis/report_template.py` (337 lines) — HTMLReportService singleton
+- `GET /api/v1/jcl-diagnosis/{diagnosis_id}/report` — HTML report endpoint with 1-hour TTL cache
+
+**Key Metrics**:
+| Metric | Value |
+|--------|-------|
+| Match Rate | 100% |
+| Files Created | 3 (1,427 lines) |
+| Files Modified | 4 (581 lines) |
+| Total LOC | 2,008 |
+| Additive Enhancements | 9 (beyond plan scope) |
+| Iterations | 0 |
+
+---
+
+*Last updated: 2026-02-25 (jcl-diagnosis-report-template archived)*

@@ -1,7 +1,8 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-02-24T14:52:30.408Z",
+  "lastUpdated": "2026-02-25T12:29:26.179Z",
   "activeFeatures": [
+    "jcl-job-failure-diagnosis",
     "source-code-explanation",
     "legacy-analysis-datatable-persistence",
     "fujitsu-aim-xsp-spec",
@@ -35,10 +36,40 @@
     "generators",
     "validators",
     "pipeline",
-    "dataset_pipeline"
+    "dataset_pipeline",
+    "jcl_diagnosis"
   ],
-  "primaryFeature": "legacy-analysis-datatable-persistence",
+  "primaryFeature": "jcl-job-failure-diagnosis",
   "features": {
+    "jcl-diagnosis-report-template": {
+      "phase": "archived",
+      "matchRate": 100,
+      "iterationCount": 0,
+      "startedAt": "2026-02-25T12:00:00Z",
+      "archivedAt": "2026-02-25T13:10:00Z",
+      "archivedTo": "docs/archive/2026-02/jcl-diagnosis-report-template/"
+    },
+    "jcl-job-failure-diagnosis": {
+      "phase": "completed",
+      "matchRate": 98,
+      "iterationCount": 0,
+      "startedAt": "2026-02-25T10:00:00.000Z",
+      "planPath": "docs/01-plan/features/jcl-job-failure-diagnosis.plan.md",
+      "designPath": "docs/02-design/features/jcl-job-failure-diagnosis.design.md",
+      "implementedFiles": [
+        "app/api/models/jcl_diagnosis.py",
+        "app/api/services/jcl_diagnosis/__init__.py",
+        "app/api/services/jcl_diagnosis/abend_code_registry.py",
+        "app/api/services/jcl_diagnosis/file_processor.py",
+        "app/api/services/jcl_diagnosis/jcl_analyzer.py",
+        "app/api/services/jcl_diagnosis/error_diagnosis.py",
+        "app/api/services/jcl_diagnosis/knowledge_retriever.py",
+        "app/api/services/jcl_diagnosis/report_generator.py",
+        "app/api/services/jcl_diagnosis/orchestrator.py",
+        "app/api/routers/jcl_diagnosis.py",
+        "app/api/main.py (router registration)"
+      ]
+    },
     "vllm-hybrid-search-artifact-view": {
       "phase": "archived",
       "matchRate": 97,
@@ -121,7 +152,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-16T15:58:05.462Z",
-        "lastUpdated": "2026-02-20T06:53:45.134Z"
+        "lastUpdated": "2026-02-25T07:38:51.689Z"
       },
       "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\adapters\\learning_llm\\vllm_adapter.py"
     },
@@ -134,9 +165,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-16T16:00:47.458Z",
-        "lastUpdated": "2026-02-20T06:54:33.522Z"
+        "lastUpdated": "2026-02-25T12:29:20.504Z"
       },
-      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\services\\agentic_rag_service.py"
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\routers\\jcl_diagnosis.py"
     },
     "agent_teams": {
       "phase": "do",
@@ -173,7 +204,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-16T18:12:36.923Z",
-        "lastUpdated": "2026-02-20T06:31:40.830Z"
+        "lastUpdated": "2026-02-24T18:37:47.590Z"
       },
       "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\kms-portal-ui\\src\\pages\\AgenticRAGPage.tsx"
     },
@@ -186,9 +217,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-17T02:22:42.340Z",
-        "lastUpdated": "2026-02-18T22:59:35.259Z"
+        "lastUpdated": "2026-02-25T04:16:06.562Z"
       },
-      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\legacy_modernization\\core\\event_bus.py"
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\core\\deps.py"
     },
     "postgres": {
       "phase": "do",
@@ -212,9 +243,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-17T07:48:35.562Z",
-        "lastUpdated": "2026-02-20T14:01:18.817Z"
+        "lastUpdated": "2026-02-25T05:46:42.401Z"
       },
-      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\uploads\\training\\v10\\scripts\\run_all.sh"
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\scripts\\pack-desktop-deploy.sh"
     },
     "TracePanel": {
       "phase": "do",
@@ -402,9 +433,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-19T01:18:54.449Z",
-        "lastUpdated": "2026-02-19T01:22:24.855Z"
+        "lastUpdated": "2026-02-25T04:36:33.323Z"
       },
-      "lastFile": "C:/Users/endur/Downloads/tmaxjapan/kms/kms-docker-remote/test_legacy_api.py"
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\check_web_search.py"
     },
     "xspjcl": {
       "phase": "do",
@@ -504,6 +535,19 @@
         "lastUpdated": "2026-02-24T14:52:30.408Z"
       },
       "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\dataset_pipeline\\toc_pipeline.py"
+    },
+    "jcl_diagnosis": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-25T11:39:14.445Z",
+        "lastUpdated": "2026-02-25T12:29:26.179Z"
+      },
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\services\\jcl_diagnosis\\__init__.py"
     }
   },
   "pipeline": {
@@ -514,7 +558,7 @@
   "session": {
     "startedAt": "2026-01-30T11:33:36.280Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-02-24T14:52:30.408Z"
+    "lastActivity": "2026-02-25T12:29:26.179Z"
   },
   "history": [
     {
@@ -5056,6 +5100,816 @@
     {
       "timestamp": "2026-02-24T14:52:30.408Z",
       "feature": "dataset_pipeline",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:11:36.909Z",
+      "feature": "core",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:13:11.606Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:13:48.365Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:13:55.075Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:14:03.193Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:19:01.872Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:19:06.427Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:26:15.656Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:26:22.244Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:26:27.201Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:55:10.390Z",
+      "feature": "core",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:55:18.225Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:55:26.497Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:55:33.308Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:56:07.676Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:56:15.378Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:56:51.833Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T15:57:17.737Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:09:29.999Z",
+      "feature": "core",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:27:07.878Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:27:10.641Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:27:12.452Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:27:14.062Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:27:15.251Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:27:21.402Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:27:39.255Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:27:44.530Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:32:50.507Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:33:22.158Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:37:38.904Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:37:48.938Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:45:20.859Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:45:48.036Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:46:11.658Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:46:38.024Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:47:30.187Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:47:38.038Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:53:52.345Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:54:00.066Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T16:59:22.336Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T17:04:11.689Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T17:29:43.541Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T17:29:56.239Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T17:33:26.350Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T17:33:40.601Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T17:41:10.279Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T17:41:32.657Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T17:42:04.560Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T17:49:42.751Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T17:59:46.654Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:08:31.034Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:08:40.444Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:08:54.360Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:09:32.733Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:33:04.089Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:33:11.127Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:33:18.077Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:33:28.159Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:33:34.205Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:33:49.834Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:33:57.503Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:34:03.106Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:34:08.791Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:34:14.305Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:34:42.914Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:34:59.849Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:35:12.149Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:35:18.904Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:37:41.189Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-24T18:37:47.590Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:06:28.252Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:06:44.437Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:07:20.889Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:07:35.987Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:07:46.127Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:08:04.162Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:08:13.518Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:08:22.783Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:36:26.278Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:43:22.763Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:43:35.859Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:55:06.343Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:55:21.607Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:55:40.539Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:55:46.084Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:56:00.082Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T01:56:15.206Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T02:06:58.664Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T02:08:01.554Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T02:08:22.988Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T02:10:12.614Z",
+      "feature": "kms-docker-remote",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T02:27:35.727Z",
+      "feature": "core",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T02:27:55.408Z",
+      "feature": "core",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T04:06:52.890Z",
+      "feature": "kms-docker-remote",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T04:10:56.473Z",
+      "feature": "kms-docker-remote",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T04:15:48.917Z",
+      "feature": "core",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T04:16:06.562Z",
+      "feature": "core",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T04:33:00.816Z",
+      "feature": "kms-docker-remote",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T04:34:13.764Z",
+      "feature": "kms-docker-remote",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T04:36:33.323Z",
+      "feature": "kms-docker-remote",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T05:18:45.061Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T05:46:42.401Z",
+      "feature": "scripts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T07:14:41.485Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T07:14:50.129Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T07:16:47.614Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T07:16:50.734Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T07:38:51.689Z",
+      "feature": "learning_llm",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T08:10:43.415Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T08:10:49.756Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T08:11:00.235Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T08:11:11.225Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T08:11:22.598Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T11:39:06.052Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T11:39:14.445Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T11:39:39.161Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T11:40:08.694Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T11:40:43.804Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T11:41:27.131Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T11:41:41.772Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T11:42:18.729Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T11:42:46.770Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T11:42:59.527Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T11:43:10.035Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T11:43:15.780Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T12:21:03.707Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T12:27:04.920Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T12:28:03.930Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T12:28:19.517Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T12:28:24.834Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T12:28:32.945Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T12:28:45.439Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T12:28:53.202Z",
+      "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T12:29:11.800Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T12:29:20.504Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T12:29:26.179Z",
+      "feature": "jcl_diagnosis",
       "phase": "do",
       "action": "updated"
     }
