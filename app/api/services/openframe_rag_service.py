@@ -8,7 +8,6 @@ TRT-LLM NIM (Port 12820):
 - OpenFrame 8제품 전용 최적화 LLM
 - 제품별 시스템 프롬프트로 정확한 응답 생성
 """
-import asyncio
 import logging
 import os
 import time
@@ -289,7 +288,8 @@ class OpenFrameRAGService:
         request: OpenFrameRAGRequest,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        Streaming RAG chat
+        IR Pipeline Streaming RAG:
+        Query → BGE-M3 (Sparse+Dense) → RRF merge → Top-K → Qwen3-32B LLM 생성
 
         Yields:
             SSE-formatted events
@@ -301,187 +301,124 @@ class OpenFrameRAGService:
             if not self._is_initialized:
                 await self.initialize()
 
-            # Step 1: Classify (yield classification event)
-            classification = None
             product = request.product
 
+            # Auto-classification (product=auto 일 때 자동 분류)
             if product == ProductId.AUTO:
                 classification = self.product_router.classify(request.message)
                 product = classification.product
+                # 분류된 제품이 있으면 진행 (needs_selection이어도 최선의 제품으로 진행)
+                if product == ProductId.AUTO:
+                    # 분류 실패 → 기본 제품으로 fallback
+                    product = ProductId.OPENFRAME_MVS
 
-                yield {
-                    "type": "classification",
-                    "data": {
-                        "product": product.value,
-                        "confidence": classification.confidence,
-                        "needs_selection": classification.needs_selection,
-                        "suggestions": classification.suggestions,
-                    }
-                }
+            # Step 1: BGE-M3 IR Search (Neo4j Vector Index)
+            yield {"type": "status", "data": {"step": "ir_search", "product": product.value}}
 
-                if classification.needs_selection:
-                    yield {"type": "done", "data": {"needs_selection": True}}
-                    return
+            from .bge_m3_ir_service import get_bge_m3_ir_service
 
-            # Step 2: Search (parallel execution for performance)
-            sources = ProductSources()
+            ir_service = get_bge_m3_ir_service()
+
             context_parts = []
+            sources = ProductSources()
+            product_id = product.value
 
-            yield {"type": "status", "data": {"step": "parallel_search"}}
-
-            # Build parallel search tasks
-            search_tasks = []
-            task_names = []
-
-            if request.use_vector_search:
-                search_tasks.append(self._vector_search(
+            # Neo4j Vector Search (항상 즉시 실행 - 인메모리 인덱스 구축 불필요)
+            try:
+                neo4j_results = await ir_service.neo4j_vector_search(
                     query=request.message,
-                    product=product,
-                    top_k=5,
-                ))
-                task_names.append("vector")
+                    product_id=product_id,
+                    top_k=20,
+                )
 
-            if request.use_graph_search:
-                search_tasks.append(self._graph_search(
-                    query=request.message,
-                    product=product,
-                    top_k=5,
-                ))
-                task_names.append("graph")
-
-            # Cross-product similarity search (always enabled for better coverage)
-            search_tasks.append(self._cross_product_similarity_search(
-                query=request.message,
-                current_product=product,
-                top_k=3,
-            ))
-            task_names.append("cross_product")
-
-            # Execute all searches in parallel
-            search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
-
-            # Process results
-            for i, (name, result) in enumerate(zip(task_names, search_results)):
-                if isinstance(result, Exception):
-                    logger.warning(f"{name} search failed: {result}")
-                    continue
-
-                if name == "vector" and result:
-                    sources.vector_search = result
-                    for vr in result[:3]:
-                        context_parts.append(f"[Document: {vr.doc_name}]\n{vr.content[:500]}")
+                if neo4j_results:
                     yield {
                         "type": "sources",
-                        "data": {"source_type": "vector", "count": len(result)}
-                    }
-
-                elif name == "graph" and result:
-                    sources.graph_search = result
-                    for gr in result[:3]:
-                        context_parts.append(f"[Entity: {gr.entity_name} ({gr.entity_type})]")
-                    yield {
-                        "type": "sources",
-                        "data": {"source_type": "graph", "count": len(result)}
-                    }
-
-                elif name == "cross_product" and result:
-                    # Merge cross-product results with vector results (avoid duplicates)
-                    existing_docs = {vs.doc_name for vs in sources.vector_search} if sources.vector_search else set()
-
-                    for cp_result in result:
-                        if cp_result.doc_name not in existing_docs:
-                            if sources.vector_search is None:
-                                sources.vector_search = []
-                            sources.vector_search.append(cp_result)
-                            existing_docs.add(cp_result.doc_name)
-                            # Add to context with cross-product marker
-                            context_parts.append(
-                                f"[Cross-Product: {cp_result.doc_name} (score: {cp_result.score:.3f})]\n"
-                                f"{cp_result.content[:500]}"
-                            )
-
-                    if result:
-                        yield {
-                            "type": "sources",
-                            "data": {
-                                "source_type": "cross_product",
-                                "count": len(result),
-                                "top_score": result[0].score if result else 0,
-                            }
+                        "data": {
+                            "source_type": "ir_search",
+                            "count": len(neo4j_results),
+                            "top_score": neo4j_results[0]["score"] if neo4j_results else 0,
                         }
+                    }
 
-            # Re-sort vector_search by score (combining original + cross-product results)
-            if sources.vector_search:
-                sources.vector_search = sorted(
-                    sources.vector_search,
-                    key=lambda x: x.score,
-                    reverse=True
-                )[:5]  # Keep top 5
+                    for item in neo4j_results[:10]:
+                        context_parts.append(
+                            f"[Source: {item['doc_name']} / {item['title']}]\n"
+                            f"{item['content'][:600]}"
+                        )
+            except Exception as e:
+                logger.warning(f"Neo4j vector search failed: {e}")
+
+            # Fallback: 기존 vector+graph search (IR 인덱스 미구축 또는 결과 부족 시)
+            if len(context_parts) < 3:
+                fallback_parts = await self._fallback_search(request, product)
+                context_parts.extend(fallback_parts)
+                if fallback_parts:
+                    yield {
+                        "type": "sources",
+                        "data": {"source_type": "fallback_search", "count": len(fallback_parts)}
+                    }
 
             if request.file_content:
                 context_parts.insert(0, f"[User File]\n{request.file_content[:2000]}")
 
             combined_context = "\n\n".join(context_parts) if context_parts else None
 
-            # Step 3: Generate streaming response
+            # Step 2: LLM Generation (Qwen3-32B via vLLM)
             yield {"type": "status", "data": {"step": "generating"}}
 
             llm_used = None
 
-            # Try TRT-LLM NIM first (primary for OpenFrame)
-            # Note: TRT-LLM NIM doesn't support streaming, so we use generate_with_metadata
-            if self.use_trtllm and self.trtllm_adapter and self.trtllm_adapter.is_loaded:
+            if request.use_learning_llm and self.learning_llm_service:
                 try:
-                    trtllm_result = await self.trtllm_adapter.generate_with_metadata(
-                        question=request.message,
-                        context=combined_context,
-                        product=product.value if product != ProductId.AUTO else None,
-                        language=request.language or "ja",
-                        max_tokens=int(os.getenv("TRTLLM_NIM_MAX_TOKENS", "1024")),
-                        temperature=float(os.getenv("TRTLLM_NIM_TEMPERATURE", "0.7")),
-                    )
+                    # Qwen3 <think>...</think> 처리
+                    # enable_thinking=True: think 블록을 "think_token" 이벤트로 분리 전송
+                    # enable_thinking=False: <think> 생성 안됨 (safety filter는 이중 안전장치)
+                    enable_thinking = getattr(request, 'enable_thinking', False)
+                    in_think_block = False
 
-                    if trtllm_result and trtllm_result.answer:
-                        # Yield entire response at once (TRT-LLM doesn't support streaming)
-                        yield {"type": "token", "data": {"content": trtllm_result.answer}}
-
-                        sources.learning_llm = LearningLLMSource(
-                            model=f"TRT-LLM NIM ({trtllm_result.model})",
-                            adapter=f"trtllm-{product.value}",
-                            product=product.value,
-                            confidence=trtllm_result.confidence,
-                        )
-                        llm_used = "trtllm"
-                        logger.info(f"TRT-LLM NIM response for product: {product.value}")
-
-                except Exception as e:
-                    logger.error(f"TRT-LLM NIM failed: {e}, falling back to Learning LLM")
-
-            # Fallback to Learning LLM if TRT-LLM failed
-            if llm_used is None and request.use_learning_llm and self.learning_llm_service:
-                try:
-                    # Multi-LoRA v2: 제품별 어댑터 사용
-                    product_name = product.value if product != ProductId.AUTO else None
                     async for token in self.learning_llm_service.generate_stream(
                         question=request.message,
                         context=combined_context,
-                        max_tokens=1024,
+                        max_tokens=2048 if enable_thinking else 1024,
                         temperature=0.7,
-                        product=product_name,  # Multi-LoRA 제품 전달
+                        enable_thinking=enable_thinking,
                     ):
+                        # <think> 블록 시작 감지
+                        if "<think>" in token:
+                            in_think_block = True
+                            before = token.split("<think>")[0]
+                            if before.strip():
+                                yield {"type": "token", "data": {"content": before}}
+                            continue
+                        # </think> 블록 종료 감지
+                        if "</think>" in token:
+                            in_think_block = False
+                            after = token.split("</think>")[-1]
+                            if after.strip():
+                                yield {"type": "token", "data": {"content": after}}
+                            continue
+                        # think 블록 내부
+                        if in_think_block:
+                            if enable_thinking:
+                                # Think ON: 프론트엔드 Think 패널에 표시
+                                yield {"type": "think_token", "data": {"content": token}}
+                            # Think OFF: 스킵 (safety filter)
+                            continue
                         yield {"type": "token", "data": {"content": token}}
 
+                    model_name = os.getenv("LEARNING_LLM_MODEL", "/opt/models/qwen3-32b")
                     sources.learning_llm = LearningLLMSource(
-                        model=f"Qwen/Qwen2.5-7B-Instruct ({product.value})",
-                        adapter=f"{product_name}_v2" if product_name else None,
+                        model=model_name,
+                        adapter=None,
                         product=product.value,
                         confidence=0.8,
                     )
-                    llm_used = "learning"
-                    logger.info(f"Learning LLM (Multi-LoRA) response for product: {product.value}")
+                    llm_used = "qwen3-32b"
+                    logger.info(f"Qwen3-32B response for product: {product.value}")
 
                 except Exception as e:
-                    logger.error(f"Learning LLM streaming failed: {e}")
+                    logger.error(f"LLM streaming failed: {e}")
 
             # Final fallback to context-based response
             if llm_used is None:
@@ -513,6 +450,61 @@ class OpenFrameRAGService:
         except Exception as e:
             logger.exception(f"OpenFrame RAG stream error: {e}")
             yield {"type": "error", "data": {"message": str(e)}}
+
+    def _resolve_section_content(
+        self, section_key: str, knowledge_store
+    ) -> Optional[Dict]:
+        """
+        IR search의 section_key를 실제 섹션 콘텐츠로 변환.
+        key format: "{product_id}::{domain}::{source}::{title}"
+        """
+        if knowledge_store is None:
+            return None
+        try:
+            # knowledge_store 캐시에서 직접 조회
+            sections = getattr(knowledge_store, '_sections_cache', {})
+            if section_key in sections:
+                return sections[section_key]
+
+            # key 파싱하여 섹션 탐색
+            parts = section_key.split("::", 3)
+            if len(parts) >= 4:
+                return {
+                    "product_id": parts[0],
+                    "domain": parts[1],
+                    "source": parts[2],
+                    "title": parts[3],
+                    "content": f"[{parts[2]}] {parts[3]}",
+                }
+        except Exception as e:
+            logger.debug(f"Failed to resolve section key '{section_key}': {e}")
+        return None
+
+    async def _fallback_search(
+        self, request: OpenFrameRAGRequest, product: ProductId
+    ) -> List[str]:
+        """기존 vector+graph search fallback (IR 결과 부족 시)"""
+        context_parts = []
+        try:
+            if request.use_vector_search:
+                vector_results = await self._vector_search(
+                    query=request.message, product=product, top_k=5,
+                )
+                for vr in (vector_results or [])[:3]:
+                    context_parts.append(
+                        f"[Document: {vr.doc_name}]\n{vr.content[:500]}"
+                    )
+            if request.use_graph_search:
+                graph_results = await self._graph_search(
+                    query=request.message, product=product, top_k=5,
+                )
+                for gr in (graph_results or [])[:3]:
+                    context_parts.append(
+                        f"[Entity: {gr.entity_name} ({gr.entity_type})]"
+                    )
+        except Exception as e:
+            logger.warning(f"Fallback search failed: {e}")
+        return context_parts
 
     def _get_neo4j_driver(self):
         """

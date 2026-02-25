@@ -1,9 +1,9 @@
 """
 Structured Knowledge Store
 
-파일 시스템 기반 구조화 지식 검색 + vLLM 시맨틱 검색 (Hybrid).
+파일 시스템 기반 구조화 지식 검색 + BGE-M3 IR Pipeline (Hybrid).
 요약본 파일에서 명령어, 에러코드, 설정, 용어를 키워드+IDF로 검색하고,
-vLLM 임베딩으로 시맨틱 유사도를 보강하여 최종 top 3 결과를 반환합니다.
+BGE-M3 Sparse+Dense+RRF 파이프라인으로 최종 top 3 결과를 반환합니다.
 """
 import asyncio
 import glob
@@ -90,8 +90,33 @@ class StructuredKnowledgeStore:
                         logger.warning(f"Failed to parse {filepath}: {e}")
             self._cache[domain] = sections
         self._loaded = True
+        self._ir_index_ready = False
+        # section_key → section dict 역참조 캐시 구축
+        self._sections_cache: Dict[str, Dict] = {}
+        for domain, secs in self._cache.items():
+            for sec in secs:
+                key = self._make_ir_section_key(domain, sec)
+                self._sections_cache[key] = sec
         total = sum(len(v) for v in self._cache.values())
         logger.info(f"StructuredKnowledgeStore loaded for {self.product_id}: {total} sections")
+
+    def _make_ir_section_key(self, domain: str, section: Dict) -> str:
+        """BgeM3IRService._make_cache_key와 동일한 포맷의 키 생성"""
+        title = section.get("title", "")[:50]
+        source = section.get("source_file", "")
+        return f"{self.product_id}::{domain}::{source}::{title}"
+
+    def _get_sections_for_product(self, product_id: str) -> List[Dict]:
+        """모든 도메인의 섹션을 평탄화하여 반환"""
+        self._ensure_loaded()
+        all_sections = []
+        for domain, sections in self._cache.items():
+            for sec in sections:
+                # domain과 source_file이 없으면 추가
+                s = dict(sec)
+                s.setdefault("domain", domain)
+                all_sections.append(s)
+        return all_sections
 
     def _parse_markdown(self, filepath: str, domain: str) -> List[Dict]:
         """Markdown 파일을 섹션 단위로 파싱"""
@@ -906,93 +931,214 @@ class StructuredKnowledgeStore:
         return idf_weights
 
     # =========================================================================
-    # vLLM Embedding (Semantic Search)
+    # BGE-M3 IR Primary Search (1차 검색)
     # =========================================================================
 
-    _EMBED_TIMEOUT = 3.0  # 임베딩 API 타임아웃 (초)
-    _EMBED_TOP_N = 20     # 시맨틱 검색 대상 키워드 후보 수
-    _HYBRID_ALPHA = 0.6   # 키워드 가중치 (1-α = semantic 가중치)
+    async def _precompute_ir_embeddings(self):
+        """Neo4j에 이미 임베딩 저장됨 → 인메모리 사전계산 불필요"""
+        self._ir_index_ready = True
 
-    async def _embed_texts(self, texts: List[str]) -> Optional[List[List[float]]]:
-        """vLLM 임베딩 서비스로 텍스트 배치 임베딩. 실패 시 None 반환."""
-        try:
-            import httpx
-            from ..core.config import api_settings
-            url = f"{api_settings.EMBEDDING_URL}/embeddings"
+    async def _ir_primary_search(
+        self,
+        query: str,
+        domains: Optional[List[str]],
+        top_k: int,
+    ) -> List[SearchResult]:
+        """
+        Neo4j Vector Index 기반 1차 검색 + 키워드 BM25 부스트.
 
-            # 텍스트 길이 제한 (임베딩 모델 max token 고려)
-            truncated = [t[:512] for t in texts]
+        1. neo4j_vector_search() → Neo4j에서 직접 content + score 반환
+        2. 키워드 BM25 부스트 적용 (도메인 가중치 포함)
+        3. final_score = ir_score * 0.7 + keyword_boost * 0.3
+        """
+        from .bge_m3_ir_service import get_bge_m3_ir_service
+        from ..core.config import api_settings
 
-            async with httpx.AsyncClient(timeout=self._EMBED_TIMEOUT) as client:
-                resp = await client.post(url, json={
-                    "input": truncated,
-                    "model": "NV-Embed-QA",
-                })
-                resp.raise_for_status()
-                data = resp.json()
-                return [item["embedding"] for item in data["data"]]
-        except Exception as e:
-            logger.debug(f"Embedding API failed (graceful fallback): {e}")
-            return None
+        ir_service = get_bge_m3_ir_service()
 
-    @staticmethod
-    def _cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
-        """두 벡터의 코사인 유사도 계산"""
-        dot = sum(a * b for a, b in zip(vec_a, vec_b))
-        norm_a = math.sqrt(sum(a * a for a in vec_a))
-        norm_b = math.sqrt(sum(b * b for b in vec_b))
-        if norm_a == 0 or norm_b == 0:
-            return 0.0
-        return dot / (norm_a * norm_b)
+        ir_top_k = getattr(api_settings, "IR_PRIMARY_TOP_K", 50)
+        neo4j_results = await ir_service.neo4j_vector_search(
+            query=query,
+            product_id=self.product_id,
+            top_k=ir_top_k,
+        )
 
-    async def _apply_semantic_reranking(
+        if not neo4j_results:
+            return []
+
+        # 키워드 BM25 부스트 준비
+        tokens = self._tokenize_query(query)
+
+        # 에러코드 패턴
+        error_codes = re.findall(r'-?\d{4,5}', query)
+        _error_keywords = re.search(
+            r'에러|오류|エラー|error|대처|対処|troubleshoot',
+            query, re.IGNORECASE,
+        )
+        _has_error_pattern = bool(error_codes) or bool(_error_keywords)
+
+        # 도메인 부스트 가중치
+        _DOMAIN_BOOST = {
+            "pdf_manuals": 1.5,
+            "commands": 1.3,
+            "configs": 1.2,
+            "error_codes": 1.3 if _has_error_pattern else 0.7,
+            "glossary": 0.6,
+            "learning_qa": 0.4,
+        }
+
+        # IR 점수 정규화를 위한 최대값
+        max_ir_score = neo4j_results[0]["score"] if neo4j_results else 1.0
+        if max_ir_score <= 0:
+            max_ir_score = 1.0
+
+        # content 중복 제거용
+        seen_content: set = set()
+        results: List[SearchResult] = []
+
+        for item in neo4j_results:
+            content = item["content"]
+            title = item["title"]
+            doc_name = item["doc_name"]
+            ir_score = item["score"]
+
+            if not content:
+                continue
+
+            # content 중복 제거
+            raw_fp = content[:120].strip().lower()
+            content_fp = re.sub(r"[^a-z0-9\u3040-\u9fff\uac00-\ud7af]", "", raw_fp)
+            if content_fp in seen_content:
+                continue
+            seen_content.add(content_fp)
+
+            # IR 점수 정규화 (0~1)
+            norm_ir = ir_score / max_ir_score
+
+            # 키워드 BM25 부스트 계산
+            kw_boost = 0.0
+            if tokens:
+                title_lower = title.lower()
+                content_lower = content.lower()
+                for token in tokens:
+                    if token in title_lower:
+                        kw_boost += 3.0
+                    elif token in content_lower:
+                        kw_boost += 1.0
+                max_possible = len(tokens) * 3.0
+                kw_boost = kw_boost / max_possible if max_possible > 0 else 0.0
+
+            # Neo4j 결과는 pdf_manuals 도메인
+            domain = "pdf_manuals"
+            domain_boost = _DOMAIN_BOOST.get(domain, 1.0)
+
+            # 에러코드 정확 매칭 추가 보너스
+            error_bonus = 0.0
+            if error_codes:
+                for code in error_codes:
+                    if code in title.lower() or code in content.lower():
+                        error_bonus = 0.3
+                        break
+
+            # 최종 점수: IR × 0.7 + 키워드 부스트 × 0.3 + 에러 보너스
+            final_score = (norm_ir * 0.7 + kw_boost * 0.3 + error_bonus) * domain_boost
+
+            results.append(SearchResult(
+                title=title,
+                content=content,
+                source_file=doc_name,
+                source_page=str(item.get("page_number", "")),
+                relevance_score=final_score,
+                domain=domain,
+                product=self.product_id,
+            ))
+
+        # 최종 점수 내림차순 정렬
+        results.sort(key=lambda r: r.relevance_score, reverse=True)
+        return results[:top_k]
+
+    # =========================================================================
+    # BGE-M3 IR Pipeline (Sparse + Dense + RRF Reranking) - Fallback
+    # =========================================================================
+
+    _EMBED_TOP_N = 20     # IR 파이프라인 대상 키워드 후보 수
+
+    async def _apply_ir_reranking(
         self,
         query: str,
         results: List[SearchResult],
     ) -> List[SearchResult]:
         """
-        키워드 검색 상위 결과에 vLLM 시맨틱 유사도를 적용하여 hybrid 점수로 재정렬.
-        임베딩 실패 시 원래 결과를 그대로 반환 (graceful degradation).
+        BGE-M3 Hybrid IR Pipeline으로 재정렬:
+        1) Query → BGE-M3 hybrid encoding (dense + sparse)
+        2) 후보 문서 → dense/sparse similarity 각각 계산
+        3) RRF (Reciprocal Rank Fusion) 병합
+        4) 재정렬된 결과 반환
+
+        BGE-M3 실패 시 원래 keyword 점수 결과를 그대로 반환 (graceful degradation).
         """
         if not results:
             return results
 
-        # 상위 N개만 시맨틱 검색 대상
+        from .bge_m3_ir_service import get_bge_m3_ir_service
+        ir_service = get_bge_m3_ir_service()
+
+        # 상위 N개만 IR 대상
         candidates = results[:self._EMBED_TOP_N]
 
-        # 쿼리 + 후보 content를 한 번에 배치 임베딩
-        texts = [query] + [r.content[:300] for r in candidates]
-        embeddings = await self._embed_texts(texts)
+        # 섹션 dict와 keyword 점수 준비
+        sections = []
+        kw_scores = []
+        for r in candidates:
+            sections.append({
+                "title": r.title,
+                "content": r.content,
+                "source_file": r.source_file,
+                "domain": r.domain,
+            })
+            kw_scores.append(r.relevance_score)
 
-        if embeddings is None or len(embeddings) < 2:
-            # 임베딩 실패 → 키워드 점수만 사용
+        # BGE-M3 hybrid search (RRF 포함)
+        ranked = await ir_service.hybrid_search(
+            query=query,
+            candidate_sections=sections,
+            keyword_scores=kw_scores,
+            product_id=self.product_id,
+            top_k=len(candidates),
+        )
+
+        if not ranked:
+            # IR 실패 → keyword 점수 유지
             return results
 
-        query_emb = embeddings[0]
-        candidate_embs = embeddings[1:]
+        # RRF 점수로 결과 재정렬
+        # ranked: List[(index, rrf_score)]
+        max_rrf = ranked[0][1] if ranked else 1.0
+        if max_rrf == 0:
+            max_rrf = 1.0
 
-        # 키워드 점수 정규화 (0~1)
-        max_kw = max(r.relevance_score for r in candidates) if candidates else 1.0
-        if max_kw == 0:
-            max_kw = 1.0
+        reranked: List[SearchResult] = []
+        for idx, rrf_score in ranked:
+            if idx < len(candidates):
+                result = candidates[idx]
+                # RRF 점수를 정규화하여 적용
+                result.relevance_score = rrf_score / max_rrf
+                reranked.append(result)
 
+        # N개 이후 결과는 낮은 점수로 추가
+        remaining_indices = {idx for idx, _ in ranked}
         for i, result in enumerate(candidates):
-            if i < len(candidate_embs):
-                sem_score = self._cosine_similarity(query_emb, candidate_embs[i])
-                kw_norm = result.relevance_score / max_kw
-                # Hybrid score = α * keyword + (1-α) * semantic
-                result.relevance_score = (
-                    self._HYBRID_ALPHA * kw_norm
-                    + (1 - self._HYBRID_ALPHA) * sem_score
-                )
+            if i not in remaining_indices:
+                result.relevance_score *= 0.1  # 대폭 감점
+                reranked.append(result)
 
-        # 남은 결과(N개 이후)는 키워드 점수 정규화만 적용
+        # 나머지 결과 (EMBED_TOP_N 이후)
         for result in results[self._EMBED_TOP_N:]:
-            result.relevance_score = result.relevance_score / max_kw * self._HYBRID_ALPHA
+            result.relevance_score *= 0.05
+            reranked.append(result)
 
-        # hybrid score로 재정렬
-        results.sort(key=lambda r: r.relevance_score, reverse=True)
-        return results
+        reranked.sort(key=lambda r: r.relevance_score, reverse=True)
+        return reranked
 
     async def search(
         self,
@@ -1002,19 +1148,45 @@ class StructuredKnowledgeStore:
         skip_semantic_reranking: bool = False,
     ) -> List[SearchResult]:
         """
-        Progressive Token + IDF 기반 구조화 검색 (LLM 없음)
+        구조화 검색 메인 진입점.
 
-        Args:
-            query: 검색 쿼리
-            domains: 검색할 도메인 (None이면 전체)
-            top_k: 반환할 최대 결과 수
-            skip_semantic_reranking: True면 vLLM 시맨틱 리랭킹 스킵 (Special Agent용)
+        IR_PRIMARY_SEARCH=True (기본):
+          Phase 1: Neo4j Vector Search + 키워드 BM25 부스트
+          실패 시: 기존 키워드-first 파이프라인으로 fallback
 
-        Returns:
-            검색 결과 리스트 (relevance_score 내림차순)
+        IR_PRIMARY_SEARCH=False:
+          기존 키워드 BM25 → BGE-M3 리랭킹 파이프라인
         """
         self._ensure_loaded()
 
+        from ..core.config import api_settings
+
+        # Neo4j Vector Search (항상 ready - 인메모리 사전계산 불필요)
+        if (getattr(api_settings, "IR_PRIMARY_SEARCH", False)
+                and not skip_semantic_reranking):
+            try:
+                results = await self._ir_primary_search(query, domains, top_k)
+                if results:
+                    return results
+                logger.debug(f"IR primary search returned empty, falling back to keyword")
+            except Exception as e:
+                logger.warning(f"IR primary search failed, falling back: {e}")
+
+        # Fallback: 기존 키워드-first 파이프라인
+        return await self._keyword_search_with_reranking(
+            query, domains, top_k, skip_semantic_reranking
+        )
+
+    async def _keyword_search_with_reranking(
+        self,
+        query: str,
+        domains: Optional[List[str]] = None,
+        top_k: int = 3,
+        skip_semantic_reranking: bool = False,
+    ) -> List[SearchResult]:
+        """
+        기존 키워드 BM25 → BGE-M3 리랭킹 파이프라인 (fallback용)
+        """
         search_domains = domains or list(self._cache.keys())
 
         # 토큰 추출 + IDF 계산
@@ -1147,9 +1319,9 @@ class StructuredKnowledgeStore:
             if len(results) >= max(top_k * 7, self._EMBED_TOP_N):
                 break
 
-        # Phase 2: vLLM 시맨틱 유사도 리랭킹 (키워드 결과에 시맨틱 점수 병합)
+        # Phase 2: BGE-M3 IR Pipeline (Sparse + Dense + RRF 리랭킹)
         if not skip_semantic_reranking:
-            results = await self._apply_semantic_reranking(query, results)
+            results = await self._apply_ir_reranking(query, results)
 
         # 최종 top_k 제한
         return results[:top_k]
