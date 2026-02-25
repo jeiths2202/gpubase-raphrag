@@ -34,6 +34,7 @@ import {
   Workflow,
   GitBranch,
   FileCode2,
+  FileWarning,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useAuthStore } from '../store/authStore';
@@ -119,6 +120,12 @@ const NAV_ITEMS: NavItem[] = [
     path: '/legacy-modernization',
     icon: <FileCode2 size={20} />,
     labelKey: 'common.nav.legacyModernization',
+  },
+  {
+    id: 'jclDiagnosis',
+    path: '/jcl-diagnosis',
+    icon: <FileWarning size={20} />,
+    labelKey: 'common.nav.jclDiagnosis',
   },
   {
     id: 'improvements',

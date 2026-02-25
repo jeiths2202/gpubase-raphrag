@@ -50,6 +50,7 @@
     "openframeRag": "OpenFrame RAG",
     "scoring": "스코어링 설정",
     "legacyModernization": "레거시 모더나이제이션",
+    "jclDiagnosis": "JCL 진단",
     "mainNavigation": "메인 네비게이션"
   },
   "products": {
@@ -858,7 +859,35 @@
     "planGenerating": "플랜 작성 중...",
     "planSteps": "단계",
     "autoDetected": "자동 감지",
-    "specialAgent": "특수 에이전트"
+    "specialAgent": "특수 에이전트",
+    "thinkMode": "Think 모드 (Qwen3 내부 추론)",
+    "thinkLabel": "내부 추론 (Think)"
+  },
+  "jclDiagnosis": {
+    "title": "JCL Job 장애 진단",
+    "nav": "JCL 진단",
+    "uploadTitle": "JOB 스풀 파일 업로드",
+    "uploadHint": "JOB 출력 zip 파일을 드래그 앤 드롭하거나 클릭하여 선택",
+    "language": "응답 언어",
+    "message": "추가 질문 (선택)",
+    "messagePlaceholder": "에러 상세나 확인하고 싶은 내용...",
+    "analyze": "진단 시작",
+    "analyzing": "진단 중...",
+    "phaseExtract": "파일 추출",
+    "phaseClassify": "파일 분류",
+    "phaseParse": "JCL 분석",
+    "phaseDiagnose": "에러 진단",
+    "phaseSearch": "지식 검색",
+    "phaseReport": "리포트 생성",
+    "jobName": "잡 이름",
+    "totalSteps": "스텝 수",
+    "errorCode": "에러 코드",
+    "severity": "심각도",
+    "openReport": "리포트 열기",
+    "downloadReport": "HTML 다운로드",
+    "newDiagnosis": "새 진단",
+    "noFileSelected": "파일이 선택되지 않았습니다",
+    "zipOnly": "zip 파일만 지원됩니다"
   },
   "knowledgeGraph": {
     "title": "Knowledge Graph",

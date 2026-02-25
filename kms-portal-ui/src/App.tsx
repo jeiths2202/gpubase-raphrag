@@ -50,6 +50,7 @@ import { DocumentsPage } from './pages/DocumentsPage';
 import { ImprovementsPage, SubmitImprovementPage, ImprovementDetailPage } from './pages/improvements';
 import { LegacyModernizationPage } from './pages/LegacyModernizationPage';
 import { LegacyAnalysisDetailPage } from './pages/LegacyAnalysisDetailPage';
+import { JCLDiagnosisPage } from './pages/JCLDiagnosisPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 
 // Import global styles
@@ -111,6 +112,9 @@ export const App: React.FC = () => {
 
               {/* Legacy Modernization - COBOL/JCL/MAP/ASM Analysis */}
               <Route path="/legacy-modernization" element={<LegacyModernizationPage />} />
+
+              {/* JCL Job Failure Diagnosis */}
+              <Route path="/jcl-diagnosis" element={<JCLDiagnosisPage />} />
 
               {/* Improvements - AI-Driven Enhancement Management */}
               <Route path="/improvements" element={<ImprovementsPage />} />

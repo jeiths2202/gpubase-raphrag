@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-02-25T12:29:26.179Z",
+  "lastUpdated": "2026-02-25T13:04:22.766Z",
   "activeFeatures": [
     "jcl-job-failure-diagnosis",
     "source-code-explanation",
@@ -41,6 +41,13 @@
   ],
   "primaryFeature": "jcl-job-failure-diagnosis",
   "features": {
+    "jcl-diagnosis-frontend-viewer": {
+      "phase": "plan",
+      "matchRate": null,
+      "iterationCount": 0,
+      "startedAt": "2026-02-25T14:00:00Z",
+      "planPath": "docs/01-plan/features/jcl-diagnosis-frontend-viewer.plan.md"
+    },
     "jcl-diagnosis-report-template": {
       "phase": "archived",
       "matchRate": 100,
@@ -165,9 +172,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-16T16:00:47.458Z",
-        "lastUpdated": "2026-02-25T12:29:20.504Z"
+        "lastUpdated": "2026-02-25T13:01:59.145Z"
       },
-      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\routers\\jcl_diagnosis.py"
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\kms-portal-ui\\src\\api\\jcl-diagnosis.api.ts"
     },
     "agent_teams": {
       "phase": "do",
@@ -204,9 +211,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-16T18:12:36.923Z",
-        "lastUpdated": "2026-02-24T18:37:47.590Z"
+        "lastUpdated": "2026-02-25T13:04:22.766Z"
       },
-      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\kms-portal-ui\\src\\pages\\AgenticRAGPage.tsx"
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\kms-portal-ui\\src\\components\\Sidebar.tsx"
     },
     "core": {
       "phase": "do",
@@ -558,7 +565,7 @@
   "session": {
     "startedAt": "2026-01-30T11:33:36.280Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-02-25T12:29:26.179Z"
+    "lastActivity": "2026-02-25T13:04:22.766Z"
   },
   "history": [
     {
@@ -5910,6 +5917,42 @@
     {
       "timestamp": "2026-02-25T12:29:26.179Z",
       "feature": "jcl_diagnosis",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:01:59.145Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:03:07.819Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:04:07.042Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:04:12.451Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:04:16.979Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:04:22.766Z",
+      "feature": "kms-portal-ui",
       "phase": "do",
       "action": "updated"
     }

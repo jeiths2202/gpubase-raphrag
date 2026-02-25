@@ -50,6 +50,7 @@
     "openframeRag": "OpenFrame RAG",
     "scoring": "スコアリング設定",
     "legacyModernization": "レガシーモダナイゼーション",
+    "jclDiagnosis": "JCL診断",
     "mainNavigation": "メインナビゲーション"
   },
   "products": {
@@ -858,7 +859,35 @@
     "planGenerating": "プラン作成中...",
     "planSteps": "ステップ",
     "autoDetected": "自動検出",
-    "specialAgent": "スペシャルエージェント"
+    "specialAgent": "スペシャルエージェント",
+    "thinkMode": "Think モード (Qwen3内部推論)",
+    "thinkLabel": "内部推論 (Think)"
+  },
+  "jclDiagnosis": {
+    "title": "JCL Job障害診断",
+    "nav": "JCL診断",
+    "uploadTitle": "JOBスプールファイルをアップロード",
+    "uploadHint": "JOB出力のzipファイルをドラッグ＆ドロップ、またはクリックして選択",
+    "language": "応答言語",
+    "message": "追加質問（任意）",
+    "messagePlaceholder": "エラーの詳細や確認したい内容...",
+    "analyze": "診断開始",
+    "analyzing": "診断中...",
+    "phaseExtract": "ファイル解凍",
+    "phaseClassify": "ファイル分類",
+    "phaseParse": "JCL解析",
+    "phaseDiagnose": "エラー診断",
+    "phaseSearch": "知識検索",
+    "phaseReport": "レポート生成",
+    "jobName": "ジョブ名",
+    "totalSteps": "ステップ数",
+    "errorCode": "エラーコード",
+    "severity": "重大度",
+    "openReport": "レポートを開く",
+    "downloadReport": "HTMLダウンロード",
+    "newDiagnosis": "新しい診断",
+    "noFileSelected": "ファイルが選択されていません",
+    "zipOnly": "zipファイルのみ対応"
   },
   "knowledgeGraph": {
     "title": "ナレッジグラフ",

@@ -50,6 +50,7 @@
     "openframeRag": "OpenFrame RAG",
     "scoring": "Scoring Config",
     "legacyModernization": "Legacy Modernization",
+    "jclDiagnosis": "JCL Diagnosis",
     "mainNavigation": "Main navigation"
   },
   "products": {
@@ -858,7 +859,35 @@
     "planGenerating": "Creating plan...",
     "planSteps": "steps",
     "autoDetected": "Auto-detected",
-    "specialAgent": "Special Agent"
+    "specialAgent": "Special Agent",
+    "thinkMode": "Think Mode (Qwen3 Internal Reasoning)",
+    "thinkLabel": "Internal Reasoning (Think)"
+  },
+  "jclDiagnosis": {
+    "title": "JCL Job Failure Diagnosis",
+    "nav": "JCL Diagnosis",
+    "uploadTitle": "Upload JOB Spool File",
+    "uploadHint": "Drag & drop a JOB output zip file, or click to browse",
+    "language": "Response Language",
+    "message": "Additional Question (optional)",
+    "messagePlaceholder": "Error details or what you want to check...",
+    "analyze": "Start Diagnosis",
+    "analyzing": "Analyzing...",
+    "phaseExtract": "Extract Files",
+    "phaseClassify": "Classify Files",
+    "phaseParse": "Parse JCL",
+    "phaseDiagnose": "Diagnose Error",
+    "phaseSearch": "Knowledge Search",
+    "phaseReport": "Generate Report",
+    "jobName": "Job Name",
+    "totalSteps": "Steps",
+    "errorCode": "Error Code",
+    "severity": "Severity",
+    "openReport": "Open Report",
+    "downloadReport": "Download HTML",
+    "newDiagnosis": "New Diagnosis",
+    "noFileSelected": "No file selected",
+    "zipOnly": "Only zip files are supported"
   },
   "knowledgeGraph": {
     "title": "Knowledge Graph",
