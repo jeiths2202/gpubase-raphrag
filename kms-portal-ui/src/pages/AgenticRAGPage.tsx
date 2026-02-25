@@ -43,7 +43,10 @@ import {
   ThumbsUp,
   ThumbsDown,
   Upload,
+  Brain,
+  FileWarning,
 } from 'lucide-react';
+import { getReportUrl } from '../api/jcl-diagnosis.api';
 import { MessageContent } from '../components/AgentChat/MessageContent';
 import { ConversationSidebar } from '../components/ConversationSidebar';
 import { ExternalConnectorsModal } from '../components/AgentChat/ExternalConnectorsModal';
@@ -120,6 +123,8 @@ interface ChatMessage {
   lowRelevanceScore?: number;
   searchedProducts?: string[];
   graphData?: { nodes: Node[]; edges: Edge[] };
+  thinkContent?: string;
+  diagnosisId?: string;
   timestamp: Date;
 }
 
@@ -137,6 +142,7 @@ export const AgenticRAGPage: React.FC = () => {
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
   const [agentMode, setAgentMode] = useState<AgentMode>('rag');
   const [specialAgent, setSpecialAgent] = useState(false);
+  const [enableThinking, setEnableThinking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -147,8 +153,8 @@ export const AgenticRAGPage: React.FC = () => {
   const selectedAgentRef = useRef<AgentType>('rag');
   const {
     attachedFiles, fileError, fileInputRef,
-    handleFileAttach, handleFileChange, handleRemoveFile,
-    getFileContext, clearFileError,
+    handleFileAttach, handleFileChange, handleRemoveFile, handleClearAllFiles,
+    getFileContext, getZipFile, clearFileError,
   } = useFileAttachment(selectedAgentRef);
 
   // --- Feature 2: Conversation history ---
@@ -318,12 +324,13 @@ export const AgenticRAGPage: React.FC = () => {
 
   // Send message via SSE stream
   const sendMessage = useCallback(async (text: string, overrideProduct?: string) => {
-    if (!text.trim() || isStreaming || !isAuthenticated) return;
+    if ((!text.trim() && !getZipFile()) || isStreaming || !isAuthenticated) return;
 
+    const zipFile = getZipFile();
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
-      content: text,
+      content: zipFile ? `📎 ${zipFile.name}\n${text || 'JCL診断を実行してください'}` : text,
       timestamp: new Date(),
     };
 
@@ -332,6 +339,133 @@ export const AgenticRAGPage: React.FC = () => {
     resetHistory();
     setIsStreaming(true);
 
+    // ZIP attached → JCL Diagnosis route
+    if (zipFile) {
+      const assistantId = `assistant-${Date.now()}`;
+      let currentContent = '';
+      let diagnosisId = '';
+
+      try {
+        abortControllerRef.current = new AbortController();
+
+        const formData = new FormData();
+        formData.append('file', zipFile);
+        formData.append('language', 'ja');
+        if (text.trim()) formData.append('message', text.trim());
+
+        const response = await fetch('/api/v1/jcl-diagnosis/analyze', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+          signal: abortControllerRef.current.signal,
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No response body');
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const chunks = buffer.split('\n\n');
+          buffer = chunks.pop() || '';
+
+          for (const chunk of chunks) {
+            const trimmed = chunk.trim();
+            if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+            let event: Record<string, unknown>;
+            try { event = JSON.parse(trimmed.slice(6)); } catch { continue; }
+
+            switch (event.type) {
+              case 'file_extracted':
+              case 'file_classified':
+              case 'jcl_parsed':
+              case 'searching_knowledge':
+                // 進捗ステータスをストリーミング表示
+                currentContent += `🔍 ${event.message || event.type}\n`;
+                setMessages(prev => {
+                  const existing = prev.find(m => m.id === assistantId);
+                  if (existing) return prev.map(m => m.id === assistantId ? { ...m, content: currentContent } : m);
+                  return [...prev, { id: assistantId, role: 'assistant' as const, content: currentContent, timestamp: new Date() }];
+                });
+                break;
+
+              case 'step_flow': {
+                const steps = event.steps as Array<{ step_name: string; program: string; status: string }> | undefined;
+                if (steps) {
+                  currentContent += `\n**JOB Step Flow:**\n`;
+                  steps.forEach((s, i) => {
+                    const icon = s.status === 'COMPLETED' ? '✅' : s.status === 'ABEND' ? '❌' : '⏭️';
+                    currentContent += `${icon} Step ${i + 1}: ${s.step_name} (${s.program}) — ${s.status}\n`;
+                  });
+                  currentContent += '\n';
+                  setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: currentContent } : m));
+                }
+                break;
+              }
+
+              case 'error_found':
+                currentContent += `\n⚠️ **エラー検出**: ${event.error_code || ''} — ${event.message || ''}\n`;
+                setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: currentContent } : m));
+                break;
+
+              case 'search_result':
+                currentContent += `📚 ナレッジ検索完了: ${(event.results as unknown[])?.length || 0}件\n`;
+                setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: currentContent } : m));
+                break;
+
+              case 'generating_report':
+                currentContent += `\n📝 **診断レポート生成中...**\n\n`;
+                setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: currentContent } : m));
+                break;
+
+              case 'llm_token':
+                currentContent += (event.token as string) || '';
+                setMessages(prev => {
+                  const existing = prev.find(m => m.id === assistantId);
+                  if (existing) return prev.map(m => m.id === assistantId ? { ...m, content: currentContent } : m);
+                  return [...prev, { id: assistantId, role: 'assistant' as const, content: currentContent, timestamp: new Date() }];
+                });
+                break;
+
+              case 'report_complete':
+                diagnosisId = (event.diagnosis_id as string) || '';
+                if (diagnosisId) {
+                  currentContent += `\n\n---\n📊 [診断レポートを開く](${getReportUrl(diagnosisId)})`;
+                  setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: currentContent, diagnosisId } : m));
+                }
+                break;
+
+              case 'error':
+                currentContent += `\n❌ エラー: ${event.message || 'Unknown error'}`;
+                setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: currentContent } : m));
+                break;
+            }
+          }
+        }
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          setMessages(prev => [...prev, {
+            id: assistantId, role: 'assistant' as const,
+            content: `JCL診断エラー: ${(err as Error).message}`, timestamp: new Date(),
+          }]);
+        }
+      } finally {
+        setIsStreaming(false);
+        abortControllerRef.current = null;
+        handleClearAllFiles();
+      }
+      return;
+    }
+
+    // Normal RAG flow
     // File context from attachment
     const fileCtx = getFileContext();
     // External connectors context
@@ -344,6 +478,7 @@ export const AgenticRAGPage: React.FC = () => {
       selected_product: overrideProduct || undefined,
       language: 'ja',
       agent_mode: specialAgent ? 'special' : agentMode,
+      enable_thinking: enableThinking,
       history: messages
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .slice(-10)
@@ -369,6 +504,7 @@ export const AgenticRAGPage: React.FC = () => {
 
     const assistantId = `assistant-${Date.now()}`;
     let currentContent = '';
+    let currentThinkContent = '';
     let currentProduct = '';
     let currentQueryType = '';
 
@@ -486,6 +622,57 @@ export const AgenticRAGPage: React.FC = () => {
                 ];
               });
               break;
+
+            case 'token': {
+              // IR pipeline SSE token event
+              const tokenData = (event as Record<string, unknown>).data as Record<string, unknown> | undefined;
+              currentContent += (tokenData?.content as string) || '';
+              setMessages(prev => {
+                const existing = prev.find(m => m.id === assistantId);
+                if (existing) {
+                  return prev.map(m =>
+                    m.id === assistantId ? { ...m, content: currentContent } : m
+                  );
+                }
+                return [
+                  ...prev,
+                  {
+                    id: assistantId,
+                    role: 'assistant',
+                    content: currentContent,
+                    product: currentProduct,
+                    timestamp: new Date(),
+                  },
+                ];
+              });
+              break;
+            }
+
+            case 'think_token': {
+              // Qwen3 think block token → thinkContent에 축적
+              const thinkData = (event as Record<string, unknown>).data as Record<string, unknown> | undefined;
+              currentThinkContent += (thinkData?.content as string) || '';
+              setMessages(prev => {
+                const existing = prev.find(m => m.id === assistantId);
+                if (existing) {
+                  return prev.map(m =>
+                    m.id === assistantId ? { ...m, thinkContent: currentThinkContent } : m
+                  );
+                }
+                return [
+                  ...prev,
+                  {
+                    id: assistantId,
+                    role: 'assistant',
+                    content: '',
+                    thinkContent: currentThinkContent,
+                    product: currentProduct,
+                    timestamp: new Date(),
+                  },
+                ];
+              });
+              break;
+            }
 
             case 'verification':
               setMessages(prev =>
@@ -626,7 +813,7 @@ export const AgenticRAGPage: React.FC = () => {
       setIsStreaming(false);
       abortControllerRef.current = null;
     }
-  }, [isStreaming, isAuthenticated, isAutoMode, selectedProducts, messages, activeConversationId, agentMode]);
+  }, [isStreaming, isAuthenticated, isAutoMode, selectedProducts, messages, activeConversationId, agentMode, specialAgent, enableThinking, getZipFile, handleClearAllFiles]);
 
   // Handle clarification product selection
   const handleClarificationSelect = useCallback((product: string) => {
@@ -761,7 +948,31 @@ export const AgenticRAGPage: React.FC = () => {
                   )}
                 </div>
               )}
+              {/* Think panel (Qwen3 internal reasoning) */}
+              {msg.thinkContent && (
+                <details className="think-block">
+                  <summary className="think-block-header">
+                    <Brain size={14} />
+                    <span>{t('common.agenticRag.thinkLabel') || '内部推論 (Think)'}</span>
+                  </summary>
+                  <div className="think-block-content">
+                    <MessageContent content={msg.thinkContent} />
+                  </div>
+                </details>
+              )}
               <MessageContent content={msg.content} />
+              {msg.diagnosisId && (
+                <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                  <button
+                    className="openagent-btn-send"
+                    style={{ fontSize: '0.8rem', padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 4 }}
+                    onClick={() => window.open(getReportUrl(msg.diagnosisId!), '_blank')}
+                  >
+                    <FileWarning size={14} />
+                    診断レポートを開く
+                  </button>
+                </div>
+              )}
               {msg.verification && msg.verification.length > 0 && (
                 <div className="verification-summary">
                   <div className="verification-title">
@@ -1041,6 +1252,16 @@ export const AgenticRAGPage: React.FC = () => {
             <Sparkles size={14} />
             <span>Special</span>
           </label>
+          {/* Think Mode Toggle (Qwen3) */}
+          <label className="think-mode-toggle" title={t('common.agenticRag.thinkMode') || 'Think Mode (Qwen3)'}>
+            <input
+              type="checkbox"
+              checked={enableThinking}
+              onChange={(e) => setEnableThinking(e.target.checked)}
+            />
+            <Brain size={14} />
+            <span>Think</span>
+          </label>
           <div className="product-selector-wrapper" ref={dropdownRef}>
             <button
               className="product-selector-button"
@@ -1144,7 +1365,7 @@ export const AgenticRAGPage: React.FC = () => {
             type="file"
             style={{ display: 'none' }}
             onChange={handleFileChange}
-            accept=".txt,.md,.py,.js,.ts,.json,.yaml,.yml,.xml,.html,.css,.java,.go,.rs,.c,.cpp,.h,.pdf"
+            accept=".txt,.md,.py,.js,.ts,.json,.yaml,.yml,.xml,.html,.css,.java,.go,.rs,.c,.cpp,.h,.pdf,.zip"
           />
           <button
             type="button"
