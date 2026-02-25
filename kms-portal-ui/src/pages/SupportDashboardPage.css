@@ -20,12 +20,12 @@
   gap: var(--spacing-sm, 8px);
   font-size: 1.5rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
   margin: 0;
 }
 
 .support-dashboard-header h1 svg {
-  color: var(--accent-color, #6366f1);
+  color: var(--color-primary, #6366f1);
 }
 
 .support-dashboard-refresh {
@@ -33,18 +33,18 @@
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  border: 1px solid var(--border-color, #e5e7eb);
+  border: 1px solid var(--color-border, #e5e7eb);
   border-radius: 8px;
-  background: var(--bg-primary, #fff);
-  color: var(--text-secondary);
+  background: var(--color-bg-primary, #fff);
+  color: var(--color-text-secondary);
   font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .support-dashboard-refresh:hover {
-  background: var(--bg-secondary, #f5f5f5);
-  color: var(--text-primary);
+  background: var(--color-bg-secondary, #f5f5f5);
+  color: var(--color-text-primary);
 }
 
 .support-dashboard-refresh.spinning svg {
@@ -69,8 +69,8 @@
   align-items: center;
   gap: var(--spacing-md, 16px);
   padding: var(--spacing-md, 16px) var(--spacing-lg, 24px);
-  background: var(--bg-primary, #fff);
-  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--color-bg-primary, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
   border-radius: 12px;
 }
 
@@ -119,13 +119,13 @@
 .support-stat-value {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
   line-height: 1;
 }
 
 .support-stat-label {
   font-size: 0.8125rem;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   margin-top: 4px;
 }
 
@@ -141,7 +141,7 @@
   margin-bottom: var(--spacing-md, 16px);
   font-size: 1rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
 }
 
 .support-section-count {
@@ -186,14 +186,14 @@
   align-items: center;
   gap: var(--spacing-md, 16px);
   padding: var(--spacing-md, 16px);
-  background: var(--bg-primary, #fff);
-  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--color-bg-primary, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
   border-radius: 10px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .support-session-card:hover {
-  border-color: var(--accent-color, #6366f1);
+  border-color: var(--color-primary, #6366f1);
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);
 }
 
@@ -212,8 +212,8 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--bg-secondary, #f5f5f5);
-  color: var(--text-secondary);
+  background: var(--color-bg-secondary, #f5f5f5);
+  color: var(--color-text-secondary);
   flex-shrink: 0;
   font-weight: 600;
   font-size: 1rem;
@@ -227,12 +227,12 @@
 .support-session-name {
   font-weight: 600;
   font-size: 0.9375rem;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
 }
 
 .support-session-context {
   font-size: 0.8125rem;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -250,7 +250,7 @@
 
 .support-session-time {
   font-size: 0.75rem;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
 }
 
 .support-session-expert {
@@ -272,7 +272,7 @@
   cursor: pointer;
   transition: all 0.15s ease;
   color: #fff;
-  background: var(--accent-color, #6366f1);
+  background: var(--color-primary, #6366f1);
 }
 
 .support-join-btn:hover {
@@ -315,7 +315,7 @@
   justify-content: center;
   padding: 48px 24px;
   text-align: center;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
 }
 
 .support-empty svg {
@@ -344,7 +344,7 @@
   width: 90vw;
   max-width: 960px;
   max-height: 90vh;
-  background: var(--bg-primary, #fff);
+  background: var(--color-bg-primary, #fff);
   border-radius: 16px;
   overflow: hidden;
   display: flex;
@@ -357,7 +357,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--spacing-md, 16px) var(--spacing-lg, 24px);
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
 }
 
 .expert-session-header-left {
@@ -370,7 +370,7 @@
   margin: 0;
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
 }
 
 .expert-session-user-badge {
@@ -398,14 +398,14 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .expert-session-close:hover {
-  background: var(--bg-secondary, #f5f5f5);
-  color: var(--text-primary);
+  background: var(--color-bg-secondary, #f5f5f5);
+  color: var(--color-text-primary);
 }
 
 .expert-session-body {
@@ -417,7 +417,7 @@
 
 .expert-session-context {
   padding: var(--spacing-md, 16px) var(--spacing-lg, 24px);
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
 }
 
 .expert-session-context-label {
@@ -425,13 +425,13 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   margin-bottom: 6px;
 }
 
 .expert-session-context-text {
   font-size: 0.875rem;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
   line-height: 1.5;
   white-space: pre-wrap;
   max-height: 120px;
@@ -467,7 +467,7 @@
   align-items: center;
   justify-content: flex-end;
   padding: var(--spacing-md, 16px) var(--spacing-lg, 24px);
-  border-top: 1px solid var(--border-color, #e5e7eb);
+  border-top: 1px solid var(--color-border, #e5e7eb);
 }
 
 .expert-end-session-btn {
