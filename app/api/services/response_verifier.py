@@ -3,15 +3,40 @@ Response Verifier
 
 LLM 생성 응답의 문장별 사후 검증.
 각 문장을 소스 청크와 비교하여 신뢰도 등급(verified/inferred/unverified)을 부여합니다.
+용어 교정: LLM이 자주 혼동하는 고유명사를 정식명칭으로 자동 교정합니다.
 """
 import logging
 import re
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from ..models.agentic_rag import VerifiedSentence, VerificationLevel
 from .structured_knowledge_store import SearchResult
 
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# OpenFrame 용어 교정 사전
+# ============================================================================
+# LLM(Qwen2.5 등)이 자주 혼동하는 TmaxSoft 고유명사를 교정합니다.
+# 예: TJES를 IBM의 "Tivoli Job Entry"로 환각하는 현상 방지
+# ============================================================================
+TERM_CORRECTIONS: Dict[str, str] = {
+    # TJES: LLM이 IBM Tivoli와 혼동
+    "TJE (Tivoli Job Entry)": "TJES (Tmax Job Entry Subsystem)",
+    "TJE(Tivoli Job Entry)": "TJES(Tmax Job Entry Subsystem)",
+    "TJE （Tivoli Job Entry）": "TJES（Tmax Job Entry Subsystem）",
+    "Tivoli Job Entry Subsystem": "Tmax Job Entry Subsystem",
+    "Tivoli Job Entry": "Tmax Job Entry Subsystem",
+    # TACF: LLM이 IBM RACF나 CA Top Secret과 혼동
+    "TAC (Tivoli Access Control)": "TACF (Tmax Access Control Facility)",
+    "RACF (Resource Access Control)": "TACF (Tmax Access Control Facility)",
+    # OSC: CICS와의 관계에서 잘못된 풀네임 생성 방지
+    "Online Service Controller": "Online SC (CICS equivalent)",
+    # 제품 소속 오류: OpenFrame 제품을 IBM/Fujitsu 제품으로 귀속
+    "IBM TJES": "TmaxSoft TJES",
+    "IBM TACF": "TmaxSoft TACF",
+    "Fujitsu TJES": "TmaxSoft TJES",
+}
 
 
 class ResponseVerifier:
@@ -27,6 +52,21 @@ class ResponseVerifier:
 
     VERIFIED_THRESHOLD = 0.7
     INFERRED_THRESHOLD = 0.4
+
+    def correct_terminology(self, text: str) -> Tuple[str, List[Dict[str, str]]]:
+        """
+        LLM 응답에서 알려진 용어 오류를 자동 교정
+
+        Returns:
+            (교정된 텍스트, 교정 내역 리스트)
+        """
+        corrections: List[Dict[str, str]] = []
+        for wrong, correct in TERM_CORRECTIONS.items():
+            if wrong in text:
+                text = text.replace(wrong, correct)
+                corrections.append({"from": wrong, "to": correct})
+                logger.info(f"[TermCorrection] '{wrong}' → '{correct}'")
+        return text, corrections
 
     def verify(
         self,

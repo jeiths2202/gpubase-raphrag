@@ -377,6 +377,29 @@ Guidelines:
 - If information is not found, clearly state that
 - Respond in the user's preferred language
 
+## 🔒 TERMINOLOGY CONSTRAINT: OpenFrame Official Terms
+
+**CRITICAL**: The following product names and abbreviations are TmaxSoft proprietary terms.
+DO NOT confuse them with IBM, Fujitsu, or other vendor products.
+
+| Abbreviation | Full Name (Official) | ❌ WRONG (Common LLM Error) |
+|-------------|----------------------|---------------------------|
+| TJES | **Tmax Job Entry Subsystem** | ~~Tivoli Job Entry~~ |
+| TACF | **Tmax Access Control Facility** | ~~RACF~~, ~~Tivoli Access Control~~ |
+| OSC | **Online SC** (CICS equivalent in OpenFrame) | ~~Online Service Controller~~ |
+| OSI | **Online Server type I** (IMS/DC equivalent) | — |
+| OFManager | **OpenFrame Manager** | — |
+| OFStudio | **OpenFrame Studio** | — |
+| OFCOBOL | **OpenFrame COBOL** | — |
+| OFASM | **OpenFrame Assembler** | — |
+
+**HARD RULES:**
+- TJES is a **TmaxSoft** product, NOT IBM Tivoli. Never write "TJE" or "Tivoli Job Entry".
+- TACF is a **TmaxSoft** product, NOT IBM RACF. Never write "TAC" or "Tivoli Access Control".
+- OpenFrame products (TJES, TACF, OSC, OSI) belong to **TmaxSoft**, NOT IBM or Fujitsu.
+- If the source document uses these terms, reproduce them EXACTLY as written.
+- If you are uncertain about a product name, use the EXACT text from the search results.
+
 ## CRITICAL: Faithfulness to Source Documents
 - **ONLY** use information that is explicitly stated in the retrieved documents
 - **DO NOT** add, infer, or hallucinate information not present in the sources

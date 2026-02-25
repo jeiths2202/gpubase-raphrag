@@ -4,8 +4,8 @@ Learning LLM vLLM Adapter
 외부 vLLM 서버에 연결하여 추론을 수행합니다.
 Docker 컨테이너로 배포된 Learning LLM 서비스에 연결합니다.
 
-Multi-LoRA DPO 지원 (2026-02-17):
-- GPU 4-7 (Port 12810): Qwen2.5-72B (merged_cpt_72b) + 15개 DPO 어댑터
+Multi-LoRA DPO 지원 (2026-02-25):
+- GPU 4,5 (Port 12810): Qwen3-32B (TP=2) + 15개 DPO 어댑터
 - 어댑터: openframe_base, openframe_batch, openframe_common, openframe_hidb,
   openframe_osc, openframe_osi, openframe_tacf, openframe_vos3,
   ofcobol, ofpli, ofmanager, tmax, tibero7, protrieve, prosort
@@ -33,12 +33,12 @@ logger = logging.getLogger(__name__)
 
 
 # Multi-LoRA v2 제품별 어댑터 매핑 (2026-02-04 수정)
-# 15개 DPO 어댑터가 단일 vLLM 서버(Port 12810)에 로드됨 (Qwen2.5-72B merged_cpt_72b)
+# Qwen3-32B (GPU 4,5 TP=2, Port 12810) — 15개 DPO 어댑터 로드
 MULTI_LORA_PORT = 12810  # 모든 어댑터가 이 포트에 있음
 
 MULTI_LORA_PRODUCT_MAPPING = {
     # =========================================================================
-    # 15개 DPO 어댑터 (Qwen2.5-72B merged_cpt_72b, Port 12810)
+    # 15개 DPO 어댑터 (Qwen3-32B, Port 12810)
     # 어댑터명에 _v2 접미사 없음 (DPO 버전)
     # =========================================================================
     # --- OpenFrame 코어 ---
@@ -175,12 +175,12 @@ class VLLMAdapter:
     def __init__(
         self,
         base_url: Optional[str] = None,
-        model: str = "/opt/models/merged_cpt_72b",
+        model: str = "/opt/models/qwen3-32b",
         timeout: int = 60,
     ):
         self.base_url = base_url or os.getenv(
             "LEARNING_LLM_URL",
-            "http://192.168.8.11:12810/v1"  # 기본: GPU 4-7 (72B + 15 DPO adapters)
+            "http://192.168.8.11:12810/v1"  # Qwen3-32B (GPU 4,5, TP=2)
         )
         self.model = model
         self.timeout = timeout
@@ -192,39 +192,21 @@ class VLLMAdapter:
         """
         제품에 맞는 URL과 모델명 반환
 
-        15개 DPO 어댑터가 단일 vLLM 서버(Port 12810)에 로드되어 있음.
-        Base model: Qwen2.5-72B (merged_cpt_72b)
+        현재: Qwen3-32B base model만 사용 (어댑터 없음)
+        향후: "openframe" 단일 어댑터 추가 예정
 
         Args:
-            product: 제품명 (예: "tibero7", "openframe_base", "tmax")
+            product: 제품명 (현재 무시됨 — base model 사용)
 
         Returns:
             (base_url, model_name) 튜플
         """
-        # 단일 vLLM 서버 URL 사용
         base_url = MULTI_LORA_BASE_URL
 
-        if not product:
-            return base_url, self.model
-
-        product_lower = product.lower().strip()
-
-        # 제품명 매핑 확인
-        if product_lower in MULTI_LORA_PRODUCT_MAPPING:
-            mapping = MULTI_LORA_PRODUCT_MAPPING[product_lower]
-
-            # adapter 필드가 있으면 그것을 사용
-            if "adapter" in mapping:
-                model_name = mapping["adapter"]
-            else:
-                model_name = product_lower
-
-            logger.info(f"Multi-LoRA routing: {product} -> {base_url} (adapter: {model_name})")
-            return base_url, model_name
-
-        # 매핑에 없으면 기본 어댑터 사용 (Base는 일반적인 OpenFrame 문서를 다룸)
-        logger.warning(f"Unknown product '{product}', using default adapter: openframe_base")
-        return base_url, "openframe_base"
+        # 현재 LoRA 어댑터 없음 → 항상 base model 사용
+        if product:
+            logger.info(f"LLM routing: product={product} -> base model (no adapters loaded)")
+        return base_url, self.model
 
     def detect_product_from_query(self, query: str) -> Optional[str]:
         """
@@ -322,6 +304,7 @@ class VLLMAdapter:
         max_new_tokens: int = 512,
         temperature: float = 0.7,
         top_p: float = 0.9,
+        repetition_penalty: float = 1.15,
         product: Optional[str] = None,
         system_prompt: Optional[str] = None,
         **kwargs
@@ -356,6 +339,7 @@ class VLLMAdapter:
             "max_tokens": max_new_tokens,
             "temperature": temperature,
             "top_p": top_p,
+            "repetition_penalty": repetition_penalty,
         }
 
         try:
@@ -386,8 +370,10 @@ class VLLMAdapter:
         max_new_tokens: int = 512,
         temperature: float = 0.7,
         top_p: float = 0.9,
+        repetition_penalty: float = 1.15,
         product: Optional[str] = None,
         system_prompt: Optional[str] = None,
+        enable_thinking: bool = False,
     ) -> AsyncGenerator[str, None]:
         """
         vLLM OpenAI-compatible API 스트리밍 응답 생성
@@ -397,6 +383,7 @@ class VLLMAdapter:
             context: 추가 컨텍스트
             max_new_tokens: 최대 생성 토큰
             temperature: 샘플링 온도
+            repetition_penalty: 반복 방지 페널티 (1.0=없음, >1.0=반복 억제)
             product: Multi-LoRA 제품명 (예: "tibero7", "openframe_base")
             system_prompt: 커스텀 시스템 프롬프트 (제공 시 default 생략, context 잘라내기 안 함)
         """
@@ -418,7 +405,10 @@ class VLLMAdapter:
             "max_tokens": max_new_tokens,
             "temperature": temperature,
             "top_p": top_p,
+            "repetition_penalty": repetition_penalty,
             "stream": True,
+            # Qwen3: enable_thinking 파라미터화 (True=내부추론, False=빠른응답)
+            "chat_template_kwargs": {"enable_thinking": enable_thinking},
         }
 
         # Token buffering: accumulate tokens and flush in chunks
@@ -438,7 +428,9 @@ class VLLMAdapter:
                 ) as resp:
                     if resp.status != 200:
                         error_text = await resp.text()
-                        logger.error(f"vLLM stream error: {resp.status} - {error_text}")
+                        import traceback
+                        caller = ''.join(traceback.format_stack()[-3:-1])
+                        logger.error(f"vLLM stream error: {resp.status} - model={model_name} url={chat_url} - {error_text}\nCaller: {caller}")
                         return
 
                     async for line in resp.content:
@@ -494,9 +486,10 @@ class VLLMAdapter:
         default_prompt = (
             "あなたはOpenFrame KMSのアシスタントです。技術的な質問に正確に回答してください。\n"
             "検索結果が複数ある場合は、以下のようなmarkdown table形式で整理して回答してください：\n"
-            "| No | 項目 | 内容 | ソース |\n"
-            "|----|------|------|--------|\n"
-            "回答の最後に、参考にした資料のソース情報を含めてください。"
+            "| No | 項目 | 内容 |\n"
+            "|----|------|------|\n"
+            "重要: 回答にソース情報や出典を含めないでください。ソース情報はシステムが別途提供します。\n"
+            "存在しない文書名やセクション番号を捏造しないでください。"
         )
 
         messages = [{"role": "system", "content": default_prompt}]
@@ -662,23 +655,22 @@ Format: [CODES: -5212, -9001] [TERMS: TJES, TACF] [COMMANDS: tjesmgr, hidbmgr]""
         elif not product:
             product = None  # 기본 어댑터 사용
 
-        # Multi-LoRA 라우팅
+        # 라우팅 (현재 base model만 사용)
         base_url, model_name = self.get_url_for_product(product)
 
-        # lora-api-server-v3 API 형식 (v2 suffix 제거)
-        adapter_name = model_name.replace("_v2", "")
+        # 표준 OpenAI-compatible /v1/chat/completions 사용
+        messages = self._build_confidence_messages(question, context)
 
-        # lora-api-server-v3 API: /chat endpoint
         payload = {
-            "adapter": adapter_name,
-            "message": question,
+            "model": model_name,
+            "messages": messages,
             "max_tokens": max_new_tokens,
             "temperature": temperature,
+            "top_p": top_p,
         }
 
         try:
-            # /v1 prefix 제거하고 /chat 엔드포인트 사용
-            chat_url = base_url.replace("/v1", "") + "/chat"
+            chat_url = f"{base_url}/chat/completions"
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(
@@ -696,20 +688,13 @@ Format: [CODES: -5212, -9001] [TERMS: TJES, TACF] [COMMANDS: tjesmgr, hidbmgr]""
                         )
 
                     data = await resp.json()
-                    # lora-api-server-v3 응답 형식
-                    raw_answer = data.get("response", "")
-                    server_accuracy = data.get("accuracy", 0.0) / 100.0  # 0-100 -> 0-1
+                    raw_answer = data["choices"][0]["message"]["content"]
 
                     # Parse response to extract confidence and mentions
                     response = self._parse_confidence_response(raw_answer)
 
-                    # 서버에서 반환한 accuracy를 confidence로 사용
-                    if server_accuracy > 0:
-                        response.confidence = server_accuracy
-
-                    # 사용된 어댑터 정보 추가
                     if product:
-                        logger.info(f"Multi-LoRA response from {adapter_name} via {chat_url}, accuracy={server_accuracy:.2f}")
+                        logger.info(f"LLM response: product={product}, model={model_name}, confidence={response.confidence:.2f}")
 
                     return response
 
@@ -898,7 +883,7 @@ def get_vllm_adapter() -> Optional[VLLMAdapter]:
 
 async def initialize_vllm_adapter(
     base_url: Optional[str] = None,
-    model: str = "Qwen/Qwen2.5-7B-Instruct",
+    model: str = "/opt/models/qwen3-32b",
 ) -> VLLMAdapter:
     """Initialize vLLM adapter"""
     global _vllm_adapter

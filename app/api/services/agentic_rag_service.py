@@ -474,6 +474,20 @@ class AgenticRAGService:
                 confidence=0.6,  # 메모리 기반이므로 중간 confidence
             )
 
+        # NO_MATCH → 3차: 전체 제품 대상 검색 fallback
+        # 제품 라우팅 실패 시 모든 제품에서 BM25 검색하여 LLM 컨텍스트로 전달
+        all_agents = get_all_product_agents()
+        if all_agents:
+            all_pids = list(all_agents.keys())
+            logger.info(
+                f"[AgenticRAG] All-product fallback: searching {len(all_pids)} products"
+            )
+            return all_pids, RouterResult(
+                decision=RouterDecision.CONFIRMED,
+                product="all",
+                confidence=0.3,  # 전체 검색이므로 낮은 confidence
+            )
+
         return [], router_result
 
     def _resolve_from_memory(self, request: AgenticRAGRequest) -> Optional[str]:
@@ -560,6 +574,9 @@ class AgenticRAGService:
             )
         return results
 
+    # 전체 제품 검색 시 제외할 무거운 도메인 (PDF 파싱 = 수백 초 소요)
+    _HEAVY_DOMAINS = frozenset({"pdf_manuals"})
+
     async def _multi_product_search(
         self,
         query: str,
@@ -567,6 +584,7 @@ class AgenticRAGService:
         query_type: Optional[QueryType],
         top_k_per_product: Optional[int] = None,
         max_total: int = 8,
+        skip_heavy_domains: bool = False,
     ) -> ProductSearchContext:
         """복수 Product Agent 병렬 검색 + 결과 병합."""
         # per-product top_k 자동 조절
@@ -590,9 +608,27 @@ class AgenticRAGService:
 
         sem = asyncio.Semaphore(5)
 
+        # skip_heavy_domains=True → PDF 제외, 경량 도메인만 검색
+        lightweight_domains = None
+        if skip_heavy_domains and agents:
+            # 첫 번째 agent의 도메인 목록에서 무거운 도메인 제외
+            all_domains = set()
+            for _, agent in agents:
+                all_domains.update(agent.knowledge_domains)
+            lightweight_domains = [d for d in all_domains if d not in self._HEAVY_DOMAINS]
+            logger.info(f"Skip heavy domains: searching only {lightweight_domains}")
+
         async def _search_one(pid: str, agent: BaseProductAgent) -> List[SearchResult]:
             async with sem:
-                ctx = await agent.search(query=query, query_type=query_type, top_k=top_k_per_product)
+                if lightweight_domains is not None:
+                    # 경량 도메인만 지정하여 검색
+                    ctx_results = await agent.knowledge_store.search(
+                        query=query, domains=lightweight_domains, top_k=top_k_per_product,
+                    )
+                    ctx = ProductSearchContext(product=pid)
+                    ctx.structured_results = ctx_results
+                else:
+                    ctx = await agent.search(query=query, query_type=query_type, top_k=top_k_per_product)
                 for r in ctx.structured_results:
                     r.product = pid
                 return ctx.structured_results
@@ -757,31 +793,28 @@ class AgenticRAGService:
                 confidence=router_result.confidence,
             )
 
-        # 되묻기 필요
-        if not product_ids and router_result.decision == RouterDecision.CLARIFICATION_NEEDED:
-            return AgenticRAGResponse(
-                success=True,
-                response="",
-                product=router_result.product or "auto",
-                query_type=QueryType.FREEFORM,
-                router_result=router_result,
-                confidence=ConfidenceLevel.LOW,
-                processing_time_ms=int((time.time() - start) * 1000),
-            )
-
-        # 매칭 없음
+        # 되묻기/매칭없음 → 전체 제품 fallback
+        _is_all_product_fallback = False
         if not product_ids:
-            return AgenticRAGResponse(
-                success=True,
-                response="該当する製品を特定できませんでした。質問を具体的にしていただくか、製品を選択してください。",
-                product="auto",
-                query_type=QueryType.FREEFORM,
-                router_result=router_result,
-                confidence=ConfidenceLevel.LOW,
-                processing_time_ms=int((time.time() - start) * 1000),
-            )
+            all_agents = get_all_product_agents()
+            if all_agents:
+                product_ids = list(all_agents.keys())
+                _is_all_product_fallback = True
+                logger.info(
+                    f"[AgenticRAG] chat all-product fallback: {len(product_ids)} products"
+                )
+            else:
+                return AgenticRAGResponse(
+                    success=True,
+                    response="該当する製品を特定できませんでした。質問を具体的にしていただくか、製品を選択してください。",
+                    product="auto",
+                    query_type=QueryType.FREEFORM,
+                    router_result=router_result,
+                    confidence=ConfidenceLevel.LOW,
+                    processing_time_ms=int((time.time() - start) * 1000),
+                )
 
-        primary_product = product_ids[0]
+        primary_product = "all" if _is_all_product_fallback else product_ids[0]
 
         # === Web Doc Fast Path ===
         web_doc_response = await self._try_web_doc_fast_path(
@@ -794,11 +827,12 @@ class AgenticRAGService:
         # 2. 질문 유형 분류
         query_type = self.query_type_classifier.classify(request.message)
 
-        # 3. 통합 검색
+        # 3. 통합 검색 (전체 제품 fallback 시 PDF 파싱 건너뛰기)
         search_context = await self._multi_product_search(
             query=request.message,
             product_ids=product_ids,
             query_type=query_type,
+            skip_heavy_domains=_is_all_product_fallback,
         )
 
         # 4. 응답 생성
@@ -838,6 +872,11 @@ class AgenticRAGService:
             table_supplement = self._build_table_supplement(search_context.structured_results)
             if table_supplement:
                 llm_response += table_supplement
+
+        # 용어 교정 (LLM 환각 방지: TJES→Tivoli 등)
+        term_corrections = []
+        if llm_response:
+            llm_response, term_corrections = self.response_verifier.correct_terminology(llm_response)
 
         verification = None
         if llm_response and search_context.structured_results:
@@ -926,30 +965,21 @@ class AgenticRAGService:
             "confidence": router_result.confidence,
         }
 
-        # 되묻기 필요
-        if not product_ids and router_result.decision == RouterDecision.CLARIFICATION_NEEDED:
-            yield {
-                "type": "clarification_needed",
-                "candidates": [
-                    {
-                        "product": c.product,
-                        "confidence": c.confidence,
-                        "reason": c.reason,
-                        "matched_keywords": c.matched_keywords,
-                    }
-                    for c in router_result.candidates
-                ],
-                "message": "どの製品に関する質問ですか？",
-            }
-            return
-
-        # 매칭 없음
+        # 되묻기 필요 → 전체 제품 fallback (제품 라우팅 실패 시에도 검색 실행)
         if not product_ids:
-            yield {
-                "type": "error",
-                "message": "該当する製品を特定できませんでした。製品を選択してください。",
-            }
-            return
+            all_agents = get_all_product_agents()
+            if all_agents:
+                product_ids = list(all_agents.keys())
+                primary_product = "all"
+                logger.info(
+                    f"[AgenticRAG] stream_chat all-product fallback: {len(product_ids)} products"
+                )
+            else:
+                yield {
+                    "type": "error",
+                    "message": "該当する製品を特定できませんでした。製品を選択してください。",
+                }
+                return
 
         # === Agent Mode 분기 ===
         effective_mode = self._classify_agent_mode(
@@ -993,8 +1023,10 @@ class AgenticRAGService:
         }
 
         # === vLLM Direct Search (QLoRA 학습된 도메인 지식으로 직접 응답, feature flag로 제어) ===
+        # 전체 제품 fallback 시 건너뛰기 (어댑터 "all" 없음 → 불필요한 지연)
+        _is_all_product_fallback = (primary_product == "all")
         settings = get_api_settings()
-        if settings.VLLM_DIRECT_SEARCH_ENABLED:
+        if settings.VLLM_DIRECT_SEARCH_ENABLED and not _is_all_product_fallback:
             vllm_done = False
             async for event in self._try_vllm_direct_search(
                 request, primary_product, product_ids, start,
@@ -1015,9 +1047,12 @@ class AgenticRAGService:
         }
 
         # === Web Doc Fast Path (streaming) ===
-        web_doc_result = self._search_web_doc(
-            request.message, request.language or "ja", product_ids,
-        )
+        # 전체 제품 fallback 시 건너뛰기 (product_id 매핑 없음)
+        web_doc_result = None
+        if not _is_all_product_fallback:
+            web_doc_result = self._search_web_doc(
+                request.message, request.language or "ja", product_ids,
+            )
         if web_doc_result:
             yield {
                 "type": "web_doc_match",
@@ -1047,6 +1082,10 @@ class AgenticRAGService:
                 ):
                     full_response += token
                     yield {"type": "llm_token", "token": token}
+                # 관련 엔티티 그래프
+                graph_event = await self._get_graph_data_event(request.message, product_ids)
+                if graph_event:
+                    yield graph_event
                 # 소스 정보 (URL 포함)
                 yield {
                     "type": "sources",
@@ -1075,11 +1114,13 @@ class AgenticRAGService:
         # 3. 질문 유형 분류
         query_type = self.query_type_classifier.classify(request.message)
 
-        # 4. 통합 검색
+        # 4. 통합 검색 (전체 제품 fallback 시 PDF 파싱 건너뛰기)
+        _is_all_product_fallback = (primary_product == "all")
         search_context = await self._multi_product_search(
             query=request.message,
             product_ids=product_ids,
             query_type=query_type,
+            skip_heavy_domains=_is_all_product_fallback,
         )
 
         yield {
@@ -1118,6 +1159,10 @@ class AgenticRAGService:
                     "content": template_response,
                     "query_type": query_type.value,
                 }
+                # 관련 엔티티 그래프
+                graph_event = await self._get_graph_data_event(request.message, product_ids)
+                if graph_event:
+                    yield graph_event
                 yield self._build_sources_event(search_context.structured_results)
                 yield {
                     "type": "done",
@@ -1152,6 +1197,16 @@ class AgenticRAGService:
                 yield {"type": "llm_token", "token": table_supplement}
                 full_response += table_supplement
 
+        # 용어 교정 (LLM 환각 방지: TJES→Tivoli 등)
+        if full_response:
+            corrected, term_corrections = self.response_verifier.correct_terminology(full_response)
+            if term_corrections:
+                yield {
+                    "type": "term_corrections",
+                    "corrections": term_corrections,
+                }
+                full_response = corrected
+
         # 사후 검증
         if full_response and search_context.structured_results:
             verification = self.response_verifier.verify(
@@ -1174,20 +1229,9 @@ class AgenticRAGService:
                 }
 
         # 관련 엔티티 그래프 추출 (Neo4j → ReactFlow JSON)
-        try:
-            from .graph_visualization_service import get_graph_visualization_service
-            graph_service = get_graph_visualization_service()
-            graph_data = await graph_service.get_query_graph(
-                query=request.message, product_ids=product_ids, limit=15
-            )
-            if graph_data and graph_data.get("nodes"):
-                yield {
-                    "type": "graph_data",
-                    "nodes": graph_data["nodes"],
-                    "edges": graph_data["edges"],
-                }
-        except Exception as e:
-            logger.debug(f"Graph data extraction skipped: {e}")
+        graph_event = await self._get_graph_data_event(request.message, product_ids)
+        if graph_event:
+            yield graph_event
 
         yield self._build_sources_event(search_context.structured_results)
         yield {
@@ -1725,6 +1769,10 @@ class AgenticRAGService:
             # vLLM 직접 응답 성공
             query_type = self.query_type_classifier.classify(request.message)
 
+            # 관련 엔티티 그래프
+            graph_event = await self._get_graph_data_event(request.message, product_ids)
+            if graph_event:
+                yield graph_event
             yield {
                 "type": "sources",
                 "results": [{
@@ -2190,6 +2238,26 @@ class AgenticRAGService:
                 product=r.product or r.domain,
             ))
         return ProductSources(vector_search=vector_sources)
+
+    async def _get_graph_data_event(
+        self, query: str, product_ids: List[str], limit: int = 15,
+    ) -> Optional[Dict[str, Any]]:
+        """관련 엔티티 그래프 이벤트 생성 (Neo4j → ReactFlow JSON)"""
+        try:
+            from .graph_visualization_service import get_graph_visualization_service
+            graph_service = get_graph_visualization_service()
+            graph_data = await graph_service.get_query_graph(
+                query=query, product_ids=product_ids, limit=limit,
+            )
+            if graph_data and graph_data.get("nodes"):
+                return {
+                    "type": "graph_data",
+                    "nodes": graph_data["nodes"],
+                    "edges": graph_data["edges"],
+                }
+        except Exception as e:
+            logger.debug(f"Graph data extraction skipped: {e}")
+        return None
 
     def _build_sources_event(self, results) -> Dict[str, Any]:
         """출처 정보 SSE 이벤트 생성 (PDF 우선: PDF가 있으면 요약본 제외)"""
