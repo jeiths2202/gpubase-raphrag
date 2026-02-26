@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+of7_index.json
+.bkit-memory.json

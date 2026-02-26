@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openframe-code"
+version = "0.1.0"
+description = "OpenFrame 7 Expert CLI - Claude Code-style coding assistant for OpenFrame codebase"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+authors = [
+    {name = "endur"},
+]
+keywords = ["openframe", "cli", "coding-assistant", "llm", "vllm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Code Generators",
+]
+dependencies = [
+    "openai>=1.0.0",
+    "rich>=13.0.0",
+    "prompt_toolkit>=3.0.0",
+]
+
+[project.scripts]
+ofcode = "openframe_code.cli:run"
+ofcode-build-index = "openframe_code.cli_indexer:run"
+
+[project.urls]
+Homepage = "https://github.com/endur/openframe-code"
+
+[tool.hatch.build.targets.wheel]
+packages = ["openframe_code"]
