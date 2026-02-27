@@ -48,8 +48,8 @@ htmlcov/
 *.tar.gz
 *.zip
 
-# Claude settings (local)
-.claude/
+# Claude settings (tracked for team sharing)
+# .claude/
 
 # Temp files
 *.tmp
