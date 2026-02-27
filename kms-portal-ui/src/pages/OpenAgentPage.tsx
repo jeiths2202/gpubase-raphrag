@@ -26,7 +26,9 @@ import {
   Shield,
   Eye,
   RotateCcw,
+  Headphones,
 } from 'lucide-react';
+import { PremiumSupportPanel } from '../components/PremiumSupport';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './OpenAgentPage.css';
@@ -164,6 +166,7 @@ export const OpenAgentPage: React.FC = () => {
   const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPremiumSupport, setShowPremiumSupport] = useState(false);
   const [agentMode, setAgentMode] = useState<AgentMode>('rag'); // Default to RAG mode
 
   // OpenCode progress state
@@ -564,6 +567,13 @@ export const OpenAgentPage: React.FC = () => {
             <RefreshCw size={18} />
           </button>
           <button
+            className={`openagent-btn-icon openagent-btn-premium ${showPremiumSupport ? 'active' : ''}`}
+            onClick={() => setShowPremiumSupport(!showPremiumSupport)}
+            title={t('common.openAgent.premiumSupport')}
+          >
+            <Headphones size={18} />
+          </button>
+          <button
             className="openagent-btn-icon"
             onClick={() => setShowSettings(!showSettings)}
             title={t('common.nav.settings')}
@@ -908,6 +918,13 @@ export const OpenAgentPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Premium Support Overlay */}
+      <PremiumSupportPanel
+        isOpen={showPremiumSupport}
+        onClose={() => setShowPremiumSupport(false)}
+        chatContext={messages.length > 0 ? messages.slice(-3).map(m => m.content).join('\n') : undefined}
+      />
     </div>
   );
 };

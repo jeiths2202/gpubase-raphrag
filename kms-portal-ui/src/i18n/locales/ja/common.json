@@ -873,6 +873,9 @@
     "planSteps": "ステップ",
     "autoDetected": "自動検出",
     "specialAgent": "スペシャルエージェント",
+    "autoRag": "Auto-RAG",
+    "autoRagDesc": "エージェントループ + ツール呼出",
+    "autoRagPlaceholder": "Auto-RAG: 質問を入力、/ でコマンド...",
     "thinkMode": "Think モード (Qwen3内部推論)",
     "thinkLabel": "内部推論 (Think)"
   },

@@ -47,6 +47,7 @@ class AgentMode(str, Enum):
     PLANNER = "planner"
     AUTO = "auto"
     SPECIAL = "special"
+    AUTO_RAG = "auto_rag"
 
 
 # =============================================================================
@@ -105,6 +106,11 @@ class AgenticRAGRequest(BaseModel):
     agent_mode: AgentMode = Field(
         default=AgentMode.RAG,
         description="Agent 실행 모드: rag(기본), code(코드 생성), planner(플랜 생성), auto(자동 감지)"
+    )
+    # Qwen3 Thinking Mode
+    enable_thinking: bool = Field(
+        default=False,
+        description="Qwen3 内部推論モード (Think ON: 品質↑ 速度↓, OFF: 速度↑)"
     )
     # Long-term Memory 컨텍스트 (서버에서 주입)
     user_id: Optional[str] = Field(default=None, exclude=True)

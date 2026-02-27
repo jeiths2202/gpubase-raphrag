@@ -161,7 +161,9 @@ class LLMPromptRouterService:
             "8. For middleware questions → likely Tmax\n"
             "9. If the query mentions a specific manager command (tjesmgr, tacfmgr, oscmgr, etc.), "
             "it is MVS OpenFrame.\n"
-            "10. Return confidence 0.0 if you cannot determine the product at all.\n\n"
+            "10. Any tool starting with 'osc' prefix (osctdlrm, osctdlinit, oscboot, oscdown, oscmcsvr, "
+            "oscsiggen, osccobprep, etc.) belongs to OSC (Online SC) which is MVS OpenFrame.\n"
+            "11. Return confidence 0.0 if you cannot determine the product at all.\n\n"
             "## Response Format\n"
             "Respond ONLY with a JSON object (no markdown, no explanation):\n"
             '{"products": [{"id": "<product_id>", "confidence": <0.0-1.0>, "reason": "<brief reason>"}]}\n'

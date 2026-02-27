@@ -50,8 +50,6 @@ class EntityExtractor:
             r'\b[가-힣]+(?:회사|기업|그룹|연구소|대학교|병원)\b',
         ],
         EntityType.TECHNOLOGY: [
-            r'\b(?:Python|Java|JavaScript|TypeScript|Rust|Go|C\+\+|React|Vue|Angular)\b',
-            r'\b(?:Neo4j|PostgreSQL|MongoDB|Redis|Elasticsearch|Kubernetes|Docker)\b',
             r'\b(?:GPT-4|Claude|LLaMA|BERT|Transformer|RAG|LLM|NLP|ML|AI)\b',
         ],
         EntityType.LOCATION: [
@@ -69,32 +67,64 @@ class EntityExtractor:
         ],
         # OpenFrame/Mainframe command patterns
         EntityType.COMMAND: [
-            # OpenFrame *mgr commands (tjesmgr, hidbmgr, ofmgr, etc.)
-            r'\b(?:tjes|hidb|of|tac|tso|vtam|cics|batch|online)mgr\b',
-            # OpenFrame management commands
-            r'\b(?:tjesmgr|hidbmgr|ofmgr|tacfmgr|tsomgr|vtammgr|cicsmgr)\s+[A-Z]+\b',
+            # OpenFrame *mgr commands (any pattern: xxxmgr)
+            r'\b[a-z]{2,10}mgr\b',
+            # OpenFrame management commands with subcommand
+            r'\b(?:tjesmgr|hidbmgr|ofmgr|tacfmgr|tsomgr|vtammgr|cicsmgr|oscmgr)\s+[A-Z]+\b',
+            # OSC tools (osctdlrm, osctdlinit, oscmcsvr, etc.)
+            r'\b(?:osctdl(?:init|rm|update)|oscmcsvr|oscscview|oscsddump|'
+            r'oscsdgen|oscfdump|oscfgen|oscrsasvr)\b',
+            # DS tools (dsmigin, dsmigout, dsview, etc.)
+            r'\b(?:dsmigin|dsmigout|dsview|dscreate|dsdelete|dscopy|dsrename|dslist|dsentool)\b',
+            # OF tools (ofcbppf, ofconfig, oferror, etc.)
+            r'\b(?:ofcbppf|ofconfig|oferror|ofjclpp|offile|ofsautil|ofudtool|ofrpmsvr)\b',
+            # TJES tools
+            r'\b(?:tjesinit|tjesdown|tjesclean|tjclrun)\b',
             # Common mainframe utilities
-            r'\b(?:IDCAMS|IEBGENER|IEBCOPY|IEFBR14|SORT|DFSORT)\b',
-            # JCL keywords
-            r'\b(?:DD|DSN|DISP|SPACE|DCB|VOL|UNIT|SYSOUT|COND)\b',
+            r'\b(?:IDCAMS|IEBGENER|IEBCOPY|IEFBR14|SORT|DFSORT|IKJEFT01|ADRDSSU|AMASPZAP)\b',
+            # JCL statement keywords (uppercase only)
+            r'\b(?:JOB|EXEC|DD|PROC|PEND)\b',
+            # System boot/shutdown commands
+            r'\b(?:tmboot|tmdown|ofboot|ofdown|jesinit|jesdown|tmadmin|oscboot|oscdown)\b',
         ],
         # Error code patterns
         EntityType.ERROR_CODE: [
-            # Numeric error codes with dash prefix (-5212, -17201), also handles (-5212)
-            r'(?<![A-Z])-\d{4,5}(?![0-9])',
+            # Numeric error codes with dash prefix (-5212, -17201)
+            r'(?<![A-Za-z])-\d{4,5}(?!\d)',
             # Product-specific error codes (JEUS-1234, ORA-12154, TIBERO-5001)
             r'\b(?:JEUS|TIBERO|TMAX|OFM|OFCOBOL|OFASM|ORA|SQL|ERR|ERROR)-\d{4,5}\b',
-            # Named error constants (DSALC_ERR_*, BASE_ERR_*)
-            r'\b(?:DSALC|BASE|AIM|TJES|HIDB|TACF)_(?:ERR|ERROR)_[A-Z_]+\b',
+            # Named error constants (DSALC_ERR_*, BASE_ERR_*, etc.)
+            r'\b[A-Z]{2,10}_ERR_[A-Z_]+\b',
+            # ABEND codes (S0C7, S0C4, S806, etc.)
+            r'\bS[0-9][0-9A-F]{2}\b',
         ],
         # Configuration file/parameter patterns
         EntityType.CONFIG: [
             # OpenFrame config files
-            r'\b(?:oframe|tjes|hidb|osc|tacf)\.conf\b',
-            # Configuration sections [SECTION_NAME]
-            r'\[\s*[A-Z_]+\s*\]',
-            # Environment variables
-            r'\b(?:OPENFRAME_HOME|TMAX_HOST_ADDR|TB_SID|COBDIR)\b',
+            r'\b(?:oframe|tjes|hidb|osc|tacf|ds|batch|ofgw|ofmanager)\.conf\b',
+            # Environment variables with common suffixes
+            r'\b[A-Z][A-Z0-9_]{2,}(?:_DIR|_HOME|_BASE|_PATH|_URL|_PORT|_SID)\b',
+            # Specific well-known environment variables
+            r'\b(?:OPENFRAME_HOME|TMAX_HOST_ADDR|TB_SID|COBDIR|TMAXDIR|TMAX_DIR|OFGW_HOME)\b',
+        ],
+        # Product name patterns
+        EntityType.PRODUCT: [
+            # OpenFrame product variants
+            r'\bOpenFrame[/ ]?(?:Base|TJES|OSC|TACF|HIDB|ASM|COBOL|Manager|Gateway|Studio)\b',
+            # TmaxSoft products
+            r'\b(?:Tmax|Tibero|JEUS|ProObject|WebtoB)\s*\d*\b',
+            # OFxxxx products
+            r'\b(?:OFMiner|OFStudio|OFManager|OFGW)\b',
+        ],
+        # Mainframe technology/architecture terms
+        EntityType.TECHNOLOGY: [
+            # existing patterns plus mainframe specific
+            r'\b(?:Python|Java|JavaScript|TypeScript|Rust|Go|C\+\+|React|Vue|Angular)\b',
+            r'\b(?:Neo4j|PostgreSQL|MongoDB|Redis|Elasticsearch|Kubernetes|Docker)\b',
+            r'\b(?:VSAM|KSDS|ESDS|RRDS|LDS|PDS|GDG|SMS)\b',
+            r'\b(?:CICS|IMS|DB2|JES2|JES3|TSO|ISPF|VTAM)\b',
+            r'\b(?:COBOL|JCL|REXX|Assembler)\b',
+            r'\b(?:TCP/IP|FTP|HTTP|SSL|TLS)\b',
         ],
     }
 
@@ -106,6 +136,18 @@ class EntityExtractor:
         ],
         EntityType.TERM: [
             r'[가-힣]+(?:이란|이라는|이라고|이라 함)',
+        ],
+    }
+
+    # Japanese entity patterns
+    JAPANESE_PATTERNS = {
+        EntityType.CONCEPT: [
+            # カタカナ技術用語 (3文字以上、中黒区切り対応)
+            r'[ァ-ヶー]{3,}(?:・[ァ-ヶー]{2,})*',
+            # 日本語複合技術用語
+            r'(?:共有メモリ|バッチ処理|トランザクション処理|データセット|'
+            r'リージョン|オンライン処理|カタログ管理|ボリューム管理|'
+            r'コンパイラ|プリプロセッサ|環境設定|初期化処理)',
         ],
     }
 
@@ -142,6 +184,8 @@ class EntityExtractor:
             patterns = self.ENTITY_PATTERNS.get(entity_type, [])
             if language == "ko":
                 patterns.extend(self.KOREAN_PATTERNS.get(entity_type, []))
+            if language == "ja":
+                patterns.extend(self.JAPANESE_PATTERNS.get(entity_type, []))
 
             for pattern in patterns:
                 matches = re.findall(pattern, text, re.IGNORECASE)
@@ -208,11 +252,18 @@ class EntityExtractor:
         return entities
 
     def _detect_language(self, text: str) -> str:
-        """Detect text language."""
+        """Detect text language (en, ko, ja)."""
         korean_chars = sum(1 for c in text if '\uac00' <= c <= '\ud7a3')
+        japanese_chars = sum(1 for c in text if
+            '\u3040' <= c <= '\u309f' or  # hiragana
+            '\u30a0' <= c <= '\u30ff' or  # katakana
+            '\u4e00' <= c <= '\u9fff')    # kanji (CJK)
         total_chars = len(text.replace(' ', ''))
-        if total_chars > 0 and korean_chars / total_chars > 0.3:
-            return "ko"
+        if total_chars > 0:
+            if korean_chars / total_chars > 0.3:
+                return "ko"
+            if japanese_chars / total_chars > 0.1:
+                return "ja"
         return "en"
 
     def _infer_entity_type(self, text: str) -> EntityType:

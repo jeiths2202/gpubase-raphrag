@@ -133,17 +133,17 @@ class APISettings(BaseSettings):
         description="Maximum context length for LLM inputs"
     )
 
-    # Embedding Settings
+    # Embedding Settings (BGE-M3)
     EMBEDDING_MODEL_NAME: str = Field(
-        default="nvidia/nv-embedqa-mistral-7b-v2",
+        default="bge-m3",
         description="Embedding model name"
     )
     EMBEDDING_DIMENSION: int = Field(
-        default=4096,
+        default=1024,
         description="Embedding vector dimension"
     )
     EMBEDDING_BATCH_SIZE: int = Field(
-        default=32,
+        default=64,
         description="Batch size for embedding operations"
     )
     EMBEDDING_MAX_TEXT_LENGTH: int = Field(
@@ -157,6 +157,46 @@ class APISettings(BaseSettings):
     EMBEDDING_URL: str = Field(
         default="http://localhost:12801/v1",
         description="Embedding service URL"
+    )
+
+    # BGE-M3 IR Pipeline Settings
+    BGE_M3_BASE_URL: str = Field(
+        default="http://192.168.8.11:12801",
+        description="BGE-M3 IR server base URL"
+    )
+    IR_RRF_K: int = Field(
+        default=60,
+        description="RRF k parameter for rank fusion"
+    )
+    IR_SPARSE_WEIGHT: float = Field(
+        default=0.4,
+        description="Sparse retrieval weight in hybrid fusion"
+    )
+    IR_DENSE_WEIGHT: float = Field(
+        default=0.6,
+        description="Dense retrieval weight in hybrid fusion"
+    )
+    IR_RERANK_TOP_N: int = Field(
+        default=20,
+        description="Number of candidates for reranking"
+    )
+    IR_EMBED_TIMEOUT: float = Field(
+        default=5.0,
+        description="BGE-M3 API call timeout in seconds"
+    )
+
+    # IR Primary Search (BGE-M3를 1차 검색으로 사용)
+    IR_PRIMARY_SEARCH: bool = Field(
+        default=True,
+        description="BGE-M3를 1차 검색으로 사용 (False면 기존 키워드-first)"
+    )
+    IR_PRIMARY_TOP_K: int = Field(
+        default=50,
+        description="IR 1차 검색에서 가져올 후보 수"
+    )
+    IR_PRECOMPUTE_ON_LOAD: bool = Field(
+        default=True,
+        description="제품 로드 시 임베딩 사전 계산"
     )
 
     # Vision LLM Settings (MiniCPM-V)
@@ -503,6 +543,16 @@ class APISettings(BaseSettings):
         description="Min confidence to select winner in competitive patterns"
     )
 
+    # Auto-RAG (Agent Loop + Tool Calling via ofcode-server)
+    OFCODE_SERVER_URL: str = Field(
+        default="http://192.168.8.11:12820",
+        description="ofcode-server base URL for Auto-RAG tool calls"
+    )
+    AUTO_RAG_MAX_ITERATIONS: int = Field(
+        default=25,
+        description="Max agent loop iterations for Auto-RAG"
+    )
+
     # vLLM Direct Search (QLoRA 직접 응답, PDF RAG 스킵)
     VLLM_DIRECT_SEARCH_ENABLED: bool = Field(
         default=False,
@@ -551,8 +601,8 @@ class APISettings(BaseSettings):
         description="Redis connection URL"
     )
     REDIS_CACHE_ENABLED: bool = Field(
-        default=True,
-        description="Redis 캐시 활성화"
+        default=False,
+        description="Redis 캐시 활성화 (Redis 미설치 환경에서는 False)"
     )
 
     # Special Agent (Anthropic Claude API)
@@ -567,6 +617,28 @@ class APISettings(BaseSettings):
     SPECIAL_AGENT_ENABLED: bool = Field(
         default=True,
         description="Special Agent 기능 활성화"
+    )
+
+    # === Premium Support (LiveKit) ===
+    PREMIUM_SUPPORT_ENABLED: bool = Field(
+        default=False,
+        description="Premium Support (LiveKit 화면 공유) 활성화"
+    )
+    LIVEKIT_API_KEY: str = Field(
+        default="devkey",
+        description="LiveKit API Key"
+    )
+    LIVEKIT_API_SECRET: str = Field(
+        default="secret",
+        description="LiveKit API Secret for JWT signing"
+    )
+    LIVEKIT_SERVER_URL: str = Field(
+        default="http://localhost:7880",
+        description="LiveKit Server HTTP URL (REST API용)"
+    )
+    LIVEKIT_WS_URL: str = Field(
+        default="ws://localhost:7880",
+        description="LiveKit Server WebSocket URL (클라이언트 연결용)"
     )
 
     # Corporate SSO

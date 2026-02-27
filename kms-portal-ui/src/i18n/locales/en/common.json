@@ -873,6 +873,9 @@
     "planSteps": "steps",
     "autoDetected": "Auto-detected",
     "specialAgent": "Special Agent",
+    "autoRag": "Auto-RAG",
+    "autoRagDesc": "Agent Loop with Tool Calling",
+    "autoRagPlaceholder": "Auto-RAG: Type a question, / for commands...",
     "thinkMode": "Think Mode (Qwen3 Internal Reasoning)",
     "thinkLabel": "Internal Reasoning (Think)"
   },

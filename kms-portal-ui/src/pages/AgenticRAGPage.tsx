@@ -45,6 +45,7 @@ import {
   Upload,
   Brain,
   FileWarning,
+  Headphones,
 } from 'lucide-react';
 import { getReportUrl } from '../api/jcl-diagnosis.api';
 import { MessageContent } from '../components/AgentChat/MessageContent';
@@ -68,6 +69,7 @@ import type {
   ProductGroup,
 } from '../api/agentic-rag.api';
 import { TracePanel } from '../components/TracePanel/TracePanel';
+import { PremiumSupportPanel } from '../components/PremiumSupport';
 import { useTraceStore } from '../store/traceStore';
 import { KnowledgeGraphView } from '../components/KnowledgeGraph';
 import type { Node, Edge } from 'reactflow';
@@ -125,6 +127,7 @@ interface ChatMessage {
   graphData?: { nodes: Node[]; edges: Edge[] };
   thinkContent?: string;
   diagnosisId?: string;
+  toolCalls?: Array<{ name: string; args: Record<string, unknown>; result?: string; iteration?: number }>;
   timestamp: Date;
 }
 
@@ -142,7 +145,11 @@ export const AgenticRAGPage: React.FC = () => {
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
   const [agentMode, setAgentMode] = useState<AgentMode>('rag');
   const [specialAgent, setSpecialAgent] = useState(false);
+  const [autoRag, setAutoRag] = useState(true);
   const [enableThinking, setEnableThinking] = useState(false);
+  const [showSlashPalette, setShowSlashPalette] = useState(false);
+  const [slashFilter, setSlashFilter] = useState('');
+  const [showPremiumSupport, setShowPremiumSupport] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -477,7 +484,7 @@ export const AgenticRAGPage: React.FC = () => {
       products: (!isAutoMode && selectedProducts.length > 0) ? selectedProducts : undefined,
       selected_product: overrideProduct || undefined,
       language: 'ja',
-      agent_mode: specialAgent ? 'special' : agentMode,
+      agent_mode: autoRag ? 'auto_rag' : specialAgent ? 'special' : agentMode,
       enable_thinking: enableThinking,
       history: messages
         .filter(m => m.role === 'user' || m.role === 'assistant')
@@ -698,6 +705,69 @@ export const AgenticRAGPage: React.FC = () => {
               // 감지된 모드 표시 (auto인 경우)
               break;
 
+            case 'tool_call': {
+              // Auto-RAG: 도구 호출 시각화
+              const tcEvent = event as Record<string, unknown>;
+              setMessages(prev =>
+                prev.map(m =>
+                  m.id === assistantId
+                    ? {
+                        ...m,
+                        toolCalls: [
+                          ...(m.toolCalls || []),
+                          {
+                            name: tcEvent.name as string,
+                            args: tcEvent.args as Record<string, unknown>,
+                            iteration: tcEvent.iteration as number,
+                          },
+                        ],
+                      }
+                    : m
+                )
+              );
+              break;
+            }
+
+            case 'tool_result': {
+              // Auto-RAG: 도구 결과 축약 표시
+              const trEvent = event as Record<string, unknown>;
+              setMessages(prev =>
+                prev.map(m => {
+                  if (m.id !== assistantId || !m.toolCalls) return m;
+                  const updated = [...m.toolCalls];
+                  // Find last matching tool call without result (reverse search)
+                  for (let ti = updated.length - 1; ti >= 0; ti--) {
+                    if (updated[ti].name === trEvent.name && !updated[ti].result) {
+                      updated[ti] = { ...updated[ti], result: trEvent.result as string };
+                      break;
+                    }
+                  }
+                  return { ...m, toolCalls: updated };
+                })
+              );
+              break;
+            }
+
+            case 'slash_result': {
+              // Slash command 결과를 시스템 메시지로 표시
+              const slashContent = (event as Record<string, unknown>).content as string;
+              setMessages(prev => [
+                ...prev.filter(m => m.id !== assistantId),
+                {
+                  id: assistantId,
+                  role: 'assistant',
+                  content: slashContent,
+                  timestamp: new Date(),
+                },
+              ]);
+              break;
+            }
+
+            case 'slash_clear':
+              // 대화 내역 초기화
+              setMessages([]);
+              break;
+
             case 'plan_start': {
               // TracePanel 초기화 + 열기
               const traceId = (event as Record<string, unknown>).trace_id as string;
@@ -813,7 +883,7 @@ export const AgenticRAGPage: React.FC = () => {
       setIsStreaming(false);
       abortControllerRef.current = null;
     }
-  }, [isStreaming, isAuthenticated, isAutoMode, selectedProducts, messages, activeConversationId, agentMode, specialAgent, enableThinking, getZipFile, handleClearAllFiles]);
+  }, [isStreaming, isAuthenticated, isAutoMode, selectedProducts, messages, activeConversationId, agentMode, specialAgent, autoRag, enableThinking, getZipFile, handleClearAllFiles]);
 
   // Handle clarification product selection
   const handleClarificationSelect = useCallback((product: string) => {
@@ -957,6 +1027,31 @@ export const AgenticRAGPage: React.FC = () => {
                   </summary>
                   <div className="think-block-content">
                     <MessageContent content={msg.thinkContent} />
+                  </div>
+                </details>
+              )}
+              {/* Auto-RAG Tool Calls visualization */}
+              {msg.toolCalls && msg.toolCalls.length > 0 && (
+                <details className="tool-calls-block" open>
+                  <summary className="tool-calls-header">
+                    <Zap size={14} />
+                    <span>Tool Calls ({msg.toolCalls.length})</span>
+                  </summary>
+                  <div className="tool-calls-list">
+                    {msg.toolCalls.map((tc, i) => (
+                      <div key={i} className="tool-call-item">
+                        <div className="tool-call-badge">
+                          <Search size={12} />
+                          <span className="tool-call-name">{tc.name}</span>
+                          <span className="tool-call-args">
+                            ({Object.entries(tc.args).map(([k, v]) => `${k}="${v}"`).join(', ')})
+                          </span>
+                        </div>
+                        {tc.result && (
+                          <div className="tool-call-result">{tc.result}</div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </details>
               )}
@@ -1200,6 +1295,13 @@ export const AgenticRAGPage: React.FC = () => {
       <div className="openagent-header" style={{ justifyContent: 'flex-end' }}>
         <div className="openagent-header-right">
           <button
+            className={`openagent-btn-icon openagent-btn-premium ${showPremiumSupport ? 'active' : ''}`}
+            onClick={() => setShowPremiumSupport(!showPremiumSupport)}
+            title={t('common.openAgent.premiumSupport')}
+          >
+            <Headphones size={18} />
+          </button>
+          <button
             className={`openagent-btn-icon ${showHistorySidebar ? 'active' : ''}`}
             onClick={() => setShowHistorySidebar(prev => !prev)}
             title={t('common.agenticRag.history') || 'History'}
@@ -1220,12 +1322,26 @@ export const AgenticRAGPage: React.FC = () => {
           >
             <Link2 size={18} />
           </button>
+          {/* Auto-RAG Toggle */}
+          <label className="auto-rag-toggle" title={t('common.agenticRag.autoRagDesc') || 'Auto-RAG (Agent Loop + Tool Calling)'}>
+            <input
+              type="checkbox"
+              checked={autoRag}
+              onChange={(e) => {
+                setAutoRag(e.target.checked);
+                if (e.target.checked) setSpecialAgent(false);
+              }}
+            />
+            <Zap size={14} />
+            <span>{t('common.agenticRag.autoRag') || 'Auto-RAG'}</span>
+          </label>
           {/* Agent Mode Selector */}
           <div className="agent-mode-selector">
             <button
               className={`agent-mode-btn ${agentMode === 'rag' ? 'active' : ''}`}
               onClick={() => setAgentMode('rag')}
               title={t('common.agenticRag.modeRag') || 'RAG / Search'}
+              disabled={autoRag}
             >
               <Search size={14} />
               <span>RAG</span>
@@ -1234,6 +1350,7 @@ export const AgenticRAGPage: React.FC = () => {
               className={`agent-mode-btn ${agentMode === 'code' ? 'active' : ''}`}
               onClick={() => setAgentMode('code')}
               title={t('common.agenticRag.modeCode') || 'Code / Script'}
+              disabled={autoRag}
             >
               <Code2 size={14} />
               <span>Code</span>
@@ -1242,6 +1359,7 @@ export const AgenticRAGPage: React.FC = () => {
               className={`agent-mode-btn ${agentMode === 'planner' ? 'active' : ''}`}
               onClick={() => setAgentMode('planner')}
               title={t('common.agenticRag.modePlanner') || 'Planner'}
+              disabled={autoRag}
             >
               <GitBranch size={14} />
               <span>Plan</span>
@@ -1252,6 +1370,7 @@ export const AgenticRAGPage: React.FC = () => {
             <input
               type="checkbox"
               checked={specialAgent}
+              disabled={autoRag}
               onChange={(e) => setSpecialAgent(e.target.checked)}
             />
             <Sparkles size={14} />
@@ -1381,15 +1500,51 @@ export const AgenticRAGPage: React.FC = () => {
           >
             <Paperclip size={20} />
           </button>
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={t('common.agenticRag.inputPlaceholder') || '質問を入力してください...'}
-            rows={1}
-            disabled={isStreaming}
-          />
+          <div className="openagent-input-wrapper">
+            {/* Slash Command Palette (Auto-RAG only) */}
+            {autoRag && showSlashPalette && (
+              <div className="slash-command-palette">
+                {['/help', '/clear', '/model', '/tokens', '/reindex', '/crawl-webdoc']
+                  .filter(cmd => cmd.startsWith(slashFilter || '/'))
+                  .map(cmd => (
+                    <button
+                      key={cmd}
+                      type="button"
+                      className="slash-command-item"
+                      onClick={() => {
+                        setInput(cmd + ' ');
+                        setShowSlashPalette(false);
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      <Terminal size={12} />
+                      <span>{cmd}</span>
+                    </button>
+                  ))
+                }
+              </div>
+            )}
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={e => {
+                const val = e.target.value;
+                setInput(val);
+                if (autoRag && val.startsWith('/')) {
+                  setShowSlashPalette(true);
+                  setSlashFilter(val.split(/\s/)[0]);
+                } else {
+                  setShowSlashPalette(false);
+                }
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder={autoRag
+                ? (t('common.agenticRag.autoRagPlaceholder') || 'Auto-RAG: 質問を入力、/ でコマンド...')
+                : (t('common.agenticRag.inputPlaceholder') || '質問を入力してください...')}
+              rows={1}
+              disabled={isStreaming}
+            />
+          </div>
           <button
             type="submit"
             className="openagent-btn-send"
@@ -1420,6 +1575,13 @@ export const AgenticRAGPage: React.FC = () => {
 
       {/* TracePanel for Planner mode */}
       <TracePanel t={t} />
+
+      {/* Premium Support Panel */}
+      <PremiumSupportPanel
+        isOpen={showPremiumSupport}
+        onClose={() => setShowPremiumSupport(false)}
+        chatContext={messages.length > 0 ? messages.slice(-3).map(m => m.content).join('\n') : undefined}
+      />
 
       </div>{/* end openagent-main-content */}
     </div>

@@ -33,6 +33,12 @@ class QueryTypeClassifier:
         r'エラーコード',           # エラーコード (Japanese)
         r'error\s*code',          # error code (English)
         r'エラー.*-?\d{4,5}',     # エラー + 번호
+        r'에러.*(?:발생|대처|원인|해결|처리)',  # 에러 + 동작 키워드 (Korean)
+        r'(?:발생|대처|원인|해결|처리).*에러',  # 동작 키워드 + 에러 (Korean)
+        r'오류.*(?:발생|대처|원인|해결|처리)',  # 오류 + 동작 키워드 (Korean)
+        r'エラー.*(?:発生|対処|原因|解決)',     # エラー + 동작 키워드 (Japanese)
+        r'(?:発生|対処|原因|解決).*エラー',     # 동작 키워드 + エラー (Japanese)
+        r'error.*(?:occur|handling|cause|resolution|troubleshoot)',  # English
     ]
 
     # 명령어 패턴
@@ -51,6 +57,9 @@ class QueryTypeClassifier:
         r'dfsort\b',              # DFSORT
         r'dsmigin\b',             # DSMIGIN
         r'dsmigout\b',            # DSMIGOUT
+        r'OFATOE\b',              # OFATOE (ASCII→EBCDIC)
+        r'OFETOA\b',              # OFETOA (EBCDIC→ASCII)
+        r'DFSRRC00\b',            # DFSRRC00 (IMS utility)
         r'tmboot\b',              # tmboot
         r'tmdown\b',              # tmdown
         r'ofboot\b',              # ofboot

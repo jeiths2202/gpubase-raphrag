@@ -35,13 +35,13 @@ class LearningLLMService:
 
     def __init__(
         self,
-        base_model: str = "/opt/models/merged_cpt_72b",
+        base_model: str = "/opt/models/qwen3-32b",
         adapter_dir: str = "/opt/kms/models/qlora_adapters",
         auto_load: bool = False,
         enabled: bool = True,
         use_vllm: bool = True,  # vLLM 어댑터 사용 (기본값)
         vllm_url: Optional[str] = None,
-        vllm_model: str = "learning",  # vLLM LoRA 어댑터 이름
+        vllm_model: Optional[str] = None,  # None → base_model 사용
     ):
         self.base_model = base_model
         self.adapter_dir = Path(adapter_dir)
@@ -52,7 +52,7 @@ class LearningLLMService:
             "LEARNING_LLM_URL",
             "http://192.168.8.11:12810/v1"
         )
-        self.vllm_model = vllm_model
+        self.vllm_model = vllm_model or os.getenv("LEARNING_LLM_MODEL", base_model)
 
         self._adapter = None
         self._is_initialized = False
@@ -227,6 +227,8 @@ class LearningLLMService:
         max_tokens: int = 512,
         temperature: float = 0.7,
         product: Optional[str] = None,  # Multi-LoRA 제품 지정
+        repetition_penalty: float = 1.15,  # 반복 방지 페널티
+        enable_thinking: bool = False,  # Qwen3 내부 추론 모드
     ) -> AsyncGenerator[str, None]:
         """
         스트리밍 응답 생성 (Multi-LoRA v2 지원)
@@ -237,6 +239,7 @@ class LearningLLMService:
             max_tokens: 최대 생성 토큰
             temperature: 샘플링 온도
             product: Multi-LoRA 제품명 (예: "tibero7", "openframe_osc")
+            repetition_penalty: 반복 방지 페널티 (1.0=없음, >1.0=반복 억제)
 
         Yields:
             생성된 토큰들
@@ -254,6 +257,8 @@ class LearningLLMService:
                 max_new_tokens=max_tokens,
                 temperature=temperature,
                 product=product,  # Multi-LoRA 제품 전달
+                repetition_penalty=repetition_penalty,
+                enable_thinking=enable_thinking,
             ):
                 yield token
 
@@ -381,13 +386,13 @@ def get_learning_llm_service() -> Optional[LearningLLMService]:
 
 
 async def initialize_learning_llm_service(
-    base_model: str = "Qwen/Qwen2.5-7B-Instruct",
+    base_model: str = "/opt/models/qwen3-32b",
     adapter_dir: str = "/opt/kms/models/qlora_adapters",
     auto_load: bool = False,
     enabled: bool = True,
     use_vllm: bool = True,
     vllm_url: Optional[str] = None,
-    vllm_model: str = "learning",
+    vllm_model: Optional[str] = None,
 ) -> LearningLLMService:
     """
     Initialize Learning LLM service

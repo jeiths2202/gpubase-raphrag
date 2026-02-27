@@ -37,7 +37,7 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management, agent_navigation, agent_session, clarification, verified_knowledge, openagent, openframe_rag, admin_scoring, admin_prompts, query_rag, agentic_rag, graph_visualization, agent_teams
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management, agent_navigation, agent_session, clarification, verified_knowledge, openagent, openframe_rag, admin_scoring, admin_prompts, query_rag, agentic_rag, graph_visualization, agent_teams, jcl_diagnosis, premium_support
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 from .admin_dashboard.router import router as admin_dashboard_router
 from .legacy_modernization.routers import analysis_router as legacy_analysis_router, reports_router as legacy_reports_router
@@ -309,9 +309,9 @@ async def lifespan(app: FastAPI):
         # Check if Learning LLM is enabled via environment variable
         learning_llm_enabled = os.getenv("ENABLE_LEARNING_LLM", "false").lower() == "true"
         learning_llm_auto_load = os.getenv("LEARNING_LLM_AUTO_LOAD", "false").lower() == "true"
-        learning_llm_model = os.getenv("LEARNING_LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+        learning_llm_model = os.getenv("LEARNING_LLM_MODEL", "/opt/models/qwen3-32b")
         learning_llm_url = os.getenv("LEARNING_LLM_URL", "http://192.168.8.11:12810/v1")
-        learning_llm_vllm_model = os.getenv("LEARNING_LLM_VLLM_MODEL", "learning")  # LoRA 어댑터 이름
+        learning_llm_vllm_model = os.getenv("LEARNING_LLM_VLLM_MODEL", learning_llm_model)  # base model 사용 (어댑터 없음)
 
         learning_llm_service = await initialize_learning_llm_service(
             base_model=learning_llm_model,
@@ -864,6 +864,8 @@ app.include_router(agent_teams.router, prefix=API_PREFIX)  # Agent Teams: Self-I
 app.include_router(legacy_analysis_router, prefix=API_PREFIX)  # Legacy Modernization: COBOL/JCL/MAP/ASM analysis
 app.include_router(legacy_reports_router, prefix=API_PREFIX)  # Legacy Modernization: Migration reports
 app.include_router(legacy_chat_router, prefix=API_PREFIX)  # Legacy Modernization: AI chat assistant
+app.include_router(jcl_diagnosis.router, prefix=API_PREFIX)  # JCL Job Failure Diagnosis: SPOOL-based 5-agent pipeline
+app.include_router(premium_support.router, prefix=API_PREFIX)  # Premium Support: LiveKit screen sharing with remote expert
 
 # Static file serving for PDF-extracted images
 from starlette.staticfiles import StaticFiles as _StaticFiles

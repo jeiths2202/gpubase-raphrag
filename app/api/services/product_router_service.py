@@ -52,6 +52,10 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "mscasmc", "mscmapc", "mscmapupdate",
             "osccobprep", "osccblpp", "oscplipp", "osccprep", "oschttp",
             "cobolprep", "oscdct2rd", "oscjct2rd",
+            # OSC — TDL/システムユーティリティ
+            "osctdlrm", "osctdlinit", "osctdlupdate",
+            "oscboot", "oscdown", "oscmcsvr", "oscscview", "oscsddump",
+            "oscsiggen", "oscdfsvr",
             # OSC — CTG (CICS Transaction Gateway)
             "ctg", "ofctg", "openframe ctg",
             "eciinteractionspec", "cicsinteractionspec", "oivpecit",
@@ -91,6 +95,7 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             r"tjesmgr\s+\w+",      # tjesmgr 명령어
             r"tacfmgr\s+\w+",      # tacfmgr 명령어
             r"oscmgr\s+\w+",       # oscmgr 명령어
+            r"osc[a-z]{4,}",       # osc接頭辞ツール (osctdlrm, oscboot 等)
             r"osimgr\s+\w+",       # osimgr 명령어
             r"hidbmgr\s+\w+",      # hidbmgr 명령어
             r"ndbmgr\s+\w+",       # ndbmgr 명령어
@@ -235,6 +240,8 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "stm", "lm", "sll", "srl",
             # OFASM 도구
             "ofasmif", "ofasma", "ofasmpp", "asmrun",
+            # OFASM 기계어 명령
+            "ofatoe", "ofetoa",
             # ASM I/O 매크로
             "dcb", "bsam", "qsam",
             # 설정

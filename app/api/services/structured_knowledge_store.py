@@ -7,6 +7,7 @@ BGE-M3 Sparse+Dense+RRF 파이프라인으로 최종 top 3 결과를 반환합�
 """
 import asyncio
 import glob
+import itertools
 import json as json_module
 import logging
 import math
@@ -1151,8 +1152,8 @@ class StructuredKnowledgeStore:
         구조화 검색 메인 진입점.
 
         IR_PRIMARY_SEARCH=True (기본):
-          Phase 1: Neo4j Vector Search + 키워드 BM25 부스트
-          실패 시: 기존 키워드-first 파이프라인으로 fallback
+          Phase 1: Neo4j Vector Search (PDF chunks) + 요약본 키워드 BM25 병렬 검색
+          양쪽 결과를 병합 + 중복 제거
 
         IR_PRIMARY_SEARCH=False:
           기존 키워드 BM25 → BGE-M3 리랭킹 파이프라인
@@ -1161,21 +1162,105 @@ class StructuredKnowledgeStore:
 
         from ..core.config import api_settings
 
-        # Neo4j Vector Search (항상 ready - 인메모리 사전계산 불필요)
         if (getattr(api_settings, "IR_PRIMARY_SEARCH", False)
                 and not skip_semantic_reranking):
-            try:
-                results = await self._ir_primary_search(query, domains, top_k)
-                if results:
-                    return results
-                logger.debug(f"IR primary search returned empty, falling back to keyword")
-            except Exception as e:
-                logger.warning(f"IR primary search failed, falling back: {e}")
 
-        # Fallback: 기존 키워드-first 파이프라인
+            # 요약본 검색 대상 도메인 (PDF 제외 — Neo4j가 담당)
+            all_domains = domains or list(self._cache.keys())
+            summary_domains = [d for d in all_domains if d != "pdf_manuals"]
+
+            # Phase 1: Neo4j Vector Search + 요약본 키워드 BM25 병렬 실행
+            ir_task = self._ir_primary_search_safe(query, domains, top_k)
+            summary_task = self._summary_keyword_search_safe(
+                query, summary_domains, top_k,
+            )
+            ir_results, summary_results = await asyncio.gather(
+                ir_task, summary_task,
+            )
+
+            if ir_results or summary_results:
+                merged = self._merge_results(ir_results, summary_results, top_k)
+                if merged:
+                    return merged
+
+            logger.debug("IR + summary search both empty, falling back to keyword")
+
+        # Fallback: 기존 키워드-first 파이프라인 (전 도메인)
         return await self._keyword_search_with_reranking(
             query, domains, top_k, skip_semantic_reranking
         )
+
+    async def _ir_primary_search_safe(
+        self,
+        query: str,
+        domains: Optional[List[str]],
+        top_k: int,
+    ) -> List[SearchResult]:
+        """_ir_primary_search의 예외 안전 래퍼"""
+        try:
+            return await self._ir_primary_search(query, domains, top_k)
+        except Exception as e:
+            logger.warning(f"IR primary search failed: {e}")
+            return []
+
+    async def _summary_keyword_search_safe(
+        self,
+        query: str,
+        summary_domains: List[str],
+        top_k: int,
+    ) -> List[SearchResult]:
+        """요약본 전용 키워드 BM25 검색 (BGE-M3 리랭킹 스킵)"""
+        if not summary_domains:
+            return []
+        try:
+            return await self._keyword_search_with_reranking(
+                query, summary_domains, top_k,
+                skip_semantic_reranking=True,
+            )
+        except Exception as e:
+            logger.warning(f"Summary keyword search failed: {e}")
+            return []
+
+    def _merge_results(
+        self,
+        ir_results: List[SearchResult],
+        summary_results: List[SearchResult],
+        top_k: int,
+    ) -> List[SearchResult]:
+        """
+        Neo4j IR 결과와 요약본 키워드 결과를 병합.
+
+        - 점수 정규화: 각 소스 내 최대 점수를 1.0으로 정규화
+        - Content fingerprint 기반 중복 제거
+        - 최종 정규화 점수 내림차순 정렬
+        """
+        # 각 소스 내 최대 점수로 0-1 정규화
+        def _normalize(results: List[SearchResult]) -> List[SearchResult]:
+            if not results:
+                return []
+            max_score = max(r.relevance_score for r in results)
+            if max_score <= 0:
+                return results
+            for r in results:
+                r.relevance_score = r.relevance_score / max_score
+            return results
+
+        _normalize(ir_results)
+        _normalize(summary_results)
+
+        merged: List[SearchResult] = []
+        seen_fp: set = set()
+
+        for r in itertools.chain(ir_results, summary_results):
+            raw_fp = r.content[:120].strip().lower()
+            fp = re.sub(r"[^a-z0-9\u3040-\u9fff\uac00-\ud7af]", "", raw_fp)
+            if fp in seen_fp:
+                continue
+            seen_fp.add(fp)
+            merged.append(r)
+
+        merged.sort(key=lambda r: r.relevance_score, reverse=True)
+        return merged[:top_k]
 
     async def _keyword_search_with_reranking(
         self,

@@ -269,6 +269,14 @@ Classification criteria:
 - 비호환: 1개 (5.3%)
 - 위험도별: HIGH 1, MEDIUM 0, LOW 0
 
+## CRITICAL: Source Code Confidentiality Rule
+
+**NEVER output, quote, or display any OF7 source code content (C code, lex/yacc source, header files, etc.).**
+- You may READ the OF7 parser source files to verify token/grammar support
+- You must ONLY DESCRIBE or EXPLAIN what you find (e.g., "OF7 parser recognizes the K_JOB token for JOB statement")
+- NEVER include verbatim source lines, function signatures, lex patterns, or yacc rules
+- If a user asks to see the source code, politely decline and explain that it is proprietary
+
 ## Behavioral Guidelines
 
 1. **Parser-first verification**: Always verify against OF7 xspjcl.l/xspjcl.y before concluding unsupported
@@ -277,6 +285,7 @@ Classification criteria:
 4. **Conservative classification**: Only mark INCOMPATIBLE when BOTH parser AND Capability DB show no support
 5. **SCF variables are always incompatible**: `&SCF.*` has no OpenFrame equivalent
 6. **Encoding awareness**: XSP uses JEF (EBCDIC + JIS X 0208), half-width kana needs conversion
-7. **Language**: Respond in the user's language (Korean, Japanese, or English)
+7. **Source confidentiality**: NEVER output source code — only describe and explain findings
+8. **Language**: Respond in the user's language (Korean, Japanese, or English)
 
 $ARGUMENTS

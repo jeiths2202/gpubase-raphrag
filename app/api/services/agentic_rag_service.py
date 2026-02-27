@@ -844,7 +844,7 @@ class AgenticRAGService:
                 language=request.language or "ja",
             )
             if template_response:
-                table_supplement = self._build_table_supplement(search_context.structured_results)
+                table_supplement = self._build_table_supplement(search_context.structured_results, query=request.message)
                 if table_supplement:
                     template_response += table_supplement
                 return AgenticRAGResponse(
@@ -869,7 +869,7 @@ class AgenticRAGService:
 
         # LLM 응답에 테이블 보충
         if llm_response and search_context.structured_results:
-            table_supplement = self._build_table_supplement(search_context.structured_results)
+            table_supplement = self._build_table_supplement(search_context.structured_results, query=request.message)
             if table_supplement:
                 llm_response += table_supplement
 
@@ -938,6 +938,39 @@ class AgenticRAGService:
                 logger.info("Pipeline fallback → single mode")
         except Exception as e:
             logger.warning(f"Pattern analysis failed, falling back to SINGLE: {e}")
+
+        # === Auto-RAG 모드 조기 분기 (product router 스킵) ===
+        if request.agent_mode == AgentMode.AUTO_RAG:
+            from .auto_rag_service import get_auto_rag_service, detect_product_from_query
+            auto_rag = get_auto_rag_service()
+
+            # Auto-RAG 자체 제품 감지 사용 (LLM router보다 정확)
+            detected_product, _ = detect_product_from_query(request.message)
+            yield {
+                "type": "classification",
+                "product": detected_product or "auto",
+                "products": [detected_product] if detected_product else [],
+                "decision": "confirmed" if detected_product else "no_match",
+                "confidence": 0.8 if detected_product else 0.0,
+            }
+            yield {
+                "type": "agent_mode",
+                "mode": "auto_rag",
+                "auto_detected": False,
+            }
+
+            history_dicts = [
+                {"role": getattr(h, "role", "user"), "content": getattr(h, "content", "")}
+                for h in (request.history or [])
+            ] if request.history else None
+            async for event in auto_rag.stream(
+                message=request.message,
+                history=history_dicts,
+                product_ids=[detected_product] if detected_product else None,
+                enable_thinking=request.enable_thinking,
+            ):
+                yield event
+            return
 
         # 1. 통합 제품 해석
         product_ids, router_result = await self._resolve_search_products(request)
@@ -1151,7 +1184,7 @@ class AgenticRAGService:
                 language=request.language or "ja",
             )
             if template_response:
-                table_supplement = self._build_table_supplement(search_context.structured_results)
+                table_supplement = self._build_table_supplement(search_context.structured_results, query=request.message)
                 if table_supplement:
                     template_response += table_supplement
                 yield {
@@ -1192,7 +1225,7 @@ class AgenticRAGService:
 
         # LLM 응답 후 테이블 보충 (LLM이 재현하지 못한 표 데이터 추가)
         if search_context.structured_results:
-            table_supplement = self._build_table_supplement(search_context.structured_results)
+            table_supplement = self._build_table_supplement(search_context.structured_results, query=request.message)
             if table_supplement:
                 yield {"type": "llm_token", "token": table_supplement}
                 full_response += table_supplement
@@ -2155,7 +2188,7 @@ class AgenticRAGService:
             deduped.append(line)
         return '\n'.join(deduped)
 
-    def _build_table_supplement(self, results) -> str:
+    def _build_table_supplement(self, results, query: str = "") -> str:
         """LLM 응답 후 검색 결과의 테이블과 이미지를 보충 자료로 추가"""
         from .structured_knowledge_store import (
             _resolve_pdf_path_and_page,
@@ -2167,13 +2200,31 @@ class AgenticRAGService:
         seen_tables: set = set()
         seen_images: set = set()
 
-        # 최상위 결과만 사용 + 최소 점수 요건 (저관련 결과에서 무관한 테이블/이미지 추출 방지)
-        for r in results[:1]:
-            if r.relevance_score < 3.0:
+        # 쿼리 키워드 추출 (키워드 매칭 검증용)
+        # ASCII 토큰 + CJK 2-gram 방식으로 일본어/한국어/중국어도 처리
+        query_keywords = set()
+        if query:
+            q_lower = query.lower()
+            # ASCII/Latin 토큰 추출
+            for tok in re.findall(r'[a-z0-9_]{2,}', q_lower):
+                query_keywords.add(tok)
+            # CJK 연속 문자열에서 2-gram 추출 (カタカナ, 漢字, ハングル)
+            for cjk_run in re.findall(r'[\u3040-\u9fff\uac00-\ud7af]+', q_lower):
+                for i in range(len(cjk_run) - 1):
+                    query_keywords.add(cjk_run[i:i+2])
+
+        # 상위 3개 결과 대상 + 최소 점수 > 0 (관련 결과에서 테이블/이미지 추출)
+        MAX_TABLE_ROWS = 20
+        MAX_IMAGES = 2
+        for idx, r in enumerate(results[:3]):
+            if r.relevance_score <= 0:
+                logger.debug(f"[TableSupplement] result[{idx}] skipped: score={r.relevance_score:.2f} <= 0")
                 continue
             pdf_path, page_num = _resolve_pdf_path_and_page(r)
             if not pdf_path or page_num < 0:
+                logger.debug(f"[TableSupplement] result[{idx}] skipped: pdf_path={pdf_path}, page={page_num}")
                 continue
+            logger.debug(f"[TableSupplement] result[{idx}] pdf={os.path.basename(str(pdf_path))}, page={page_num}, product={r.product}")
             try:
                 import pymupdf
                 doc = pymupdf.open(pdf_path)
@@ -2184,32 +2235,44 @@ class AgenticRAGService:
                         tables = doc[p].find_tables()
                         for table in tables:
                             data = table.extract()
+                            # 행 수 제한: 헤더 1행 + 데이터 최대 MAX_TABLE_ROWS행
+                            if data and len(data) > MAX_TABLE_ROWS + 1:
+                                data = data[:MAX_TABLE_ROWS + 1]
                             md = StructuredKnowledgeStore._table_to_markdown(data)
                             if md and md not in seen_tables:
+                                # 키워드 매칭 검증: 쿼리 키워드가 테이블에 1개 이상 포함되어야 함
+                                if query_keywords:
+                                    md_lower = md.lower()
+                                    if not any(kw in md_lower for kw in query_keywords):
+                                        continue
                                 seen_tables.add(md)
                                 tables_md.append(md)
                     except Exception:
                         pass
                     try:
-                        imgs = StructuredKnowledgeStore._extract_page_images(
-                            doc, p, product_id,
-                            pdf_name=os.path.basename(pdf_path),
-                        )
-                        for img_md in imgs:
-                            if img_md not in seen_images:
-                                seen_images.add(img_md)
-                                images_md.append(img_md)
-                    except Exception:
-                        pass
+                        if len(images_md) < MAX_IMAGES:
+                            imgs = StructuredKnowledgeStore._extract_page_images(
+                                doc, p, product_id,
+                                pdf_name=os.path.basename(pdf_path),
+                            )
+                            logger.debug(f"[TableSupplement] page {p}: {len(imgs)} images extracted")
+                            for img_md in imgs:
+                                if img_md not in seen_images and len(images_md) < MAX_IMAGES:
+                                    seen_images.add(img_md)
+                                    images_md.append(img_md)
+                    except Exception as e:
+                        logger.debug(f"[TableSupplement] page {p} image extraction error: {e}")
                 doc.close()
-            except Exception:
+            except Exception as e:
+                logger.debug(f"[TableSupplement] PDF open error: {e}")
                 continue
+        logger.debug(f"[TableSupplement] final: {len(tables_md)} tables, {len(images_md)} images")
 
         parts: list = []
         if tables_md:
             parts.append("**参考テーブル:**\n\n" + "\n\n".join(tables_md[:5]))
         if images_md:
-            parts.append("**参考図:**\n\n" + "\n\n".join(images_md[:8]))
+            parts.append("**参考図:**\n\n" + "\n\n".join(images_md[:MAX_IMAGES]))
 
         if not parts:
             return ""

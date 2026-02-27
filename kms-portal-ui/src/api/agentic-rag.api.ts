@@ -7,7 +7,7 @@ import client from './client';
 
 const BASE_URL = '/api/v1/agentic-rag';
 
-export type AgentMode = 'rag' | 'code' | 'planner' | 'auto' | 'special';
+export type AgentMode = 'rag' | 'code' | 'planner' | 'auto' | 'special' | 'auto_rag';
 
 export interface AgenticRAGRequest {
   message: string;
@@ -18,6 +18,7 @@ export interface AgenticRAGRequest {
   file_content?: string;
   language?: string;
   agent_mode?: AgentMode;
+  enable_thinking?: boolean;
 }
 
 export interface ClarificationCandidate {

@@ -396,6 +396,20 @@ class SummaryBM25Service:
                 f"{len(self._command_index)} commands, "
                 f"{len(self._term_index)} terms"
             )
+
+            # Warmup: 더미 검색으로 numpy 배열을 메모리에 로딩
+            import time as _time
+            _t = _time.time()
+            try:
+                warmup_tokens = self._tokenize("OpenFrame warmup query")
+                _ = self._bm25.get_scores(warmup_tokens)
+                _elapsed = (_time.time() - _t) * 1000
+                print(f"[BM25 Init] Warmup search: {_elapsed:.0f}ms")
+                logger.info(f"BM25 warmup search: {_elapsed:.0f}ms")
+            except Exception as e:
+                print(f"[BM25 Init] Warmup failed: {e}")
+                logger.warning(f"BM25 warmup failed: {e}")
+
             return True
 
         except Exception as e:

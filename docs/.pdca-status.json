@@ -1,7 +1,9 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-02-25T13:04:22.766Z",
+  "lastUpdated": "2026-02-27T07:30:00.000Z",
   "activeFeatures": [
+    "webui-image-display-fix",
+    "chunk-entity-pipeline",
     "jcl-job-failure-diagnosis",
     "source-code-explanation",
     "legacy-analysis-datatable-persistence",
@@ -37,16 +39,44 @@
     "validators",
     "pipeline",
     "dataset_pipeline",
-    "jcl_diagnosis"
+    "jcl_diagnosis",
+    "AgentChat",
+    "PremiumSupport",
+    "store"
   ],
-  "primaryFeature": "jcl-job-failure-diagnosis",
+  "primaryFeature": "webui-image-display-fix",
   "features": {
+    "webui-image-display-fix": {
+      "phase": "check",
+      "matchRate": 100,
+      "iterationCount": 0,
+      "startedAt": "2026-02-27T07:00:00Z",
+      "checkedAt": "2026-02-27T07:30:00Z",
+      "planPath": "docs/01-plan/features/webui-image-display-fix.plan.md",
+      "analysisPath": "docs/03-analysis/webui-image-display-fix.analysis.md"
+    },
+    "rag-table-image-display": {
+      "phase": "archived",
+      "matchRate": 95,
+      "iterationCount": 1,
+      "startedAt": "2026-02-27T05:00:00Z",
+      "completedAt": "2026-02-27T06:30:00Z",
+      "archivedAt": "2026-02-27T07:00:00Z",
+      "archivedTo": "docs/archive/2026-02/rag-table-image-display/",
+      "planPath": "docs/archive/2026-02/rag-table-image-display/rag-table-image-display.plan.md",
+      "analysisPath": "docs/archive/2026-02/rag-table-image-display/rag-table-image-display.analysis.md",
+      "reportPath": "docs/archive/2026-02/rag-table-image-display/rag-table-image-display.report.md"
+    },
     "jcl-diagnosis-frontend-viewer": {
-      "phase": "plan",
-      "matchRate": null,
+      "phase": "completed",
+      "matchRate": 98,
       "iterationCount": 0,
       "startedAt": "2026-02-25T14:00:00Z",
-      "planPath": "docs/01-plan/features/jcl-diagnosis-frontend-viewer.plan.md"
+      "planPath": "docs/01-plan/features/jcl-diagnosis-frontend-viewer.plan.md",
+      "analysisPath": "docs/03-analysis/jcl-diagnosis-frontend-viewer.analysis.md",
+      "reportPath": "docs/04-report/features/jcl-diagnosis-frontend-viewer.report.md",
+      "checkedAt": "2026-02-25T15:30:00Z",
+      "completedAt": "2026-02-25T15:45:00Z"
     },
     "jcl-diagnosis-report-template": {
       "phase": "archived",
@@ -172,9 +202,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-16T16:00:47.458Z",
-        "lastUpdated": "2026-02-25T13:01:59.145Z"
+        "lastUpdated": "2026-02-25T14:06:01.497Z"
       },
-      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\kms-portal-ui\\src\\api\\jcl-diagnosis.api.ts"
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\kms-portal-ui\\src\\api\\premium-support.api.ts"
     },
     "agent_teams": {
       "phase": "do",
@@ -211,7 +241,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-16T18:12:36.923Z",
-        "lastUpdated": "2026-02-25T13:04:22.766Z"
+        "lastUpdated": "2026-02-25T15:03:20.471Z"
       },
       "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\kms-portal-ui\\src\\components\\Sidebar.tsx"
     },
@@ -224,9 +254,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-17T02:22:42.340Z",
-        "lastUpdated": "2026-02-25T04:16:06.562Z"
+        "lastUpdated": "2026-02-25T14:05:42.233Z"
       },
-      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\core\\deps.py"
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\core\\config.py"
     },
     "postgres": {
       "phase": "do",
@@ -380,7 +410,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-18T11:35:53.350Z",
-        "lastUpdated": "2026-02-18T11:35:53.350Z"
+        "lastUpdated": "2026-02-25T15:01:21.624Z"
       },
       "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\kms-portal-ui\\src\\layouts\\MainLayout.tsx"
     },
@@ -555,6 +585,45 @@
         "lastUpdated": "2026-02-25T12:29:26.179Z"
       },
       "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\app\\api\\services\\jcl_diagnosis\\__init__.py"
+    },
+    "AgentChat": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-25T13:20:00.455Z",
+        "lastUpdated": "2026-02-25T13:20:44.936Z"
+      },
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\kms-portal-ui\\src\\components\\AgentChat\\hooks\\useFileAttachment.ts"
+    },
+    "PremiumSupport": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-25T14:06:46.576Z",
+        "lastUpdated": "2026-02-25T15:03:10.709Z"
+      },
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\kms-portal-ui\\src\\components\\PremiumSupport\\ExpertSessionPanel.tsx"
+    },
+    "store": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-02-25T14:58:40.014Z",
+        "lastUpdated": "2026-02-25T14:58:40.014Z"
+      },
+      "lastFile": "C:\\Users\\endur\\Downloads\\tmaxjapan\\kms\\kms-docker-remote\\kms-portal-ui\\src\\store\\supportStore.ts"
     }
   },
   "pipeline": {
@@ -565,7 +634,7 @@
   "session": {
     "startedAt": "2026-01-30T11:33:36.280Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-02-25T13:04:22.766Z"
+    "lastActivity": "2026-02-25T15:03:20.471Z"
   },
   "history": [
     {
@@ -5952,6 +6021,366 @@
     },
     {
       "timestamp": "2026-02-25T13:04:22.766Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:20:00.455Z",
+      "feature": "AgentChat",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:20:06.782Z",
+      "feature": "AgentChat",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:20:12.064Z",
+      "feature": "AgentChat",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:20:18.801Z",
+      "feature": "AgentChat",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:20:26.228Z",
+      "feature": "AgentChat",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:20:33.736Z",
+      "feature": "AgentChat",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:20:40.347Z",
+      "feature": "AgentChat",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:20:44.936Z",
+      "feature": "AgentChat",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:20:55.206Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:21:05.805Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:21:48.473Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:21:55.808Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:22:01.177Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:22:16.288Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:22:36.714Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:22:53.033Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T13:28:37.091Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:04:04.632Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:04:39.847Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:05:01.460Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:05:13.499Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:05:29.409Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:05:42.233Z",
+      "feature": "core",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:06:01.497Z",
+      "feature": "api",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:06:46.576Z",
+      "feature": "PremiumSupport",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:09:29.417Z",
+      "feature": "PremiumSupport",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:09:55.015Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:10:05.356Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:10:13.821Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:10:32.771Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:11:03.441Z",
+      "feature": "PremiumSupport",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:11:13.695Z",
+      "feature": "PremiumSupport",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:11:22.438Z",
+      "feature": "PremiumSupport",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:11:45.054Z",
+      "feature": "PremiumSupport",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:18:36.553Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:18:56.674Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:33:00.202Z",
+      "feature": "PremiumSupport",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:40:39.991Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:40:44.645Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:40:55.668Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:41:03.800Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:41:10.139Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:58:40.014Z",
+      "feature": "store",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:58:48.172Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T14:58:55.255Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:00:05.155Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:00:18.776Z",
+      "feature": "PremiumSupport",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:00:26.903Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:00:36.290Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:00:44.241Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:00:49.765Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:00:56.714Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:01:03.569Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:01:08.938Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:01:15.325Z",
+      "feature": "layouts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:01:21.624Z",
+      "feature": "layouts",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:01:27.252Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:01:35.800Z",
+      "feature": "kms-portal-ui",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:03:10.709Z",
+      "feature": "PremiumSupport",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-25T15:03:20.471Z",
       "feature": "kms-portal-ui",
       "phase": "do",
       "action": "updated"

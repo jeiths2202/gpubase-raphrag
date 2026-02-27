@@ -87,6 +87,8 @@ export const MessageContent: React.FC<MessageContentProps> = ({
   content,
   useChatGPTStyle = true,
 }) => {
+  const [enlargedImg, setEnlargedImg] = useState<string | null>(null);
+
   if (!content) return null;
 
   // CSS class prefix based on style mode
@@ -174,19 +176,33 @@ export const MessageContent: React.FC<MessageContentProps> = ({
           // Strong and emphasis
           strong: ({ children }) => <strong className={`${prefix}-markdown-strong`}>{children}</strong>,
           em: ({ children }) => <em className={`${prefix}-markdown-em`}>{children}</em>,
-          // Images - constrain size to prevent oversized display
+          // Images - constrain size, click to enlarge
           img: ({ src, alt }) => (
             <img
               src={src}
               alt={alt || 'Image'}
               className={`${prefix}-markdown-img`}
               loading="lazy"
+              style={{ cursor: 'pointer' }}
+              onClick={() => src && setEnlargedImg(src)}
             />
           ),
         }}
       >
         {content}
       </ReactMarkdown>
+      {enlargedImg && (
+        <div
+          className={`${prefix}-image-overlay`}
+          onClick={() => setEnlargedImg(null)}
+        >
+          <img
+            src={enlargedImg}
+            alt="Enlarged"
+            className={`${prefix}-image-enlarged`}
+          />
+        </div>
+      )}
     </div>
   );
 };

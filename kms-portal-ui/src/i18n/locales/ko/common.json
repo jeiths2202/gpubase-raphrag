@@ -873,6 +873,9 @@
     "planSteps": "단계",
     "autoDetected": "자동 감지",
     "specialAgent": "특수 에이전트",
+    "autoRag": "Auto-RAG",
+    "autoRagDesc": "에이전트 루프 + 도구 호출",
+    "autoRagPlaceholder": "Auto-RAG: 질문을 입력하세요, / 로 명령어...",
     "thinkMode": "Think 모드 (Qwen3 내부 추론)",
     "thinkLabel": "내부 추론 (Think)"
   },

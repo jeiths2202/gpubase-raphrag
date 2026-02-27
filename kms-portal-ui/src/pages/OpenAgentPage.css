@@ -114,6 +114,16 @@
   color: var(--text-primary);
 }
 
+.openagent-btn-premium {
+  color: #6366f1;
+}
+
+.openagent-btn-premium:hover,
+.openagent-btn-premium.active {
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+}
+
 /* Settings Panel */
 .openagent-settings {
   padding: 16px 24px;
@@ -2187,4 +2197,228 @@
 }
 .special-agent-toggle input[type="checkbox"] {
   display: none;
+}
+
+/* Think Mode Toggle (Qwen3) */
+.think-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border, #334155);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary, #94a3b8);
+  background: transparent;
+  transition: all 0.2s;
+  user-select: none;
+}
+.think-mode-toggle:hover {
+  background: var(--color-bg-tertiary, #2d3748);
+  color: var(--color-text-primary, #f1f5f9);
+}
+.think-mode-toggle:has(input:checked) {
+  background: rgba(236, 72, 153, 0.15);
+  color: #ec4899;
+  border-color: rgba(236, 72, 153, 0.4);
+  box-shadow: 0 0 8px rgba(236, 72, 153, 0.3);
+}
+.think-mode-toggle input[type="checkbox"] {
+  display: none;
+}
+
+/* Think Block in Messages */
+.think-block {
+  margin-bottom: 8px;
+  border: 1px solid rgba(236, 72, 153, 0.2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.think-block-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(236, 72, 153, 0.08);
+  color: #ec4899;
+  font-size: 0.8rem;
+  cursor: pointer;
+  user-select: none;
+}
+.think-block-header:hover {
+  background: rgba(236, 72, 153, 0.15);
+}
+.think-block[open] .think-block-header {
+  border-bottom: 1px solid rgba(236, 72, 153, 0.15);
+}
+.think-block-content {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary, #94a3b8);
+  max-height: 300px;
+  overflow-y: auto;
+  background: rgba(236, 72, 153, 0.03);
+}
+
+/* =============================================================================
+   Auto-RAG Mode
+   ============================================================================= */
+
+/* Auto-RAG Toggle (same pattern as special-agent-toggle) */
+.auto-rag-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border, #334155);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary, #94a3b8);
+  background: transparent;
+  transition: all 0.2s;
+  user-select: none;
+}
+.auto-rag-toggle:hover {
+  background: var(--color-bg-tertiary, #2d3748);
+  color: var(--color-text-primary, #f1f5f9);
+}
+.auto-rag-toggle:has(input:checked) {
+  background: #f59e0b;
+  color: #fff;
+  border-color: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+}
+.auto-rag-toggle input[type="checkbox"] {
+  display: none;
+}
+
+/* Disabled buttons when Auto-RAG is active */
+.agent-mode-btn:disabled,
+.special-agent-toggle:has(input:disabled) {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Input wrapper for slash palette positioning */
+.openagent-input-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+.openagent-input-wrapper textarea {
+  width: 100%;
+}
+
+/* Slash Command Palette */
+.slash-command-palette {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 4px;
+  background: var(--color-bg-secondary, #1e293b);
+  border: 1px solid var(--color-border, #334155);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.slash-command-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary, #f1f5f9);
+  font-size: 0.85rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  cursor: pointer;
+  border-radius: 6px;
+  text-align: left;
+}
+.slash-command-item:hover {
+  background: var(--color-bg-tertiary, #2d3748);
+}
+.slash-command-item svg {
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+/* Tool Calls Block (in message) */
+.tool-calls-block {
+  margin-bottom: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.tool-calls-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(245, 158, 11, 0.08);
+  color: #f59e0b;
+  font-size: 0.8rem;
+  cursor: pointer;
+  user-select: none;
+}
+.tool-calls-header:hover {
+  background: rgba(245, 158, 11, 0.15);
+}
+.tool-calls-block[open] .tool-calls-header {
+  border-bottom: 1px solid rgba(245, 158, 11, 0.15);
+}
+.tool-calls-list {
+  padding: 6px 10px;
+}
+.tool-call-item {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(245, 158, 11, 0.08);
+}
+.tool-call-item:last-child {
+  border-bottom: none;
+}
+.tool-call-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+}
+.tool-call-badge svg {
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+.tool-call-name {
+  font-weight: 600;
+  color: #f59e0b;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+.tool-call-args {
+  color: var(--color-text-secondary, #94a3b8);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 400px;
+}
+.tool-call-result {
+  margin-top: 2px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  color: var(--color-text-secondary, #94a3b8);
+  background: rgba(245, 158, 11, 0.04);
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 600px;
 }

@@ -1662,7 +1662,7 @@ class DocumentService:
         """Sync document and chunks to Neo4j for graph-based retrieval."""
         try:
             from langchain_neo4j import Neo4jGraph
-            from config import config
+            from app.src.config import config
 
             graph = Neo4jGraph(
                 url=config.neo4j.uri,
@@ -1737,10 +1737,10 @@ class DocumentService:
 
             logger.info(f"Synced document {doc_id} with {len(chunks)} chunks to Neo4j")
 
-        except ImportError:
-            logger.warning("Neo4j dependencies not available, skipping sync")
+        except ImportError as ie:
+            logger.warning(f"Neo4j sync skipped - missing dependency: {ie}")
         except Exception as e:
-            logger.error(f"Failed to sync to Neo4j for {doc_id}: {e}")
+            logger.error(f"Failed to sync to Neo4j for {doc_id}: {e}", exc_info=True)
 
     @classmethod
     async def _store_image_embeddings(
@@ -4142,19 +4142,29 @@ async def _get_db_pool():
     global _adaptive_db_pool
 
     if _adaptive_db_pool is None:
+        import asyncio
         import asyncpg
         from .config import api_settings
 
-        _adaptive_db_pool = await asyncpg.create_pool(
-            host=api_settings.POSTGRES_HOST,
-            port=int(api_settings.POSTGRES_PORT),
-            user=api_settings.POSTGRES_USER,
-            password=api_settings.POSTGRES_PASSWORD,
-            database=api_settings.POSTGRES_DB,
-            min_size=2,
-            max_size=10
-        )
-        logger.info("Created database pool for adaptive embedding service")
+        try:
+            _adaptive_db_pool = await asyncio.wait_for(
+                asyncpg.create_pool(
+                    host=api_settings.POSTGRES_HOST,
+                    port=int(api_settings.POSTGRES_PORT),
+                    user=api_settings.POSTGRES_USER,
+                    password=api_settings.POSTGRES_PASSWORD,
+                    database=api_settings.POSTGRES_DB,
+                    min_size=2,
+                    max_size=10,
+                    command_timeout=10,
+                ),
+                timeout=15,
+            )
+            logger.info("Created database pool for adaptive embedding service")
+        except (asyncio.TimeoutError, OSError, Exception) as e:
+            logger.error(f"Failed to create adaptive DB pool: {e}")
+            _adaptive_db_pool = None
+            raise RuntimeError(f"PostgreSQL connection failed for adaptive service: {e}")
 
     return _adaptive_db_pool
 

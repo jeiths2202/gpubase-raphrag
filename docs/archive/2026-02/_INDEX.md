@@ -25,6 +25,8 @@
 | [unified-lora-dataset-v2](./unified-lora-dataset-v2/) | 2026-02-22 | 100% | Completed |
 | [qwen3-dataset-pipeline](./qwen3-dataset-pipeline/) | 2026-02-24 | 100% | Completed |
 | [jcl-diagnosis-report-template](./jcl-diagnosis-report-template/) | 2026-02-25 | 100% | Completed |
+| [livekit-premium-support](./livekit-premium-support/) | 2026-02-25 | 95% | Completed |
+| [rag-table-image-display](./rag-table-image-display/) | 2026-02-27 | 95% | ✅ Completed |
 
 ---
 

@@ -211,11 +211,11 @@ _LEGACY_SUMMARY_PATHS: Dict[str, Dict[str, List[str]]] = {
         ],
     },
     "ofasm_4": {
-        "commands": ["commands/O.md"],
+        "commands": ["commands/O.md", "commands/OpenFrame.md"],
         "configs": ["configs/OpenFrame.md"],
     },
     "ofcobol_4": {
-        "commands": ["commands/O.md"],
+        "commands": ["commands/O.md", "commands/OpenFrame.md"],
         "configs": ["configs/OpenFrame.md"],
         "learning_qa": [
             f"{_LEARNING_BASE}/ofcobol_v2/train.json",
