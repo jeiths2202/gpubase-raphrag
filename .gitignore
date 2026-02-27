@@ -1,28 +1,13 @@
-# Environment files
-.env
-.env.local
-.env.*.local
+# Virtual environment
+env/
+venv/
+.venv/
 
-# Python
+# Python cache
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
-venv/
-ENV/
-.venv/
-
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Build outputs
-dist/
-build/
-*.egg-info/
 
 # IDE
 .idea/
@@ -34,8 +19,10 @@ build/
 .DS_Store
 Thumbs.db
 
-# Logs
-logs/
+# Training outputs
+openframe_qlora_adapter/
+qlora_adapters/
+training_*.log
 *.log
 
 # Test
@@ -54,3 +41,12 @@ htmlcov/
 # Temp files
 *.tmp
 *.temp
+
+# PDF manual directories (large files)
+MSP_Openframe*/
+VOS3_Openframe*/
+Tibero*/
+OFAsm*/
+OFCOBOL*/
+XSP_Openframe*/
+Tmax*/

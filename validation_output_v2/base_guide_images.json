@@ -1,0 +1,102 @@
+[
+  {
+    "image_index": 0,
+    "page_number": 13,
+    "width": 603,
+    "height": 562,
+    "image_type": "png",
+    "caption": "] OpenFrame/Baseの位置と役割",
+    "surrounding_text": "第1章 OpenFrame/Baseシステムの紹介\n本章では、OpenFrame/Baseシステムを紹介し、その構成要素について説明します。\n1.1. 概要\nOpenFrameは、メインフレーム環境の業務システムをオープン環境に移行して運用できるようにす\nるリホスト・ソリューションです。移行するアプリケーションの特性に応じて、オンライン業務と\nバッチ業務に分けられるため、OpenFrameソリュー",
+    "has_base64": false
+  },
+  {
+    "image_index": 0,
+    "page_number": 22,
+    "width": 716,
+    "height": 332,
+    "image_type": "png",
+    "caption": "] DISPLAY機能の実行プロセス",
+    "surrounding_text": "5.2.1. DISPLAY\nPL/I言語のDISPLAY文またはCOBOL言語のDISPLAY UPON CONSOLE文を、コンソールのDISPLAY\n機能でサポートします。\n以下の図は、DISPLAY機能が実行されるプロセスです。\n[図 5.1] DISPLAY機能の実行プロセス\n●プログラムでDISPLAYを実行するプロセス\n1. プログラムはofrcmsvrにDISPLAYメッセージを送",
+    "has_base64": false
+  },
+  {
+    "image_index": 0,
+    "page_number": 23,
+    "width": 720,
+    "height": 301,
+    "image_type": "png",
+    "caption": "] ACCEPT機能の実行プロセス",
+    "surrounding_text": "5.2.2. ACCEPT\nPL/I言語のREPLY文またはCOBOL言語のACCEPT FROM CONSOLE文を、コンソールのACCEPT\n機能でサポートします。\n[図 5.2] ACCEPT機能の実行プロセス\n●プログラムでACCEPTを実行するプロセス\n1. プログラムはofrcmsvrにACCEPTメッセージを送信します。\n2. ofrcmsvrはACCEPTメッセージをファイルに書き",
+    "has_base64": false
+  },
+  {
+    "image_index": 0,
+    "page_number": 25,
+    "width": 595,
+    "height": 120,
+    "image_type": "png",
+    "caption": "] DISPLAYコマンドの実行結果",
+    "surrounding_text": "IDENTIFICATION DIVISION\n…\nENVIRONMENT DIVISION\n…\nDATA DIVISION\n…\nWORKING-STORAGE SECTION.\n03 BUFFER PIC X(10).\nPROCEDURE DIVISION.\nA SECTION.\nDISPLAY “CONSOLE DISPLAY TEST” UPON CONSOLE.\nACCEPT BUFFER",
+    "has_base64": false
+  },
+  {
+    "image_index": 1,
+    "page_number": 25,
+    "width": 596,
+    "height": 119,
+    "image_type": "png",
+    "caption": "] ACCEPTコマンドの実行結果",
+    "surrounding_text": "IDENTIFICATION DIVISION\n…\nENVIRONMENT DIVISION\n…\nDATA DIVISION\n…\nWORKING-STORAGE SECTION.\n03 BUFFER PIC X(10).\nPROCEDURE DIVISION.\nA SECTION.\nDISPLAY “CONSOLE DISPLAY TEST” UPON CONSOLE.\nACCEPT BUFFER",
+    "has_base64": false
+  },
+  {
+    "image_index": 0,
+    "page_number": 26,
+    "width": 596,
+    "height": 314,
+    "image_type": "png",
+    "caption": "] REPLYコマンドの実行",
+    "surrounding_text": "3. ユーザーは、REPLYコマンドの「R」を使用して要求メッセージに応答することができます。\nREPLYコマンドを実行すると、コンソールに新しい画面が表示され、応答を要求したメッセージ\nの一覧が表示されます。一覧から希望する番号を選択して応答メッセージを送信できます。\nREPLYコマンドを実行すると、以下のような画面が表示されます。\n[図 5.5] REPLYコマンドの実行\n4. 以下は、表示さ",
+    "has_base64": false
+  },
+  {
+    "image_index": 1,
+    "page_number": 26,
+    "width": 598,
+    "height": 308,
+    "image_type": "png",
+    "caption": "] メッセージの応答(1)",
+    "surrounding_text": "3. ユーザーは、REPLYコマンドの「R」を使用して要求メッセージに応答することができます。\nREPLYコマンドを実行すると、コンソールに新しい画面が表示され、応答を要求したメッセージ\nの一覧が表示されます。一覧から希望する番号を選択して応答メッセージを送信できます。\nREPLYコマンドを実行すると、以下のような画面が表示されます。\n[図 5.5] REPLYコマンドの実行\n4. 以下は、表示さ",
+    "has_base64": false
+  },
+  {
+    "image_index": 0,
+    "page_number": 27,
+    "width": 600,
+    "height": 143,
+    "image_type": "png",
+    "caption": "] メッセージの応答(2)",
+    "surrounding_text": "5. 「OK」メッセージを入力して送信すると、以下のようにtconmgrが応答したメッセージが表示さ\nれます。\n[図 5.7] メッセージの応答(2)\ntconmgrを閉じると、内容は画面から削除されます。以前の内容を検索するには、HISTORYコマン\nドの「H」を使用します。\n以下は、HISTORYコマンドを使用して以前の内容を検索する画面です。\n[図 5.8] HISTORYコマンドの実行\nH",
+    "has_base64": false
+  },
+  {
+    "image_index": 1,
+    "page_number": 27,
+    "width": 598,
+    "height": 266,
+    "image_type": "png",
+    "caption": "] HISTORYコマンドの実行",
+    "surrounding_text": "5. 「OK」メッセージを入力して送信すると、以下のようにtconmgrが応答したメッセージが表示さ\nれます。\n[図 5.7] メッセージの応答(2)\ntconmgrを閉じると、内容は画面から削除されます。以前の内容を検索するには、HISTORYコマン\nドの「H」を使用します。\n以下は、HISTORYコマンドを使用して以前の内容を検索する画面です。\n[図 5.8] HISTORYコマンドの実行\nH",
+    "has_base64": false
+  },
+  {
+    "image_index": 0,
+    "page_number": 28,
+    "width": 611,
+    "height": 345,
+    "image_type": "png",
+    "caption": "] HISTORYコマンドの実行例",
+    "surrounding_text": "以下は、Process IDに「5169」を入力して検索した例です。\n[図 5.9] HISTORYコマンドの実行例\n16   OpenFrame Baseガイド",
+    "has_base64": false
+  }
+]

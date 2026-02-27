@@ -1,0 +1,88 @@
+{
+  "generated_at": "2026-01-30T15:41:21.437186",
+  "languages": [
+    "ko",
+    "ja",
+    "en"
+  ],
+  "results": [
+    {
+      "product": "msp_openframe",
+      "status": "success",
+      "pdfs_processed": 35,
+      "examples_per_lang": {
+        "ko": 6330,
+        "ja": 6330,
+        "en": 6330
+      },
+      "total_examples": 18990
+    },
+    {
+      "product": "vos3_openframe",
+      "status": "success",
+      "pdfs_processed": 10,
+      "examples_per_lang": {
+        "ko": 1683,
+        "ja": 1683,
+        "en": 1683
+      },
+      "total_examples": 5049
+    },
+    {
+      "product": "tibero7",
+      "status": "success",
+      "pdfs_processed": 23,
+      "examples_per_lang": {
+        "ko": 11770,
+        "ja": 11770,
+        "en": 11770
+      },
+      "total_examples": 35310
+    },
+    {
+      "product": "ofasm",
+      "status": "success",
+      "pdfs_processed": 2,
+      "examples_per_lang": {
+        "ko": 126,
+        "ja": 126,
+        "en": 126
+      },
+      "total_examples": 378
+    },
+    {
+      "product": "ofcobol",
+      "status": "success",
+      "pdfs_processed": 2,
+      "examples_per_lang": {
+        "ko": 593,
+        "ja": 593,
+        "en": 593
+      },
+      "total_examples": 1779
+    },
+    {
+      "product": "xsp_openframe",
+      "status": "success",
+      "pdfs_processed": 30,
+      "examples_per_lang": {
+        "ko": 6441,
+        "ja": 6441,
+        "en": 6441
+      },
+      "total_examples": 19323
+    },
+    {
+      "product": "tmax",
+      "status": "success",
+      "pdfs_processed": 34,
+      "examples_per_lang": {
+        "ko": 9299,
+        "ja": 9299,
+        "en": 9299
+      },
+      "total_examples": 27897
+    }
+  ],
+  "total_examples": 108726
+}

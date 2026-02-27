@@ -103,6 +103,68 @@ services:
       retries: 10
       start_period: 180s
 
+  # Multi-LoRA DPO LLM - Qwen2.5-72B + 15 DPO Adapters (GPU 4,5,6,7, port 12810)
+  multi-lora-dpo:
+    container_name: multi-lora-dpo
+    image: vllm/vllm-openai:latest
+    restart: unless-stopped
+    runtime: nvidia
+    ports:
+      - "12810:8000"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+      - NVIDIA_VISIBLE_DEVICES=4,5,6,7
+      - VLLM_LOGGING_LEVEL=INFO
+      - NCCL_DEBUG=WARN
+      - VLLM_USE_V1=false
+    volumes:
+      - /raid/users/ofuser/qlora/outputs/merged_cpt_72b:/opt/models/merged_cpt_72b:ro
+      - /raid/users/ofuser/qlora/outputs/dpo:/opt/adapters:ro
+    command: >
+      --model /opt/models/merged_cpt_72b
+      --tensor-parallel-size 4
+      --max-model-len 4096
+      --gpu-memory-utilization 0.90
+      --enforce-eager
+      --quantization bitsandbytes
+      --load-format bitsandbytes
+      --enable-lora
+      --max-loras 4
+      --max-lora-rank 64
+      --max-cpu-loras 15
+      --lora-modules
+        openframe_base=/opt/adapters/openframe_base_v2
+        openframe_batch=/opt/adapters/openframe_batch_v2
+        openframe_common=/opt/adapters/openframe_common_v2
+        openframe_hidb=/opt/adapters/openframe_hidb_v2
+        openframe_osc=/opt/adapters/openframe_osc_v2
+        openframe_osi=/opt/adapters/openframe_osi_v2
+        openframe_tacf=/opt/adapters/openframe_tacf_v2
+        openframe_vos3=/opt/adapters/openframe_vos3_v2
+        ofcobol=/opt/adapters/ofcobol_v2
+        ofpli=/opt/adapters/ofpli_v2
+        ofmanager=/opt/adapters/ofmanager_v2
+        tmax=/opt/adapters/tmax_v2
+        tibero7=/opt/adapters/tibero7_v2
+        protrieve=/opt/adapters/protrieve_v2
+        prosort=/opt/adapters/prosort_v2
+      --dtype bfloat16
+      --trust-remote-code
+    shm_size: '16gb'
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['4','5','6','7']
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 600s
+
   # PostgreSQL Database with pgvector (port 5432)
   postgres:
     container_name: postgres-graphrag
