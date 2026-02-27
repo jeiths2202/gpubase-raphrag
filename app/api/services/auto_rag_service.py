@@ -664,24 +664,38 @@ async def _fetch_summary_context(query: str) -> str:
         return ""
 
 
+# 컨텍스트 크기 제한: context_limit=8192에서 2회차 iteration 출력 예산 확보
+# system(~1700tok) + user+ctx + tool_result → iteration 2 output ≥ 2000tok 보장
+_MAX_SUMMARY_CONTEXT_CHARS = 1200   # summary: ~600 tokens
+_MAX_VECTOR_CONTEXT_CHARS = 1500    # vector: ~750 tokens
+_MAX_TOTAL_CONTEXT_CHARS = 2500     # combined hard cap
+
+
 async def auto_rag_context(query: str, product: str = "") -> str:
     """CLI의 _auto_rag_context() + 요약본 검색 통합.
 
     1단계: 요약본(commands/error-codes/glossary) 검색 (<100ms)
     2단계: ofcode-server vector search (기존)
     두 결과를 합산하여 LLM 컨텍스트로 주입.
+
+    주의: context_limit=8192에서 2회차 iteration(tool_call 후)의 출력 예산을
+    확보하기 위해, 총 컨텍스트 크기를 _MAX_TOTAL_CONTEXT_CHARS로 제한.
     """
     parts: list[str] = []
+    total_chars = 0
 
     # 1단계: 요약본 검색 (빠름, 로컬)
     t0 = time.time()
     summary_ctx = await _fetch_summary_context(query)
     t_summary = (time.time() - t0) * 1000
     if summary_ctx:
+        if len(summary_ctx) > _MAX_SUMMARY_CONTEXT_CHARS:
+            summary_ctx = summary_ctx[:_MAX_SUMMARY_CONTEXT_CHARS] + "\n...(truncated)"
         parts.append("")
         parts.append("[Summary Reference (commands, error-codes, glossary)]")
         parts.append(summary_ctx)
         parts.append("[End of Summary Reference]")
+        total_chars += len(summary_ctx)
         logger.info(f"Auto-RAG summary context injected: {len(summary_ctx)} chars, {t_summary:.0f}ms")
 
     # 2단계: Vector search (기존 로직)
@@ -690,8 +704,8 @@ async def auto_rag_context(query: str, product: str = "") -> str:
     if not isinstance(rag_result, str):
         entries = rag_result.get("results", [])
         if entries:
-            parts.append("")
-            parts.append("[Reference Documentation from Official Manuals]")
+            vec_lines: list[str] = []
+            vec_chars = 0
             for r in entries:
                 doc = r.get("doc_name", "")
                 short_name = doc.split("/")[-1] if "/" in doc else doc
@@ -699,23 +713,36 @@ async def auto_rag_context(query: str, product: str = "") -> str:
                 score = r.get("score", 0)
                 content = r.get("content", "").strip()
                 if content:
-                    parts.append(f"--- {short_name} (p.{page}, relevance: {score}) ---")
-                    parts.append(content)
-                    parts.append("")
-            parts.append("[End of Reference Documentation]")
+                    entry = f"--- {short_name} (p.{page}, relevance: {score}) ---\n{content}"
+                    if vec_chars + len(entry) > _MAX_VECTOR_CONTEXT_CHARS:
+                        break
+                    vec_lines.append(entry)
+                    vec_chars += len(entry)
+            if vec_lines:
+                parts.append("")
+                parts.append("[Reference Documentation from Official Manuals]")
+                parts.extend(vec_lines)
+                parts.append("[End of Reference Documentation]")
+                total_chars += vec_chars
     else:
         logger.warning(f"Auto-RAG vector search failed: {rag_result}")
 
     if not parts:
         return ""
 
-    parts.append(
-        "NOTE: This is preliminary context from summary + vector search. "
+    # Hard cap: 총 컨텍스트 제한
+    result = "\n".join(parts)
+    if len(result) > _MAX_TOTAL_CONTEXT_CHARS:
+        result = result[:_MAX_TOTAL_CONTEXT_CHARS] + "\n...(context truncated for output budget)"
+
+    result += (
+        "\nNOTE: This is preliminary context from summary + vector search. "
         "If the user's specific question is NOT directly answered above, "
         "you MUST call search_webdoc to find more relevant documentation. "
         "Do NOT fabricate information that is not found in tool results."
     )
-    return "\n".join(parts)
+    logger.info(f"Auto-RAG total context: {len(result)} chars")
+    return result
 
 
 # =============================================================================
@@ -1209,6 +1236,14 @@ async def stream_auto_rag(
                                 if display_text:
                                     display_content += display_text
                                     yield {"type": "llm_token", "token": display_text}
+
+                            # finish_reason 감지 (length = max_tokens 도달로 잘림)
+                            fr = chunk["choices"][0].get("finish_reason")
+                            if fr == "length":
+                                logger.warning(
+                                    f"[Auto-RAG] finish_reason=length at iteration {iteration+1} "
+                                    f"(output truncated, effective_max_tokens={effective_max_tokens})"
+                                )
 
                             # Tool calls (streamed incrementally — CLI와 동일)
                             tc_list = delta.get("tool_calls")
