@@ -2,7 +2,6 @@
   "version": "2.0",
   "lastUpdated": "2026-02-27T07:30:00.000Z",
   "activeFeatures": [
-    "webui-image-display-fix",
     "chunk-entity-pipeline",
     "jcl-job-failure-diagnosis",
     "source-code-explanation",
@@ -44,16 +43,20 @@
     "PremiumSupport",
     "store"
   ],
-  "primaryFeature": "webui-image-display-fix",
+  "primaryFeature": "chunk-entity-pipeline",
   "features": {
     "webui-image-display-fix": {
-      "phase": "check",
+      "phase": "archived",
       "matchRate": 100,
       "iterationCount": 0,
       "startedAt": "2026-02-27T07:00:00Z",
       "checkedAt": "2026-02-27T07:30:00Z",
-      "planPath": "docs/01-plan/features/webui-image-display-fix.plan.md",
-      "analysisPath": "docs/03-analysis/webui-image-display-fix.analysis.md"
+      "completedAt": "2026-02-27T09:00:00Z",
+      "archivedAt": "2026-02-27T09:30:00Z",
+      "archivedTo": "docs/archive/2026-02/webui-image-display-fix/",
+      "planPath": "docs/archive/2026-02/webui-image-display-fix/webui-image-display-fix.plan.md",
+      "analysisPath": "docs/archive/2026-02/webui-image-display-fix/webui-image-display-fix.analysis.md",
+      "reportPath": "docs/archive/2026-02/webui-image-display-fix/webui-image-display-fix.report.md"
     },
     "rag-table-image-display": {
       "phase": "archived",

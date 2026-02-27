@@ -27,6 +27,7 @@
 | [jcl-diagnosis-report-template](./jcl-diagnosis-report-template/) | 2026-02-25 | 100% | Completed |
 | [livekit-premium-support](./livekit-premium-support/) | 2026-02-25 | 95% | Completed |
 | [rag-table-image-display](./rag-table-image-display/) | 2026-02-27 | 95% | ✅ Completed |
+| [webui-image-display-fix](./webui-image-display-fix/) | 2026-02-27 | 100% | ✅ Completed |
 
 ---
 
@@ -591,4 +592,48 @@ Start-Process python -PassThru -RedirectStandardOutput
 
 ---
 
-*Last updated: 2026-02-25 (jcl-diagnosis-report-template archived)*
+## rag-table-image-display
+
+**Purpose**: RAG 응답에 PDF 테이블/이미지 자동 포함 — `_build_table_supplement()` 파이프라인 구현
+
+**Documents**:
+- `rag-table-image-display.plan.md` - Feature plan (3 phases, CJK 2-gram matching)
+- `rag-table-image-display.analysis.md` - Gap analysis (95% match rate)
+- `rag-table-image-display.report.md` - Completion report
+
+**Key Deliverables**:
+- `_build_table_supplement()` method in `agentic_rag_service.py`
+- CJK 2-gram keyword matching for Japanese/Korean queries
+- `MAX_TABLE_ROWS=20`, `MAX_IMAGES=2` constraints
+- PyMuPDF table/image extraction from search result pages
+
+---
+
+## webui-image-display-fix
+
+**Purpose**: WebUI에서 PDF 추출 이미지가 표시되지 않는 CSS 클래스 불일치 문제 수정
+
+**Documents**:
+- `webui-image-display-fix.plan.md` - Feature plan (3 root causes, 3 fixes)
+- `webui-image-display-fix.analysis.md` - Gap analysis (100% match rate)
+- `webui-image-display-fix.report.md` - Completion report
+
+**Key Deliverables**:
+- `chatgpt-style.css`: `.chatgpt-markdown-img`, `:hover`, `.chatgpt-image-overlay`, `.chatgpt-image-enlarged` (42 lines)
+- `agentic_rag_service.py`: f-string 디버그 로그 7개
+
+**Root Cause**:
+- `MessageContent.tsx`의 `useChatGPTStyle=true` 기본값 → `chatgpt-*` prefix CSS 생성
+- 해당 CSS 클래스가 프로젝트 전체에 부재 (agent-* 만 존재)
+
+**Key Metrics**:
+| Metric | Value |
+|--------|-------|
+| Match Rate | 100% |
+| Files Modified | 2 |
+| Lines Added | 49 (CSS 42 + Logs 7) |
+| Iterations | 0 |
+
+---
+
+*Last updated: 2026-02-27 (webui-image-display-fix archived)*
