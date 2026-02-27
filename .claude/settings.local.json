@@ -337,7 +337,8 @@
       "Bash(docker images:*)",
       "Bash(docker system:*)",
       "Bash(docker volume:*)",
-      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" release:*)"
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" release:*)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" pr:*)"
     ]
   }
 }
