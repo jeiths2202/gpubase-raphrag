@@ -1,0 +1,18 @@
+{
+  "total": 16005,
+  "converted": 16005,
+  "skipped": 0,
+  "by_type": {},
+  "by_language": {
+    "ko": 5307,
+    "en": 4029,
+    "ja": 6669
+  },
+  "by_product": {},
+  "augmented": 0,
+  "train_count": 12804,
+  "eval_count": 3201,
+  "product": "jeus_v2",
+  "train_file": "uploads\\summaries\\multi_lora_v3\\jeus_v2\\train.json",
+  "eval_file": "uploads\\summaries\\multi_lora_v3\\jeus_v2\\eval.json"
+}

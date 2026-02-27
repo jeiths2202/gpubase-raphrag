@@ -35,6 +35,11 @@ class EntityType(str, Enum):
     DATE = "date"                 # Date/time entity
     QUANTITY = "quantity"         # Numeric value with unit
 
+    # OpenFrame/Mainframe entity types
+    COMMAND = "command"           # System command, CLI utility (tjesmgr, hidbmgr)
+    ERROR_CODE = "error_code"     # Error codes (-5212, JEUS-1234)
+    CONFIG = "config"             # Configuration files, parameters
+
 
 class RelationType(str, Enum):
     """Relationship types between entities"""

@@ -88,6 +88,24 @@ GLOSSARY_QUESTION_TEMPLATES_JA = [
     "{term} について説明してください",
 ]
 
+# Multi-product comparison question templates
+MULTI_PRODUCT_QUESTION_TEMPLATES = [
+    "{cmd}가 MVS와 MSP에서 어떻게 다른가요?",
+    "{cmd} 명령어의 플랫폼별 차이점을 설명해주세요",
+    "{platform}에서 {cmd} 명령어 사용법",
+    "MVS와 MSP에서 {cmd} 차이점은?",
+    "{cmd} 명령어가 플랫폼마다 다른가요?",
+    "OpenFrame {platform}에서 {cmd} 사용방법",
+    "{cmd}의 버전별 차이점을 알려주세요",
+]
+
+MULTI_PRODUCT_QUESTION_TEMPLATES_JA = [
+    "MVS と MSP で {cmd} はどう違いますか？",
+    "{cmd} コマンドのプラットフォーム別の違いを説明してください",
+    "{platform} で {cmd} コマンドの使い方",
+    "MVS と MSP での {cmd} の違いは何ですか？",
+]
+
 
 # ============================================
 # Markdown Parsers
@@ -526,13 +544,125 @@ class QADatasetGenerator:
         logger.info(f"Generated {len(qa_pairs)} glossary Q&A pairs")
         return qa_pairs
 
-    def generate_all(self) -> List[Dict[str, Any]]:
-        """Generate all Q&A pairs"""
+    def generate_multi_product_qa(self) -> List[Dict[str, Any]]:
+        """
+        Generate Q&A pairs for multi-product comparisons.
+
+        Groups commands that exist on multiple platforms (MVS, MSP, XSP, VOS3)
+        and generates comparison questions.
+        """
+        qa_pairs = []
+
+        # Group commands by name (case-insensitive)
+        from collections import defaultdict
+        by_name: Dict[str, List[Dict]] = defaultdict(list)
+
+        for cmd in self.commands:
+            name = cmd.get("name", "").lower()
+            if name:
+                by_name[name].append(cmd)
+
+        # Extract platform from product field or source file
+        def extract_platform(cmd: Dict) -> str:
+            product = cmd.get("product", "")
+            source = cmd.get("source_file", "")
+
+            for platform in ["MVS", "MSP", "XSP", "VOS3"]:
+                if platform in product.upper() or platform in source.upper():
+                    return platform
+            return "Common"
+
+        # Generate comparison Q&A for commands on multiple platforms
+        for name, cmd_variants in by_name.items():
+            if len(cmd_variants) < 2:
+                continue
+
+            # Get unique platforms
+            platforms = list(set(extract_platform(c) for c in cmd_variants))
+            if len(platforms) < 2:
+                continue
+
+            # Sort by platform priority
+            platform_order = {"MVS": 0, "MSP": 1, "XSP": 2, "VOS3": 3, "Common": 4}
+            platforms.sort(key=lambda p: platform_order.get(p, 99))
+
+            # Get the canonical name
+            canonical_name = cmd_variants[0].get("name", name)
+
+            # Build comparison answer
+            answer_parts = [f"{canonical_name} 명령어의 플랫폼별 정보:\n"]
+
+            for cmd in cmd_variants:
+                platform = extract_platform(cmd)
+                description = cmd.get("description", "")
+                syntax = cmd.get("syntax", "")
+
+                answer_parts.append(f"\n## {platform}\n")
+                if description:
+                    answer_parts.append(f"설명: {description}\n")
+                if syntax:
+                    answer_parts.append(f"구문: `{syntax}`\n")
+
+                source_pdf = cmd.get("source_pdf", "")
+                page_num = cmd.get("page_number", "")
+                if source_pdf:
+                    source_ref = source_pdf
+                    if page_num:
+                        source_ref += f" (p.{page_num})"
+                    answer_parts.append(f"출처: {source_ref}\n")
+
+            answer = "".join(answer_parts)
+
+            # Check if descriptions differ (platform-specific behavior)
+            descriptions = [c.get("description", "") for c in cmd_variants if c.get("description")]
+            has_differences = len(set(descriptions)) > 1
+
+            if has_differences:
+                answer_parts.insert(1, "⚠️ 플랫폼별로 동작이 다를 수 있습니다.\n")
+                answer = "".join(answer_parts)
+
+            # Generate questions from templates
+            templates = MULTI_PRODUCT_QUESTION_TEMPLATES + MULTI_PRODUCT_QUESTION_TEMPLATES_JA
+            selected_templates = random.sample(templates, min(4, len(templates)))
+
+            for template in selected_templates:
+                try:
+                    question = template.format(
+                        cmd=canonical_name,
+                        platform=platforms[0] if platforms else "MVS"
+                    )
+
+                    qa_pairs.append({
+                        "instruction": question,
+                        "input": "",
+                        "output": answer,
+                        "metadata": {
+                            "type": "multi_product",
+                            "name": canonical_name,
+                            "platforms": platforms,
+                            "has_differences": has_differences,
+                        }
+                    })
+                except KeyError:
+                    continue
+
+        logger.info(f"Generated {len(qa_pairs)} multi-product comparison Q&A pairs")
+        return qa_pairs
+
+    def generate_all(self, include_multi_product: bool = True) -> List[Dict[str, Any]]:
+        """Generate all Q&A pairs
+
+        Args:
+            include_multi_product: Include platform comparison Q&A (default True)
+        """
         all_qa = []
 
         all_qa.extend(self.generate_error_code_qa())
         all_qa.extend(self.generate_command_qa())
         all_qa.extend(self.generate_glossary_qa())
+
+        if include_multi_product:
+            all_qa.extend(self.generate_multi_product_qa())
 
         # Shuffle for training
         random.shuffle(all_qa)
@@ -615,8 +745,22 @@ def main():
         default=0,
         help="If > 0, generate only N sample Q&A pairs"
     )
+    parser.add_argument(
+        "--include-multi-product",
+        action="store_true",
+        default=True,
+        help="Include multi-product/platform comparison Q&A pairs (default: True)"
+    )
+    parser.add_argument(
+        "--no-multi-product",
+        action="store_true",
+        help="Exclude multi-product/platform comparison Q&A pairs"
+    )
 
     args = parser.parse_args()
+
+    # Handle multi-product flag
+    include_multi_product = args.include_multi_product and not args.no_multi_product
 
     # Initialize generator
     generator = QADatasetGenerator(summaries_dir=args.summaries_dir)
@@ -645,7 +789,7 @@ def main():
         return
 
     # Generate dataset
-    qa_pairs = generator.generate_all()
+    qa_pairs = generator.generate_all(include_multi_product=include_multi_product)
 
     # Sample if requested
     if args.sample > 0 and len(qa_pairs) > args.sample:

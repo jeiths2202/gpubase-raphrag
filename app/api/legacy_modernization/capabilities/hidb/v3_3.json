@@ -1,0 +1,11 @@
+{
+  "product": "hidb",
+  "version": "3.3",
+  "inherits": "hidb/v3_0.json",
+  "capabilities": [
+    {"category": "hidb_db", "pattern": "HISAM", "support": "full", "notes": "3.3에서 HISAM 전체 지원"},
+    {"category": "hidb_db", "pattern": "DEDB", "support": "partial", "notes": "3.3에서 DEDB 기본 지원 추가"},
+    {"category": "hidb_dli", "pattern": "EXEC DLI CHKP", "support": "full", "notes": "3.3에서 체크포인트 지원"}
+  ],
+  "removed": []
+}

@@ -3,7 +3,7 @@
  * Renders individual chat messages with support for user, assistant, and status messages.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Bot,
   User,
@@ -24,6 +24,10 @@ import {
   ThumbsDown,
   Upload,
   RefreshCw,
+  X,
+  ZoomIn,
+  ZoomOut,
+  Download,
 } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { MessageContent } from './MessageContent';
@@ -35,8 +39,122 @@ import type { AgentType } from '../../api/agent.api';
 import type { SourceCitationInfo } from './blocks/types';
 
 /**
+ * Image Modal Component
+ * Full-screen modal for viewing images with zoom functionality
+ */
+interface ImageModalProps {
+  image: ImageReference;
+  imageSrc: string;
+  onClose: () => void;
+}
+
+const ImageModal: React.FC<ImageModalProps> = ({ image, imageSrc, onClose }) => {
+  const [zoom, setZoom] = useState(1);
+  const minZoom = 0.5;
+  const maxZoom = 3;
+
+  // Handle keyboard events
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === '+' || e.key === '=') setZoom(z => Math.min(z + 0.25, maxZoom));
+      if (e.key === '-') setZoom(z => Math.max(z - 0.25, minZoom));
+      if (e.key === '0') setZoom(1);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  // Handle backdrop click
+  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) onClose();
+  }, [onClose]);
+
+  // Handle download
+  const handleDownload = useCallback(() => {
+    const link = document.createElement('a');
+    link.href = imageSrc;
+    link.download = `image-page-${image.pageNumber || 'unknown'}.png`;
+    link.click();
+  }, [imageSrc, image.pageNumber]);
+
+  return (
+    <div className="image-modal-overlay" onClick={handleBackdropClick}>
+      <div className="image-modal-container">
+        {/* Modal Header */}
+        <div className="image-modal-header">
+          <div className="image-modal-title">
+            {image.figureReference && (
+              <span className="image-modal-figure-ref">
+                {image.figureReference.replace('fig_', 'Figure ').replace(/_/g, '.')}
+              </span>
+            )}
+            {image.pageNumber && (
+              <span className="image-modal-page">Page {image.pageNumber}</span>
+            )}
+          </div>
+          <div className="image-modal-controls">
+            <button
+              className="image-modal-control"
+              onClick={() => setZoom(z => Math.max(z - 0.25, minZoom))}
+              title="Zoom out (-)"
+              disabled={zoom <= minZoom}
+            >
+              <ZoomOut size={18} />
+            </button>
+            <span className="image-modal-zoom-level">{Math.round(zoom * 100)}%</span>
+            <button
+              className="image-modal-control"
+              onClick={() => setZoom(z => Math.min(z + 0.25, maxZoom))}
+              title="Zoom in (+)"
+              disabled={zoom >= maxZoom}
+            >
+              <ZoomIn size={18} />
+            </button>
+            <button
+              className="image-modal-control"
+              onClick={handleDownload}
+              title="Download"
+            >
+              <Download size={18} />
+            </button>
+            <button
+              className="image-modal-control close"
+              onClick={onClose}
+              title="Close (Esc)"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Modal Body - Scrollable image container */}
+        <div className="image-modal-body">
+          <img
+            src={imageSrc}
+            alt={image.altText || image.figureCaption || image.description || 'Image'}
+            style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
+            className="image-modal-image"
+          />
+        </div>
+
+        {/* Modal Footer - Caption/Description */}
+        {(image.figureCaption || image.description) && (
+          <div className="image-modal-footer">
+            <p className="image-modal-caption">
+              {image.figureCaption || image.description}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/**
  * Collapsible Images Component
  * Shows thumbnails in collapsed state, full gallery when expanded
+ * Includes click-to-zoom modal functionality
  */
 interface CollapsibleImagesProps {
   images: ImageReference[];
@@ -45,6 +163,7 @@ interface CollapsibleImagesProps {
 
 const CollapsibleImages: React.FC<CollapsibleImagesProps> = ({ images, label }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ image: ImageReference; src: string } | null>(null);
 
   // Generate image src from base64 data
   const getImageSrc = (image: ImageReference): string | null => {
@@ -53,6 +172,16 @@ const CollapsibleImages: React.FC<CollapsibleImagesProps> = ({ images, label }) 
       ? image.imageBase64
       : `data:${image.mimeType || 'image/png'};base64,${image.imageBase64}`;
   };
+
+  // Handle image click to open modal
+  const handleImageClick = useCallback((image: ImageReference, src: string) => {
+    setSelectedImage({ image, src });
+  }, []);
+
+  // Close modal
+  const handleCloseModal = useCallback(() => {
+    setSelectedImage(null);
+  }, []);
 
   return (
     <div className="agent-message-images">
@@ -100,14 +229,34 @@ const CollapsibleImages: React.FC<CollapsibleImagesProps> = ({ images, label }) 
           {images.map((image, idx) => {
             const imageSrc = getImageSrc(image);
             return (
-              <div key={idx} className="agent-image-item">
+              <div
+                key={idx}
+                className="agent-image-item clickable"
+                onClick={() => imageSrc && handleImageClick(image, imageSrc)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && imageSrc && handleImageClick(image, imageSrc)}
+              >
                 {imageSrc ? (
-                  <img
-                    src={imageSrc}
-                    alt={image.altText || image.figureCaption || image.description || `Image ${idx + 1}`}
-                    className="agent-image-preview"
-                    loading="lazy"
-                  />
+                  <>
+                    <img
+                      src={imageSrc}
+                      alt={image.altText || image.figureCaption || image.description || `Image ${idx + 1}`}
+                      className="agent-image-preview"
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                      }}
+                    />
+                    <div className="agent-image-placeholder hidden">
+                      <ImageIcon size={24} />
+                      <span>Failed to load</span>
+                    </div>
+                    <div className="agent-image-zoom-hint">
+                      <ZoomIn size={16} />
+                    </div>
+                  </>
                 ) : (
                   <div className="agent-image-placeholder">
                     <ImageIcon size={24} />
@@ -131,6 +280,15 @@ const CollapsibleImages: React.FC<CollapsibleImagesProps> = ({ images, label }) 
             );
           })}
         </div>
+      )}
+
+      {/* Image Modal */}
+      {selectedImage && (
+        <ImageModal
+          image={selectedImage.image}
+          imageSrc={selectedImage.src}
+          onClose={handleCloseModal}
+        />
       )}
     </div>
   );

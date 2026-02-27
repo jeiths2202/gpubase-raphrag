@@ -11,6 +11,9 @@
 /* Portal-Specific Styles */
 @import './portal.css';
 
+/* ChatGPT-Style Components */
+@import './chatgpt-style.css';
+
 /* ============================================
    Base Reset & Global Styles
    ============================================ */

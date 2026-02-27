@@ -21,7 +21,6 @@ import {
   Database,
   Brain,
   FileText,
-  BarChart3,
   Settings,
   Shield,
   ExternalLink,
@@ -30,6 +29,13 @@ import {
   HelpCircle,
   Bot,
   Lightbulb,
+  Sparkles,
+  Cpu,
+  Workflow,
+  GitBranch,
+  FileCode2,
+  FileWarning,
+  Headphones,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useAuthStore } from '../store/authStore';
@@ -48,7 +54,7 @@ interface NavItem {
   path: string;
   icon: React.ReactNode;
   labelKey: string;
-  requiredRole?: 'admin' | 'user' | 'viewer';
+  requiredRole?: 'admin' | 'leader' | 'senior' | 'user' | 'viewer';
   external?: boolean;
   children?: SubNavItem[];
 }
@@ -60,6 +66,18 @@ const NAV_ITEMS: NavItem[] = [
     path: '/agent',
     icon: <Bot size={20} />,
     labelKey: 'common.nav.agent',
+  },
+  {
+    id: 'openAgent',
+    path: '/open-agent',
+    icon: <Sparkles size={20} />,
+    labelKey: 'common.nav.openAgent',
+  },
+  {
+    id: 'openframeRag',
+    path: '/openframe-rag',
+    icon: <Cpu size={20} />,
+    labelKey: 'common.nav.openframeRag',
   },
   {
     id: 'mindmap',
@@ -87,11 +105,28 @@ const NAV_ITEMS: NavItem[] = [
     requiredRole: 'admin',
   },
   {
-    id: 'analytics',
-    path: '/analytics',
-    icon: <BarChart3 size={20} />,
-    labelKey: 'common.nav.analytics',
-    requiredRole: 'admin',
+    id: 'agenticRag',
+    path: '/agentic-rag',
+    icon: <Workflow size={20} />,
+    labelKey: 'common.nav.agenticRag',
+  },
+  {
+    id: 'knowledgeGraph',
+    path: '/knowledge-graph',
+    icon: <GitBranch size={20} />,
+    labelKey: 'common.nav.knowledgeGraph',
+  },
+  {
+    id: 'legacyModernization',
+    path: '/legacy-modernization',
+    icon: <FileCode2 size={20} />,
+    labelKey: 'common.nav.legacyModernization',
+  },
+  {
+    id: 'jclDiagnosis',
+    path: '/jcl-diagnosis',
+    icon: <FileWarning size={20} />,
+    labelKey: 'common.nav.jclDiagnosis',
   },
   {
     id: 'improvements',
@@ -102,6 +137,13 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const BOTTOM_NAV_ITEMS: NavItem[] = [
+  {
+    id: 'supportDashboard',
+    path: '/support-dashboard',
+    icon: <Headphones size={20} />,
+    labelKey: 'common.nav.supportDashboard',
+    requiredRole: 'senior',
+  },
   {
     id: 'admin',
     path: '/admin',
@@ -171,7 +213,7 @@ export const Sidebar: React.FC = () => {
   };
 
   // Check if user has required role
-  const hasRole = (requiredRole?: 'admin' | 'user' | 'viewer') => {
+  const hasRole = (requiredRole?: 'admin' | 'leader' | 'senior' | 'user' | 'viewer') => {
     if (!requiredRole) return true;
     if (!user) return false;
 

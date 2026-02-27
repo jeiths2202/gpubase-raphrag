@@ -1,0 +1,9 @@
+{
+  "product": "osi",
+  "version": "7.1",
+  "inherits": "osi/v7_0.json",
+  "capabilities": [
+    {"category": "db2", "pattern": "EXEC SQL CALL", "support": "full", "notes": "7.1에서 저장 프로시저 호출 지원"}
+  ],
+  "removed": []
+}

@@ -1,9 +1,14 @@
 """
 Mindmap API Router
 마인드맵 생성, 조회, 확장, 질의 API
+
+Phase 1 Improvements:
+- 헬스 체크 엔드포인트 추가
+- 에러 핸들링 개선
 """
 import time
 import uuid
+import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 
@@ -18,12 +23,54 @@ from ..models.mindmap import (
 from ..core.deps import get_current_user
 from ..services.mindmap_service import get_mindmap_service, MindmapService
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/mindmap", tags=["Mindmap"])
 
 
 def get_service() -> MindmapService:
     """Get mindmap service instance"""
     return get_mindmap_service()
+
+
+@router.get(
+    "/health",
+    response_model=SuccessResponse[dict],
+    summary="서비스 헬스 체크",
+    description="마인드맵 서비스 상태를 확인합니다. Vector Index, Neo4j 연결, 문서 데이터 유무를 검사합니다."
+)
+async def health_check(
+    service: MindmapService = Depends(get_service)
+):
+    """
+    Phase 1 - H1: 마인드맵 서비스 헬스 체크
+
+    Returns:
+        - status: healthy/degraded/unhealthy
+        - checks: 개별 검사 결과
+        - messages: 문제 발견 시 메시지
+        - stats: DB 통계 (문서, 청크, 엔티티, 마인드맵 수)
+    """
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+    start_time = time.time()
+
+    try:
+        health_status = service.get_health_status()
+        processing_time = int((time.time() - start_time) * 1000)
+
+        return SuccessResponse(
+            data=health_status,
+            meta=MetaInfo(
+                request_id=request_id,
+                processing_time_ms=processing_time
+            )
+        )
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Health check failed: {str(e)}"
+        )
 
 
 @router.post(
@@ -309,7 +356,8 @@ async def generate_mindmap_from_all(
     title: Optional[str] = Query(None, description="마인드맵 제목"),
     max_nodes: int = Query(50, ge=5, le=200, description="최대 노드 수"),
     focus_topic: Optional[str] = Query(None, description="집중할 주제"),
-    language: str = Query("auto", description="언어 설정"),
+    language: str = Query("auto", description="언어 설정 (auto, ko, en, ja)"),
+    product_id: Optional[str] = Query(None, description="제품 ID (Learning LLM 사용)"),
     current_user: dict = Depends(get_current_user),
     service: MindmapService = Depends(get_service)
 ):
@@ -317,13 +365,17 @@ async def generate_mindmap_from_all(
     start_time = time.time()
     request_id = f"req_{uuid.uuid4().hex[:12]}"
 
+    # Debug: Log received language parameter
+    logger.info(f"[{request_id}] generate_mindmap_from_all called with language='{language}', max_nodes={max_nodes}, product_id='{product_id}'")
+
     try:
         request = GenerateMindmapRequest(
             document_ids=[],  # 빈 배열 = 모든 문서
             title=title,
             max_nodes=max_nodes,
             focus_topic=focus_topic,
-            language=language
+            language=language,
+            product_id=product_id
         )
 
         mindmap = await service.generate_mindmap(request)

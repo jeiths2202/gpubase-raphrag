@@ -1758,3 +1758,105 @@ async def get_enhancement_tasks(
     except Exception as e:
         logger.error(f"Error getting enhancement tasks: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Enhancement Teams Endpoints (vLLM-based Agent Teams)
+# ============================================================================
+
+@router.post("/{enhancement_id}/teams/analyze/stream")
+async def stream_team_analyze(
+    enhancement_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Pattern F: 팀 분석 SSE 스트림.
+
+    ENHANCEMENT_TEAMS_PARALLEL_ANALYSIS=true → 3 관점 병렬 분석
+    false → 단일 분석
+    """
+    from ..services.enhancement_teams.enhancement_orchestrator import get_enhancement_orchestrator
+
+    orchestrator = get_enhancement_orchestrator()
+
+    async def generate():
+        async for event in orchestrator.stream_team_analyze(enhancement_id):
+            yield event
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/{enhancement_id}/teams/architecture/stream")
+async def stream_team_architecture(
+    enhancement_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Pattern G: 팀 아키텍처 SSE 스트림.
+
+    ENHANCEMENT_TEAMS_CROSSVAL=true → 설계 + 검증 + 수정
+    false → 설계만
+    """
+    from ..services.enhancement_teams.enhancement_orchestrator import get_enhancement_orchestrator
+
+    orchestrator = get_enhancement_orchestrator()
+
+    async def generate():
+        async for event in orchestrator.stream_team_architecture(enhancement_id):
+            yield event
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/{enhancement_id}/teams/pipeline/stream")
+async def stream_team_pipeline(
+    enhancement_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Pattern H: 전체 파이프라인 SSE 스트림.
+
+    분석 → 설계 → 구현 계획을 한 번에 실행.
+    ENHANCEMENT_TEAMS_FULL_PIPELINE=true 필요.
+    """
+    from ..services.enhancement_teams.enhancement_orchestrator import get_enhancement_orchestrator
+    from ..core.config import get_settings
+
+    settings = get_settings()
+    if not settings.ENHANCEMENT_TEAMS_FULL_PIPELINE:
+        raise HTTPException(
+            status_code=400,
+            detail="Full pipeline is not enabled. Set ENHANCEMENT_TEAMS_FULL_PIPELINE=true",
+        )
+
+    orchestrator = get_enhancement_orchestrator()
+
+    async def generate():
+        async for event in orchestrator.stream_team_pipeline(enhancement_id):
+            yield event
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

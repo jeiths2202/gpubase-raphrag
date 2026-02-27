@@ -1,4 +1,9 @@
-"""PDF 파싱 모듈"""
+"""PDF 파싱 모듈
+
+ChatGPT-Quality Pipeline 개선 (PDCA: chatgpt-quality-pipeline):
+- ParagraphReconstructor: PDF 줄바꿈을 의미있는 단락으로 재구성
+- TableToMarkdownConverter: 테이블을 GFM Markdown으로 변환
+"""
 
 import re
 import logging
@@ -14,11 +19,168 @@ from ..config import config
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# ChatGPT-Quality Pipeline Components
+# =============================================================================
+
+class ParagraphReconstructor:
+    """
+    PDF 줄바꿈을 의미있는 단락으로 재구성
+
+    단락 재구성 규칙:
+    1. 줄이 문장 종결자(.!?。？！)로 끝나면 단락 종료
+    2. 줄이 콜론(:)으로 끝나면 다음 줄은 목록/설명일 가능성
+    3. 40자 이하 짧은 줄은 다음 줄과 병합 (제목 제외)
+    4. 빈 줄은 단락 구분자
+    5. 번호/불릿으로 시작하면 리스트 항목
+    """
+
+    SENTENCE_ENDERS = frozenset('.!?。？！')
+    LIST_MARKERS = re.compile(r'^[\s]*([-•*·]|\d+[.)]\s|\([0-9]+\))')
+    HEADING_PATTERN = re.compile(r'^[\s]*(\d+\.)+\s*\S')  # 1.1, 1.1.1 등
+    SHORT_LINE_THRESHOLD = 40
+
+    def reconstruct(self, lines: List[str]) -> List[str]:
+        """
+        PDF 줄 목록을 의미있는 단락으로 재구성
+
+        Args:
+            lines: PDF에서 추출한 줄 목록
+
+        Returns:
+            재구성된 단락 목록
+        """
+        paragraphs = []
+        current = []
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                # 빈 줄 = 단락 종료
+                if current:
+                    paragraphs.append(' '.join(current))
+                    current = []
+                continue
+
+            # 제목 패턴 (1.1, 1.1.1 등)은 별도 단락
+            if self.HEADING_PATTERN.match(line):
+                if current:
+                    paragraphs.append(' '.join(current))
+                    current = []
+                paragraphs.append(line)
+                continue
+
+            # 리스트 항목은 별도 처리
+            if self.LIST_MARKERS.match(line):
+                if current:
+                    paragraphs.append(' '.join(current))
+                    current = []
+                paragraphs.append(line)
+                continue
+
+            current.append(line)
+
+            # 문장 종결자로 끝나면 단락 완료
+            if line and line[-1] in self.SENTENCE_ENDERS:
+                paragraphs.append(' '.join(current))
+                current = []
+
+        if current:
+            paragraphs.append(' '.join(current))
+
+        return paragraphs
+
+
+class TableToMarkdownConverter:
+    """
+    PyMuPDF 테이블을 GFM Markdown으로 변환
+
+    Input (PyMuPDF table.extract()):
+        [
+            ["Header1", "Header2", "Header3"],
+            ["Row1Col1", "Row1Col2", "Row1Col3"],
+            ["Row2Col1", "Row2Col2", "Row2Col3"]
+        ]
+
+    Output (GFM Markdown):
+        | Header1 | Header2 | Header3 |
+        |---------|---------|---------|
+        | Row1Col1 | Row1Col2 | Row1Col3 |
+        | Row2Col1 | Row2Col2 | Row2Col3 |
+    """
+
+    def convert(self, table_data: List[List[str]]) -> str:
+        """
+        2D 테이블 데이터를 GFM Markdown 테이블로 변환
+
+        Args:
+            table_data: 2D 리스트 (첫 행은 헤더)
+
+        Returns:
+            GFM Markdown 테이블 문자열
+        """
+        if not table_data or len(table_data) < 2:
+            return ""
+
+        # None 값을 빈 문자열로 치환
+        table_data = [
+            [str(cell) if cell is not None else "" for cell in row]
+            for row in table_data
+        ]
+
+        # 열 수 정규화 (가장 긴 행 기준)
+        max_cols = max(len(row) for row in table_data)
+        table_data = [
+            row + [""] * (max_cols - len(row))
+            for row in table_data
+        ]
+
+        # 열 너비 계산 (최소 3자, 최대 50자)
+        col_widths = []
+        for i in range(max_cols):
+            max_width = max(len(str(row[i])) for row in table_data)
+            col_widths.append(min(max(max_width, 3), 50))
+
+        lines = []
+
+        # 헤더 행
+        header = table_data[0]
+        header_line = "| " + " | ".join(
+            str(cell)[:col_widths[i]].ljust(col_widths[i])
+            for i, cell in enumerate(header)
+        ) + " |"
+        lines.append(header_line)
+
+        # 구분선
+        separator = "|" + "|".join(
+            "-" * (w + 2) for w in col_widths
+        ) + "|"
+        lines.append(separator)
+
+        # 데이터 행
+        for row in table_data[1:]:
+            data_line = "| " + " | ".join(
+                str(cell)[:col_widths[i]].ljust(col_widths[i])
+                for i, cell in enumerate(row)
+            ) + " |"
+            lines.append(data_line)
+
+        return "\n".join(lines)
+
+
 class PDFParser:
-    """PDF 문서 파서"""
+    """PDF 문서 파서
+
+    ChatGPT-Quality Pipeline 통합:
+    - 단락 재구성으로 불필요한 줄바꿈 제거
+    - 테이블을 GFM Markdown으로 자동 변환
+    """
 
     def __init__(self):
         self.filename_pattern = re.compile(config.filename_pattern)
+        # ChatGPT-Quality Pipeline 컴포넌트
+        self.paragraph_reconstructor = ParagraphReconstructor()
+        self.table_converter = TableToMarkdownConverter()
 
     def parse(self, pdf_path: Path) -> Optional[ManualContent]:
         """PDF 파일 파싱"""
@@ -128,15 +290,63 @@ class PDFParser:
                 break
 
     def _extract_pages(self, doc: pymupdf.Document) -> List[str]:
-        """페이지별 텍스트 추출"""
+        """페이지별 텍스트 추출 (ChatGPT-Quality Pipeline 적용)
+
+        개선 사항:
+        1. 테이블 먼저 추출하여 GFM Markdown으로 변환
+        2. 일반 텍스트는 단락 재구성 적용
+        3. 테이블과 텍스트를 적절히 병합
+        """
         pages = []
         for page_num in range(len(doc)):
             page = doc[page_num]
+
+            # 1. 테이블 추출 및 GFM 변환
+            tables_md = self._extract_and_convert_tables(page)
+
+            # 2. 일반 텍스트 추출
             text = page.get_text()
-            # 기본 정제
+
+            # 3. 기본 정제
             text = self._clean_text(text)
-            pages.append(text)
+
+            # 4. 단락 재구성 적용
+            lines = text.split('\n')
+            paragraphs = self.paragraph_reconstructor.reconstruct(lines)
+
+            # 5. 단락들을 연결
+            reconstructed_text = '\n\n'.join(paragraphs)
+
+            # 6. 테이블이 있으면 텍스트 끝에 추가 (위치 기반 삽입은 복잡하므로)
+            if tables_md:
+                table_section = '\n\n'.join(tables_md)
+                reconstructed_text = f"{reconstructed_text}\n\n{table_section}"
+
+            pages.append(reconstructed_text)
+
         return pages
+
+    def _extract_and_convert_tables(self, page) -> List[str]:
+        """페이지에서 테이블 추출 및 GFM Markdown 변환
+
+        Args:
+            page: PyMuPDF 페이지 객체
+
+        Returns:
+            GFM Markdown 테이블 문자열 리스트
+        """
+        result = []
+        try:
+            tables = page.find_tables()
+            for table in tables:
+                data = table.extract()
+                if data and len(data) >= 2:  # 헤더 + 최소 1개 데이터 행
+                    md = self.table_converter.convert(data)
+                    if md:
+                        result.append(md)
+        except Exception as e:
+            logger.debug(f"테이블 추출 실패: {e}")
+        return result
 
     def _clean_text(self, text: str) -> str:
         """텍스트 정제"""

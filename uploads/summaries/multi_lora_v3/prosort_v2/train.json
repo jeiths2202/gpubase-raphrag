@@ -1,0 +1,554 @@
+[
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDFSORTの実行方法は？<|im_end|>\n<|im_start|>assistant\nソート実行時に使われるデータセットの名前や属性などを以下の項目により指定します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDEFRECとは何ですか？<|im_end|>\n<|im_start|>assistant\nレコード形式を設定します。\nDEFRECの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n様々なアプリケーション使用環境のサポートとは何ですか？<|im_end|>\n<|im_start|>assistant\n本章では、様々なアプリケーションでProSortの機能を使用する方法について説明します。\n4.1. ProSortコマンド\nprosortコマンドは、ProSortがインストールされているマシンで実行する必要があります。また、\n環境変数を正しく設定した後、コマンドを実行してください。\nprosortコマンドの使用方法は以下のとおりです。\nprosort [-h] [-v] [-s] [-j] [script file]\n説明\nオプション\nprosortコマンドの使用のための簡単なヘルプを表示します\n-h\nProSortのバージョン情報を表示します\n-v\nスクリプト・ファイルを実行した後、状態情報を表示します。\n-s\nこのオプションを使用すると、以下の状態情報を確認することができます\n– Total Infile Size : 入力ファイルのサイズ\n– Total Alloced Data Block Size : データ・ブロック(レコード全体が保存される\n領域)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSort APIを利用してユーザー出口関数を登録する方法は『ProSort インストールガイド』をの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n参照してください。\n2.4.1. ユーザー出口関数を含むSORT、COPY演算\nProSortでユーザー出口関数と一緒にSORTおよびCOPY演算を実行する手順は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSort technical expert assistant. Answer questions about ProSort accurately.<|im_end|>\n<|im_start|>user\nHow do I use the print_err_msg API?<|im_end|>\n<|im_start|>assistant\nfprintf(stderr,\"Error[%d]:\\n\", ec)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nユーザー出口関数の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nユーザーはProSortのスクリプトまたはProSort APIを利用して関数を登録することができます。この\nような関数をユーザー出口関数(User Exit Function)といいます。SORT、MERGE、COPY演算を実\n行するとき、この関数を利用してレコードを挿入、変換、削除できます。\nユーザー出口関数は以前の段階で渡されたレコードを編集して次の段階に渡します。最後のレコー\nド以降はNULLが関数に渡されます。\nSORT、MERGE、COPY演算はProSort APIを使ってレコードを直接入力する場合のみ動作し、ファ\nイルを使ってレコードを入力する場合には動作しません。\nユーザー出口関数の詳細は以下のとおりです。\n●プロトタイプ\nint user_exit_func (void *rec_addr, int rec_len, int input_no,\nvoid **ret_rec_addr, int *ret_rec_len)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_end APIの使用例を示してください。<|im_end|>\n<|im_start|>assistant\n第4章 様々なアプリケーション使用環境のサポート 81\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nINCLUDE、OMITについて説明してください。<|im_end|>\n<|im_start|>assistant\n特定条件のレコードのみを含むか、特定条件のレコードを除外します。\n説明\nオプション\n特定条件のレコードのみ含め、それ以外のレコードは除外します\nINCLUDE\n特定条件のレコードは除外し、残りのレコードのみ含めます\nOMIT\n特定条件は、関係式を論理演算子で組み合わせて論理式で構成します。関係式は比較、文字列比\n較、ビット演算、日付比較に区分できます。\n説明\n関係式\nフィールドとフィールド間、またはフィールドと定数間を比較します\n比較\n文字列を比較します\n文字列比較\n1つまたは2つの2進数をビット単位で演算します\nビット演算\n日付を比較します\n日付比較\n以下の関係式は、レコードp1の位置でm1の長さを持ち、f1の形式を持つフィールドと、p2の位置\nでm2の長さを持ち、f2の形式を持つフィールドを比較する条件を示します。\np1, m1, f1, {EQ|NE|GT|GE|LT|LE}, p2, m2, f2\n適用可能な演算子には、EQ、NE、GT、GE、LT、LEがあります。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSortコマンドの使い方を教えてください。<|im_end|>\n<|im_start|>assistant\nprosortコマンドは、ProSortがインストールされているマシンで実行する必要があります。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_release_end関数の引数と戻り値は？<|im_end|>\n<|im_start|>assistant\n第3章 インストールおよびアンインストール 19\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nMERGE演算について説明してください。<|im_end|>\n<|im_start|>assistant\nMERGEは、ソートされた複数の入力ファイルをマージし、新しくソートされたレコードを出力しま\nす。MERGEはSKIPREC、STOPAFTオプションを除いてはSORTと同じ手順で演算を実行します。\nProSortでMERGE演算を実行する手順は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_get_error_numberの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nエラーが発生した際に、エラー番号を取得する関数です。\n●プロトタイプ\nint prosort_get_error_number(void *prosort_context)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_endの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nすべての演算に使用したリソースを返す関数です。\n●プロトタイプ\nint prosort_end(void *prosort_context)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOPTIONの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nUSE_ALTERNATIVE_TP_TYPE、VLREFMTなどのオプションを設定します。\nOPTIONの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOUTFILとは何ですか？<|im_end|>\n<|im_start|>assistant\nOUTFILについては「2.3. OUTFIL演算」で説明します。\n2.2. MERGE演算\nMERGEは、ソートされた複数の入力ファイルをマージし、新しくソートされたレコードを出力しま\nす。MERGEはSKIPREC、STOPAFTオプションを除いてはSORTと同じ手順で演算を実行します。\nProSortでMERGE演算を実行する手順は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSortの文法の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n本章では、ProSortのスクリプトでサポートする文法について説明します。\n3.1. 概要\nProSortの文法は以下のカテゴリに区分されます。\n●演算方法\n説明\n文法\nSORTやCOPY演算実行時のキー・フィールドを設定します。SORTの整列順序\n(昇順、降順)も設定します\nSORT\nMERGE演算実行時のキー・フィールドを設定します。MERGEのマージ順序(昇\n順、降順)も設定します\nMERGE\nSORTとMERGEの演算方法を設定したり、オプションの情報(SKIPREC、\nSTOPAFT)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nINRECについて説明してください。<|im_end|>\n<|im_start|>assistant\n入力されたレコードを付与された形式に変換します。入力されたレコードはINRECで指定した\nフィールドに変換され、新しいレコードに変換されます。この際、フィールドは定数または(p,m)\nの形式で入力されたレコードの一部、(p,m,f,to)で入力されたレコードの形式を変換したフィール\nドなどで構成します。\nINRECを実行した後の処理はINRECで変換されたレコードを基準に行われます。\n以下は、入力レコードの10~12バイト、20~27バイト、33~43バイト、5バイトを新規レコードと\nして生成する例です。\nINREC FIELDS=(10,3,20,8,33,11,5,1)\n以下は、入力レコードの20~23バイト、12~14バイトを新規レコードに変換する例です。\nINREC FIELDS=(20,4,12,3)\nSORT FIELDS=(1,4,D,5,3,D),FORMAT=CH\n5. SORT(SUM)、COPY\n入力されたレコードを付与されたキー情報でソートします。ソートに使われるキーはフィールド\nで定義され、各フィールドはp、m、f、sの形で定義されます。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_setupについて説明してください。<|im_end|>\n<|im_start|>assistant\nProSortの実行に必要な情報を初期化します。ただし、prosort_run_script関数を使用する場合は、\nprosort_setup関数を呼び出す必要がありません。\n●プロトタイプ\ntypedef int (*callback_func_t)(char **data_buf_addr,\nint *data_buf_length);\nint prosort_setup (const char *prosort_script,\ncallback_func_t *data_fetch_callback_funcs,\nint data_fetch_callback_func_cnt,\nvoid **ptr_prosort_context)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nALTSEQとは何ですか？<|im_end|>\n<|im_start|>assistant\nALTSEQ変換テーブルを使用して特定文字のソート順序の一部を変更します。ALTSEQ文法はソー\nトまたはマージ演算をするとき、ソート順序を調整する目的のみで使われ、実際に出力される文字\n列には影響を与えません。\nALTSEQ変換テーブルは以下の方法で使用できます。\n●SORT、MERGE、INCLUDE、OMITの場合\nAQ形式を使用します。既存のデータはALTSEQ文法によって変換され、演算に適用されます。こ\nれを利用してキーの順序を変更したりフィルタリングの条件を変えて適用できます。\n●INREC、OUTREC、OUTFILE OUTRECの場合\nTRAN=ALTSEQを使用して文字を変換します。既存のデータはALTSEQ文法によって変換され、\n次のプロセスに適用されます。\nALTSEQの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールの構成要素について説明してください。<|im_end|>\n<|im_start|>assistant\n1.2.1. パッケージの構成\nProSortのパッケージの構成は以下のとおりです。\n●ProSort製品CD1枚\n●ProSort製品ライセンスおよび保証\n●ProSortガイド2冊\n– ProSortインストールガイド\n– ProSort実行ガイド\n1.2.2. ソフトウェアの配布\nProSortのソフトウェアの配布方式は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_return_record APIの使用例を示してください。<|im_end|>\n<|im_start|>assistant\n第4章 様々なアプリケーション使用環境のサポート 79\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nユーザー出口関数を含むMERGE演算について説明してください。<|im_end|>\n<|im_start|>assistant\nProSortでユーザー出口関数と一緒にMERGE演算を実行する手順は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSort technical expert assistant. Answer questions about ProSort accurately.<|im_end|>\n<|im_start|>user\nWhat are the parameters and return value of exit_insert?<|im_end|>\n<|im_start|>assistant\nstatic char buf[REC_LEN]\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nMIN, MAXの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n2. MUL, DIV, MOD\n3. ADD, SUB\nフィールドを希望する形式(fo)と長さ(n)に変更します。詳細は「B.4.\nエディット・マスク・パターン」\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nユーザー出口関数について説明してください。<|im_end|>\n<|im_start|>assistant\nユーザーはProSortのスクリプトまたはProSort APIを利用して関数を登録することができます。この\nような関数をユーザー出口関数(User Exit Function)といいます。SORT、MERGE、COPY演算を実\n行するとき、この関数を利用してレコードを挿入、変換、削除できます。\nユーザー出口関数は以前の段階で渡されたレコードを編集して次の段階に渡します。最後のレコー\nド以降はNULLが関数に渡されます。\nSORT、MERGE、COPY演算はProSort APIを使ってレコードを直接入力する場合のみ動作し、ファ\nイルを使ってレコードを入力する場合には動作しません。\nユーザー出口関数の詳細は以下のとおりです。\n●プロトタイプ\nint user_exit_func (void *rec_addr, int rec_len, int input_no,\nvoid **ret_rec_addr, int *ret_rec_len)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nMUL, DIV, MODについて説明してください。<|im_end|>\n<|im_start|>assistant\n3. ADD, SUB\nフィールドを希望する形式(fo)と長さ(n)に変更します。詳細は「B.4.\nエディット・マスク・パターン」\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSort technical expert assistant. Answer questions about ProSort accurately.<|im_end|>\n<|im_start|>user\nHow do I use the exit_delete API?<|im_end|>\n<|im_start|>assistant\nif (rec_addr == NULL)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nソフトウェアの配布の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSortのソフトウェアの配布方式は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSort technical expert assistant. Answer questions about ProSort accurately.<|im_end|>\n<|im_start|>user\nWhat are the parameters and return value of exit_none?<|im_end|>\n<|im_start|>assistant\nif (rec_addr == NULL)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nディスク容量の確認について説明してください。<|im_end|>\n<|im_start|>assistant\nProSortをインストールするためには、プラットフォームごとに多少の差はありますが、少なくとも\n250MB以上のハードディスクが必要です。ハードディスク容量を確認する方法は多様ですが、UNIX\n系システムではdfコマンドで確認できます。\n参考\nハードウェア要件についての詳細は「1.3. システム要件」を参照してください。\n2.3. 環境変数の設定\nProSortをインストールする前に以下の環境変数をシステムに設定する必要があります。\n説明\n環境変数\nProSortがインストール、運用されるホーム・ディレクトリを設定します\n$PROSORT_HOME\nProSortのインストール時にサービスを区別するための識別子で、ユーザー\nが設定します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nBorn/Korn/Bashシェルについて説明してください。<|im_end|>\n<|im_start|>assistant\nBorn、Korn、Bashシェルで環境変数を設定する方法は以下のとおりです。\n●PROSORT_HOME\nPROSORT_HOME=[ProSortのインストール・パス]\nexport PROSORT_HOME\n●PROSORT_SID\nPROSORT_SID=[ProSortのSID]\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSort APIを利用してユーザー出口関数を登録する方法は『ProSort インストールガイド』をとは何ですか？<|im_end|>\n<|im_start|>assistant\n参照してください。\n2.4.1. ユーザー出口関数を含むSORT、COPY演算\nProSortでユーザー出口関数と一緒にSORTおよびCOPY演算を実行する手順は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nMUL, DIV, MODの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n3. ADD, SUB\nフィールドを希望する形式(fo)と長さ(n)に変更します。詳細は「B.4.\nエディット・マスク・パターン」\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSORT, MERGEについて説明してください。<|im_end|>\n<|im_start|>assistant\nSORTおよびMERGE演算はフィールド・リストと追加オプションで構成します。フィールド・リス\nトですべて同じ形式を使用するときは、形式情報をフィールド・リストの後に一度だけ設定します。\nSORT、MERGEの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nADD, SUBについて説明してください。<|im_end|>\n<|im_start|>assistant\nフィールドを希望する形式(fo)と長さ(n)に変更します。詳細は「B.4.\nエディット・マスク・パターン」\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSORT, MERGEとは何ですか？<|im_end|>\n<|im_start|>assistant\nSORTおよびMERGE演算はフィールド・リストと追加オプションで構成します。フィールド・リス\nトですべて同じ形式を使用するときは、形式情報をフィールド・リストの後に一度だけ設定します。\nSORT、MERGEの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSort APIを利用してユーザー出口関数を登録する方法は『ProSort インストールガイド』をについて説明してください。<|im_end|>\n<|im_start|>assistant\n参照してください。\n2.4.1. ユーザー出口関数を含むSORT、COPY演算\nProSortでユーザー出口関数と一緒にSORTおよびCOPY演算を実行する手順は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nソフトウェアの配布について説明してください。<|im_end|>\n<|im_start|>assistant\nProSortのソフトウェアの配布方式は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDFSORTコマンドについて説明してください。<|im_end|>\n<|im_start|>assistant\nソート実行時に使われるデータセットの名前や属性などを以下の項目により指定します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_end関数の引数と戻り値は？<|im_end|>\n<|im_start|>assistant\n第4章 様々なアプリケーション使用環境のサポート 81\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nMERGE演算とは何ですか？<|im_end|>\n<|im_start|>assistant\nMERGEは、ソートされた複数の入力ファイルをマージし、新しくソートされたレコードを出力しま\nす。MERGEはSKIPREC、STOPAFTオプションを除いてはSORTと同じ手順で演算を実行します。\nProSortでMERGE演算を実行する手順は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_release_end APIの使用方法を教えてください。<|im_end|>\n<|im_start|>assistant\n第3章 インストールおよびアンインストール 19\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDEFRECの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nレコード形式を設定します。\nDEFRECの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOUTFILの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nOUTFILについては「2.3. OUTFIL演算」で説明します。\n2.2. MERGE演算\nMERGEは、ソートされた複数の入力ファイルをマージし、新しくソートされたレコードを出力しま\nす。MERGEはSKIPREC、STOPAFTオプションを除いてはSORTと同じ手順で演算を実行します。\nProSortでMERGE演算を実行する手順は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nMERGE演算の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nMERGEは、ソートされた複数の入力ファイルをマージし、新しくソートされたレコードを出力しま\nす。MERGEはSKIPREC、STOPAFTオプションを除いてはSORTと同じ手順で演算を実行します。\nProSortでMERGE演算を実行する手順は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールおよびアンインストールとは何ですか？<|im_end|>\n<|im_start|>assistant\n本章では、ProSortをインストール、実行確認およびアンインストールする方法について説明しま\nす。\n3.1. インストール\n3.1.1. 圧縮ファイルの実行\nProSortをインストールする手順は以下のとおりです。\n1. インストールするディレクトリにバイナリ圧縮ファイル(.gz)を解凍すると、以下のようなディレ\nクトリ構造が表示されます。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールの紹介について説明してください。<|im_end|>\n<|im_start|>assistant\n本章では、ProSortのインストールに必要な構成要素とシステム要件について説明します。\n1.1. 概要\nProSortは大容量データのソート、マージ、変換、演算をサポートするツールです。操作の実行時に\nシステム・リソースと操作の負荷を減少し、アプリケーションの性能が向上します。特に、メイン\nフレームで運用していたユーザーのアプリケーション・システムを再設計・再開発することなくオー\nプン環境のUNIXシステムで使用できるため、リホスト・プロジェクトで優れた性能を発揮します。\nTmaxSoftのリホスト・ソリューションであるTmax OpenFrame®(以下OpenFrame)にAPIを提供して\n簡単に連携できます。また単一プロセスでソート、マージ演算を処理するので実行構造が簡単です。\n1.2. インストールの構成要素\n1.2.1. パッケージの構成\nProSortのパッケージの構成は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nENDRECとは何ですか？<|im_end|>\n<|im_start|>assistant\n出力レコードのうち指定した数を後方から除外します。\n3. INCLUDE、OMIT、SAVE\n特定条件のレコードを除外するか含めます。SAVEオプションがある場合は、自分を除いたすべ\nてのOUTFILで除外されていない条件のレコードのみ含めます。\n以下は、8~13バイトの文字列フィールドがACCTNGのレコードはファイルGP1に出力し、8~13\nバイトの文字列フィールドがDVPMNTのレコードはファイルGP2に出力する例です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nBorn/Korn/Bashシェルの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nBorn、Korn、Bashシェルで環境変数を設定する方法は以下のとおりです。\n●PROSORT_HOME\nPROSORT_HOME=[ProSortのインストール・パス]\nexport PROSORT_HOME\n●PROSORT_SID\nPROSORT_SID=[ProSortのSID]\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nINCLUDE、OMIT、SAVEの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n特定条件のレコードを除外するか含めます。SAVEオプションがある場合は、自分を除いたすべ\nてのOUTFILで除外されていない条件のレコードのみ含めます。\n以下は、8~13バイトの文字列フィールドがACCTNGのレコードはファイルGP1に出力し、8~13\nバイトの文字列フィールドがDVPMNTのレコードはファイルGP2に出力する例です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\ntrailer_itemとは何ですか？<|im_end|>\n<|im_start|>assistant\ntrailer_itemの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nH/WおよびS/Wの要件について説明してください。<|im_end|>\n<|im_start|>assistant\n以下は、ProSortのインストールに必要なハードウェアおよびソフトウェアの要件です。\n●ハードウェア要件\nHDD領域 (Full /\nClient Only)\n/tmpディレクトリ領域\nスワップ領域\nRAM\nOS\n200MB / 50MB\n300MB\n1GB\n512MB\nLINUX\n200MB / 100MB\n300MB\n1GB\n512MB\nHP-UX/PA-RISC\n100MB / 50MB\n300MB\n1GB\n512MB\nHP-UX/itanium\n100MB / 50MB\n300MB\n1GB\n512MB\nSolaris\n250MB / 100MB\n300MB\n1GB\n512MB\nAIX\n●ソフトウェア要件\nOSバージョン\nOS\nRedHat Enterprise LINUX AS/ES 2.1, 3.0, 4.0 (カーネル・バージョン2.6以上\nのみをサポート)\nLINUX\nHP-UX 11i (11.11) with GOLDBASE11i (== HP-UX 11i, December 2002)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSortコマンドについて説明してください。<|im_end|>\n<|im_start|>assistant\nprosortコマンドは、ProSortがインストールされているマシンで実行する必要があります。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort/binディレクトリでprosortを実行します。とは何ですか？<|im_end|>\n<|im_start|>assistant\nprosortを実行するとインストール・プロセスなしにProSortが実行されます。\n3.1.2. パラメータの設定\nProSortを実行するには、$PROSORT_SID.tipファイルにパラメータを設定する必要があります。各\nパラメータはProSortのメモリ・サイズおよびプロセスの調整のために使用されます。\nデフォルトで提供するパラメータは、configディレクトリにあるgen_tip.sh スクリプト・ファイルを\n実行すると自動生成されます。\n以下は、パラメータの設定例です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nユーザー出口関数を含むSORT、COPY演算の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSortでユーザー出口関数と一緒にSORTおよびCOPY演算を実行する手順は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nsections_itemとは何ですか？<|im_end|>\n<|im_start|>assistant\nsections_itemの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nCOLSEQについて説明してください。<|im_end|>\n<|im_start|>assistant\nユーザーが任意にソート順序を設定します。SORTまたはMERGE演算を実行する過程でソートを実\n行するため、文字列間を比較します。\n整数間のサイズ比較(例：1<2)は直感的であるに対し、文字列間の比較はユーザーが直接把握するこ\nとができません。文字列間の比較を正確に把握するには別途の規則が必要です。こうした規則をソー\nト順序といいます。\nたとえば、9とAをASCIIコードで表現するときは'9' < 'A'であるものの、EBCDICコードで表現すると\nきは'A' < '9'です。ASCII、EBCDICコード以外にもユーザーが任意にソート順序を設定できます。こ\nれはCOLSEQ文法を使用して設定できます。\nCOLSEQの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールの構成要素の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n1.2.1. パッケージの構成\nProSortのパッケージの構成は以下のとおりです。\n●ProSort製品CD1枚\n●ProSort製品ライセンスおよび保証\n●ProSortガイド2冊\n– ProSortインストールガイド\n– ProSort実行ガイド\n1.2.2. ソフトウェアの配布\nProSortのソフトウェアの配布方式は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n圧縮ファイルの実行について説明してください。<|im_end|>\n<|im_start|>assistant\nProSortをインストールする手順は以下のとおりです。\n1. インストールするディレクトリにバイナリ圧縮ファイル(.gz)を解凍すると、以下のようなディレ\nクトリ構造が表示されます。\nprosort\n|----- bin\n|\n|----- prosort\n|\n|----- psapi\n|\n|----- psctl\n|\n|----- pserr\n|----- config\n|\n|----- gen_tip.sh\n|\n|----- prosort_tip.template\n|\n|----- revision\n|\n|----- variant\n|----- docs\n|----- include\n|\n|----- prosort.h\n|\n|----- prosort_rc.h\n|----- lib\n|\n|----- libprosort.a\n|\n|----- libprosort.so\n+----- license\n+----- tests\nProSortで使用するディレクトリは以下のとおりです。\nbin\nProSortの実行ファイルと各種ユーティリティが存在するディレクトリです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_release_record APIの使用例を示してください。<|im_end|>\n<|im_start|>assistant\n第3章 インストールおよびアンインストール 17\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n圧縮ファイルの実行の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSortをインストールする手順は以下のとおりです。\n1. インストールするディレクトリにバイナリ圧縮ファイル(.gz)を解凍すると、以下のようなディレ\nクトリ構造が表示されます。\nprosort\n|----- bin\n|\n|----- prosort\n|\n|----- psapi\n|\n|----- psctl\n|\n|----- pserr\n|----- config\n|\n|----- gen_tip.sh\n|\n|----- prosort_tip.template\n|\n|----- revision\n|\n|----- variant\n|----- docs\n|----- include\n|\n|----- prosort.h\n|\n|----- prosort_rc.h\n|----- lib\n|\n|----- libprosort.a\n|\n|----- libprosort.so\n+----- license\n+----- tests\nProSortで使用するディレクトリは以下のとおりです。\nbin\nProSortの実行ファイルと各種ユーティリティが存在するディレクトリです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSort API関数の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSortはC関数APIを提供します。すべての関数は戻り値を持ちます。成功時は0を返し、失敗時は\n負数値を返します。\n以下は、APIの形態で提供する関数です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nMIN, MAXとは何ですか？<|im_end|>\n<|im_start|>assistant\n2. MUL, DIV, MOD\n3. ADD, SUB\nフィールドを希望する形式(fo)と長さ(n)に変更します。詳細は「B.4.\nエディット・マスク・パターン」\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSort technical expert assistant. Answer questions about ProSort accurately.<|im_end|>\n<|im_start|>user\nWhat are the parameters and return value of exit_insert_to_end?<|im_end|>\n<|im_start|>assistant\nstatic char buf[256]\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nINCLUDE、OMITの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n特定条件のレコードのみを含むか、特定条件のレコードを除外します。\n説明\nオプション\n特定条件のレコードのみ含め、それ以外のレコードは除外します\nINCLUDE\n特定条件のレコードは除外し、残りのレコードのみ含めます\nOMIT\n特定条件は、関係式を論理演算子で組み合わせて論理式で構成します。関係式は比較、文字列比\n較、ビット演算、日付比較に区分できます。\n説明\n関係式\nフィールドとフィールド間、またはフィールドと定数間を比較します\n比較\n文字列を比較します\n文字列比較\n1つまたは2つの2進数をビット単位で演算します\nビット演算\n日付を比較します\n日付比較\n以下の関係式は、レコードp1の位置でm1の長さを持ち、f1の形式を持つフィールドと、p2の位置\nでm2の長さを持ち、f2の形式を持つフィールドを比較する条件を示します。\np1, m1, f1, {EQ|NE|GT|GE|LT|LE}, p2, m2, f2\n適用可能な演算子には、EQ、NE、GT、GE、LT、LEがあります。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOUTRECについて説明してください。<|im_end|>\n<|im_start|>assistant\n出力レコードを付与された形式に変換します。\n2.4. ユーザー出口関数\nユーザーはProSortのスクリプトまたはProSort APIを利用して関数を登録することができます。この\nような関数をユーザー出口関数(User Exit Function)といいます。SORT、MERGE、COPY演算を実\n行するとき、この関数を利用してレコードを挿入、変換、削除できます。\nユーザー出口関数は以前の段階で渡されたレコードを編集して次の段階に渡します。最後のレコー\nド以降はNULLが関数に渡されます。\nSORT、MERGE、COPY演算はProSort APIを使ってレコードを直接入力する場合のみ動作し、ファ\nイルを使ってレコードを入力する場合には動作しません。\nユーザー出口関数の詳細は以下のとおりです。\n●プロトタイプ\nint user_exit_func (void *rec_addr, int rec_len, int input_no,\nvoid **ret_rec_addr, int *ret_rec_len)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nユーザー出口関数を含むMERGE演算の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSortでユーザー出口関数と一緒にMERGE演算を実行する手順は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nユーザー出口関数とは何ですか？<|im_end|>\n<|im_start|>assistant\nユーザーはProSortのスクリプトまたはProSort APIを利用して関数を登録することができます。この\nような関数をユーザー出口関数(User Exit Function)といいます。SORT、MERGE、COPY演算を実\n行するとき、この関数を利用してレコードを挿入、変換、削除できます。\nユーザー出口関数は以前の段階で渡されたレコードを編集して次の段階に渡します。最後のレコー\nド以降はNULLが関数に渡されます。\nSORT、MERGE、COPY演算はProSort APIを使ってレコードを直接入力する場合のみ動作し、ファ\nイルを使ってレコードを入力する場合には動作しません。\nユーザー出口関数の詳細は以下のとおりです。\n●プロトタイプ\nint user_exit_func (void *rec_addr, int rec_len, int input_no,\nvoid **ret_rec_addr, int *ret_rec_len)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_run_scriptとは何ですか？<|im_end|>\n<|im_start|>assistant\nスクリプトの演算をすべて実行する関数です。\n●プロトタイプ\nint prosort_run_script(const char *const script)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSTOPAFTとは何ですか？<|im_end|>\n<|im_start|>assistant\n1、2項の手順を実行した後、レコードの数が指定した数を超えないまでレコードを入力すること\nができます。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_endについて説明してください。<|im_end|>\n<|im_start|>assistant\nすべての演算に使用したリソースを返す関数です。\n●プロトタイプ\nint prosort_end(void *prosort_context)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nソフトウェアの配布とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSortのソフトウェアの配布方式は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSortコマンドとは何ですか？<|im_end|>\n<|im_start|>assistant\nprosortコマンドは、ProSortがインストールされているマシンで実行する必要があります。また、\n環境変数を正しく設定した後、コマンドを実行してください。\nprosortコマンドの使用方法は以下のとおりです。\nprosort [-h] [-v] [-s] [-j] [script file]\n説明\nオプション\nprosortコマンドの使用のための簡単なヘルプを表示します\n-h\nProSortのバージョン情報を表示します\n-v\nスクリプト・ファイルを実行した後、状態情報を表示します。\n-s\nこのオプションを使用すると、以下の状態情報を確認することができます\n– Total Infile Size : 入力ファイルのサイズ\n– Total Alloced Data Block Size : データ・ブロック(レコード全体が保存される\n領域)のサイズを累積した値\n– Total Alloced Key Block Size : キー・ブロック(ソート・キーのフィールドが\n保存される領域)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_setupの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSortの実行に必要な情報を初期化します。ただし、prosort_run_script関数を使用する場合は、\nprosort_setup関数を呼び出す必要がありません。\n●プロトタイプ\ntypedef int (*callback_func_t)(char **data_buf_addr,\nint *data_buf_length);\nint prosort_setup (const char *prosort_script,\ncallback_func_t *data_fetch_callback_funcs,\nint data_fetch_callback_func_cnt,\nvoid **ptr_prosort_context)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nheader_itemについて説明してください。<|im_end|>\n<|im_start|>assistant\nheader_itemの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールの構成要素とは何ですか？<|im_end|>\n<|im_start|>assistant\n1.2.1. パッケージの構成\nProSortのパッケージの構成は以下のとおりです。\n●ProSort製品CD1枚\n●ProSort製品ライセンスおよび保証\n●ProSortガイド2冊\n– ProSortインストールガイド\n– ProSort実行ガイド\n1.2.2. ソフトウェアの配布\nProSortのソフトウェアの配布方式は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSortの実行方法は？<|im_end|>\n<|im_start|>assistant\nprosortコマンドは、ProSortがインストールされているマシンで実行する必要があります。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSort API関数について説明してください。<|im_end|>\n<|im_start|>assistant\nProSortはC関数APIを提供します。すべての関数は戻り値を持ちます。成功時は0を返し、失敗時は\n負数値を返します。\n以下は、APIの形態で提供する関数です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n入力データセットの場合、DCBオペランドが指定されていなければエラーが発生します。ただし、について説明してください。<|im_end|>\n<|im_start|>assistant\nすでにデータセットが存在している場合には、既存の情報を使用します。出力データセットの場\n合、DCBオペランドの指定がなければ、以下の順序で指定されます。\na. OUTRECで指定された情報をオーバーライドして使用します。\nb. RECORDで指定された情報をオーバーライドして使用します。\nc. INRECで指定された情報をオーバーライドして使用します。\nd. 入力データセットで指定された情報をオーバーライドして使用します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_release_end APIの使用例を示してください。<|im_end|>\n<|im_start|>assistant\n第3章 インストールおよびアンインストール 19\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n圧縮ファイルの実行とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSortをインストールする手順は以下のとおりです。\n1. インストールするディレクトリにバイナリ圧縮ファイル(.gz)を解凍すると、以下のようなディレ\nクトリ構造が表示されます。\nprosort\n|----- bin\n|\n|----- prosort\n|\n|----- psapi\n|\n|----- psctl\n|\n|----- pserr\n|----- config\n|\n|----- gen_tip.sh\n|\n|----- prosort_tip.template\n|\n|----- revision\n|\n|----- variant\n|----- docs\n|----- include\n|\n|----- prosort.h\n|\n|----- prosort_rc.h\n|----- lib\n|\n|----- libprosort.a\n|\n|----- libprosort.so\n+----- license\n+----- tests\nProSortで使用するディレクトリは以下のとおりです。\nbin\nProSortの実行ファイルと各種ユーティリティが存在するディレクトリです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nINRECとは何ですか？<|im_end|>\n<|im_start|>assistant\n入力されたレコードを付与された形式に変換します。入力されたレコードはINRECで指定した\nフィールドに変換され、新しいレコードに変換されます。この際、フィールドは定数または(p,m)\nの形式で入力されたレコードの一部、(p,m,f,to)で入力されたレコードの形式を変換したフィール\nドなどで構成します。\nINRECを実行した後の処理はINRECで変換されたレコードを基準に行われます。\n以下は、入力レコードの10~12バイト、20~27バイト、33~43バイト、5バイトを新規レコードと\nして生成する例です。\nINREC FIELDS=(10,3,20,8,33,11,5,1)\n以下は、入力レコードの20~23バイト、12~14バイトを新規レコードに変換する例です。\nINREC FIELDS=(20,4,12,3)\nSORT FIELDS=(1,4,D,5,3,D),FORMAT=CH\n5. SORT(SUM)、COPY\n入力されたレコードを付与されたキー情報でソートします。ソートに使われるキーはフィールド\nで定義され、各フィールドはp、m、f、sの形で定義されます。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nINREC, OUTRECについて説明してください。<|im_end|>\n<|im_start|>assistant\nレコードの形式を再設定します。INRECはSORT、MERGE、COPY演算をする前に実行され、\nOUTRECはSORT、MERGE、COPY演算をした後に実行されます。\nINREC、OUTRECの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_run_scriptの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nスクリプトの演算をすべて実行する関数です。\n●プロトタイプ\nint prosort_run_script(const char *const script)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSORT, MERGEの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nSORTおよびMERGE演算はフィールド・リストと追加オプションで構成します。フィールド・リス\nトですべて同じ形式を使用するときは、形式情報をフィールド・リストの後に一度だけ設定します。\nSORT、MERGEの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSortコマンドの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nprosortコマンドは、ProSortがインストールされているマシンで実行する必要があります。また、\n環境変数を正しく設定した後、コマンドを実行してください。\nprosortコマンドの使用方法は以下のとおりです。\nprosort [-h] [-v] [-s] [-j] [script file]\n説明\nオプション\nprosortコマンドの使用のための簡単なヘルプを表示します\n-h\nProSortのバージョン情報を表示します\n-v\nスクリプト・ファイルを実行した後、状態情報を表示します。\n-s\nこのオプションを使用すると、以下の状態情報を確認することができます\n– Total Infile Size : 入力ファイルのサイズ\n– Total Alloced Data Block Size : データ・ブロック(レコード全体が保存される\n領域)のサイズを累積した値\n– Total Alloced Key Block Size : キー・ブロック(ソート・キーのフィールドが\n保存される領域)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_release_endの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nSORT演算を行う際に、データの入力が完了したことを示す関数です。\n●プロトタイプ\nint prosort_release_end(void *prosort_context)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nENDRECの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n出力レコードのうち指定した数を後方から除外します。\n3. INCLUDE、OMIT、SAVE\n特定条件のレコードを除外するか含めます。SAVEオプションがある場合は、自分を除いたすべ\nてのOUTFILで除外されていない条件のレコードのみ含めます。\n以下は、8~13バイトの文字列フィールドがACCTNGのレコードはファイルGP1に出力し、8~13\nバイトの文字列フィールドがDVPMNTのレコードはファイルGP2に出力する例です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nH/WおよびS/Wの要件の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n以下は、ProSortのインストールに必要なハードウェアおよびソフトウェアの要件です。\n●ハードウェア要件\nHDD領域 (Full /\nClient Only)\n/tmpディレクトリ領域\nスワップ領域\nRAM\nOS\n200MB / 50MB\n300MB\n1GB\n512MB\nLINUX\n200MB / 100MB\n300MB\n1GB\n512MB\nHP-UX/PA-RISC\n100MB / 50MB\n300MB\n1GB\n512MB\nHP-UX/itanium\n100MB / 50MB\n300MB\n1GB\n512MB\nSolaris\n250MB / 100MB\n300MB\n1GB\n512MB\nAIX\n●ソフトウェア要件\nOSバージョン\nOS\nRedHat Enterprise LINUX AS/ES 2.1, 3.0, 4.0 (カーネル・バージョン2.6以上\nのみをサポート)\nLINUX\nHP-UX 11i (11.11) with GOLDBASE11i (== HP-UX 11i, December 2002)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_get_error_number APIの使用方法を教えてください。<|im_end|>\n<|im_start|>assistant\n第4章 様々なアプリケーション使用環境のサポート 83\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nMERGE(SUM)の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n付与されたキー情報を基に複数の入力ファイルをマージします。正常な処理結果を保証するには、\n入力ファイルのキーがソートされていなければなりません。フィールドおよびオプションはSORT\nと同様に定義されます。\n以下は、25~28バイトのZD、48~55バイトのZDをキーに定義し、昇順で入力ファイルをマージす\nる例です。\nMERGE FIELDS=(25,4,A,48,8,A)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSort technical expert assistant. Answer questions about ProSort accurately.<|im_end|>\n<|im_start|>user\nShow me an example of using exit_insert_to_end.<|im_end|>\n<|im_start|>assistant\nstatic char buf[256]\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort/binディレクトリでprosortを実行します。の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nprosortを実行するとインストール・プロセスなしにProSortが実行されます。\n3.1.2. パラメータの設定\nProSortを実行するには、$PROSORT_SID.tipファイルにパラメータを設定する必要があります。各\nパラメータはProSortのメモリ・サイズおよびプロセスの調整のために使用されます。\nデフォルトで提供するパラメータは、configディレクトリにあるgen_tip.sh スクリプト・ファイルを\n実行すると自動生成されます。\n以下は、パラメータの設定例です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nINFILEについて説明してください。<|im_end|>\n<|im_start|>assistant\n入力ファイルのパス名と予想サイズを設定します。\nINFILEの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nRECFM、LRECL、BLKSIZEがDD文のDCBオペランドで指定されていれば、その情報を使用しまについて説明してください。<|im_end|>\n<|im_start|>assistant\nす。それ以外の情報は無視します。\n2. 入力データセットの場合、DCBオペランドが指定されていなければエラーが発生します。ただし、\nすでにデータセットが存在している場合には、既存の情報を使用します。出力データセットの場\n合、DCBオペランドの指定がなければ、以下の順序で指定されます。\na. OUTRECで指定された情報をオーバーライドして使用します。\nb. RECORDで指定された情報をオーバーライドして使用します。\nc. INRECで指定された情報をオーバーライドして使用します。\nd. 入力データセットで指定された情報をオーバーライドして使用します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSTARTRECについて説明してください。<|im_end|>\n<|im_start|>assistant\n出力レコードのうち指定した数を前方から除外します。\n2. ENDREC\n出力レコードのうち指定した数を後方から除外します。\n3. INCLUDE、OMIT、SAVE\n特定条件のレコードを除外するか含めます。SAVEオプションがある場合は、自分を除いたすべ\nてのOUTFILで除外されていない条件のレコードのみ含めます。\n以下は、8~13バイトの文字列フィールドがACCTNGのレコードはファイルGP1に出力し、8~13\nバイトの文字列フィールドがDVPMNTのレコードはファイルGP2に出力する例です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_release_endとは何ですか？<|im_end|>\n<|im_start|>assistant\nSORT演算を行う際に、データの入力が完了したことを示す関数です。\n●プロトタイプ\nint prosort_release_end(void *prosort_context)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nパッケージの構成について説明してください。<|im_end|>\n<|im_start|>assistant\nProSortのパッケージの構成は以下のとおりです。\n●ProSort製品CD1枚\n●ProSort製品ライセンスおよび保証\n●ProSortガイド2冊\n– ProSortインストールガイド\n– ProSort実行ガイド\n1.2.2. ソフトウェアの配布\nProSortのソフトウェアの配布方式は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールについて説明してください。<|im_end|>\n<|im_start|>assistant\n3.1.1. 圧縮ファイルの実行\nProSortをインストールする手順は以下のとおりです。\n1. インストールするディレクトリにバイナリ圧縮ファイル(.gz)を解凍すると、以下のようなディレ\nクトリ構造が表示されます。\nprosort\n|----- bin\n|\n|----- prosort\n|\n|----- psapi\n|\n|----- psctl\n|\n|----- pserr\n|----- config\n|\n|----- gen_tip.sh\n|\n|----- prosort_tip.template\n|\n|----- revision\n|\n|----- variant\n|----- docs\n|----- include\n|\n|----- prosort.h\n|\n|----- prosort_rc.h\n|----- lib\n|\n|----- libprosort.a\n|\n|----- libprosort.so\n+----- license\n+----- tests\nProSortで使用するディレクトリは以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_release_recordについて説明してください。<|im_end|>\n<|im_start|>assistant\nSORT演算を行う際に、データをレコードごとに入力する関数です。\n●プロトタイプ\nint prosort_release_record(void *prosort_context,\nconst char *record,\nconst unsigned int record_length)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nアンインストールについて説明してください。<|im_end|>\n<|im_start|>assistant\nオペレーティング・システムのコマンドを利用し、ProSortがインストールされているディレクトリ\nを削除します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_release_recordの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nSORT演算を行う際に、データをレコードごとに入力する関数です。\n●プロトタイプ\nint prosort_release_record(void *prosort_context,\nconst char *record,\nconst unsigned int record_length)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_setupとは何ですか？<|im_end|>\n<|im_start|>assistant\nProSortの実行に必要な情報を初期化します。ただし、prosort_run_script関数を使用する場合は、\nprosort_setup関数を呼び出す必要がありません。\n●プロトタイプ\ntypedef int (*callback_func_t)(char **data_buf_addr,\nint *data_buf_length);\nint prosort_setup (const char *prosort_script,\ncallback_func_t *data_fetch_callback_funcs,\nint data_fetch_callback_func_cnt,\nvoid **ptr_prosort_context)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nジョブ制御文の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nジョブ制御文は、大きく、JOB文、EXEC文、DD文、/*などで構成されています。\n参考\nJCL文法の詳細については、『OpenFrameジョブ制御言語文法書』を参照してください。\n●JOB文\nジョブの先頭に位置する制御文で、ジョブの開始を知らせると同時に、そのジョブの性格を定義\nします。\n以下は、記述例です。\n//SORT00\nJOB\nCLASS=A,MSGCLASS=X,MSGLEVEL=(1,1)\n●EXEC文\n1つのジョブは複数のステップ(STEP)で構成されており、その中でもEXEC文はJOB STEPの先頭\nに位置します。プログラムの名前やプログラムに渡すパラメータなどを指定します。\nProsortを利用してソートを実行するには、PGM=DFSORTと記述する必要があります。\n以下は、記述例です。\n//SORT\nEXEC PGM=DFSORT,REGION=2M\n●DD文\nソート実行時に使われるデータセットの名前や属性などを以下の項目により指定します。\n説明\n項目\nSORTの制御文を入力するためのデータセットです。一般的にDD *でシステ\nム入力ストリームを利用します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータセットの定義について説明してください。<|im_end|>\n<|im_start|>assistant\n以下は、データセットの定義に一般的に必要なオペランドです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSort technical expert assistant. Answer questions about ProSort accurately.<|im_end|>\n<|im_start|>user\nShow me an example of using print_err_msg.<|im_end|>\n<|im_start|>assistant\nfprintf(stderr,\"Error[%d]:\\n\", ec)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\ntrailer_itemについて説明してください。<|im_end|>\n<|im_start|>assistant\ntrailer_itemの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nDEFRECについて説明してください。<|im_end|>\n<|im_start|>assistant\nレコード形式を設定します。\nDEFRECの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSORT(SUM)、COPYとは何ですか？<|im_end|>\n<|im_start|>assistant\n入力されたレコードを付与されたキー情報でソートします。ソートに使われるキーはフィールド\nで定義され、各フィールドはp、m、f、sの形で定義されます。\n説明\nフィールド・タイプ\nレコードの位置であり、バイトとビット単位で定義します\np\n– pが4の場合：4バイトからフィールドが始まります\n– pが4.2の場合：4バイトの2番目のビットから始まります\nフィールド長であり、バイトとビット単位で定義します\nm\n形式を定義します\nf\n昇順ソートまたは降順ソートを定義します\ns\nINRECでレコードが変換された場合には変換されたレコードを基準にして位置が決まります。\nEQUALSオプションを宣言すると、同一キーのレコードが本来の順序どおり表示されることを保\n証するstable sortで動作します。\nSUMオプションが使用された場合は、同一キーを持つレコードに指定されたフィールド値の合計\nを求めます。指定されたフィールドがない場合には、重複するキーを除去する機能のみを実行し\nます。SKIPREC、STOPAFTオプションがある場合は、以前のプロセスで実行します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nINRECの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n入力されたレコードを付与された形式に変換します。入力されたレコードはINRECで指定した\nフィールドに変換され、新しいレコードに変換されます。この際、フィールドは定数または(p,m)\nの形式で入力されたレコードの一部、(p,m,f,to)で入力されたレコードの形式を変換したフィール\nドなどで構成します。\nINRECを実行した後の処理はINRECで変換されたレコードを基準に行われます。\n以下は、入力レコードの10~12バイト、20~27バイト、33~43バイト、5バイトを新規レコードと\nして生成する例です。\nINREC FIELDS=(10,3,20,8,33,11,5,1)\n以下は、入力レコードの20~23バイト、12~14バイトを新規レコードに変換する例です。\nINREC FIELDS=(20,4,12,3)\nSORT FIELDS=(1,4,D,5,3,D),FORMAT=CH\n5. SORT(SUM)、COPY\n入力されたレコードを付与されたキー情報でソートします。ソートに使われるキーはフィールド\nで定義され、各フィールドはp、m、f、sの形で定義されます。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSTARTRECの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n出力レコードのうち指定した数を前方から除外します。\n2. ENDREC\n出力レコードのうち指定した数を後方から除外します。\n3. INCLUDE、OMIT、SAVE\n特定条件のレコードを除外するか含めます。SAVEオプションがある場合は、自分を除いたすべ\nてのOUTFILで除外されていない条件のレコードのみ含めます。\n以下は、8~13バイトの文字列フィールドがACCTNGのレコードはファイルGP1に出力し、8~13\nバイトの文字列フィールドがDVPMNTのレコードはファイルGP2に出力する例です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nsections_itemについて説明してください。<|im_end|>\n<|im_start|>assistant\nsections_itemの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nパラメータの設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSortを実行するには、$PROSORT_SID.tipファイルにパラメータを設定する必要があります。各\nパラメータはProSortのメモリ・サイズおよびプロセスの調整のために使用されます。\nデフォルトで提供するパラメータは、configディレクトリにあるgen_tip.sh スクリプト・ファイルを\n実行すると自動生成されます。\n以下は、パラメータの設定例です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nユーザー出口関数の例とは何ですか？<|im_end|>\n<|im_start|>assistant\n本節では、ユーザー出口関数を使用して関数を機能別に実行する例を記述します。\n全レコードの転送\n以下は、すべてのレコードをそのまま転送する関数の例です。\nstatic int\nexit_none(const void *rec_addr,\nconst int rec_len,\nint file_no,\nvoid **ret_rec_addr,\nint *ret_rec_len)\n{\nif (rec_addr == NULL)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nADD, SUBの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nフィールドを希望する形式(fo)と長さ(n)に変更します。詳細は「B.4.\nエディット・マスク・パターン」\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nMUL, DIV, MODとは何ですか？<|im_end|>\n<|im_start|>assistant\n3. ADD, SUB\nフィールドを希望する形式(fo)と長さ(n)に変更します。詳細は「B.4.\nエディット・マスク・パターン」\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストール前の準備の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n本章では、ProSortをインストールする前に行うハートディスク容量の確認および環境変数の設定に\nついて説明します。\n2.1. 概要\nProSortをインストールする前に確認し、設定すべき準備事項は以下のとおりです。\n●ディスク容量の確認\n●環境変数の設定\n2.2. ディスク容量の確認\nProSortをインストールするためには、プラットフォームごとに多少の差はありますが、少なくとも\n250MB以上のハードディスクが必要です。ハードディスク容量を確認する方法は多様ですが、UNIX\n系システムではdfコマンドで確認できます。\n参考\nハードウェア要件についての詳細は「1.3. システム要件」を参照してください。\n2.3. 環境変数の設定\nProSortをインストールする前に以下の環境変数をシステムに設定する必要があります。\n説明\n環境変数\nProSortがインストール、運用されるホーム・ディレクトリを設定します\n$PROSORT_HOME\nProSortのインストール時にサービスを区別するための識別子で、ユーザー\nが設定します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_get_error_numberについて説明してください。<|im_end|>\n<|im_start|>assistant\nエラーが発生した際に、エラー番号を取得する関数です。\n●プロトタイプ\nint prosort_get_error_number(void *prosort_context)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_get_error_messageについて説明してください。<|im_end|>\n<|im_start|>assistant\nエラーが発生した際に、エラー・メッセージを取得する関数です。\n●プロトタイプ\nint prosort_get_error_message(void *prosort_context,\nchar *error_message_buffer,\nunsigned int *error_message_length)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nマシーン別の設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nマシーン別に環境変数を設定する方法は以下のとおりです。\n●HP\nSHLIB_PATH環境変数に$PROSORT_HOME/libを追加します。\nSHLIB_PATH=$SHLIB_PATH:$PROSORT_HOME/lib\nexport SHLIB_PATH\n●IBM AIX\nLIBPATH環境変数に$PROSORT_HOME/libを追加します。\nLIBPATH=$LIBPATH:$PROSORT_HOME/lib\nexport LIBPATH\n●AIX\nスレッド・プログラムと共有メモリを使用する場合、以下の環境変数を追加します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSort technical expert assistant. Answer questions about ProSort accurately.<|im_end|>\n<|im_start|>user\nWhat are the parameters and return value of print_err_msg?<|im_end|>\n<|im_start|>assistant\nfprintf(stderr,\"Error[%d]:\\n\", ec)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_get_error_messageとは何ですか？<|im_end|>\n<|im_start|>assistant\nエラーが発生した際に、エラー・メッセージを取得する関数です。\n●プロトタイプ\nint prosort_get_error_message(void *prosort_context,\nchar *error_message_buffer,\nunsigned int *error_message_length)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n環境変数の設定とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSortをインストールする前に以下の環境変数をシステムに設定する必要があります。\n説明\n環境変数\nProSortがインストール、運用されるホーム・ディレクトリを設定します\n$PROSORT_HOME\nProSortのインストール時にサービスを区別するための識別子で、ユーザー\nが設定します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストール前の準備について説明してください。<|im_end|>\n<|im_start|>assistant\n本章では、ProSortをインストールする前に行うハートディスク容量の確認および環境変数の設定に\nついて説明します。\n2.1. 概要\nProSortをインストールする前に確認し、設定すべき準備事項は以下のとおりです。\n●ディスク容量の確認\n●環境変数の設定\n2.2. ディスク容量の確認\nProSortをインストールするためには、プラットフォームごとに多少の差はありますが、少なくとも\n250MB以上のハードディスクが必要です。ハードディスク容量を確認する方法は多様ですが、UNIX\n系システムではdfコマンドで確認できます。\n参考\nハードウェア要件についての詳細は「1.3. システム要件」を参照してください。\n2.3. 環境変数の設定\nProSortをインストールする前に以下の環境変数をシステムに設定する必要があります。\n説明\n環境変数\nProSortがインストール、運用されるホーム・ディレクトリを設定します\n$PROSORT_HOME\nProSortのインストール時にサービスを区別するための識別子で、ユーザー\nが設定します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSort technical expert assistant. Answer questions about ProSort accurately.<|im_end|>\n<|im_start|>user\nHow do I use the exit_none API?<|im_end|>\n<|im_start|>assistant\nif (rec_addr == NULL)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSKIPRECの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nSORT演算を実行する前にスキップするレコード数を指定するオプションです。指定した値以後\nのレコードから入力できます。\n以下は、6番目のレコードからの入力を取り込んで次のプロセスを実行する例です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nsections_itemの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nsections_itemの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールの紹介の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n本章では、ProSortのインストールに必要な構成要素とシステム要件について説明します。\n1.1. 概要\nProSortは大容量データのソート、マージ、変換、演算をサポートするツールです。操作の実行時に\nシステム・リソースと操作の負荷を減少し、アプリケーションの性能が向上します。特に、メイン\nフレームで運用していたユーザーのアプリケーション・システムを再設計・再開発することなくオー\nプン環境のUNIXシステムで使用できるため、リホスト・プロジェクトで優れた性能を発揮します。\nTmaxSoftのリホスト・ソリューションであるTmax OpenFrame®(以下OpenFrame)にAPIを提供して\n簡単に連携できます。また単一プロセスでソート、マージ演算を処理するので実行構造が簡単です。\n1.2. インストールの構成要素\n1.2.1. パッケージの構成\nProSortのパッケージの構成は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSTOPAFTの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n1、2項の手順を実行した後、レコードの数が指定した数を超えないまでレコードを入力すること\nができます。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSort technical expert assistant. Answer questions about ProSort accurately.<|im_end|>\n<|im_start|>user\nWhat are the parameters and return value of exit_delete?<|im_end|>\n<|im_start|>assistant\nif (rec_addr == NULL)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSort technical expert assistant. Answer questions about ProSort accurately.<|im_end|>\n<|im_start|>user\nHow do I use the exit_insert_to_end API?<|im_end|>\n<|im_start|>assistant\nstatic char buf[256]\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_get_error_number関数の引数と戻り値は？<|im_end|>\n<|im_start|>assistant\n第4章 様々なアプリケーション使用環境のサポート 83\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOpenFrame/BatchでのProsortの起動について説明してください。<|im_end|>\n<|im_start|>assistant\nOpenFrameではProsortを直接実行せずに、途中でDFSORTユーティリティを利用して入力データ\nセットに対してソート、マージ、コピー、フィルタリング、再フォーマット、合計などを実行し、\n出力データセットを作成します。\nOpenFrameでソート操作を実行するには、ジョブ制御文(JCL)を作成する必要があります。なお、作\n成されたジョブ制御文はバッチ・ジョブとしてOpenFrame/Batchに渡す必要があります。\n参考\nバッチ・ジョブの詳細については、『OpenFrame Batchガイド』または、『OpenFrame TJESガ\nイド』を参照してください。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nINFILEとは何ですか？<|im_end|>\n<|im_start|>assistant\n入力ファイルのパス名と予想サイズを設定します。\nINFILEの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nProSortコマンドについて説明してください。<|im_end|>\n<|im_start|>assistant\nprosortコマンドは、ProSortがインストールされているマシンで実行する必要があります。また、\n環境変数を正しく設定した後、コマンドを実行してください。\nprosortコマンドの使用方法は以下のとおりです。\nprosort [-h] [-v] [-s] [-j] [script file]\n説明\nオプション\nprosortコマンドの使用のための簡単なヘルプを表示します\n-h\nProSortのバージョン情報を表示します\n-v\nスクリプト・ファイルを実行した後、状態情報を表示します。\n-s\nこのオプションを使用すると、以下の状態情報を確認することができます\n– Total Infile Size : 入力ファイルのサイズ\n– Total Alloced Data Block Size : データ・ブロック(レコード全体が保存される\n領域)のサイズを累積した値\n– Total Alloced Key Block Size : キー・ブロック(ソート・キーのフィールドが\n保存される領域)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nパラメータの設定について説明してください。<|im_end|>\n<|im_start|>assistant\nProSortを実行するには、$PROSORT_SID.tipファイルにパラメータを設定する必要があります。各\nパラメータはProSortのメモリ・サイズおよびプロセスの調整のために使用されます。\nデフォルトで提供するパラメータは、configディレクトリにあるgen_tip.sh スクリプト・ファイルを\n実行すると自動生成されます。\n以下は、パラメータの設定例です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nパラメータの設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSortを実行するには、$PROSORT_SID.tipファイルにパラメータを設定する必要があります。各\nパラメータはProSortのメモリ・サイズおよびプロセスの調整のために使用されます。\nデフォルトで提供するパラメータは、configディレクトリにあるgen_tip.sh スクリプト・ファイルを\n実行すると自動生成されます。\n以下は、パラメータの設定例です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_run_scriptについて説明してください。<|im_end|>\n<|im_start|>assistant\nスクリプトの演算をすべて実行する関数です。\n●プロトタイプ\nint prosort_run_script(const char *const script)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nYou are a ProSort technical expert assistant. Answer questions about ProSort accurately.<|im_end|>\n<|im_start|>user\nShow me an example of using exit_delete.<|im_end|>\n<|im_start|>assistant\nif (rec_addr == NULL)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOPTIONとは何ですか？<|im_end|>\n<|im_start|>assistant\nUSE_ALTERNATIVE_TP_TYPE、VLREFMTなどのオプションを設定します。\nOPTIONの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n入力データセットの場合、DCBオペランドが指定されていなければエラーが発生します。ただし、とは何ですか？<|im_end|>\n<|im_start|>assistant\nすでにデータセットが存在している場合には、既存の情報を使用します。出力データセットの場\n合、DCBオペランドの指定がなければ、以下の順序で指定されます。\na. OUTRECで指定された情報をオーバーライドして使用します。\nb. RECORDで指定された情報をオーバーライドして使用します。\nc. INRECで指定された情報をオーバーライドして使用します。\nd. 入力データセットで指定された情報をオーバーライドして使用します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_setup_with_userexitの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nすべての入出力パラメータがprosort_setup関数と同じです。ただし、func_e15、func_e32、func_e35、\nfunc_e61パラメータは例外です。\n●プロトタイプ\ntypedef int (*user_exit_func_t)(const void *rec_addr,\nconst int rec_len,\nint file_no,\nvoid **ret_rec_addr,\nint *ret_rec_len);\nint prosort_setup_with_userexit(const char *prosort_script,\ncallback_func_t *data_fetch_callback_funcs,\nint data_fetch_callback_func_cnt,\nuser_exit_func_t func_e15,\nuser_exit_func_t func_e32,\nuser_exit_func_t func_e35,\nuser_exit_func_t func_e61,\nvoid **ptr_prosort_context)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nADD, SUBとは何ですか？<|im_end|>\n<|im_start|>assistant\nフィールドを希望する形式(fo)と長さ(n)に変更します。詳細は「B.4.\nエディット・マスク・パターン」\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nユーザー出口関数を含むSORT、COPY演算とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSortでユーザー出口関数と一緒にSORTおよびCOPY演算を実行する手順は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOpenFrame/BatchでのProsortの起動の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nOpenFrameではProsortを直接実行せずに、途中でDFSORTユーティリティを利用して入力データ\nセットに対してソート、マージ、コピー、フィルタリング、再フォーマット、合計などを実行し、\n出力データセットを作成します。\nOpenFrameでソート操作を実行するには、ジョブ制御文(JCL)を作成する必要があります。なお、作\n成されたジョブ制御文はバッチ・ジョブとしてOpenFrame/Batchに渡す必要があります。\n参考\nバッチ・ジョブの詳細については、『OpenFrame Batchガイド』または、『OpenFrame TJESガ\nイド』を参照してください。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nps_err_get_last_msg APIの使用方法を教えてください。<|im_end|>\n<|im_start|>assistant\n/* 16バイト・レコード */\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nps_err_get_last_msg APIの使用例を示してください。<|im_end|>\n<|im_start|>assistant\n/* 16バイト・レコード */\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストール前の準備とは何ですか？<|im_end|>\n<|im_start|>assistant\n本章では、ProSortをインストールする前に行うハートディスク容量の確認および環境変数の設定に\nついて説明します。\n2.1. 概要\nProSortをインストールする前に確認し、設定すべき準備事項は以下のとおりです。\n●ディスク容量の確認\n●環境変数の設定\n2.2. ディスク容量の確認\nProSortをインストールするためには、プラットフォームごとに多少の差はありますが、少なくとも\n250MB以上のハードディスクが必要です。ハードディスク容量を確認する方法は多様ですが、UNIX\n系システムではdfコマンドで確認できます。\n参考\nハードウェア要件についての詳細は「1.3. システム要件」を参照してください。\n2.3. 環境変数の設定\nProSortをインストールする前に以下の環境変数をシステムに設定する必要があります。\n説明\n環境変数\nProSortがインストール、運用されるホーム・ディレクトリを設定します\n$PROSORT_HOME\nProSortのインストール時にサービスを区別するための識別子で、ユーザー\nが設定します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_release_endについて説明してください。<|im_end|>\n<|im_start|>assistant\nSORT演算を行う際に、データの入力が完了したことを示す関数です。\n●プロトタイプ\nint prosort_release_end(void *prosort_context)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nINCLUDE、OMIT、SAVEについて説明してください。<|im_end|>\n<|im_start|>assistant\n特定条件のレコードを除外するか含めます。SAVEオプションがある場合は、自分を除いたすべ\nてのOUTFILで除外されていない条件のレコードのみ含めます。\n以下は、8~13バイトの文字列フィールドがACCTNGのレコードはファイルGP1に出力し、8~13\nバイトの文字列フィールドがDVPMNTのレコードはファイルGP2に出力する例です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSORT(SUM)、COPYの概念を教えてください。<|im_end|>\n<|im_start|>assistant\n入力されたレコードを付与されたキー情報でソートします。ソートに使われるキーはフィールド\nで定義され、各フィールドはp、m、f、sの形で定義されます。\n説明\nフィールド・タイプ\nレコードの位置であり、バイトとビット単位で定義します\np\n– pが4の場合：4バイトからフィールドが始まります\n– pが4.2の場合：4バイトの2番目のビットから始まります\nフィールド長であり、バイトとビット単位で定義します\nm\n形式を定義します\nf\n昇順ソートまたは降順ソートを定義します\ns\nINRECでレコードが変換された場合には変換されたレコードを基準にして位置が決まります。\nEQUALSオプションを宣言すると、同一キーのレコードが本来の順序どおり表示されることを保\n証するstable sortで動作します。\nSUMオプションが使用された場合は、同一キーを持つレコードに指定されたフィールド値の合計\nを求めます。指定されたフィールドがない場合には、重複するキーを除去する機能のみを実行し\nます。SKIPREC、STOPAFTオプションがある場合は、以前のプロセスで実行します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータセットの定義とは何ですか？<|im_end|>\n<|im_start|>assistant\n以下は、データセットの定義に一般的に必要なオペランドです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nジョブ制御文とは何ですか？<|im_end|>\n<|im_start|>assistant\nジョブ制御文は、大きく、JOB文、EXEC文、DD文、/*などで構成されています。\n参考\nJCL文法の詳細については、『OpenFrameジョブ制御言語文法書』を参照してください。\n●JOB文\nジョブの先頭に位置する制御文で、ジョブの開始を知らせると同時に、そのジョブの性格を定義\nします。\n以下は、記述例です。\n//SORT00\nJOB\nCLASS=A,MSGCLASS=X,MSGLEVEL=(1,1)\n●EXEC文\n1つのジョブは複数のステップ(STEP)で構成されており、その中でもEXEC文はJOB STEPの先頭\nに位置します。プログラムの名前やプログラムに渡すパラメータなどを指定します。\nProsortを利用してソートを実行するには、PGM=DFSORTと記述する必要があります。\n以下は、記述例です。\n//SORT\nEXEC PGM=DFSORT,REGION=2M\n●DD文\nソート実行時に使われるデータセットの名前や属性などを以下の項目により指定します。\n説明\n項目\nSORTの制御文を入力するためのデータセットです。一般的にDD *でシステ\nム入力ストリームを利用します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nデータセットの定義の概念を教えてください。<|im_end|>\n<|im_start|>assistant\n以下は、データセットの定義に一般的に必要なオペランドです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_end APIの使用方法を教えてください。<|im_end|>\n<|im_start|>assistant\n第4章 様々なアプリケーション使用環境のサポート 81\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nユーザー出口関数を含むMERGE演算とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSortでユーザー出口関数と一緒にMERGE演算を実行する手順は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_return_recordについて説明してください。<|im_end|>\n<|im_start|>assistant\n演算の結果をレコード1件ごとに取得する関数です。出力は、OUTFILにより複数出力されることが\nあるので、バッファーの配列として取得します。0番目はSORTOUT(OUTFILを実行しない出力)が出\n力され、スクリプトに定義されたOUTFILが順序どおり出力されます。\n●プロトタイプ\nint prosort_return_record(void *prosort_context,\nchar **output_buffer,\nunsigned int *output_buffer_length)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n入力データセットの場合、DCBオペランドが指定されていなければエラーが発生します。ただし、の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nすでにデータセットが存在している場合には、既存の情報を使用します。出力データセットの場\n合、DCBオペランドの指定がなければ、以下の順序で指定されます。\na. OUTRECで指定された情報をオーバーライドして使用します。\nb. RECORDで指定された情報をオーバーライドして使用します。\nc. INRECで指定された情報をオーバーライドして使用します。\nd. 入力データセットで指定された情報をオーバーライドして使用します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_setup_with_userexitについて説明してください。<|im_end|>\n<|im_start|>assistant\nすべての入出力パラメータがprosort_setup関数と同じです。ただし、func_e15、func_e32、func_e35、\nfunc_e61パラメータは例外です。\n●プロトタイプ\ntypedef int (*user_exit_func_t)(const void *rec_addr,\nconst int rec_len,\nint file_no,\nvoid **ret_rec_addr,\nint *ret_rec_len);\nint prosort_setup_with_userexit(const char *prosort_script,\ncallback_func_t *data_fetch_callback_funcs,\nint data_fetch_callback_func_cnt,\nuser_exit_func_t func_e15,\nuser_exit_func_t func_e32,\nuser_exit_func_t func_e35,\nuser_exit_func_t func_e61,\nvoid **ptr_prosort_context)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nディスク容量の確認とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSortをインストールするためには、プラットフォームごとに多少の差はありますが、少なくとも\n250MB以上のハードディスクが必要です。ハードディスク容量を確認する方法は多様ですが、UNIX\n系システムではdfコマンドで確認できます。\n参考\nハードウェア要件についての詳細は「1.3. システム要件」を参照してください。\n2.3. 環境変数の設定\nProSortをインストールする前に以下の環境変数をシステムに設定する必要があります。\n説明\n環境変数\nProSortがインストール、運用されるホーム・ディレクトリを設定します\n$PROSORT_HOME\nProSortのインストール時にサービスを区別するための識別子で、ユーザー\nが設定します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nMERGE(SUM)について説明してください。<|im_end|>\n<|im_start|>assistant\n付与されたキー情報を基に複数の入力ファイルをマージします。正常な処理結果を保証するには、\n入力ファイルのキーがソートされていなければなりません。フィールドおよびオプションはSORT\nと同様に定義されます。\n以下は、25~28バイトのZD、48~55バイトのZDをキーに定義し、昇順で入力ファイルをマージす\nる例です。\nMERGE FIELDS=(25,4,A,48,8,A)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_return_recordとは何ですか？<|im_end|>\n<|im_start|>assistant\n演算の結果をレコード1件ごとに取得する関数です。出力は、OUTFILにより複数出力されることが\nあるので、バッファーの配列として取得します。0番目はSORTOUT(OUTFILを実行しない出力)が出\n力され、スクリプトに定義されたOUTFILが順序どおり出力されます。\n●プロトタイプ\nint prosort_return_record(void *prosort_context,\nchar **output_buffer,\nunsigned int *output_buffer_length)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nALTSEQについて説明してください。<|im_end|>\n<|im_start|>assistant\nALTSEQ変換テーブルを使用して特定文字のソート順序の一部を変更します。ALTSEQ文法はソー\nトまたはマージ演算をするとき、ソート順序を調整する目的のみで使われ、実際に出力される文字\n列には影響を与えません。\nALTSEQ変換テーブルは以下の方法で使用できます。\n●SORT、MERGE、INCLUDE、OMITの場合\nAQ形式を使用します。既存のデータはALTSEQ文法によって変換され、演算に適用されます。こ\nれを利用してキーの順序を変更したりフィルタリングの条件を変えて適用できます。\n●INREC、OUTREC、OUTFILE OUTRECの場合\nTRAN=ALTSEQを使用して文字を変換します。既存のデータはALTSEQ文法によって変換され、\n次のプロセスに適用されます。\nALTSEQの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nユーザー出口関数の例について説明してください。<|im_end|>\n<|im_start|>assistant\n本節では、ユーザー出口関数を使用して関数を機能別に実行する例を記述します。\n全レコードの転送\n以下は、すべてのレコードをそのまま転送する関数の例です。\nstatic int\nexit_none(const void *rec_addr,\nconst int rec_len,\nint file_no,\nvoid **ret_rec_addr,\nint *ret_rec_len)\n{\nif (rec_addr == NULL)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nINCLUDE、OMIT、SAVEとは何ですか？<|im_end|>\n<|im_start|>assistant\n特定条件のレコードを除外するか含めます。SAVEオプションがある場合は、自分を除いたすべ\nてのOUTFILで除外されていない条件のレコードのみ含めます。\n以下は、8~13バイトの文字列フィールドがACCTNGのレコードはファイルGP1に出力し、8~13\nバイトの文字列フィールドがDVPMNTのレコードはファイルGP2に出力する例です。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nアンインストールとは何ですか？<|im_end|>\n<|im_start|>assistant\nオペレーティング・システムのコマンドを利用し、ProSortがインストールされているディレクトリ\nを削除します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nprosort_setup_with_userexitとは何ですか？<|im_end|>\n<|im_start|>assistant\nすべての入出力パラメータがprosort_setup関数と同じです。ただし、func_e15、func_e32、func_e35、\nfunc_e61パラメータは例外です。\n●プロトタイプ\ntypedef int (*user_exit_func_t)(const void *rec_addr,\nconst int rec_len,\nint file_no,\nvoid **ret_rec_addr,\nint *ret_rec_len);\nint prosort_setup_with_userexit(const char *prosort_script,\ncallback_func_t *data_fetch_callback_funcs,\nint data_fetch_callback_func_cnt,\nuser_exit_func_t func_e15,\nuser_exit_func_t func_e32,\nuser_exit_func_t func_e35,\nuser_exit_func_t func_e61,\nvoid **ptr_prosort_context)\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nマシーン別の設定の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nマシーン別に環境変数を設定する方法は以下のとおりです。\n●HP\nSHLIB_PATH環境変数に$PROSORT_HOME/libを追加します。\nSHLIB_PATH=$SHLIB_PATH:$PROSORT_HOME/lib\nexport SHLIB_PATH\n●IBM AIX\nLIBPATH環境変数に$PROSORT_HOME/libを追加します。\nLIBPATH=$LIBPATH:$PROSORT_HOME/lib\nexport LIBPATH\n●AIX\nスレッド・プログラムと共有メモリを使用する場合、以下の環境変数を追加します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nインストールの紹介とは何ですか？<|im_end|>\n<|im_start|>assistant\n本章では、ProSortのインストールに必要な構成要素とシステム要件について説明します。\n1.1. 概要\nProSortは大容量データのソート、マージ、変換、演算をサポートするツールです。操作の実行時に\nシステム・リソースと操作の負荷を減少し、アプリケーションの性能が向上します。特に、メイン\nフレームで運用していたユーザーのアプリケーション・システムを再設計・再開発することなくオー\nプン環境のUNIXシステムで使用できるため、リホスト・プロジェクトで優れた性能を発揮します。\nTmaxSoftのリホスト・ソリューションであるTmax OpenFrame®(以下OpenFrame)にAPIを提供して\n簡単に連携できます。また単一プロセスでソート、マージ演算を処理するので実行構造が簡単です。\n1.2. インストールの構成要素\n1.2.1. パッケージの構成\nProSortのパッケージの構成は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nOPTIONについて説明してください。<|im_end|>\n<|im_start|>assistant\nUSE_ALTERNATIVE_TP_TYPE、VLREFMTなどのオプションを設定します。\nOPTIONの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nディスク容量の確認の概念を教えてください。<|im_end|>\n<|im_start|>assistant\nProSortをインストールするためには、プラットフォームごとに多少の差はありますが、少なくとも\n250MB以上のハードディスクが必要です。ハードディスク容量を確認する方法は多様ですが、UNIX\n系システムではdfコマンドで確認できます。\n参考\nハードウェア要件についての詳細は「1.3. システム要件」を参照してください。\n2.3. 環境変数の設定\nProSortをインストールする前に以下の環境変数をシステムに設定する必要があります。\n説明\n環境変数\nProSortがインストール、運用されるホーム・ディレクトリを設定します\n$PROSORT_HOME\nProSortのインストール時にサービスを区別するための識別子で、ユーザー\nが設定します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nMIN, MAXについて説明してください。<|im_end|>\n<|im_start|>assistant\n2. MUL, DIV, MOD\n3. ADD, SUB\nフィールドを希望する形式(fo)と長さ(n)に変更します。詳細は「B.4.\nエディット・マスク・パターン」\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nRECFM、LRECL、BLKSIZEがDD文のDCBオペランドで指定されていれば、その情報を使用しまの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nす。それ以外の情報は無視します。\n2. 入力データセットの場合、DCBオペランドが指定されていなければエラーが発生します。ただし、\nすでにデータセットが存在している場合には、既存の情報を使用します。出力データセットの場\n合、DCBオペランドの指定がなければ、以下の順序で指定されます。\na. OUTRECで指定された情報をオーバーライドして使用します。\nb. RECORDで指定された情報をオーバーライドして使用します。\nc. INRECで指定された情報をオーバーライドして使用します。\nd. 入力データセットで指定された情報をオーバーライドして使用します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nINCLUDE、OMITとは何ですか？<|im_end|>\n<|im_start|>assistant\n特定条件のレコードのみを含むか、特定条件のレコードを除外します。\n説明\nオプション\n特定条件のレコードのみ含め、それ以外のレコードは除外します\nINCLUDE\n特定条件のレコードは除外し、残りのレコードのみ含めます\nOMIT\n特定条件は、関係式を論理演算子で組み合わせて論理式で構成します。関係式は比較、文字列比\n較、ビット演算、日付比較に区分できます。\n説明\n関係式\nフィールドとフィールド間、またはフィールドと定数間を比較します\n比較\n文字列を比較します\n文字列比較\n1つまたは2つの2進数をビット単位で演算します\nビット演算\n日付を比較します\n日付比較\n以下の関係式は、レコードp1の位置でm1の長さを持ち、f1の形式を持つフィールドと、p2の位置\nでm2の長さを持ち、f2の形式を持つフィールドを比較する条件を示します。\np1, m1, f1, {EQ|NE|GT|GE|LT|LE}, p2, m2, f2\n適用可能な演算子には、EQ、NE、GT、GE、LT、LEがあります。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nps_err_get_last_msg関数の引数と戻り値は？<|im_end|>\n<|im_start|>assistant\n/* 16バイト・レコード */\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\n環境変数の設定について説明してください。<|im_end|>\n<|im_start|>assistant\nProSortをインストールする前に以下の環境変数をシステムに設定する必要があります。\n説明\n環境変数\nProSortがインストール、運用されるホーム・ディレクトリを設定します\n$PROSORT_HOME\nProSortのインストール時にサービスを区別するための識別子で、ユーザー\nが設定します。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nSTOPAFTについて説明してください。<|im_end|>\n<|im_start|>assistant\n1、2項の手順を実行した後、レコードの数が指定した数を超えないまでレコードを入力すること\nができます。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nパッケージの構成とは何ですか？<|im_end|>\n<|im_start|>assistant\nProSortのパッケージの構成は以下のとおりです。\n●ProSort製品CD1枚\n●ProSort製品ライセンスおよび保証\n●ProSortガイド2冊\n– ProSortインストールガイド\n– ProSort実行ガイド\n1.2.2. ソフトウェアの配布\nProSortのソフトウェアの配布方式は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Installation-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nINREC, OUTRECの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nレコードの形式を再設定します。INRECはSORT、MERGE、COPY演算をする前に実行され、\nOUTRECはSORT、MERGE、COPY演算をした後に実行されます。\nINREC、OUTRECの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nheader_itemとは何ですか？<|im_end|>\n<|im_start|>assistant\nheader_itemの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nINREC, OUTRECとは何ですか？<|im_end|>\n<|im_start|>assistant\nレコードの形式を再設定します。INRECはSORT、MERGE、COPY演算をする前に実行され、\nOUTRECはSORT、MERGE、COPY演算をした後に実行されます。\nINREC、OUTRECの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nユーザー出口関数を含むSORT、COPY演算について説明してください。<|im_end|>\n<|im_start|>assistant\nProSortでユーザー出口関数と一緒にSORTおよびCOPY演算を実行する手順は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\ntrailer_itemの概念を教えてください。<|im_end|>\n<|im_start|>assistant\ntrailer_itemの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  },
+  {
+    "text": "<|im_start|>system\nあなたはProSort専門のテクニカルアシスタントです。ProSortに関する質問に正確に回答してください。<|im_end|>\n<|im_start|>user\nALTSEQの概念を教えてください。<|im_end|>\n<|im_start|>assistant\nALTSEQ変換テーブルを使用して特定文字のソート順序の一部を変更します。ALTSEQ文法はソー\nトまたはマージ演算をするとき、ソート順序を調整する目的のみで使われ、実際に出力される文字\n列には影響を与えません。\nALTSEQ変換テーブルは以下の方法で使用できます。\n●SORT、MERGE、INCLUDE、OMITの場合\nAQ形式を使用します。既存のデータはALTSEQ文法によって変換され、演算に適用されます。こ\nれを利用してキーの順序を変更したりフィルタリングの条件を変えて適用できます。\n●INREC、OUTREC、OUTFILE OUTRECの場合\nTRAN=ALTSEQを使用して文字を変換します。既存のデータはALTSEQ文法によって変換され、\n次のプロセスに適用されます。\nALTSEQの詳細は以下のとおりです。\n\n**製品/Product**: ProSort\n\n**出典/Source**: ProSort_2SP3_Execution-Guide_v2.1.3_jp.pdf<|im_end|>"
+  }
+]

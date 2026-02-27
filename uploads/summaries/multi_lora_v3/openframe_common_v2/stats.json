@@ -1,0 +1,17 @@
+{
+  "total": 4026,
+  "converted": 4026,
+  "skipped": 0,
+  "by_type": {},
+  "by_language": {
+    "ja": 3969,
+    "en": 57
+  },
+  "by_product": {},
+  "augmented": 0,
+  "train_count": 3220,
+  "eval_count": 806,
+  "product": "openframe_common_v2",
+  "train_file": "uploads\\summaries\\multi_lora_v3\\openframe_common_v2\\train.json",
+  "eval_file": "uploads\\summaries\\multi_lora_v3\\openframe_common_v2\\eval.json"
+}

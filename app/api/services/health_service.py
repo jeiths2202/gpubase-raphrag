@@ -20,13 +20,15 @@ class HealthService:
     """
     Service for monitoring system health
 
-    Checks health of:
-    - Neo4j database
-    - Qwen LLM (Text, GPU 4, port 12800)
+    Active services:
+    - Neo4j database (bolt://192.168.8.11:7687)
+    - Multi-LoRA DPO vLLM (Qwen2.5-72B + 15 DPO adapters, GPU 4-7, port 12810)
     - NeMo Embedding service (GPU 5, port 12801)
-    - CodeQwen (Code, GPU 7, port 12802)
-    - Vision LLM (GPU 6, port 12803)
-    - Learning LLM (GPU 7, port 12804)
+
+    Disabled services:
+    - Qwen LLM (port 12800) - ENABLE_QWEN_LLM=false
+    - CodeQwen (port 12802) - not deployed
+    - Vision LLM (port 12803) - not deployed
     """
 
     # Cache TTL in seconds
@@ -82,10 +84,13 @@ class HealthService:
             }
 
     async def check_llm(self) -> Dict[str, Any]:
-        """Check Qwen Text LLM health (GPU 4, port 12800)"""
+        """Check Qwen Text LLM health (port 12800) - disabled if ENABLE_QWEN_LLM=false"""
+        enable = os.getenv("ENABLE_QWEN_LLM", "false").lower()
+        if enable not in ("true", "1", "yes"):
+            return {"status": "disabled", "reason": "ENABLE_QWEN_LLM=false"}
+
         start = time.time()
         try:
-            # vLLM uses /health endpoint at root (not /v1/health)
             base_url = config.llm.api_url.replace("/v1/chat/completions", "")
             health_url = f"{base_url}/health"
 
@@ -138,81 +143,42 @@ class HealthService:
             }
 
     async def check_code_llm(self) -> Dict[str, Any]:
-        """Check CodeQwen Code LLM health (GPU 7, port 12802)"""
-        start = time.time()
-        try:
-            # vLLM uses /health endpoint at root (not /v1/health)
-            base_url = config.code_llm.api_url.replace("/v1/chat/completions", "")
-            health_url = f"{base_url}/health"
-
-            async with httpx.AsyncClient(timeout=2.0) as client:
-                response = await client.get(health_url)
-                response_time = int((time.time() - start) * 1000)
-
-                if response.status_code == 200:
-                    return {
-                        "status": "healthy",
-                        "response_time_ms": response_time,
-                        "gpu": "GPU 7"
-                    }
-                else:
-                    return {
-                        "status": "unhealthy",
-                        "error": f"HTTP {response.status_code}"
-                    }
-        except Exception as e:
-            return {
-                "status": "unhealthy",
-                "error": str(e)
-            }
+        """Check Code LLM health (port 12802) - not deployed"""
+        return {"status": "disabled", "reason": "Service not deployed"}
 
     async def check_vision_llm(self) -> Dict[str, Any]:
-        """Check Vision LLM health (GPU 6, port 12803)"""
-        start = time.time()
-        try:
-            # NIM uses /v1/health/ready endpoint
-            base_url = config.vision_llm.api_url.replace("/chat/completions", "")
-            health_url = f"{base_url}/health/ready"
-
-            async with httpx.AsyncClient(timeout=2.0) as client:
-                response = await client.get(health_url)
-                response_time = int((time.time() - start) * 1000)
-
-                if response.status_code == 200:
-                    return {
-                        "status": "healthy",
-                        "response_time_ms": response_time,
-                        "gpu": "GPU 6"
-                    }
-                else:
-                    return {
-                        "status": "unhealthy",
-                        "error": f"HTTP {response.status_code}"
-                    }
-        except Exception as e:
-            return {
-                "status": "unhealthy",
-                "error": str(e)
-            }
+        """Check Vision LLM health (port 12803) - not deployed"""
+        return {"status": "disabled", "reason": "Service not deployed"}
 
     async def check_learning_llm(self) -> Dict[str, Any]:
-        """Check Learning LLM health (GPU 7, port 12804)"""
+        """Check Multi-LoRA DPO vLLM health (Qwen2.5-72B + 15 DPO adapters, GPU 4-7, port 12810)"""
         start = time.time()
         try:
-            # vLLM uses /health endpoint at root (not /v1/health)
             base_url = config.learning_llm.api_url.replace("/v1/chat/completions", "")
             health_url = f"{base_url}/health"
 
-            async with httpx.AsyncClient(timeout=2.0) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 response = await client.get(health_url)
                 response_time = int((time.time() - start) * 1000)
 
                 if response.status_code == 200:
-                    return {
+                    result = {
                         "status": "healthy",
                         "response_time_ms": response_time,
-                        "gpu": "GPU 7"
+                        "gpu": "GPU 4-7 (4x A100-40GB)",
                     }
+                    # Fetch model/adapter info from vLLM
+                    try:
+                        models_resp = await client.get(f"{base_url}/v1/models")
+                        if models_resp.status_code == 200:
+                            models_data = models_resp.json()
+                            models = models_data.get("data", [])
+                            if models:
+                                result["model"] = models[0].get("id", "unknown")
+                                result["total_models"] = len(models)
+                    except Exception:
+                        pass
+                    return result
                 else:
                     return {
                         "status": "unhealthy",
@@ -252,31 +218,38 @@ class HealthService:
             self.check_learning_llm()
         )
 
+        # Only include active services (skip disabled ones)
         services = {
             "api": {
                 "status": "healthy",
                 "uptime_seconds": self.uptime_seconds
             },
             "neo4j": neo4j,
-            "qwen_llm": llm,
+            "multi_lora_dpo": learning_llm,
             "embedding": embedding,
-            "codeqwen": code_llm,
-            "vision_llm": vision_llm,
-            "learning_llm": learning_llm
         }
 
-        # Determine overall status (core services only: neo4j, llm, embedding)
-        # Vision and Learning LLM are optional services
-        core_services = [neo4j, llm, embedding]
-        external_services = [neo4j, llm, embedding, code_llm, vision_llm, learning_llm]
+        # Include non-disabled services
+        if llm.get("status") != "disabled":
+            services["qwen_llm"] = llm
+        if code_llm.get("status") != "disabled":
+            services["code_llm"] = code_llm
+        if vision_llm.get("status") != "disabled":
+            services["vision_llm"] = vision_llm
+
+        # Determine overall status from active external services only
+        active_external = [
+            s for key, s in services.items()
+            if key != "api" and s.get("status") != "disabled"
+        ]
         unhealthy_count = sum(
-            1 for s in external_services
+            1 for s in active_external
             if s.get("status") == "unhealthy"
         )
 
         if unhealthy_count == 0:
             overall_status = "healthy"
-        elif unhealthy_count < len(external_services):
+        elif unhealthy_count < len(active_external):
             overall_status = "degraded"
         else:
             overall_status = "unhealthy"

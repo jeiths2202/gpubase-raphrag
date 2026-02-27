@@ -1,14 +1,17 @@
 /**
  * MessageContent Component
- * Renders markdown content with custom styling for tables, code blocks, links, etc.
+ * Renders markdown content with ChatGPT-style formatting.
+ * Uses react-markdown with syntax highlighting via rehype-highlight.
  *
  * SECURITY: Links are sanitized to prevent XSS via javascript: URIs
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Copy } from 'lucide-react';
+import rehypeHighlight from 'rehype-highlight';
+import { Copy, Check } from 'lucide-react';
+import 'highlight.js/styles/github-dark.css';
 
 
 /**
@@ -47,110 +50,160 @@ const sanitizeUrl = (url: string | undefined): string => {
 
 interface MessageContentProps {
   content: string;
+  /** Use ChatGPT-style class names (default: true) */
+  useChatGPTStyle?: boolean;
 }
 
-export const MessageContent: React.FC<MessageContentProps> = ({ content }) => {
-  if (!content) return null;
+/**
+ * CopyButton - Code block copy button with feedback
+ */
+const CopyButton: React.FC<{ text: string }> = ({ text }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  };
 
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        // Custom table wrapper with horizontal scroll
-        table: ({ children }) => (
-          <div className="agent-table-wrapper">
-            <table className="agent-markdown-table">
-              {children}
-            </table>
-          </div>
-        ),
-        thead: ({ children }) => (
-          <thead className="agent-table-header">{children}</thead>
-        ),
-        tbody: ({ children }) => (
-          <tbody className="agent-table-body">{children}</tbody>
-        ),
-        tr: ({ children }) => (
-          <tr className="agent-table-row">{children}</tr>
-        ),
-        th: ({ children }) => (
-          <th className="agent-table-th">{children}</th>
-        ),
-        td: ({ children }) => (
-          <td className="agent-table-td">{children}</td>
-        ),
-        // Code blocks
-        code: ({ className, children }) => {
-          const match = /language-(\w+)/.exec(className || '');
-          const isInline = !match && !String(children).includes('\n');
-
-          if (isInline) {
-            return <code className="agent-inline-code">{children}</code>;
-          }
-
-          const language = match ? match[1] : 'text';
-          const codeString = String(children).replace(/\n$/, '');
-
-          return (
-            <pre className="agent-code-block">
-              <div className="agent-code-header">
-                <span className="agent-code-lang">{language}</span>
-                <button
-                  className="agent-code-copy"
-                  onClick={() => navigator.clipboard.writeText(codeString)}
-                  title="Copy code"
-                >
-                  <Copy size={12} />
-                </button>
-              </div>
-              <code>{codeString}</code>
-            </pre>
-          );
-        },
-        // Links - open in new tab with XSS protection
-        a: ({ href, children }) => (
-          <a
-            href={sanitizeUrl(href)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="agent-markdown-link"
-          >
-            {children}
-          </a>
-        ),
-        // Paragraphs
-        p: ({ children }) => <p className="agent-markdown-p">{children}</p>,
-        // Headers with hierarchy styling
-        h1: ({ children }) => <h1 className="agent-markdown-h1">{children}</h1>,
-        h2: ({ children }) => <h2 className="agent-markdown-h2">{children}</h2>,
-        h3: ({ children }) => <h3 className="agent-markdown-h3">{children}</h3>,
-        h4: ({ children }) => <h4 className="agent-markdown-h4">{children}</h4>,
-        // Lists
-        ul: ({ children }) => <ul className="agent-markdown-ul">{children}</ul>,
-        ol: ({ children }) => <ol className="agent-markdown-ol">{children}</ol>,
-        li: ({ children }) => <li className="agent-markdown-li">{children}</li>,
-        // Blockquote for important notes
-        blockquote: ({ children }) => (
-          <blockquote className="agent-markdown-blockquote">{children}</blockquote>
-        ),
-        // Horizontal rule for section dividers
-        hr: () => <hr className="agent-markdown-hr" />,
-        // Strong and emphasis
-        strong: ({ children }) => <strong className="agent-markdown-strong">{children}</strong>,
-        em: ({ children }) => <em className="agent-markdown-em">{children}</em>,
-        // Images - constrain size to prevent oversized display
-        img: ({ src, alt }) => (
-          <img
-            src={src}
-            alt={alt || 'Image'}
-            className="agent-markdown-img"
-            loading="lazy"
-          />
-        ),
-      }}
+    <button
+      className={`chatgpt-code-copy ${copied ? 'copied' : ''}`}
+      onClick={handleCopy}
+      title={copied ? 'Copied!' : 'Copy code'}
+      type="button"
     >
-      {content}
-    </ReactMarkdown>
+      {copied ? <Check size={14} /> : <Copy size={14} />}
+      <span>{copied ? 'Copied!' : 'Copy'}</span>
+    </button>
+  );
+};
+
+export const MessageContent: React.FC<MessageContentProps> = ({
+  content,
+  useChatGPTStyle = true,
+}) => {
+  const [enlargedImg, setEnlargedImg] = useState<string | null>(null);
+
+  if (!content) return null;
+
+  // CSS class prefix based on style mode
+  const prefix = useChatGPTStyle ? 'chatgpt' : 'agent';
+
+  return (
+    <div className={useChatGPTStyle ? 'chatgpt-markdown' : ''}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+        components={{
+          // Custom table wrapper with horizontal scroll
+          table: ({ children }) => (
+            <div className={`${prefix}-table-wrapper`}>
+              <table className={`${prefix}-markdown-table`}>
+                {children}
+              </table>
+            </div>
+          ),
+          thead: ({ children }) => (
+            <thead className={`${prefix}-table-header`}>{children}</thead>
+          ),
+          tbody: ({ children }) => (
+            <tbody className={`${prefix}-table-body`}>{children}</tbody>
+          ),
+          tr: ({ children }) => (
+            <tr className={`${prefix}-table-row`}>{children}</tr>
+          ),
+          th: ({ children }) => (
+            <th className={`${prefix}-table-th`}>{children}</th>
+          ),
+          td: ({ children }) => (
+            <td className={`${prefix}-table-td`}>{children}</td>
+          ),
+          // Code blocks with syntax highlighting
+          code: ({ className, children }) => {
+            const match = /language-(\w+)/.exec(className || '');
+            const isInline = !match && !String(children).includes('\n');
+
+            if (isInline) {
+              return <code className={`${prefix}-inline-code`}>{children}</code>;
+            }
+
+            const language = match ? match[1] : 'text';
+            const codeString = String(children).replace(/\n$/, '');
+
+            return (
+              <pre className={`${prefix}-code-block`}>
+                <div className={`${prefix}-code-header`}>
+                  <span className={`${prefix}-code-lang`}>{language}</span>
+                  <CopyButton text={codeString} />
+                </div>
+                <code className={className}>{children}</code>
+              </pre>
+            );
+          },
+          // Links - open in new tab with XSS protection
+          a: ({ href, children }) => (
+            <a
+              href={sanitizeUrl(href)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${prefix}-markdown-link`}
+            >
+              {children}
+            </a>
+          ),
+          // Paragraphs
+          p: ({ children }) => <p className={`${prefix}-markdown-p`}>{children}</p>,
+          // Headers with hierarchy styling
+          h1: ({ children }) => <h1 className={`${prefix}-markdown-h1`}>{children}</h1>,
+          h2: ({ children }) => <h2 className={`${prefix}-markdown-h2`}>{children}</h2>,
+          h3: ({ children }) => <h3 className={`${prefix}-markdown-h3`}>{children}</h3>,
+          h4: ({ children }) => <h4 className={`${prefix}-markdown-h4`}>{children}</h4>,
+          // Lists
+          ul: ({ children }) => <ul className={`${prefix}-markdown-ul`}>{children}</ul>,
+          ol: ({ children }) => <ol className={`${prefix}-markdown-ol`}>{children}</ol>,
+          li: ({ children }) => <li className={`${prefix}-markdown-li`}>{children}</li>,
+          // Blockquote for important notes
+          blockquote: ({ children }) => (
+            <blockquote className={`${prefix}-markdown-blockquote`}>{children}</blockquote>
+          ),
+          // Horizontal rule for section dividers
+          hr: () => <hr className={`${prefix}-markdown-hr`} />,
+          // Strong and emphasis
+          strong: ({ children }) => <strong className={`${prefix}-markdown-strong`}>{children}</strong>,
+          em: ({ children }) => <em className={`${prefix}-markdown-em`}>{children}</em>,
+          // Images - constrain size, click to enlarge
+          img: ({ src, alt }) => (
+            <img
+              src={src}
+              alt={alt || 'Image'}
+              className={`${prefix}-markdown-img`}
+              loading="lazy"
+              style={{ cursor: 'pointer' }}
+              onClick={() => src && setEnlargedImg(src)}
+            />
+          ),
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+      {enlargedImg && (
+        <div
+          className={`${prefix}-image-overlay`}
+          onClick={() => setEnlargedImg(null)}
+        >
+          <img
+            src={enlargedImg}
+            alt="Enlarged"
+            className={`${prefix}-image-enlarged`}
+          />
+        </div>
+      )}
+    </div>
   );
 };
 

@@ -95,6 +95,7 @@ class GenerateMindmapRequest(BaseModel):
     depth: int = Field(default=3, ge=1, le=5, description="탐색 깊이")
     focus_topic: Optional[str] = Field(None, description="집중할 주제 (선택)")
     language: str = Field(default="auto", description="언어 설정 (auto, ko, en, ja)")
+    product_id: Optional[str] = Field(None, description="제품 ID (Learning LLM 사용, 예: openframe_base, tibero7)")
 
 
 class ExpandNodeRequest(BaseModel):
@@ -102,12 +103,14 @@ class ExpandNodeRequest(BaseModel):
     node_id: str = Field(..., description="확장할 노드 ID")
     depth: int = Field(default=1, ge=1, le=3, description="확장 깊이")
     max_children: int = Field(default=10, ge=1, le=20, description="최대 하위 노드 수")
+    product_id: Optional[str] = Field(None, description="제품 ID (Learning LLM 사용)")
 
 
 class QueryNodeRequest(BaseModel):
     """노드 관련 RAG 질의 요청"""
     node_id: str = Field(..., description="질의할 노드 ID")
     question: Optional[str] = Field(None, description="추가 질문 (없으면 노드 요약)")
+    product_id: Optional[str] = Field(None, description="제품 ID (Learning LLM 사용)")
 
 
 # === Response Models ===

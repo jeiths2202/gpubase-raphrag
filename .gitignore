@@ -25,6 +25,23 @@ qlora_adapters/
 training_*.log
 *.log
 
+# Test
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Archives
+*.tgz
+*.tar.gz
+*.zip
+
+# Claude settings (tracked for team sharing)
+# .claude/
+
+# Temp files
+*.tmp
+*.temp
+
 # PDF manual directories (large files)
 MSP_Openframe*/
 VOS3_Openframe*/

@@ -1,0 +1,10 @@
+{
+  "product": "osc",
+  "version": "7.1",
+  "inherits": "osc/v7_0.json",
+  "capabilities": [
+    {"category": "cics", "pattern": "EXEC CICS ASSIGN", "support": "full", "notes": "7.1에서 전체 시스템 변수 지원 확장"},
+    {"category": "cics", "pattern": "EXEC CICS WEB", "support": "partial", "notes": "SEND/RECEIVE만 지원, CONVERSE 미지원"}
+  ],
+  "removed": []
+}

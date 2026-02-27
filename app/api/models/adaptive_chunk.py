@@ -62,6 +62,9 @@ class ChunkRelations:
     references: List[str] = field(default_factory=list)
     parent: Optional[str] = None
     children: List[str] = field(default_factory=list)
+    # M2: Overlap tracking with previous chunk
+    overlap_with_prev: Optional[str] = None  # Overlap text content
+    overlap_chars: int = 0                    # Number of overlap characters
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -69,7 +72,9 @@ class ChunkRelations:
             "next": self.next,
             "references": self.references,
             "parent": self.parent,
-            "children": self.children
+            "children": self.children,
+            "overlap_with_prev": self.overlap_with_prev,
+            "overlap_chars": self.overlap_chars
         }
 
     @classmethod
@@ -81,7 +86,9 @@ class ChunkRelations:
             next=data.get("next"),
             references=data.get("references", []),
             parent=data.get("parent"),
-            children=data.get("children", [])
+            children=data.get("children", []),
+            overlap_with_prev=data.get("overlap_with_prev"),
+            overlap_chars=data.get("overlap_chars", 0)
         )
 
 

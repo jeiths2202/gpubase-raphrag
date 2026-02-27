@@ -16,7 +16,10 @@
     "generate": "生成",
     "cancel": "キャンセル",
     "savedMindmaps": "保存されたマインドマップ",
-    "noMindmaps": "マインドマップがありません"
+    "noMindmaps": "マインドマップがありません",
+    "selectProduct": "製品を選択（任意）",
+    "productPlaceholder": "デフォルトLLM（製品特化なし）",
+    "learningLlmActive": "製品特化LLMを使用中"
   },
   "panel": {
     "importance": "重要度",

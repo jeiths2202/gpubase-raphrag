@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Search,
   Bell,
@@ -21,16 +21,24 @@ import {
 import { useTranslation } from '../hooks/useTranslation';
 import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
+import { useSupportStore } from '../store/supportStore';
 import { SettingsPopup } from './SettingsPopup';
 
 interface HeaderProps {
   showAISidebarToggle?: boolean;
 }
 
+const ROLE_HIERARCHY: Record<string, number> = {
+  admin: 5, leader: 4, senior: 3, user: 2, guest: 1,
+};
+
 export const Header: React.FC<HeaderProps> = ({ showAISidebarToggle = true }) => {
   const { t, language, setLanguage, languages } = useTranslation();
   const { user, logout } = useAuthStore();
   const { theme, setTheme, rightSidebarOpen, toggleRightSidebar } = useUIStore();
+  const waitingCount = useSupportStore((s) => s.waitingCount);
+  const navigate = useNavigate();
+  const isSeniorPlus = user ? (ROLE_HIERARCHY[user.role] ?? 1) >= 3 : false;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -112,10 +120,33 @@ export const Header: React.FC<HeaderProps> = ({ showAISidebarToggle = true }) =>
           </button>
         )}
 
-        {/* Notifications */}
-        <button className="btn btn-ghost header-icon-btn" aria-label="Notifications">
-          <Bell size={20} />
-        </button>
+        {/* Support Notifications (senior+ only) */}
+        {isSeniorPlus && (
+          <button
+            className="btn btn-ghost header-icon-btn"
+            aria-label="Support Dashboard"
+            onClick={() => {
+              if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+              }
+              navigate('/support-dashboard');
+            }}
+          >
+            <span className="header-support-badge-wrapper">
+              <Bell size={20} />
+              {waitingCount > 0 && (
+                <span className="header-support-badge">{waitingCount}</span>
+              )}
+            </span>
+          </button>
+        )}
+
+        {/* Notifications (non-senior users) */}
+        {!isSeniorPlus && (
+          <button className="btn btn-ghost header-icon-btn" aria-label="Notifications">
+            <Bell size={20} />
+          </button>
+        )}
 
         {/* Theme toggle */}
         <button

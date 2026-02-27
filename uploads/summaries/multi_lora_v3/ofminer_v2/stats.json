@@ -1,0 +1,17 @@
+{
+  "total": 255,
+  "converted": 255,
+  "skipped": 0,
+  "by_type": {},
+  "by_language": {
+    "ja": 234,
+    "en": 21
+  },
+  "by_product": {},
+  "augmented": 0,
+  "train_count": 204,
+  "eval_count": 51,
+  "product": "ofminer_v2",
+  "train_file": "uploads\\summaries\\multi_lora_v3\\ofminer_v2\\train.json",
+  "eval_file": "uploads\\summaries\\multi_lora_v3\\ofminer_v2\\eval.json"
+}

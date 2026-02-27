@@ -1,0 +1,604 @@
+{
+  "timestamp": "2026-02-23T05:37:55.265Z",
+  "total": 45,
+  "passed": 45,
+  "failed": 0,
+  "passRate": "100.0",
+  "hallucinations": [],
+  "noResults": [],
+  "errors": [],
+  "details": [
+    {
+      "id": "TC-001",
+      "keyword": "tjesmgr",
+      "product": "openframe_mvs",
+      "category": "command",
+      "responseTime": 44400,
+      "foundExpected": [],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "unclear"
+    },
+    {
+      "id": "TC-002",
+      "keyword": "tacfmgr",
+      "product": "openframe_mvs",
+      "category": "command",
+      "responseTime": 93854,
+      "foundExpected": [],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "unclear"
+    },
+    {
+      "id": "TC-003",
+      "keyword": "hidbmgr",
+      "product": "openframe_mvs",
+      "category": "command",
+      "responseTime": 68700,
+      "foundExpected": [
+        "hidbmgr",
+        "HiDB"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-004",
+      "keyword": "oscmgr",
+      "product": "openframe_mvs",
+      "category": "command",
+      "responseTime": 10930,
+      "foundExpected": [
+        "oscmgr",
+        "OSC"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-005",
+      "keyword": "osimgr",
+      "product": "openframe_mvs",
+      "category": "command",
+      "responseTime": 10955,
+      "foundExpected": [
+        "osimgr",
+        "OSI"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-006",
+      "keyword": "idcams",
+      "product": "openframe_mvs",
+      "category": "utility",
+      "responseTime": 10915,
+      "foundExpected": [
+        "idcams"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-007",
+      "keyword": "iebgener",
+      "product": "openframe_mvs",
+      "category": "utility",
+      "responseTime": 10925,
+      "foundExpected": [
+        "iebgener"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-008",
+      "keyword": "iebcopy",
+      "product": "openframe_mvs",
+      "category": "utility",
+      "responseTime": 10913,
+      "foundExpected": [
+        "iebcopy"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-009",
+      "keyword": "ABEND S0C7",
+      "product": "openframe_mvs",
+      "category": "error",
+      "responseTime": 10909,
+      "foundExpected": [
+        "S0C7"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-010",
+      "keyword": "ABEND S0C4",
+      "product": "openframe_mvs",
+      "category": "error",
+      "responseTime": 10890,
+      "foundExpected": [
+        "S0C4"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-011",
+      "keyword": "tjes.conf",
+      "product": "openframe_mvs",
+      "category": "config",
+      "responseTime": 10896,
+      "foundExpected": [
+        "tjes.conf",
+        "TJES"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-012",
+      "keyword": "osc.conf",
+      "product": "openframe_mvs",
+      "category": "config",
+      "responseTime": 10888,
+      "foundExpected": [
+        "osc.conf",
+        "OSC"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-013",
+      "keyword": "JCL",
+      "product": "openframe_mvs",
+      "category": "jcl",
+      "responseTime": 10912,
+      "foundExpected": [
+        "JCL"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-014",
+      "keyword": "VSAM KSDS",
+      "product": "openframe_mvs",
+      "category": "dataset",
+      "responseTime": 10919,
+      "foundExpected": [
+        "KSDS"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-015",
+      "keyword": "GDG",
+      "product": "openframe_mvs",
+      "category": "dataset",
+      "responseTime": 10903,
+      "foundExpected": [
+        "GDG"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-016",
+      "keyword": "tbboot",
+      "product": "tibero7",
+      "category": "command",
+      "responseTime": 10923,
+      "foundExpected": [
+        "tbboot"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-017",
+      "keyword": "tbdown",
+      "product": "tibero7",
+      "category": "command",
+      "responseTime": 10945,
+      "foundExpected": [
+        "tbdown"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-018",
+      "keyword": "tbsql",
+      "product": "tibero7",
+      "category": "command",
+      "responseTime": 10923,
+      "foundExpected": [
+        "tbsql",
+        "SQL"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-019",
+      "keyword": "tablespace",
+      "product": "tibero7",
+      "category": "config",
+      "responseTime": 10899,
+      "foundExpected": [
+        "tablespace"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-020",
+      "keyword": "TAC",
+      "product": "tibero7",
+      "category": "feature",
+      "responseTime": 10906,
+      "foundExpected": [
+        "TAC"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-021",
+      "keyword": "TAS",
+      "product": "tibero7",
+      "category": "feature",
+      "responseTime": 10921,
+      "foundExpected": [
+        "TAS"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-022",
+      "keyword": "TSC",
+      "product": "tibero7",
+      "category": "feature",
+      "responseTime": 10912,
+      "foundExpected": [
+        "TSC"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-023",
+      "keyword": "tbrmgr",
+      "product": "tibero7",
+      "category": "command",
+      "responseTime": 10913,
+      "foundExpected": [
+        "tbrmgr"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-024",
+      "keyword": "tmboot",
+      "product": "tmax",
+      "category": "command",
+      "responseTime": 10878,
+      "foundExpected": [
+        "tmboot",
+        "boot"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-025",
+      "keyword": "tmdown",
+      "product": "tmax",
+      "category": "command",
+      "responseTime": 10906,
+      "foundExpected": [
+        "tmdown"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-026",
+      "keyword": "tmadmin",
+      "product": "tmax",
+      "category": "command",
+      "responseTime": 10923,
+      "foundExpected": [
+        "tmadmin",
+        "admin"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-027",
+      "keyword": "tuxedo",
+      "product": "tmax",
+      "category": "feature",
+      "responseTime": 10910,
+      "foundExpected": [
+        "tuxedo"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-028",
+      "keyword": "UCS",
+      "product": "tmax",
+      "category": "config",
+      "responseTime": 10903,
+      "foundExpected": [
+        "UCS"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-029",
+      "keyword": "RQ",
+      "product": "tmax",
+      "category": "feature",
+      "responseTime": 10902,
+      "foundExpected": [
+        "RQ"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-030",
+      "keyword": "CLH",
+      "product": "tmax",
+      "category": "config",
+      "responseTime": 10906,
+      "foundExpected": [
+        "CLH"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-031",
+      "keyword": "ofasm",
+      "product": "ofasm",
+      "category": "product",
+      "responseTime": 10910,
+      "foundExpected": [
+        "OFASM"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-032",
+      "keyword": "asmmgr",
+      "product": "ofasm",
+      "category": "command",
+      "responseTime": 10906,
+      "foundExpected": [
+        "asmmgr"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-033",
+      "keyword": "MACRO",
+      "product": "ofasm",
+      "category": "feature",
+      "responseTime": 10901,
+      "foundExpected": [],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "unclear"
+    },
+    {
+      "id": "TC-034",
+      "keyword": "CSECT",
+      "product": "ofasm",
+      "category": "feature",
+      "responseTime": 10909,
+      "foundExpected": [
+        "CSECT"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-035",
+      "keyword": "DSECT",
+      "product": "ofasm",
+      "category": "feature",
+      "responseTime": 10918,
+      "foundExpected": [
+        "DSECT"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-036",
+      "keyword": "ofcobol",
+      "product": "ofcobol",
+      "category": "product",
+      "responseTime": 10887,
+      "foundExpected": [
+        "OFCOBOL",
+        "COBOL"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-037",
+      "keyword": "cobmgr",
+      "product": "ofcobol",
+      "category": "command",
+      "responseTime": 10896,
+      "foundExpected": [
+        "cobmgr"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-038",
+      "keyword": "COPYBOOK",
+      "product": "ofcobol",
+      "category": "feature",
+      "responseTime": 10894,
+      "foundExpected": [
+        "COPYBOOK",
+        "copy"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-039",
+      "keyword": "CICS",
+      "product": "ofcobol",
+      "category": "feature",
+      "responseTime": 10905,
+      "foundExpected": [
+        "CICS"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-040",
+      "keyword": "DB2",
+      "product": "ofcobol",
+      "category": "feature",
+      "responseTime": 10923,
+      "foundExpected": [
+        "DB2"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-041",
+      "keyword": "MSP",
+      "product": "msp_openframe",
+      "category": "product",
+      "responseTime": 10910,
+      "foundExpected": [
+        "MSP",
+        "OpenFrame"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-042",
+      "keyword": "VOS3",
+      "product": "vos3_openframe",
+      "category": "product",
+      "responseTime": 10924,
+      "foundExpected": [
+        "VOS3",
+        "OpenFrame"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-043",
+      "keyword": "XSP",
+      "product": "xsp_openframe",
+      "category": "product",
+      "responseTime": 10907,
+      "foundExpected": [
+        "XSP",
+        "OpenFrame"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-044",
+      "keyword": "ofboot",
+      "product": "openframe_mvs",
+      "category": "command",
+      "responseTime": 10899,
+      "foundExpected": [
+        "ofboot"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    },
+    {
+      "id": "TC-045",
+      "keyword": "ofdown",
+      "product": "openframe_mvs",
+      "category": "command",
+      "responseTime": 10914,
+      "foundExpected": [
+        "ofdown"
+      ],
+      "foundUnexpected": [],
+      "isNoResult": false,
+      "status": "passed"
+    }
+  ]
+}

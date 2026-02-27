@@ -147,6 +147,25 @@ try:
 except ImportError:
     LANGGRAPH_STORE_AVAILABLE = False
 
+# LangGraph checkpointer for conversation state (prefer SqliteSaver for persistence)
+try:
+    import sqlite3
+    from langgraph.checkpoint.sqlite import SqliteSaver
+    LANGGRAPH_SQLITE_CHECKPOINTER_AVAILABLE = True
+except ImportError:
+    SqliteSaver = None
+    LANGGRAPH_SQLITE_CHECKPOINTER_AVAILABLE = False
+    logger.info("LangGraph SqliteSaver not available, trying MemorySaver fallback")
+
+try:
+    from langgraph.checkpoint.memory import MemorySaver
+    LANGGRAPH_CHECKPOINTER_AVAILABLE = True
+except ImportError:
+    MemorySaver = None
+    LANGGRAPH_CHECKPOINTER_AVAILABLE = LANGGRAPH_SQLITE_CHECKPOINTER_AVAILABLE
+    if not LANGGRAPH_CHECKPOINTER_AVAILABLE:
+        logger.info("LangGraph checkpointer not available, conversation state disabled")
+
 try:
     from langchain_ollama import ChatOllama
     LANGCHAIN_OLLAMA_AVAILABLE = True
@@ -223,6 +242,7 @@ class DeepAgentAdapter(BaseAgent):
         self._composite_backend = None
         self._current_language = None  # 언어 변경 시 에이전트 재생성을 위한 추적
         self._base_system_prompt = system_prompt  # 원본 system_prompt 보존
+        self._checkpointer = None  # 대화 상태 체크포인터 (cross-thread persistence)
 
         if not DEEPAGENTS_AVAILABLE:
             logger.warning(f"[{self.name}] Deep Agents not available")
@@ -301,6 +321,31 @@ class DeepAgentAdapter(BaseAgent):
         except Exception as e:
             logger.warning(f"[{self.name}] Failed to get LangGraph store: {e}")
             return None
+
+    def _create_checkpointer(self):
+        """
+        대화 상태 체크포인터 생성.
+        SqliteSaver 우선 (영속), MemorySaver fallback (비영속).
+        """
+        if LANGGRAPH_SQLITE_CHECKPOINTER_AVAILABLE:
+            try:
+                db_dir = Path(os.getenv("CHECKPOINT_DB_DIR", "data/checkpoints"))
+                db_dir.mkdir(parents=True, exist_ok=True)
+                db_path = str(db_dir / "deep_agent.db")
+                conn = sqlite3.connect(db_path, check_same_thread=False)
+                saver = SqliteSaver(conn)
+                saver.setup()
+                logger.info(f"[{self.name}] Using SqliteSaver (persistent) at {db_path}")
+                return saver
+            except Exception as e:
+                logger.warning(f"[{self.name}] SqliteSaver failed ({e}), falling back to MemorySaver")
+
+        if LANGGRAPH_CHECKPOINTER_AVAILABLE and MemorySaver is not None:
+            logger.info(f"[{self.name}] Using MemorySaver (non-persistent)")
+            return MemorySaver()
+
+        logger.warning(f"[{self.name}] No checkpointer available")
+        return None
 
     def _get_composite_backend_factory(self):
         """
@@ -387,6 +432,14 @@ class DeepAgentAdapter(BaseAgent):
             agent_kwargs["store"] = store
             logger.info(f"[{self.name}] LangGraph store configured for persistence")
 
+        # Add checkpointer for conversation state persistence
+        if (LANGGRAPH_SQLITE_CHECKPOINTER_AVAILABLE or LANGGRAPH_CHECKPOINTER_AVAILABLE) and self._enable_long_term_memory:
+            if self._checkpointer is None:
+                self._checkpointer = self._create_checkpointer()
+            if self._checkpointer is not None:
+                agent_kwargs["checkpointer"] = self._checkpointer
+                logger.info(f"[{self.name}] Checkpointer configured for conversation state")
+
         # Add CompositeBackend factory for file system routing
         backend_factory = self._get_composite_backend_factory()
         if backend_factory is not None:
@@ -470,10 +523,17 @@ User Query: {task}"""
                 messages.append(HumanMessage(content=task))
 
             # Deep Agent 실행 (recursion_limit으로 무한 루프 방지)
+            # thread_id로 사용자/세션별 대화 상태 분리
+            thread_id = self._user_id or "default"
+            if context.metadata and context.metadata.get("session_id"):
+                thread_id = f"{thread_id}_{context.metadata['session_id']}"
             result = await asyncio.wait_for(
                 agent.ainvoke(
                     {"messages": messages},
-                    config={"recursion_limit": 25}  # 최대 25번 반복
+                    config={
+                        "configurable": {"thread_id": thread_id},
+                        "recursion_limit": 25,
+                    }
                 ),
                 timeout=300.0  # 5분 타임아웃
             )
@@ -548,6 +608,78 @@ User Query: {task}"""
                 error=str(e)
             )
 
+    async def _fetch_images_for_sources(
+        self,
+        sources: List[Dict[str, Any]],
+        max_images: int = 5,
+        max_image_size_kb: int = 500
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch figure images related to source documents.
+
+        Args:
+            sources: List of source dictionaries with doc_id and page_number
+            max_images: Maximum number of images to return
+            max_image_size_kb: Maximum size per image in KB
+
+        Returns:
+            List of image data dicts with base64 encoded data
+        """
+        if not sources:
+            return []
+
+        try:
+            import asyncpg
+            from ...services.figure_image_service import get_figure_image_service
+            from ...infrastructure.postgres.image_embedding_repository import PostgresImageEmbeddingRepository
+            from ...core.config import api_settings
+
+            # Create connection DSN
+            dsn = f"postgresql://{api_settings.POSTGRES_USER}:{api_settings.POSTGRES_PASSWORD}@{api_settings.POSTGRES_HOST}:{api_settings.POSTGRES_PORT}/{api_settings.POSTGRES_DB}"
+
+            # Create repository with pool
+            repo = await PostgresImageEmbeddingRepository.create_with_pool(
+                dsn,
+                min_size=1,
+                max_size=3
+            )
+
+            try:
+                # Create fresh figure image service (don't use singleton to ensure new code is used)
+                from ...services.figure_image_service import FigureImageService, reset_figure_image_service
+                reset_figure_image_service()  # Reset singleton to pick up any code changes
+                figure_service = FigureImageService(repo)
+
+                # Fetch images for sources
+                images = await figure_service.get_images_for_sources(
+                    sources=sources,
+                    include_data=True
+                )
+
+                # Filter by size and limit count
+                filtered_images = []
+                for img in images:
+                    if len(filtered_images) >= max_images:
+                        break
+                    if img.get("data"):
+                        # Check base64 data size (rough estimate: base64 is ~33% larger)
+                        data_size_kb = len(img["data"]) / 1024 / 1.33
+                        if data_size_kb <= max_image_size_kb:
+                            filtered_images.append(img)
+                        else:
+                            logger.warning(f"Image {img.get('id')} exceeds size limit ({data_size_kb:.0f}KB > {max_image_size_kb}KB)")
+
+                logger.info(f"[{self.name}] Retrieved {len(filtered_images)} images for {len(sources)} sources")
+                return filtered_images
+
+            finally:
+                # Close the repository pool
+                await repo.close()
+
+        except Exception as e:
+            logger.error(f"[{self.name}] Failed to fetch images: {e}")
+            return []
+
     async def stream(
         self,
         task: str,
@@ -576,6 +708,18 @@ User Query: {task}"""
                     chunk_type="sources",
                     sources=sources[:10]  # Limit to 10 sources
                 )
+
+                # Fetch and yield related images
+                try:
+                    images = await self._fetch_images_for_sources(sources[:10])
+                    if images:
+                        logger.info(f"[{self.name}] Yielding {len(images)} images from Deep Agent")
+                        yield AgentStreamChunk(
+                            chunk_type="images",
+                            images=images
+                        )
+                except Exception as img_err:
+                    logger.warning(f"[{self.name}] Failed to fetch images: {img_err}")
 
             yield AgentStreamChunk(
                 chunk_type="done",

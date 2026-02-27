@@ -10,6 +10,7 @@ from .bash import BashTool, SafeBashTool
 from .image_search import ImageSearchTool
 from .adaptive_search import AdaptiveSearchTool
 from .unified_search import UnifiedSearchTool
+from .comprehensive_search import ComprehensiveSearchTool
 
 __all__ = [
     "BaseTool",
@@ -24,6 +25,7 @@ __all__ = [
     "ImageSearchTool",
     "AdaptiveSearchTool",
     "UnifiedSearchTool",
+    "ComprehensiveSearchTool",
 ]
 
 
@@ -39,6 +41,7 @@ def get_all_tools():
         ImageSearchTool(),
         AdaptiveSearchTool(),
         UnifiedSearchTool(),
+        ComprehensiveSearchTool(),
     ]
 
 
@@ -55,6 +58,7 @@ def get_tool_by_name(name: str) -> BaseTool:
         "image_search": ImageSearchTool,
         "adaptive_search": AdaptiveSearchTool,
         "unified_search": UnifiedSearchTool,
+        "comprehensive_search": ComprehensiveSearchTool,
     }
 
     tool_class = tools.get(name)

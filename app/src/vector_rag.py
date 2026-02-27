@@ -168,6 +168,9 @@ class VectorRAG:
                 node.id AS chunk_id,
                 node.content AS content,
                 node.index AS chunk_index,
+                node.chunk_type AS chunk_type,
+                node.page_start AS page_start,
+                node.page_end AS page_end,
                 score,
                 d.id AS doc_id,
                 d.filename AS doc_filename,
@@ -194,6 +197,9 @@ class VectorRAG:
                 node.id AS chunk_id,
                 node.content AS content,
                 node.index AS chunk_index,
+                node.chunk_type AS chunk_type,
+                node.page_start AS page_start,
+                node.page_end AS page_end,
                 score,
                 d.id AS doc_id,
                 d.filename AS doc_filename,
@@ -204,11 +210,23 @@ class VectorRAG:
 
         results = self.graph.query(cypher_query, params)
 
+        # Debug: Log scores from Neo4j
+        if results:
+            print(f"[VectorRAG.search_similar] Neo4j returned {len(results)} results")
+            for i, r in enumerate(results[:3]):  # Log first 3
+                score = r.get("score", "MISSING")
+                chunk_id = r.get("chunk_id", "?")[:20]
+                doc_filename = (r.get("doc_filename", "") or "")[:30]
+                print(f"  [{i}] chunk={chunk_id}, score={score}, doc={doc_filename}")
+
         return [
             {
                 "chunk_id": r["chunk_id"],
                 "content": r["content"],
                 "chunk_index": r["chunk_index"],
+                "chunk_type": r.get("chunk_type", "TEXT_CHUNK"),  # TEXT_CHUNK, TABLE_CHUNK, IMAGE_CHUNK
+                "page_start": r.get("page_start"),
+                "page_end": r.get("page_end"),
                 "score": r["score"],
                 "doc_id": r["doc_id"],
                 "doc_filename": r.get("doc_filename", "").split("/")[-1] if r.get("doc_filename") else "",

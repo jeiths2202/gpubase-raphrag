@@ -1,0 +1,9 @@
+{
+  "product": "aim_msp",
+  "version": "7.1",
+  "inherits": "aim_msp/v7_0.json",
+  "capabilities": [
+    {"category": "ims", "pattern": "EXEC DLI CHKP", "support": "full", "notes": "7.1에서 체크포인트 지원 추가"}
+  ],
+  "removed": []
+}

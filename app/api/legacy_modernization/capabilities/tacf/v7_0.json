@@ -1,0 +1,20 @@
+{
+  "product": "tacf",
+  "version": "7.0",
+  "inherits": null,
+  "capabilities": [
+    {"category": "tacf_auth", "pattern": "RACROUTE", "support": "full", "notes": null},
+    {"category": "tacf_auth", "pattern": "ICHEINTY", "support": "full", "notes": null},
+    {"category": "tacf_auth", "pattern": "RACF DEFINE", "support": "full", "notes": null},
+    {"category": "tacf_auth", "pattern": "RACF PERMIT", "support": "full", "notes": null},
+    {"category": "tacf_auth", "pattern": "RACF LISTUSER", "support": "full", "notes": null},
+    {"category": "tacf_auth", "pattern": "RACF LISTGRP", "support": "full", "notes": null},
+    {"category": "tacf_auth", "pattern": "RACF CONNECT", "support": "full", "notes": null},
+    {"category": "tacf_auth", "pattern": "RACF ALTUSER", "support": "full", "notes": null},
+    {"category": "tacf_resource", "pattern": "DATASET", "support": "full", "notes": "데이터셋 리소스 보호"},
+    {"category": "tacf_resource", "pattern": "GENERAL", "support": "full", "notes": "일반 리소스 프로필"},
+    {"category": "tacf_resource", "pattern": "TSOAUTH", "support": "partial", "notes": "기본 TSO 인가만 지원"},
+    {"category": "tacf_util", "pattern": "tacfmgr", "support": "full", "notes": "TACF 관리 유틸리티"}
+  ],
+  "removed": []
+}

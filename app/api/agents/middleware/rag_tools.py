@@ -68,6 +68,16 @@ class UnifiedSearchInput(BaseModel):
     )
 
 
+class ComprehensiveSearchInput(BaseModel):
+    """Comprehensive search input schema for Claude Code style responses"""
+    query: str = Field(description="검색 키워드 (예: IDCAMS, tjesmgr)")
+    include_stats: bool = Field(default=True, description="통계 포함 여부")
+    include_distribution: bool = Field(default=True, description="문서 분포 포함")
+    include_samples: bool = Field(default=True, description="샘플 콘텐츠 포함")
+    max_documents: int = Field(default=10, description="최대 문서 수")
+    max_samples: int = Field(default=5, description="최대 샘플 수")
+
+
 class RAGToolsProvider:
     """
     RAG 도구 제공자
@@ -185,6 +195,11 @@ class RAGToolsProvider:
         adaptive_tool = self._create_adaptive_search_tool()
         if adaptive_tool:
             tools.append(adaptive_tool)
+
+        # Comprehensive Search Tool (for "What is X?" queries)
+        comprehensive_tool = self._create_comprehensive_search_tool()
+        if comprehensive_tool:
+            tools.append(comprehensive_tool)
 
         return tools
 
@@ -581,6 +596,102 @@ class RAGToolsProvider:
             args_schema=AdaptiveSearchInput,
         )
 
+    def _create_comprehensive_search_tool(self):
+        """
+        Comprehensive Search LangChain tool 생성
+
+        Claude Code 스타일의 종합 검색 결과 반환:
+        - 통계 (Chunk 수, Entity 수)
+        - 문서 분포 (Top 10)
+        - 샘플 콘텐츠
+        - 자동 생성 결론
+        """
+        from ..tools.comprehensive_search import ComprehensiveSearchTool
+        from ..types import AgentContext
+
+        comp_tool = ComprehensiveSearchTool()
+        provider = self
+
+        def comprehensive_search(
+            query: str,
+            include_stats: bool = True,
+            include_distribution: bool = True,
+            include_samples: bool = True,
+            max_documents: int = 10,
+            max_samples: int = 5,
+        ) -> str:
+            """
+            Comprehensive search for detailed keyword information.
+
+            Use this tool when user asks "Tell me about X", "What is X?",
+            "X에 대해 알려줘", "Xについて教えて".
+
+            Returns statistics, document distribution, and content samples
+            in a structured markdown format.
+            """
+            context = provider._context or AgentContext()
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            comp_tool.execute(
+                                context,
+                                query=query,
+                                include_stats=include_stats,
+                                include_distribution=include_distribution,
+                                include_samples=include_samples,
+                                max_documents=max_documents,
+                                max_samples=max_samples,
+                            )
+                        )
+                        result = future.result()
+                else:
+                    result = loop.run_until_complete(
+                        comp_tool.execute(
+                            context,
+                            query=query,
+                            include_stats=include_stats,
+                            include_distribution=include_distribution,
+                            include_samples=include_samples,
+                            max_documents=max_documents,
+                            max_samples=max_samples,
+                        )
+                    )
+            except RuntimeError:
+                result = asyncio.run(
+                    comp_tool.execute(
+                        context,
+                        query=query,
+                        include_stats=include_stats,
+                        include_distribution=include_distribution,
+                        include_samples=include_samples,
+                        max_documents=max_documents,
+                        max_samples=max_samples,
+                    )
+                )
+
+            if result.get("success"):
+                return result.get("output", "No results found")
+            else:
+                return f"Comprehensive search error: {result.get('error', 'Unknown error')}"
+
+        return StructuredTool.from_function(
+            func=comprehensive_search,
+            name="comprehensive_search",
+            description=(
+                "Comprehensive search for detailed keyword information. "
+                "Use when user asks 'Tell me about X', 'What is X?', "
+                "'X에 대해 알려줘', 'Xについて教えて'. "
+                "Returns statistics, document distribution, and content samples "
+                "in a structured markdown format like Claude Code."
+            ),
+            args_schema=ComprehensiveSearchInput,
+        )
+
 
 def create_vector_search_tool(rag_service=None) -> Optional[Any]:
     """Vector search tool 팩토리 함수"""
@@ -610,6 +721,12 @@ def create_unified_search_tool(rag_service=None) -> Optional[Any]:
     """Unified search tool 팩토리 함수 (Neo4j + PostgreSQL RRF 융합)"""
     provider = RAGToolsProvider(rag_service)
     return provider._create_unified_search_tool()
+
+
+def create_comprehensive_search_tool() -> Optional[Any]:
+    """Comprehensive search tool 팩토리 함수 (Claude Code 스타일 종합 검색)"""
+    provider = RAGToolsProvider()
+    return provider._create_comprehensive_search_tool()
 
 
 def get_rag_tools(

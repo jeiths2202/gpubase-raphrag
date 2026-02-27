@@ -202,6 +202,7 @@ class BlockType(str, Enum):
     SOURCE_CITATION = "source_citation"
     NO_ANSWER = "no_answer"
     PRODUCT_VERSION = "product_version"  # Multi-product platform comparison block
+    WARNING = "warning"  # Warning block for partial support (RAG accuracy)
 
 
 class AnswerBlock(BaseModel):
@@ -294,6 +295,8 @@ class StructuredAnswer(BaseModel):
                 lines.append(f"📎 {block.doc_name or 'Unknown'}{page_info}{score_info}")
             elif block.type == BlockType.NO_ANSWER:
                 lines.append(block.content or "No relevant information found.")
+            elif block.type == BlockType.WARNING:
+                lines.append(f"\n{block.content or ''}\n")
             elif block.type == BlockType.PRODUCT_VERSION:
                 # Format product version block as markdown
                 name = block.name or "Unknown"
@@ -409,7 +412,9 @@ class AgentStreamChunk(BaseModel):
         # Structured answer chunk types for ChatGPT-like output
         "answer_start",       # 구조화 답변 시작 (total_blocks, confidence 포함)
         "answer_block",       # 개별 블록 스트리밍
-        "answer_complete"     # 답변 완료
+        "answer_complete",    # 답변 완료
+        # Figure image display
+        "images"              # 관련 이미지 데이터 (base64 인코딩된 실제 이미지)
     ]
     content: Optional[str] = None
     tool_name: Optional[str] = None
@@ -438,6 +443,10 @@ class AgentStreamChunk(BaseModel):
     answer_block: Optional[AnswerBlock] = None  # 개별 답변 블록
     block_index: Optional[int] = None           # 현재 블록 인덱스
     total_blocks: Optional[int] = None          # 전체 블록 수
+
+    # Figure images field (for "images" chunk type)
+    # Contains base64-encoded images with figure references
+    images: Optional[List[Dict[str, Any]]] = None
 
 
 # Permission Models

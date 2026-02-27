@@ -9,10 +9,12 @@ import type { AttachedFile } from '../types';
 import type { AgentType } from '../../../api/agent.api';
 import {
   BINARY_EXTENSIONS,
+  ARCHIVE_EXTENSIONS,
   IMAGE_EXTENSIONS,
   SUPPORTED_EXTENSIONS,
   MAX_TEXT_FILE_SIZE,
   MAX_BINARY_FILE_SIZE,
+  MAX_ARCHIVE_FILE_SIZE,
   MAX_IMAGE_FILE_SIZE,
 } from '../constants';
 
@@ -41,6 +43,7 @@ export interface UseFileAttachmentReturn {
   handleRemoveFile: (fileName: string) => void;
   handleClearAllFiles: () => void;
   getFileContext: () => string | undefined;
+  getZipFile: () => File | undefined;
   clearFileError: () => void;
 
   // Sync function (call when selectedAgent changes)
@@ -111,9 +114,10 @@ export function useFileAttachment(
 
       // Check size based on file type
       const isBinaryFile = BINARY_EXTENSIONS.includes(ext);
+      const isArchiveFile = ARCHIVE_EXTENSIONS.includes(ext);
       const isImageFile = IMAGE_EXTENSIONS.includes(ext);
-      const maxSize = isImageFile ? MAX_IMAGE_FILE_SIZE : (isBinaryFile ? MAX_BINARY_FILE_SIZE : MAX_TEXT_FILE_SIZE);
-      const maxSizeLabel = isImageFile ? '5MB' : (isBinaryFile ? '2MB' : '500KB');
+      const maxSize = isArchiveFile ? MAX_ARCHIVE_FILE_SIZE : (isImageFile ? MAX_IMAGE_FILE_SIZE : (isBinaryFile ? MAX_BINARY_FILE_SIZE : MAX_TEXT_FILE_SIZE));
+      const maxSizeLabel = isArchiveFile ? '10MB' : (isImageFile ? '5MB' : (isBinaryFile ? '2MB' : '500KB'));
 
       if (file.size > maxSize) {
         updateAgentFileError(currentAgent, `File too large: ${file.name} (max ${maxSizeLabel})`);
@@ -128,6 +132,18 @@ export function useFileAttachment(
 
       // Handle file based on type
       try {
+        // ZIP files: store raw File object (sent as-is to JCL diagnosis endpoint)
+        if (isArchiveFile) {
+          const updatedFiles = [...agentFileStatesRef.current[currentAgent].attachedFiles, {
+            name: file.name,
+            content: `[ZIP: ${file.name}, ${(file.size / 1024).toFixed(1)}KB]`,
+            size: file.size,
+            rawFile: file,
+          }];
+          updateAgentFiles(currentAgent, updatedFiles);
+          continue;
+        }
+
         let content: string;
 
         if (isImageFile) {
@@ -230,6 +246,14 @@ export function useFileAttachment(
     return files.map(f => `=== File: ${f.name} ===\n${f.content}\n`).join('\n');
   }, [selectedAgentRef]);
 
+  // Get attached ZIP file (for JCL diagnosis routing)
+  const getZipFile = useCallback((): File | undefined => {
+    const currentAgent = selectedAgentRef.current;
+    const files = agentFileStatesRef.current[currentAgent].attachedFiles;
+    const zipFile = files.find(f => f.rawFile && f.name.toLowerCase().endsWith('.zip'));
+    return zipFile?.rawFile;
+  }, [selectedAgentRef]);
+
   // Clear file error
   const clearFileError = useCallback(() => {
     const currentAgent = selectedAgentRef.current;
@@ -246,6 +270,7 @@ export function useFileAttachment(
     handleRemoveFile,
     handleClearAllFiles,
     getFileContext,
+    getZipFile,
     clearFileError,
     syncAgentFileState,
   };

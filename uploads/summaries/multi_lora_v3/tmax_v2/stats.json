@@ -1,0 +1,17 @@
+{
+  "total": 5982,
+  "converted": 5982,
+  "skipped": 0,
+  "by_type": {},
+  "by_language": {
+    "en": 756,
+    "ja": 5226
+  },
+  "by_product": {},
+  "augmented": 0,
+  "train_count": 4785,
+  "eval_count": 1197,
+  "product": "tmax_v2",
+  "train_file": "uploads\\summaries\\multi_lora_v3\\tmax_v2\\train.json",
+  "eval_file": "uploads\\summaries\\multi_lora_v3\\tmax_v2\\eval.json"
+}

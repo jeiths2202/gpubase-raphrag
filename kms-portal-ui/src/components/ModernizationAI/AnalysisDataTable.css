@@ -1,0 +1,337 @@
+/**
+ * AnalysisDataTable Styles
+ */
+
+.adt-container {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+}
+
+/* Toolbar */
+.adt-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: var(--color-bg-tertiary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.adt-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.adt-toolbar-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.adt-toolbar-count {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.adt-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.adt-filter-select {
+  padding: 0.375rem 0.625rem;
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.75rem;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  outline: none;
+}
+
+.adt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+}
+
+.adt-btn:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+}
+
+.adt-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.adt-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+.adt-btn-ghost:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+}
+
+.adt-btn-danger {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--color-error, #ef4444);
+}
+
+.adt-btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.adt-spinner {
+  animation: adt-spin 0.8s linear infinite;
+}
+
+@keyframes adt-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Table */
+.adt-table-wrapper {
+  overflow-x: auto;
+}
+
+.adt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.adt-table thead {
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.adt-table th {
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.adt-th-sortable {
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.adt-th-sortable:hover {
+  color: var(--color-primary);
+}
+
+.adt-th-num {
+  text-align: right !important;
+}
+
+.adt-th-check {
+  width: 40px;
+  text-align: center !important;
+}
+
+.adt-th-action {
+  width: 40px;
+}
+
+/* Rows */
+.adt-row {
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.adt-row:hover {
+  background: var(--color-bg-hover);
+}
+
+.adt-row-selected {
+  background: var(--color-primary-light, rgba(99, 102, 241, 0.06));
+}
+
+.adt-table td {
+  padding: 0.625rem 0.75rem;
+  vertical-align: middle;
+}
+
+.adt-td-check {
+  text-align: center;
+}
+
+.adt-td-filename {
+  max-width: 220px;
+}
+
+.adt-filename {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.adt-type-badge {
+  display: inline-flex;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  background: var(--color-primary-light, rgba(99, 102, 241, 0.1));
+  color: var(--color-primary);
+}
+
+.adt-td-product {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adt-td-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.adt-td-date {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.adt-td-action {
+  text-align: center;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.adt-row:hover .adt-td-action {
+  opacity: 1;
+}
+
+/* Risk badges */
+.adt-risk-badge {
+  display: inline-flex;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.adt-risk-high {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.adt-risk-medium {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.adt-risk-low {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.adt-risk-none {
+  color: var(--color-text-muted);
+}
+
+/* Empty state */
+.adt-empty {
+  text-align: center;
+  padding: 2rem !important;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* Pagination */
+.adt-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 1rem;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-tertiary);
+}
+
+.adt-pagination-info {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.adt-pagination-btns {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.adt-page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 0.375rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.adt-page-btn:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+  border-color: var(--color-primary);
+}
+
+.adt-page-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.adt-page-active {
+  background: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: white !important;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .adt-table {
+    font-size: 0.75rem;
+  }
+
+  .adt-table th,
+  .adt-table td {
+    padding: 0.5rem;
+  }
+}

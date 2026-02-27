@@ -47,7 +47,7 @@ class PostgresImageEmbeddingRepository(ImageEmbeddingRepository):
         self._pool = pool
 
     @classmethod
-    async def create(
+    async def create_with_pool(
         cls,
         dsn: str,
         *,

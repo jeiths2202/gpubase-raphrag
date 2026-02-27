@@ -3,13 +3,22 @@ Hybrid Search Service
 
 Combines BM25 keyword search with semantic embedding search
 for optimal multilingual (Korean/Japanese/English) performance.
+
+v1.1: Weights are now configurable via HybridScoreConfig
 """
 import re
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 import numpy as np
 
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer, util
+
+# v1.1: Import HybridScoreConfig for configurable weights
+try:
+    from app.api.services.scoring_config_service import get_hybrid_config
+    HYBRID_CONFIG_AVAILABLE = True
+except ImportError:
+    HYBRID_CONFIG_AVAILABLE = False
 
 
 class HybridSearchService:
@@ -18,24 +27,47 @@ class HybridSearchService:
 
     Features:
     - Character N-grams for CJK languages (Korean, Japanese)
-    - Balanced BM25 (30%) + Semantic (70%) scoring
+    - Balanced BM25 (30%) + Semantic (70%) scoring (configurable via HybridScoreConfig)
     - Multilingual support with paraphrase-multilingual-MiniLM-L12-v2
     """
 
     def __init__(
         self,
-        bm25_weight: float = 0.3,
-        semantic_weight: float = 0.7,
+        bm25_weight: Optional[float] = None,  # v1.1: None = load from config
+        semantic_weight: Optional[float] = None,  # v1.1: None = load from config
         semantic_model_name: str = 'paraphrase-multilingual-MiniLM-L12-v2'
     ):
         """
         Initialize hybrid search service.
 
         Args:
-            bm25_weight: Weight for BM25 score (default: 0.3)
-            semantic_weight: Weight for semantic score (default: 0.7)
+            bm25_weight: Weight for BM25 score (None = load from HybridScoreConfig, default: 0.3)
+            semantic_weight: Weight for semantic score (None = load from HybridScoreConfig, default: 0.7)
             semantic_model_name: Sentence transformer model name
         """
+        # v1.1: Load weights from HybridScoreConfig if not explicitly provided
+        if bm25_weight is None or semantic_weight is None:
+            if HYBRID_CONFIG_AVAILABLE:
+                try:
+                    hybrid_cfg = get_hybrid_config()
+                    if bm25_weight is None:
+                        bm25_weight = hybrid_cfg.bm25_weight
+                    if semantic_weight is None:
+                        semantic_weight = hybrid_cfg.semantic_weight
+                    self._normalization_epsilon = hybrid_cfg.normalization_epsilon
+                except Exception:
+                    # Fallback to defaults
+                    bm25_weight = bm25_weight if bm25_weight is not None else 0.3
+                    semantic_weight = semantic_weight if semantic_weight is not None else 0.7
+                    self._normalization_epsilon = 1e-8
+            else:
+                # Legacy defaults
+                bm25_weight = bm25_weight if bm25_weight is not None else 0.3
+                semantic_weight = semantic_weight if semantic_weight is not None else 0.7
+                self._normalization_epsilon = 1e-8
+        else:
+            self._normalization_epsilon = 1e-8
+
         self.bm25_weight = bm25_weight
         self.semantic_weight = semantic_weight
         self.semantic_model = SentenceTransformer(semantic_model_name)
@@ -130,7 +162,8 @@ class HybridSearchService:
         # BM25 keyword scores
         tokenized_query = self._tokenize(query)
         bm25_scores = self.bm25.get_scores(tokenized_query)
-        bm25_scores_norm = bm25_scores / (bm25_scores.max() + 1e-8)
+        # v1.1: Use configurable epsilon for normalization
+        bm25_scores_norm = bm25_scores / (bm25_scores.max() + self._normalization_epsilon)
 
         # Semantic similarity scores
         query_embedding = self.semantic_model.encode(query, convert_to_tensor=True)
