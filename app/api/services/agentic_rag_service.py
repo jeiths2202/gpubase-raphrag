@@ -1428,8 +1428,12 @@ class AgenticRAGService:
         if len(combined_context) > self._MAX_LLM_CONTEXT_CHARS:
             combined_context = combined_context[: self._MAX_LLM_CONTEXT_CHARS] + "..."
 
+        subjects_str = ' と '.join(subjects)
         comparison_prompt = (
-            f"以下の情報を基に、{' と '.join(subjects)} を比較してください。\n\n"
+            f"以下の参考資料を基に、{subjects_str} を比較してください。\n"
+            f"各セクション【...】の情報は、そのセクション名の製品/項目に関する情報です。\n"
+            f"比較表では、各列にそれぞれの製品の情報のみを記載してください。\n"
+            f"一方にしかない情報は「該当なし」と記載してください。\n\n"
             f"質問: {request.message}\n\n{combined_context}"
         )
 

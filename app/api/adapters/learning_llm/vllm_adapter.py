@@ -488,6 +488,7 @@ class VLLMAdapter:
             "検索結果が複数ある場合は、以下のようなmarkdown table形式で整理して回答してください：\n"
             "| No | 項目 | 内容 |\n"
             "|----|------|------|\n"
+            "比較質問の場合は各列にそれぞれの製品情報のみを記載し、同じ内容を複数列に繰り返さないでください。\n"
             "重要: 回答にソース情報や出典を含めないでください。ソース情報はシステムが別途提供します。\n"
             "存在しない文書名やセクション番号を捏造しないでください。"
         )
@@ -537,6 +538,17 @@ class VLLMAdapter:
             if history_lines:
                 return '\n'.join(search_lines + ['---'] + history_lines)
             return '\n'.join(search_lines)
+
+        # 【subject】 セクション検出 → 各セクション均等配分
+        if '【' in context and '】' in context:
+            sections = re.split(r'(?=【)', context)
+            sections = [s for s in sections if s.strip()]
+            lines_per_section = max(8, 20 // max(len(sections), 1))
+            all_lines = []
+            for sec in sections:
+                sec_lines = self._filter_metadata_lines(sec)
+                all_lines.extend(sec_lines[:lines_per_section])
+            return '\n'.join(all_lines)
 
         # 구분자 없으면 기존 동작 (backward compatible)
         lines = self._filter_metadata_lines(context)
