@@ -1163,6 +1163,7 @@ async def stream_auto_rag(
     yield {"type": "agent_mode", "mode": "auto_rag", "auto_detected": False}
 
     # 3. Agent loop (CLI: agent_loop — max 25 iterations)
+    was_truncated = False
     for iteration in range(MAX_AGENT_ITERATIONS):
         # Proactive budget check (CLI: calculate_max_tokens)
         messages = _progressive_compress(messages, AUTO_RAG_TOOLS, context_limit)
@@ -1182,6 +1183,7 @@ async def stream_auto_rag(
         display_content = ""
         tool_calls_data: dict[int, dict] = {}
         think_filter = ThinkFilter()
+        truncated_by_length = False
 
         try:
             async with aiohttp.ClientSession() as session:
@@ -1267,6 +1269,7 @@ async def stream_auto_rag(
                             # finish_reason 감지 (length = max_tokens 도달로 잘림)
                             fr = chunk["choices"][0].get("finish_reason")
                             if fr == "length":
+                                truncated_by_length = True
                                 logger.warning(
                                     f"[Auto-RAG] finish_reason=length at iteration {iteration+1} "
                                     f"(output truncated, effective_max_tokens={effective_max_tokens})"
@@ -1300,6 +1303,15 @@ async def stream_auto_rag(
         if remaining_display:
             display_content += remaining_display
             yield {"type": "llm_token", "token": remaining_display}
+
+        # finish_reason=length 경고를 프론트엔드에 전송
+        if truncated_by_length:
+            was_truncated = True
+            yield {
+                "type": "warning",
+                "code": "response_truncated",
+                "message": "応答がモデルの最大トークン数に達したため、途中で切れている可能性があります。",
+            }
 
         # Build tool calls list with fallback ID (CLI와 동일)
         tool_calls_list = []
@@ -1380,6 +1392,7 @@ async def stream_auto_rag(
         "type": "done",
         "processing_time_ms": elapsed,
         "iterations": iteration + 1,
+        "truncated": was_truncated,
     }
 
 

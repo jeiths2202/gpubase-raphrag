@@ -831,6 +831,17 @@ export const AgenticRAGPage: React.FC = () => {
               );
               break;
 
+            case 'warning':
+              if ((event as Record<string, unknown>).code === 'response_truncated') {
+                currentContent += '\n\n---\n⚠️ ' + ((event as Record<string, unknown>).message as string);
+                setMessages(prev =>
+                  prev.map(m =>
+                    m.id === assistantId ? { ...m, content: currentContent } : m
+                  )
+                );
+              }
+              break;
+
             case 'done':
               currentQueryType = (event as Record<string, unknown>).query_type as string || currentQueryType;
               setMessages(prev =>
