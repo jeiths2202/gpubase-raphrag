@@ -1274,6 +1274,13 @@ async def stream_auto_rag(
                                     f"[Auto-RAG] finish_reason=length at iteration {iteration+1} "
                                     f"(output truncated, effective_max_tokens={effective_max_tokens})"
                                 )
+                            elif fr is not None:
+                                logger.info(
+                                    f"[Auto-RAG] finish_reason={fr} at iteration {iteration+1}, "
+                                    f"accumulated={len(accumulated_content)} chars, "
+                                    f"display={len(display_content)} chars, "
+                                    f"max_tokens={effective_max_tokens}"
+                                )
 
                             # Tool calls (streamed incrementally — CLI와 동일)
                             tc_list = delta.get("tool_calls")
