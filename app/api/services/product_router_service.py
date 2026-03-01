@@ -170,6 +170,8 @@ PRODUCT_CONFIGS: List[ProductConfig] = [
             "pds", "pdse", "sequential", "partitioned",
             # 유틸리티
             "dsmigin", "dsmigout", "listcat", "define",
+            # OpenFrame C API 라이브러리
+            "tdcb", "tcfh", "dbio", "dsio", "tdbconn",
         ],
         patterns=[
             r"base\s+system",

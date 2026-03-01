@@ -455,6 +455,13 @@ _PRODUCT_KEYWORDS: Dict[str, str] = {
     "tibero": "tibero",
     "openframe": "",
     "of7": "",
+    # OpenFrame Base C API 라이브러리
+    "tdcb": "base",
+    "tcfh": "base",
+    "dsalc": "base",
+    "dsio": "base",
+    "dbio": "base",
+    "tdbconn": "base",
 }
 
 _TOPIC_KEYWORDS: List[str] = [
@@ -877,6 +884,17 @@ async def dispatch_tool(name: str, args: dict) -> str:
         return f"Unknown tool: {name}"
 
 
+def _all_webdoc_scores_low(lines: list, threshold: float = 0.3) -> bool:
+    """web doc 결과 라인에서 score 추출하여 모두 threshold 미만인지 확인."""
+    import re
+    scores = []
+    for line in lines:
+        m = re.search(r'\(score:\s*([\d.]+)\)', line)
+        if m:
+            scores.append(float(m.group(1)))
+    return bool(scores) and all(s < threshold for s in scores)
+
+
 async def _tool_search_webdoc(client: OfcodeClient, query: str, product: str = "") -> str:
     """search_webdoc: 5-step 통합 검색 (CLI tool_search_webdoc과 동일)."""
     lines: list[str] = []
@@ -935,7 +953,16 @@ async def _tool_search_webdoc(client: OfcodeClient, query: str, product: str = "
 
     if not lines:
         return f"No results found for '{query}' in web docs or of7 source code."
-    return "\n".join(lines)
+
+    result_text = "\n".join(lines)
+    # 저스코어 경고: web doc 결과의 score가 모두 낮으면 LLM에 재검색 유도
+    if _all_webdoc_scores_low(lines, threshold=0.3):
+        result_text += (
+            "\n\n⚠️ WARNING: All web doc results have very low relevance scores (< 0.3). "
+            "The product parameter may be incorrect. Try searching with a different product "
+            "(e.g., 'base', 'batch', '') or use search_of7/get_header_api for C API details."
+        )
+    return result_text
 
 
 # =============================================================================
