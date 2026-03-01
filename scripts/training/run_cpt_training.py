@@ -69,13 +69,30 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================
-# Qwen2.5 Special Token IDs
+# Special Token Resolution
 # ============================================
-# CPT에서는 <|endoftext|>를 문서 구분자/패딩에 사용해야 합니다.
-# <|im_start|>/<|im_end|>는 SFT ChatML 전용으로 보존합니다.
-QWEN_ENDOFTEXT_ID = 151643   # <|endoftext|> - 일반 텍스트 종료
-QWEN_IM_START_ID = 151644    # <|im_start|>  - ChatML 턴 시작 (CPT에서 미사용)
-QWEN_IM_END_ID = 151645      # <|im_end|>    - ChatML 턴 종료 (CPT에서 미사용)
+# Qwen2.5: eos=<|im_end|>(151645), <|endoftext|>(151643) は別 special token
+# Qwen3:   eos=<|endoftext|> に変更 (im_end→endoftext)
+# → ハードコーディングではなく tokenizer から動的に取得する
+QWEN_ENDOFTEXT_TOKEN = "<|endoftext|>"
+# Fallback IDs (Qwen2.5 default — tokenizer 取得失敗時のみ使用)
+_FALLBACK_ENDOFTEXT_ID = 151643
+
+
+def resolve_endoftext_id(tokenizer) -> int:
+    """tokenizer から <|endoftext|> の token ID を動的に取得する。
+    Qwen2.5 と Qwen3 の両方に対応。"""
+    try:
+        token_id = tokenizer.convert_tokens_to_ids(QWEN_ENDOFTEXT_TOKEN)
+        if token_id is not None and token_id != tokenizer.unk_token_id:
+            return token_id
+    except Exception:
+        pass
+    logger.warning(
+        f"<|endoftext|> token ID をtokenizerから取得できませんでした。"
+        f"Fallback ID={_FALLBACK_ENDOFTEXT_ID} を使用します。"
+    )
+    return _FALLBACK_ENDOFTEXT_ID
 
 
 # ============================================
@@ -155,6 +172,10 @@ class TextPackingDataset(TorchDataset):
     4. 각 청크 = 하나의 학습 예제 (input_ids = labels)
     """
 
+    # 지원하는 문서 구분자 포맷
+    SEPARATOR_ENDOFTEXT = "<|endoftext|>"
+    SEPARATOR_EQUALS = "=" * 80
+
     def __init__(
         self,
         text_path: Path,
@@ -163,9 +184,8 @@ class TextPackingDataset(TorchDataset):
         eos_token_id: Optional[int] = None,
     ):
         self.max_seq_length = max_seq_length
-        # CPT에서는 <|endoftext|>를 문서 구분자로 사용
-        # <|im_end|>(eos_token)는 SFT ChatML 전용으로 보존
-        self.eos_id = eos_token_id or QWEN_ENDOFTEXT_ID
+        # tokenizer에서 동적으로 <|endoftext|> ID 취득
+        self.eos_id = eos_token_id or resolve_endoftext_id(tokenizer)
 
         logger.info(f"텍스트 로드 및 토크나이즈: {text_path}")
         logger.info(f"문서 구분자 토큰: id={self.eos_id} "
@@ -173,15 +193,17 @@ class TextPackingDataset(TorchDataset):
         text = text_path.read_text(encoding="utf-8")
         logger.info(f"텍스트 크기: {len(text):,} chars")
 
-        # 문서 구분자에서 <|endoftext|> 토큰 삽입
-        # corpus.txt는 "====...====" 구분자로 문서를 구분
-        doc_separator = "=" * 80
-        documents = text.split(doc_separator)
+        # 자동 포맷 감지: <|endoftext|> vs "====...====" 구분자
+        separator = self._detect_separator(text)
+        logger.info(f"감지된 구분자 포맷: {repr(separator[:30])}")
+        documents = text.split(separator)
 
         all_tokens = []
+        skipped = 0
         for doc in documents:
             doc = doc.strip()
             if not doc or doc.startswith("Document:"):
+                skipped += 1
                 continue
             # 청크 단위로 토크나이즈 (메모리 절약)
             chunk_size = 50000
@@ -191,6 +213,8 @@ class TextPackingDataset(TorchDataset):
                 all_tokens.extend(tokens)
             # 문서 간 <|endoftext|> 삽입 (문서 경계 표시)
             all_tokens.append(self.eos_id)
+
+        logger.info(f"문서 수: {len(documents) - skipped}, 스킵: {skipped}")
 
         total_tokens = len(all_tokens)
         logger.info(f"총 토큰 수: {total_tokens:,}")
@@ -213,6 +237,26 @@ class TextPackingDataset(TorchDataset):
             f"학습 예제 수: {len(self.examples)} "
             f"(각 {max_seq_length} tokens)"
         )
+
+    @staticmethod
+    def _detect_separator(text: str) -> str:
+        """corpus 파일의 문서 구분자를 자동 감지한다.
+
+        - dataset_pipeline 출력: <|endoftext|> (줄 단위)
+        - 레거시 mixed_corpus.txt: "=" * 80
+        """
+        # 처음 10,000자에서 각 구분자 출현 횟수 확인
+        sample = text[:10000]
+        eot_count = sample.count(TextPackingDataset.SEPARATOR_ENDOFTEXT)
+        eq_count = sample.count(TextPackingDataset.SEPARATOR_EQUALS)
+
+        if eot_count > eq_count:
+            return TextPackingDataset.SEPARATOR_ENDOFTEXT
+        elif eq_count > 0:
+            return TextPackingDataset.SEPARATOR_EQUALS
+        # fallback: 줄바꿈 2개로 분할 (단일 문서 취급 방지)
+        logger.warning("알려진 구분자를 감지하지 못했습니다. <|endoftext|>를 기본값으로 사용합니다.")
+        return TextPackingDataset.SEPARATOR_ENDOFTEXT
 
     def __len__(self):
         return len(self.examples)
@@ -325,15 +369,24 @@ def setup_model_and_tokenizer(config: CPTConfig):
         trust_remote_code=True,
     )
 
-    # pad_token을 <|endoftext|>로 설정 (eos_token인 <|im_end|>와 분리)
-    # CPT는 plain text이므로 ChatML 특수토큰 역할을 보존해야 함
-    tokenizer.pad_token = tokenizer.decode([QWEN_ENDOFTEXT_ID])
-    tokenizer.pad_token_id = QWEN_ENDOFTEXT_ID
-    model.config.pad_token_id = QWEN_ENDOFTEXT_ID
+    # pad_token を <|endoftext|> に設定
+    # Qwen2.5: eos=<|im_end|>, pad=<|endoftext|> (別トークン)
+    # Qwen3:   eos=<|endoftext|>, pad も同じ → PAD≠EOS の警告に注意
+    endoftext_id = resolve_endoftext_id(tokenizer)
+    tokenizer.pad_token = QWEN_ENDOFTEXT_TOKEN
+    tokenizer.pad_token_id = endoftext_id
+    model.config.pad_token_id = endoftext_id
+
+    # Qwen3 では eos_token == pad_token になる → 学習時 EOS マスク問題に注意
+    if tokenizer.eos_token_id == endoftext_id:
+        logger.warning(
+            "eos_token_id == pad_token_id (Qwen3 パターン). "
+            "EOS トークンが PAD マスクで無視される可能性があります。"
+        )
 
     logger.info(f"Special tokens: eos={tokenizer.eos_token}({tokenizer.eos_token_id}), "
                 f"pad={tokenizer.pad_token}({tokenizer.pad_token_id}), "
-                f"endoftext_id={QWEN_ENDOFTEXT_ID}")
+                f"endoftext_id={endoftext_id}")
 
     # kbit training 준비
     model = prepare_model_for_kbit_training(

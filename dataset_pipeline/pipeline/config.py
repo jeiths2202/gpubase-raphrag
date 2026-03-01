@@ -62,6 +62,15 @@ class GenerationConfig:
     max_token_length: int = 4096
     train_eval_split: float = 0.80
 
+    # CPT dedup (方案A: 保守的)
+    cpt_dedup_exact: bool = True
+    cpt_dedup_boilerplate: bool = True
+    cpt_boilerplate_sections: List[str] = field(default_factory=lambda: [
+        "색인",       # Korean index pages
+        "索引",       # Japanese index pages
+        "注意事項",   # Notices / disclaimers
+    ])
+
     # Languages
     primary_language: str = "ja"
     secondary_languages: List[str] = field(default_factory=lambda: ["ko", "en"])

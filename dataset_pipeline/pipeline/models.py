@@ -274,6 +274,8 @@ class DatasetStats:
 
     cpt_chunks: int = 0
     cpt_total_tokens: int = 0
+    cpt_dedup_exact_removed: int = 0
+    cpt_dedup_boilerplate_removed: int = 0
 
     dedup_removed: int = 0
     scaling_added: int = 0

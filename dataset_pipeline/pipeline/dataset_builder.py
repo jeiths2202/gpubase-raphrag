@@ -1,6 +1,7 @@
 """Dataset builder: orchestrates the full pipeline and writes output."""
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import random
@@ -77,12 +78,21 @@ class DatasetBuilder:
             self._quality_pipeline(sft_records, dpo_records)
         )
 
-        # Phase 6: Generate CPT
+        # Phase 6: Generate CPT + Dedup
         logger.info("\n[Phase 6/7] Generating CPT corpus...")
         cpt_chunks: List[CPTChunk] = []
+        cpt_exact_removed = 0
+        cpt_boilerplate_removed = 0
         if self.config.include_cpt:
             cpt_chunks = self._generate_cpt(sections)
-            logger.info("CPT: %d chunks", len(cpt_chunks))
+            logger.info("CPT raw: %d chunks", len(cpt_chunks))
+            cpt_chunks, cpt_exact_removed, cpt_boilerplate_removed = (
+                self._deduplicate_cpt(cpt_chunks)
+            )
+            logger.info(
+                "CPT after dedup: %d chunks (exact=%d, boilerplate=%d removed)",
+                len(cpt_chunks), cpt_exact_removed, cpt_boilerplate_removed,
+            )
 
         # Phase 7: Validate + Write
         logger.info("\n[Phase 7/7] Validating and writing output...")
@@ -94,6 +104,8 @@ class DatasetBuilder:
         )
         stats.validation_passed = passed
         stats.validation_errors = errors
+        stats.cpt_dedup_exact_removed = cpt_exact_removed
+        stats.cpt_dedup_boilerplate_removed = cpt_boilerplate_removed
         stats.knowledge_items_total = total_items
         stats.knowledge_by_product = {
             p: pk.total_items for p, pk in knowledge.items()
@@ -225,6 +237,48 @@ class DatasetBuilder:
                     )
 
         return chunks
+
+    # -- CPT Dedup (方案A: 保守的) --
+
+    def _deduplicate_cpt(
+        self, chunks: List[CPTChunk]
+    ) -> Tuple[List[CPTChunk], int, int]:
+        """Remove exact duplicates and low-value boilerplate from CPT chunks.
+
+        Returns:
+            (deduplicated_chunks, exact_removed_count, boilerplate_removed_count)
+        """
+        exact_removed = 0
+        boilerplate_removed = 0
+
+        # Step 1: 完全重複除去 (MD5 hash)
+        if self.config.cpt_dedup_exact:
+            seen: Dict[str, int] = {}
+            unique: List[CPTChunk] = []
+            for chunk in chunks:
+                h = hashlib.md5(chunk.text.encode("utf-8")).hexdigest()
+                if h not in seen:
+                    seen[h] = 1
+                    unique.append(chunk)
+                else:
+                    exact_removed += 1
+            chunks = unique
+
+        # Step 2: LOW価値ボイラープレート除去
+        if self.config.cpt_dedup_boilerplate:
+            patterns = self.config.cpt_boilerplate_sections
+            filtered: List[CPTChunk] = []
+            for chunk in chunks:
+                first_line = chunk.text.split("\n", 1)[0]
+                # ヘッダ形式 "# Product — Manual — Section" のセクション部分を検査
+                section = first_line.rsplit(" — ", 1)[-1] if " — " in first_line else ""
+                if section in patterns:
+                    boilerplate_removed += 1
+                    continue
+                filtered.append(chunk)
+            chunks = filtered
+
+        return chunks, exact_removed, boilerplate_removed
 
     # -- Output Writers --
 
