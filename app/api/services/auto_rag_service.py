@@ -756,6 +756,52 @@ async def auto_rag_context(query: str, product: str = "") -> str:
 # Tool Dispatch (CLI와 동일 포맷)
 # =============================================================================
 
+def _parse_sources_from_tool_result(result: str) -> list[dict]:
+    """search_webdoc 결과 텍스트에서 소스 참조 정보를 추출."""
+    sources: list[dict] = []
+    seen: set[str] = set()
+
+    # Manual RAG: [doc_name p.page] (score: X.XX)
+    for m in re.finditer(
+        r'\[([^\]]+?)\s+p\.(\S+)\]\s*\(score:\s*([\d.]+)\)', result
+    ):
+        doc_name, page, score = m.group(1), m.group(2), float(m.group(3))
+        key = f"rag:{doc_name}:{page}"
+        if key not in seen:
+            seen.add(key)
+            sources.append({
+                "doc_name": doc_name,
+                "source_page": page,
+                "score": score,
+                "domain": "manual_rag",
+            })
+
+    # Web docs: [product] title (score: X.XX) + URL: url
+    lines = result.split("\n")
+    for i, line in enumerate(lines):
+        wm = re.match(r'\[([^\]]+)\]\s+(.+?)\s+\(score:\s*([\d.]+)\)', line)
+        if wm:
+            product, title, score = wm.group(1), wm.group(2), float(wm.group(3))
+            url = ""
+            if i + 1 < len(lines):
+                um = re.match(r'\s+URL:\s+(https?://\S+)', lines[i + 1])
+                if um:
+                    url = um.group(1)
+            key = f"web:{url or title}"
+            if key not in seen:
+                seen.add(key)
+                sources.append({
+                    "doc_name": title,
+                    "source_page": url,
+                    "score": score,
+                    "domain": "web_doc",
+                    "product": product,
+                    "url": url,
+                })
+
+    return sources
+
+
 def _format_rag_entries(entries: list) -> list[str]:
     lines = []
     for r in entries:
@@ -1164,6 +1210,7 @@ async def stream_auto_rag(
 
     # 3. Agent loop (CLI: agent_loop — max 25 iterations)
     was_truncated = False
+    collected_sources: list[dict] = []  # search_webdoc 결과에서 추출한 소스 참조
     for iteration in range(MAX_AGENT_ITERATIONS):
         # Proactive budget check (CLI: calculate_max_tokens)
         messages = _progressive_compress(messages, AUTO_RAG_TOOLS, context_limit)
@@ -1375,6 +1422,11 @@ async def stream_auto_rag(
             if len(result) > MAX_TOOL_RESULT_LEN:
                 result = result[:MAX_TOOL_RESULT_LEN] + "\n... (truncated)"
 
+            # Collect source references from search_webdoc results
+            if tool_name == "search_webdoc":
+                parsed = _parse_sources_from_tool_result(result)
+                collected_sources.extend(parsed)
+
             # Send preview to frontend
             yield {
                 "type": "tool_result",
@@ -1383,15 +1435,55 @@ async def stream_auto_rag(
                 "iteration": iteration + 1,
             }
 
-            # Add tool result to messages (CLI와 동일)
+            # Grounding reminder: 검색 결과를 LLM이 무시하지 않도록 강제
+            grounded_result = result
+            if tool_name == "search_webdoc" and "No results found" not in result:
+                grounded_result = (
+                    "⚠️ IMPORTANT: Base your response ONLY on the search results below. "
+                    "Do NOT use your own knowledge for product names, abbreviations, or definitions. "
+                    "If these results define a term differently from your training data, "
+                    "USE THE DEFINITION FROM THESE RESULTS.\n\n"
+                    f"{result}\n\n"
+                    "⚠️ REMINDER: Cite the source document (doc name, page, URL) in your response. "
+                    "Any claim not supported by the above results must be omitted."
+                )
+
+            # Add tool result to messages
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc["id"],
-                "content": result,
+                "content": grounded_result,
             })
 
         if iteration == MAX_AGENT_ITERATIONS - 1:
             logger.warning(f"Reached max iterations ({MAX_AGENT_ITERATIONS})")
+
+    # Emit sources event (소스 참조 표시 — agentic_rag_service와 동일 형식)
+    if collected_sources:
+        # 스코어 높은 순으로 정렬, 상위 5개
+        collected_sources.sort(key=lambda s: s.get("score", 0), reverse=True)
+        yield {
+            "type": "sources",
+            "results": collected_sources[:5],
+            "total": len(collected_sources),
+        }
+
+    # Append source citations to response (응답 끝에 참조 문서 표시)
+    if collected_sources:
+        citation_lines = ["\n\n---", "**参照文書:**"]
+        for i, src in enumerate(collected_sources[:5], 1):
+            name = src.get("doc_name", "")
+            page = src.get("source_page", "")
+            score = src.get("score", 0)
+            url = src.get("url", "")
+            if url:
+                citation_lines.append(f"{i}. [{name}]({url}) (score: {score:.2f})")
+            elif page:
+                citation_lines.append(f"{i}. {name} p.{page} (score: {score:.2f})")
+            else:
+                citation_lines.append(f"{i}. {name} (score: {score:.2f})")
+        citation_text = "\n".join(citation_lines)
+        yield {"type": "llm_token", "token": citation_text}
 
     # Done
     elapsed = int((time.time() - start) * 1000)
