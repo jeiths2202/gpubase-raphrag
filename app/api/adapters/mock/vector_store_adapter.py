@@ -153,7 +153,7 @@ class MockVectorStoreAdapter(VectorStorePort):
     ) -> List[str]:
         """Upsert documents"""
         if collection not in self._collections:
-            await self.create_collection(collection, len(documents[0].embedding) if documents else 4096)
+            await self.create_collection(collection, len(documents[0].embedding) if documents else 1024)
 
         return await self.insert(collection, documents)
 

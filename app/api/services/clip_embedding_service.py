@@ -418,7 +418,7 @@ class HybridImageEmbedding:
     Hybrid embedding combining VLM description embeddings and CLIP embeddings.
 
     Provides:
-    - Semantic search via VLM description (4096-dim NIM)
+    - Semantic search via VLM description (1024-dim BGE-M3)
     - Visual similarity via CLIP (512-dim)
     - Weighted combination for hybrid search
     """

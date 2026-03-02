@@ -38,7 +38,7 @@ class InMemoryVectorStore:
     Session-scoped and automatically cleaned up.
     """
 
-    def __init__(self, dimension: int = 4096):
+    def __init__(self, dimension: int = 1024):
         self.dimension = dimension
         # session_id -> list of (chunk_id, embedding, metadata)
         self._store: Dict[str, List[Tuple[str, np.ndarray, Dict]]] = defaultdict(list)

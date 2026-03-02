@@ -1,17 +1,59 @@
-"""설정 모듈"""
+"""설정 모듈
 
+ChatGPT-Quality Pipeline 개선:
+- Windows/Linux 크로스 플랫폼 경로 지원
+- 환경변수 또는 프로젝트 루트 기준 자동 경로 탐지
+"""
+
+import os
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Dict, List
+
+
+def _get_project_root() -> Path:
+    """프로젝트 루트 경로 탐지"""
+    # 현재 파일에서 상위로 올라가면서 CLAUDE.md 또는 docker-compose.yml 찾기
+    current = Path(__file__).resolve()
+    for parent in [current] + list(current.parents):
+        if (parent / "CLAUDE.md").exists() or (parent / "docker-compose.yml").exists():
+            return parent
+    # 기본값: 현재 작업 디렉토리
+    return Path.cwd()
+
+
+def _resolve_path(env_var: str, default_relative: str, default_linux: str) -> Path:
+    """환경변수 또는 기본 경로 반환"""
+    # 1. 환경변수 확인
+    if env_var in os.environ:
+        return Path(os.environ[env_var])
+
+    # 2. 프로젝트 상대 경로 확인
+    project_root = _get_project_root()
+    relative_path = project_root / default_relative
+    if relative_path.exists():
+        return relative_path
+
+    # 3. Linux 기본 경로 확인
+    linux_path = Path(default_linux)
+    if linux_path.exists():
+        return linux_path
+
+    # 4. 상대 경로 반환 (존재하지 않아도)
+    return relative_path
 
 
 @dataclass
 class ProcessorConfig:
     """매뉴얼 프로세서 설정"""
 
-    # 경로 설정
-    manuals_dir: Path = Path("/opt/kms/uploads/manuals")
-    summaries_dir: Path = Path("/opt/kms/uploads/summaries")
+    # 경로 설정 (크로스 플랫폼 지원)
+    manuals_dir: Path = field(default_factory=lambda: _resolve_path(
+        "KMS_MANUALS_DIR", "uploads/manuals", "/opt/kms/uploads/manuals"
+    ))
+    summaries_dir: Path = field(default_factory=lambda: _resolve_path(
+        "KMS_SUMMARIES_DIR", "uploads/summaries", "/opt/kms/uploads/summaries"
+    ))
 
     # 파일명 패턴 (정규식)
     # OF_<Component>_<Platform>_<Version>_<GuideType>_<DocVersion>_<Language>.pdf

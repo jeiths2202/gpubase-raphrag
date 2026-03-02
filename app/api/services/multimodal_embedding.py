@@ -23,7 +23,7 @@ class EmbeddingConfig:
     # NIM Embedding API (production)
     EMBEDDING_API_URL = os.getenv("EMBEDDING_API_URL", "http://localhost:12801/v1")
     EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nvidia/nv-embedqa-mistral-7b-v2")
-    EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", "4096"))
+    EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", "1024"))
 
     # Text embedding model
     TEXT_MODEL = EMBEDDING_MODEL
@@ -32,11 +32,11 @@ class EmbeddingConfig:
 
     # Image embedding model (via VLM service)
     IMAGE_MODEL = "bakllava"
-    IMAGE_DIMENSION = 4096
+    IMAGE_DIMENSION = 1024
 
     # Multimodal embedding model
     MULTIMODAL_MODEL = "bakllava"
-    MULTIMODAL_DIMENSION = 4096
+    MULTIMODAL_DIMENSION = 1024
 
     # Batch processing
     BATCH_SIZE = int(os.getenv("EMBEDDING_BATCH_SIZE", "32"))
@@ -167,7 +167,7 @@ class TextEmbeddingService:
             input_type: Type of input - "passage" for documents, "query" for search queries
 
         Returns:
-            Embedding vector (4096 dimensions)
+            Embedding vector (1024 dimensions)
         """
         import logging
         logger = logging.getLogger(__name__)
@@ -400,7 +400,7 @@ class ImageEmbeddingService:
     2. If miss, call VLM with type-specific prompt
     3. Cache the description
     4. Embed description text using NIM
-    5. Return 4096-dim vector
+    5. Return 1024-dim vector
     """
 
     # Default concurrency limit for VLM calls
@@ -574,7 +574,7 @@ class ImageEmbeddingService:
             use_cache: Whether to use caching
 
         Returns:
-            Embedding vector (4096 dimensions)
+            Embedding vector (1024 dimensions)
         """
         try:
             # Step 1: Get image description (with cache)
@@ -724,7 +724,7 @@ class MultimodalEmbeddingService:
             context_text: Optional context text
 
         Returns:
-            Zero vector (4096 dimensions) - placeholder
+            Zero vector (1024 dimensions) - placeholder
         """
         return [0.0] * self.dimension
 

@@ -640,7 +640,7 @@ class DocumentService:
                     "chunks_count": len(chunks),
                     "entities_count": 0,
                     "avg_chunk_size": avg_chunk_size,
-                    "embedding_dimension": 4096,
+                    "embedding_dimension": 1024,
                     "images_count": len(parsed_images) if extract_images else 0,
                     "tables_count": len(parsed_tables) if extract_tables else 0,
                     "figures_count": 0,
@@ -1762,7 +1762,7 @@ class DocumentService:
 
                     # Use VLM-generated description (fallback to placeholder if VLM fails)
                     description = vlm_result.get("description", "")
-                    embedding = vlm_result.get("embedding", [0.0] * 4096)
+                    embedding = vlm_result.get("embedding", [0.0] * 1024)
                     has_vlm_description = vlm_result.get("has_embedding", False)
 
                     if has_vlm_description:

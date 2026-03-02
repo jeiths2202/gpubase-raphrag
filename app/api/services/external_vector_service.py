@@ -60,7 +60,7 @@ class ExternalVectorService:
 
     # Index configuration
     EXTERNAL_INDEX_NAME = "external_chunk_embedding"
-    DIMENSION = 4096
+    DIMENSION = 1024
     SIMILARITY_FUNCTION = "cosine"
 
     def __init__(self, graph=None):

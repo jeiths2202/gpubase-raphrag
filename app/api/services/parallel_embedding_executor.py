@@ -365,7 +365,7 @@ class MockEmbeddingExecutor(ParallelEmbeddingExecutorPort):
     Mock embedding executor for testing.
     """
 
-    def __init__(self, embedding_dimension: int = 4096):
+    def __init__(self, embedding_dimension: int = 1024):
         self.embedding_dimension = embedding_dimension
         self._progress: Dict[str, EmbeddingProgress] = {}
 

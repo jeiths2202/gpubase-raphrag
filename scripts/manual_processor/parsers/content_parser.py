@@ -1,4 +1,8 @@
-"""콘텐츠 파싱 모듈"""
+"""콘텐츠 파싱 모듈
+
+ChatGPT-Quality Pipeline 개선 (PDCA: chatgpt-quality-pipeline):
+- 컨텍스트 윈도우 확장: 200→500자 (이전), 500→1000자 (이후)
+"""
 
 import re
 import logging
@@ -15,7 +19,14 @@ class ContentParser:
     """일반 콘텐츠 파서
 
     매뉴얼에서 용어, 개념, 컴포넌트 정보를 추출합니다.
+
+    ChatGPT-Quality Pipeline 개선:
+    - 컨텍스트 윈도우 확장으로 더 완전한 설명 추출
     """
+
+    # ChatGPT-Quality Pipeline: 확장된 컨텍스트 윈도우
+    CONTEXT_BEFORE = 500   # 200 → 500
+    CONTEXT_AFTER = 1000   # 500 → 1000
 
     # 용어 정의 패턴들
     # "TJES（Tmax Job Entry Subsystem）"
@@ -88,9 +99,9 @@ class ContentParser:
             term = match.group("term")
             full_name = match.group("full_name")
 
-            # 문맥 추출 (용어 정의 전후 텍스트)
-            start = max(0, match.start() - 200)
-            end = min(len(text), match.end() + 500)
+            # 문맥 추출 (용어 정의 전후 텍스트) - ChatGPT-Quality Pipeline 확장
+            start = max(0, match.start() - self.CONTEXT_BEFORE)
+            end = min(len(text), match.end() + self.CONTEXT_AFTER)
             context = text[start:end]
 
             description = self._extract_description_from_context(context, term)
@@ -193,7 +204,8 @@ class ContentParser:
             if match:
                 desc = match.group(0).strip()
                 if len(desc) > 20:
-                    return desc[:200]
+                    # ChatGPT-Quality Pipeline: 설명 길이 제한 완화 (200→500)
+                    return desc[:500]
 
         return ""
 

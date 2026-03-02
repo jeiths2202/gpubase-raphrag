@@ -50,8 +50,8 @@ class HybridRAG:
             password=neo4j_password or config.neo4j.password
         )
 
-        # LLM (Nemotron for RAG)
-        llm_max_tokens = int(os.getenv("LLM_MAX_TOKENS", "1024"))
+        # LLM (Qwen3-32B for RAG)
+        llm_max_tokens = int(os.getenv("LLM_MAX_TOKENS", "2048"))
         self.llm = ChatOpenAI(
             base_url=(llm_url or config.llm.api_url).replace("/chat/completions", ""),
             model=llm_model or config.llm.model,

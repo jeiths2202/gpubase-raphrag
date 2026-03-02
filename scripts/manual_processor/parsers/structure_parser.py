@@ -445,7 +445,31 @@ class StructureParser:
         return summary.strip() or text[:max_length]
 
     def _extract_keywords(self, text: str, title: str) -> List[str]:
-        """텍스트에서 키워드 추출"""
+        """텍스트에서 키워드 추출 (CJK 지원)
+
+        변경: 영문만 추출하던 로직을 CJK 언어 지원으로 확장
+        - 일본어: fugashi(MeCab) 기반 명사/동사 추출
+        - 한국어: 2자 이상 연속 한글 추출
+        - 영문: 기존 대문자 약어 패턴 유지
+        """
+        try:
+            from app.api.services.cjk_tokenizer_service import get_cjk_tokenizer_service
+
+            tokenizer = get_cjk_tokenizer_service()
+            keywords = tokenizer.extract_all_keywords(
+                text=text,
+                title=title,
+                min_frequency=2 if len(text) > 1000 else 1
+            )
+            return keywords[:7]  # 최대 7개
+
+        except ImportError:
+            # Fallback: 기존 영문만 추출 로직
+            logger.warning("[StructureParser] CJKTokenizerService not available, using English-only extraction")
+            return self._extract_keywords_english_only(text, title)
+
+    def _extract_keywords_english_only(self, text: str, title: str) -> List[str]:
+        """기존 영문 전용 키워드 추출 (fallback)"""
         keywords = set()
 
         # 제목에서 키워드 추출

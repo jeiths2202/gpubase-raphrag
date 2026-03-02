@@ -372,7 +372,7 @@ async def lifespan(app: FastAPI):
 
                     @property
                     def dimensions(self) -> int:
-                        return 4096  # NV-EmbedQA-Mistral-7B v2
+                        return 1024  # BGE-M3
 
                     async def embed_text(self, text: str, config=None) -> EmbeddingResult:
                         embedding = await self.service.embed_text(text, input_type="passage")

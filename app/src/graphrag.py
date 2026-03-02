@@ -80,7 +80,7 @@ class GraphRAG:
                     FOR (c:Chunk) ON (c.embedding)
                     OPTIONS {
                         indexConfig: {
-                            `vector.dimensions`: 4096,
+                            `vector.dimensions`: 1024,
                             `vector.similarity_function`: 'cosine'
                         }
                     }

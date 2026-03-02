@@ -20,7 +20,7 @@ class EmbeddingStats(BaseModel):
     with_embedding: int = 0
     without_embedding: int = 0
     coverage_percent: float = Field(ge=0.0, le=100.0, default=0.0)
-    dimension: int = 4096
+    dimension: int = 1024
 
 
 class StrategyDistribution(BaseModel):

@@ -56,7 +56,7 @@ class StatsService:
                 "with_embedding": rag_stats.get("embeddings", 0),
                 "without_embedding": rag_stats.get("chunks", 0) - rag_stats.get("embeddings", 0),
                 "coverage_percent": float(rag_stats.get("embedding_coverage", "0%").replace("%", "")),
-                "dimension": 4096
+                "dimension": 1024
             },
             "queries": {
                 "total_queries": 0,  # TODO: Implement query logging

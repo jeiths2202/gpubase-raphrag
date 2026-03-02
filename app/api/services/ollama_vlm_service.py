@@ -71,7 +71,7 @@ class OllamaVLMService:
             self.api_endpoint = f"{self.base_url}/api/generate"
 
         self.timeout = timeout
-        self.embedding_dimension = 4096
+        self.embedding_dimension = 1024
 
     async def describe_image(
         self,

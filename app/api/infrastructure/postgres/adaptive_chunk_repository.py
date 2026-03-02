@@ -1026,7 +1026,7 @@ class PostgresCoverageRepository(CoverageRepositoryPort):
             top_k_recall=metrics_data.get("top_k_recall", 0.0),
             section_precision=metrics_data.get("section_precision", 0.0),
             avg_similarity=metrics_data.get("avg_similarity", 0.0),
-            embedding_dimension=metrics_data.get("embedding_dimension", 4096),
+            embedding_dimension=metrics_data.get("embedding_dimension", 1024),
             quality_level=quality_level,
             hallucination_detected=metrics_data.get("hallucination_detected", False),
             hallucination_details=metrics_data.get("hallucination_details", [])

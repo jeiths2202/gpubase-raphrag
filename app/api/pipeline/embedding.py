@@ -52,7 +52,7 @@ def _get_embedding_defaults() -> dict:
         # Fallback to hardcoded defaults if config not available
         return {
             "model_name": "nvidia/nv-embedqa-mistral-7b-v2",
-            "dimension": 4096,
+            "dimension": 1024,
             "batch_size": 32,
             "max_text_length": 8192,
             "timeout_seconds": 30.0,

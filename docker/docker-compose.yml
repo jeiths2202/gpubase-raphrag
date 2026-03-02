@@ -54,28 +54,36 @@ services:
       retries: 10
       start_period: 180s
 
-  # NeMo Embedding NIM (port 12801, GPU 4,5)
-  nemo-embedding:
-    container_name: docker-nemo-embedding-1
-    image: nvcr.io/nim/nvidia/nv-embedqa-mistral-7b-v2:1.0.1
+  # BGE-M3 Embedding Server (port 12801, GPU 6)
+  bge-m3:
+    container_name: bge-m3-server
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.bge-m3
     restart: unless-stopped
     runtime: nvidia
     ports:
       - "12801:8000"
     environment:
-      - NGC_API_KEY=${NGC_API_KEY}
-      - NIM_TRITON_PERFORMANCE_MODE=latency
-      - NVIDIA_VISIBLE_DEVICES=4,5
-      - CUDA_VISIBLE_DEVICES=0,1
+      - NVIDIA_VISIBLE_DEVICES=6
+      - CUDA_VISIBLE_DEVICES=0
+      - MODEL_PATH=/opt/models/bge-m3
     volumes:
-      - nim_embed_cache:/opt/nim/.cache
-    shm_size: '16gb'
+      - /raid/users/ofuser/models/bge-m3:/opt/models/bge-m3:ro
+    shm_size: '8gb'
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['6']
+              capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health/ready"]
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/health/ready')\" || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 180s
+      start_period: 120s
 
   # Mistral NeMo Code LLM (vLLM, port 12802, GPU 0)
   mistral-nemo-coder:
@@ -103,9 +111,9 @@ services:
       retries: 10
       start_period: 180s
 
-  # Multi-LoRA v10 Unified v2 - Qwen2.5-72B (CPT+SFT_v2+DPO) + 22 LoRA Adapters (GPU 4,5,6,7, port 12810)
-  multi-lora-v10-unified-v2:
-    container_name: vllm_v10_unified_v2
+  # Qwen3-32B LLM (vLLM, GPU 4,5, TP=2, port 12810)
+  qwen3-32b:
+    container_name: vllm_qwen3_32b
     image: vllm/vllm-openai:latest
     restart: unless-stopped
     runtime: nvidia
@@ -113,57 +121,26 @@ services:
       - "12810:8000"
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
-      - NVIDIA_VISIBLE_DEVICES=4,5,6,7
+      - NVIDIA_VISIBLE_DEVICES=4,5
       - VLLM_LOGGING_LEVEL=INFO
-      - NCCL_DEBUG=WARN
-      - VLLM_USE_V1=false
     volumes:
-      - /raid/users/ofuser/qlora/outputs/merged_cpt_unified_v2_72b_v10:/opt/models/merged_cpt_72b:ro
-      - /raid/users/ofuser/qlora/outputs/dpo:/opt/adapters:ro
+      - /raid/users/ofuser/models/Qwen3-32B:/opt/models/qwen3-32b:ro
     command: >
-      --model /opt/models/merged_cpt_72b
-      --tensor-parallel-size 4
-      --max-model-len 4096
+      --model /opt/models/qwen3-32b
+      --tensor-parallel-size 2
+      --max-model-len 8192
       --gpu-memory-utilization 0.90
-      --enforce-eager
-      --quantization bitsandbytes
-      --load-format bitsandbytes
-      --enable-lora
-      --max-loras 4
-      --max-lora-rank 64
-      --max-cpu-loras 24
-      --lora-modules
-        openframe_base=/opt/adapters/openframe_base_v2
-        openframe_batch=/opt/adapters/openframe_batch_v2
-        openframe_common=/opt/adapters/openframe_common_v2
-        openframe_hidb=/opt/adapters/openframe_hidb_v2
-        openframe_osc=/opt/adapters/openframe_osc_v2
-        openframe_osi=/opt/adapters/openframe_osi_v2
-        openframe_tacf=/opt/adapters/openframe_tacf_v2
-        openframe_vos3=/opt/adapters/openframe_vos3_v2
-        openframe_aim=/opt/adapters/openframe_aim_v2
-        openframe_gateway=/opt/adapters/openframe_gateway_v2
-        ofcobol=/opt/adapters/ofcobol_v2
-        ofpli=/opt/adapters/ofpli_v2
-        ofmanager=/opt/adapters/ofmanager_v2
-        ofminer=/opt/adapters/ofminer_v2
-        ofstudio=/opt/adapters/ofstudio_v2
-        jeus=/opt/adapters/jeus_v2
-        tmax=/opt/adapters/tmax_v2
-        tibero7=/opt/adapters/tibero7_v2
-        webtob=/opt/adapters/webtob_v2
-        protrieve=/opt/adapters/protrieve_v2
-        prosort=/opt/adapters/prosort_v2
-        prosync=/opt/adapters/prosync_v2
       --dtype bfloat16
       --trust-remote-code
+      --enable-auto-tool-choice
+      --tool-call-parser hermes
     shm_size: '16gb'
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ['4','5','6','7']
+              device_ids: ['4','5']
               capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -191,13 +168,39 @@ services:
       timeout: 5s
       retries: 5
 
+  # OpenFrame Code Server - of7 source search API (port 12820)
+  ofcode-server:
+    container_name: ofcode-server
+    build:
+      context: ./ofcode-server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "12820:8000"
+    environment:
+      - OF7_ROOT=/data/of7
+      - INDEX_PATH=/data/of7_index.json
+      - NEO4J_URI=bolt://neo4j-graphrag:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=graphrag2024
+      - BGE_M3_URL=http://bge-m3-server:8000
+    volumes:
+      - /raid/users/ofuser/work/of7:/data/of7:ro
+      - ofcode_index:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
 # Named volumes for model caches (persist across container restarts)
 volumes:
   nim_llm_cache:
     name: graphrag_nim_llm_cache
-  nim_embed_cache:
-    name: graphrag_nim_embed_cache
   huggingface_cache:
     name: graphrag_huggingface_cache
+  ofcode_index:
+    name: ofcode_index_data
   postgres_data:
     name: graphrag_postgres_data

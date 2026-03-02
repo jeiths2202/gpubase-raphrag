@@ -69,7 +69,7 @@ class ChunkingConfig(BaseModel):
 class EmbeddingConfig(BaseModel):
     """Embedding configuration section"""
     model: str = Field(default="nv-embedqa-mistral-7b-v2")
-    dimension: int = Field(default=4096, ge=128, le=8192)
+    dimension: int = Field(default=1024, ge=128, le=8192)
     normalize: bool = True
     batch_size: int = Field(default=64, ge=1, le=256)
 

@@ -72,7 +72,7 @@ class LLMSettings:
     provider: str = "openai"  # openai, anthropic, azure, local
     default_model: str = "gpt-4"
     embedding_model: str = "text-embedding-3-small"
-    embedding_dimensions: int = 4096  # Match NV-EmbedQA-Mistral-7B v2 output
+    embedding_dimensions: int = 1024  # Match BGE-M3 dense output
 
     # API keys (from environment)
     openai_api_key: Optional[str] = None
@@ -103,7 +103,7 @@ class VectorStoreSettings:
 
     # Common settings
     collection_name: str = "documents"
-    dimensions: int = 4096  # Match NV-EmbedQA-Mistral-7B v2 output
+    dimensions: int = 1024  # Match BGE-M3 dense output
 
 
 @dataclass

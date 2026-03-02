@@ -10,9 +10,9 @@ load_dotenv()
 
 @dataclass
 class LLMConfig:
-    """Text LLM (Qwen2.5-72B v10 unified v2) configuration - GPU 4,5,6,7, port 12810"""
+    """Text LLM (Qwen3-32B) configuration - GPU 4,5, port 12810"""
     api_url: str = os.getenv("LLM_API_URL", "http://localhost:12810/v1/chat/completions")
-    model: str = os.getenv("LLM_MODEL", "/opt/models/merged_cpt_72b")
+    model: str = os.getenv("LLM_MODEL", "/opt/models/qwen3-32b")
     temperature: float = 0.1
 
 
@@ -54,10 +54,10 @@ class LearningLLMConfig:
 
 @dataclass
 class EmbeddingConfig:
-    """Embedding NIM configuration"""
+    """BGE-M3 Embedding configuration (Dense 1024-dim + Sparse)"""
     api_url: str = os.getenv("EMBEDDING_API_URL", "http://localhost:12801/v1")
-    model: str = os.getenv("EMBEDDING_MODEL", "nvidia/nv-embedqa-mistral-7b-v2")
-    dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "4096"))
+    model: str = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
+    dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "1024"))
     batch_size: int = int(os.getenv("EMBEDDING_BATCH_SIZE", "32"))
 
 
@@ -86,7 +86,7 @@ class VectorConfig:
     """Vector index configuration"""
     index_name: str = os.getenv("VECTOR_INDEX_NAME", "chunk_embedding")
     similarity_function: str = os.getenv("VECTOR_SIMILARITY_FUNCTION", "cosine")
-    dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "4096"))
+    dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "1024"))
 
 
 @dataclass

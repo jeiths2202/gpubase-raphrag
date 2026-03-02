@@ -129,7 +129,7 @@ class WebSourceStats(BaseModel):
     chunk_count: int = 0
     link_count: int = 0
     image_count: int = 0
-    embedding_dimension: int = 4096
+    embedding_dimension: int = 1024
     last_fetched: Optional[datetime] = None
     last_checked: Optional[datetime] = None
     fetch_time_ms: int = 0

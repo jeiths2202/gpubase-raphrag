@@ -94,10 +94,11 @@ docker-compose -f docker-compose-local.yml --profile cpu up -d
 |-------|------------|
 | Backend | FastAPI (Python 3.10+) |
 | Frontend | React 18 + TypeScript + Vite |
-| Database | Neo4j (Graph + Vector Index) |
-| RAG LLM | Nemotron Nano 9B (port 12800) |
-| Code LLM | Mistral NeMo 12B (port 12802) |
-| Embeddings | NV-EmbedQA-Mistral 7B v2 (port 12801) |
+| Database | Neo4j (Graph + Vector Index), PostgreSQL (pgvector) |
+| RAG LLM | Qwen3-32B (port 12810, GPU 4,5, TP=2) |
+| Fallback LLM | Nemotron Nano 9B (port 12800, GPU 7) |
+| Code LLM | Mistral NeMo 12B (port 12802, GPU 0) |
+| Embeddings | BGE-M3 (port 12801, GPU 6) - Dense 1024-dim + Sparse |
 | GPU | NVIDIA A100-SXM4-40GB x 8 |
 
 ## Project Structure
@@ -149,15 +150,16 @@ cd e2e && node e2e_sentence_test.js                    # E2E Hallucination test
 
 ## Port Allocations
 
-| Port | Service |
-|------|---------|
-| 3000 | React frontend |
-| 9000 | FastAPI backend |
-| 7474 | Neo4j HTTP |
-| 7687 | Neo4j Bolt |
-| 12800 | Nemotron LLM |
-| 12801 | Embeddings |
-| 12802 | Mistral Code |
+| Port | Service | GPU |
+|------|---------|-----|
+| 3000 | React frontend | - |
+| 9000 | FastAPI backend | - |
+| 7474 | Neo4j HTTP | - |
+| 7687 | Neo4j Bolt | - |
+| 12800 | Nemotron Nano 9B (fallback LLM) | 7 |
+| 12801 | BGE-M3 Embedding (Dense+Sparse) | 6 |
+| 12802 | Mistral NeMo Code LLM | 0 |
+| 12810 | Qwen3-32B (RAG LLM, TP=2) | 4,5 |
 
 ## Environment Setup
 
@@ -176,6 +178,26 @@ OLLAMA_MODEL=qwen2.5:3b
 ```
 
 **보안 키 생성:** `docs/SECURITY_KEYS_SETUP.md` 참조
+
+### 디스크 경로 (CRITICAL)
+
+> **루트 `/` 디스크 여유 29GB 뿐! 모델 다운로드·캐시·임시파일 절대 루트에 쓰지 마세요.**
+
+모든 학습/다운로드 스크립트에 반드시 아래 환경변수를 설정하세요:
+
+```bash
+export HF_HOME="/raid/users/ofuser/.cache/huggingface"
+export TRANSFORMERS_CACHE="/raid/users/ofuser/.cache/huggingface/hub"
+export HF_DATASETS_CACHE="/raid/users/ofuser/.cache/huggingface/datasets"
+export TMPDIR="/raid/users/ofuser/tmp"
+```
+
+| 경로 | 용도 | 디스크 |
+|------|------|--------|
+| `/` (root) | OS, 시스템 | **1.8TB 중 29GB 여유 (99% 사용)** |
+| `/raid` | 데이터, 모델, 학습 | **14TB 중 12TB 여유 (10% 사용)** |
+| `~/.cache/huggingface` | ❌ 기본 HF 캐시 (루트) | 사용 금지 |
+| `/raid/users/ofuser/.cache/huggingface` | ✅ HF 캐시 | /raid 사용 |
 
 ## Coding Conventions
 

@@ -135,11 +135,11 @@ class APISettings(BaseSettings):
 
     # Embedding Settings
     EMBEDDING_MODEL_NAME: str = Field(
-        default="nvidia/nv-embedqa-mistral-7b-v2",
+        default="BAAI/bge-m3",
         description="Embedding model name"
     )
     EMBEDDING_DIMENSION: int = Field(
-        default=4096,
+        default=1024,
         description="Embedding vector dimension"
     )
     EMBEDDING_BATCH_SIZE: int = Field(

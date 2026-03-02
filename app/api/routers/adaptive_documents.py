@@ -954,7 +954,7 @@ async def refresh_coverage(
                 top_k_recall=overall_coverage,
                 section_precision=1.0,
                 avg_similarity=0.0,
-                embedding_dimension=4096,
+                embedding_dimension=1024,
                 quality_level=quality_level,
                 hallucination_detected=False
             ),

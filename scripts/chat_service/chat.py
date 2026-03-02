@@ -47,7 +47,7 @@ def chat_stream(client: OpenAI, model: str, messages: list) -> str:
             model=model,
             messages=messages,
             temperature=0.7,
-            max_tokens=2048,
+            max_tokens=1024,
             stream=True,
         )
         for chunk in stream:

@@ -175,7 +175,7 @@ class DocumentStats(BaseModel):
     chunks_count: int = 0
     entities_count: int = 0
     avg_chunk_size: float = 0.0
-    embedding_dimension: int = 4096
+    embedding_dimension: int = 1024
     images_count: int = 0
     tables_count: int = 0
     figures_count: int = 0

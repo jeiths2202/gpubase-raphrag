@@ -25,6 +25,12 @@ qlora_adapters/
 training_*.log
 *.log
 
+# Training data files (large - not tracked)
+scripts/training/v11/output/*.jsonl
+scripts/training/v11/output/*.txt
+scripts/training/v11/__pycache__/
+scripts/training/v12/cpt_corpus_dedup.txt
+
 # PDF manual directories (large files)
 MSP_Openframe*/
 VOS3_Openframe*/

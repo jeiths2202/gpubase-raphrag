@@ -43,9 +43,9 @@ _settings = get_api_settings()
 @dataclass
 class PipelineConfig:
     """Configuration for complete RAG pipeline"""
-    # Embedding settings - NIM uses nvidia/nv-embedqa-mistral-7b-v2 (4096 dims)
+    # Embedding settings - BGE-M3 (1024 dims)
     embedding_model: str = "nvidia/nv-embedqa-mistral-7b-v2"
-    embedding_dimension: int = 4096
+    embedding_dimension: int = 1024
     # Retrieval settings
     retrieval_strategy: RetrievalStrategy = RetrievalStrategy.VECTOR
     retrieval_top_k: int = 10
