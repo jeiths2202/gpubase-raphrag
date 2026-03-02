@@ -41,26 +41,21 @@ import { ExternalPortalPage } from './pages/ExternalPortalPage';
 import { FAQPage } from './pages/FAQPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AgentPage } from './pages/AgentPage';
+import { OpenAgentPage } from './pages/OpenAgentPage';
+import { OpenFrameRAGPage } from './pages/OpenFrameRAGPage';
+import { AgenticRAGPage } from './pages/AgenticRAGPage';
+import { KnowledgeGraphPage } from './pages/KnowledgeGraphPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { ImprovementsPage, SubmitImprovementPage, ImprovementDetailPage } from './pages/improvements';
+import { LegacyModernizationPage } from './pages/LegacyModernizationPage';
+import { LegacyAnalysisDetailPage } from './pages/LegacyAnalysisDetailPage';
+import { JCLDiagnosisPage } from './pages/JCLDiagnosisPage';
+import { SupportDashboardPage } from './pages/SupportDashboardPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 
 // Import global styles
 import './styles/index.css';
-
-/**
- * Placeholder page for unimplemented routes
- */
-const PlaceholderPage: React.FC<{ title: string }> = ({ title }) => (
-  <div className="placeholder-page">
-    <div className="placeholder-content">
-      <h1>{title}</h1>
-      <p>This page is under construction.</p>
-      <p>Check back soon for updates!</p>
-    </div>
-  </div>
-);
 
 /**
  * Main App Component
@@ -98,14 +93,29 @@ export const App: React.FC = () => {
               {/* AI Agent Chat */}
               <Route path="/agent" element={<AgentPage />} />
 
+              {/* OpenAgent (vLLM-based) */}
+              <Route path="/open-agent" element={<OpenAgentPage />} />
+
+              {/* OpenFrame RAG (Learning LLM-based Multi-Product RAG) */}
+              <Route path="/openframe-rag" element={<OpenFrameRAGPage />} />
+
               {/* FAQ */}
               <Route path="/faq" element={<FAQPage />} />
 
               {/* Documents & RAG Configuration */}
               <Route path="/documents" element={<DocumentsPage />} />
 
-              {/* Analytics */}
-              <Route path="/analytics" element={<PlaceholderPage title="Analytics" />} />
+              {/* Agentic RAG */}
+              <Route path="/agentic-rag" element={<AgenticRAGPage />} />
+
+              {/* Knowledge Graph Explorer */}
+              <Route path="/knowledge-graph" element={<KnowledgeGraphPage />} />
+
+              {/* Legacy Modernization - COBOL/JCL/MAP/ASM Analysis */}
+              <Route path="/legacy-modernization" element={<LegacyModernizationPage />} />
+
+              {/* JCL Job Failure Diagnosis */}
+              <Route path="/jcl-diagnosis" element={<JCLDiagnosisPage />} />
 
               {/* Improvements - AI-Driven Enhancement Management */}
               <Route path="/improvements" element={<ImprovementsPage />} />
@@ -114,6 +124,18 @@ export const App: React.FC = () => {
 
               {/* Settings */}
               <Route path="/settings" element={<SettingsPage />} />
+            </Route>
+          </Route>
+
+          {/* Legacy Analysis Detail - Standalone popup (no sidebar) */}
+          <Route element={<AuthGuard />}>
+            <Route path="/legacy/analysis/:analysisId" element={<LegacyAnalysisDetailPage />} />
+          </Route>
+
+          {/* Support Dashboard - requires senior+ role */}
+          <Route element={<AuthGuard requiredRole="senior" />}>
+            <Route element={<MainLayout />}>
+              <Route path="/support-dashboard" element={<SupportDashboardPage />} />
             </Route>
           </Route>
 

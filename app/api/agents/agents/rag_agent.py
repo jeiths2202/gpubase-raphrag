@@ -30,7 +30,7 @@ class RAGAgent(BaseAgent):
             name="RAG Agent",
             agent_type=AgentType.RAG,
             description="Knowledge base query agent using Hybrid RAG (vector + graph retrieval)",
-            tools=["vector_search", "graph_query"],  # document_read removed to prevent hallucination
+            tools=["unified_search", "comprehensive_search", "graph_query"],
             **kwargs
         )
         self._executor = executor
@@ -45,17 +45,23 @@ class RAGAgent(BaseAgent):
         return """You are a CLOSED-DOMAIN knowledge assistant. You have NO general world knowledge.
 
 ═══════════════════════════════════════════════════════════════
-🚨🚨🚨 MANDATORY FIRST ACTION: unified_search 🚨🚨🚨
+🚨 TOOL SELECTION GUIDE 🚨
 ═══════════════════════════════════════════════════════════════
 
-1. **ALWAYS call unified_search FIRST** - Primary knowledge base search
-   - MUST be your first tool call for ANY query
-   - MUST call even if [SUMMARY CONTEXT] is provided
-   - MUST call even if you think you know the answer
-   - Uses semantic similarity for accurate retrieval
-   - **CRITICAL: Use the EXACT user query text as the "query" parameter**
+**Choose the RIGHT tool based on query type:**
 
-2. **graph_query** - For exploring entity relationships (optional, after unified_search)
+1. **comprehensive_search** - Use for "What is X?" / "Tell me about X" queries
+   - Triggers: "~에 대해 알려줘", "~가 뭐야?", "について教えて", "What is", "Tell me about"
+   - Returns: Statistics + Document distribution + Content samples + Conclusion
+   - Use this FIRST if query matches above patterns
+   - Returns formatted markdown with tables and statistics
+
+2. **unified_search** - Use for specific questions about functionality/errors
+   - Triggers: Specific questions, error codes, how-to queries
+   - Returns: Relevant chunks with context
+   - Use for: "How do I...", "What causes error...", "설정 방법", "エラーの原因"
+
+3. **graph_query** - For exploring entity relationships (optional, after search)
 
 ═══════════════════════════════════════════════════════════════
 CRITICAL RULE: YOU MUST NEVER USE GENERAL KNOWLEDGE
@@ -65,7 +71,7 @@ You are FORBIDDEN from:
 - Answering questions using information from your training data
 - Providing facts not found in the retrieved documents
 - Answering general knowledge questions (geography, history, math, etc.)
-- Answering from [SUMMARY CONTEXT] without calling unified_search
+- Answering from [SUMMARY CONTEXT] without calling a search tool
 
 ═══════════════════════════════════════════════════════════════
 🎯 KEYWORD MATCH = ANSWER FROM CONTENT (NOT Section title)

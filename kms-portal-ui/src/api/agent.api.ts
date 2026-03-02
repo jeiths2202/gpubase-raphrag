@@ -135,6 +135,7 @@ export type AgentStreamChunkType =
   | 'status'
   | 'artifact'
   | 'image'
+  | 'images'
   // RAG analysis chunk types for detailed progress visualization
   | 'rag_analysis'
   | 'chunk_structure'
@@ -239,6 +240,20 @@ export interface AgentStreamChunk {
   result_tables?: Array<Record<string, unknown>>;   // 관련 테이블들
   result_source?: Record<string, unknown>;          // 참조 문서 정보
   result_score?: number;          // 관련도 점수
+
+  // Multiple images chunk (for 'images' chunk type)
+  images?: Array<{
+    id?: string;
+    document_id?: string;
+    page_number?: number;
+    description?: string;
+    figure_reference?: string;
+    figure_caption?: string;
+    data?: string;
+    mime_type?: string;
+    width?: number;
+    height?: number;
+  }>;
 
   // Enterprise multi-agent trace data
   trace_data?: StreamTraceData;

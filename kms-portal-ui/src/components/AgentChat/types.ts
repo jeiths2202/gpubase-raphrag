@@ -107,6 +107,7 @@ export interface AttachedFile {
   name: string;
   content: string;
   size: number;
+  rawFile?: File;  // ZIP等のバイナリアーカイブ用 (サーバーへそのまま送信)
 }
 
 /**

@@ -292,7 +292,9 @@ export const AISidebar: React.FC = () => {
   const { getUIContext } = useContextStore();
 
   // Hide FAB on AI Studio page (it has its own AI generation UI)
+  // Also hide on OpenAgent page (it has its own chat interface)
   const isAIStudioPage = location.pathname === '/ai-studio';
+  const isOpenAgentPage = location.pathname === '/open-agent';
 
   // Floating panel state
   const [sidebarPosition, setSidebarPosition] = useState<SidebarPosition>(loadSidebarPosition);
@@ -971,12 +973,13 @@ export const AISidebar: React.FC = () => {
     { id: 'notes', icon: <StickyNote size={16} />, label: t('knowledge.sidebar.notes') },
   ];
 
-  // FAB button when sidebar is closed (hide on AI Studio page)
+  // Hide completely on pages with their own AI interfaces
+  if (isAIStudioPage || isOpenAgentPage) {
+    return null;
+  }
+
+  // FAB button when sidebar is closed
   if (!rightSidebarOpen) {
-    // Don't show FAB on AI Studio page - it has its own AI generation panel
-    if (isAIStudioPage) {
-      return null;
-    }
     return (
       <button
         className="ai-sidebar-fab"

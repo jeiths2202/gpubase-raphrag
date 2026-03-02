@@ -1,0 +1,24 @@
+{
+  "product": "hidb",
+  "version": "3.0",
+  "inherits": null,
+  "capabilities": [
+    {"category": "hidb_dli", "pattern": "CBLTDLI", "support": "full", "notes": null},
+    {"category": "hidb_dli", "pattern": "EXEC DLI GU", "support": "full", "notes": null},
+    {"category": "hidb_dli", "pattern": "EXEC DLI GN", "support": "full", "notes": null},
+    {"category": "hidb_dli", "pattern": "EXEC DLI GNP", "support": "full", "notes": null},
+    {"category": "hidb_dli", "pattern": "EXEC DLI GHU", "support": "full", "notes": null},
+    {"category": "hidb_dli", "pattern": "EXEC DLI GHN", "support": "full", "notes": null},
+    {"category": "hidb_dli", "pattern": "EXEC DLI ISRT", "support": "full", "notes": null},
+    {"category": "hidb_dli", "pattern": "EXEC DLI REPL", "support": "full", "notes": null},
+    {"category": "hidb_dli", "pattern": "EXEC DLI DLET", "support": "full", "notes": null},
+    {"category": "hidb_db", "pattern": "DBD", "support": "full", "notes": "데이터베이스 정의"},
+    {"category": "hidb_db", "pattern": "PSB", "support": "full", "notes": "프로그램 사양 블록"},
+    {"category": "hidb_db", "pattern": "PCB", "support": "full", "notes": "프로그램 통신 블록"},
+    {"category": "hidb_db", "pattern": "HDAM", "support": "full", "notes": null},
+    {"category": "hidb_db", "pattern": "HIDAM", "support": "full", "notes": null},
+    {"category": "hidb_db", "pattern": "HISAM", "support": "partial", "notes": "기본 HISAM만 지원"},
+    {"category": "hidb_util", "pattern": "hidbmgr", "support": "full", "notes": "HIDB 관리 유틸리티"}
+  ],
+  "removed": []
+}

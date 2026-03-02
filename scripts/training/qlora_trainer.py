@@ -44,6 +44,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ============================================
+# Qwen2.5 Special Token IDs
+# ============================================
+QWEN_ENDOFTEXT_ID = 151643   # <|endoftext|> - 패딩용
+QWEN_IM_START_ID = 151644    # <|im_start|>  - ChatML 턴 시작
+QWEN_IM_END_ID = 151645      # <|im_end|>    - ChatML 턴 종료 (eos_token)
+
+# ============================================
 # Configuration
 # ============================================
 
@@ -191,8 +198,13 @@ def setup_model_and_tokenizer(config: TrainingConfig):
         padding_side="right"
     )
 
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+    # pad_token을 <|endoftext|>로 설정 (eos_token인 <|im_end|>와 분리)
+    # SFT ChatML 데이터에서 <|im_end|>는 턴 종료 의미이므로 패딩과 혼동 방지
+    tokenizer.pad_token = tokenizer.decode([QWEN_ENDOFTEXT_ID])
+    tokenizer.pad_token_id = QWEN_ENDOFTEXT_ID
+
+    logger.info(f"Special tokens: eos={tokenizer.eos_token}({tokenizer.eos_token_id}), "
+                f"pad={tokenizer.pad_token}({tokenizer.pad_token_id})")
 
     return model, tokenizer
 

@@ -1,0 +1,127 @@
+{
+  "total_products": 24,
+  "total_samples": 53436,
+  "products": {
+    "tibero7_v2": {
+      "total": 11088,
+      "train": 8870,
+      "eval": 2218
+    },
+    "jeus_v2": {
+      "total": 16005,
+      "train": 12804,
+      "eval": 3201
+    },
+    "tmax_v2": {
+      "total": 5982,
+      "train": 4785,
+      "eval": 1197
+    },
+    "openframe_common_v2": {
+      "total": 4026,
+      "train": 3220,
+      "eval": 806
+    },
+    "openframe_batch_v2": {
+      "total": 3054,
+      "train": 2443,
+      "eval": 611
+    },
+    "webtob_v2": {
+      "total": 1680,
+      "train": 1344,
+      "eval": 336
+    },
+    "openframe_vos3_v2": {
+      "total": 1557,
+      "train": 1245,
+      "eval": 312
+    },
+    "openframe_osc_v2": {
+      "total": 1665,
+      "train": 1332,
+      "eval": 333
+    },
+    "openframe_base_v2": {
+      "total": 1302,
+      "train": 1041,
+      "eval": 261
+    },
+    "ofmanager_v2": {
+      "total": 849,
+      "train": 679,
+      "eval": 170
+    },
+    "openframe_aim_v2": {
+      "total": 762,
+      "train": 609,
+      "eval": 153
+    },
+    "protrieve_v2": {
+      "total": 702,
+      "train": 561,
+      "eval": 141
+    },
+    "openframe_osi_v2": {
+      "total": 711,
+      "train": 568,
+      "eval": 143
+    },
+    "openframe_tacf_v2": {
+      "total": 678,
+      "train": 542,
+      "eval": 136
+    },
+    "openframe_gateway_v2": {
+      "total": 693,
+      "train": 554,
+      "eval": 139
+    },
+    "ofpli_v2": {
+      "total": 465,
+      "train": 372,
+      "eval": 93
+    },
+    "ofcobol_v2": {
+      "total": 360,
+      "train": 288,
+      "eval": 72
+    },
+    "prosync_v2": {
+      "total": 390,
+      "train": 312,
+      "eval": 78
+    },
+    "openframe_ndb_v2": {
+      "total": 306,
+      "train": 244,
+      "eval": 62
+    },
+    "ofstudio_v2": {
+      "total": 315,
+      "train": 252,
+      "eval": 63
+    },
+    "ofminer_v2": {
+      "total": 255,
+      "train": 204,
+      "eval": 51
+    },
+    "prosort_v2": {
+      "total": 231,
+      "train": 184,
+      "eval": 47
+    },
+    "openframe_hidb_v2": {
+      "total": 180,
+      "train": 144,
+      "eval": 36
+    },
+    "ofasm_v2": {
+      "total": 180,
+      "train": 144,
+      "eval": 36
+    }
+  },
+  "created_at": "2026-02-04T00:23:18.444861"
+}

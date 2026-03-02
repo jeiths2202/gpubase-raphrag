@@ -2,6 +2,10 @@
 Query Expansion Service
 Expands queries with synonyms and related terms for better retrieval.
 Supports Japanese, Korean, and English technical terms.
+
+Synonyms can be loaded from:
+1. MetadataConfigService (PostgreSQL) - primary
+2. Fallback hardcoded dictionaries - when DB unavailable
 """
 import re
 import logging
@@ -9,6 +13,22 @@ from typing import List, Dict, Set, Optional
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+# MetadataConfigService lazy import to avoid circular dependencies
+_metadata_config_service = None
+_metadata_loaded = False
+
+async def _get_metadata_config_service():
+    """Lazy load MetadataConfigService."""
+    global _metadata_config_service
+    if _metadata_config_service is None:
+        try:
+            from .metadata_config_service import get_metadata_config_service
+            _metadata_config_service = await get_metadata_config_service()
+            logger.info("MetadataConfigService loaded for QueryExpansionService")
+        except Exception as e:
+            logger.warning(f"Failed to load MetadataConfigService: {e}")
+    return _metadata_config_service
 
 
 @dataclass
@@ -146,10 +166,75 @@ class QueryExpansionService:
 
     def __init__(self):
         """Initialize the query expansion service"""
-        # Build reverse mappings for efficiency
+        # Build reverse mappings for efficiency using fallback dictionaries
         self._ja_all_synonyms = self._build_synonym_groups(self.JA_SYNONYMS)
         self._ko_all_synonyms = self._build_synonym_groups(self.KO_SYNONYMS)
         self._en_all_synonyms = self._build_synonym_groups(self.EN_SYNONYMS)
+        self._metadata_loaded = False
+
+    async def load_synonyms_from_db(self) -> bool:
+        """
+        Load synonyms from MetadataConfigService (PostgreSQL).
+        Call this once before using the service for DB-driven synonyms.
+
+        Returns:
+            True if successfully loaded, False otherwise
+        """
+        global _metadata_loaded
+        if self._metadata_loaded or _metadata_loaded:
+            return True
+
+        try:
+            metadata_service = await _get_metadata_config_service()
+            if not metadata_service:
+                return False
+
+            # Load Japanese synonyms
+            ja_synonyms = await metadata_service.get_all_synonyms(language="ja")
+            if ja_synonyms:
+                for base_term, synonym_list in ja_synonyms.items():
+                    if base_term not in self.JA_SYNONYMS:
+                        self.JA_SYNONYMS[base_term] = []
+                    for syn in synonym_list:
+                        if syn not in self.JA_SYNONYMS[base_term]:
+                            self.JA_SYNONYMS[base_term].append(syn)
+                logger.debug(f"Loaded {len(ja_synonyms)} Japanese synonym groups from DB")
+
+            # Load Korean synonyms
+            ko_synonyms = await metadata_service.get_all_synonyms(language="ko")
+            if ko_synonyms:
+                for base_term, synonym_list in ko_synonyms.items():
+                    if base_term not in self.KO_SYNONYMS:
+                        self.KO_SYNONYMS[base_term] = []
+                    for syn in synonym_list:
+                        if syn not in self.KO_SYNONYMS[base_term]:
+                            self.KO_SYNONYMS[base_term].append(syn)
+                logger.debug(f"Loaded {len(ko_synonyms)} Korean synonym groups from DB")
+
+            # Load English synonyms
+            en_synonyms = await metadata_service.get_all_synonyms(language="en")
+            if en_synonyms:
+                for base_term, synonym_list in en_synonyms.items():
+                    if base_term not in self.EN_SYNONYMS:
+                        self.EN_SYNONYMS[base_term] = []
+                    for syn in synonym_list:
+                        if syn not in self.EN_SYNONYMS[base_term]:
+                            self.EN_SYNONYMS[base_term].append(syn)
+                logger.debug(f"Loaded {len(en_synonyms)} English synonym groups from DB")
+
+            # Rebuild synonym groups with new data
+            self._ja_all_synonyms = self._build_synonym_groups(self.JA_SYNONYMS)
+            self._ko_all_synonyms = self._build_synonym_groups(self.KO_SYNONYMS)
+            self._en_all_synonyms = self._build_synonym_groups(self.EN_SYNONYMS)
+
+            self._metadata_loaded = True
+            _metadata_loaded = True
+            logger.info("Synonyms loaded from MetadataConfigService")
+            return True
+
+        except Exception as e:
+            logger.warning(f"Failed to load synonyms from DB: {e}")
+            return False
 
     def _build_synonym_groups(self, synonyms: Dict[str, List[str]]) -> Dict[str, Set[str]]:
         """Build complete synonym groups (A→B means B→A too)"""
@@ -170,9 +255,28 @@ class QueryExpansionService:
 
         return groups
 
+    async def expand_async(self, query: str, language: str = "auto") -> ExpandedQuery:
+        """
+        Expand a query with synonyms and related terms (async version).
+        Loads synonyms from DB on first call.
+
+        Args:
+            query: Original query text
+            language: Language code (ja, ko, en, auto)
+
+        Returns:
+            ExpandedQuery with original and expanded terms
+        """
+        # Load synonyms from DB on first call
+        if not self._metadata_loaded:
+            await self.load_synonyms_from_db()
+
+        return self.expand(query, language)
+
     def expand(self, query: str, language: str = "auto") -> ExpandedQuery:
         """
-        Expand a query with synonyms and related terms.
+        Expand a query with synonyms and related terms (sync version).
+        Uses current synonym dictionaries (DB or fallback).
 
         Args:
             query: Original query text
@@ -304,8 +408,19 @@ _service: Optional[QueryExpansionService] = None
 
 
 def get_query_expansion_service() -> QueryExpansionService:
-    """Get or create QueryExpansionService instance"""
+    """Get or create QueryExpansionService instance (sync version)."""
     global _service
     if _service is None:
         _service = QueryExpansionService()
+    return _service
+
+
+async def get_query_expansion_service_async() -> QueryExpansionService:
+    """Get or create QueryExpansionService instance with DB synonyms loaded (async version)."""
+    global _service
+    if _service is None:
+        _service = QueryExpansionService()
+        await _service.load_synonyms_from_db()
+    elif not _service._metadata_loaded:
+        await _service.load_synonyms_from_db()
     return _service

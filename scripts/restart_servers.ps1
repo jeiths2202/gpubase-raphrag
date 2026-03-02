@@ -13,13 +13,13 @@ foreach ($port in @(3000, 3001, 8000, 9000)) {
 Start-Sleep -Seconds 2
 
 Write-Host "`nStarting Backend (port 9000)..."
-$backendPath = "C:\Users\endur\Downloads\tmaxjapan\kms\gpubase-raphrag"
+$backendPath = "C:\Users\endur\Downloads\tmaxjapan\kms\kms-docker-remote"
 Start-Process -FilePath "python" -ArgumentList "-m", "app.api.main", "--mode", "develop", "--port", "9000" -WorkingDirectory $backendPath -WindowStyle Hidden
 
 Start-Sleep -Seconds 5
 
 Write-Host "Starting Frontend (port 3000)..."
-$frontendPath = "C:\Users\endur\Downloads\tmaxjapan\kms\gpubase-raphrag\kms-portal-ui"
+$frontendPath = "C:\Users\endur\Downloads\tmaxjapan\kms\kms-docker-remote\kms-portal-ui"
 Start-Process -FilePath "cmd" -ArgumentList "/c", "npm run dev -- --port 3000" -WorkingDirectory $frontendPath -WindowStyle Hidden
 
 Start-Sleep -Seconds 3

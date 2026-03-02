@@ -1,0 +1,252 @@
+[
+  {
+    "product": "aim_xsp",
+    "version": "7.0",
+    "display_name": "OpenFrame AIM(XSP) 7.0",
+    "display_name_ko": "OpenFrame AIM(XSP) 7.0",
+    "display_name_ja": "OpenFrame AIM(XSP) 7.0",
+    "asset_types": ["cobol", "map"],
+    "family": "AIM",
+    "subtype": "XSP"
+  },
+  {
+    "product": "aim_xsp",
+    "version": "7.1",
+    "display_name": "OpenFrame AIM(XSP) 7.1",
+    "display_name_ko": "OpenFrame AIM(XSP) 7.1",
+    "display_name_ja": "OpenFrame AIM(XSP) 7.1",
+    "asset_types": ["cobol", "map"],
+    "family": "AIM",
+    "subtype": "XSP"
+  },
+  {
+    "product": "aim_xsp",
+    "version": "7.3",
+    "display_name": "OpenFrame AIM(XSP) 7.3",
+    "display_name_ko": "OpenFrame AIM(XSP) 7.3",
+    "display_name_ja": "OpenFrame AIM(XSP) 7.3",
+    "asset_types": ["cobol", "map"],
+    "family": "AIM",
+    "subtype": "XSP"
+  },
+  {
+    "product": "aim_msp",
+    "version": "7.0",
+    "display_name": "OpenFrame AIM(MSP) 7.0",
+    "display_name_ko": "OpenFrame AIM(MSP) 7.0",
+    "display_name_ja": "OpenFrame AIM(MSP) 7.0",
+    "asset_types": ["cobol", "map"],
+    "family": "AIM",
+    "subtype": "MSP"
+  },
+  {
+    "product": "aim_msp",
+    "version": "7.1",
+    "display_name": "OpenFrame AIM(MSP) 7.1",
+    "display_name_ko": "OpenFrame AIM(MSP) 7.1",
+    "display_name_ja": "OpenFrame AIM(MSP) 7.1",
+    "asset_types": ["cobol", "map"],
+    "family": "AIM",
+    "subtype": "MSP"
+  },
+  {
+    "product": "aim_msp",
+    "version": "7.3",
+    "display_name": "OpenFrame AIM(MSP) 7.3",
+    "display_name_ko": "OpenFrame AIM(MSP) 7.3",
+    "display_name_ja": "OpenFrame AIM(MSP) 7.3",
+    "asset_types": ["cobol", "map"],
+    "family": "AIM",
+    "subtype": "MSP"
+  },
+  {
+    "product": "osc",
+    "version": "7.0",
+    "display_name": "OpenFrame OSC 7.0",
+    "display_name_ko": "OpenFrame OSC 7.0",
+    "display_name_ja": "OpenFrame OSC 7.0",
+    "asset_types": ["cobol", "map"],
+    "family": "OSC",
+    "subtype": null
+  },
+  {
+    "product": "osc",
+    "version": "7.1",
+    "display_name": "OpenFrame OSC 7.1",
+    "display_name_ko": "OpenFrame OSC 7.1",
+    "display_name_ja": "OpenFrame OSC 7.1",
+    "asset_types": ["cobol", "map"],
+    "family": "OSC",
+    "subtype": null
+  },
+  {
+    "product": "osc",
+    "version": "7.3",
+    "display_name": "OpenFrame OSC 7.3",
+    "display_name_ko": "OpenFrame OSC 7.3",
+    "display_name_ja": "OpenFrame OSC 7.3",
+    "asset_types": ["cobol", "map"],
+    "family": "OSC",
+    "subtype": null
+  },
+  {
+    "product": "osc",
+    "version": "8.0",
+    "display_name": "OpenFrame OSC 8.0",
+    "display_name_ko": "OpenFrame OSC 8.0",
+    "display_name_ja": "OpenFrame OSC 8.0",
+    "asset_types": ["cobol", "map"],
+    "family": "OSC",
+    "subtype": null
+  },
+  {
+    "product": "osi",
+    "version": "6.0",
+    "display_name": "OpenFrame OSI 6.0",
+    "display_name_ko": "OpenFrame OSI 6.0",
+    "display_name_ja": "OpenFrame OSI 6.0",
+    "asset_types": ["cobol"],
+    "family": "OSI",
+    "subtype": null
+  },
+  {
+    "product": "osi",
+    "version": "7.0",
+    "display_name": "OpenFrame OSI 7.0",
+    "display_name_ko": "OpenFrame OSI 7.0",
+    "display_name_ja": "OpenFrame OSI 7.0",
+    "asset_types": ["cobol"],
+    "family": "OSI",
+    "subtype": null
+  },
+  {
+    "product": "osi",
+    "version": "7.1",
+    "display_name": "OpenFrame OSI 7.1",
+    "display_name_ko": "OpenFrame OSI 7.1",
+    "display_name_ja": "OpenFrame OSI 7.1",
+    "asset_types": ["cobol"],
+    "family": "OSI",
+    "subtype": null
+  },
+  {
+    "product": "asm",
+    "version": "4.0",
+    "display_name": "OpenFrame OFASM 4.0",
+    "display_name_ko": "OpenFrame OFASM 4.0",
+    "display_name_ja": "OpenFrame OFASM 4.0",
+    "asset_types": ["assembler"],
+    "family": "ASM",
+    "subtype": null
+  },
+  {
+    "product": "cobol_osvs",
+    "version": "4.0",
+    "display_name": "OpenFrame OFCOBOL(OSVS) 4.0",
+    "display_name_ko": "OpenFrame OFCOBOL(OSVS) 4.0",
+    "display_name_ja": "OpenFrame OFCOBOL(OSVS) 4.0",
+    "asset_types": ["cobol"],
+    "family": "COBOL",
+    "subtype": "OSVS"
+  },
+  {
+    "product": "cobol_ent",
+    "version": "4.0",
+    "display_name": "OpenFrame OFCOBOL(ENT) 4.0",
+    "display_name_ko": "OpenFrame OFCOBOL(ENT) 4.0",
+    "display_name_ja": "OpenFrame OFCOBOL(ENT) 4.0",
+    "asset_types": ["cobol"],
+    "family": "COBOL",
+    "subtype": "ENT"
+  },
+  {
+    "product": "cobol_mvs",
+    "version": "4.0",
+    "display_name": "OpenFrame OFCOBOL(MVS) 4.0",
+    "display_name_ko": "OpenFrame OFCOBOL(MVS) 4.0",
+    "display_name_ja": "OpenFrame OFCOBOL(MVS) 4.0",
+    "asset_types": ["cobol"],
+    "family": "COBOL",
+    "subtype": "MVS"
+  },
+  {
+    "product": "batch",
+    "version": "7.0",
+    "display_name": "OpenFrame Batch 7.0",
+    "display_name_ko": "OpenFrame Batch 7.0",
+    "display_name_ja": "OpenFrame Batch 7.0",
+    "asset_types": ["jcl", "cobol"],
+    "family": "BATCH",
+    "subtype": null
+  },
+  {
+    "product": "batch",
+    "version": "7.1",
+    "display_name": "OpenFrame Batch 7.1",
+    "display_name_ko": "OpenFrame Batch 7.1",
+    "display_name_ja": "OpenFrame Batch 7.1",
+    "asset_types": ["jcl", "cobol"],
+    "family": "BATCH",
+    "subtype": null
+  },
+  {
+    "product": "batch",
+    "version": "7.3",
+    "display_name": "OpenFrame Batch 7.3",
+    "display_name_ko": "OpenFrame Batch 7.3",
+    "display_name_ja": "OpenFrame Batch 7.3",
+    "asset_types": ["jcl", "cobol"],
+    "family": "BATCH",
+    "subtype": null
+  },
+  {
+    "product": "hidb",
+    "version": "3.0",
+    "display_name": "OpenFrame HiDB 3.0",
+    "display_name_ko": "OpenFrame HiDB 3.0",
+    "display_name_ja": "OpenFrame HiDB 3.0",
+    "asset_types": ["cobol"],
+    "family": "HIDB",
+    "subtype": null
+  },
+  {
+    "product": "hidb",
+    "version": "3.3",
+    "display_name": "OpenFrame HiDB 3.3",
+    "display_name_ko": "OpenFrame HiDB 3.3",
+    "display_name_ja": "OpenFrame HiDB 3.3",
+    "asset_types": ["cobol"],
+    "family": "HIDB",
+    "subtype": null
+  },
+  {
+    "product": "hidb",
+    "version": "7.2",
+    "display_name": "OpenFrame HiDB 7.2",
+    "display_name_ko": "OpenFrame HiDB 7.2",
+    "display_name_ja": "OpenFrame HiDB 7.2",
+    "asset_types": ["cobol"],
+    "family": "HIDB",
+    "subtype": null
+  },
+  {
+    "product": "tacf",
+    "version": "7.0",
+    "display_name": "OpenFrame TACF 7.0",
+    "display_name_ko": "OpenFrame TACF 7.0",
+    "display_name_ja": "OpenFrame TACF 7.0",
+    "asset_types": ["jcl"],
+    "family": "TACF",
+    "subtype": null
+  },
+  {
+    "product": "tacf",
+    "version": "7.1",
+    "display_name": "OpenFrame TACF 7.1",
+    "display_name_ko": "OpenFrame TACF 7.1",
+    "display_name_ja": "OpenFrame TACF 7.1",
+    "asset_types": ["jcl"],
+    "family": "TACF",
+    "subtype": null
+  }
+]

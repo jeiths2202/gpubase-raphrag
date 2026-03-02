@@ -1,0 +1,19 @@
+{
+  "product": "aim_msp",
+  "version": "7.0",
+  "inherits": null,
+  "capabilities": [
+    {"category": "ims", "pattern": "EXEC DLI GU", "support": "full", "notes": null},
+    {"category": "ims", "pattern": "EXEC DLI GN", "support": "full", "notes": null},
+    {"category": "ims", "pattern": "EXEC DLI GNP", "support": "full", "notes": null},
+    {"category": "ims", "pattern": "EXEC DLI GHU", "support": "full", "notes": null},
+    {"category": "ims", "pattern": "EXEC DLI ISRT", "support": "full", "notes": null},
+    {"category": "ims", "pattern": "EXEC DLI REPL", "support": "full", "notes": null},
+    {"category": "ims", "pattern": "EXEC DLI DLET", "support": "full", "notes": null},
+    {"category": "ims", "pattern": "CBLTDLI", "support": "full", "notes": null},
+    {"category": "screen_layout", "pattern": "MFS FORMAT", "support": "full", "notes": null},
+    {"category": "screen_layout", "pattern": "MFS DEV", "support": "full", "notes": null},
+    {"category": "field_definition", "pattern": "MFS DFLD", "support": "full", "notes": null}
+  ],
+  "removed": []
+}

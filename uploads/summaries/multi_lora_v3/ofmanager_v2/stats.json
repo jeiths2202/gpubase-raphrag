@@ -1,0 +1,17 @@
+{
+  "total": 849,
+  "converted": 849,
+  "skipped": 0,
+  "by_type": {},
+  "by_language": {
+    "ja": 798,
+    "en": 51
+  },
+  "by_product": {},
+  "augmented": 0,
+  "train_count": 679,
+  "eval_count": 170,
+  "product": "ofmanager_v2",
+  "train_file": "uploads\\summaries\\multi_lora_v3\\ofmanager_v2\\train.json",
+  "eval_file": "uploads\\summaries\\multi_lora_v3\\ofmanager_v2\\eval.json"
+}

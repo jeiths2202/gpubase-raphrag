@@ -1,8 +1,451 @@
 {
-  "sessionCount": 1,
+  "sessionCount": 385,
   "lastSession": {
-    "startedAt": "2026-01-30T11:33:36.283Z",
+    "startedAt": "2026-02-27T07:30:46.075Z",
     "platform": "claude",
     "level": "Enterprise"
-  }
+  },
+  "activeFeature": null,
+  "pdcaPhase": null,
+  "matchRate": null,
+  "designVersion": null,
+  "planPath": null,
+  "designPath": null,
+  "analysisPath": null,
+  "reportPath": null,
+  "implementationProgress": null,
+  "iterationCount": null,
+  "completedAt": null,
+  "previousFeature": {
+    "feature": "livekit-premium-support",
+    "phase": "archived",
+    "matchRate": 95,
+    "archivedAt": "2026-02-25T16:00:00.000Z"
+  },
+  "keyDeliverables": null,
+  "archivedFeatures": [
+    {
+      "feature": "comprehensive-search-response",
+      "archivedAt": "2026-02-04T10:00:00.000Z",
+      "archivedTo": "docs/archive/2026-02/comprehensive-search-response/",
+      "matchRate": 92,
+      "completedAt": "2026-02-04T09:30:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "filesCreated": 1,
+        "filesModified": 3,
+        "linesAdded": 490,
+        "implementationFiles": [
+          "app/api/agents/tools/comprehensive_search.py",
+          "app/api/agents/middleware/rag_tools.py",
+          "app/api/agents/agents/rag_agent.py",
+          "app/api/agents/tools/__init__.py"
+        ],
+        "keyFeatures": [
+          "ComprehensiveSearchTool (490 lines)",
+          "5 Parallel Cypher Queries (asyncio.gather)",
+          "Jinja2 Template Rendering",
+          "LangChain StructuredTool Integration",
+          "10+ Keyword Extraction Patterns (KO/EN/JA)",
+          "NO_RESULT_TEMPLATE (Design exceeded)",
+          "RAG Agent Tool Selection Guide"
+        ]
+      }
+    },
+    {
+      "feature": "semantic-multimodal-chunking",
+      "archivedAt": "2026-02-04T08:10:00.000Z",
+      "archivedTo": "docs/archive/2026-02/semantic-multimodal-chunking/",
+      "matchRate": 94,
+      "completedAt": "2026-02-04T00:00:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "filesCreated": 11,
+        "linesAdded": 1850,
+        "implementationFiles": [
+          "scripts/manual_processor/models/chunk.py",
+          "scripts/manual_processor/chunkers/__init__.py",
+          "scripts/manual_processor/chunkers/config.py",
+          "scripts/manual_processor/chunkers/semantic_chunker.py",
+          "scripts/manual_processor/chunkers/batch_upload_adapter.py",
+          "scripts/manual_processor/processors/__init__.py",
+          "scripts/manual_processor/processors/vision_llm_client.py",
+          "scripts/manual_processor/processors/image_processor.py",
+          "scripts/manual_processor/processors/table_processor.py",
+          "scripts/manual_processor/cache/__init__.py",
+          "scripts/manual_processor/cache/image_cache.py"
+        ],
+        "keyFeatures": [
+          "SemanticChunker (TOC/헤딩 기반 의미 단위 청킹)",
+          "VisionLLMClient (MiniCPM-V 2.6 통합)",
+          "ImageProcessor (PDF 이미지 추출 + Vision LLM)",
+          "ImageCache (파일 기반 캐싱, 30일 만료)",
+          "TableProcessor (GFM Markdown 변환)",
+          "TableMerger (페이지 경계 테이블 병합)",
+          "SemanticBatchChunker (batch_upload.py 통합 어댑터)",
+          "적응형 청크 크기 (200-1500자)",
+          "EnhancedChunk 멀티모달 데이터 모델"
+        ]
+      }
+    },
+    {
+      "feature": "server-script-improvement",
+      "archivedAt": "2026-02-03T18:36:00.000Z",
+      "archivedTo": "docs/archive/2026-02/server-script-improvement/",
+      "matchRate": 97,
+      "completedAt": "2026-02-03T18:30:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "filesModified": 1,
+        "linesAdded": 495,
+        "functionsAdded": 14,
+        "parametersAdded": 4,
+        "backupCreated": true,
+        "implementationFiles": [
+          "scripts/server.ps1"
+        ],
+        "keyFeatures": [
+          "Start-Process 방식 변경 (cmd.exe → python 직접)",
+          "Health Check 기반 시작 완료 감지",
+          "Graceful Shutdown",
+          "PID 파일 관리",
+          "환경변수 검증",
+          "재시도 로직 (3회)",
+          "CPU/메모리 정보 표시",
+          "로그 Rotation (7일)"
+        ]
+      }
+    },
+    {
+      "feature": "rag-backend-integration",
+      "archivedAt": "2026-02-03T17:51:00.000Z",
+      "archivedTo": "docs/archive/2026-02/rag-backend-integration/",
+      "matchRate": 96,
+      "completedAt": "2026-02-03T15:30:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "filesCreated": 2,
+        "linesAdded": 752,
+        "serviceEndpoints": 4,
+        "pydanticModels": 9,
+        "hallucinationModes": 3,
+        "breakingChanges": 0,
+        "enhancedErrorHandling": true,
+        "trainingDataDocs": 13594,
+        "implementationFiles": [
+          "app/api/services/rag_anti_hallucination_service.py",
+          "app/api/routers/query_rag.py"
+        ]
+      }
+    },
+    {
+      "feature": "summary-quality-improvement",
+      "archivedAt": "2026-02-03T13:00:00.000Z",
+      "archivedTo": "docs/archive/2026-02/summary-quality-improvement/",
+      "matchRate": 94,
+      "completedAt": "2026-02-03T12:41:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "filesCreated": 3,
+        "linesAdded": 1256,
+        "osctdlrmFixed": true,
+        "itemsReclassified": 62,
+        "qualityScore": 87.4
+      }
+    },
+    {
+      "feature": "strategy-aware-learning-dataset",
+      "archivedAt": "2026-02-03T12:50:00.000Z",
+      "archivedTo": "docs/archive/2026-02/strategy-aware-learning-dataset/",
+      "matchRate": 100,
+      "completedAt": "2026-02-03T12:41:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "filesCreated": 2,
+        "learningItems": 20143,
+        "pdfProcessed": 245,
+        "jeusKoreanRatio": "76.8%",
+        "processingTime": "30s"
+      }
+    },
+    {
+      "feature": "chatgpt-quality-pipeline",
+      "archivedAt": "2026-02-03T01:38:00.000Z",
+      "archivedTo": "docs/archive/2026-02/chatgpt-quality-pipeline/",
+      "matchRate": 100,
+      "completedAt": "2026-02-03T01:35:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "classesCreated": 2,
+        "filesModified": 4,
+        "linesAdded": 205,
+        "contextWindowExtended": "200→500, 500→1000",
+        "sentenceLimitExtended": "3→5",
+        "codeLengthThreshold": "20→5"
+      }
+    },
+    {
+      "feature": "chatgpt-style-webui",
+      "archivedAt": "2026-02-03T00:00:00.000Z",
+      "archivedTo": "docs/archive/2026-02/chatgpt-style-webui/",
+      "matchRate": 91,
+      "completedAt": "2026-02-03T00:00:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "cssLinesCreated": 535,
+        "componentsCreated": 2,
+        "componentsModified": 1,
+        "i18nLanguages": 3
+      }
+    },
+    {
+      "feature": "rag-accuracy-improvement",
+      "archivedAt": "2026-01-31T19:30:00.000Z",
+      "archivedTo": "docs/archive/2026-01/rag-accuracy-improvement/",
+      "matchRate": 97,
+      "completedAt": "2026-01-31T19:45:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "newServicesCreated": 5,
+        "promptEnhancementsAdded": 3,
+        "e2eTestsAdded": 8,
+        "envVariablesAdded": 5,
+        "hallucinationPreventionRules": 3
+      }
+    },
+    {
+      "feature": "hybrid-score-redesign",
+      "archivedAt": "2026-01-31T16:00:00.000Z",
+      "archivedTo": "docs/archive/2026-01/hybrid-score-redesign/",
+      "matchRate": 100,
+      "completedAt": "2026-01-31T16:00:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "hardcodingsRemoved": 21,
+        "configFieldsAdded": 24,
+        "envVarMappingsAdded": 24,
+        "newServicesCreated": 1
+      }
+    },
+    {
+      "feature": "rag-search-accuracy-improvement",
+      "archivedAt": "2026-01-31T06:35:00.000Z",
+      "archivedTo": "docs/archive/2026-01/rag-search-accuracy-improvement/",
+      "matchRate": 100,
+      "completedAt": "2026-01-31T06:25:00.000Z",
+      "designVersion": "v2.0",
+      "keyDeliverables": {
+        "hardcodingsRemoved": 14,
+        "configFieldsAdded": 18,
+        "envVarMappingsAdded": 17
+      }
+    },
+    {
+      "feature": "cjk-tokenization-improvement",
+      "archivedAt": "2026-01-31T04:45:00.000Z",
+      "archivedTo": "docs/04-report/features/cjk-tokenization-improvement.report.md",
+      "matchRate": 100,
+      "verifiedAt": "2026-01-31T04:44:00.000Z",
+      "testResults": {
+        "query1": "OSCサーバーの起動画面 → 5 docs found",
+        "query2": "マッピング・サポート・システム → Mapping Guide found"
+      }
+    },
+    {
+      "feature": "search-result-image-display",
+      "archivedAt": "2026-01-31T12:15:00.000Z",
+      "archivedTo": "docs/04-report/features/search-result-image-display.report.md",
+      "matchRate": 92
+    },
+    {
+      "feature": "qlora-rag-system",
+      "archivedAt": "2026-01-30T14:30:00.000Z",
+      "archivedTo": "docs/archive/2026-01/qlora-rag-system/",
+      "matchRate": 95
+    },
+    {
+      "feature": "mindmap-analysis",
+      "archivedAt": "2026-01-30T16:20:00.000Z",
+      "archivedTo": "docs/archive/2026-01/mindmap-analysis/",
+      "matchRate": 100
+    },
+    {
+      "feature": "chunking-embedding-analysis",
+      "archivedAt": "2026-01-31T00:00:00.000Z",
+      "archivedTo": "docs/archive/2026-01/chunking-embedding-analysis/",
+      "matchRate": 91
+    },
+    {
+      "feature": "chunking-embedding-phase2",
+      "archivedAt": "2026-01-31T12:00:00.000Z",
+      "archivedTo": "docs/archive/2026-01/chunking-embedding-phase2/",
+      "matchRate": 95
+    },
+    {
+      "feature": "graph-db-quality-test",
+      "archivedAt": "2026-01-31T00:51:00.000Z",
+      "archivedTo": "docs/archive/2026-01/graph-db-quality-test/",
+      "matchRate": 100
+    },
+    {
+      "feature": "document-graph-integration",
+      "archivedAt": "2026-01-31T17:30:00.000Z",
+      "archivedTo": "docs/archive/2026-01/document-graph-integration/",
+      "matchRate": 100
+    },
+    {
+      "feature": "mindmap-embedding-verification",
+      "archivedAt": "2026-02-02T00:00:00.000Z",
+      "archivedTo": "docs/archive/2026-02/mindmap-embedding-verification/",
+      "matchRate": 100
+    },
+    {
+      "feature": "xsp-jcl-c-parser-wrapper",
+      "archivedAt": "2026-02-19T06:15:00.000Z",
+      "archivedTo": "docs/archive/2026-02/xsp-jcl-c-parser-wrapper/",
+      "matchRate": 95,
+      "completedAt": "2026-02-19T06:10:00.000Z",
+      "designVersion": "v1.0",
+      "keyDeliverables": {
+        "filesCreated": 7,
+        "linesAdded": 2039,
+        "filesModified": 1,
+        "implementationFiles": [
+          "parsers/xspjcl/__init__.py",
+          "parsers/xspjcl/wrapper.py",
+          "parsers/xspjcl/models.py",
+          "parsers/xspjcl/converter.py",
+          "parsers/xspjcl/lib/kms_xspjcl_wrapper.c",
+          "parsers/xspjcl/lib/Makefile",
+          "parsers/xspjcl/lib/build.sh"
+        ],
+        "keyFeatures": [
+          "OF7 C Parser ctypes wrapper (46 stmt types)",
+          "750-line C JSON serialization (full tree walk)",
+          "15 Pydantic models + 3 enums",
+          "XSPResultConverter → ParserResult",
+          "Adapter pattern with Python regex fallback",
+          "Memory-safe: kms_xspjcl_free() in finally block"
+        ]
+      }
+    },
+    {
+      "feature": "legacy-analysis-datatable-persistence",
+      "archivedAt": "2026-02-19T07:30:00.000Z",
+      "archivedTo": "docs/archive/2026-02/legacy-analysis-datatable-persistence/",
+      "matchRate": 97,
+      "completedAt": "2026-02-19T07:00:00.000Z",
+      "keyDeliverables": {
+        "filesCreated": 5,
+        "linesAdded": 1958,
+        "filesModified": 11,
+        "implementationFiles": [
+          "app/api/infrastructure/postgres/legacy_analysis_repository.py",
+          "kms-portal-ui/src/components/ModernizationAI/AnalysisDataTable.tsx",
+          "kms-portal-ui/src/components/ModernizationAI/AnalysisDataTable.css",
+          "kms-portal-ui/src/pages/LegacyAnalysisDetailPage.tsx",
+          "kms-portal-ui/src/pages/LegacyAnalysisDetailPage.css"
+        ],
+        "keyFeatures": [
+          "PostgreSQL persistence (25 columns, 5 indexes, 4 JSONB)",
+          "Data Table with sort/filter/pagination/bulk-delete",
+          "Popup detail page (4 tabs: Overview/Incompatibility/Source/Reports)",
+          "Auto-refresh on analysis completion",
+          "i18n 3 locales (24 keys each)"
+        ]
+      }
+    },
+    {
+      "feature": "xsp-parser-faithful-wrapper",
+      "archivedAt": "2026-02-19T09:00:00.000Z",
+      "archivedTo": "docs/archive/2026-02/xsp-parser-faithful-wrapper/",
+      "matchRate": 100,
+      "completedAt": "2026-02-19T08:50:00.000Z",
+      "keyDeliverables": {
+        "filesModified": 1,
+        "linesAdded": 40,
+        "implementationFiles": [
+          "app/api/legacy_modernization/parsers/jcl_parser.py"
+        ],
+        "keyFeatures": [
+          "_XSP_KNOWN_KEYWORDS (27 keywords from OF7 C parser)",
+          "STMT_ERROR detection for unrecognized XSP statements",
+          "Error format matching C parser: Unknown JCL statement - {keyword}",
+          "parse_errors + error_count in stats"
+        ]
+      }
+    },
+    {
+      "feature": "unified-lora-dataset",
+      "phase": "archived",
+      "matchRate": 97,
+      "iterationCount": 0,
+      "startedAt": "2026-02-22T09:00:00.000Z",
+      "archivedAt": "2026-02-22T10:00:00.000Z",
+      "archivedTo": "docs/archive/2026-02/unified-lora-dataset/",
+      "completedAt": "2026-02-22T09:50:00.000Z",
+      "keyDeliverables": {
+        "filesCreated": 5,
+        "linesAdded": 1940,
+        "filesModified": 3,
+        "implementationFiles": [
+          "scripts/manual_processor/data/product_relations.json",
+          "scripts/manual_processor/data/relation_seeds.json",
+          "scripts/manual_processor/generators/unified_sft_generator.py",
+          "scripts/manual_processor/generators/unified_dpo_generator.py",
+          "scripts/manual_processor/generators/unified_cpt_generator.py"
+        ],
+        "keyFeatures": [
+          "25th unified QLoRA adapter for cross-product relationships",
+          "7 relation types (R-01~R-07)",
+          "3-source SFT: relation_seeds + summary_pairs + pdf_extraction",
+          "3-strategy DPO: cross_product + fact_mutation + summary_cross",
+          "Relation-section CPT extraction (TOC-based + keyword fallback)",
+          "--unified CLI flag in gen-training command"
+        ]
+      }
+    },
+    {
+      "feature": "qwen3-dataset-pipeline",
+      "phase": "archived",
+      "matchRate": 100,
+      "iterationCount": 1,
+      "startedAt": "2026-02-24T14:20:00.000Z",
+      "archivedAt": "2026-02-24T21:00:00.000Z",
+      "archivedTo": "docs/archive/2026-02/qwen3-dataset-pipeline/"
+    },
+    {
+      "feature": "livekit-premium-support",
+      "phase": "archived",
+      "matchRate": 95,
+      "iterationCount": 0,
+      "startedAt": "2026-02-25T14:08:42.235Z",
+      "archivedAt": "2026-02-25T16:00:00.000Z",
+      "archivedTo": "docs/archive/2026-02/livekit-premium-support/"
+    },
+    {
+      "feature": "webui-image-display-fix",
+      "phase": "archived",
+      "matchRate": 100,
+      "iterationCount": 0,
+      "startedAt": "2026-02-27T07:00:00.000Z",
+      "archivedAt": "2026-02-27T09:30:00.000Z",
+      "archivedTo": "docs/archive/2026-02/webui-image-display-fix/",
+      "completedAt": "2026-02-27T09:00:00.000Z",
+      "keyDeliverables": {
+        "filesModified": 2,
+        "linesAdded": 49,
+        "implementationFiles": [
+          "kms-portal-ui/src/styles/chatgpt-style.css",
+          "app/api/services/agentic_rag_service.py"
+        ],
+        "keyFeatures": [
+          "chatgpt-markdown-img CSS class (image display fix)",
+          "chatgpt-image-overlay/enlarged CSS (zoom modal)",
+          "f-string debug logging in _build_table_supplement()",
+          "AppLogger %-style crash prevention"
+        ]
+      }
+    }
+  ]
 }

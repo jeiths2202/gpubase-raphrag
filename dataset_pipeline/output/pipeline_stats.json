@@ -1,0 +1,43 @@
+{
+  "sft_total": 21537,
+  "sft_train": 17229,
+  "sft_eval": 4308,
+  "dpo_total": 2151,
+  "dpo_train": 1720,
+  "dpo_eval": 431,
+  "dpo_ratio": "10.0%",
+  "products": 19,
+  "cpt_sections": 20868,
+  "cpt_size_bytes": 37242580,
+  "sft_by_product": {
+    "tibero7": 4413,
+    "openframe_mvs": 3509,
+    "tmax": 2316,
+    "openframe_xsp": 2232,
+    "jeus_kr": 2166,
+    "openframe_msp": 2160,
+    "jeus_jp": 2026,
+    "openframe_vos3": 473,
+    "webtob": 460,
+    "ofpli": 363,
+    "ofcobol": 263,
+    "prosync": 257,
+    "protrieve": 247,
+    "ofmanager": 224,
+    "prosort": 148,
+    "ofgw": 104,
+    "ofminer": 69,
+    "ofstudio": 62,
+    "ofasm": 45
+  },
+  "sft_by_language": {
+    "ja": 18938,
+    "ko": 2058,
+    "en": 541
+  },
+  "dpo_by_strategy": {
+    "fact_mutation": 861,
+    "cross_product": 645,
+    "over_claiming": 645
+  }
+}

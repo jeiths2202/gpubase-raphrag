@@ -65,7 +65,7 @@ class SourceInfo(BaseModel):
     chunk_id: str
     chunk_index: int
     content: str
-    score: float = Field(ge=0.0, le=1.0)
+    score: float = Field(ge=0.0)  # RRF scores can exceed 1.0 due to fusion + boosting
     source_type: str  # "vector", "graph", "session", "external_notion", etc.
     entities: list[str] = Field(default_factory=list)
     # Session document info

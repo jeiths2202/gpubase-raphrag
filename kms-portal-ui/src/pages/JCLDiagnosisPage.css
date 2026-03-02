@@ -1,0 +1,650 @@
+/**
+ * JCL Diagnosis Page Styles
+ *
+ * Uses CSS variables from themes.css for dark/light mode support.
+ */
+
+/* ============================================
+   Page Layout
+   ============================================ */
+
+.jcl-diagnosis-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  max-width: 960px;
+  margin: 0 auto;
+  min-height: 100%;
+}
+
+/* ============================================
+   Header
+   ============================================ */
+
+.jcl-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.jcl-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.jcl-header-icon {
+  color: var(--color-warning);
+}
+
+.jcl-header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* ============================================
+   Buttons
+   ============================================ */
+
+.jcl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.jcl-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.jcl-btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.jcl-btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.jcl-btn-secondary {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+.jcl-btn-secondary:hover:not(:disabled) {
+  background: var(--color-bg-active);
+}
+
+.jcl-btn-ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding: 8px 12px;
+}
+
+.jcl-btn-ghost:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+/* ============================================
+   Zone 1: Upload
+   ============================================ */
+
+.jcl-upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.jcl-dropzone {
+  width: 100%;
+  padding: 48px 24px;
+  border: 2px dashed var(--color-border);
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--color-bg-card);
+}
+
+.jcl-dropzone:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.jcl-dropzone.drag-over {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  transform: scale(1.01);
+}
+
+.jcl-dropzone.has-file {
+  border-color: var(--color-success);
+  border-style: solid;
+}
+
+.jcl-dropzone-icon {
+  color: var(--color-text-muted);
+  margin-bottom: 12px;
+}
+
+.jcl-dropzone-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.jcl-dropzone-hint {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.jcl-dropzone-file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--color-success);
+  font-weight: 500;
+}
+
+.jcl-file-size {
+  color: var(--color-text-muted);
+  font-weight: 400;
+  font-size: 0.85rem;
+}
+
+.jcl-upload-options {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+}
+
+.jcl-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jcl-option label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.jcl-option select,
+.jcl-option input {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+}
+
+.jcl-option select:focus,
+.jcl-option input:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 2px var(--color-primary-light);
+}
+
+.jcl-option-message {
+  flex: 1;
+}
+
+/* ============================================
+   Error Banner
+   ============================================ */
+
+.jcl-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--color-error-light);
+  color: var(--color-error);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  width: 100%;
+}
+
+/* ============================================
+   Zone 2: Progress Pipeline
+   ============================================ */
+
+.jcl-progress-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Pipeline stepper */
+.jcl-pipeline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 16px;
+  background: var(--color-bg-secondary);
+  border-radius: 12px;
+  overflow-x: auto;
+}
+
+.jcl-pipeline-arrow {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.jcl-pipeline-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.jcl-pipeline-step.pending {
+  color: var(--color-text-muted);
+}
+
+.jcl-pipeline-step.active {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.jcl-pipeline-step.done {
+  color: var(--color-success);
+}
+
+.jcl-pipeline-step.error {
+  color: var(--color-error);
+}
+
+.jcl-pipeline-icon {
+  display: flex;
+  align-items: center;
+}
+
+.jcl-pipeline-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+/* Detail cards */
+.jcl-details {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.jcl-detail-card {
+  padding: 16px;
+  background: var(--color-bg-secondary);
+  border-radius: 10px;
+  border: 1px solid var(--color-border-light);
+}
+
+.jcl-detail-card h3 {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* Badges */
+.jcl-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+}
+
+.jcl-file-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.jcl-badge-file {
+  font-family: monospace;
+}
+
+/* Step flow */
+.jcl-step-flow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.jcl-step-arrow {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.jcl-step-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-card);
+  min-width: 80px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.jcl-step-node.step-completed {
+  border-color: var(--color-success);
+  background: var(--color-success-light);
+}
+
+.jcl-step-node.step-abend {
+  border-color: var(--color-error);
+  background: var(--color-error-light);
+}
+
+.jcl-step-node.step-skipped {
+  opacity: 0.5;
+}
+
+.jcl-step-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.jcl-step-pgm {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-family: monospace;
+}
+
+.jcl-step-rc {
+  font-size: 0.7rem;
+  font-family: monospace;
+  color: var(--color-text-secondary);
+}
+
+/* Error card */
+.jcl-error-card {
+  border-left: 4px solid var(--color-text-muted);
+}
+
+.jcl-error-card.severity-critical {
+  border-left-color: var(--color-error);
+}
+
+.jcl-error-card.severity-high {
+  border-left-color: var(--color-warning);
+}
+
+.jcl-error-card.severity-medium {
+  border-left-color: #eab308;
+}
+
+.jcl-error-card.severity-low {
+  border-left-color: var(--color-info);
+}
+
+.jcl-error-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.jcl-severity-badge {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.jcl-severity-badge.severity-critical {
+  background: var(--color-error-light);
+  color: var(--color-error);
+}
+
+.jcl-severity-badge.severity-high {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.jcl-severity-badge.severity-medium {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+}
+
+.jcl-severity-badge.severity-low {
+  background: var(--color-info-light);
+  color: var(--color-info);
+}
+
+.jcl-error-code {
+  font-family: monospace;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.jcl-error-body {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.jcl-error-body p {
+  margin: 4px 0;
+}
+
+/* Search results */
+.jcl-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jcl-search-item {
+  padding: 12px;
+  background: var(--color-bg-card);
+  border-radius: 8px;
+  border: 1px solid var(--color-border-light);
+}
+
+.jcl-search-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.jcl-search-code {
+  font-family: monospace;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--color-text-primary);
+}
+
+.jcl-search-source {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.jcl-confidence-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.jcl-confidence-bar > div {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-primary);
+  flex: 0 0 auto;
+}
+
+.jcl-confidence-bar > span {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.jcl-confidence-fill {
+  max-width: 120px;
+}
+
+.jcl-search-desc {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+/* ============================================
+   Zone 3: Report
+   ============================================ */
+
+.jcl-report-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jcl-report-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.jcl-report-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.jcl-report-stream {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-light);
+  border-radius: 10px;
+  padding: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.jcl-report-stream pre {
+  margin: 0;
+  font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.jcl-report-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+
+@media (max-width: 640px) {
+  .jcl-diagnosis-page {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .jcl-upload-options {
+    flex-direction: column;
+  }
+
+  .jcl-pipeline {
+    padding: 12px;
+    gap: 2px;
+  }
+
+  .jcl-pipeline-label {
+    display: none;
+  }
+
+  .jcl-step-flow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .jcl-step-arrow {
+    transform: rotate(90deg);
+    align-self: center;
+  }
+
+  .jcl-report-actions {
+    flex-direction: column;
+  }
+}
+
+/* ============================================
+   Print
+   ============================================ */
+
+@media print {
+  .jcl-upload-zone,
+  .jcl-progress-zone .jcl-pipeline,
+  .jcl-report-actions,
+  .jcl-header .jcl-btn {
+    display: none !important;
+  }
+
+  .jcl-diagnosis-page {
+    padding: 0;
+  }
+
+  .jcl-report-stream {
+    max-height: none;
+    border: none;
+    padding: 0;
+  }
+}

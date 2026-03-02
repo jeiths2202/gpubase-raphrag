@@ -1,0 +1,18 @@
+{
+  "product": "osi",
+  "version": "6.0",
+  "inherits": null,
+  "capabilities": [
+    {"category": "ims", "pattern": "CBLTDLI", "support": "full", "notes": null},
+    {"category": "ims", "pattern": "EXEC DLI GU", "support": "full", "notes": null},
+    {"category": "ims", "pattern": "EXEC DLI GN", "support": "full", "notes": null},
+    {"category": "ims", "pattern": "EXEC DLI ISRT", "support": "full", "notes": null},
+    {"category": "ims", "pattern": "EXEC DLI REPL", "support": "full", "notes": null},
+    {"category": "ims", "pattern": "EXEC DLI DLET", "support": "full", "notes": null},
+    {"category": "db2", "pattern": "EXEC SQL SELECT", "support": "partial", "notes": "기본 SELECT만 지원"},
+    {"category": "db2", "pattern": "EXEC SQL INSERT", "support": "full", "notes": null},
+    {"category": "db2", "pattern": "EXEC SQL UPDATE", "support": "full", "notes": null},
+    {"category": "db2", "pattern": "EXEC SQL DELETE", "support": "full", "notes": null}
+  ],
+  "removed": []
+}

@@ -83,6 +83,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Qwen2.5 Special Token IDs
+QWEN_ENDOFTEXT_ID = 151643   # <|endoftext|> - 패딩용
 
 # ============================================================
 # Q&A Templates
@@ -502,8 +504,9 @@ def run_qlora_training(
         config.base_model,
         trust_remote_code=True,
     )
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+    # pad_token을 <|endoftext|>로 설정 (eos_token인 <|im_end|>와 분리)
+    tokenizer.pad_token = tokenizer.decode([QWEN_ENDOFTEXT_ID])
+    tokenizer.pad_token_id = QWEN_ENDOFTEXT_ID
 
     # Quantization config
     bnb_config = BitsAndBytesConfig(

@@ -1,0 +1,13 @@
+{
+  "product": "osc",
+  "version": "8.0",
+  "inherits": "osc/v7_3.json",
+  "capabilities": [
+    {"category": "cics", "pattern": "EXEC CICS DOCUMENT", "support": "full", "notes": "8.0에서 전체 지원"},
+    {"category": "cics", "pattern": "EXEC CICS PUT CONTAINER", "support": "full", "notes": "8.0 신규 Channel/Container 지원"},
+    {"category": "cics", "pattern": "EXEC CICS GET CONTAINER", "support": "full", "notes": "8.0 신규 Channel/Container 지원"}
+  ],
+  "removed": [
+    {"category": "cics", "pattern": "EXEC CICS FEPI", "reason": "deprecated - 8.0에서 공식 제거"}
+  ]
+}

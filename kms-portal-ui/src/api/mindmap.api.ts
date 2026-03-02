@@ -83,17 +83,20 @@ export interface GenerateMindmapRequest {
   depth?: number;
   focus_topic?: string;
   language?: string;
+  product_id?: string;
 }
 
 export interface ExpandNodeRequest {
   node_id: string;
   depth?: number;
   max_children?: number;
+  product_id?: string;
 }
 
 export interface QueryNodeRequest {
   node_id: string;
   question?: string;
+  product_id?: string;
 }
 
 // =============================================================================
@@ -268,18 +271,30 @@ export const getNodeDetail = async (
 /**
  * Generate mindmap from all documents in the system
  * POST /api/v1/mindmap/from-all-documents
+ *
+ * Note: Pass language in query params to match FastAPI Query() parameter
  */
 export const generateFromAllDocuments = async (params?: {
   title?: string;
   max_nodes?: number;
   focus_topic?: string;
   language?: string;
+  product_id?: string;
 }): Promise<GenerateMindmapResponse> => {
-  const response = await apiClient.post<ApiResponse<GenerateMindmapResponse>>(
-    '/mindmap/from-all-documents',
-    null,
-    { params }
-  );
+  // Build query string explicitly to ensure params are passed correctly
+  const queryParams = new URLSearchParams();
+  if (params?.title) queryParams.append('title', params.title);
+  if (params?.max_nodes) queryParams.append('max_nodes', params.max_nodes.toString());
+  if (params?.focus_topic) queryParams.append('focus_topic', params.focus_topic);
+  if (params?.language) queryParams.append('language', params.language);
+  if (params?.product_id) queryParams.append('product_id', params.product_id);
+
+  const queryString = queryParams.toString();
+  const url = queryString
+    ? `/mindmap/from-all-documents?${queryString}`
+    : '/mindmap/from-all-documents';
+
+  const response = await apiClient.post<ApiResponse<GenerateMindmapResponse>>(url);
   return response.data.data;
 };
 

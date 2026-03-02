@@ -25,7 +25,24 @@ qlora_adapters/
 training_*.log
 *.log
 
-# Training data files (large - not tracked)
+# Test
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Archives
+*.tgz
+*.tar.gz
+*.zip
+
+# Claude settings (tracked for team sharing)
+# .claude/
+
+# Temp files
+*.tmp
+*.temp
+
+# Training data files (large - not tracked in git)
 scripts/training/v11/output/*.jsonl
 scripts/training/v11/output/*.txt
 scripts/training/v11/__pycache__/

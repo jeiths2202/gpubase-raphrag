@@ -1,0 +1,10 @@
+{
+  "product": "batch",
+  "version": "7.1",
+  "inherits": "batch/v7_0.json",
+  "capabilities": [
+    {"category": "vsam", "pattern": "RRDS", "support": "full", "notes": "7.1에서 전체 지원"},
+    {"category": "jes_control", "pattern": "/*ROUTE", "support": "full", "notes": "7.1에서 확장 라우팅 지원"}
+  ],
+  "removed": []
+}

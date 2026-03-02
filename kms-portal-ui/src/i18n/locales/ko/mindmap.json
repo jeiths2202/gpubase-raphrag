@@ -16,7 +16,10 @@
     "generate": "생성",
     "cancel": "취소",
     "savedMindmaps": "저장된 마인드맵",
-    "noMindmaps": "아직 마인드맵이 없습니다"
+    "noMindmaps": "아직 마인드맵이 없습니다",
+    "selectProduct": "제품 선택 (선택사항)",
+    "productPlaceholder": "기본 LLM (제품 전문화 없음)",
+    "learningLlmActive": "제품 전문 LLM 사용 중"
   },
   "panel": {
     "importance": "중요도",

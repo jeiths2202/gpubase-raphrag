@@ -1,0 +1,9 @@
+{
+  "product": "aim_xsp",
+  "version": "7.1",
+  "inherits": "aim_xsp/v7_0.json",
+  "capabilities": [
+    {"category": "cics", "pattern": "EXEC CICS ASSIGN", "support": "full", "notes": "7.1에서 확장"}
+  ],
+  "removed": []
+}

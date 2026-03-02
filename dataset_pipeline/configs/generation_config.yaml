@@ -1,0 +1,59 @@
+# Qwen3 32B QLoRA Dataset Pipeline Configuration
+# ─────────────────────────────────────────────────
+
+# Target sizes
+target_sft_size: 150000
+target_dpo_size: 15000
+include_cpt: true
+
+# Chunking
+chunk_size: 1200
+max_chunk_size: 2000
+min_chunk_size: 200
+cpt_max_chunk_tokens: 4096
+
+# SFT distribution ratios (must sum to 1.0)
+sft_single_product_ratio: 0.50
+sft_comparison_ratio: 0.30
+sft_architecture_ratio: 0.20
+
+# QA generation
+qa_variants_per_item: 5
+qa_min_answer_length: 50
+qa_max_answer_length: 3000
+
+# Cross-product comparison
+comparison_questions_per_pair: 100
+comparison_min_shared_features: 2
+comparison_cluster_boost: 1.5
+
+# DPO strategy ratios (must sum to 1.0)
+dpo_cross_product_ratio: 0.30
+dpo_fact_mutation_ratio: 0.30
+dpo_over_claiming_ratio: 0.20
+dpo_speculative_ratio: 0.20
+
+# Quality
+dedup_threshold: 0.95
+max_token_length: 4096
+train_eval_split: 0.80
+
+# Languages
+primary_language: ja
+secondary_languages:
+  - ko
+  - en
+
+# Performance
+max_workers: 4
+batch_size: 1000
+
+# Paths
+manuals_dir: uploads/manuals
+output_dir: dataset_pipeline/output
+
+# System prompt
+system_prompt_template: >-
+  You are a professional enterprise product expert
+  for TmaxSoft products. Answer accurately based on
+  official product documentation.

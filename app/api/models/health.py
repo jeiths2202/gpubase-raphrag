@@ -26,19 +26,33 @@ class ServiceHealth(BaseModel):
 class ServicesHealth(BaseModel):
     """All services health status
 
-    GPU Allocation:
-    - GPU 4: qwen_llm (Qwen2.5-7B-Instruct)
-    - GPU 5: embedding (NeMo Embedding)
-    - GPU 6: vision_llm (LLaMA-3.1-Nemotron-Nano-VL)
-    - GPU 7: codeqwen (Qwen2.5-Coder-3B) + learning_llm (Qwen2.5-7B-AWQ)
+    Active GPU Allocation:
+    - GPU 4-7: multi_lora_dpo (Qwen2.5-72B + 15 DPO adapters, 4x A100-40GB, port 12810)
+    - GPU 5: embedding (NeMo Embedding, port 12801)
+
+    Disabled:
+    - qwen_llm (port 12800) - ENABLE_QWEN_LLM=false
+    - codeqwen (port 12802) - not deployed
+    - vision_llm (port 12803) - not deployed
     """
     api: ServiceHealth
     neo4j: ServiceHealth
-    qwen_llm: ServiceHealth
+    multi_lora_dpo: ServiceHealth
     embedding: ServiceHealth
-    codeqwen: ServiceHealth
-    vision_llm: ServiceHealth
-    learning_llm: ServiceHealth
+    qwen_llm: Optional[ServiceHealth] = None
+    codeqwen: Optional[ServiceHealth] = None
+    vision_llm: Optional[ServiceHealth] = None
+
+
+class PreloadStatus(BaseModel):
+    """PDF knowledge store preload progress"""
+    total: int = Field(description="Total products to preload")
+    loaded: int = Field(description="Products loaded so far")
+    current_product: str = Field(default="", description="Currently loading product")
+    is_running: bool = Field(description="Whether preloading is in progress")
+    is_done: bool = Field(description="Whether preloading completed")
+    elapsed_seconds: float = Field(description="Time elapsed in seconds")
+    error: Optional[str] = None
 
 
 class HealthResponse(BaseModel):
@@ -47,3 +61,4 @@ class HealthResponse(BaseModel):
     version: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     services: ServicesHealth
+    preload: Optional[PreloadStatus] = None

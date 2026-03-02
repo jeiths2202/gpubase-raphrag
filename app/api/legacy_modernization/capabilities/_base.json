@@ -1,0 +1,1120 @@
+{
+  "description": "Base capabilities shared across all OpenFrame products",
+  "capabilities": [
+    {
+      "category": "file_io",
+      "pattern": "OPEN",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "file_io",
+      "pattern": "CLOSE",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "file_io",
+      "pattern": "READ",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "file_io",
+      "pattern": "WRITE",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "file_io",
+      "pattern": "REWRITE",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "file_io",
+      "pattern": "DELETE",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "file_io",
+      "pattern": "START",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "arithmetic",
+      "pattern": "COMPUTE",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "arithmetic",
+      "pattern": "ADD",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "arithmetic",
+      "pattern": "SUBTRACT",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "arithmetic",
+      "pattern": "MULTIPLY",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "arithmetic",
+      "pattern": "DIVIDE",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "string_op",
+      "pattern": "STRING",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "string_op",
+      "pattern": "UNSTRING",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "string_op",
+      "pattern": "INSPECT",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "flow_control",
+      "pattern": "PERFORM",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "flow_control",
+      "pattern": "GO TO",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "flow_control",
+      "pattern": "IF",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "flow_control",
+      "pattern": "EVALUATE",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "flow_control",
+      "pattern": "CALL",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "flow_control",
+      "pattern": "STOP RUN",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "flow_control",
+      "pattern": "GOBACK",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "copybook",
+      "pattern": "COPY",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "data_definition",
+      "pattern": "WORKING-STORAGE",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "data_definition",
+      "pattern": "LINKAGE SECTION",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "data_definition",
+      "pattern": "LOCAL-STORAGE",
+      "support": "full",
+      "notes": null
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL COPY",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL DIVISION",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL END",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL PROGRAM",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL SECTION",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL IS",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL ARE",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL FROM",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL TO",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL KEY",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL WITH",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL EXTERNAL",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL GLOBAL",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL RECORD",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL RECORDS",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL SIZE",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL IN",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL CONTAINS",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL CHARACTERS",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL BLOCK",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL FILLER",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL BLANK",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL WHEN",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL ZERO",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL ZEROS",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL ZEROES",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL JUSTIFIED",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL LEFT",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL RIGHT",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL OCCURS",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL PICTURE",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL PIC",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL SIGN",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL LEADING",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL TRAILING",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL SEPERATE",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL NULL",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL NULLS",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL TIMES",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL ASCENDING",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL DESCENDING",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL OF",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL ON",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL NOT",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL ADDRESS",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL LENGTH",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL NO",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL EXEC",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL END-EXEC",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL USAGE",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL EXIT",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL BINARY",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL COMP",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL COMPUTATIONAL",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL COMP-1",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL COMPUTATIONAL-1",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL COMP-2",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL COMPUTATIONAL-2",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL COMP-3",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL COMPUTATIONAL-3",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL COMP-4",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL COMPUTATIONAL-4",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL DISPLAY",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL DISPLAY-1",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL INDEX",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL PAKCED-DECIMAL",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL POINTER",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL PROCEDURE-POINTER",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL IDENTIFICATION",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL PROGRAM-ID",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL COMMON",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL INITIAL",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL AUTHOR",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL INSTALLATION",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL DATE-WRITTEN",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL DATE-COMPILED",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL SECURITY",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL REMARKS",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL ENVIRONMENT",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL CONFIGURATION",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL SOURCE-COMPUTER",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL OBJECT-COMPUTER",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL SPECIAL-NAMES",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL INPUT-OUTPUT",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL FILE-CONTROL",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL IO-CONTROL",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL SELECT",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL OPTIONAL",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL ASSIGN",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL ORGANIZATION",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL INDEXED",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL SEQUENTIAL",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL RELATIVE",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL RANDOM",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL DYNAMIC",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL ACCESS",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL MODE",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL ALTERNATE",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL DUPLICATES",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL PASSWORD",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL RESERVE",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL AREA",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL AREAS",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL FILE",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL STATUS",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL DATA",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL FD",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL LABEL",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL STANDARD",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL OMITTED",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL VARYING",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL DEPENDING",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL RECORDING",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL CODE-SET",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL WORKING-STORAGE",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL LINKAGE",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL REDEFINES",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL RENAMES",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL THROUGH",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL THRU",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL SYNCHRONIZED",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL SYNC",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL VALUE",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL VALUES",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL PROCEDURE",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL USING",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL CALL",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL END-CALL",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL EXCEPTION",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL OVERFLOW",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL OPEN",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL INPUT",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL OUTPUT",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL I-O",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL EXTEND",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL REVERSED",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    },
+    {
+      "category": "cobol_keyword",
+      "pattern": "COBOL REWIND",
+      "support": "full",
+      "notes": "Standard COBOL keyword",
+      "source_ref": "base/parser/cobpar/cobpar_keyword.c"
+    }
+  ]
+}

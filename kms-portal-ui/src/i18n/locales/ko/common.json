@@ -3,9 +3,11 @@
   "loading": "로딩 중...",
   "error": "오류",
   "success": "성공",
+  "or": "또는",
   "cancel": "취소",
   "confirm": "확인",
   "save": "저장",
+  "saving": "저장 중...",
   "delete": "삭제",
   "edit": "편집",
   "create": "생성",
@@ -36,7 +38,8 @@
     "mindmap": "AI 스튜디오",
     "agent": "AI 에이전트",
     "documents": "문서",
-    "analytics": "분석",
+    "agenticRag": "에이전트 RAG",
+    "knowledgeGraph": "Knowledge Graph",
     "improvements": "개선 요청",
     "admin": "관리자",
     "settings": "설정",
@@ -44,6 +47,11 @@
     "externalPortal": "외부 포털",
     "apikeys": "API 키",
     "openAgent": "OpenAgent",
+    "openframeRag": "OpenFrame RAG",
+    "scoring": "스코어링 설정",
+    "legacyModernization": "레거시 모더나이제이션",
+    "jclDiagnosis": "JCL 진단",
+    "supportDashboard": "지원 대시보드",
     "mainNavigation": "메인 네비게이션"
   },
   "products": {
@@ -607,7 +615,27 @@
     "suggestion3": "TACF란 무엇인가요?",
     "thinking": "생각 중...",
     "attachFile": "파일 첨부",
-    "placeholder": "메시지를 입력하세요..."
+    "placeholder": "메시지를 입력하세요...",
+    "modes": {
+      "rag": "RAG",
+      "ragDescription": "요약본 기반 검색 증강 생성",
+      "direct": "Direct",
+      "directDescription": "검색 없이 직접 LLM 응답",
+      "opencode": "OpenCode",
+      "opencodeDescription": "환각 감지를 포함한 5단계 워크플로우"
+    },
+    "premiumSupport": "프리미엄 지원",
+    "premiumSupportDesc": "원격 전문가가 실시간으로 화면을 보면서 기술 지원을 제공합니다.",
+    "startSession": "세션 시작",
+    "connecting": "연결 중...",
+    "waitingForExpert": "전문가 접속 대기 중...",
+    "shareScreen": "화면 공유",
+    "stopSharing": "공유 중지",
+    "micOn": "마이크 켜짐",
+    "micOff": "마이크 꺼짐",
+    "endSession": "세션 종료",
+    "expertConnected": "전문가 연결됨",
+    "sessionError": "지원 세션 생성에 실패했습니다. 다시 시도해 주세요."
   },
   "opencode": {
     "title": "OpenCode 에이전트",
@@ -642,6 +670,45 @@
     },
     "noSources": "이 질문에 대한 정보를 지식 베이스에서 찾을 수 없습니다."
   },
+  "openframeRag": {
+    "title": "OpenFrame RAG",
+    "subtitle": "Learning LLM 기반 멀티 제품 RAG",
+    "selectProduct": "제품 선택",
+    "productRequired": "쿼리에 맞는 제품을 선택해주세요",
+    "deepSeek": "DeepSeek",
+    "deepSeekDescription": "8개 제품 및 전체 데이터베이스 통합 검색",
+    "deepSeekWarning": "DeepSeek은 8개 제품을 모두 검색합니다. 시간이 더 소요될 수 있습니다.",
+    "otherWarning": "'Other' 선택 시 정확도가 낮아지고 응답 시간이 길어질 수 있습니다.",
+    "autoDetected": "자동 감지됨",
+    "confidence": "신뢰도",
+    "searching": "검색 중...",
+    "searchingProduct": "{{product}} 검색 중...",
+    "noProductDetected": "제품을 자동으로 감지할 수 없습니다",
+    "welcomeTitle": "OpenFrame RAG에 오신 것을 환영합니다",
+    "welcomeMessage": "제품을 선택하거나 쿼리 기반으로 자동 감지하세요. 8개 OpenFrame 제품의 명령어, 에러 코드, 설정에 대해 도움드립니다.",
+    "products": {
+      "openframe_mvs": "OpenFrame MVS",
+      "msp_openframe": "MSP OpenFrame 7.3",
+      "vos3_openframe": "VOS3 OpenFrame 2.0",
+      "tibero7": "Tibero 7",
+      "ofasm": "OpenFrame ASM 4",
+      "ofcobol": "OpenFrame COBOL 4",
+      "xsp_openframe": "XSP OpenFrame 7.3",
+      "tmax": "Tmax 6.0",
+      "other": "기타",
+      "auto": "자동 감지"
+    },
+    "sources": "참고 자료",
+    "sourcesSection": {
+      "learningLlm": "Learning LLM",
+      "vectorSearch": "벡터 검색",
+      "graphSearch": "그래프 검색",
+      "score": "점수",
+      "product": "제품",
+      "page": "페이지"
+    },
+    "noResults": "제품 전체에서 관련 정보를 찾을 수 없습니다. 다른 질문을 시도해 주세요."
+  },
   "home": {
     "stats": {
       "documentsIndexed": "색인된 문서",
@@ -652,5 +719,217 @@
     "recentActivity": "최근 활동",
     "noRecentActivity": "최근 활동이 없습니다",
     "startConversation": "대화 시작하기"
+  },
+  "retry": "재시도",
+  "discard": "취소",
+  "scoring": {
+    "title": "스코어링 설정",
+    "subtitle": "RAG 검색 스코어링 파라미터 관리",
+    "loading": "스코어링 설정 로드 중...",
+    "tabs": {
+      "config": "설정",
+      "simulate": "시뮬레이션",
+      "history": "변경 이력"
+    },
+    "source": {
+      "runtime": "런타임 오버라이드",
+      "cache": "캐시됨",
+      "database": "데이터베이스",
+      "environment": "환경 기본값",
+      "rollback": "롤백",
+      "unknown": "알 수 없음"
+    },
+    "sections": {
+      "rrf": "RRF (Reciprocal Rank Fusion)",
+      "bm25": "BM25 검색",
+      "boost": "점수 부스팅",
+      "confidence": "신뢰도 임계값"
+    },
+    "params": {
+      "rrf": {
+        "k": "RRF K 파라미터",
+        "k_desc": "순위 평활도를 제어합니다. 높은 값은 하위 순위 문서에 더 많은 가중치를 부여합니다.",
+        "vector_weight": "벡터 검색 가중치",
+        "vector_weight_desc": "최종 융합에서 시맨틱 벡터 검색 결과의 가중치.",
+        "graph_weight": "그래프 검색 가중치",
+        "graph_weight_desc": "최종 융합에서 지식 그래프 검색 결과의 가중치.",
+        "bm25_weight": "BM25 가중치",
+        "bm25_weight_desc": "최종 융합에서 키워드 기반 BM25 검색 결과의 가중치."
+      },
+      "bm25": {
+        "k1": "K1 (용어 빈도 포화)",
+        "k1_desc": "용어 빈도 포화를 제어합니다. 높은 값은 용어 빈도의 영향을 증가시킵니다.",
+        "b": "B (길이 정규화)",
+        "b_desc": "문서 길이 정규화를 제어합니다. 0 = 정규화 없음, 1 = 완전 정규화.",
+        "avg_doc_length": "평균 문서 길이",
+        "avg_doc_length_desc": "정규화를 위한 예상 평균 문서 길이 (문자 수)."
+      },
+      "boost": {
+        "title_match": "제목 일치 부스트",
+        "title_match_desc": "쿼리 용어가 문서 제목과 일치할 때 적용되는 배율.",
+        "exact_phrase": "정확한 구문 부스트",
+        "exact_phrase_desc": "문서에서 정확한 쿼리 구문이 발견될 때 적용되는 배율.",
+        "error_code": "에러 코드 부스트",
+        "error_code_desc": "쿼리에 에러 코드 패턴이 포함될 때 적용되는 배율.",
+        "source_count": "소스 수 보너스",
+        "source_count_desc": "관련 소스 문서당 추가 점수 보너스."
+      },
+      "confidence": {
+        "high": "높은 신뢰도 임계값",
+        "high_desc": "결과를 높은 신뢰도로 분류하기 위한 최소 점수.",
+        "medium": "중간 신뢰도 임계값",
+        "medium_desc": "결과를 중간 신뢰도로 분류하기 위한 최소 점수.",
+        "low": "낮은 신뢰도 임계값",
+        "low_desc": "결과를 응답에 포함하기 위한 최소 점수."
+      }
+    },
+    "resetToDefaults": "기본값으로 재설정",
+    "resetDescription": "런타임 오버라이드를 지우고 환경/데이터베이스 설정으로 되돌립니다.",
+    "simulate": {
+      "title": "검색 시뮬레이션",
+      "description": "샘플 쿼리로 현재 설정을 테스트하여 상세한 스코어링 분석을 확인하세요.",
+      "placeholder": "테스트 쿼리 입력...",
+      "run": "시뮬레이션 실행",
+      "results": "시뮬레이션 결과",
+      "steps": "처리 단계",
+      "topResults": "상위 순위 결과",
+      "docTitle": "문서",
+      "finalScore": "최종 점수",
+      "vectorScore": "벡터",
+      "bm25Score": "BM25",
+      "boost": "부스트",
+      "totalTime": "총 소요 시간"
+    },
+    "history": {
+      "title": "설정 변경 이력",
+      "empty": "설정 변경 이력이 없습니다.",
+      "rollback": "롤백"
+    },
+    "success": {
+      "saved": "설정이 성공적으로 저장되었습니다.",
+      "reset": "설정이 기본값으로 재설정되었습니다.",
+      "rollback": "이전 설정으로 롤백되었습니다."
+    },
+    "errors": {
+      "title": "오류",
+      "loadFailed": "스코어링 설정을 로드하지 못했습니다.",
+      "saveFailed": "설정을 저장하지 못했습니다.",
+      "resetFailed": "설정을 재설정하지 못했습니다.",
+      "rollbackFailed": "설정을 롤백하지 못했습니다.",
+      "simulateFailed": "시뮬레이션을 실행하지 못했습니다."
+    }
+  },
+  "prompts": {
+    "title": "시스템 프롬프트",
+    "subtitle": "AI 에이전트 시스템 프롬프트 관리",
+    "selectPrompt": "편집할 프롬프트를 선택하세요",
+    "readonly": "읽기 전용",
+    "history": "이력",
+    "versionHistory": "버전 이력",
+    "noHistory": "버전 이력이 없습니다",
+    "rollback": "롤백",
+    "confirmRollback": "이 버전으로 롤백하시겠습니까?",
+    "unsavedChanges": "저장되지 않은 변경 사항",
+    "categories": {
+      "agent": "에이전트 프롬프트",
+      "middleware": "미들웨어",
+      "system": "시스템",
+      "persona": "페르소나",
+      "domain": "도메인"
+    },
+    "errors": {
+      "loadFailed": "프롬프트 목록을 불러오지 못했습니다",
+      "loadDetailFailed": "프롬프트 상세 정보를 불러오지 못했습니다",
+      "saveFailed": "프롬프트를 저장하지 못했습니다",
+      "loadHistoryFailed": "버전 이력을 불러오지 못했습니다",
+      "rollbackFailed": "롤백하지 못했습니다"
+    }
+  },
+  "agenticRag": {
+    "autoProduct": "Auto (전체 제품)",
+    "selectProduct": "제품 선택",
+    "productsSelected": "개 제품",
+    "pdfs": "PDFs",
+    "version": "버전",
+    "subtitle": "제품별 에이전트 기반 RAG 시스템",
+    "emptyState": "제품에 관한 기술적인 질문을 입력해주세요",
+    "emptyHint": "명령어 사용법, 에러코드, 설정 방법 등",
+    "inputPlaceholder": "질문을 입력해주세요...",
+    "lowRelevance": "검색 결과 관련성이 낮습니다. 질문을 구체적으로 변경해 주세요.",
+    "suggestion1": "tjesmgr 명령어 사용법을 알려주세요",
+    "suggestion2": "에러코드 -5212의 원인과 해결 방법",
+    "suggestion3": "OSC 매핑 서포트에 대해 알려주세요",
+    "faqTitle": "자주 묻는 질문",
+    "history": "히스토리",
+    "newConversation": "새 대화",
+    "connectors": "외부 연동",
+    "attachFile": "파일 첨부",
+    "modeRag": "RAG / 검색",
+    "modeCode": "코드 / 스크립트",
+    "modePlanner": "플래너",
+    "modeAuto": "자동",
+    "codeGenerating": "코드 생성 중...",
+    "planGenerating": "플랜 작성 중...",
+    "planSteps": "단계",
+    "autoDetected": "자동 감지",
+    "specialAgent": "특수 에이전트",
+    "autoRag": "Auto-RAG",
+    "autoRagDesc": "에이전트 루프 + 도구 호출",
+    "autoRagPlaceholder": "Auto-RAG: 질문을 입력하세요, / 로 명령어...",
+    "thinkMode": "Think 모드 (Qwen3 내부 추론)",
+    "thinkLabel": "내부 추론 (Think)"
+  },
+  "jclDiagnosis": {
+    "title": "JCL Job 장애 진단",
+    "nav": "JCL 진단",
+    "uploadTitle": "JOB 스풀 파일 업로드",
+    "uploadHint": "JOB 출력 zip 파일을 드래그 앤 드롭하거나 클릭하여 선택",
+    "language": "응답 언어",
+    "message": "추가 질문 (선택)",
+    "messagePlaceholder": "에러 상세나 확인하고 싶은 내용...",
+    "analyze": "진단 시작",
+    "analyzing": "진단 중...",
+    "phaseExtract": "파일 추출",
+    "phaseClassify": "파일 분류",
+    "phaseParse": "JCL 분석",
+    "phaseDiagnose": "에러 진단",
+    "phaseSearch": "지식 검색",
+    "phaseReport": "리포트 생성",
+    "jobName": "잡 이름",
+    "totalSteps": "스텝 수",
+    "errorCode": "에러 코드",
+    "severity": "심각도",
+    "openReport": "리포트 열기",
+    "downloadReport": "HTML 다운로드",
+    "newDiagnosis": "새 진단",
+    "noFileSelected": "파일이 선택되지 않았습니다",
+    "zipOnly": "zip 파일만 지원됩니다"
+  },
+  "supportDashboard": {
+    "title": "지원 대시보드",
+    "waiting": "대기 중",
+    "active": "활성",
+    "totalToday": "오늘 총계",
+    "waitingSessions": "대기 중인 세션",
+    "activeSessions": "활성 세션",
+    "noSessions": "대기 중인 세션이 없습니다",
+    "noActiveSessions": "활성 세션이 없습니다",
+    "joinSession": "참가",
+    "endSession": "세션 종료",
+    "expertView": "전문가 화면",
+    "chatContext": "채팅 컨텍스트",
+    "waitingForScreen": "사용자의 화면 공유를 기다리는 중..."
+  },
+  "knowledgeGraph": {
+    "title": "Knowledge Graph",
+    "search": "엔티티 검색...",
+    "entityGraph": "엔티티 그래프",
+    "productOverview": "제품 선택",
+    "relatedGraph": "관련 엔티티 그래프",
+    "expand": "확장",
+    "nodeCount": "노드",
+    "edgeCount": "엣지",
+    "noData": "그래프 데이터가 없습니다. 엔티티를 검색하거나 제품을 선택하세요.",
+    "noProperties": "속성 없음"
   }
 }

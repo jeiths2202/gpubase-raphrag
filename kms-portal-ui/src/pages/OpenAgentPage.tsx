@@ -1,8 +1,10 @@
 /**
  * OpenAgent Page
  *
- * Chat interface for vLLM-based AI agent.
- * Uses Qwen2.5-7B-Instruct model via vLLM server.
+ * Chat interface for vLLM-based AI agent with multiple modes:
+ * - RAG: Summary-based retrieval augmented generation
+ * - Direct: Direct LLM response without retrieval
+ * - OpenCode: 5-step mandatory workflow with hallucination detection
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -21,10 +23,37 @@ import {
   X,
   BookOpen,
   Zap,
+  Shield,
+  Eye,
+  RotateCcw,
+  Headphones,
 } from 'lucide-react';
+import { PremiumSupportPanel } from '../components/PremiumSupport';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import './OpenAgentPage.css';
+
+// Agent mode type
+type AgentMode = 'rag' | 'direct' | 'opencode';
+
+// OpenCode step progress interface
+interface OpenCodeStep {
+  step_number: number;
+  step_name: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  latency_ms?: number;
+}
+
+// OpenCode progress state
+interface OpenCodeProgress {
+  currentStep: number;
+  steps: OpenCodeStep[];
+  attempt: number;
+  maxAttempts: number;
+  hallucinationDetected: boolean;
+  hallucinationReasons: string[];
+  verificationStatus: 'pending' | 'passed' | 'failed';
+}
 
 // Helper function to extract filename from path
 const getFilename = (path: string): string => {
@@ -85,12 +114,20 @@ interface TableContent {
 }
 
 interface ImageContent {
+  id?: string;
   chunk_id?: string;
   content: string;
   page_start?: number;
   page_end?: number;
   doc_filename?: string;
   image_url?: string;
+  // Figure image data (base64)
+  figure_reference?: string;
+  figure_caption?: string;
+  data?: string;  // base64 data URL e.g. "data:image/png;base64,..."
+  width?: number;
+  height?: number;
+  page_number?: number;
 }
 
 interface Message {
@@ -129,7 +166,11 @@ export const OpenAgentPage: React.FC = () => {
   const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [ragMode, setRagMode] = useState(true); // RAG mode enabled by default
+  const [showPremiumSupport, setShowPremiumSupport] = useState(false);
+  const [agentMode, setAgentMode] = useState<AgentMode>('rag'); // Default to RAG mode
+
+  // OpenCode progress state
+  const [openCodeProgress, setOpenCodeProgress] = useState<OpenCodeProgress | null>(null);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -168,6 +209,204 @@ export const OpenAgentPage: React.FC = () => {
 
   const generateId = () => `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+  // Initialize OpenCode progress with default steps
+  const initOpenCodeProgress = (): OpenCodeProgress => ({
+    currentStep: 0,
+    steps: [
+      { step_number: 1, step_name: 'keyword_extraction', status: 'pending' },
+      { step_number: 2, step_name: 'summary_search', status: 'pending' },
+      { step_number: 3, step_name: 'pdf_verification', status: 'pending' },
+      { step_number: 4, step_name: 'tool_selection', status: 'pending' },
+      { step_number: 5, step_name: 'answer_generation', status: 'pending' },
+    ],
+    attempt: 1,
+    maxAttempts: 4,
+    hallucinationDetected: false,
+    hallucinationReasons: [],
+    verificationStatus: 'pending',
+  });
+
+  // Get display name for step
+  const getStepDisplayName = (stepName: string): string => {
+    const stepNames: Record<string, Record<string, string>> = {
+      keyword_extraction: { en: 'Keyword Extraction', ko: '키워드 추출', ja: 'キーワード抽出' },
+      summary_search: { en: 'Summary Search', ko: '요약 검색', ja: '要約検索' },
+      pdf_verification: { en: 'PDF Verification', ko: 'PDF 검증', ja: 'PDF検証' },
+      tool_selection: { en: 'Tool Selection', ko: '도구 선택', ja: 'ツール選択' },
+      answer_generation: { en: 'Answer Generation', ko: '답변 생성', ja: '回答生成' },
+    };
+    return stepNames[stepName]?.[language] || stepName;
+  };
+
+  // Handle OpenCode SSE streaming
+  const handleOpenCodeStream = async (userMessage: Message) => {
+    const progress = initOpenCodeProgress();
+    setOpenCodeProgress(progress);
+
+    // baseURL is already '/api/v1', so just append the endpoint path
+    const baseUrl = client.defaults.baseURL || '/api/v1';
+    const url = `${baseUrl}/agents/stream`;
+
+    console.log('[OpenCode] Starting SSE stream to:', url);
+    console.log('[OpenCode] Request body:', { task: userMessage.content, agent_type: 'opencode', language });
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // HttpOnly cookies are sent automatically with credentials: 'include'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          task: userMessage.content,
+          agent_type: 'opencode',
+          language: language,
+        }),
+      });
+
+      console.log('[OpenCode] Response status:', response.status);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No reader available');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let accumulatedContent = '';
+      let sources: Array<{ type: string; file: string }> = [];
+      let images: ImageContent[] = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6).trim();
+          if (!data) continue;
+
+          try {
+            const chunk = JSON.parse(data);
+
+            if (chunk.chunk_type === 'status') {
+              const metadata = chunk.metadata || {};
+
+              // Update step progress
+              if (metadata.step_number) {
+                setOpenCodeProgress((prev) => {
+                  if (!prev) return prev;
+                  const newSteps = [...prev.steps];
+                  const stepIdx = metadata.step_number - 1;
+                  if (stepIdx >= 0 && stepIdx < newSteps.length) {
+                    newSteps[stepIdx] = {
+                      ...newSteps[stepIdx],
+                      status: metadata.status === 'running' ? 'running' :
+                              metadata.status === 'completed' ? 'completed' :
+                              metadata.status === 'failed' ? 'failed' : 'pending',
+                      latency_ms: metadata.latency_ms,
+                    };
+                  }
+                  return {
+                    ...prev,
+                    currentStep: metadata.step_number,
+                    steps: newSteps,
+                    attempt: metadata.attempt || prev.attempt,
+                    maxAttempts: metadata.max_attempts || prev.maxAttempts,
+                  };
+                });
+              }
+
+              // Handle hallucination detection
+              if (metadata.hallucination_detected) {
+                setOpenCodeProgress((prev) => {
+                  if (!prev) return prev;
+                  // Reset steps for retry
+                  const resetSteps = prev.steps.map((s) => ({ ...s, status: 'pending' as const }));
+                  return {
+                    ...prev,
+                    steps: resetSteps,
+                    currentStep: 0,
+                    hallucinationDetected: true,
+                    hallucinationReasons: metadata.reasons || [],
+                    attempt: (metadata.attempt || 0) + 1,
+                    verificationStatus: 'pending',
+                  };
+                });
+              }
+
+              // Handle verification status
+              if (metadata.verification_status) {
+                setOpenCodeProgress((prev) => {
+                  if (!prev) return prev;
+                  return {
+                    ...prev,
+                    verificationStatus: metadata.verification_status.toLowerCase() as 'passed' | 'failed',
+                    hallucinationDetected: metadata.verification_status === 'FAILED',
+                  };
+                });
+              }
+            } else if (chunk.chunk_type === 'text') {
+              accumulatedContent += chunk.content || '';
+            } else if (chunk.chunk_type === 'sources') {
+              sources = (chunk.sources || []).map((s: any) => ({
+                type: s.type || 'pdf',
+                file: s.doc_filename || s.file || s.source || 'Unknown',
+              }));
+            } else if (chunk.chunk_type === 'images') {
+              // Handle figure images from backend
+              images = (chunk.images || []).map((img: any) => ({
+                id: img.id,
+                content: img.figure_caption || img.description || '',
+                figure_reference: img.figure_reference,
+                figure_caption: img.figure_caption,
+                data: img.data,  // base64 data URL
+                width: img.width,
+                height: img.height,
+                page_number: img.page_number,
+                doc_filename: img.document_id,
+              }));
+            } else if (chunk.chunk_type === 'error') {
+              setError(chunk.content || 'Unknown error');
+            } else if (chunk.chunk_type === 'done') {
+              // Streaming complete
+            }
+          } catch (parseError) {
+            console.error('Failed to parse SSE chunk:', parseError);
+          }
+        }
+      }
+
+      // Create assistant message with accumulated content
+      if (accumulatedContent) {
+        const assistantMessage: Message = {
+          id: generateId(),
+          role: 'assistant',
+          content: accumulatedContent,
+          timestamp: new Date(),
+          sources: sources.length > 0 ? sources : undefined,
+          images: images.length > 0 ? images : undefined,
+          confidence: openCodeProgress?.verificationStatus === 'passed' ? 'HIGH' : 'MEDIUM',
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      }
+    } catch (err: any) {
+      console.error('OpenCode streaming error:', err);
+      setError(err.message || 'Failed to get response from OpenCode agent');
+    } finally {
+      setIsLoading(false);
+      // Keep progress visible for a moment before clearing
+      setTimeout(() => setOpenCodeProgress(null), 3000);
+    }
+  };
+
   const handleSend = useCallback(async () => {
     if ((!input.trim() && !selectedFile) || isLoading) return;
 
@@ -185,6 +424,12 @@ export const OpenAgentPage: React.FC = () => {
     setError(null);
 
     try {
+      // Handle OpenCode mode with SSE streaming
+      if (agentMode === 'opencode' && !selectedFile) {
+        await handleOpenCodeStream(userMessage);
+        return;
+      }
+
       let response;
 
       if (selectedFile) {
@@ -204,12 +449,12 @@ export const OpenAgentPage: React.FC = () => {
         }));
 
         // Use RAG endpoint if RAG mode is enabled
-        const endpoint = ragMode ? '/openagent/rag/chat' : '/openagent/chat';
+        const endpoint = agentMode === 'rag' ? '/openagent/rag/chat' : '/openagent/chat';
 
         response = await client.post(endpoint, {
           message: userMessage.content,
           history: history.length > 0 ? history : undefined,
-          use_summaries: ragMode,
+          use_summaries: agentMode === 'rag',
           language: language,  // Pass UI language for response language
         });
       }
@@ -233,7 +478,7 @@ export const OpenAgentPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [input, selectedFile, isLoading, messages, ragMode, language]);
+  }, [input, selectedFile, isLoading, messages, agentMode, language]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -277,17 +522,33 @@ export const OpenAgentPage: React.FC = () => {
           </div>
         </div>
         <div className="openagent-header-right">
-          {/* RAG Mode Toggle */}
-          <button
-            className={`openagent-btn-rag ${ragMode ? 'active' : ''}`}
-            onClick={() => setRagMode(!ragMode)}
-            title={ragMode ? 'RAG Mode: ON (Summary-based retrieval)' : 'RAG Mode: OFF (Direct LLM)'}
-          >
-            {ragMode ? <BookOpen size={18} /> : <Zap size={18} />}
-            <span className="openagent-btn-label">
-              {ragMode ? 'RAG' : 'Direct'}
-            </span>
-          </button>
+          {/* Agent Mode Selector */}
+          <div className="openagent-mode-selector">
+            <button
+              className={`openagent-btn-mode ${agentMode === 'rag' ? 'active' : ''}`}
+              onClick={() => setAgentMode('rag')}
+              title="RAG Mode: Summary-based retrieval augmented generation"
+            >
+              <BookOpen size={16} />
+              <span>RAG</span>
+            </button>
+            <button
+              className={`openagent-btn-mode ${agentMode === 'direct' ? 'active' : ''}`}
+              onClick={() => setAgentMode('direct')}
+              title="Direct Mode: Direct LLM response without retrieval"
+            >
+              <Zap size={16} />
+              <span>Direct</span>
+            </button>
+            <button
+              className={`openagent-btn-mode opencode ${agentMode === 'opencode' ? 'active' : ''}`}
+              onClick={() => setAgentMode('opencode')}
+              title="OpenCode Mode: 5-step workflow with hallucination detection"
+            >
+              <Shield size={16} />
+              <span>OpenCode</span>
+            </button>
+          </div>
           {healthStatus && (
             <span className={`openagent-status ${healthStatus.available ? 'available' : 'unavailable'}`}>
               {healthStatus.available ? (
@@ -304,6 +565,13 @@ export const OpenAgentPage: React.FC = () => {
             title={t('common.refresh')}
           >
             <RefreshCw size={18} />
+          </button>
+          <button
+            className={`openagent-btn-icon openagent-btn-premium ${showPremiumSupport ? 'active' : ''}`}
+            onClick={() => setShowPremiumSupport(!showPremiumSupport)}
+            title={t('common.openAgent.premiumSupport')}
+          >
+            <Headphones size={18} />
           </button>
           <button
             className="openagent-btn-icon"
@@ -452,6 +720,43 @@ export const OpenAgentPage: React.FC = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Image Gallery */}
+                {message.images && message.images.length > 0 && (
+                  <div className="openagent-images">
+                    <div className="openagent-images-header">
+                      <span>関連図表 ({message.images.length})</span>
+                    </div>
+                    <div className="openagent-images-grid">
+                      {message.images.map((img, idx) => (
+                        <div key={img.id || idx} className="openagent-image-item">
+                          {img.data ? (
+                            <img
+                              src={img.data}
+                              alt={img.figure_caption || img.figure_reference || `Image ${idx + 1}`}
+                              loading="lazy"
+                              onClick={() => window.open(img.data, '_blank')}
+                              style={{ cursor: 'pointer' }}
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="openagent-image-placeholder">
+                              {img.figure_reference || 'Image'}
+                            </div>
+                          )}
+                          {(img.figure_caption || img.figure_reference) && (
+                            <div className="openagent-image-caption">
+                              {img.figure_caption || img.figure_reference}
+                              {img.page_number && <span className="page-num"> (p.{img.page_number})</span>}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <span className="openagent-message-time">
                 {message.timestamp.toLocaleTimeString()}
@@ -466,6 +771,89 @@ export const OpenAgentPage: React.FC = () => {
               <Loader2 size={20} className="spin" />
               <span>{t('common.openAgent.thinking')}</span>
             </div>
+          </div>
+        )}
+
+        {/* OpenCode Progress Panel */}
+        {openCodeProgress && (
+          <div className="opencode-progress-panel">
+            <div className="opencode-progress-header">
+              <Shield size={18} />
+              <span>OpenCode Agent</span>
+              {openCodeProgress.attempt > 1 && (
+                <span className="opencode-retry-badge">
+                  <RotateCcw size={14} />
+                  Attempt {openCodeProgress.attempt}/{openCodeProgress.maxAttempts}
+                </span>
+              )}
+            </div>
+
+            <div className="opencode-steps">
+              {openCodeProgress.steps.map((step) => (
+                <div
+                  key={step.step_number}
+                  className={`opencode-step ${step.status}`}
+                >
+                  <div className="opencode-step-number">
+                    {step.status === 'completed' ? (
+                      <CheckCircle2 size={18} />
+                    ) : step.status === 'running' ? (
+                      <Loader2 size={18} className="spin" />
+                    ) : step.status === 'failed' ? (
+                      <AlertCircle size={18} />
+                    ) : (
+                      <span>{step.step_number}</span>
+                    )}
+                  </div>
+                  <div className="opencode-step-content">
+                    <span className="opencode-step-name">
+                      {getStepDisplayName(step.step_name)}
+                    </span>
+                    {step.latency_ms && (
+                      <span className="opencode-step-time">
+                        {(step.latency_ms / 1000).toFixed(1)}s
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Hallucination Detection Status */}
+            {openCodeProgress.hallucinationDetected && (
+              <div className="opencode-hallucination-alert">
+                <Eye size={16} />
+                <div className="opencode-hallucination-content">
+                  <span className="opencode-hallucination-title">
+                    Hallucination Detected - Retrying...
+                  </span>
+                  {openCodeProgress.hallucinationReasons.length > 0 && (
+                    <ul className="opencode-hallucination-reasons">
+                      {openCodeProgress.hallucinationReasons.map((reason, idx) => (
+                        <li key={idx}>{reason}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Verification Status */}
+            {openCodeProgress.verificationStatus !== 'pending' && (
+              <div className={`opencode-verification ${openCodeProgress.verificationStatus}`}>
+                {openCodeProgress.verificationStatus === 'passed' ? (
+                  <>
+                    <CheckCircle2 size={16} />
+                    <span>Verification Passed</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle size={16} />
+                    <span>Verification Failed</span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -530,6 +918,13 @@ export const OpenAgentPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Premium Support Overlay */}
+      <PremiumSupportPanel
+        isOpen={showPremiumSupport}
+        onClose={() => setShowPremiumSupport(false)}
+        chatContext={messages.length > 0 ? messages.slice(-3).map(m => m.content).join('\n') : undefined}
+      />
     </div>
   );
 };

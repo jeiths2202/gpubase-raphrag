@@ -3,9 +3,11 @@
   "loading": "Loading...",
   "error": "Error",
   "success": "Success",
+  "or": "or",
   "cancel": "Cancel",
   "confirm": "Confirm",
   "save": "Save",
+  "saving": "Saving...",
   "delete": "Delete",
   "edit": "Edit",
   "create": "Create",
@@ -36,7 +38,8 @@
     "mindmap": "AI Studio",
     "agent": "AI Agent",
     "documents": "Documents",
-    "analytics": "Analytics",
+    "agenticRag": "Agentic RAG",
+    "knowledgeGraph": "Knowledge Graph",
     "improvements": "Improvements",
     "admin": "Admin",
     "settings": "Settings",
@@ -44,6 +47,11 @@
     "externalPortal": "External Portal",
     "apikeys": "API Keys",
     "openAgent": "OpenAgent",
+    "openframeRag": "OpenFrame RAG",
+    "scoring": "Scoring Config",
+    "legacyModernization": "Legacy Modernization",
+    "jclDiagnosis": "JCL Diagnosis",
+    "supportDashboard": "Support Dashboard",
     "mainNavigation": "Main navigation"
   },
   "products": {
@@ -607,7 +615,27 @@
     "suggestion3": "What is TACF?",
     "thinking": "Thinking...",
     "attachFile": "Attach file",
-    "placeholder": "Type your message..."
+    "placeholder": "Type your message...",
+    "modes": {
+      "rag": "RAG",
+      "ragDescription": "Summary-based retrieval augmented generation",
+      "direct": "Direct",
+      "directDescription": "Direct LLM response without retrieval",
+      "opencode": "OpenCode",
+      "opencodeDescription": "5-step workflow with hallucination detection"
+    },
+    "premiumSupport": "Premium Support",
+    "premiumSupportDesc": "Connect with a remote expert who can view your screen in real-time and provide technical support.",
+    "startSession": "Start Session",
+    "connecting": "Connecting...",
+    "waitingForExpert": "Waiting for an expert to join...",
+    "shareScreen": "Share Screen",
+    "stopSharing": "Stop Sharing",
+    "micOn": "Microphone On",
+    "micOff": "Microphone Off",
+    "endSession": "End Session",
+    "expertConnected": "Expert Connected",
+    "sessionError": "Failed to create support session. Please try again."
   },
   "opencode": {
     "title": "OpenCode Agent",
@@ -642,6 +670,45 @@
     },
     "noSources": "I cannot find information about this in the knowledge base."
   },
+  "openframeRag": {
+    "title": "OpenFrame RAG",
+    "subtitle": "Learning LLM-based Multi-Product RAG",
+    "selectProduct": "Select Product",
+    "productRequired": "Please select a product for your query",
+    "deepSeek": "DeepSeek",
+    "deepSeekDescription": "Search across all 8 products and databases",
+    "deepSeekWarning": "DeepSeek searches all 8 products. This may take longer.",
+    "otherWarning": "Selecting 'Other' may result in lower accuracy and longer response times.",
+    "autoDetected": "Auto-detected",
+    "confidence": "Confidence",
+    "searching": "Searching...",
+    "searchingProduct": "Searching {{product}}...",
+    "noProductDetected": "Could not detect product automatically",
+    "welcomeTitle": "Welcome to OpenFrame RAG",
+    "welcomeMessage": "Select a product or let me auto-detect based on your query. I can help with commands, error codes, and configurations across 8 OpenFrame products.",
+    "products": {
+      "openframe_mvs": "OpenFrame MVS",
+      "msp_openframe": "MSP OpenFrame 7.3",
+      "vos3_openframe": "VOS3 OpenFrame 2.0",
+      "tibero7": "Tibero 7",
+      "ofasm": "OpenFrame ASM 4",
+      "ofcobol": "OpenFrame COBOL 4",
+      "xsp_openframe": "XSP OpenFrame 7.3",
+      "tmax": "Tmax 6.0",
+      "other": "Other",
+      "auto": "Auto-detect"
+    },
+    "sources": "Sources",
+    "sourcesSection": {
+      "learningLlm": "Learning LLM",
+      "vectorSearch": "Vector Search",
+      "graphSearch": "Graph Search",
+      "score": "Score",
+      "product": "Product",
+      "page": "Page"
+    },
+    "noResults": "No relevant information was found across the products. Please try a different query."
+  },
   "home": {
     "stats": {
       "documentsIndexed": "Documents indexed",
@@ -652,5 +719,217 @@
     "recentActivity": "Recent Activity",
     "noRecentActivity": "No recent activity yet",
     "startConversation": "Start a conversation"
+  },
+  "retry": "Retry",
+  "discard": "Discard",
+  "scoring": {
+    "title": "Scoring Configuration",
+    "subtitle": "Manage RAG search scoring parameters",
+    "loading": "Loading scoring configuration...",
+    "tabs": {
+      "config": "Configuration",
+      "simulate": "Simulation",
+      "history": "History"
+    },
+    "source": {
+      "runtime": "Runtime Override",
+      "cache": "Cached",
+      "database": "Database",
+      "environment": "Environment Default",
+      "rollback": "Rollback",
+      "unknown": "Unknown"
+    },
+    "sections": {
+      "rrf": "RRF (Reciprocal Rank Fusion)",
+      "bm25": "BM25 Search",
+      "boost": "Score Boosting",
+      "confidence": "Confidence Thresholds"
+    },
+    "params": {
+      "rrf": {
+        "k": "RRF K Parameter",
+        "k_desc": "Controls the ranking smoothness. Higher values give more weight to lower-ranked documents.",
+        "vector_weight": "Vector Search Weight",
+        "vector_weight_desc": "Weight for semantic vector search results in final fusion.",
+        "graph_weight": "Graph Search Weight",
+        "graph_weight_desc": "Weight for knowledge graph search results in final fusion.",
+        "bm25_weight": "BM25 Weight",
+        "bm25_weight_desc": "Weight for keyword-based BM25 search results in final fusion."
+      },
+      "bm25": {
+        "k1": "K1 (Term Frequency Saturation)",
+        "k1_desc": "Controls term frequency saturation. Higher values increase the impact of term frequency.",
+        "b": "B (Length Normalization)",
+        "b_desc": "Controls document length normalization. 0 = no normalization, 1 = full normalization.",
+        "avg_doc_length": "Average Document Length",
+        "avg_doc_length_desc": "Expected average document length in characters for normalization."
+      },
+      "boost": {
+        "title_match": "Title Match Boost",
+        "title_match_desc": "Multiplier applied when query terms match document title.",
+        "exact_phrase": "Exact Phrase Boost",
+        "exact_phrase_desc": "Multiplier applied when exact query phrase is found in document.",
+        "error_code": "Error Code Boost",
+        "error_code_desc": "Multiplier applied when query contains error code pattern.",
+        "source_count": "Source Count Bonus",
+        "source_count_desc": "Additional score bonus per relevant source document."
+      },
+      "confidence": {
+        "high": "High Confidence Threshold",
+        "high_desc": "Minimum score to classify result as high confidence.",
+        "medium": "Medium Confidence Threshold",
+        "medium_desc": "Minimum score to classify result as medium confidence.",
+        "low": "Low Confidence Threshold",
+        "low_desc": "Minimum score to include result in response."
+      }
+    },
+    "resetToDefaults": "Reset to Defaults",
+    "resetDescription": "Clears runtime override and reverts to environment/database configuration.",
+    "simulate": {
+      "title": "Search Simulation",
+      "description": "Test the current configuration with a sample query to see detailed scoring breakdown.",
+      "placeholder": "Enter a test query...",
+      "run": "Run Simulation",
+      "results": "Simulation Results",
+      "steps": "Processing Steps",
+      "topResults": "Top Ranked Results",
+      "docTitle": "Document",
+      "finalScore": "Final Score",
+      "vectorScore": "Vector",
+      "bm25Score": "BM25",
+      "boost": "Boost",
+      "totalTime": "Total Time"
+    },
+    "history": {
+      "title": "Configuration History",
+      "empty": "No configuration history available.",
+      "rollback": "Rollback"
+    },
+    "success": {
+      "saved": "Configuration saved successfully.",
+      "reset": "Configuration reset to defaults.",
+      "rollback": "Rolled back to previous configuration."
+    },
+    "errors": {
+      "title": "Error",
+      "loadFailed": "Failed to load scoring configuration.",
+      "saveFailed": "Failed to save configuration.",
+      "resetFailed": "Failed to reset configuration.",
+      "rollbackFailed": "Failed to rollback configuration.",
+      "simulateFailed": "Failed to run simulation."
+    }
+  },
+  "prompts": {
+    "title": "System Prompts",
+    "subtitle": "Manage AI agent system prompts",
+    "selectPrompt": "Select a prompt to edit",
+    "readonly": "Read-only",
+    "history": "History",
+    "versionHistory": "Version History",
+    "rollback": "Rollback",
+    "confirmRollback": "Are you sure you want to rollback to this version?",
+    "noHistory": "No version history available",
+    "unsavedChanges": "Unsaved changes",
+    "categories": {
+      "agent": "Agent Prompts",
+      "middleware": "Middleware",
+      "system": "System",
+      "persona": "Persona",
+      "domain": "Domain"
+    },
+    "errors": {
+      "loadFailed": "Failed to load prompts",
+      "loadDetailFailed": "Failed to load prompt details",
+      "loadHistoryFailed": "Failed to load history",
+      "saveFailed": "Failed to save prompt",
+      "rollbackFailed": "Failed to rollback prompt"
+    }
+  },
+  "agenticRag": {
+    "autoProduct": "Auto (All Products)",
+    "selectProduct": "Select Product",
+    "productsSelected": "products",
+    "pdfs": "PDFs",
+    "version": "Version",
+    "subtitle": "Product-specific Agent-based RAG System",
+    "emptyState": "Enter a technical question about a product",
+    "emptyHint": "Command usage, error codes, configuration, etc.",
+    "inputPlaceholder": "Enter your question...",
+    "lowRelevance": "Search results may have low relevance. Try making your question more specific.",
+    "suggestion1": "How to use the tjesmgr command",
+    "suggestion2": "Cause and solution for error code -5212",
+    "suggestion3": "Explain OSC Mapping Support",
+    "faqTitle": "Frequently Asked Questions",
+    "history": "History",
+    "newConversation": "New Conversation",
+    "connectors": "External Connectors",
+    "attachFile": "Attach File",
+    "modeRag": "RAG / Search",
+    "modeCode": "Code / Script",
+    "modePlanner": "Planner",
+    "modeAuto": "Auto",
+    "codeGenerating": "Generating code...",
+    "planGenerating": "Creating plan...",
+    "planSteps": "steps",
+    "autoDetected": "Auto-detected",
+    "specialAgent": "Special Agent",
+    "autoRag": "Auto-RAG",
+    "autoRagDesc": "Agent Loop with Tool Calling",
+    "autoRagPlaceholder": "Auto-RAG: Type a question, / for commands...",
+    "thinkMode": "Think Mode (Qwen3 Internal Reasoning)",
+    "thinkLabel": "Internal Reasoning (Think)"
+  },
+  "jclDiagnosis": {
+    "title": "JCL Job Failure Diagnosis",
+    "nav": "JCL Diagnosis",
+    "uploadTitle": "Upload JOB Spool File",
+    "uploadHint": "Drag & drop a JOB output zip file, or click to browse",
+    "language": "Response Language",
+    "message": "Additional Question (optional)",
+    "messagePlaceholder": "Error details or what you want to check...",
+    "analyze": "Start Diagnosis",
+    "analyzing": "Analyzing...",
+    "phaseExtract": "Extract Files",
+    "phaseClassify": "Classify Files",
+    "phaseParse": "Parse JCL",
+    "phaseDiagnose": "Diagnose Error",
+    "phaseSearch": "Knowledge Search",
+    "phaseReport": "Generate Report",
+    "jobName": "Job Name",
+    "totalSteps": "Steps",
+    "errorCode": "Error Code",
+    "severity": "Severity",
+    "openReport": "Open Report",
+    "downloadReport": "Download HTML",
+    "newDiagnosis": "New Diagnosis",
+    "noFileSelected": "No file selected",
+    "zipOnly": "Only zip files are supported"
+  },
+  "supportDashboard": {
+    "title": "Support Dashboard",
+    "waiting": "Waiting",
+    "active": "Active",
+    "totalToday": "Total Today",
+    "waitingSessions": "Waiting Sessions",
+    "activeSessions": "Active Sessions",
+    "noSessions": "No waiting sessions",
+    "noActiveSessions": "No active sessions",
+    "joinSession": "Join",
+    "endSession": "End Session",
+    "expertView": "Expert View",
+    "chatContext": "Chat Context",
+    "waitingForScreen": "Waiting for user's screen share..."
+  },
+  "knowledgeGraph": {
+    "title": "Knowledge Graph",
+    "search": "Search entities...",
+    "entityGraph": "Entity Graph",
+    "productOverview": "Select product",
+    "relatedGraph": "Related Entity Graph",
+    "expand": "Expand",
+    "nodeCount": "Nodes",
+    "edgeCount": "Edges",
+    "noData": "No graph data. Search an entity or select a product.",
+    "noProperties": "No properties"
   }
 }

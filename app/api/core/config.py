@@ -133,9 +133,9 @@ class APISettings(BaseSettings):
         description="Maximum context length for LLM inputs"
     )
 
-    # Embedding Settings
+    # Embedding Settings (BGE-M3)
     EMBEDDING_MODEL_NAME: str = Field(
-        default="BAAI/bge-m3",
+        default="bge-m3",
         description="Embedding model name"
     )
     EMBEDDING_DIMENSION: int = Field(
@@ -143,7 +143,7 @@ class APISettings(BaseSettings):
         description="Embedding vector dimension"
     )
     EMBEDDING_BATCH_SIZE: int = Field(
-        default=32,
+        default=64,
         description="Batch size for embedding operations"
     )
     EMBEDDING_MAX_TEXT_LENGTH: int = Field(
@@ -157,6 +157,46 @@ class APISettings(BaseSettings):
     EMBEDDING_URL: str = Field(
         default="http://localhost:12801/v1",
         description="Embedding service URL"
+    )
+
+    # BGE-M3 IR Pipeline Settings
+    BGE_M3_BASE_URL: str = Field(
+        default="http://192.168.8.11:12801",
+        description="BGE-M3 IR server base URL"
+    )
+    IR_RRF_K: int = Field(
+        default=60,
+        description="RRF k parameter for rank fusion"
+    )
+    IR_SPARSE_WEIGHT: float = Field(
+        default=0.4,
+        description="Sparse retrieval weight in hybrid fusion"
+    )
+    IR_DENSE_WEIGHT: float = Field(
+        default=0.6,
+        description="Dense retrieval weight in hybrid fusion"
+    )
+    IR_RERANK_TOP_N: int = Field(
+        default=20,
+        description="Number of candidates for reranking"
+    )
+    IR_EMBED_TIMEOUT: float = Field(
+        default=5.0,
+        description="BGE-M3 API call timeout in seconds"
+    )
+
+    # IR Primary Search (BGE-M3를 1차 검색으로 사용)
+    IR_PRIMARY_SEARCH: bool = Field(
+        default=True,
+        description="BGE-M3를 1차 검색으로 사용 (False면 기존 키워드-first)"
+    )
+    IR_PRIMARY_TOP_K: int = Field(
+        default=50,
+        description="IR 1차 검색에서 가져올 후보 수"
+    )
+    IR_PRECOMPUTE_ON_LOAD: bool = Field(
+        default=True,
+        description="제품 로드 시 임베딩 사전 계산"
     )
 
     # Vision LLM Settings (MiniCPM-V)
@@ -471,6 +511,134 @@ class APISettings(BaseSettings):
     VISION_MIN_KEYWORD_MATCH_RATIO: float = Field(
         default=0.3,
         description="Minimum keyword match ratio (0.0-1.0) for quick relevance check"
+    )
+
+    # Agent Teams (vLLM-based, no Claude API)
+    AGENT_TEAMS_PARALLEL_RETRIEVAL: bool = Field(
+        default=False,
+        description="Pattern A: Parallel Web Doc + PDF RAG retrieval"
+    )
+    AGENT_TEAMS_DOMAIN_SPECIALIST: bool = Field(
+        default=False,
+        description="Pattern C: Multi-LoRA domain specialist team"
+    )
+    AGENT_TEAMS_MULTI_PRODUCT: bool = Field(
+        default=False,
+        description="Pattern D: Multi-product collaboration via DAGBuilder"
+    )
+    AGENT_TEAMS_COMPETITIVE_HYPOTHESIS: bool = Field(
+        default=False,
+        description="Pattern B: Competitive hypothesis verification"
+    )
+    AGENT_TEAMS_SELF_IMPROVEMENT: bool = Field(
+        default=False,
+        description="Pattern E: Self-improvement learning feedback"
+    )
+    AGENT_TEAMS_MAX_PARALLEL_LLM: int = Field(
+        default=3,
+        description="Max concurrent LLM calls for specialist team"
+    )
+    AGENT_TEAMS_WINNER_THRESHOLD: float = Field(
+        default=0.6,
+        description="Min confidence to select winner in competitive patterns"
+    )
+
+    # Auto-RAG (Agent Loop + Tool Calling via ofcode-server)
+    OFCODE_SERVER_URL: str = Field(
+        default="http://192.168.8.11:12820",
+        description="ofcode-server base URL for Auto-RAG tool calls"
+    )
+    AUTO_RAG_MAX_ITERATIONS: int = Field(
+        default=25,
+        description="Max agent loop iterations for Auto-RAG"
+    )
+
+    # vLLM Direct Search (QLoRA 직접 응답, PDF RAG 스킵)
+    VLLM_DIRECT_SEARCH_ENABLED: bool = Field(
+        default=False,
+        description="vLLM Direct Search 활성화 (True: QLoRA 직접 응답 우선, False: PDF RAG 우선)"
+    )
+
+    # LLM Prompt Router Agent (vLLM-based product routing)
+    LLM_PROMPT_ROUTER_ENABLED: bool = Field(
+        default=True,
+        description="LLM 기반 프롬프트 라우터 활성화 (1차 라우터, 실패 시 키워드 fallback)"
+    )
+    LLM_PROMPT_ROUTER_TIMEOUT: int = Field(
+        default=180,
+        description="LLM 라우터 타임아웃 (초)"
+    )
+    LLM_PROMPT_ROUTER_MIN_CONFIDENCE: float = Field(
+        default=0.5,
+        description="LLM 라우터 결과 채택 최소 confidence"
+    )
+
+    # Enhancement Teams (vLLM-based, no Claude API)
+    ENHANCEMENT_TEAMS_PARALLEL_ANALYSIS: bool = Field(
+        default=False,
+        description="Pattern F: 3-perspective parallel analysis"
+    )
+    ENHANCEMENT_TEAMS_CROSSVAL: bool = Field(
+        default=False,
+        description="Pattern G: Architecture cross-validation"
+    )
+    ENHANCEMENT_TEAMS_FULL_PIPELINE: bool = Field(
+        default=False,
+        description="Pattern H: One-click full pipeline"
+    )
+    ENHANCEMENT_TEAMS_MAX_PARALLEL_LLM: int = Field(
+        default=3,
+        description="Max concurrent LLM calls for enhancement teams"
+    )
+    ENHANCEMENT_TEAMS_QUALITY_GATE_THRESHOLD: float = Field(
+        default=0.6,
+        description="Min quality gate score for phase transition"
+    )
+
+    # Redis Cache
+    REDIS_URL: str = Field(
+        default="redis://localhost:6379/0",
+        description="Redis connection URL"
+    )
+    REDIS_CACHE_ENABLED: bool = Field(
+        default=False,
+        description="Redis 캐시 활성화 (Redis 미설치 환경에서는 False)"
+    )
+
+    # Special Agent (Anthropic Claude API)
+    ANTHROPIC_API_KEY: str = Field(
+        default="",
+        description="Anthropic API Key for Special Agent"
+    )
+    SPECIAL_AGENT_MODEL: str = Field(
+        default="claude-haiku-4-5-20251001",
+        description="Claude model for Special Agent"
+    )
+    SPECIAL_AGENT_ENABLED: bool = Field(
+        default=True,
+        description="Special Agent 기능 활성화"
+    )
+
+    # === Premium Support (LiveKit) ===
+    PREMIUM_SUPPORT_ENABLED: bool = Field(
+        default=False,
+        description="Premium Support (LiveKit 화면 공유) 활성화"
+    )
+    LIVEKIT_API_KEY: str = Field(
+        default="devkey",
+        description="LiveKit API Key"
+    )
+    LIVEKIT_API_SECRET: str = Field(
+        default="secret",
+        description="LiveKit API Secret for JWT signing"
+    )
+    LIVEKIT_SERVER_URL: str = Field(
+        default="http://localhost:7880",
+        description="LiveKit Server HTTP URL (REST API용)"
+    )
+    LIVEKIT_WS_URL: str = Field(
+        default="ws://localhost:7880",
+        description="LiveKit Server WebSocket URL (클라이언트 연결용)"
     )
 
     # Corporate SSO

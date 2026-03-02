@@ -20,7 +20,8 @@ class VisionLLMFactory:
     Supports:
     - OpenAI (GPT-4V, GPT-4o)
     - Anthropic (Claude 3 Vision)
-    - Local models (placeholder for future)
+    - MiniCPM-V (via vLLM, local GPU)
+    - Local models (LLaVA, Yi-VL)
 
     Usage:
         # From settings
@@ -29,15 +30,18 @@ class VisionLLMFactory:
 
         # Direct creation
         vision_llm = factory.create_openai(api_key="...", model="gpt-4o")
+        vision_llm = factory.create_minicpm()  # Local MiniCPM-V
     """
 
     # Supported providers
-    PROVIDERS = ["openai", "anthropic", "local"]
+    PROVIDERS = ["openai", "anthropic", "minicpm", "vllm", "local"]
 
     # Default models per provider
     DEFAULT_MODELS = {
         "openai": "gpt-4o",
         "anthropic": "claude-3-5-sonnet-20241022",
+        "minicpm": "openbmb/MiniCPM-V-2_6",
+        "vllm": "openbmb/MiniCPM-V-2_6",
         "local": "llava-v1.6",
     }
 
@@ -75,6 +79,8 @@ class VisionLLMFactory:
             return self.create_openai(api_key, model, **kwargs)
         elif provider == "anthropic":
             return self.create_anthropic(api_key, model, **kwargs)
+        elif provider in ("minicpm", "vllm"):
+            return self.create_minicpm(model=model, **kwargs)
         elif provider == "local":
             return self.create_local(model, **kwargs)
         else:
@@ -139,6 +145,37 @@ class VisionLLMFactory:
             timeout=timeout,
         )
 
+    def create_minicpm(
+        self,
+        model: str = "openbmb/MiniCPM-V-2_6",
+        base_url: str = "http://192.168.8.11:12803/v1",
+        max_retries: int = 3,
+        timeout: int = 180,
+        max_tokens: int = 2048,
+    ) -> VisionLLMPort:
+        """
+        Create MiniCPM-V Vision adapter via vLLM.
+
+        Args:
+            model: Model name (default: openbmb/MiniCPM-V-2_6)
+            base_url: vLLM server URL
+            max_retries: Maximum retry attempts
+            timeout: Request timeout (longer for vision tasks)
+            max_tokens: Maximum output tokens
+
+        Returns:
+            MiniCPMVisionAdapter
+        """
+        from app.api.adapters.vision.minicpm_vision_adapter import MiniCPMVisionAdapter
+
+        return MiniCPMVisionAdapter(
+            base_url=base_url,
+            model=model,
+            max_retries=max_retries,
+            timeout=timeout,
+            max_tokens=max_tokens,
+        )
+
     def create_local(
         self,
         model: str = "llava-v1.6",
@@ -149,6 +186,7 @@ class VisionLLMFactory:
         Create local Vision LLM adapter.
 
         Placeholder for local models like LLaVA, Yi-VL.
+        For MiniCPM-V, use create_minicpm() instead.
 
         Args:
             model: Model name
@@ -157,9 +195,13 @@ class VisionLLMFactory:
         Returns:
             LocalVisionAdapter (not implemented yet)
         """
+        # If model looks like MiniCPM, redirect to create_minicpm
+        if "minicpm" in model.lower() or "MiniCPM" in model:
+            return self.create_minicpm(model=model, base_url=base_url, **kwargs)
+
         raise NotImplementedError(
             "Local Vision LLM adapter not implemented. "
-            "Use OpenAI or Anthropic providers."
+            "Use 'minicpm' provider for MiniCPM-V, or 'openai'/'anthropic' providers."
         )
 
     def create_from_settings(self, settings: Any) -> VisionLLMPort:
@@ -266,6 +308,30 @@ class VisionLLMFactory:
                 "default_model": "claude-3-5-sonnet-20241022",
                 "requires_api_key": True,
                 "supports_streaming": True,
+            },
+            "minicpm": {
+                "name": "MiniCPM-V (vLLM)",
+                "models": ["openbmb/MiniCPM-V-2_6"],
+                "default_model": "openbmb/MiniCPM-V-2_6",
+                "requires_api_key": False,
+                "supports_streaming": True,
+                "base_url": "http://192.168.8.11:12803/v1",
+                "gpu_devices": [5, 6],
+                "capabilities": [
+                    "image_understanding",
+                    "table_extraction",
+                    "chart_analysis",
+                    "ocr",
+                    "multilingual",
+                ],
+            },
+            "vllm": {
+                "name": "vLLM Vision Models",
+                "models": ["openbmb/MiniCPM-V-2_6", "Qwen/Qwen2-VL-2B-Instruct"],
+                "default_model": "Qwen/Qwen2-VL-2B-Instruct",
+                "requires_api_key": False,
+                "supports_streaming": True,
+                "base_url": "http://192.168.8.11:12803/v1",
             },
             "local": {
                 "name": "Local (LLaVA/Yi-VL)",

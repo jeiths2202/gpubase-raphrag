@@ -37,9 +37,11 @@ from .core.exceptions import (
 )
 
 # Import routers
-from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management, agent_navigation, agent_session, clarification, verified_knowledge
+from .routers import query, documents, history, stats, health, settings, auth, mindmap, admin, content, notes, projects, knowledge_graph, knowledge_article, notification, web_source, session_document, external_connection, enterprise, system, preferences, vision, conversations, workspace, admin_traces, system_metrics, db_stats, ims_chat, agents, faq, api_keys, rag_config, enhancements, images, adaptive_documents, auto_agent, rag_evaluation, user_feedback, analytics_dashboard, context_management, agent_navigation, agent_session, clarification, verified_knowledge, openagent, openframe_rag, admin_scoring, admin_prompts, query_rag, agentic_rag, graph_visualization, agent_teams, jcl_diagnosis, premium_support
 from .ims_crawler.presentation import credentials_router, search_router, jobs_router, reports_router, dashboard_router, cache_router, tasks_router
 from .admin_dashboard.router import router as admin_dashboard_router
+from .legacy_modernization.routers import analysis_router as legacy_analysis_router, reports_router as legacy_reports_router
+from .legacy_modernization.routers.chat import router as legacy_chat_router
 
 
 # Initialize mode manager and logger
@@ -81,9 +83,11 @@ async def lifespan(app: FastAPI):
     # ==================== PostgreSQL Auth Service Initialization ====================
     # Initialize PostgreSQL-backed authentication service
     from .services.auth_service import initialize_auth_service
+    _pg_available = False
     try:
         dsn = api_settings.get_postgres_dsn()
         auth_service = await initialize_auth_service(dsn)
+        _pg_available = True
         logger.info(
             "[OK] PostgreSQL-backed authentication initialized",
             category=LogCategory.BUSINESS,
@@ -93,11 +97,11 @@ async def lifespan(app: FastAPI):
             }
         )
     except Exception as e:
-        logger.error(
-            f"FATAL: Auth service initialization failed: {e}",
+        logger.warning(
+            f"Auth service initialization failed (degraded mode): {e}",
             category=LogCategory.BUSINESS
         )
-        raise  # Application should not start without authentication
+        # App continues in degraded mode - auth-dependent endpoints will return 503
 
     # ==================== Database Pool Initialization ====================
     # Initialize PostgreSQL connection pool for conversation repository
@@ -107,7 +111,10 @@ async def lifespan(app: FastAPI):
 
     db_pool = None
     conversation_repo = None
-    try:
+    trace_writer = None
+    task_queue = None
+    if _pg_available:
+      try:
         dsn = api_settings.get_postgres_dsn()
         db_pool = await asyncpg.create_pool(
             dsn,
@@ -190,6 +197,7 @@ async def lifespan(app: FastAPI):
         from .routers.faq import set_faq_repository
 
         query_log_repo = QueryLogRepository(db_pool)
+        await query_log_repo.ensure_tables()
         query_log_writer = initialize_query_log_writer(query_log_repo)
         await start_query_log_writer()
 
@@ -301,9 +309,9 @@ async def lifespan(app: FastAPI):
         # Check if Learning LLM is enabled via environment variable
         learning_llm_enabled = os.getenv("ENABLE_LEARNING_LLM", "false").lower() == "true"
         learning_llm_auto_load = os.getenv("LEARNING_LLM_AUTO_LOAD", "false").lower() == "true"
-        learning_llm_model = os.getenv("LEARNING_LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
-        learning_llm_url = os.getenv("LEARNING_LLM_URL", "http://learning-llm-graphrag:8000/v1")
-        learning_llm_vllm_model = os.getenv("LEARNING_LLM_VLLM_MODEL", "learning")  # LoRA 어댑터 이름
+        learning_llm_model = os.getenv("LEARNING_LLM_MODEL", "/opt/models/qwen3-32b")
+        learning_llm_url = os.getenv("LEARNING_LLM_URL", "http://192.168.8.11:12810/v1")
+        learning_llm_vllm_model = os.getenv("LEARNING_LLM_VLLM_MODEL", learning_llm_model)  # base model 사용 (어댑터 없음)
 
         learning_llm_service = await initialize_learning_llm_service(
             base_model=learning_llm_model,
@@ -321,6 +329,51 @@ async def lifespan(app: FastAPI):
             f"[OK] Learning LLM service initialized (enabled={learning_llm_enabled}, mode=vLLM, url={learning_llm_url})",
             category=LogCategory.BUSINESS
         )
+
+        # ==================== OpenFrame RAG Service Initialization ====================
+        # Initialize OpenFrame RAG service for multi-product QLoRA-based RAG
+        from .services.openframe_rag_service import initialize_openframe_rag_service
+        from .services.deep_seek_service import initialize_deep_seek_service
+
+        openframe_rag_enabled = os.getenv("ENABLE_OPENFRAME_RAG", "true").lower() == "true"
+
+        if openframe_rag_enabled:
+            try:
+                # Initialize DeepSeek service first
+                deep_seek_service = await initialize_deep_seek_service(
+                    learning_llm_service=learning_llm_service if learning_llm_enabled else None,
+                    vector_search_service=None,  # Will be integrated with existing vector search
+                    graph_search_service=None,   # Will be integrated with existing graph search
+                )
+
+                # Initialize OpenFrame RAG service
+                openframe_rag_service = await initialize_openframe_rag_service(
+                    learning_llm_service=learning_llm_service if learning_llm_enabled else None,
+                    vector_search_service=None,
+                    graph_search_service=None,
+                )
+
+                container.register_singleton("deep_seek_service", deep_seek_service)
+                container.register_singleton("openframe_rag_service", openframe_rag_service)
+
+                logger.info(
+                    "[OK] OpenFrame RAG service initialized (Multi-Product QLoRA RAG)",
+                    category=LogCategory.BUSINESS,
+                    extra_data={
+                        "learning_llm_integrated": learning_llm_enabled,
+                        "products": ["openframe_mvs", "msp_openframe", "vos3_openframe", "tibero7", "ofasm", "ofcobol", "xsp_openframe", "tmax"],
+                    }
+                )
+            except Exception as openframe_e:
+                logger.warning(
+                    f"OpenFrame RAG service initialization failed (non-fatal): {openframe_e}",
+                    category=LogCategory.BUSINESS
+                )
+        else:
+            logger.info(
+                "OpenFrame RAG service disabled via ENABLE_OPENFRAME_RAG=false",
+                category=LogCategory.BUSINESS
+            )
 
         # ==================== User Feedback Service Initialization ====================
         from .repositories.user_feedback_repository import (
@@ -471,12 +524,46 @@ async def lifespan(app: FastAPI):
                 category=LogCategory.BUSINESS
             )
 
-    except Exception as e:
-        logger.error(
-            f"FATAL: PostgreSQL pool initialization failed: {e}",
+      except Exception as e:
+        logger.warning(
+            f"PostgreSQL pool initialization failed (degraded mode): {e}",
             category=LogCategory.BUSINESS
         )
-        raise RuntimeError(f"PostgreSQL connection required but failed: {e}")
+    else:
+        logger.warning(
+            "PostgreSQL unavailable - skipping DB-dependent service initialization",
+            category=LogCategory.BUSINESS
+        )
+
+    # ==================== Redis Cache Initialization ====================
+    # Initialize Redis cache for Special Agent search pipeline caching
+    from .services.special_agent_cache import get_special_agent_cache
+    sa_cache = get_special_agent_cache()
+    if api_settings.REDIS_CACHE_ENABLED:
+        try:
+            await sa_cache.initialize()
+            logger.info(
+                "[OK] Special Agent Redis cache initialized",
+                category=LogCategory.BUSINESS
+            )
+        except Exception as redis_e:
+            logger.warning(
+                f"Special Agent Redis cache initialization failed (non-fatal): {redis_e}",
+                category=LogCategory.BUSINESS
+            )
+    else:
+        logger.info(
+            "Special Agent Redis cache disabled via REDIS_CACHE_ENABLED=false",
+            category=LogCategory.BUSINESS
+        )
+
+    # ==================== Memory Store Service Initialization ====================
+    from .services.memory_store_service import initialize_memory_store
+    try:
+        memory_store = await initialize_memory_store()
+        logger.info("[OK] Memory Store service initialized", category=LogCategory.BUSINESS)
+    except Exception as e:
+        logger.warning(f"Memory Store init failed (non-fatal): {e}", category=LogCategory.BUSINESS)
 
     # ==================== Background Task Queue Initialization ====================
     from .ims_crawler.infrastructure.services import get_task_queue
@@ -518,6 +605,48 @@ async def lifespan(app: FastAPI):
             category=LogCategory.BUSINESS
         )
 
+    # ==================== Background PDF Preloading ====================
+    # 백그라운드 스레드에서 모든 제품의 StructuredKnowledgeStore를 미리 로딩
+    # 서버는 즉시 요청 수락 가능, PDF 파싱은 병렬로 진행
+    import threading
+    from .core.preload_state import get_preload_state
+
+    def _preload_all_knowledge_stores():
+        """Background thread: preload all product knowledge stores."""
+        state = get_preload_state()
+        try:
+            from .services.product_agent_service import _get_dynamic_service
+            svc = _get_dynamic_service()
+            agents = svc.get_all_agents()
+            state.start(len(agents))
+            logger.info(
+                f"[Preload] Starting background PDF preloading for {len(agents)} products",
+                category=LogCategory.BUSINESS,
+            )
+            for product_id, agent in agents.items():
+                state.update(product_id)
+                try:
+                    if agent.knowledge_store:
+                        agent.knowledge_store._ensure_loaded()
+                except Exception as e:
+                    logger.warning(f"[Preload] Failed to preload {product_id}: {e}")
+                state.advance()
+            state.finish()
+            logger.info(
+                f"[Preload] Completed: {state.loaded}/{state.total} products in {state.elapsed_seconds}s",
+                category=LogCategory.BUSINESS,
+            )
+        except Exception as e:
+            state.finish(error=str(e))
+            logger.error(f"[Preload] Fatal error: {e}", category=LogCategory.BUSINESS)
+
+    preload_thread = threading.Thread(
+        target=_preload_all_knowledge_stores,
+        name="pdf-preload",
+        daemon=True,
+    )
+    preload_thread.start()
+
     yield
 
     # ==================== Application Shutdown ====================
@@ -546,6 +675,13 @@ async def lifespan(app: FastAPI):
             logger.info("Background task queue stopped", category=LogCategory.BUSINESS)
         except Exception as e:
             logger.warning(f"Error stopping task queue: {e}", category=LogCategory.BUSINESS)
+
+    # Close Redis cache
+    try:
+        await sa_cache.close()
+        logger.info("Special Agent Redis cache closed", category=LogCategory.BUSINESS)
+    except Exception as e:
+        logger.warning(f"Error closing Redis cache: {e}", category=LogCategory.BUSINESS)
 
     # Close database pool
     if db_pool is not None:
@@ -641,8 +777,10 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler_new(request: Request, exc: RequestValidationError):
     """Handle validation errors"""
+    # Log validation errors for debugging
+    logger.error(f"Validation errors: {exc.errors()}")
     validation_exc = ValidationException(
-        message="Request validation failed",
+        message=f"Request validation failed: {exc.errors()}",
         details={"errors": exc.errors()}
     )
     return await error_handler.handle_app_exception(request, validation_exc)
@@ -715,6 +853,28 @@ app.include_router(agent_navigation.router, prefix=API_PREFIX)  # Agent-Driven R
 app.include_router(agent_session.router, prefix=API_PREFIX)  # Agent-Driven RAG: Session management
 app.include_router(clarification.router, prefix=API_PREFIX)  # Query Clarification (ambiguous term detection)
 app.include_router(verified_knowledge.router, prefix=API_PREFIX)  # Verified Knowledge Store (Smarter RAG)
+app.include_router(openagent.router, prefix=API_PREFIX)  # OpenAgent: vLLM-based RAG via OpenCode CLI
+app.include_router(openframe_rag.router, prefix=API_PREFIX)  # OpenFrame RAG: QLoRA Learning LLM Multi-Product RAG
+app.include_router(admin_scoring.router, prefix=API_PREFIX)  # Admin Scoring Configuration (RRF, Boost, Confidence)
+app.include_router(admin_prompts.router, prefix=API_PREFIX)  # Admin Prompt Configuration (System Prompts Management)
+app.include_router(query_rag.router)  # RAG Anti-Hallucination Query (prefix already in router)
+app.include_router(agentic_rag.router, prefix=API_PREFIX)  # Agentic RAG: Product-specific Agent-based RAG
+app.include_router(graph_visualization.router, prefix=API_PREFIX)  # Graph Visualization: Neo4j → ReactFlow JSON
+app.include_router(agent_teams.router, prefix=API_PREFIX)  # Agent Teams: Self-Improvement Feedback API
+app.include_router(legacy_analysis_router, prefix=API_PREFIX)  # Legacy Modernization: COBOL/JCL/MAP/ASM analysis
+app.include_router(legacy_reports_router, prefix=API_PREFIX)  # Legacy Modernization: Migration reports
+app.include_router(legacy_chat_router, prefix=API_PREFIX)  # Legacy Modernization: AI chat assistant
+app.include_router(jcl_diagnosis.router, prefix=API_PREFIX)  # JCL Job Failure Diagnosis: SPOOL-based 5-agent pipeline
+app.include_router(premium_support.router, prefix=API_PREFIX)  # Premium Support: LiveKit screen sharing with remote expert
+
+# Static file serving for PDF-extracted images
+from starlette.staticfiles import StaticFiles as _StaticFiles
+_pdf_images_path = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "uploads", "pdf_images",
+)
+os.makedirs(_pdf_images_path, exist_ok=True)
+app.mount("/uploads/pdf_images", _StaticFiles(directory=_pdf_images_path), name="pdf_images")
 
 
 # Root endpoint

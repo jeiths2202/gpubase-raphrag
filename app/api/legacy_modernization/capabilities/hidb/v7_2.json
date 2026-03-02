@@ -1,0 +1,12 @@
+{
+  "product": "hidb",
+  "version": "7.2",
+  "inherits": "hidb/v3_3.json",
+  "capabilities": [
+    {"category": "hidb_db", "pattern": "DEDB", "support": "full", "notes": "7.2에서 DEDB 전체 지원"},
+    {"category": "hidb_db", "pattern": "MSDB", "support": "partial", "notes": "7.2에서 MSDB 기본 지원 추가"},
+    {"category": "hidb_dli", "pattern": "EXEC DLI ROLB", "support": "full", "notes": "7.2에서 롤백 지원 추가"},
+    {"category": "hidb_util", "pattern": "hidbmgr REORG", "support": "full", "notes": "7.2에서 온라인 재구성 지원"}
+  ],
+  "removed": []
+}

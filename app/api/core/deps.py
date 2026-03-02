@@ -667,6 +667,42 @@ class DocumentService:
             # Step 4: Sync to Neo4j
             await self._sync_to_neo4j(doc_id, filename, chunks)
 
+            # Step 4a: Graph DB Enrichment (M1, M2, M3 Integration)
+            # Non-blocking: if this fails, document processing still completes
+            try:
+                from app.api.services.knowledge_graph_service import get_chunk_relation_service
+                from app.api.models.document import GraphProcessingOptions
+
+                if self._neo4j_graph:
+                    graph_service = get_chunk_relation_service(self._neo4j_graph)
+                    graph_options = GraphProcessingOptions(
+                        extract_entities=True,
+                        create_similar_relations=True,
+                        create_co_mention_relations=True,
+                        create_overlap_relations=False,  # Disabled by default for performance
+                        build_section_hierarchy=True
+                    )
+
+                    logger.info(f"[Graph] Starting M1/M2/M3 enrichment for {doc_id}")
+                    graph_result = await graph_service.process_document_graph(
+                        document_id=doc_id,
+                        chunks=chunks,
+                        options=graph_options
+                    )
+
+                    if graph_result.get("success"):
+                        logger.info(
+                            f"[Graph] Enrichment complete for {doc_id}: "
+                            f"entities={graph_result.get('entities_extracted', 0)}, "
+                            f"relations={graph_result.get('similar_relations_created', 0) + graph_result.get('co_mention_relations_created', 0)}, "
+                            f"sections={graph_result.get('sections_created', 0)}"
+                        )
+                    else:
+                        logger.warning(f"[Graph] Enrichment failed for {doc_id}: {graph_result.get('error_message')}")
+            except Exception as graph_error:
+                # Non-fatal: log warning but continue with document processing
+                logger.warning(f"[Graph] Enrichment skipped for {doc_id}: {graph_error}")
+
             # Step 5: Store image embeddings if images were extracted
             if extract_images and parsed_images:
                 logger.info(f"Storing {len(parsed_images)} image embeddings for {doc_id}")
@@ -970,11 +1006,10 @@ class DocumentService:
             except Exception as e:
                 logger.error(f"Failed to delete document from repository: {e}")
 
-        # 6. Delete from memory cache (if exists)
+        # 6. Delete from memory cache (if exists) - use pop() to avoid KeyError
         if doc_exists_in_cache:
-            del self._documents[document_id]
-            if document_id in self._chunks:
-                del self._chunks[document_id]
+            self._documents.pop(document_id, None)
+            self._chunks.pop(document_id, None)
 
         # Check if any data was actually deleted
         total_deleted = sum([
@@ -1627,7 +1662,7 @@ class DocumentService:
         """Sync document and chunks to Neo4j for graph-based retrieval."""
         try:
             from langchain_neo4j import Neo4jGraph
-            from config import config
+            from app.src.config import config
 
             graph = Neo4jGraph(
                 url=config.neo4j.uri,
@@ -1702,10 +1737,10 @@ class DocumentService:
 
             logger.info(f"Synced document {doc_id} with {len(chunks)} chunks to Neo4j")
 
-        except ImportError:
-            logger.warning("Neo4j dependencies not available, skipping sync")
+        except ImportError as ie:
+            logger.warning(f"Neo4j sync skipped - missing dependency: {ie}")
         except Exception as e:
-            logger.error(f"Failed to sync to Neo4j for {doc_id}: {e}")
+            logger.error(f"Failed to sync to Neo4j for {doc_id}: {e}", exc_info=True)
 
     @classmethod
     async def _store_image_embeddings(
@@ -4107,19 +4142,29 @@ async def _get_db_pool():
     global _adaptive_db_pool
 
     if _adaptive_db_pool is None:
+        import asyncio
         import asyncpg
         from .config import api_settings
 
-        _adaptive_db_pool = await asyncpg.create_pool(
-            host=api_settings.POSTGRES_HOST,
-            port=int(api_settings.POSTGRES_PORT),
-            user=api_settings.POSTGRES_USER,
-            password=api_settings.POSTGRES_PASSWORD,
-            database=api_settings.POSTGRES_DB,
-            min_size=2,
-            max_size=10
-        )
-        logger.info("Created database pool for adaptive embedding service")
+        try:
+            _adaptive_db_pool = await asyncio.wait_for(
+                asyncpg.create_pool(
+                    host=api_settings.POSTGRES_HOST,
+                    port=int(api_settings.POSTGRES_PORT),
+                    user=api_settings.POSTGRES_USER,
+                    password=api_settings.POSTGRES_PASSWORD,
+                    database=api_settings.POSTGRES_DB,
+                    min_size=2,
+                    max_size=10,
+                    command_timeout=10,
+                ),
+                timeout=15,
+            )
+            logger.info("Created database pool for adaptive embedding service")
+        except (asyncio.TimeoutError, OSError, Exception) as e:
+            logger.error(f"Failed to create adaptive DB pool: {e}")
+            _adaptive_db_pool = None
+            raise RuntimeError(f"PostgreSQL connection failed for adaptive service: {e}")
 
     return _adaptive_db_pool
 
@@ -4362,3 +4407,59 @@ def get_analytics_dashboard_repository():
         _analytics_dashboard_repository = AnalyticsDashboardRepository()
 
     return _analytics_dashboard_repository
+
+
+# =============================================================
+# Semantic Search Service
+# =============================================================
+
+_semantic_search_service = None
+
+
+def get_semantic_search_service():
+    """
+    SemanticSearchService 싱글톤 반환
+
+    USE_SEMANTIC_SEARCH=true일 때만 활성화됨
+    """
+    global _semantic_search_service
+
+    if _semantic_search_service is None:
+        from app.api.services.semantic_search_integration import (
+            get_search_service,
+        )
+        _semantic_search_service = get_search_service()
+
+    return _semantic_search_service
+
+
+async def initialize_semantic_search_service(neo4j_driver=None):
+    """
+    Semantic Search 서비스 초기화 (앱 시작 시 호출)
+
+    Args:
+        neo4j_driver: Neo4j 드라이버 (Entity 조회용)
+    """
+    import os
+    if os.getenv("USE_SEMANTIC_SEARCH", "true").lower() != "true":
+        logger.info("Semantic Search disabled (USE_SEMANTIC_SEARCH=false)")
+        return None
+
+    try:
+        from app.api.services.semantic_search_integration import (
+            initialize_search_service,
+        )
+
+        service = await initialize_search_service(
+            neo4j_driver=neo4j_driver,
+        )
+
+        global _semantic_search_service
+        _semantic_search_service = service
+
+        logger.info("Semantic Search Service initialized")
+        return service
+
+    except Exception as e:
+        logger.warning(f"Semantic Search initialization failed: {e}")
+        return None

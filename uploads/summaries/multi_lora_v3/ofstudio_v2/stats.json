@@ -1,0 +1,17 @@
+{
+  "total": 315,
+  "converted": 315,
+  "skipped": 0,
+  "by_type": {},
+  "by_language": {
+    "ja": 282,
+    "en": 33
+  },
+  "by_product": {},
+  "augmented": 0,
+  "train_count": 252,
+  "eval_count": 63,
+  "product": "ofstudio_v2",
+  "train_file": "uploads\\summaries\\multi_lora_v3\\ofstudio_v2\\train.json",
+  "eval_file": "uploads\\summaries\\multi_lora_v3\\ofstudio_v2\\eval.json"
+}

@@ -3,9 +3,11 @@
   "loading": "読み込み中...",
   "error": "エラー",
   "success": "成功",
+  "or": "または",
   "cancel": "キャンセル",
   "confirm": "確認",
   "save": "保存",
+  "saving": "保存中...",
   "delete": "削除",
   "edit": "編集",
   "create": "作成",
@@ -36,7 +38,8 @@
     "mindmap": "AIスタジオ",
     "agent": "AIエージェント",
     "documents": "ドキュメント",
-    "analytics": "分析",
+    "agenticRag": "エージェントRAG",
+    "knowledgeGraph": "ナレッジグラフ",
     "improvements": "改善要求",
     "admin": "管理者",
     "settings": "設定",
@@ -44,6 +47,11 @@
     "externalPortal": "外部ポータル",
     "apikeys": "APIキー",
     "openAgent": "OpenAgent",
+    "openframeRag": "OpenFrame RAG",
+    "scoring": "スコアリング設定",
+    "legacyModernization": "レガシーモダナイゼーション",
+    "jclDiagnosis": "JCL診断",
+    "supportDashboard": "サポートダッシュボード",
     "mainNavigation": "メインナビゲーション"
   },
   "products": {
@@ -607,7 +615,27 @@
     "suggestion3": "TACFとは何ですか？",
     "thinking": "考え中...",
     "attachFile": "ファイルを添付",
-    "placeholder": "メッセージを入力..."
+    "placeholder": "メッセージを入力...",
+    "modes": {
+      "rag": "RAG",
+      "ragDescription": "要約ベースの検索拡張生成",
+      "direct": "Direct",
+      "directDescription": "検索なしの直接LLM応答",
+      "opencode": "OpenCode",
+      "opencodeDescription": "ハルシネーション検出を含む5ステップワークフロー"
+    },
+    "premiumSupport": "プレミアムサポート",
+    "premiumSupportDesc": "リモートの専門家がリアルタイムで画面を確認しながら技術サポートを提供します。",
+    "startSession": "セッション開始",
+    "connecting": "接続中...",
+    "waitingForExpert": "専門家の参加を待っています...",
+    "shareScreen": "画面共有",
+    "stopSharing": "共有を停止",
+    "micOn": "マイクON",
+    "micOff": "マイクOFF",
+    "endSession": "セッション終了",
+    "expertConnected": "専門家が接続しました",
+    "sessionError": "サポートセッションの作成に失敗しました。もう一度お試しください。"
   },
   "opencode": {
     "title": "OpenCodeエージェント",
@@ -642,6 +670,45 @@
     },
     "noSources": "この情報はナレッジベースで見つかりませんでした。"
   },
+  "openframeRag": {
+    "title": "OpenFrame RAG",
+    "subtitle": "Learning LLMベースのマルチプロダクトRAG",
+    "selectProduct": "製品を選択",
+    "productRequired": "クエリに適した製品を選択してください",
+    "deepSeek": "DeepSeek",
+    "deepSeekDescription": "8つの製品と全データベースを統合検索",
+    "deepSeekWarning": "DeepSeekは8つの製品すべてを検索します。時間がかかる場合があります。",
+    "otherWarning": "「その他」を選択すると、精度が低下し、応答時間が長くなる可能性があります。",
+    "autoDetected": "自動検出",
+    "confidence": "信頼度",
+    "searching": "検索中...",
+    "searchingProduct": "{{product}}を検索中...",
+    "noProductDetected": "製品を自動検出できませんでした",
+    "welcomeTitle": "OpenFrame RAGへようこそ",
+    "welcomeMessage": "製品を選択するか、クエリに基づいて自動検出します。8つのOpenFrame製品のコマンド、エラーコード、設定についてお手伝いします。",
+    "products": {
+      "openframe_mvs": "OpenFrame MVS",
+      "msp_openframe": "MSP OpenFrame 7.3",
+      "vos3_openframe": "VOS3 OpenFrame 2.0",
+      "tibero7": "Tibero 7",
+      "ofasm": "OpenFrame ASM 4",
+      "ofcobol": "OpenFrame COBOL 4",
+      "xsp_openframe": "XSP OpenFrame 7.3",
+      "tmax": "Tmax 6.0",
+      "other": "その他",
+      "auto": "自動検出"
+    },
+    "sources": "参照元",
+    "sourcesSection": {
+      "learningLlm": "Learning LLM",
+      "vectorSearch": "ベクター検索",
+      "graphSearch": "グラフ検索",
+      "score": "スコア",
+      "product": "製品",
+      "page": "ページ"
+    },
+    "noResults": "全製品で関連情報が見つかりませんでした。別の質問をお試しください。"
+  },
   "home": {
     "stats": {
       "documentsIndexed": "インデックス済み文書",
@@ -652,5 +719,217 @@
     "recentActivity": "最近のアクティビティ",
     "noRecentActivity": "最近のアクティビティがありません",
     "startConversation": "会話を始める"
+  },
+  "retry": "再試行",
+  "discard": "破棄",
+  "scoring": {
+    "title": "スコアリング設定",
+    "subtitle": "RAG検索スコアリングパラメータの管理",
+    "loading": "スコアリング設定を読み込み中...",
+    "tabs": {
+      "config": "設定",
+      "simulate": "シミュレーション",
+      "history": "変更履歴"
+    },
+    "source": {
+      "runtime": "ランタイムオーバーライド",
+      "cache": "キャッシュ済み",
+      "database": "データベース",
+      "environment": "環境デフォルト",
+      "rollback": "ロールバック",
+      "unknown": "不明"
+    },
+    "sections": {
+      "rrf": "RRF (Reciprocal Rank Fusion)",
+      "bm25": "BM25検索",
+      "boost": "スコアブースト",
+      "confidence": "信頼度しきい値"
+    },
+    "params": {
+      "rrf": {
+        "k": "RRF Kパラメータ",
+        "k_desc": "ランキングの滑らかさを制御します。高い値は下位文書により多くの重みを与えます。",
+        "vector_weight": "ベクター検索重み",
+        "vector_weight_desc": "最終融合におけるセマンティックベクター検索結果の重み。",
+        "graph_weight": "グラフ検索重み",
+        "graph_weight_desc": "最終融合におけるナレッジグラフ検索結果の重み。",
+        "bm25_weight": "BM25重み",
+        "bm25_weight_desc": "最終融合におけるキーワードベースBM25検索結果の重み。"
+      },
+      "bm25": {
+        "k1": "K1 (用語頻度飽和)",
+        "k1_desc": "用語頻度の飽和を制御します。高い値は用語頻度の影響を増加させます。",
+        "b": "B (長さ正規化)",
+        "b_desc": "文書長の正規化を制御します。0 = 正規化なし、1 = 完全正規化。",
+        "avg_doc_length": "平均文書長",
+        "avg_doc_length_desc": "正規化のための期待される平均文書長（文字数）。"
+      },
+      "boost": {
+        "title_match": "タイトル一致ブースト",
+        "title_match_desc": "クエリ用語が文書タイトルに一致した場合に適用される倍率。",
+        "exact_phrase": "完全一致フレーズブースト",
+        "exact_phrase_desc": "文書内で正確なクエリフレーズが見つかった場合に適用される倍率。",
+        "error_code": "エラーコードブースト",
+        "error_code_desc": "クエリにエラーコードパターンが含まれる場合に適用される倍率。",
+        "source_count": "ソース数ボーナス",
+        "source_count_desc": "関連ソース文書ごとの追加スコアボーナス。"
+      },
+      "confidence": {
+        "high": "高信頼度しきい値",
+        "high_desc": "結果を高信頼度として分類するための最小スコア。",
+        "medium": "中信頼度しきい値",
+        "medium_desc": "結果を中信頼度として分類するための最小スコア。",
+        "low": "低信頼度しきい値",
+        "low_desc": "結果を応答に含めるための最小スコア。"
+      }
+    },
+    "resetToDefaults": "デフォルトにリセット",
+    "resetDescription": "ランタイムオーバーライドをクリアし、環境/データベース設定に戻します。",
+    "simulate": {
+      "title": "検索シミュレーション",
+      "description": "サンプルクエリで現在の設定をテストし、詳細なスコアリング分析を確認します。",
+      "placeholder": "テストクエリを入力...",
+      "run": "シミュレーション実行",
+      "results": "シミュレーション結果",
+      "steps": "処理ステップ",
+      "topResults": "上位ランキング結果",
+      "docTitle": "文書",
+      "finalScore": "最終スコア",
+      "vectorScore": "ベクター",
+      "bm25Score": "BM25",
+      "boost": "ブースト",
+      "totalTime": "合計時間"
+    },
+    "history": {
+      "title": "設定変更履歴",
+      "empty": "設定変更履歴がありません。",
+      "rollback": "ロールバック"
+    },
+    "success": {
+      "saved": "設定が正常に保存されました。",
+      "reset": "設定がデフォルトにリセットされました。",
+      "rollback": "以前の設定にロールバックしました。"
+    },
+    "errors": {
+      "title": "エラー",
+      "loadFailed": "スコアリング設定の読み込みに失敗しました。",
+      "saveFailed": "設定の保存に失敗しました。",
+      "resetFailed": "設定のリセットに失敗しました。",
+      "rollbackFailed": "設定のロールバックに失敗しました。",
+      "simulateFailed": "シミュレーションの実行に失敗しました。"
+    }
+  },
+  "prompts": {
+    "title": "システムプロンプト",
+    "subtitle": "AIエージェントシステムプロンプトの管理",
+    "selectPrompt": "編集するプロンプトを選択してください",
+    "readonly": "読み取り専用",
+    "history": "履歴",
+    "versionHistory": "バージョン履歴",
+    "noHistory": "バージョン履歴がありません",
+    "rollback": "ロールバック",
+    "confirmRollback": "このバージョンにロールバックしますか？",
+    "unsavedChanges": "未保存の変更",
+    "categories": {
+      "agent": "エージェントプロンプト",
+      "middleware": "ミドルウェア",
+      "system": "システム",
+      "persona": "ペルソナ",
+      "domain": "ドメイン"
+    },
+    "errors": {
+      "loadFailed": "プロンプト一覧の読み込みに失敗しました",
+      "loadDetailFailed": "プロンプト詳細の読み込みに失敗しました",
+      "saveFailed": "プロンプトの保存に失敗しました",
+      "loadHistoryFailed": "バージョン履歴の読み込みに失敗しました",
+      "rollbackFailed": "ロールバックに失敗しました"
+    }
+  },
+  "agenticRag": {
+    "autoProduct": "Auto（全製品）",
+    "selectProduct": "製品を選択",
+    "productsSelected": "製品",
+    "pdfs": "PDFs",
+    "version": "バージョン",
+    "subtitle": "製品別エージェント基盤のRAGシステム",
+    "emptyState": "製品に関する技術的な質問を入力してください",
+    "emptyHint": "コマンド使用法、エラーコード、設定方法など",
+    "inputPlaceholder": "質問を入力してください...",
+    "lowRelevance": "検索結果の関連性が低い可能性があります。質問を具体的にしてお試しください。",
+    "suggestion1": "tjesmgrコマンドの使い方を教えてください",
+    "suggestion2": "エラーコード-5212の原因と解決方法",
+    "suggestion3": "OSCのマッピング・サポートについて教えてください",
+    "faqTitle": "よくある質問",
+    "history": "履歴",
+    "newConversation": "新規会話",
+    "connectors": "外部連携",
+    "attachFile": "ファイル添付",
+    "modeRag": "RAG / 検索",
+    "modeCode": "コード / スクリプト",
+    "modePlanner": "プランナー",
+    "modeAuto": "自動",
+    "codeGenerating": "コード生成中...",
+    "planGenerating": "プラン作成中...",
+    "planSteps": "ステップ",
+    "autoDetected": "自動検出",
+    "specialAgent": "スペシャルエージェント",
+    "autoRag": "Auto-RAG",
+    "autoRagDesc": "エージェントループ + ツール呼出",
+    "autoRagPlaceholder": "Auto-RAG: 質問を入力、/ でコマンド...",
+    "thinkMode": "Think モード (Qwen3内部推論)",
+    "thinkLabel": "内部推論 (Think)"
+  },
+  "jclDiagnosis": {
+    "title": "JCL Job障害診断",
+    "nav": "JCL診断",
+    "uploadTitle": "JOBスプールファイルをアップロード",
+    "uploadHint": "JOB出力のzipファイルをドラッグ＆ドロップ、またはクリックして選択",
+    "language": "応答言語",
+    "message": "追加質問（任意）",
+    "messagePlaceholder": "エラーの詳細や確認したい内容...",
+    "analyze": "診断開始",
+    "analyzing": "診断中...",
+    "phaseExtract": "ファイル解凍",
+    "phaseClassify": "ファイル分類",
+    "phaseParse": "JCL解析",
+    "phaseDiagnose": "エラー診断",
+    "phaseSearch": "知識検索",
+    "phaseReport": "レポート生成",
+    "jobName": "ジョブ名",
+    "totalSteps": "ステップ数",
+    "errorCode": "エラーコード",
+    "severity": "重大度",
+    "openReport": "レポートを開く",
+    "downloadReport": "HTMLダウンロード",
+    "newDiagnosis": "新しい診断",
+    "noFileSelected": "ファイルが選択されていません",
+    "zipOnly": "zipファイルのみ対応"
+  },
+  "supportDashboard": {
+    "title": "サポートダッシュボード",
+    "waiting": "待機中",
+    "active": "アクティブ",
+    "totalToday": "本日合計",
+    "waitingSessions": "待機中のセッション",
+    "activeSessions": "アクティブセッション",
+    "noSessions": "待機中のセッションはありません",
+    "noActiveSessions": "アクティブなセッションはありません",
+    "joinSession": "参加",
+    "endSession": "セッション終了",
+    "expertView": "エキスパートビュー",
+    "chatContext": "チャットコンテキスト",
+    "waitingForScreen": "ユーザーの画面共有を待っています..."
+  },
+  "knowledgeGraph": {
+    "title": "ナレッジグラフ",
+    "search": "エンティティを検索...",
+    "entityGraph": "エンティティグラフ",
+    "productOverview": "製品を選択",
+    "relatedGraph": "関連エンティティグラフ",
+    "expand": "展開",
+    "nodeCount": "ノード",
+    "edgeCount": "エッジ",
+    "noData": "グラフデータがありません。エンティティを検索するか、製品を選択してください。",
+    "noProperties": "プロパティなし"
   }
 }

@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
+import httpx
 
 from ..models.base import SuccessResponse, MetaInfo
 from ..models.system import (
@@ -68,28 +69,35 @@ async def get_gpu_info() -> GPUStatus:
 
 
 async def get_model_info(health_service) -> ModelStatus:
-    """Get AI model status"""
+    """Get AI model status from the active vLLM (Multi-LoRA DPO on port 12810)"""
+    default_name = "Qwen2.5-72B + 15 DPO Adapters"
+    version = "Multi-LoRA DPO v2"
+
     try:
-        llm_health = await health_service.check_llm()
+        llm_health = await health_service.check_learning_llm()
+        model_name = llm_health.get("model", default_name)
 
         if llm_health.get("status") == "healthy":
+            total_models = llm_health.get("total_models")
+            if total_models:
+                version = f"Multi-LoRA DPO v2 ({total_models} models)"
             return ModelStatus(
-                name="Nemotron-Mini-4B-Instruct",
-                version="1.0.0",
+                name=model_name,
+                version=version,
                 status="loaded",
                 inference_time_ms=float(llm_health.get("response_time_ms", 100))
             )
         else:
             return ModelStatus(
-                name="Nemotron-Mini-4B-Instruct",
-                version="1.0.0",
+                name=model_name,
+                version=version,
                 status="error",
                 inference_time_ms=0
             )
     except Exception:
         return ModelStatus(
-            name="Nemotron-Mini-4B-Instruct",
-            version="1.0.0",
+            name=default_name,
+            version=version,
             status="loading",
             inference_time_ms=0
         )

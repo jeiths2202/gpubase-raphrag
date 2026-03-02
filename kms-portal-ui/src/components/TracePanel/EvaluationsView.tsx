@@ -41,7 +41,7 @@ const ScoreBar: React.FC<{ score: number }> = ({ score }) => {
           backgroundColor: color,
         }}
       />
-      <span className="eval-score-bar__label" style={{ color }}>
+      <span className="eval-score-bar__label" style={{ color: percentage >= 50 ? '#fff' : color }}>
         {percentage}%
       </span>
     </div>

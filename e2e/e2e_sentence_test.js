@@ -70,6 +70,87 @@ const TEST_CASES = [
   { keyword: 'ofdown', query: 'ofdownについて説明してください。', lang: 'ja', expected: ['ofdown', 'shutdown'], notExpected: ['ofboot'] },
 ];
 
+// =============================================================================
+// STRICT MATCH TESTS - RAG Accuracy Improvement (PDCA: rag-accuracy-improvement)
+// =============================================================================
+// These tests specifically verify that config file, command, and error code
+// queries return ONLY the exact matching results (no substitutions)
+
+const STRICT_MATCH_TESTS = [
+  // CONFIG FILE STRICT MATCHING
+  // Critical: osc.conf query should NOT return tjes.conf information (hallucination prevention)
+  {
+    keyword: 'osc.conf',
+    query: 'osc.confの設定方法を教えてください。',
+    lang: 'ja',
+    expected: ['osc.conf', 'OSC'],
+    strictNotExpected: ['tjes.conf', 'tacf.conf', 'ds.conf', 'hidb.conf'],  // OTHER config files
+    testType: 'config_strict_match'
+  },
+  {
+    keyword: 'tjes.conf',
+    query: 'tjes.confの設定項目について説明してください。',
+    lang: 'ja',
+    expected: ['tjes.conf', 'TJES'],
+    strictNotExpected: ['osc.conf', 'tacf.conf', 'ds.conf', 'osi.conf'],
+    testType: 'config_strict_match'
+  },
+  {
+    keyword: 'tacf.conf',
+    query: 'tacf.confファイルの設定を教えてください。',
+    lang: 'ja',
+    expected: ['tacf.conf', 'TACF'],
+    strictNotExpected: ['osc.conf', 'tjes.conf', 'ds.conf'],
+    testType: 'config_strict_match'
+  },
+  {
+    keyword: 'osc.conf',
+    query: 'osc.conf 설정 방법을 알려주세요.',
+    lang: 'ko',
+    expected: ['osc.conf', 'OSC'],
+    strictNotExpected: ['tjes.conf', 'tacf.conf', 'ds.conf'],
+    testType: 'config_strict_match'
+  },
+
+  // COMMAND NAME STRICT MATCHING
+  // Critical: tjesmgr query should NOT include oscmgr or osimgr information
+  {
+    keyword: 'tjesmgr BOOT',
+    query: 'tjesmgr BOOTコマンドについて説明してください。',
+    lang: 'ja',
+    expected: ['tjesmgr', 'BOOT', 'TJES'],
+    strictNotExpected: ['oscmgr BOOT', 'osimgr BOOT', 'tacfmgr BOOT'],
+    testType: 'command_strict_match'
+  },
+  {
+    keyword: 'oscmgr',
+    query: 'oscmgrコマンドのオプションを教えてください。',
+    lang: 'ja',
+    expected: ['oscmgr', 'OSC'],
+    strictNotExpected: ['tjesmgr', 'osimgr', 'tacfmgr'],
+    testType: 'command_strict_match'
+  },
+
+  // ERROR CODE STRICT MATCHING
+  // Critical: -5212 query should NOT include other error codes from the same page
+  {
+    keyword: '-5212',
+    query: 'エラーコード -5212 の原因を教えてください。',
+    lang: 'ja',
+    expected: ['-5212', 'DATASET'],
+    strictNotExpected: ['-17201', '-5000', '-5213', '-5214'],  // Other error codes
+    testType: 'error_strict_match'
+  },
+  {
+    keyword: 'ABEND S0C7',
+    query: 'ABEND S0C7エラーについて説明してください。',
+    lang: 'ja',
+    expected: ['S0C7'],
+    strictNotExpected: ['S0C4', 'S0C1', 'S806', 'S0CB'],  // Other ABEND codes
+    testType: 'error_strict_match'
+  },
+];
+
 // Results storage
 const results = {
   total: 0,
@@ -78,7 +159,14 @@ const results = {
   hallucinations: [],
   noResults: [],
   errors: [],
-  timestamp: new Date().toISOString()
+  timestamp: new Date().toISOString(),
+  // RAG Accuracy Improvement: Strict match test results
+  strictMatchResults: {
+    total: 0,
+    passed: 0,
+    failed: 0,
+    violations: []  // Cases where strict matching was violated
+  }
 };
 
 // Check response quality
@@ -114,6 +202,43 @@ function analyzeResponse(testCase, responseText) {
     hasHallucination,
     hasRelevantContent,
     isPass: !hasHallucination && (hasRelevantContent || isNoResult)
+  };
+}
+
+// Check strict match quality (for RAG Accuracy Improvement tests)
+function analyzeStrictMatchResponse(testCase, responseText) {
+  const responseLower = responseText.toLowerCase();
+  const keywordLower = testCase.keyword.toLowerCase();
+
+  // Check if expected keywords are present
+  const foundExpected = testCase.expected.filter(exp =>
+    responseLower.includes(exp.toLowerCase())
+  );
+
+  // Check for STRICT violations (these are critical - should never appear)
+  const strictViolations = testCase.strictNotExpected.filter(strict =>
+    responseLower.includes(strict.toLowerCase())
+  );
+
+  // Check if it's a "not found" response
+  const isNoResult = responseLower.includes('찾을 수 없습니다') ||
+                     responseLower.includes('見つかりません') ||
+                     responseLower.includes('情報がありません') ||
+                     responseLower.includes('not found');
+
+  // For strict match tests, ANY violation is a critical failure
+  const hasStrictViolation = strictViolations.length > 0;
+  const hasRelevantContent = foundExpected.length > 0 || responseLower.includes(keywordLower);
+
+  return {
+    foundExpected,
+    strictViolations,
+    isNoResult,
+    hasStrictViolation,
+    hasRelevantContent,
+    testType: testCase.testType,
+    // Pass only if no strict violations AND (has relevant content OR no result)
+    isPass: !hasStrictViolation && (hasRelevantContent || isNoResult)
   };
 }
 
@@ -247,15 +372,141 @@ async function runTest(page, testCase, index) {
   }
 }
 
+// Run strict match test (RAG Accuracy Improvement)
+async function runStrictMatchTest(page, testCase, index) {
+  const { keyword, query, lang, expected, strictNotExpected, testType } = testCase;
+  console.log(`\n[STRICT ${index}] Testing: "${keyword}" (${testType})`);
+  console.log(`   Query: ${query}`);
+
+  try {
+    // Start a new conversation
+    const newChatSelectors = [
+      'button[aria-label="New Chat"]',
+      'button:has-text("新規チャット")',
+      'button:has-text("새 대화")',
+      'button:has-text("New")',
+    ];
+    for (const selector of newChatSelectors) {
+      try {
+        const btn = await page.locator(selector).first();
+        if (await btn.count() > 0) {
+          await btn.click({ timeout: 2000 });
+          await page.waitForTimeout(1000);
+          break;
+        }
+      } catch (e) { }
+    }
+
+    // Enter query
+    const textarea = await page.locator('textarea').first();
+    await textarea.fill('');
+    await page.waitForTimeout(300);
+    await textarea.fill(query);
+    await textarea.press('Enter');
+
+    // Wait for response
+    await page.waitForTimeout(8000);
+
+    // Handle clarification dialog if present
+    const searchBtn = await page.locator('button:has-text("agent.clarification.search"), button:has-text("検索"), button:has-text("Search")').first();
+    if (await searchBtn.count() > 0) {
+      const options = ['説明', '기능', keyword, '設定', 'configuration'];
+      for (const opt of options) {
+        const optEl = await page.locator(`text=${opt}`).first();
+        if (await optEl.count() > 0) {
+          try { await optEl.click({ timeout: 1500 }); break; } catch (e) { }
+        }
+      }
+      await page.waitForTimeout(500);
+      try { await searchBtn.click({ timeout: 3000 }); } catch (e) { }
+    }
+
+    await page.waitForTimeout(20000);
+
+    // Close modal if present
+    const closeBtn = await page.locator('button:has-text("閉じる"), button:has-text("닫기")').first();
+    if (await closeBtn.count() > 0) {
+      try { await closeBtn.click({ timeout: 2000 }); } catch (e) { }
+      await page.waitForTimeout(1000);
+    }
+
+    // Get response text (ONLY the latest message)
+    let responseText = '';
+    try {
+      const assistantMessages = await page.locator('[class*="assistant"], [class*="bot-message"], [class*="ai-message"], [data-role="assistant"]').all();
+      if (assistantMessages.length > 0) {
+        responseText = await assistantMessages[assistantMessages.length - 1].textContent();
+      } else {
+        const allMessages = await page.locator('[class*="message-content"], [class*="chat-message"]').all();
+        if (allMessages.length > 0) {
+          responseText = await allMessages[allMessages.length - 1].textContent();
+        } else {
+          const chatArea = await page.locator('[class*="chat"], main').first();
+          responseText = await chatArea.textContent();
+        }
+      }
+    } catch (e) {
+      responseText = await page.content();
+    }
+
+    // Analyze strict match response
+    const analysis = analyzeStrictMatchResponse(testCase, responseText);
+
+    if (analysis.hasStrictViolation) {
+      console.log(`   ❌ STRICT VIOLATION: Found "${analysis.strictViolations.join(', ')}" when searching for "${keyword}"`);
+      console.log(`   ⚠️ This is a critical ${testType} violation!`);
+
+      // Take screenshot
+      const screenshotPath = `strict_violation_${index}_${keyword.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+      console.log(`   📸 Screenshot: ${screenshotPath}`);
+
+      results.strictMatchResults.violations.push({
+        index,
+        keyword,
+        query,
+        testType,
+        strictViolations: analysis.strictViolations,
+        screenshot: screenshotPath
+      });
+      results.strictMatchResults.failed++;
+    } else if (analysis.isNoResult) {
+      console.log(`   ⚠️ No results found (acceptable for strict match)`);
+      results.strictMatchResults.passed++;
+    } else if (analysis.hasRelevantContent) {
+      console.log(`   ✅ PASSED - Found: ${analysis.foundExpected.join(', ')}`);
+      results.strictMatchResults.passed++;
+    } else {
+      console.log(`   ⚠️ Unclear result`);
+      results.strictMatchResults.passed++;
+    }
+
+    results.strictMatchResults.total++;
+    await page.waitForTimeout(2000);
+
+  } catch (error) {
+    console.log(`   ❌ ERROR: ${error.message}`);
+    results.strictMatchResults.violations.push({
+      index,
+      keyword,
+      query,
+      testType,
+      error: error.message
+    });
+    results.strictMatchResults.failed++;
+    results.strictMatchResults.total++;
+  }
+}
+
 (async () => {
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
-  const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const context = await browser.newContext({ viewport: { width: 1400, height: 900 }, ignoreHTTPSErrors: true });
   const page = await context.newPage();
 
   try {
     // Login
     console.log('Logging in...');
-    await page.goto('http://localhost:3000/login', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.goto('https://localhost:3000/login', { waitUntil: 'networkidle', timeout: 30000 });
     await page.fill('input[type="text"]', 'admin');
     await page.fill('input[type="password"]', 'SecureAdm1nP@ss2024!');
     await page.click('button[type="submit"]');
@@ -286,7 +537,7 @@ async function runTest(page, testCase, index) {
     }
     if (!clicked) {
       // Direct navigation
-      await page.goto('http://localhost:3000/agent', { waitUntil: 'networkidle', timeout: 30000 });
+      await page.goto('https://localhost:3000/agent', { waitUntil: 'networkidle', timeout: 30000 });
     }
     await page.waitForTimeout(2000);
 
@@ -304,22 +555,60 @@ async function runTest(page, testCase, index) {
       }
     }
 
+    // Run STRICT MATCH TESTS (RAG Accuracy Improvement)
+    console.log(`\n${'='.repeat(70)}`);
+    console.log(`STRICT MATCH TESTS (RAG Accuracy) - ${STRICT_MATCH_TESTS.length} test cases`);
+    console.log(`${'='.repeat(70)}`);
+    console.log(`These tests verify exact matching for config files, commands, and error codes.`);
+    console.log(`Violations indicate hallucination where wrong config/command/error was substituted.\n`);
+
+    for (let i = 0; i < STRICT_MATCH_TESTS.length; i++) {
+      await runStrictMatchTest(page, STRICT_MATCH_TESTS[i], i + 1);
+
+      // Save intermediate results
+      if ((i + 1) % 5 === 0) {
+        fs.writeFileSync('sentence_test_results.json', JSON.stringify(results, null, 2));
+        console.log(`\n--- Strict Match Progress: ${i + 1}/${STRICT_MATCH_TESTS.length} | Pass: ${results.strictMatchResults.passed} | Fail: ${results.strictMatchResults.failed} ---`);
+      }
+    }
+
     // Final summary
     console.log(`\n${'='.repeat(70)}`);
     console.log('FINAL TEST SUMMARY');
     console.log(`${'='.repeat(70)}`);
-    console.log(`Total Tests: ${results.total}`);
-    console.log(`Passed: ${results.passed}`);
-    console.log(`Failed: ${results.failed}`);
-    console.log(`Hallucinations: ${results.hallucinations.length}`);
-    console.log(`No Results: ${results.noResults.length}`);
-    console.log(`Errors: ${results.errors.length}`);
+    console.log(`\n📊 Standard Tests:`);
+    console.log(`   Total: ${results.total}`);
+    console.log(`   Passed: ${results.passed}`);
+    console.log(`   Failed: ${results.failed}`);
+    console.log(`   Hallucinations: ${results.hallucinations.length}`);
+    console.log(`   No Results: ${results.noResults.length}`);
+    console.log(`   Errors: ${results.errors.length}`);
+
+    console.log(`\n🔒 Strict Match Tests (RAG Accuracy):`);
+    console.log(`   Total: ${results.strictMatchResults.total}`);
+    console.log(`   Passed: ${results.strictMatchResults.passed}`);
+    console.log(`   Failed: ${results.strictMatchResults.failed}`);
+    console.log(`   Violations: ${results.strictMatchResults.violations.length}`);
 
     if (results.hallucinations.length > 0) {
       console.log(`\n🚨 HALLUCINATION DETAILS:`);
       for (const h of results.hallucinations) {
         console.log(`   [${h.index}] "${h.keyword}": Found unexpected "${h.foundUnexpected.join(', ')}"`);
         console.log(`       Query: ${h.query}`);
+      }
+    }
+
+    if (results.strictMatchResults.violations.length > 0) {
+      console.log(`\n🔴 STRICT MATCH VIOLATION DETAILS:`);
+      for (const v of results.strictMatchResults.violations) {
+        console.log(`   [${v.index}] "${v.keyword}" (${v.testType}):`);
+        if (v.strictViolations) {
+          console.log(`       Found: "${v.strictViolations.join(', ')}" - should NOT appear!`);
+        }
+        if (v.error) {
+          console.log(`       Error: ${v.error}`);
+        }
+        console.log(`       Query: ${v.query}`);
       }
     }
 

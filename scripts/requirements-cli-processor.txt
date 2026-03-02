@@ -1,0 +1,21 @@
+# CLI Document Processor Requirements
+# ====================================
+# GPU Server (Linux) 설치용
+
+# Core
+aiohttp>=3.9.0
+httpx>=0.25.0
+
+# PDF Processing
+PyMuPDF>=1.23.0  # fitz - 빠른 PDF 처리 및 이미지 추출
+pypdf>=3.17.0    # fallback PDF reader
+
+# Image Processing
+Pillow>=10.0.0
+
+# Database (optional)
+asyncpg>=0.29.0  # PostgreSQL async driver
+neo4j>=5.14.0    # Neo4j async driver
+
+# Utilities
+python-dotenv>=1.0.0

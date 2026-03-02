@@ -34,6 +34,14 @@ from query_router import QueryRouter, QueryType
 from ..core.tracing import get_trace_context_from_request
 from ..core.trace_context import SpanType
 from ..core.config import api_settings
+from ..models.scoring_config import ScoringConfig
+
+# v1.1: Import HybridScoreConfig for configurable document weights
+try:
+    from .scoring_config_service import get_hybrid_config
+    HYBRID_CONFIG_AVAILABLE = True
+except ImportError:
+    HYBRID_CONFIG_AVAILABLE = False
 
 
 class RAGService:
@@ -50,10 +58,11 @@ class RAGService:
     _instance: Optional['RAGService'] = None
     _initialized: bool = False
 
-    def __init__(self):
+    def __init__(self, config: Optional[ScoringConfig] = None):
         """Initialize RAG service with lazy loading"""
         self._hybrid_rag: Optional[HybridRAG] = None
         self._query_router: Optional[QueryRouter] = None
+        self._config = config or ScoringConfig()
 
     @classmethod
     def get_instance(cls) -> 'RAGService':
@@ -214,11 +223,11 @@ class RAGService:
         # Session document options
         session_id: Optional[str] = None,
         use_session_docs: bool = True,
-        session_weight: float = 2.0,
+        session_weight: Optional[float] = None,  # v1.1: None = use config default
         # External resource options
         user_id: Optional[str] = None,
         use_external_resources: bool = True,
-        external_weight: float = 2.5,
+        external_weight: Optional[float] = None,  # v1.1: None = use config default
         # Smarter RAG options
         use_verified_knowledge: bool = True,
         verified_min_similarity: float = 0.85,
@@ -253,6 +262,24 @@ class RAGService:
         Returns:
             Dictionary with answer, sources, and metadata
         """
+        # v1.1: Get weights from HybridScoreConfig if not explicitly provided
+        if session_weight is None or external_weight is None:
+            if HYBRID_CONFIG_AVAILABLE:
+                try:
+                    hybrid_cfg = get_hybrid_config()
+                    if session_weight is None:
+                        session_weight = hybrid_cfg.session_document_weight
+                    if external_weight is None:
+                        external_weight = hybrid_cfg.external_document_weight
+                except Exception as e:
+                    logger.warning(f"Failed to load HybridScoreConfig, using defaults: {e}")
+                    session_weight = session_weight or 2.0
+                    external_weight = external_weight or 2.5
+            else:
+                # Legacy fallback
+                session_weight = session_weight or 2.0
+                external_weight = external_weight or 2.5
+
         session_results = []
         external_results = []
         used_session_docs = False
@@ -362,7 +389,7 @@ class RAGService:
                     session_id=session_id,
                     query=question,
                     top_k=top_k,
-                    min_score=0.3
+                    min_score=self._config.search.session_min_score
                 )
 
                 if session_results:
@@ -383,7 +410,7 @@ class RAGService:
                     user_id=user_id,
                     query=question,
                     top_k=top_k,
-                    min_score=0.3
+                    min_score=self._config.search.external_min_score
                 )
 
                 if external_results:
@@ -401,7 +428,7 @@ class RAGService:
             # Check if scores are high enough
             all_user_results = session_results + external_results
             avg_score = sum(r.score for r in all_user_results) / len(all_user_results) if all_user_results else 0
-            if avg_score >= 0.7:
+            if avg_score >= self._config.search.global_skip_threshold:
                 search_global = False
                 print(f"[RAGService] Skipping global search (sufficient user context: avg_score={avg_score:.2f})")
 
@@ -452,7 +479,7 @@ class RAGService:
             "answer": answer,
             "strategy": global_result.get("strategy", strategy),
             "language": global_result.get("language", language),
-            "confidence": 0.85,
+            "confidence": self._config.confidence.default_confidence,
             "sources": merged_sources,
             "query_analysis": {
                 "detected_language": features.get("language", "en"),
@@ -785,6 +812,16 @@ class RAGService:
             conversation_history=conversation_history
         )
 
+        # Debug: Log raw scores from HybridRAG
+        raw_results = result.get("results", [])
+        if raw_results:
+            print(f"[RAGService._sync_query] Raw results count: {len(raw_results)}")
+            for i, r in enumerate(raw_results[:3]):  # Log first 3 results
+                score = r.get("score", "MISSING")
+                combined = r.get("combined_score", "MISSING")
+                chunk_id = r.get("chunk_id", "?")[:20]
+                print(f"  [{i}] chunk={chunk_id}, score={score}, combined_score={combined}")
+
         # Get query features for analysis
         features = self._query_router.get_query_features(question)
 
@@ -821,7 +858,7 @@ class RAGService:
             "answer": result.get("answer", ""),
             "strategy": result.get("strategy", strategy),
             "language": result.get("language", language),
-            "confidence": 0.85,
+            "confidence": self._config.confidence.default_confidence,
             "sources": sources,
             "query_analysis": {
                 "detected_language": features.get("language", "en"),
@@ -874,7 +911,7 @@ class RAGService:
         for i in range(0, len(answer), chunk_size):
             chunk = answer[i:i + chunk_size]
             yield {"type": "text", "content": chunk}
-            await asyncio.sleep(0.02)  # Small delay for streaming effect
+            await asyncio.sleep(self._config.streaming.delay_seconds)  # Configurable streaming delay
 
         # Yield sources at the end
         yield {"type": "sources", "sources": result.get("sources", [])}
@@ -914,9 +951,12 @@ class RAGService:
         total = sum(rule_scores.values())
         probabilities = {k: v / total for k, v in rule_scores.items()}
 
-        # Determine confidence based on score distribution
+        # Determine confidence based on score distribution (configurable scaling)
         max_prob = max(probabilities.values())
-        confidence = min(max_prob * 1.5, 0.99)  # Scale up but cap at 0.99
+        confidence = min(
+            max_prob * self._config.confidence.classify_confidence_scale,
+            self._config.confidence.classify_confidence_cap
+        )
 
         return {
             "strategy": query_type.value,
@@ -994,7 +1034,7 @@ class RAGService:
                     results = await chunk_repo.search_similar(
                         query_embedding=query_embedding,
                         limit=top_k,
-                        min_similarity=0.2,
+                        min_similarity=self._config.search.scoped_min_similarity,
                         pdf_id=pdf_id,
                         section_path_prefix=section_prefix
                     )
@@ -1006,7 +1046,7 @@ class RAGService:
                     results = await chunk_repo.search_similar(
                         query_embedding=query_embedding,
                         limit=top_k,
-                        min_similarity=0.2,
+                        min_similarity=self._config.search.scoped_min_similarity,
                         section_path_prefix=section_path
                     )
                     scoped_results.extend(results)
@@ -1052,7 +1092,7 @@ class RAGService:
                 "answer": answer,
                 "strategy": "scoped",
                 "language": language,
-                "confidence": 0.85 if sources else 0.3,
+                "confidence": self._config.confidence.source_present_confidence if sources else self._config.confidence.no_source_confidence,
                 "sources": sources,
                 "query_analysis": {
                     "detected_language": language,

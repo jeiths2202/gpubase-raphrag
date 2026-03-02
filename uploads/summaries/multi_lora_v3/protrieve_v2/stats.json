@@ -1,0 +1,17 @@
+{
+  "total": 702,
+  "converted": 702,
+  "skipped": 0,
+  "by_type": {},
+  "by_language": {
+    "ja": 699,
+    "en": 3
+  },
+  "by_product": {},
+  "augmented": 0,
+  "train_count": 561,
+  "eval_count": 141,
+  "product": "protrieve_v2",
+  "train_file": "uploads\\summaries\\multi_lora_v3\\protrieve_v2\\train.json",
+  "eval_file": "uploads\\summaries\\multi_lora_v3\\protrieve_v2\\eval.json"
+}
