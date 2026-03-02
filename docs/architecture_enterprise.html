@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>OpenFrame AI KMS — Enterprise Architecture</title>
+<style>
+:root {
+  --navy: #003057;
+  --blue: #005eb8;
+  --accent: #00a9e0;
+  --ai-border: #3b82f6;
+  --legacy-bg: #475569;
+  --integ-bg: #536878;
+  --zone-bg: #f1f5f9;
+  --infra-bg: #1e293b;
+  --deploy-bg: #334155;
+  --card-bg: #ffffff;
+  --card-border: #cbd5e1;
+  --text-dark: #1e293b;
+  --text-light: #ffffff;
+  --text-muted: #64748b;
+  --radius: 8px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  width:1920px; height:1080px;
+  font-family:'Segoe UI',-apple-system,'Noto Sans KR',Arial,sans-serif;
+  background:linear-gradient(180deg,#eef2f7,#e2e8f0);
+  overflow:hidden; display:flex; flex-direction:column;
+}
+
+/* ── Title Bar ── */
+.title-bar {
+  background:var(--navy); color:var(--text-light);
+  padding:10px 40px; display:flex; align-items:center; justify-content:space-between;
+  flex-shrink:0; height:52px;
+}
+.title-bar h1 { font-size:22px; font-weight:700; }
+.title-bar .subtitle { font-size:13px; color:var(--accent); letter-spacing:1px; }
+.title-bar .logo { font-size:12px; color:rgba(255,255,255,0.5); }
+
+/* ── Switcher ── */
+.switcher {
+  display:flex; align-items:center; gap:6px;
+  padding:6px 40px; background:#e2e8f0; border-bottom:1px solid #cbd5e1;
+  flex-shrink:0; height:38px;
+}
+.sw-btn {
+  padding:4px 16px; border:1px solid #94a3b8; border-radius:5px;
+  background:white; font-size:12px; font-weight:600; color:var(--text-dark); cursor:pointer;
+}
+.sw-btn.active { background:var(--blue); color:white; border-color:var(--blue); }
+.view { display:none; flex:1; min-height:0; }
+.view.active { display:flex; }
+
+/* ───────────────────────────── */
+/*  SHARED                       */
+/* ───────────────────────────── */
+.zone { border-radius:6px; display:flex; flex-direction:column; overflow:hidden; }
+.zone-header {
+  padding:7px 14px; font-size:13px; font-weight:700; letter-spacing:0.3px;
+  display:flex; align-items:center; gap:8px; flex-shrink:0;
+}
+.zone-header .dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.zone-body { flex:1; display:flex; flex-wrap:wrap; gap:8px; padding:8px 14px 10px; align-content:flex-start; }
+
+/* Simple card */
+.card {
+  background:var(--card-bg); border:1px solid var(--card-border); border-radius:5px;
+  padding:6px 12px; font-size:13px; font-weight:500; color:var(--text-dark);
+  box-shadow:0 1px 2px rgba(0,0,0,0.04); white-space:nowrap; display:flex; align-items:center; height:32px;
+}
+
+/* Composite card */
+.card-comp {
+  background:var(--card-bg); border:1px solid var(--card-border); border-radius:6px;
+  padding:8px 12px 9px; box-shadow:0 1px 3px rgba(0,0,0,0.05);
+  display:flex; flex-direction:column; gap:5px;
+}
+.card-comp .cc-title {
+  font-size:13px; font-weight:700; color:var(--text-dark);
+  display:flex; align-items:center; gap:5px; white-space:nowrap;
+}
+.sub-items { display:flex; flex-wrap:wrap; gap:3px; }
+.sub-item {
+  font-size:10.5px; padding:2px 7px; border-radius:3px;
+  background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; white-space:nowrap;
+}
+
+/* AI cards */
+.card-comp.ai-comp { border-color:rgba(59,130,246,0.25); background:rgba(255,255,255,0.9); }
+.card-comp.ai-comp.primary { border-color:var(--ai-border); background:white; box-shadow:0 1px 6px rgba(59,130,246,0.12); }
+.card-comp.ai-comp .cc-title { color:#1e40af; }
+.card-comp.ai-comp .sub-item { background:rgba(59,130,246,0.06); border-color:rgba(59,130,246,0.15); color:#1e40af; }
+.card-comp.data-comp .sub-item { background:rgba(139,92,246,0.06); border-color:rgba(139,92,246,0.15); color:#5b21b6; }
+.card-comp.mgmt-comp .sub-item { background:rgba(245,158,11,0.06); border-color:rgba(245,158,11,0.2); color:#92400e; }
+.star { font-size:14px; color:#f59e0b; }
+
+/* Zone colors */
+.zone-ui { background:var(--zone-bg); border:1px solid #e2e8f0; }
+.zone-ui .zone-header { color:var(--text-dark); border-bottom:1px solid #e2e8f0; }
+.zone-ui .dot { background:#10b981; }
+
+.zone-ai {
+  background:linear-gradient(135deg,#eff6ff,#dbeafe);
+  border:2px solid var(--ai-border);
+  box-shadow:0 0 16px rgba(59,130,246,0.1);
+}
+.zone-ai .zone-header { color:#1e40af; border-bottom:1px solid rgba(59,130,246,0.2); background:rgba(59,130,246,0.06); }
+.zone-ai .dot { background:var(--ai-border); }
+
+.zone-data { background:var(--zone-bg); border:1px solid #e2e8f0; }
+.zone-data .zone-header { color:var(--text-dark); border-bottom:1px solid #e2e8f0; }
+.zone-data .dot { background:#8b5cf6; }
+
+.zone-mgmt { background:#f8fafc; border:1px solid #e2e8f0; }
+.zone-mgmt .zone-header { color:var(--text-dark); border-bottom:1px solid #e2e8f0; }
+.zone-mgmt .dot { background:#f59e0b; }
+
+/* AI zone internal: pipeline flow + agents + services */
+.ai-section-label {
+  font-size:10px; font-weight:700; color:rgba(30,64,175,0.45);
+  text-transform:uppercase; letter-spacing:1.5px; padding:4px 0 2px; width:100%;
+}
+.ai-pipeline {
+  display:flex; align-items:center; gap:4px; width:100%;
+}
+.flow-arrow {
+  font-size:22px; color:var(--ai-border); font-weight:700; flex-shrink:0; line-height:1;
+  opacity:0.6;
+}
+.ai-agents, .ai-services { display:flex; flex-wrap:wrap; gap:8px; width:100%; }
+
+/* Zone flow arrow (vertical between zones) */
+.zone-flow {
+  text-align:center; font-size:16px; color:var(--ai-border); padding:2px 0;
+  font-weight:700; opacity:0.5; flex-shrink:0;
+}
+
+/* Bottom bars */
+.bar {
+  border-radius:6px; padding:10px 24px;
+  display:flex; align-items:center; justify-content:space-between;
+  color:var(--text-light); font-weight:600; font-size:14px;
+}
+.bar-comp {
+  display:flex; flex-direction:column; gap:3px;
+  padding:5px 10px; background:rgba(255,255,255,0.1); border-radius:5px; border:1px solid rgba(255,255,255,0.1);
+}
+.bar-comp-title { font-size:12px; font-weight:600; color:rgba(255,255,255,0.9); }
+.bar-comp-subs { display:flex; gap:4px; }
+.bar-sub {
+  font-size:10px; padding:2px 6px; background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.12); border-radius:3px; color:rgba(255,255,255,0.6);
+}
+.bar .bar-items { display:flex; gap:10px; }
+.infra-bar { background:var(--infra-bg); }
+.deploy-bar { background:var(--deploy-bg); }
+
+.copyright { position:absolute; bottom:3px; right:40px; font-size:9px; color:#94a3b8; }
+
+/* ───────────────────────────── */
+/*  HORIZONTAL VIEW              */
+/* ───────────────────────────── */
+#view-h { flex-direction:column; }
+#view-h .h-main { flex:1; display:flex; align-items:stretch; padding:12px 28px; gap:0; min-height:0; }
+#view-h .h-bottom { flex-shrink:0; padding:0 28px 12px; display:flex; flex-direction:column; gap:5px; }
+
+.h-col { border-radius:var(--radius); display:flex; flex-direction:column; overflow:hidden; }
+.h-col.legacy { width:220px; flex-shrink:0; background:var(--legacy-bg); color:var(--text-light); }
+.h-col.legacy .column-header { background:rgba(0,0,0,0.2); border-bottom:2px solid rgba(255,255,255,0.15); padding:10px 14px; font-size:14px; font-weight:700; text-align:center; }
+.legacy-items { flex:1; display:flex; flex-direction:column; gap:6px; padding:10px 10px 6px; }
+.legacy-item {
+  background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15); border-radius:6px;
+  padding:8px 10px; font-size:13px; font-weight:600; color:#e2e8f0; flex:1;
+  display:flex; flex-direction:column; gap:4px;
+}
+.legacy-item .li-title { font-size:14px; font-weight:700; color:#fff; }
+.legacy-item .li-subs { display:flex; flex-wrap:wrap; gap:3px; }
+.legacy-item .li-sub {
+  font-size:10px; padding:2px 6px; background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.12); border-radius:3px; color:rgba(255,255,255,0.65);
+}
+.legacy-label,.integ-label {
+  padding:5px; text-align:center; font-size:10px; font-weight:600;
+  color:rgba(255,255,255,0.4); letter-spacing:2px; text-transform:uppercase;
+  border-top:1px solid rgba(255,255,255,0.1);
+}
+
+.arrow-col { width:40px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+.arrow-col svg { width:34px; height:60px; }
+
+.h-col.integration { width:240px; flex-shrink:0; background:var(--integ-bg); color:var(--text-light); }
+.h-col.integration .column-header { background:rgba(0,0,0,0.2); border-bottom:2px solid rgba(255,255,255,0.15); padding:10px 14px; font-size:14px; font-weight:700; text-align:center; }
+.integ-section { padding:8px 10px 4px; flex:1; display:flex; flex-direction:column; }
+.integ-section-title { font-size:10px; font-weight:700; color:var(--accent); letter-spacing:0.5px; margin-bottom:6px; text-transform:uppercase; }
+.integ-items { display:flex; flex-direction:column; gap:5px; flex:1; }
+.integ-item {
+  background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15); border-radius:5px;
+  padding:7px 10px; font-size:13px; font-weight:600; color:#e2e8f0; display:flex; flex-direction:column; gap:4px;
+}
+.integ-item .ii-subs { display:flex; flex-wrap:wrap; gap:3px; }
+.integ-item .ii-sub {
+  font-size:9.5px; padding:2px 5px; background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.1); border-radius:3px; color:rgba(255,255,255,0.6);
+}
+
+.h-platform {
+  flex:1; background:var(--card-bg); border-radius:var(--radius);
+  border:2px solid #94a3b8; box-shadow:0 4px 20px rgba(0,0,0,0.1);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.platform-header {
+  background:var(--blue); color:var(--text-light); padding:8px 20px;
+  font-size:15px; font-weight:700; display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+}
+.platform-header .badge { font-size:10px; background:rgba(255,255,255,0.2); padding:3px 10px; border-radius:10px; }
+.platform-body { flex:1; display:flex; flex-direction:column; gap:4px; padding:8px 12px; }
+
+#view-h .zone-ai { flex:2; }
+#view-h .zone-data { flex:1; }
+
+/* ───────────────────────────── */
+/*  VERTICAL VIEW                */
+/* ───────────────────────────── */
+#view-v { flex-direction:column; padding:10px 36px; gap:0; }
+
+.v-customer {
+  background:var(--legacy-bg); border-radius:6px 6px 0 0;
+  padding:12px 24px; color:var(--text-light); font-size:14px; font-weight:700;
+  display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+}
+.cust-items { display:flex; gap:10px; }
+.cust-comp {
+  display:flex; flex-direction:column; gap:2px; padding:5px 12px;
+  background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15); border-radius:5px;
+}
+.cust-comp .cc-name { font-size:12px; font-weight:600; color:#e2e8f0; }
+.cust-comp .cc-desc { font-size:9px; color:rgba(255,255,255,0.5); }
+
+.v-arrow { height:18px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.v-arrow svg { width:60px; height:18px; }
+
+.v-platform {
+  flex:1; background:var(--card-bg); border-left:4px solid var(--blue); border-right:4px solid var(--blue);
+  display:flex; min-height:0;
+}
+.v-platform-label {
+  writing-mode:vertical-rl; text-orientation:mixed; background:var(--blue);
+  color:var(--text-light); padding:8px 7px; font-size:12px; font-weight:700;
+  letter-spacing:1px; display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; width:34px;
+}
+.v-platform-body { flex:1; display:flex; flex-direction:column; gap:4px; padding:8px 14px; min-height:0; }
+
+#view-v .zone { flex:1; }
+#view-v .zone-ai { flex:2; }
+#view-v .zone-data { flex:1.2; }
+#view-v .zone-body { gap:6px; padding:6px 12px 8px; }
+
+.v-integration { display:flex; flex-shrink:0; }
+.v-integ-left {
+  background:var(--integ-bg); color:var(--text-light); padding:10px 20px;
+  font-weight:700; font-size:13px; display:flex; align-items:center; width:220px; border-radius:0 0 0 6px;
+}
+.v-integ-right {
+  flex:1; background:#5a6d7e; display:flex; align-items:center; gap:10px; padding:8px 16px;
+  border-radius:0 0 6px 0; flex-wrap:wrap;
+}
+.v-integ-comp {
+  display:flex; flex-direction:column; gap:3px; padding:5px 10px;
+  background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15); border-radius:5px;
+}
+.v-integ-comp .vic-name { font-size:12px; font-weight:600; color:#e2e8f0; }
+.v-integ-comp .vic-subs { display:flex; gap:3px; }
+.v-integ-comp .vic-sub {
+  font-size:9px; padding:2px 5px; background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.1); border-radius:3px; color:rgba(255,255,255,0.55);
+}
+
+.v-bottom { display:flex; flex-direction:column; gap:5px; flex-shrink:0; margin-top:8px; }
+</style>
+</head>
+<body>
+
+<!-- Title Bar -->
+<div class="title-bar">
+  <div><h1>OpenFrame AI KMS Platform</h1><div class="subtitle">ENTERPRISE ARCHITECTURE — COMPONENT VIEW</div></div>
+  <div class="logo">TmaxSoft &copy; 2026</div>
+</div>
+
+<!-- Switcher -->
+<div class="switcher">
+  <button class="sw-btn active" onclick="switchView('horizontal')" id="btn-h">Horizontal (좌→우)</button>
+  <button class="sw-btn" onclick="switchView('vertical')" id="btn-v">Vertical (상→하)</button>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!--  HORIZONTAL VIEW                        -->
+<!-- ═══════════════════════════════════════ -->
+<div id="view-h" class="view active">
+  <div class="h-main">
+
+    <!-- Legacy Mainframe -->
+    <div class="h-col legacy">
+      <div class="column-header">Legacy Mainframe<br>Environment</div>
+      <div class="legacy-items">
+        <div class="legacy-item">
+          <span class="li-title">UI / Online</span>
+          <div class="li-subs"><span class="li-sub">CICS BMS</span><span class="li-sub">PSAM</span><span class="li-sub">3270</span></div>
+        </div>
+        <div class="legacy-item">
+          <span class="li-title">AP / Application</span>
+          <div class="li-subs"><span class="li-sub">COBOL</span><span class="li-sub">JCL</span><span class="li-sub">ASM</span><span class="li-sub">PL/I</span></div>
+        </div>
+        <div class="legacy-item">
+          <span class="li-title">DB / DataSet</span>
+          <div class="li-subs"><span class="li-sub">VSAM</span><span class="li-sub">PDS</span><span class="li-sub">GDG</span><span class="li-sub">SEQ</span></div>
+        </div>
+        <div class="legacy-item">
+          <span class="li-title">OS</span>
+          <div class="li-subs"><span class="li-sub">MVS</span><span class="li-sub">MSP</span><span class="li-sub">VOS3</span><span class="li-sub">XSP</span></div>
+        </div>
+      </div>
+      <div class="legacy-label">On-Premise</div>
+    </div>
+
+    <!-- Arrow -->
+    <div class="arrow-col">
+      <svg viewBox="0 0 34 60" fill="none"><line x1="2" y1="30" x2="22" y2="30" stroke="#005eb8" stroke-width="2.5" stroke-dasharray="4 3"/><polygon points="22,24 34,30 22,36" fill="#005eb8"/></svg>
+    </div>
+
+    <!-- Integration -->
+    <div class="h-col integration">
+      <div class="column-header">OpenFrame<br>Integration Layer</div>
+      <div class="integ-section">
+        <div class="integ-section-title">Parser Engine</div>
+        <div class="integ-items">
+          <div class="integ-item">COBOL Parser<div class="ii-subs"><span class="ii-sub">OFCOBOL</span><span class="ii-sub">ofcbppf</span><span class="ii-sub">NetCOBOL</span></div></div>
+          <div class="integ-item">JCL Parser<div class="ii-subs"><span class="ii-sub">TJES</span><span class="ii-sub">JOB/EXEC/DD</span></div></div>
+          <div class="integ-item">ASM Parser<div class="ii-subs"><span class="ii-sub">OFASM</span><span class="ii-sub">HLASM</span><span class="ii-sub">Macro</span></div></div>
+        </div>
+      </div>
+      <div class="integ-section" style="flex:0.6">
+        <div class="integ-section-title">Analysis</div>
+        <div class="integ-items">
+          <div class="integ-item">Asset Analyzer<div class="ii-subs"><span class="ii-sub">OFMiner</span><span class="ii-sub">Dep Map</span></div></div>
+          <div class="integ-item">Dependency Scanner<div class="ii-subs"><span class="ii-sub">Cross-ref</span><span class="ii-sub">Impact</span></div></div>
+        </div>
+      </div>
+      <div class="integ-label">Deterministic</div>
+    </div>
+
+    <!-- Arrow -->
+    <div class="arrow-col">
+      <svg viewBox="0 0 34 60" fill="none"><line x1="2" y1="30" x2="22" y2="30" stroke="#005eb8" stroke-width="2.5"/><polygon points="22,24 34,30 22,36" fill="#005eb8"/></svg>
+    </div>
+
+    <!-- Platform -->
+    <div class="h-platform">
+      <div class="platform-header">
+        <span>TmaxSoft OpenFrame AI KMS Platform</span>
+        <span class="badge">Core Platform</span>
+      </div>
+      <div class="platform-body">
+
+        <!-- UI Layer -->
+        <div class="zone zone-ui">
+          <div class="zone-header"><span class="dot"></span>UI &amp; Access Layer</div>
+          <div class="zone-body">
+            <div class="card-comp"><div class="cc-title">Web Portal</div><div class="sub-items"><span class="sub-item">React 18</span><span class="sub-item">TypeScript</span><span class="sub-item">Vite</span></div></div>
+            <div class="card-comp"><div class="cc-title">AI Chat Interface</div><div class="sub-items"><span class="sub-item">Streaming</span><span class="sub-item">File Upload</span><span class="sub-item">History</span></div></div>
+            <div class="card-comp"><div class="cc-title">Admin Console</div><div class="sub-items"><span class="sub-item">User Mgmt</span><span class="sub-item">Doc Mgmt</span></div></div>
+            <div class="card-comp"><div class="cc-title">Premium Support</div><div class="sub-items"><span class="sub-item">Video Call</span><span class="sub-item">Screen Share</span></div></div>
+            <div class="card-comp"><div class="cc-title">REST API Gateway</div><div class="sub-items"><span class="sub-item">FastAPI</span><span class="sub-item">JWT Auth</span></div></div>
+            <div class="card-comp"><div class="cc-title">SSE Streaming</div><div class="sub-items"><span class="sub-item">Real-time</span><span class="sub-item">Token Stream</span></div></div>
+          </div>
+        </div>
+
+        <!-- ↓ flow -->
+        <div class="zone-flow">▼ Request Flow</div>
+
+        <!-- AI Layer -->
+        <div class="zone zone-ai">
+          <div class="zone-header"><span class="dot"></span>AI &amp; Agent Logic Layer — Core Intelligence Engine <span class="star">&#9733;</span></div>
+          <div class="zone-body">
+            <!-- Processing Pipeline -->
+            <div class="ai-section-label">Processing Pipeline</div>
+            <div class="ai-pipeline">
+              <div class="card-comp ai-comp primary"><div class="cc-title">Query Router</div><div class="sub-items"><span class="sub-item">Intent Classification</span><span class="sub-item">Product Mapping</span></div></div>
+              <span class="flow-arrow">→</span>
+              <div class="card-comp ai-comp primary"><div class="cc-title">Model Router</div><div class="sub-items"><span class="sub-item">Product Routing</span><span class="sub-item">Confidence Score</span></div></div>
+              <span class="flow-arrow">→</span>
+              <div class="card-comp ai-comp primary"><div class="cc-title">Hybrid RAG Engine</div><div class="sub-items"><span class="sub-item">Vector Search</span><span class="sub-item">Graph Search</span><span class="sub-item">BM25</span></div></div>
+              <span class="flow-arrow">→</span>
+              <div class="card-comp ai-comp primary"><div class="cc-title">RAFT Domain LLM</div><div class="sub-items"><span class="sub-item">Qwen 2.5 72B</span><span class="sub-item">4-bit Quant</span><span class="sub-item">22 Adapters</span></div></div>
+              <span class="flow-arrow">→</span>
+              <div class="card-comp ai-comp primary"><div class="cc-title">Response Verifier</div><div class="sub-items"><span class="sub-item">Cosine Similarity</span><span class="sub-item">Fact Check</span></div></div>
+            </div>
+
+            <!-- Specialist Agents -->
+            <div class="ai-section-label">Specialist Agents</div>
+            <div class="ai-agents">
+              <div class="card-comp ai-comp"><div class="cc-title">Log Analysis Agent</div><div class="sub-items"><span class="sub-item">Pattern Match</span><span class="sub-item">Root Cause</span></div></div>
+              <div class="card-comp ai-comp"><div class="cc-title">Core Dump Agent</div><div class="sub-items"><span class="sub-item">Stack Trace</span><span class="sub-item">Register</span></div></div>
+              <div class="card-comp ai-comp"><div class="cc-title">Migration Agent</div><div class="sub-items"><span class="sub-item">Impact Analysis</span><span class="sub-item">Plan Gen</span></div></div>
+              <div class="card-comp ai-comp"><div class="cc-title">Documentation Agent</div><div class="sub-items"><span class="sub-item">Code Summary</span><span class="sub-item">API Doc</span></div></div>
+              <div class="card-comp ai-comp"><div class="cc-title">Evaluation Engine</div><div class="sub-items"><span class="sub-item">Hallucination Detect</span><span class="sub-item">Accuracy</span></div></div>
+            </div>
+
+            <!-- Support Services -->
+            <div class="ai-section-label">Support Services</div>
+            <div class="ai-services">
+              <div class="card-comp ai-comp"><div class="cc-title">QLoRA Adapter Manager</div><div class="sub-items"><span class="sub-item">SFT</span><span class="sub-item">DPO</span><span class="sub-item">CPT</span><span class="sub-item">22 Products</span></div></div>
+              <div class="card-comp ai-comp"><div class="cc-title">Product Context Memory</div><div class="sub-items"><span class="sub-item">LangGraph Store</span><span class="sub-item">Thread State</span></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ↓ flow -->
+        <div class="zone-flow">▼ Knowledge Retrieval</div>
+
+        <!-- Data Layer -->
+        <div class="zone zone-data">
+          <div class="zone-header"><span class="dot"></span>Data &amp; Knowledge Layer</div>
+          <div class="zone-body">
+            <div class="card-comp data-comp"><div class="cc-title">Knowledge Graph</div><div class="sub-items"><span class="sub-item">Neo4j</span><span class="sub-item">Entity</span><span class="sub-item">MENTIONS</span></div></div>
+            <div class="card-comp data-comp"><div class="cc-title">Vector Index</div><div class="sub-items"><span class="sub-item">HNSW</span><span class="sub-item">NV-EmbedQA</span><span class="sub-item">768-dim</span></div></div>
+            <div class="card-comp data-comp"><div class="cc-title">Summary Index</div><div class="sub-items"><span class="sub-item">1,200 Errors</span><span class="sub-item">26 Glossary</span></div></div>
+            <div class="card-comp data-comp"><div class="cc-title">Web Doc Index</div><div class="sub-items"><span class="sub-item">643 Pages</span><span class="sub-item">14 Products</span></div></div>
+            <div class="card-comp data-comp"><div class="cc-title">Asset Repository</div><div class="sub-items"><span class="sub-item">Source Code</span><span class="sub-item">Configs</span></div></div>
+            <div class="card-comp data-comp"><div class="cc-title">Log Storage</div><div class="sub-items"><span class="sub-item">System</span><span class="sub-item">Job</span><span class="sub-item">Error</span></div></div>
+          </div>
+        </div>
+
+        <!-- Management -->
+        <div class="zone zone-mgmt">
+          <div class="zone-header"><span class="dot"></span>Management &amp; Control</div>
+          <div class="zone-body">
+            <div class="card-comp mgmt-comp"><div class="cc-title">Monitoring</div><div class="sub-items"><span class="sub-item">Health Check</span><span class="sub-item">Alerts</span></div></div>
+            <div class="card-comp mgmt-comp"><div class="cc-title">Access Control</div><div class="sub-items"><span class="sub-item">RBAC</span><span class="sub-item">Roles</span></div></div>
+            <div class="card-comp mgmt-comp"><div class="cc-title">Analytics</div><div class="sub-items"><span class="sub-item">Query Stats</span><span class="sub-item">Usage</span></div></div>
+            <div class="card-comp mgmt-comp"><div class="cc-title">Audit Log</div><div class="sub-items"><span class="sub-item">Access</span><span class="sub-item">Change</span></div></div>
+            <div class="card-comp mgmt-comp"><div class="cc-title">SSO / OAuth</div><div class="sub-items"><span class="sub-item">JWT</span><span class="sub-item">MFA</span></div></div>
+            <div class="card-comp mgmt-comp"><div class="cc-title">Cost Tracking</div><div class="sub-items"><span class="sub-item">GPU Hours</span><span class="sub-item">API Calls</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Bars -->
+  <div class="h-bottom">
+    <div class="bar infra-bar">
+      <span>Infrastructure Layer</span>
+      <div class="bar-items">
+        <div class="bar-comp"><span class="bar-comp-title">Docker Engine</span><div class="bar-comp-subs"><span class="bar-sub">Compose</span><span class="bar-sub">Network</span></div></div>
+        <div class="bar-comp"><span class="bar-comp-title">Kubernetes</span><div class="bar-comp-subs"><span class="bar-sub">Pod</span><span class="bar-sub">Service</span><span class="bar-sub">Ingress</span></div></div>
+        <div class="bar-comp"><span class="bar-comp-title">NVIDIA GPU</span><div class="bar-comp-subs"><span class="bar-sub">A100 ×8</span><span class="bar-sub">40GB VRAM</span><span class="bar-sub">CUDA</span></div></div>
+        <div class="bar-comp"><span class="bar-comp-title">vLLM Serving</span><div class="bar-comp-subs"><span class="bar-sub">Continuous Batch</span><span class="bar-sub">Tensor Parallel</span></div></div>
+        <div class="bar-comp"><span class="bar-comp-title">Load Balancer</span><div class="bar-comp-subs"><span class="bar-sub">Nginx</span><span class="bar-sub">SSL/TLS</span></div></div>
+      </div>
+    </div>
+    <div class="bar deploy-bar">
+      <span>Deployment Layer</span>
+      <div class="bar-items">
+        <div class="bar-comp"><span class="bar-comp-title">On-Premise</span><div class="bar-comp-subs"><span class="bar-sub">Server Room</span><span class="bar-sub">GPU Rack</span></div></div>
+        <div class="bar-comp"><span class="bar-comp-title">Private Cloud</span><div class="bar-comp-subs"><span class="bar-sub">AWS</span><span class="bar-sub">Azure</span><span class="bar-sub">GCP</span></div></div>
+        <div class="bar-comp"><span class="bar-comp-title">Hybrid Deploy</span><div class="bar-comp-subs"><span class="bar-sub">Multi-Cloud</span><span class="bar-sub">VPN</span></div></div>
+        <div class="bar-comp"><span class="bar-comp-title">CI/CD Pipeline</span><div class="bar-comp-subs"><span class="bar-sub">GitHub Actions</span><span class="bar-sub">Docker Build</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!--  VERTICAL VIEW                          -->
+<!-- ═══════════════════════════════════════ -->
+<div id="view-v" class="view">
+
+  <!-- Customer Applications -->
+  <div class="v-customer">
+    <span>Customer Applications</span>
+    <div class="cust-items">
+      <div class="cust-comp"><span class="cc-name">End Users</span><span class="cc-desc">Knowledge Query</span></div>
+      <div class="cust-comp"><span class="cc-name">Engineers</span><span class="cc-desc">Migration / Debug</span></div>
+      <div class="cust-comp"><span class="cc-name">Administrators</span><span class="cc-desc">System Management</span></div>
+      <div class="cust-comp"><span class="cc-name">External Systems</span><span class="cc-desc">REST API / SSE</span></div>
+      <div class="cust-comp"><span class="cc-name">Premium Clients</span><span class="cc-desc">AI Consulting</span></div>
+    </div>
+  </div>
+
+  <div class="v-arrow"><svg viewBox="0 0 60 18" fill="none"><line x1="30" y1="0" x2="30" y2="12" stroke="#005eb8" stroke-width="2"/><polygon points="24,12 30,18 36,12" fill="#005eb8"/></svg></div>
+
+  <!-- KMS Platform -->
+  <div class="v-platform">
+    <div class="v-platform-label">OpenFrame AI KMS — Intelligence Layer</div>
+    <div class="v-platform-body">
+
+      <!-- UI -->
+      <div class="zone zone-ui">
+        <div class="zone-header"><span class="dot"></span>UI &amp; Access Layer</div>
+        <div class="zone-body">
+          <div class="card-comp"><div class="cc-title">Web Portal</div><div class="sub-items"><span class="sub-item">React 18</span><span class="sub-item">TypeScript</span><span class="sub-item">Vite</span></div></div>
+          <div class="card-comp"><div class="cc-title">AI Chat Interface</div><div class="sub-items"><span class="sub-item">Streaming</span><span class="sub-item">File Upload</span><span class="sub-item">History</span></div></div>
+          <div class="card-comp"><div class="cc-title">Admin Console</div><div class="sub-items"><span class="sub-item">User Mgmt</span><span class="sub-item">Doc Mgmt</span></div></div>
+          <div class="card-comp"><div class="cc-title">Premium Support</div><div class="sub-items"><span class="sub-item">Video Call</span><span class="sub-item">Screen Share</span></div></div>
+          <div class="card-comp"><div class="cc-title">REST API</div><div class="sub-items"><span class="sub-item">FastAPI</span><span class="sub-item">JWT Auth</span></div></div>
+          <div class="card-comp"><div class="cc-title">SSE Stream</div><div class="sub-items"><span class="sub-item">Real-time</span><span class="sub-item">Token</span></div></div>
+        </div>
+      </div>
+
+      <div class="zone-flow">▼ Request Flow</div>
+
+      <!-- AI -->
+      <div class="zone zone-ai">
+        <div class="zone-header"><span class="dot"></span>AI &amp; Agent Logic Layer — Core Intelligence Engine <span class="star">&#9733;</span></div>
+        <div class="zone-body">
+          <div class="ai-section-label">Processing Pipeline</div>
+          <div class="ai-pipeline">
+            <div class="card-comp ai-comp primary"><div class="cc-title">Query Router</div><div class="sub-items"><span class="sub-item">Intent</span><span class="sub-item">Product Map</span></div></div>
+            <span class="flow-arrow">→</span>
+            <div class="card-comp ai-comp primary"><div class="cc-title">Model Router</div><div class="sub-items"><span class="sub-item">Product Route</span><span class="sub-item">Confidence</span></div></div>
+            <span class="flow-arrow">→</span>
+            <div class="card-comp ai-comp primary"><div class="cc-title">Hybrid RAG</div><div class="sub-items"><span class="sub-item">Vector</span><span class="sub-item">Graph</span><span class="sub-item">BM25</span></div></div>
+            <span class="flow-arrow">→</span>
+            <div class="card-comp ai-comp primary"><div class="cc-title">RAFT Domain LLM</div><div class="sub-items"><span class="sub-item">Qwen 72B</span><span class="sub-item">QLoRA ×22</span></div></div>
+            <span class="flow-arrow">→</span>
+            <div class="card-comp ai-comp primary"><div class="cc-title">Verifier</div><div class="sub-items"><span class="sub-item">Cosine Sim</span><span class="sub-item">Fact Check</span></div></div>
+          </div>
+          <div class="ai-section-label">Specialist Agents</div>
+          <div class="ai-agents">
+            <div class="card-comp ai-comp"><div class="cc-title">Log Analysis</div><div class="sub-items"><span class="sub-item">Pattern</span><span class="sub-item">Root Cause</span></div></div>
+            <div class="card-comp ai-comp"><div class="cc-title">Core Dump</div><div class="sub-items"><span class="sub-item">Stack Trace</span><span class="sub-item">Register</span></div></div>
+            <div class="card-comp ai-comp"><div class="cc-title">Migration</div><div class="sub-items"><span class="sub-item">Impact</span><span class="sub-item">Plan Gen</span></div></div>
+            <div class="card-comp ai-comp"><div class="cc-title">Documentation</div><div class="sub-items"><span class="sub-item">Code Summary</span><span class="sub-item">API Doc</span></div></div>
+            <div class="card-comp ai-comp"><div class="cc-title">Evaluation</div><div class="sub-items"><span class="sub-item">Hallucination</span><span class="sub-item">Accuracy</span></div></div>
+          </div>
+          <div class="ai-section-label">Support Services</div>
+          <div class="ai-services">
+            <div class="card-comp ai-comp"><div class="cc-title">QLoRA Manager</div><div class="sub-items"><span class="sub-item">SFT</span><span class="sub-item">DPO</span><span class="sub-item">CPT</span></div></div>
+            <div class="card-comp ai-comp"><div class="cc-title">Context Memory</div><div class="sub-items"><span class="sub-item">LangGraph</span><span class="sub-item">Thread</span></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="zone-flow">▼ Knowledge Retrieval</div>
+
+      <!-- Data -->
+      <div class="zone zone-data">
+        <div class="zone-header"><span class="dot"></span>Data &amp; Knowledge Layer</div>
+        <div class="zone-body">
+          <div class="card-comp data-comp"><div class="cc-title">Knowledge Graph</div><div class="sub-items"><span class="sub-item">Neo4j</span><span class="sub-item">Entity</span><span class="sub-item">MENTIONS</span></div></div>
+          <div class="card-comp data-comp"><div class="cc-title">Vector Index</div><div class="sub-items"><span class="sub-item">HNSW</span><span class="sub-item">NV-EmbedQA</span><span class="sub-item">768-dim</span></div></div>
+          <div class="card-comp data-comp"><div class="cc-title">Summary Index</div><div class="sub-items"><span class="sub-item">1,200 Errors</span><span class="sub-item">26 Glossary</span></div></div>
+          <div class="card-comp data-comp"><div class="cc-title">Web Doc Index</div><div class="sub-items"><span class="sub-item">643 Pages</span><span class="sub-item">14 Products</span></div></div>
+          <div class="card-comp data-comp"><div class="cc-title">Asset Repository</div><div class="sub-items"><span class="sub-item">Source Code</span><span class="sub-item">Configs</span></div></div>
+          <div class="card-comp data-comp"><div class="cc-title">Log Storage</div><div class="sub-items"><span class="sub-item">System</span><span class="sub-item">Job</span><span class="sub-item">Error</span></div></div>
+        </div>
+      </div>
+
+      <!-- Management -->
+      <div class="zone zone-mgmt">
+        <div class="zone-header"><span class="dot"></span>Management &amp; Control</div>
+        <div class="zone-body">
+          <div class="card-comp mgmt-comp"><div class="cc-title">Monitoring</div><div class="sub-items"><span class="sub-item">Health Check</span><span class="sub-item">Alerts</span></div></div>
+          <div class="card-comp mgmt-comp"><div class="cc-title">Access Control</div><div class="sub-items"><span class="sub-item">RBAC</span><span class="sub-item">Roles</span></div></div>
+          <div class="card-comp mgmt-comp"><div class="cc-title">Analytics</div><div class="sub-items"><span class="sub-item">Query Stats</span><span class="sub-item">Usage</span></div></div>
+          <div class="card-comp mgmt-comp"><div class="cc-title">Audit Log</div><div class="sub-items"><span class="sub-item">Access</span><span class="sub-item">Change</span></div></div>
+          <div class="card-comp mgmt-comp"><div class="cc-title">SSO / OAuth</div><div class="sub-items"><span class="sub-item">JWT</span><span class="sub-item">MFA</span></div></div>
+          <div class="card-comp mgmt-comp"><div class="cc-title">Cost Tracking</div><div class="sub-items"><span class="sub-item">GPU Hours</span><span class="sub-item">API Calls</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="v-arrow"><svg viewBox="0 0 60 18" fill="none"><line x1="30" y1="0" x2="30" y2="12" stroke="#005eb8" stroke-width="2"/><polygon points="24,12 30,18 36,12" fill="#005eb8"/></svg></div>
+
+  <!-- Integration -->
+  <div class="v-integration">
+    <div class="v-integ-left">OpenFrame Integration<br>&amp; Core System</div>
+    <div class="v-integ-right">
+      <div class="v-integ-comp"><span class="vic-name">COBOL Parser</span><div class="vic-subs"><span class="vic-sub">OFCOBOL</span><span class="vic-sub">ofcbppf</span></div></div>
+      <div class="v-integ-comp"><span class="vic-name">JCL Parser</span><div class="vic-subs"><span class="vic-sub">TJES</span><span class="vic-sub">JOB/EXEC/DD</span></div></div>
+      <div class="v-integ-comp"><span class="vic-name">ASM Parser</span><div class="vic-subs"><span class="vic-sub">OFASM</span><span class="vic-sub">Macro</span></div></div>
+      <div class="v-integ-comp"><span class="vic-name">Asset Analyzer</span><div class="vic-subs"><span class="vic-sub">OFMiner</span><span class="vic-sub">Dep Map</span></div></div>
+      <div class="v-integ-comp"><span class="vic-name">Dependency Scanner</span><div class="vic-subs"><span class="vic-sub">Cross-ref</span><span class="vic-sub">Impact</span></div></div>
+      <div class="v-integ-comp" style="border-left:2px solid rgba(255,255,255,0.3);padding-left:14px;margin-left:6px"><span class="vic-name">Legacy Mainframe</span><div class="vic-subs"><span class="vic-sub">MVS</span><span class="vic-sub">MSP</span><span class="vic-sub">VOS3</span><span class="vic-sub">XSP</span></div></div>
+    </div>
+  </div>
+
+  <!-- Bottom -->
+  <div class="v-bottom">
+    <div class="bar infra-bar">
+      <span>Infrastructure Layer</span>
+      <div class="bar-items">
+        <div class="bar-comp"><span class="bar-comp-title">Docker Engine</span><div class="bar-comp-subs"><span class="bar-sub">Compose</span><span class="bar-sub">Network</span></div></div>
+        <div class="bar-comp"><span class="bar-comp-title">Kubernetes</span><div class="bar-comp-subs"><span class="bar-sub">Pod</span><span class="bar-sub">Service</span></div></div>
+        <div class="bar-comp"><span class="bar-comp-title">NVIDIA GPU</span><div class="bar-comp-subs"><span class="bar-sub">A100 ×8</span><span class="bar-sub">40GB</span></div></div>
+        <div class="bar-comp"><span class="bar-comp-title">vLLM Serving</span><div class="bar-comp-subs"><span class="bar-sub">Continuous Batch</span><span class="bar-sub">TP</span></div></div>
+        <div class="bar-comp"><span class="bar-comp-title">Load Balancer</span><div class="bar-comp-subs"><span class="bar-sub">Nginx</span><span class="bar-sub">SSL</span></div></div>
+      </div>
+    </div>
+    <div class="bar deploy-bar">
+      <span>Deployment</span>
+      <div class="bar-items">
+        <div class="bar-comp"><span class="bar-comp-title">On-Premise</span><div class="bar-comp-subs"><span class="bar-sub">Server Room</span><span class="bar-sub">GPU Rack</span></div></div>
+        <div class="bar-comp"><span class="bar-comp-title">Private Cloud</span><div class="bar-comp-subs"><span class="bar-sub">AWS</span><span class="bar-sub">Azure</span><span class="bar-sub">GCP</span></div></div>
+        <div class="bar-comp"><span class="bar-comp-title">Hybrid Deploy</span><div class="bar-comp-subs"><span class="bar-sub">Multi-Cloud</span><span class="bar-sub">VPN</span></div></div>
+        <div class="bar-comp"><span class="bar-comp-title">CI/CD</span><div class="bar-comp-subs"><span class="bar-sub">GitHub Actions</span><span class="bar-sub">Docker Build</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="copyright">&copy; 2026 TmaxSoft. All Rights Reserved.</div>
+<script>
+function switchView(mode) {
+  document.getElementById('view-h').classList.toggle('active', mode==='horizontal');
+  document.getElementById('view-v').classList.toggle('active', mode==='vertical');
+  document.getElementById('btn-h').classList.toggle('active', mode==='horizontal');
+  document.getElementById('btn-v').classList.toggle('active', mode==='vertical');
+}
+</script>
+</body>
+</html>

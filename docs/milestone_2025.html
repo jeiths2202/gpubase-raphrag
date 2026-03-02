@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TmaxJapan OF KMS チーム マイルストーン 2025</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-primary: #faf7f2;
+  --bg-secondary: #f5f0e8;
+  --bg-card: #ffffff;
+  --text-primary: #3b3228;
+  --text-secondary: #6b5e50;
+  --text-muted: #9b8e80;
+  --border: #e8e0d4;
+  --gold: #a08030;
+  --gold-light: #f5ecd4;
+  --gold-bg: #fdf8ec;
+  --teal: #5a8f82;
+  --teal-light: #d4ece6;
+  --teal-bg: #eef7f4;
+  --sage: #6d8e6e;
+  --sage-light: #d8e8d8;
+  --sage-bg: #f0f7f0;
+  --brown: #8b7355;
+  --copper: #a07850;
+  --shadow-sm: 0 1px 3px rgba(59,50,40,0.06);
+  --shadow-md: 0 4px 12px rgba(59,50,40,0.08);
+  --shadow-lg: 0 8px 24px rgba(59,50,40,0.1);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font-main: 'Meiryo UI', 'Meiryo', 'Hiragino Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-main);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+.fade-in {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.fade-in.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* HEADER */
+.header {
+  background: linear-gradient(135deg, #3b3228 0%, #5a4a3a 50%, #4a3f32 100%);
+  color: #faf7f2;
+  padding: 48px 0 40px;
+  position: relative;
+  overflow: hidden;
+}
+.header::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(160,128,48,0.15) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.header-content { position: relative; z-index: 1; }
+.header h1 { font-size: 2rem; font-weight: 700; letter-spacing: 0.02em; margin-bottom: 6px; }
+.header .subtitle { font-size: 0.95rem; color: rgba(250,247,242,0.7); margin-bottom: 28px; }
+.team-row { display: flex; align-items: flex-start; gap: 32px; flex-wrap: wrap; }
+.team-block { text-align: center; }
+.team-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(250,247,242,0.5); margin-bottom: 8px; }
+.member { display: flex; align-items: center; gap: 10px; }
+.avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.85rem; font-weight: 600; flex-shrink: 0;
+}
+.avatar.leader { background: var(--gold); color: #3b3228; }
+.avatar.m1 { background: var(--teal); color: #fff; }
+.avatar.m2 { background: var(--copper); color: #fff; }
+.member-info { font-size: 0.85rem; line-height: 1.4; text-align: left; }
+.member-name { font-weight: 600; }
+
+/* SECTION */
+section { padding: 40px 0; }
+.section-title {
+  font-size: 1.35rem; font-weight: 700; margin-bottom: 24px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-icon {
+  width: 32px; height: 32px; border-radius: var(--radius-sm);
+  display: inline-flex; align-items: center; justify-content: center; font-size: 1rem;
+}
+
+/* DASHBOARD */
+.dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 40px; }
+.dash-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; transition: box-shadow var(--transition), transform var(--transition);
+}
+.dash-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.dash-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+.dash-value { font-size: 2rem; font-weight: 700; font-family: var(--font-mono); }
+.dash-sub { font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; }
+
+/* GANTT */
+.gantt-wrap {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px; overflow-x: auto; box-shadow: var(--shadow-sm);
+}
+.gantt { min-width: 700px; position: relative; }
+.gantt-header {
+  display: grid; grid-template-columns: 220px repeat(7, 1fr);
+  border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 4px;
+}
+.gantt-header span { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); text-align: center; }
+.gantt-header span:first-child { text-align: left; }
+.gantt-row {
+  display: grid; grid-template-columns: 220px 1fr;
+  align-items: center; height: 48px; position: relative;
+}
+.gantt-row:not(:last-child) { border-bottom: 1px solid #f0ebe3; }
+.gantt-label { font-size: 0.82rem; font-weight: 600; padding-right: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gantt-bars { position: relative; height: 30px; }
+.gantt-bar {
+  position: absolute; height: 30px; border-radius: 15px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; font-weight: 600; color: #fff;
+  transition: filter var(--transition); cursor: default;
+}
+.gantt-bar:hover { filter: brightness(1.1); }
+.gantt-bar.p-high { background: linear-gradient(135deg, var(--gold), #b89840); }
+.gantt-bar.p-medium { background: linear-gradient(135deg, var(--teal), #6aa898); }
+.gantt-bar.p-low {
+  background: repeating-linear-gradient(90deg, var(--sage), var(--sage) 6px, transparent 6px, transparent 10px);
+  border: 2px dashed var(--sage); background-color: rgba(109,142,110,0.15); color: var(--sage);
+}
+.gantt-today {
+  position: absolute; top: 0; bottom: 0; width: 2px; background: var(--copper); z-index: 5; opacity: 0.7;
+}
+.gantt-today-label {
+  position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+  font-size: 0.65rem; font-weight: 600; color: var(--copper);
+  background: var(--bg-card); padding: 1px 6px; border-radius: 4px; white-space: nowrap;
+}
+
+/* PROJECT CARDS */
+.projects-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; }
+.project-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px; transition: box-shadow var(--transition), transform var(--transition);
+  position: relative; overflow: hidden;
+}
+.project-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-3px); }
+.project-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; }
+.project-card.c-high::before { background: var(--gold); }
+.project-card.c-medium::before { background: var(--teal); }
+.project-card.c-low::before { background: var(--sage); }
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+.card-title { font-size: 1.05rem; font-weight: 700; flex: 1; }
+.badge {
+  font-size: 0.7rem; font-weight: 600; padding: 3px 10px; border-radius: 12px;
+  white-space: nowrap; margin-left: 12px;
+}
+.badge.b-high { background: var(--gold-light); color: var(--gold); }
+.badge.b-medium { background: var(--teal-light); color: var(--teal); }
+.badge.b-low { background: var(--sage-light); color: var(--sage); }
+.card-period { font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 10px; }
+.card-desc { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.6; }
+.card-note {
+  font-size: 0.78rem; color: var(--text-muted); background: var(--bg-secondary);
+  padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 16px; border-left: 3px solid var(--border);
+}
+.subtasks { list-style: none; }
+.subtask-item { padding: 8px 0; border-bottom: 1px solid #f5f0e8; }
+.subtask-item:last-child { border-bottom: none; }
+.st-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.st-name { font-size: 0.82rem; font-weight: 500; }
+.st-pct { font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-muted); }
+.prog-bar { height: 6px; background: var(--bg-secondary); border-radius: 3px; overflow: hidden; }
+.prog-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+.prog-fill.f-high { background: var(--gold); }
+.prog-fill.f-medium { background: var(--teal); }
+.prog-fill.f-low { background: var(--sage); }
+.st-note { font-size: 0.72rem; color: var(--text-muted); margin-top: 3px; font-style: italic; }
+.ms-marker {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--gold-bg); border: 1px solid var(--gold-light); color: var(--gold);
+  font-size: 0.78rem; font-weight: 600; padding: 6px 12px; border-radius: var(--radius-sm); margin-top: 12px;
+}
+.assignees { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+.assignee-chip { font-size: 0.72rem; padding: 3px 10px; border-radius: 12px; background: var(--bg-secondary); color: var(--text-secondary); }
+
+/* MILESTONE TABLE */
+.ms-table-wrap {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden; box-shadow: var(--shadow-sm);
+}
+.ms-table { width: 100%; border-collapse: collapse; }
+.ms-table th {
+  background: var(--bg-secondary); font-size: 0.8rem; font-weight: 600;
+  padding: 12px 16px; text-align: left; color: var(--text-secondary);
+}
+.ms-table td { padding: 12px 16px; font-size: 0.85rem; border-bottom: 1px solid #f0ebe3; vertical-align: top; }
+.ms-table tr:last-child td { border-bottom: none; }
+.ms-table tr:hover td { background: #fdfcf9; }
+.month-badge { font-family: var(--font-mono); font-weight: 600; font-size: 0.8rem; color: var(--brown); }
+.ms-list { list-style: none; }
+.ms-list li { padding: 2px 0; font-size: 0.82rem; }
+.ms-list li::before { content: '\25C6'; margin-right: 6px; font-size: 0.6rem; vertical-align: middle; }
+.ms-list li.c-gold::before { color: var(--gold); }
+.ms-list li.c-teal::before { color: var(--teal); }
+
+/* FOOTER */
+.footer { background: var(--bg-secondary); border-top: 1px solid var(--border); padding: 24px 0; margin-top: 20px; }
+.footer-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+.footer-btns { display: flex; gap: 10px; }
+.btn {
+  font-family: var(--font-main); font-size: 0.82rem; font-weight: 600;
+  padding: 8px 20px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--bg-card); color: var(--text-primary); cursor: pointer; transition: all var(--transition);
+}
+.btn:hover { background: var(--text-primary); color: var(--bg-card); border-color: var(--text-primary); }
+.btn-gold { background: var(--gold); color: #fff; border-color: var(--gold); }
+.btn-gold:hover { background: #8a6e28; border-color: #8a6e28; }
+.footer-meta { font-size: 0.75rem; color: var(--text-muted); text-align: right; }
+
+/* MODAL */
+.modal-bg {
+  display: none; position: fixed; inset: 0; background: rgba(59,50,40,0.5);
+  z-index: 100; align-items: center; justify-content: center; padding: 24px;
+}
+.modal-bg.open { display: flex; }
+.modal-box {
+  background: var(--bg-card); border-radius: var(--radius);
+  max-width: 800px; width: 100%; max-height: 80vh;
+  display: flex; flex-direction: column; box-shadow: var(--shadow-lg);
+}
+.modal-top { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.modal-top h3 { font-size: 1rem; }
+.modal-x { background: none; border: none; font-size: 1.3rem; cursor: pointer; color: var(--text-muted); padding: 4px; }
+.modal-x:hover { color: var(--text-primary); }
+.modal-content { padding: 20px; overflow-y: auto; flex: 1; }
+.modal-content pre { font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.modal-bottom { display: flex; justify-content: flex-end; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--border); }
+
+@media (max-width: 768px) {
+  .header h1 { font-size: 1.4rem; }
+  .projects-grid { grid-template-columns: 1fr; }
+  .dashboard { grid-template-columns: repeat(2, 1fr); }
+  .footer-inner { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 480px) {
+  .container { padding: 0 16px; }
+  .dashboard { grid-template-columns: 1fr; }
+}
+@media print {
+  body { background: #fff; }
+  .header { background: #3b3228 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .footer-btns, .modal-bg { display: none !important; }
+  .project-card, .dash-card { break-inside: avoid; box-shadow: none; border: 1px solid #ddd; }
+  .project-card:hover, .dash-card:hover { transform: none; box-shadow: none; }
+  .fade-in { opacity: 1 !important; transform: none !important; }
+  section { padding: 20px 0; }
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+<div class="container header-content">
+  <h1>TmaxJapan OF KMS チーム マイルストーン 2025</h1>
+  <p class="subtitle">OpenFrame Knowledge Management System &mdash; プロジェクトロードマップ</p>
+  <div class="team-row" id="teamArea"></div>
+</div>
+</header>
+
+<section class="fade-in">
+<div class="container">
+  <div class="section-title">
+    <span class="section-icon" style="background:var(--gold-light);color:var(--gold);">&#9670;</span>
+    優先度サマリーダッシュボード
+  </div>
+  <div class="dashboard" id="dashArea"></div>
+</div>
+</section>
+
+<section class="fade-in">
+<div class="container">
+  <div class="section-title">
+    <span class="section-icon" style="background:var(--teal-light);color:var(--teal);">&#9654;</span>
+    タイムラインビュー
+  </div>
+  <div class="gantt-wrap"><div class="gantt" id="ganttArea"></div></div>
+</div>
+</section>
+
+<section class="fade-in">
+<div class="container">
+  <div class="section-title">
+    <span class="section-icon" style="background:var(--sage-light);color:var(--sage);">&#9632;</span>
+    プロジェクト詳細
+  </div>
+  <div class="projects-grid" id="projArea"></div>
+</div>
+</section>
+
+<section class="fade-in">
+<div class="container">
+  <div class="section-title">
+    <span class="section-icon" style="background:var(--bg-secondary);color:var(--brown);">&#9733;</span>
+    月別マイルストーン一覧
+  </div>
+  <div class="ms-table-wrap"><table class="ms-table" id="msTable"></table></div>
+</div>
+</section>
+
+<footer class="footer">
+<div class="container footer-inner">
+  <div class="footer-btns">
+    <button class="btn btn-gold" id="btnMd">Markdown出力</button>
+    <button class="btn" id="btnPrint">印刷</button>
+  </div>
+  <div class="footer-meta">
+    <div>ドキュメントバージョン: v1.0</div>
+    <div>最終更新日: <span id="updated"></span></div>
+  </div>
+</div>
+</footer>
+
+<div class="modal-bg" id="mdModal">
+<div class="modal-box">
+  <div class="modal-top">
+    <h3>Markdown出力</h3>
+    <button class="modal-x" id="modalClose">&times;</button>
+  </div>
+  <div class="modal-content"><pre id="mdPre"></pre></div>
+  <div class="modal-bottom">
+    <button class="btn" id="btnCopy">コピー</button>
+    <button class="btn btn-gold" id="btnDl">ダウンロード (.md)</button>
+    <button class="btn" id="btnCloseBottom">閉じる</button>
+  </div>
+</div>
+</div>
+
+<script>
+/* ===== DATA ===== */
+var DATA = {
+  team: {
+    leader: { name: '\u65B0\u4E95\u5728', kana: '\u30B7\u30F3\u30FB\u30A4\u30B8\u30A7', init: '\u65B0' },
+    members: [
+      { name: '\u91D1\u65FB\u59EB', kana: '\u30AD\u30E0\u30FB\u30DF\u30CB', init: '\u91D1' },
+      { name: '\u6587\u6210\u9414', kana: '\u30E0\u30F3\u30FB\u30BD\u30F3\u30DB', init: '\u6587' }
+    ]
+  },
+  projects: [
+    {
+      id: 1, title: 'OpenFrame\u88FD\u54C1 \u975E\u4E92\u63DB\u5206\u6790\u30C4\u30FC\u30EB',
+      priority: 'high', pLabel: '\u9AD8', period: '2025\u5E743\u6708\u301C5\u6708',
+      sm: 3, em: 5,
+      desc: '\u65E2\u5B58Parser\u306EPython Wrapper\u65B9\u5F0F\u306B\u3088\u308A\u958B\u767A\u671F\u9593\u3092\u6700\u5C0F\u5316\u3002COBOL/ASM/JCL\u30BD\u30FC\u30B9\u306E\u975E\u4E92\u63DB\u8981\u7D20\u3092\u81EA\u52D5\u691C\u51FA\u30FB\u5206\u6790\u3059\u308B\u30C4\u30FC\u30EB\u7FA4',
+      subs: [
+        { name: 'COBOL/ASM/JCL Parser\uFF08Wrapper\u958B\u767A\uFF09', pct: 0, note: '\u65E2\u5B58Parser\u30BD\u30FC\u30B9\u306B\u5BFE\u3059\u308BPython Wrapper\u306E\u307F\u3002\u65B0\u898F\u958B\u767A\u306A\u3057' },
+        { name: 'Asset Analyzer \u2014 \u8CC7\u7523\u5206\u6790\u30C4\u30FC\u30EB', pct: 0 },
+        { name: 'Asset Calltree \u2014 \u30D7\u30ED\u30B0\u30E9\u30E0\u547C\u51FA\u95A2\u4FC2\u56F3', pct: 0 },
+        { name: 'Layout Search \u2014 \u30EC\u30A4\u30A2\u30A6\u30C8\u691C\u7D22\u30C4\u30FC\u30EB', pct: 0 }
+      ],
+      assign: ['\u65B0\u4E95\u5728', '\u6587\u6210\u9414']
+    },
+    {
+      id: 2, title: 'OpenFrame Automation Tool',
+      priority: 'low', pLabel: '\u4F4E', period: '\u672A\u5B9A',
+      sm: null, em: null,
+      desc: '\u65E2\u5B58\u30C4\u30FC\u30EB\u304C\u3042\u308C\u3070\u518D\u6D3B\u7528\u3092\u512A\u5148\u3002\u65B0\u898F\u958B\u767A\u306F\u6700\u5C0F\u9650\u306B\u6291\u3048\u308B\u65B9\u91DD',
+      note: '\u65E2\u5B58\u30C4\u30FC\u30EB\u8ABF\u67FB\u3092\u5148\u884C\u3057\u3001\u518D\u6D3B\u7528\u53EF\u5426\u3092\u5224\u65AD\u5F8C\u306B\u30B9\u30B3\u30FC\u30D7\u78BA\u5B9A',
+      subs: [
+        { name: 'Online/Batch Testing Tool', pct: 0 },
+        { name: 'Dataset Migration Tool', pct: 0 }
+      ],
+      assign: []
+    },
+    {
+      id: 3, title: '\u5B66\u7FD2\u30C7\u30FC\u30BF\u30BB\u30C3\u30C8\u62BD\u51FA\u30FB\u691C\u8A3C',
+      priority: 'high', pLabel: '\u9AD8', period: '2025\u5E743\u6708\u301C4\u6708',
+      sm: 3, em: 4,
+      desc: 'PDF\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8\u304B\u3089\u306E\u5B66\u7FD2\u30C7\u30FC\u30BF\u62BD\u51FA\u30D1\u30A4\u30D7\u30E9\u30A4\u30F3\u69CB\u7BC9\u3002CPT/SFT/DPO\u30C7\u30FC\u30BF\u30BB\u30C3\u30C8\u306E\u54C1\u8CEA\u691C\u8A3C\u3068\u5B66\u7FD2\u5B9F\u884C\u307E\u3067\u4E00\u8CAB\u5BFE\u5FDC',
+      subs: [
+        { name: 'PDF\u304B\u3089CPT/SFT/DPO\u30C7\u30FC\u30BF\u62BD\u51FA', pct: 0 },
+        { name: '\u5B66\u7FD2\u30C7\u30FC\u30BF\u54C1\u8CEA\u691C\u8A3C', pct: 0 },
+        { name: '\u5B66\u7FD2\u5B9F\u884C\u30FB\u8A55\u4FA1', pct: 0 }
+      ],
+      milestone: '4\u6708\u672B\u300C\u5B66\u7FD2\u5B8C\u4E86\u30FB\u8A55\u4FA1\u30EC\u30DD\u30FC\u30C8\u63D0\u51FA\u300D',
+      assign: ['\u65B0\u4E95\u5728', '\u91D1\u65FB\u59EB']
+    },
+    {
+      id: 4, title: '\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8\u7BA1\u7406\u30FBEmbedding\u30B7\u30B9\u30C6\u30E0\u69CB\u7BC9',
+      priority: 'medium', pLabel: '\u4E2D', period: '2025\u5E747\u6708\u301C9\u6708',
+      sm: 7, em: 9,
+      desc: '24\u88FD\u54C1\u306E\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8\u3092\u30D0\u30FC\u30B8\u30E7\u30F3\u7BA1\u7406\u3057\u3001Excel/Word/Text\u5F62\u5F0F\u306EEmbedding\u6A19\u6E96\u5316\u3068\u30D9\u30AF\u30C8\u30EBDB\u7BA1\u7406\u57FA\u76E4\u3092\u69CB\u7BC9',
+      note: '\u30D7\u30ED\u30B8\u30A7\u30AF\u30C83\u306E\u5B66\u7FD2\u30C7\u30FC\u30BF\u30D1\u30A4\u30D7\u30E9\u30A4\u30F3\u3068\u9023\u643A',
+      subs: [
+        { name: '\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8\u30D0\u30FC\u30B8\u30E7\u30F3\u7BA1\u7406\u30B7\u30B9\u30C6\u30E0', pct: 0 },
+        { name: 'Embedding\u30B7\u30B9\u30C6\u30E0\u7BA1\u7406\u57FA\u76E4', pct: 0 },
+        { name: 'Excel/MSWord/Text Embedding\u6A19\u6E96\u5316\u30FB\u7BA1\u7406', pct: 0 }
+      ],
+      assign: ['\u91D1\u65FB\u59EB', '\u6587\u6210\u9414']
+    }
+  ],
+  months: ['3\u6708','4\u6708','5\u6708','6\u6708','7\u6708','8\u6708','9\u6708'],
+  ganttStart: 3, ganttEnd: 9,
+  milestones: [
+    { m: '3\u6708', items: [{t:'Parser Wrapper\u7740\u624B',c:'gold'},{t:'\u5B66\u7FD2\u30C7\u30FC\u30BF\u62BD\u51FA\u958B\u59CB',c:'gold'}], rel: 'P1, P3' },
+    { m: '4\u6708', items: [{t:'\u5B66\u7FD2\u30C7\u30FC\u30BF\u691C\u8A3C\u5B8C\u4E86',c:'gold'},{t:'\u5B66\u7FD2\u5B9F\u884C',c:'gold'}], rel: 'P3' },
+    { m: '5\u6708', items: [{t:'\u975E\u4E92\u63DB\u5206\u6790\u30C4\u30FC\u30EB\u30EA\u30EA\u30FC\u30B9',c:'gold'}], rel: 'P1' },
+    { m: '7\u6708', items: [{t:'\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8\u7BA1\u7406\u30B7\u30B9\u30C6\u30E0\u8A2D\u8A08\u7740\u624B',c:'teal'}], rel: 'P4' },
+    { m: '8\u6708', items: [{t:'Embedding\u30B7\u30B9\u30C6\u30E0\u57FA\u76E4\u69CB\u7BC9',c:'teal'}], rel: 'P4' },
+    { m: '9\u6708', items: [{t:'Embedding\u6A19\u6E96\u5316\u5B8C\u4E86',c:'teal'},{t:'\u5168\u4F53\u7D71\u5408\u30C6\u30B9\u30C8',c:'teal'}], rel: 'P4' }
+  ]
+};
+
+/* ===== HELPERS ===== */
+function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+function el(tag, cls, txt) {
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (txt) e.textContent = txt;
+  return e;
+}
+
+/* ===== RENDERERS ===== */
+function renderTeam() {
+  var area = document.getElementById('teamArea');
+  var t = DATA.team;
+  var avatarCls = ['leader','m1','m2'];
+  var roles = ['\u30EA\u30FC\u30C0\u30FC','\u30E1\u30F3\u30D0\u30FC','\u30E1\u30F3\u30D0\u30FC'];
+  var all = [t.leader].concat(t.members);
+  all.forEach(function(m, i) {
+    var block = el('div','team-block');
+    var lbl = el('div','team-label',roles[i]);
+    block.appendChild(lbl);
+    var row = el('div','member');
+    row.style.marginTop = '4px';
+    var av = el('div','avatar ' + avatarCls[i], m.init);
+    var info = el('div','member-info');
+    var nm = el('div','member-name', m.name + '\uFF08' + m.kana + '\uFF09');
+    info.appendChild(nm);
+    row.appendChild(av);
+    row.appendChild(info);
+    block.appendChild(row);
+    area.appendChild(block);
+  });
+}
+
+function renderDash() {
+  var area = document.getElementById('dashArea');
+  var c = {high:0,medium:0,low:0};
+  DATA.projects.forEach(function(p){c[p.priority]++;});
+  var cards = [
+    {l:'\u5168\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8',v:DATA.projects.length,s:'\u30A2\u30AF\u30C6\u30A3\u30D6',col:'var(--text-primary)'},
+    {l:'\u512A\u5148\u5EA6\uFF1A\u9AD8',v:c.high,s:'\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8',col:'var(--gold)'},
+    {l:'\u512A\u5148\u5EA6\uFF1A\u4E2D',v:c.medium,s:'\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8',col:'var(--teal)'},
+    {l:'\u512A\u5148\u5EA6\uFF1A\u4F4E',v:c.low,s:'\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8',col:'var(--sage)'},
+    {l:'\u76F4\u8FD1\u30DE\u30A4\u30EB\u30B9\u30C8\u30FC\u30F3',v:null,s:'3\u6708: Parser Wrapper\u7740\u624B / \u5B66\u7FD2\u30C7\u30FC\u30BF\u62BD\u51FA\u958B\u59CB',col:'var(--copper)',txt:true}
+  ];
+  cards.forEach(function(cd) {
+    var d = el('div','dash-card');
+    var lb = el('div','dash-label',cd.l);
+    d.appendChild(lb);
+    if (cd.txt) {
+      var sub = el('div','dash-sub',cd.s);
+      sub.style.fontWeight = '600';
+      sub.style.color = cd.col;
+      sub.style.fontSize = '0.88rem';
+      sub.style.marginTop = '0';
+      d.appendChild(sub);
+    } else {
+      var val = el('div','dash-value',String(cd.v));
+      val.style.color = cd.col;
+      d.appendChild(val);
+      d.appendChild(el('div','dash-sub',cd.s));
+    }
+    area.appendChild(d);
+  });
+}
+
+function renderGantt() {
+  var area = document.getElementById('ganttArea');
+  var total = DATA.ganttEnd - DATA.ganttStart + 1;
+
+  // header
+  var hdr = el('div','gantt-header');
+  hdr.appendChild(el('span','','\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8'));
+  DATA.months.forEach(function(m){hdr.appendChild(el('span','',m));});
+  area.appendChild(hdr);
+
+  // rows
+  DATA.projects.forEach(function(p) {
+    var row = el('div','gantt-row');
+    var lbl = el('div','gantt-label',p.title);
+    lbl.title = p.title;
+    row.appendChild(lbl);
+
+    var bars = el('div','gantt-bars');
+    var bar = el('div','gantt-bar');
+
+    if (p.sm !== null) {
+      bar.className = 'gantt-bar p-' + p.priority;
+      var left = ((p.sm - DATA.ganttStart) / total) * 100;
+      var w = ((p.em - p.sm + 1) / total) * 100;
+      bar.style.left = left + '%';
+      bar.style.width = w + '%';
+      bar.textContent = p.period;
+    } else {
+      bar.className = 'gantt-bar p-low';
+      bar.style.left = '5%';
+      bar.style.width = '90%';
+      bar.textContent = '\u672A\u5B9A';
+    }
+    bars.appendChild(bar);
+    row.appendChild(bars);
+    area.appendChild(row);
+  });
+
+  // today marker
+  var now = new Date();
+  var cm = now.getMonth() + 1;
+  var cd = now.getDate();
+  if (cm >= DATA.ganttStart && cm <= DATA.ganttEnd) {
+    var dim = new Date(now.getFullYear(), cm, 0).getDate();
+    var pct = ((cm - DATA.ganttStart + (cd-1)/dim) / total) * 100;
+    requestAnimationFrame(function(){
+      var firstBars = area.querySelector('.gantt-bars');
+      if (!firstBars) return;
+      var areaRect = firstBars.getBoundingClientRect();
+      var ganttRect = area.getBoundingClientRect();
+      var offL = areaRect.left - ganttRect.left;
+      var px = offL + (areaRect.width * pct / 100);
+
+      var line = el('div','gantt-today');
+      line.style.left = px + 'px';
+      var label = el('div','gantt-today-label','\u4ECA\u65E5');
+      line.appendChild(label);
+      area.appendChild(line);
+    });
+  }
+}
+
+function renderProjects() {
+  var grid = document.getElementById('projArea');
+  DATA.projects.forEach(function(p) {
+    var card = el('div','project-card c-' + p.priority + ' fade-in');
+
+    var head = el('div','card-head');
+    head.appendChild(el('div','card-title',p.title));
+    var bdg = el('span','badge b-' + p.priority, '\u512A\u5148\u5EA6\uFF1A' + p.pLabel);
+    head.appendChild(bdg);
+    card.appendChild(head);
+
+    card.appendChild(el('div','card-period',p.period));
+    card.appendChild(el('div','card-desc',p.desc));
+
+    if (p.note) {
+      card.appendChild(el('div','card-note',p.note));
+    }
+
+    var ul = el('ul','subtasks');
+    p.subs.forEach(function(st) {
+      var li = el('li','subtask-item');
+      var sh = el('div','st-head');
+      sh.appendChild(el('span','st-name',st.name));
+      sh.appendChild(el('span','st-pct',st.pct + '%'));
+      li.appendChild(sh);
+
+      var pb = el('div','prog-bar');
+      var pf = el('div','prog-fill f-' + p.priority);
+      pf.style.width = st.pct + '%';
+      pb.appendChild(pf);
+      li.appendChild(pb);
+
+      if (st.note) {
+        li.appendChild(el('div','st-note',st.note));
+      }
+      ul.appendChild(li);
+    });
+    card.appendChild(ul);
+
+    if (p.milestone) {
+      var mk = el('div','ms-marker','\u2605 ' + p.milestone);
+      card.appendChild(mk);
+    }
+
+    if (p.assign && p.assign.length > 0) {
+      var aDiv = el('div','assignees');
+      p.assign.forEach(function(a) {
+        aDiv.appendChild(el('span','assignee-chip',a));
+      });
+      card.appendChild(aDiv);
+    }
+
+    grid.appendChild(card);
+  });
+}
+
+function renderMsTable() {
+  var table = document.getElementById('msTable');
+
+  var thead = document.createElement('thead');
+  var tr = document.createElement('tr');
+  ['\u6708','\u4E3B\u8981\u30DE\u30A4\u30EB\u30B9\u30C8\u30FC\u30F3','\u95A2\u9023\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8'].forEach(function(t) {
+    var th = document.createElement('th');
+    th.textContent = t;
+    if (t === '\u6708') th.style.width = '100px';
+    if (t === '\u95A2\u9023\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8') th.style.width = '140px';
+    tr.appendChild(th);
+  });
+  thead.appendChild(tr);
+  table.appendChild(thead);
+
+  var tbody = document.createElement('tbody');
+  DATA.milestones.forEach(function(ms) {
+    var row = document.createElement('tr');
+
+    var td1 = document.createElement('td');
+    td1.appendChild(el('span','month-badge',ms.m));
+    row.appendChild(td1);
+
+    var td2 = document.createElement('td');
+    var ul = el('ul','ms-list');
+    ms.items.forEach(function(it) {
+      var li = el('li','c-' + it.c, it.t);
+      ul.appendChild(li);
+    });
+    td2.appendChild(ul);
+    row.appendChild(td2);
+
+    var td3 = document.createElement('td');
+    td3.textContent = ms.rel;
+    td3.style.fontSize = '0.8rem';
+    td3.style.color = 'var(--text-muted)';
+    td3.style.fontFamily = 'var(--font-mono)';
+    row.appendChild(td3);
+
+    tbody.appendChild(row);
+  });
+  table.appendChild(tbody);
+}
+
+/* ===== MARKDOWN ===== */
+function genMd() {
+  var md = '# TmaxJapan OF KMS \u30C1\u30FC\u30E0 \u30DE\u30A4\u30EB\u30B9\u30C8\u30FC\u30F3 2025\n\n';
+  md += '> OpenFrame Knowledge Management System \u2014 \u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u30ED\u30FC\u30C9\u30DE\u30C3\u30D7\n\n';
+  md += '## \u30C1\u30FC\u30E0\n\n| \u5F79\u5272 | \u540D\u524D |\n|------|------|\n';
+  md += '| \u30EA\u30FC\u30C0\u30FC | ' + DATA.team.leader.name + '\uFF08' + DATA.team.leader.kana + '\uFF09 |\n';
+  DATA.team.members.forEach(function(m) {
+    md += '| \u30E1\u30F3\u30D0\u30FC | ' + m.name + '\uFF08' + m.kana + '\uFF09 |\n';
+  });
+  md += '\n## \u512A\u5148\u5EA6\u30B5\u30DE\u30EA\u30FC\n\n| \u512A\u5148\u5EA6 | \u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u6570 |\n|--------|---------------|\n';
+  var c = {high:0,medium:0,low:0};
+  DATA.projects.forEach(function(p){c[p.priority]++;});
+  md += '| \u9AD8 | ' + c.high + ' |\n| \u4E2D | ' + c.medium + ' |\n| \u4F4E | ' + c.low + ' |\n';
+  md += '\n## \u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u8A73\u7D30\n\n';
+  DATA.projects.forEach(function(p) {
+    md += '### ' + p.id + '. ' + p.title + '\n\n';
+    md += '- **\u512A\u5148\u5EA6**: ' + p.pLabel + '\n';
+    md += '- **\u671F\u9593**: ' + p.period + '\n';
+    md += '- **\u6982\u8981**: ' + p.desc + '\n';
+    if (p.note) md += '- **\u6CE8\u8A18**: ' + p.note + '\n';
+    md += '\n**\u30B5\u30D6\u30BF\u30B9\u30AF:**\n\n';
+    p.subs.forEach(function(st, i) {
+      md += (i+1) + '. ' + st.name;
+      if (st.note) md += ' \u2014 _' + st.note + '_';
+      md += '\n';
+    });
+    if (p.milestone) md += '\n> ' + p.milestone + '\n';
+    if (p.assign && p.assign.length > 0) md += '\n**\u62C5\u5F53**: ' + p.assign.join(', ') + '\n';
+    md += '\n---\n\n';
+  });
+  md += '## \u6708\u5225\u30DE\u30A4\u30EB\u30B9\u30C8\u30FC\u30F3\n\n| \u6708 | \u30DE\u30A4\u30EB\u30B9\u30C8\u30FC\u30F3 |\n|----|---------------|\n';
+  DATA.milestones.forEach(function(ms) {
+    md += '| ' + ms.m + ' | ' + ms.items.map(function(i){return i.t;}).join('\u3001') + ' |\n';
+  });
+  md += '\n---\n\n\u30C9\u30AD\u30E5\u30E1\u30F3\u30C8\u30D0\u30FC\u30B8\u30E7\u30F3: v1.0 | \u6700\u7D42\u66F4\u65B0\u65E5: ' + new Date().toLocaleDateString('ja-JP') + '\n';
+  return md;
+}
+
+/* ===== EVENTS ===== */
+document.getElementById('btnMd').addEventListener('click', function() {
+  document.getElementById('mdPre').textContent = genMd();
+  document.getElementById('mdModal').classList.add('open');
+});
+document.getElementById('modalClose').addEventListener('click', function() {
+  document.getElementById('mdModal').classList.remove('open');
+});
+document.getElementById('btnCloseBottom').addEventListener('click', function() {
+  document.getElementById('mdModal').classList.remove('open');
+});
+document.getElementById('mdModal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+document.getElementById('btnPrint').addEventListener('click', function() { window.print(); });
+document.getElementById('btnCopy').addEventListener('click', function() {
+  var btn = this;
+  navigator.clipboard.writeText(genMd()).then(function() {
+    btn.textContent = '\u30B3\u30D4\u30FC\u3057\u307E\u3057\u305F';
+    setTimeout(function(){btn.textContent='\u30B3\u30D4\u30FC';},2000);
+  });
+});
+document.getElementById('btnDl').addEventListener('click', function() {
+  var blob = new Blob([genMd()], {type:'text/markdown;charset=utf-8'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'milestone_2025.md'; a.click();
+  URL.revokeObjectURL(url);
+});
+
+/* ===== INIT ===== */
+document.addEventListener('DOMContentLoaded', function() {
+  renderTeam();
+  renderDash();
+  renderGantt();
+  renderProjects();
+  renderMsTable();
+  document.getElementById('updated').textContent = new Date().toLocaleDateString('ja-JP');
+
+  var obs = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, {threshold: 0.1});
+  requestAnimationFrame(function() {
+    document.querySelectorAll('.fade-in').forEach(function(el) { obs.observe(el); });
+  });
+});
+</script>
+</body>
+</html>

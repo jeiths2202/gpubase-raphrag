@@ -1,0 +1,130 @@
+{
+  "templates": {
+    "command": {
+      "ja": [
+        "{name}コマンドについて説明してください。",
+        "{name}コマンドの使い方を教えてください。",
+        "{name}の実行方法は？"
+      ],
+      "ko": [
+        "{name} 명령어에 대해 설명해주세요.",
+        "{name} 명령어 사용법을 알려주세요.",
+        "{name} 실행 방법은?"
+      ],
+      "en": [
+        "Explain the {name} command.",
+        "How do I use the {name} command?",
+        "What does {name} do?"
+      ]
+    },
+    "api": {
+      "ja": [
+        "{name} APIの使用方法を教えてください。",
+        "{name}関数の引数と戻り値は？",
+        "{name} APIの使用例を示してください。"
+      ],
+      "ko": [
+        "{name} API 사용법을 알려주세요.",
+        "{name} 함수의 인자와 반환값은?",
+        "{name} API 사용 예시를 보여주세요."
+      ],
+      "en": [
+        "How do I use the {name} API?",
+        "What are the parameters and return value of {name}?",
+        "Show me an example of using {name}."
+      ]
+    },
+    "config": {
+      "ja": [
+        "{name}の設定方法を説明してください。",
+        "{name}パラメータの設定値は？",
+        "{name}の推奨設定は？"
+      ],
+      "ko": [
+        "{name} 설정 방법을 설명해주세요.",
+        "{name} 파라미터 설정값은?",
+        "{name}의 권장 설정은?"
+      ],
+      "en": [
+        "How do I configure {name}?",
+        "What are the configuration options for {name}?",
+        "What is the recommended setting for {name}?"
+      ]
+    },
+    "concept": {
+      "ja": [
+        "{name}とは何ですか？",
+        "{name}について説明してください。",
+        "{name}の概念を教えてください。"
+      ],
+      "ko": [
+        "{name}이란 무엇인가요?",
+        "{name}에 대해 설명해주세요.",
+        "{name}의 개념을 알려주세요."
+      ],
+      "en": [
+        "What is {name}?",
+        "Explain {name}.",
+        "Describe the concept of {name}."
+      ]
+    },
+    "procedure": {
+      "ja": [
+        "{name}の手順を教えてください。",
+        "{name}のやり方は？",
+        "{name}のステップを説明してください。"
+      ],
+      "ko": [
+        "{name} 절차를 알려주세요.",
+        "{name} 방법은?",
+        "{name}의 단계를 설명해주세요."
+      ],
+      "en": [
+        "What are the steps for {name}?",
+        "How do I perform {name}?",
+        "Explain the procedure for {name}."
+      ]
+    },
+    "error": {
+      "ja": [
+        "エラー{name}の原因と解決方法は？",
+        "{name}エラーが発生した場合の対処法は？",
+        "{name}の意味と対応策を教えてください。"
+      ],
+      "ko": [
+        "에러 {name}의 원인과 해결방법은?",
+        "{name} 에러 발생 시 대처법은?",
+        "{name}의 의미와 대응책을 알려주세요."
+      ],
+      "en": [
+        "What causes error {name} and how do I fix it?",
+        "How do I resolve the {name} error?",
+        "What does {name} mean and how to handle it?"
+      ]
+    },
+    "term": {
+      "ja": [
+        "{name}の定義を教えてください。",
+        "{name}とはどういう意味ですか？",
+        "{name}の用語説明をお願いします。"
+      ],
+      "ko": [
+        "{name}의 정의를 알려주세요.",
+        "{name}이란 무슨 뜻인가요?",
+        "{name} 용어 설명을 부탁합니다."
+      ],
+      "en": [
+        "Define {name}.",
+        "What does {name} mean?",
+        "Explain the term {name}."
+      ]
+    }
+  },
+  "system_prompts": {
+    "ja": "あなたはOpenFrame KMSのアシスタントです。技術的な質問に正確に回答してください。",
+    "ko": "당신은 OpenFrame KMS 어시스턴트입니다. 기술적인 질문에 정확하게 답변해주세요.",
+    "en": "You are an OpenFrame KMS assistant. Answer technical questions accurately."
+  },
+  "default_type": "concept",
+  "default_language": "ja"
+}
