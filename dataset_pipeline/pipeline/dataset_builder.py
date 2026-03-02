@@ -13,6 +13,7 @@ from .comparison_generator import ComparisonGenerator
 from .config import GenerationConfig
 from .deduplicator import Deduplicator
 from .dpo_generator import DPOGenerator
+from .general_knowledge_generator import GeneralKnowledgeGenerator
 from .knowledge_extractor import KnowledgeExtractor
 from .manual_loader import ManualLoader
 from .models import (
@@ -21,6 +22,7 @@ from .models import (
     DPORecord,
     ManualSection,
     ProductKnowledge,
+    SFTCategory,
     SFTRecord,
 )
 from .qa_generator import QAGenerator
@@ -130,16 +132,21 @@ class DatasetBuilder:
     def _generate_sft(
         self, knowledge: Dict[str, ProductKnowledge]
     ) -> List[SFTRecord]:
-        """Generate all three SFT categories."""
+        """Generate all SFT categories including general knowledge."""
         target = self.config.target_sft_size
+        gk_ratio = self.config.sft_general_knowledge_ratio
 
-        single_budget = int(target * self.config.sft_single_product_ratio)
-        comparison_budget = int(target * self.config.sft_comparison_ratio)
-        architecture_budget = target - single_budget - comparison_budget
+        # Split budget: domain portion vs general knowledge
+        domain_budget = int(target * (1.0 - gk_ratio))
+        gk_budget = target - domain_budget
+
+        single_budget = int(domain_budget * self.config.sft_single_product_ratio)
+        comparison_budget = int(domain_budget * self.config.sft_comparison_ratio)
+        architecture_budget = domain_budget - single_budget - comparison_budget
 
         logger.info(
-            "SFT budgets: single=%d, comparison=%d, architecture=%d",
-            single_budget, comparison_budget, architecture_budget,
+            "SFT budgets: single=%d, comparison=%d, architecture=%d, general=%d",
+            single_budget, comparison_budget, architecture_budget, gk_budget,
         )
 
         qa_gen = QAGenerator(self.config)
@@ -151,7 +158,16 @@ class DatasetBuilder:
         arch_gen = ArchitectureGenerator(self.config)
         architecture_records = arch_gen.generate(knowledge)
 
-        all_records = single_records + comparison_records + architecture_records
+        # Generate general knowledge records
+        gk_records: List[SFTRecord] = []
+        if gk_budget > 0:
+            gk_gen = GeneralKnowledgeGenerator(self.config)
+            gk_records = gk_gen.generate(gk_budget)
+
+        all_records = (
+            single_records + comparison_records
+            + architecture_records + gk_records
+        )
         random.shuffle(all_records)
 
         return all_records

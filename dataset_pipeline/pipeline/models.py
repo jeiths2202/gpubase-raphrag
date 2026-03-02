@@ -24,12 +24,14 @@ class ItemType(str, enum.Enum):
     PROCEDURE = "procedure"
     LIMITATION = "limitation"
     MIGRATION = "migration"
+    GENERAL = "general"
 
 
 class SFTCategory(str, enum.Enum):
     SINGLE_PRODUCT = "single_product"
     CROSS_PRODUCT = "cross_product"
     ARCHITECTURE = "architecture"
+    GENERAL_KNOWLEDGE = "general_knowledge"
 
 
 class DPOStrategy(str, enum.Enum):

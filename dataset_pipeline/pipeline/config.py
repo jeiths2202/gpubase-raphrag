@@ -23,10 +23,11 @@ class GenerationConfig:
     min_chunk_size: int = 200
     cpt_max_chunk_tokens: int = 4096
 
-    # SFT distribution
+    # SFT distribution (domain ratios are relative to the domain portion)
     sft_single_product_ratio: float = 0.50
     sft_comparison_ratio: float = 0.30
     sft_architecture_ratio: float = 0.20
+    sft_general_knowledge_ratio: float = 0.15  # 15% of total SFT output
 
     # QA generation
     qa_variants_per_item: int = 5
@@ -101,13 +102,19 @@ class GenerationConfig:
         errors: List[str] = []
         if not (0.0 < self.train_eval_split < 1.0):
             errors.append("train_eval_split must be between 0 and 1")
+        # Domain SFT ratios must sum to 1.0 (they share the non-general portion)
         sft_sum = (
             self.sft_single_product_ratio
             + self.sft_comparison_ratio
             + self.sft_architecture_ratio
         )
         if abs(sft_sum - 1.0) > 0.01:
-            errors.append(f"SFT ratios must sum to 1.0, got {sft_sum:.2f}")
+            errors.append(f"SFT domain ratios must sum to 1.0, got {sft_sum:.2f}")
+        if not (0.0 <= self.sft_general_knowledge_ratio < 0.5):
+            errors.append(
+                f"sft_general_knowledge_ratio must be in [0, 0.5), "
+                f"got {self.sft_general_knowledge_ratio:.2f}"
+            )
         dpo_sum = (
             self.dpo_cross_product_ratio
             + self.dpo_fact_mutation_ratio
