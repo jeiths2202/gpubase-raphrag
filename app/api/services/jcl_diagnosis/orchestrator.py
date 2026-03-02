@@ -85,10 +85,28 @@ class JCLDiagnosisOrchestrator:
                 jesjcl_files=classified.jesjcl_files,
             )
 
+            # JCL 파싱 실패 시 JESMSG/SYSMSG에서 JOB 정보 복원
+            # (OpenFrame JESJCL은 parse tree 형식이라 JCL 파싱 실패 가능)
+            if job_analysis.job_name == "UNKNOWN" and job_analysis.total_steps == 0:
+                logger.info(
+                    "JCL parsing returned UNKNOWN - "
+                    "attempting recovery from JESMSG/SYSMSG"
+                )
+                job_analysis = await self.jcl_analyzer.analyze_from_spool_metadata(
+                    jesmsg_files=classified.jesmsg_files,
+                    sysmsg_files=classified.sysmsg_files,
+                )
+
             # JESMSG에서 STEP별 RC 보완
             for jesmsg in classified.jesmsg_files:
                 job_analysis = self.jcl_analyzer.update_step_results_from_jesmsg(
                     job_analysis, jesmsg.content
+                )
+
+            # SYSMSG에서 STEP별 RC 보완 (JRN0065I RC 패턴)
+            for sysmsg in classified.sysmsg_files:
+                job_analysis = self.jcl_analyzer.update_step_results_from_sysmsg(
+                    job_analysis, sysmsg.content
                 )
 
             yield self._event(DiagnosisEventType.JCL_PARSED, {
