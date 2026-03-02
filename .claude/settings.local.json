@@ -338,7 +338,13 @@
       "Bash(docker system:*)",
       "Bash(docker volume:*)",
       "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" release:*)",
-      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" pr:*)"
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" pr:*)",
+      "Bash(do:*)",
+      "Bash(start:*)",
+      "WebFetch(domain:www.youtube.com)",
+      "Bash(mkdir:*)",
+      "WebFetch(domain:swift.readthedocs.io)",
+      "Bash(docker restart:*)"
     ]
   }
 }

@@ -1,12 +1,12 @@
 {
-  "sessionCount": 385,
+  "sessionCount": 408,
   "lastSession": {
-    "startedAt": "2026-02-27T07:30:46.075Z",
+    "startedAt": "2026-03-02T01:47:42.061Z",
     "platform": "claude",
     "level": "Enterprise"
   },
-  "activeFeature": null,
-  "pdcaPhase": null,
+  "activeFeature": "qwen3-cpt-format-fix",
+  "pdcaPhase": "do",
   "matchRate": null,
   "designVersion": null,
   "planPath": null,
