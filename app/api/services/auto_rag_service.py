@@ -27,6 +27,7 @@ import aiohttp
 
 from ..core.config import get_api_settings
 from ..core.logging_framework import get_logger
+from ..adapters.learning_llm.vllm_adapter import MULTI_LORA_PRODUCT_MAPPING
 
 logger = get_logger("kms.auto_rag")
 
@@ -1063,11 +1064,12 @@ async def handle_slash_command(command: str) -> AsyncGenerator[dict, None]:
 
 _detected_model: Optional[str] = None
 _detected_context_length: Optional[int] = None
+_available_model_ids: set[str] = set()  # vLLM에 로드된 모든 모델 ID 캐시
 
 
 async def _detect_model() -> tuple[str, int]:
     """vLLM /v1/models API에서 모델 이름과 context length 자동 감지."""
-    global _detected_model, _detected_context_length
+    global _detected_model, _detected_context_length, _available_model_ids
     if _detected_model:
         return _detected_model, _detected_context_length or DEFAULT_CONTEXT_LENGTH
 
@@ -1085,7 +1087,12 @@ async def _detect_model() -> tuple[str, int]:
                         m = models[0]
                         _detected_model = m.get("id", "")
                         _detected_context_length = m.get("max_model_len") or DEFAULT_CONTEXT_LENGTH
-                        logger.info(f"Auto-detected model: {_detected_model}, context: {_detected_context_length}")
+                        _available_model_ids = {mi.get("id", "") for mi in models}
+                        logger.info(
+                            f"Auto-detected model: {_detected_model}, "
+                            f"context: {_detected_context_length}, "
+                            f"available: {_available_model_ids}"
+                        )
                         return _detected_model, _detected_context_length
     except Exception as e:
         logger.warning(f"Model auto-detect failed: {e}")
@@ -1167,11 +1174,17 @@ async def stream_auto_rag(
     history: Optional[list] = None,
     product_ids: Optional[list] = None,
     enable_thinking: bool = False,
+    initial_context: Optional[str] = None,
 ) -> AsyncGenerator[dict, None]:
     """Auto-RAG Agent Loop (SSE イベント生成).
 
     CLI의 LocalCoder.agent_loop() + stream_response()를 정확히 포팅.
     핵심 차이점: CLI는 OpenAI SDK sync, 여기는 aiohttp async.
+
+    Args:
+        initial_context: 사전 수집된 검색 결과 (RAG 모드에서 위임 시 사용).
+                         제공 시 auto_rag_context() 호출을 건너뛰고
+                         이 컨텍스트를 직접 주입.
     """
     start = time.time()
 
@@ -1190,7 +1203,26 @@ async def stream_auto_rag(
     product, is_of = detect_product_from_query(message)
     augmented_message = message
 
-    if is_of:
+    # Multi-LoRA: resolve adapter model name from product (CLI: _get_model_for_request)
+    adapter_model = model  # default: base model
+    if product and product in MULTI_LORA_PRODUCT_MAPPING:
+        mapping = MULTI_LORA_PRODUCT_MAPPING[product]
+        candidate = mapping.get("adapter", product)
+        # 어댑터가 vLLM에 실제 로드되어 있는지 확인 후 폴백
+        if _available_model_ids and candidate not in _available_model_ids:
+            logger.info(
+                f"Auto-RAG Multi-LoRA: product={product} -> adapter={candidate} "
+                f"NOT loaded, using base model ({model})"
+            )
+        else:
+            adapter_model = candidate
+            logger.info(f"Auto-RAG Multi-LoRA: product={product} -> adapter={adapter_model}")
+
+    if initial_context:
+        # RAG 모드에서 위임: 사전 수집된 컨텍스트 사용 (중복 검색 방지)
+        augmented_message = message + "\n" + initial_context
+        logger.info(f"Auto-RAG using pre-collected context: {len(initial_context)} chars")
+    elif is_of:
         yield {"type": "search_progress", "step": "auto_rag_context", "progress": 0.1}
         rag_context = await auto_rag_context(message, product)
         if rag_context:
@@ -1218,7 +1250,7 @@ async def stream_auto_rag(
 
         # CLI와 동일 payload: tool_choice 미전송, chat_template_kwargs 미전송
         payload = {
-            "model": model,
+            "model": adapter_model,
             "messages": messages,
             "max_tokens": effective_max_tokens,
             "temperature": 0.7,
@@ -1514,8 +1546,12 @@ class AutoRAGService:
         history: Optional[list] = None,
         product_ids: Optional[list] = None,
         enable_thinking: bool = False,
+        initial_context: Optional[str] = None,
     ) -> AsyncGenerator[dict, None]:
-        async for event in stream_auto_rag(message, history, product_ids, enable_thinking):
+        async for event in stream_auto_rag(
+            message, history, product_ids, enable_thinking,
+            initial_context=initial_context,
+        ):
             yield event
 
 

@@ -170,6 +170,7 @@ class VLLMAdapter:
     Multi-LoRA v2 지원 (2026-02-03):
     - 제품별로 적절한 GPU/포트로 자동 라우팅
     - tibero7_v2, jeus_v2 등 어댑터 이름 직접 지정 가능
+    - 어댑터 미로드 시 자동으로 base model 폴백
     """
 
     def __init__(
@@ -187,25 +188,39 @@ class VLLMAdapter:
         self.is_loaded = False
         self.current_adapter = "vllm-server"
         self._remote_host = os.getenv("REMOTE_HOST", "192.168.8.11")
+        self._available_models: set[str] = set()  # vLLM에 로드된 모델 캐시
 
     def get_url_for_product(self, product: Optional[str] = None) -> tuple[str, str]:
         """
         제품에 맞는 URL과 모델명 반환
 
-        현재: Qwen3-32B base model만 사용 (어댑터 없음)
-        향후: "openframe" 단일 어댑터 추가 예정
+        Multi-LoRA 활성화: MULTI_LORA_PRODUCT_MAPPING에서 어댑터 조회.
+        어댑터가 vLLM에 실제 로드되어 있는지 확인 후 폴백.
 
         Args:
-            product: 제품명 (현재 무시됨 — base model 사용)
+            product: 제품명 (예: "jeus", "tibero", "osc")
 
         Returns:
             (base_url, model_name) 튜플
         """
         base_url = MULTI_LORA_BASE_URL
 
-        # 현재 LoRA 어댑터 없음 → 항상 base model 사용
+        if product and product in MULTI_LORA_PRODUCT_MAPPING:
+            mapping = MULTI_LORA_PRODUCT_MAPPING[product]
+            adapter_name = mapping.get("adapter", product)
+
+            # 어댑터가 vLLM에 실제 로드되어 있는지 확인
+            if self._available_models and adapter_name not in self._available_models:
+                logger.info(
+                    f"LLM routing: product={product} -> adapter={adapter_name} "
+                    f"NOT loaded on vLLM, falling back to base model ({self.model})"
+                )
+                return base_url, self.model
+
+            logger.info(f"LLM routing: product={product} -> adapter={adapter_name}")
+            return base_url, adapter_name
         if product:
-            logger.info(f"LLM routing: product={product} -> base model (no adapters loaded)")
+            logger.info(f"LLM routing: product={product} -> base model (no adapter mapping)")
         return base_url, self.model
 
     def detect_product_from_query(self, query: str) -> Optional[str]:
@@ -258,7 +273,7 @@ class VLLMAdapter:
         return None
 
     async def health_check(self) -> Dict[str, Any]:
-        """vLLM 서버 헬스 체크"""
+        """vLLM 서버 헬스 체크 + 사용 가능한 모델 캐시"""
         try:
             # Try /health endpoint first
             health_url = self.base_url.replace("/v1", "/health")
@@ -266,6 +281,8 @@ class VLLMAdapter:
                 async with session.get(health_url, timeout=5) as resp:
                     if resp.status == 200:
                         self.is_loaded = True
+                        # /health 성공 시에도 모델 목록 갱신
+                        await self._refresh_available_models()
                         return {"status": "healthy", "url": self.base_url}
         except Exception as e:
             logger.debug(f"Health endpoint failed: {e}")
@@ -277,6 +294,11 @@ class VLLMAdapter:
                     if resp.status == 200:
                         data = await resp.json()
                         self.is_loaded = True
+                        # 사용 가능한 모델 캐시
+                        self._available_models = {
+                            m["id"] for m in data.get("data", [])
+                        }
+                        logger.info(f"vLLM available models: {self._available_models}")
                         return {
                             "status": "healthy",
                             "url": self.base_url,
@@ -287,6 +309,20 @@ class VLLMAdapter:
 
         self.is_loaded = False
         return {"status": "unhealthy", "url": self.base_url, "error": str(e)}
+
+    async def _refresh_available_models(self) -> None:
+        """vLLM /v1/models에서 사용 가능한 모델 목록 갱신"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{self.base_url}/models", timeout=5) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        self._available_models = {
+                            m["id"] for m in data.get("data", [])
+                        }
+                        logger.info(f"vLLM available models refreshed: {self._available_models}")
+        except Exception as e:
+            logger.debug(f"Failed to refresh available models: {e}")
 
     async def load(self) -> bool:
         """연결 확인 (vLLM은 항상 로드된 상태)"""
@@ -301,10 +337,8 @@ class VLLMAdapter:
         self,
         question: str,
         context: Optional[str] = None,
-        max_new_tokens: int = 512,
+        max_new_tokens: int = 4096,
         temperature: float = 0.7,
-        top_p: float = 0.9,
-        repetition_penalty: float = 1.15,
         product: Optional[str] = None,
         system_prompt: Optional[str] = None,
         **kwargs
@@ -312,11 +346,13 @@ class VLLMAdapter:
         """
         vLLM OpenAI-compatible API를 통한 응답 생성
 
+        Parameters unified with ofcode CLI (core.py _create_stream).
+
         Args:
             question: 사용자 질문
             context: 추가 컨텍스트
-            max_new_tokens: 최대 생성 토큰
-            temperature: 샘플링 온도
+            max_new_tokens: 최대 생성 토큰 (ofcode CLI와 동일: 4096)
+            temperature: 샘플링 온도 (ofcode CLI와 동일: 0.7)
             product: Multi-LoRA 제품명 (예: "tibero7", "openframe_base")
             system_prompt: 커스텀 시스템 프롬프트 (제공 시 default 생략, context 잘라내기 안 함)
 
@@ -338,8 +374,6 @@ class VLLMAdapter:
             "messages": messages,
             "max_tokens": max_new_tokens,
             "temperature": temperature,
-            "top_p": top_p,
-            "repetition_penalty": repetition_penalty,
         }
 
         try:
@@ -367,10 +401,8 @@ class VLLMAdapter:
         self,
         question: str,
         context: Optional[str] = None,
-        max_new_tokens: int = 512,
+        max_new_tokens: int = 4096,
         temperature: float = 0.7,
-        top_p: float = 0.9,
-        repetition_penalty: float = 1.15,
         product: Optional[str] = None,
         system_prompt: Optional[str] = None,
         enable_thinking: bool = False,
@@ -378,12 +410,15 @@ class VLLMAdapter:
         """
         vLLM OpenAI-compatible API 스트리밍 응답 생성
 
+        Parameters unified with ofcode CLI (core.py _create_stream):
+        - temperature=0.7, max_tokens=4096
+        - top_p, repetition_penalty 제거 (vLLM 기본값 사용 → 풍부한 표현력)
+
         Args:
             question: 사용자 질문
             context: 추가 컨텍스트
-            max_new_tokens: 최대 생성 토큰
-            temperature: 샘플링 온도
-            repetition_penalty: 반복 방지 페널티 (1.0=없음, >1.0=반복 억제)
+            max_new_tokens: 최대 생성 토큰 (ofcode CLI와 동일: 4096)
+            temperature: 샘플링 온도 (ofcode CLI와 동일: 0.7)
             product: Multi-LoRA 제품명 (예: "tibero7", "openframe_base")
             system_prompt: 커스텀 시스템 프롬프트 (제공 시 default 생략, context 잘라내기 안 함)
         """
@@ -404,10 +439,7 @@ class VLLMAdapter:
             "messages": messages,
             "max_tokens": max_new_tokens,
             "temperature": temperature,
-            "top_p": top_p,
-            "repetition_penalty": repetition_penalty,
             "stream": True,
-            # Qwen3: enable_thinking 파라미터화 (True=내부추론, False=빠른응답)
             "chat_template_kwargs": {"enable_thinking": enable_thinking},
         }
 

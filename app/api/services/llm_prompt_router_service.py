@@ -191,12 +191,13 @@ class LLMPromptRouterService:
         user_prompt: str,
         timeout: int,
     ) -> Optional[str]:
-        """vLLM OpenAI-compatible API 호출 (non-streaming, openframe_common 어댑터)"""
-        from ..adapters.learning_llm.vllm_adapter import MULTI_LORA_BASE_URL
+        """vLLM OpenAI-compatible API 호출 (non-streaming, base model 사용)"""
+        from ..adapters.learning_llm.vllm_adapter import MULTI_LORA_BASE_URL, get_vllm_adapter
 
         base_url = MULTI_LORA_BASE_URL
-        # openframe_common 어댑터 사용 (가장 범용적인 어댑터)
-        model_name = "openframe_common"
+        # base model 사용 (어댑터 미로드 시 안전한 폴백)
+        adapter = get_vllm_adapter()
+        model_name = adapter.model if adapter else "/opt/models/qwen3-32b"
 
         messages = [
             {"role": "system", "content": system_prompt},
