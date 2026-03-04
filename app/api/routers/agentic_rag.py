@@ -9,7 +9,7 @@ import logging
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..core.deps import get_current_user
@@ -17,6 +17,7 @@ from ..models.agentic_rag import (
     AgenticRAGRequest,
     AgenticRAGResponse,
     AgenticRAGHealth,
+    AgentMode,
     RouterResult,
 )
 
@@ -139,10 +140,22 @@ async def chat(
     try:
         # Long-term Memory용 user_id 주입
         request.user_id = current_user.get("user_id", "anonymous")
-        service = get_agentic_rag_service()
         start = time.time()
 
-        response = await service.chat(request)
+        # RAG/AUTO_RAG + 파일첨부 없음 → OFKMS v2 프록시
+        use_proxy = (
+            request.agent_mode in (AgentMode.RAG, AgentMode.AUTO_RAG)
+            and not request.file_content
+        )
+
+        if use_proxy:
+            from ..services.ofkms_v2_proxy_service import get_ofkms_v2_proxy
+            proxy = get_ofkms_v2_proxy()
+            response = await proxy.query(request)
+        else:
+            service = get_agentic_rag_service()
+            response = await service.chat(request)
+
         response.processing_time_ms = int((time.time() - start) * 1000)
 
         # Log query with token usage
@@ -151,7 +164,7 @@ async def chat(
             writer = get_query_log_writer()
             if writer:
                 msg_len = len(request.message)
-                resp_len = len(response.answer) if response.answer else 0
+                resp_len = len(response.response) if response.response else 0
                 await writer.submit_query({
                     'user_id': request.user_id,
                     'query_text': request.message,
@@ -196,7 +209,7 @@ async def stream_chat(
     )
 
     async def generate():
-        """Generate SSE events (Agent Teams 패턴 적용) with token tracking"""
+        """Generate SSE events with token tracking"""
         start_time = time.time()
         output_chars = 0
         success = True
@@ -204,19 +217,53 @@ async def stream_chat(
         query_type = "unknown"
 
         try:
-            from ..services.agent_teams.team_orchestrator import get_team_orchestrator
-            orchestrator = get_team_orchestrator()
-            async for event in orchestrator.stream_chat_enhanced(request):
-                # Track output tokens from llm_token events
-                if event.get("type") == "llm_token":
-                    output_chars += len(event.get("token", ""))
-                elif event.get("type") == "done":
-                    product = event.get("product", product)
-                    query_type = event.get("query_type", query_type)
-                elif event.get("type") == "error":
-                    success = False
+            # Slash command 감지 — proxy/orchestrator 분기 전에 인터셉트
+            msg = request.message.strip()
+            if msg.startswith("/"):
+                if msg.startswith("/analyze"):
+                    # /analyze → OFKMS v2 analyze API
+                    from ..services.ofkms_v2_proxy_service import get_ofkms_v2_proxy
+                    proxy = get_ofkms_v2_proxy()
+                    async for event in proxy.stream_analyze(msg):
+                        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                else:
+                    # 기타 slash commands (/help, /clear, /model 등)
+                    from ..services.auto_rag_service import handle_slash_command
+                    async for event in handle_slash_command(msg):
+                        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                return
 
-                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            # RAG/AUTO_RAG + 파일첨부 없음 → OFKMS v2 프록시
+            use_proxy = (
+                request.agent_mode in (AgentMode.RAG, AgentMode.AUTO_RAG)
+                and not request.file_content
+            )
+
+            if use_proxy:
+                from ..services.ofkms_v2_proxy_service import get_ofkms_v2_proxy
+                proxy = get_ofkms_v2_proxy()
+                async for event in proxy.stream_query(request):
+                    if event.get("type") == "template_response":
+                        output_chars += len(event.get("content", ""))
+                    elif event.get("type") == "done":
+                        product = event.get("product", product)
+                        query_type = event.get("query_type", query_type)
+                    elif event.get("type") == "error":
+                        success = False
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            else:
+                # 기존 로직 (file_content, code, planner, special 모드)
+                from ..services.agent_teams.team_orchestrator import get_team_orchestrator
+                orchestrator = get_team_orchestrator()
+                async for event in orchestrator.stream_chat_enhanced(request):
+                    if event.get("type") == "llm_token":
+                        output_chars += len(event.get("token", ""))
+                    elif event.get("type") == "done":
+                        product = event.get("product", product)
+                        query_type = event.get("query_type", query_type)
+                    elif event.get("type") == "error":
+                        success = False
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
         except Exception as e:
             logger.error(f"Agentic RAG stream error: {e}")
@@ -228,7 +275,6 @@ async def stream_chat(
                 from ..infrastructure.services.query_log_writer import get_query_log_writer
                 writer = get_query_log_writer()
                 if writer:
-                    # Estimate tokens: CJK ~1.5 chars/token, Latin ~4 chars/token
                     msg_len = len(request.message)
                     input_tokens = max(1, int(msg_len / 1.5))
                     output_tokens = max(0, int(output_chars / 1.5))
@@ -256,5 +302,37 @@ async def stream_chat(
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# =============================================================================
+# Codemap Proxy Endpoint
+# =============================================================================
+
+@router.get("/codemap/{filename}")
+async def get_codemap(filename: str):
+    """OFKMS v2에서 생성된 codemap HTML을 프록시 (인증 불필요 — 정적 시각화)"""
+    # 파일명 검증: 경로 트래버설 방지
+    import re
+    if not re.match(r'^[\w\-\.]+\.html$', filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    from ..services.ofkms_v2_proxy_service import get_ofkms_v2_proxy
+    proxy = get_ofkms_v2_proxy()
+    html = await proxy.get_codemap(filename)
+    # CDN (D3.js, Chart.js) 허용을 위해 codemap 전용 CSP 설정
+    csp = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://d3js.org https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "font-src 'self' data:; "
+        "connect-src 'self'"
+    )
+    return HTMLResponse(
+        content=html,
+        headers={
+            "Content-Security-Policy": csp,
+            "X-Frame-Options": "SAMEORIGIN",
         },
     )

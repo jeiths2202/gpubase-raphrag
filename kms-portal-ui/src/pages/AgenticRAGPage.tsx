@@ -127,6 +127,7 @@ interface ChatMessage {
   graphData?: { nodes: Node[]; edges: Edge[] };
   thinkContent?: string;
   diagnosisId?: string;
+  codemapUrl?: string;
   toolCalls?: Array<{ name: string; args: Record<string, unknown>; result?: string; iteration?: number }>;
   timestamp: Date;
 }
@@ -768,6 +769,32 @@ export const AgenticRAGPage: React.FC = () => {
               setMessages([]);
               break;
 
+            case 'analyze_result': {
+              // /analyze 결과를 마크다운 테이블로 표시
+              const analyzeEvent = event as Record<string, unknown>;
+              const stats = (analyzeEvent.stats || {}) as Record<string, unknown>;
+              const codemapUrlValue = analyzeEvent.codemap_url as string;
+              let md = `### Legacy Code Analysis Complete\n\n`;
+              md += `| Metric | Value |\n|---|---|\n`;
+              if (stats.total_files != null) md += `| Files | ${stats.total_files} |\n`;
+              if (stats.total_loc != null) md += `| Lines of Code | ${stats.total_loc} |\n`;
+              if (stats.total_programs != null) md += `| Programs | ${stats.total_programs} |\n`;
+              if (stats.total_copybooks != null) md += `| Copybooks | ${stats.total_copybooks} |\n`;
+              if (stats.total_nodes != null) md += `| Graph Nodes | ${stats.total_nodes} |\n`;
+              if (stats.total_edges != null) md += `| Graph Edges | ${stats.total_edges} |\n`;
+              if (stats.analysis_time_ms != null) md += `| Analysis Time | ${stats.analysis_time_ms}ms |\n`;
+              md += `\n`;
+              if (stats.asset_distribution) {
+                md += `**Asset Distribution:** ${JSON.stringify(stats.asset_distribution)}\n\n`;
+              }
+              setMessages(prev => prev.map((m, i) =>
+                i === prev.length - 1
+                  ? { ...m, content: md, codemapUrl: codemapUrlValue || undefined }
+                  : m
+              ));
+              break;
+            }
+
             case 'plan_start': {
               // TracePanel 초기화 + 열기
               const traceId = (event as Record<string, unknown>).trace_id as string;
@@ -1067,6 +1094,25 @@ export const AgenticRAGPage: React.FC = () => {
                 </details>
               )}
               <MessageContent content={msg.content} />
+              {msg.codemapUrl && (
+                <div style={{ marginTop: 8 }}>
+                  <a
+                    href={msg.codemapUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '8px 16px', fontSize: '0.85rem', fontWeight: 600,
+                      border: 'none', borderRadius: 8, cursor: 'pointer',
+                      background: 'var(--accent-color, #6366f1)', color: '#fff',
+                      textDecoration: 'none', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Workflow size={14} />
+                    Open Interactive Codemap
+                  </a>
+                </div>
+              )}
               {msg.diagnosisId && (
                 <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
                   <button
@@ -1515,7 +1561,7 @@ export const AgenticRAGPage: React.FC = () => {
             {/* Slash Command Palette (Auto-RAG only) */}
             {autoRag && showSlashPalette && (
               <div className="slash-command-palette">
-                {['/help', '/clear', '/model', '/tokens', '/reindex', '/crawl-webdoc']
+                {['/help', '/clear', '/model', '/tokens', '/reindex', '/crawl-webdoc', '/analyze']
                   .filter(cmd => cmd.startsWith(slashFilter || '/'))
                   .map(cmd => (
                     <button

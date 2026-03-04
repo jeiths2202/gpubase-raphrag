@@ -441,6 +441,7 @@ AUTO_RAG_TOOLS = BASE_TOOLS + OPENFRAME_TOOLS
 # ─── Product Detection Keywords (CLI와 동일) ────────────────
 
 _PRODUCT_KEYWORDS: Dict[str, str] = {
+    # OpenFrame 핵심 제품
     "ofasm": "ofasm",
     "ofcobol": "ofcobol",
     "osc": "osc",
@@ -451,9 +452,26 @@ _PRODUCT_KEYWORDS: Dict[str, str] = {
     "hidb": "ims",
     "base": "base",
     "tacf": "tacf",
+    # OpenFrame 유틸리티/도구
+    "ofgw": "ofgw",
+    "ofmanager": "ofmanager",
+    "ofminer": "ofminer",
+    "ofstudio": "ofstudio",
+    "ofpli": "ofpli",
     "prosort": "prosort",
+    "protrieve": "protrieve",
+    "prosync": "prosync",
+    # OpenFrame 메인프레임 호환
+    "mvs": "mvs",
+    "msp": "msp",
+    "xsp": "xsp",
+    "vos3": "vos3",
+    # TmaxSoft 독립 제품
     "jeus": "jeus",
+    "webtob": "webtob",
     "tibero": "tibero",
+    "tmax": "tmax",
+    # 일반
     "openframe": "",
     "of7": "",
     # OpenFrame Base C API 라이브러리
@@ -471,6 +489,10 @@ _TOPIC_KEYWORDS: List[str] = [
     "설정", "config", "옵션", "option", "파라미터", "parameter",
     "설치", "install", "마이그레이션", "migration",
     "ofasm", "ofcobol", "osc", "cics", "batch", "ims",
+    "ofgw", "ofmanager", "ofminer", "ofstudio", "ofpli",
+    "prosort", "protrieve", "prosync",
+    "jeus", "webtob", "tibero", "tmax",
+    "mvs", "msp", "xsp", "vos3",
     "데이터셋", "dataset", "vsam", "tsam",
     "ofld", "링크", "link", "로드", "load",
     "에러", "error", "오류", "abend",
@@ -487,6 +509,44 @@ _PRODUCT_TO_MODULE: Dict[str, str] = {
     "base": "base",
 }
 
+# ─── Utility Product → Neo4j 검색 제품 매핑 ──────────────────
+# 유틸리티 제품은 독립 청크가 없어 부모 제품 문서에서 검색해야 함
+_UTILITY_SEARCH_PRODUCTS: Dict[str, List[str]] = {
+    "protrieve": ["common", "batch"],   # CA-Easytrieve Plus → Common Utility Reference
+    "prosort": ["common", "batch"],     # Sort utility → Common/Batch docs
+    "prosync": ["common"],              # Data sync → Common docs
+    "ofgw": ["base"],                   # OpenFrame Gateway
+    "ofmanager": ["base"],              # OpenFrame Manager
+    "ofminer": ["base"],               # OpenFrame Miner
+    "ofstudio": ["base"],              # OpenFrame Studio
+    "ofpli": ["common"],              # OpenFrame PL/I
+}
+
+# 유틸리티 제품의 벡터 검색 쿼리 보강 키워드
+# 일본어/한국어 쿼리가 영문 기술 용어와 임베딩 매칭이 안 될 때 보완
+_UTILITY_QUERY_ENRICHMENT: Dict[str, str] = {
+    "protrieve": "ProTrieve CA-Easytrieve Plus EZTPA00",
+    "prosort": "ProSort DFSORT SORT MERGE",
+    "prosync": "ProSync synchronization replication",
+    "ofgw": "OFGW OpenFrame Gateway",
+    "ofmanager": "OFManager OpenFrame Manager",
+    "ofminer": "OFMiner OpenFrame Miner",
+    "ofstudio": "OFStudio OpenFrame Studio",
+    "ofpli": "OFPLI PL/I OpenFrame",
+}
+
+
+def _expand_search_product(product: str) -> List[str]:
+    """유틸리티 제품을 Neo4j 검색 가능한 부모 제품으로 확장.
+
+    예: 'protrieve' → ['common', 'batch']
+    'osc' → ['osc']  (변경 없음)
+    """
+    if product in _UTILITY_SEARCH_PRODUCTS:
+        return _UTILITY_SEARCH_PRODUCTS[product]
+    return [product] if product else [""]
+
+
 # ─── Slash Commands ──────────────────────────────────────────
 
 HELP_TEXT = """**Auto-RAG Commands:**
@@ -498,6 +558,7 @@ HELP_TEXT = """**Auto-RAG Commands:**
 | `/tokens` | Show token usage |
 | `/reindex` | Rebuild ofcode-server search index |
 | `/crawl-webdoc <product>` | Crawl web docs for a product |
+| `/analyze <path>` | Analyze legacy mainframe assets (COBOL, ASM, JCL, etc.) |
 """
 
 
@@ -706,34 +767,82 @@ async def auto_rag_context(query: str, product: str = "") -> str:
         total_chars += len(summary_ctx)
         logger.info(f"Auto-RAG summary context injected: {len(summary_ctx)} chars, {t_summary:.0f}ms")
 
-    # 2단계: Vector search (기존 로직)
+    # 2단계: Vector search (유틸리티 제품은 부모 제품으로 확장 검색 + 쿼리 보강)
     client = get_ofcode_client()
-    rag_result = await client.rag_search(query, product, top_k=5)
-    if not isinstance(rag_result, str):
-        entries = rag_result.get("results", [])
-        if entries:
-            vec_lines: list[str] = []
-            vec_chars = 0
-            for r in entries:
-                doc = r.get("doc_name", "")
-                short_name = doc.split("/")[-1] if "/" in doc else doc
-                page = r.get("page_number", "")
-                score = r.get("score", 0)
-                content = r.get("content", "").strip()
-                if content:
-                    entry = f"--- {short_name} (p.{page}, relevance: {score}) ---\n{content}"
-                    if vec_chars + len(entry) > _MAX_VECTOR_CONTEXT_CHARS:
-                        break
-                    vec_lines.append(entry)
-                    vec_chars += len(entry)
-            if vec_lines:
-                parts.append("")
-                parts.append("[Reference Documentation from Official Manuals]")
-                parts.extend(vec_lines)
-                parts.append("[End of Reference Documentation]")
-                total_chars += vec_chars
-    else:
-        logger.warning(f"Auto-RAG vector search failed: {rag_result}")
+    search_products = _expand_search_product(product)
+    all_entries: list[dict] = []
+    seen_docs: set[str] = set()
+
+    # 유틸리티 제품은 쿼리에 관련 기술 용어 추가 (임베딩 매칭 향상)
+    # 단, 긴 쿼리(코드/구문 포함)에는 적용하지 않음 — 노이즈 유발
+    enriched_query = query
+    is_short_query = len(query) < 80
+    if product in _UTILITY_QUERY_ENRICHMENT and is_short_query:
+        enriched_query = f"{query} {_UTILITY_QUERY_ENRICHMENT[product]}"
+        logger.info(f"Auto-RAG query enriched: '{query}' → '{enriched_query}'")
+
+    for sp in search_products:
+        rag_result = await client.rag_search(enriched_query, sp, top_k=5)
+        if not isinstance(rag_result, str):
+            for r in rag_result.get("results", []):
+                doc_key = f"{r.get('doc_name', '')}:{r.get('page_number', '')}"
+                if doc_key not in seen_docs:
+                    seen_docs.add(doc_key)
+                    all_entries.append(r)
+        else:
+            logger.warning(f"Auto-RAG vector search failed (product={sp}): {rag_result}")
+
+    # 원래 제품으로도 검색 (부모 검색과 중복 방지)
+    # 유틸리티 제품은 부모 검색으로 충분 → 추가 검색 시 IMS 이슈 등 무관한 결과가 오염됨
+    if product and product not in search_products and product not in _UTILITY_SEARCH_PRODUCTS:
+        rag_result = await client.rag_search(query, product, top_k=3)
+        if not isinstance(rag_result, str):
+            for r in rag_result.get("results", []):
+                doc_key = f"{r.get('doc_name', '')}:{r.get('page_number', '')}"
+                if doc_key not in seen_docs:
+                    seen_docs.add(doc_key)
+                    all_entries.append(r)
+
+    # score 내림차순 정렬
+    all_entries.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+    if all_entries:
+        doc_lines: list[str] = []
+        ims_lines: list[str] = []
+        vec_chars = 0
+        for r in all_entries:
+            doc = r.get("doc_name", "")
+            short_name = doc.split("/")[-1] if "/" in doc else doc
+            page = r.get("page_number", "")
+            score = r.get("score", 0)
+            content = r.get("content", "").strip()
+            if content:
+                entry = f"--- {short_name} (p.{page}, relevance: {score}) ---\n{content}"
+                if vec_chars + len(entry) > _MAX_VECTOR_CONTEXT_CHARS:
+                    break
+                if "ims" in doc.lower() or "issue" in doc.lower():
+                    ims_lines.append(entry)
+                else:
+                    doc_lines.append(entry)
+                vec_chars += len(entry)
+        # 문서 컨텍스트 우선, IMS 이슈는 보조
+        # 유틸리티 제품(protrieve, prosort 등)은 IMS 이슈 제외 (무관한 결과 오염 방지)
+        if doc_lines:
+            parts.append("")
+            parts.append("[Reference Documentation from Official Manuals]")
+            parts.extend(doc_lines)
+            parts.append("[End of Reference Documentation]")
+        if ims_lines and product not in _UTILITY_SEARCH_PRODUCTS:
+            parts.append("")
+            parts.append("[Related IMS Issues]")
+            parts.extend(ims_lines)
+            parts.append("[End of IMS Issues]")
+        total_chars += vec_chars
+        if product in _UTILITY_SEARCH_PRODUCTS:
+            logger.info(
+                f"Auto-RAG utility expansion: {product} → {search_products}, "
+                f"docs={len(doc_lines)}, ims={len(ims_lines)}"
+            )
 
     if not parts:
         return ""
@@ -743,12 +852,25 @@ async def auto_rag_context(query: str, product: str = "") -> str:
     if len(result) > _MAX_TOTAL_CONTEXT_CHARS:
         result = result[:_MAX_TOTAL_CONTEXT_CHARS] + "\n...(context truncated for output budget)"
 
-    result += (
-        "\nNOTE: This is preliminary context from summary + vector search. "
-        "If the user's specific question is NOT directly answered above, "
-        "you MUST call search_webdoc to find more relevant documentation. "
-        "Do NOT fabricate information that is not found in tool results."
-    )
+    # 코드/구문 분석 요청 감지: 해석, 분석, 해줘 + 긴 쿼리
+    _code_analysis_patterns = ["해석", "해줘", "분석", "説明", "解析", "analyze", "explain", "parse"]
+    is_code_analysis = len(query) > 80 and any(p in query for p in _code_analysis_patterns)
+
+    if is_code_analysis:
+        result += (
+            "\nNOTE: The user is asking you to ANALYZE or EXPLAIN code/syntax. "
+            "Use the reference context above if relevant, but you MAY also use your "
+            "general knowledge of the programming language (CA-Easytrieve Plus, ProTrieve, "
+            "JCL, COBOL, etc.) to interpret the code. "
+            "Always provide a detailed, structured explanation of each statement."
+        )
+    else:
+        result += (
+            "\nNOTE: This is preliminary context from summary + vector search. "
+            "If the user's specific question is NOT directly answered above, "
+            "you MUST call search_webdoc to find more relevant documentation. "
+            "Do NOT fabricate information that is not found in tool results."
+        )
     logger.info(f"Auto-RAG total context: {len(result)} chars")
     return result
 
@@ -758,9 +880,24 @@ async def auto_rag_context(query: str, product: str = "") -> str:
 # =============================================================================
 
 def _parse_sources_from_tool_result(result: str) -> list[dict]:
-    """search_webdoc 결과 텍스트에서 소스 참조 정보를 추출."""
+    """search_webdoc 결과 텍스트 및 pre-injected 컨텍스트에서 소스 참조 정보를 추출."""
     sources: list[dict] = []
     seen: set[str] = set()
+
+    # Pre-injected context: --- doc_name (p.page, relevance: score) ---
+    for m in re.finditer(
+        r'---\s+(.+?)\s+\(p\.(\S+?),\s*relevance:\s*([\d.]+)\)\s*---', result
+    ):
+        doc_name, page, score = m.group(1), m.group(2), float(m.group(3))
+        key = f"rag:{doc_name}:{page}"
+        if key not in seen:
+            seen.add(key)
+            sources.append({
+                "doc_name": doc_name,
+                "source_page": page,
+                "score": score,
+                "domain": "manual_rag",
+            })
 
     # Manual RAG: [doc_name p.page] (score: X.XX)
     for m in re.finditer(
@@ -947,14 +1084,39 @@ async def _tool_search_webdoc(client: OfcodeClient, query: str, product: str = "
     lines: list[str] = []
     module = _PRODUCT_TO_MODULE.get(product.lower(), "") if product else ""
 
-    # Step 0: Neo4j RAG
-    rag_result = await client.rag_search(query, product, top_k=3)
-    if not isinstance(rag_result, str):
-        rag_entries = rag_result.get("results", [])
-        if rag_entries:
-            header = f"Manual RAG ({product})" if product else "Manual RAG"
-            lines.append(f"── {header} ──")
-            lines.extend(_format_rag_entries(rag_entries))
+    # Step 0: Neo4j RAG (유틸리티 제품은 부모 제품으로 확장 검색 + 쿼리 보강)
+    search_products = _expand_search_product(product)
+    seen_rag: set[str] = set()
+    all_rag_entries: list[dict] = []
+
+    enriched_query = query
+    if product in _UTILITY_QUERY_ENRICHMENT and len(query) < 80:
+        enriched_query = f"{query} {_UTILITY_QUERY_ENRICHMENT[product]}"
+
+    for sp in search_products:
+        rag_result = await client.rag_search(enriched_query, sp, top_k=3)
+        if not isinstance(rag_result, str):
+            for r in rag_result.get("results", []):
+                key = f"{r.get('doc_name', '')}:{r.get('page_number', '')}"
+                if key not in seen_rag:
+                    seen_rag.add(key)
+                    all_rag_entries.append(r)
+
+    # 원래 제품으로도 검색 (IMS 이슈 등)
+    if product and product not in search_products:
+        rag_result = await client.rag_search(query, product, top_k=3)
+        if not isinstance(rag_result, str):
+            for r in rag_result.get("results", []):
+                key = f"{r.get('doc_name', '')}:{r.get('page_number', '')}"
+                if key not in seen_rag:
+                    seen_rag.add(key)
+                    all_rag_entries.append(r)
+
+    all_rag_entries.sort(key=lambda x: x.get("score", 0), reverse=True)
+    if all_rag_entries:
+        header = f"Manual RAG ({product})" if product else "Manual RAG"
+        lines.append(f"── {header} ──")
+        lines.extend(_format_rag_entries(all_rag_entries))
 
     # Step 1: Web docs (product-filtered)
     if product:
@@ -1175,6 +1337,7 @@ async def stream_auto_rag(
     product_ids: Optional[list] = None,
     enable_thinking: bool = False,
     initial_context: Optional[str] = None,
+    language: Optional[str] = None,
 ) -> AsyncGenerator[dict, None]:
     """Auto-RAG Agent Loop (SSE イベント生成).
 
@@ -1218,7 +1381,23 @@ async def stream_auto_rag(
             adapter_model = candidate
             logger.info(f"Auto-RAG Multi-LoRA: product={product} -> adapter={adapter_model}")
 
-    if initial_context:
+    # 1a. Code analysis detection (BEFORE context injection):
+    #     코드/구문 분석 요청 시 RAG 컨텍스트 주입 및 tool 사용 비활성화
+    #     (IMS 이슈 등 무관한 검색 결과가 코드 해석을 방해하는 것을 방지)
+    _code_analysis_kw = ["해석", "분석", "구문", "説明", "解析", "解説", "analyze", "explain", "parse", "interpret"]
+    is_code_analysis = len(message) > 80 and any(p in message for p in _code_analysis_kw)
+    active_tools = [] if is_code_analysis else AUTO_RAG_TOOLS
+
+    if is_code_analysis:
+        # 코드 분석 모드: RAG 컨텍스트 대신 분석 지시 추가
+        augmented_message = message + (
+            "\n\nINSTRUCTION: Analyze and explain the code/syntax above step by step. "
+            "Describe each statement (REPORT, FILE, JOB, etc.) and its parameters. "
+            "Use your knowledge of the programming language (CA-Easytrieve Plus, ProTrieve, "
+            "JCL, COBOL, etc.) to provide a detailed, structured explanation."
+        )
+        logger.info(f"Auto-RAG code analysis mode: tools disabled, context skipped (query len={len(message)})")
+    elif initial_context:
         # RAG 모드에서 위임: 사전 수집된 컨텍스트 사용 (중복 검색 방지)
         augmented_message = message + "\n" + initial_context
         logger.info(f"Auto-RAG using pre-collected context: {len(initial_context)} chars")
@@ -1229,9 +1408,26 @@ async def stream_auto_rag(
             augmented_message = message + "\n" + rag_context
             logger.info(f"Auto-RAG context injected: product={product}, context_len={len(rag_context)}")
 
-    # 2. Build messages (CLI와 동일 구조)
+    # 3. Build messages (CLI와 동일 구조)
+    system_content = OPENFRAME_SYSTEM_PROMPT
+
+    # 응답 언어 지시: 사용자 language 설정을 따름
+    _lang_map = {"ja": "Japanese", "ko": "Korean", "en": "English", "zh": "Chinese"}
+    _resp_lang = _lang_map.get(language or "ja", "Japanese")
+    system_content += (
+        f"\n\nIMPORTANT - Response Language: "
+        f"You MUST respond in {_resp_lang}. "
+        f"All explanations, descriptions, and analysis must be written in {_resp_lang}. "
+        f"Only switch language if the user explicitly requests a different language in their message."
+    )
+
+    if enable_thinking:
+        system_content += (
+            "\n\nIMPORTANT: Keep your <think> reasoning concise (under 300 tokens). "
+            "Focus output tokens on the actual answer, not internal reasoning."
+        )
     messages: list[dict] = [
-        {"role": "system", "content": OPENFRAME_SYSTEM_PROMPT},
+        {"role": "system", "content": system_content},
     ]
     if history:
         for h in history[-10:]:
@@ -1240,29 +1436,41 @@ async def stream_auto_rag(
 
     yield {"type": "agent_mode", "mode": "auto_rag", "auto_detected": False}
 
-    # 3. Agent loop (CLI: agent_loop — max 25 iterations)
+    # 4. Agent loop (CLI: agent_loop — max 25 iterations)
     was_truncated = False
     collected_sources: list[dict] = []  # search_webdoc 결과에서 추출한 소스 참조
+
+    # Pre-injected 컨텍스트에서 소스 참조 추출 (tool call 없이 답변할 경우 대비)
+    if augmented_message != message:
+        pre_sources = _parse_sources_from_tool_result(augmented_message)
+        if pre_sources:
+            collected_sources.extend(pre_sources)
+            logger.info(f"Auto-RAG pre-injected sources: {len(pre_sources)}")
     for iteration in range(MAX_AGENT_ITERATIONS):
         # Proactive budget check (CLI: calculate_max_tokens)
-        messages = _progressive_compress(messages, AUTO_RAG_TOOLS, context_limit)
-        effective_max_tokens = _calculate_max_tokens(messages, AUTO_RAG_TOOLS, context_limit)
+        messages = _progressive_compress(messages, active_tools, context_limit)
+        effective_max_tokens = _calculate_max_tokens(messages, active_tools, context_limit)
 
-        # CLI와 동일 payload: tool_choice 미전송, chat_template_kwargs 미전송
+        # Qwen3 thinking 제어: enable_thinking=False → <think> 블록 비활성화
         payload = {
             "model": adapter_model,
             "messages": messages,
             "max_tokens": effective_max_tokens,
             "temperature": 0.7,
             "stream": True,
-            "tools": AUTO_RAG_TOOLS,
+            "chat_template_kwargs": {"enable_thinking": enable_thinking},
+            "repetition_penalty": 1.1,
+            "frequency_penalty": 0.3,
         }
+        if active_tools:
+            payload["tools"] = active_tools
 
         accumulated_content = ""
         display_content = ""
         tool_calls_data: dict[int, dict] = {}
         think_filter = ThinkFilter()
         truncated_by_length = False
+        repetition_detected = False
 
         try:
             async with aiohttp.ClientSession() as session:
@@ -1344,6 +1552,19 @@ async def stream_auto_rag(
                                 if display_text:
                                     display_content += display_text
                                     yield {"type": "llm_token", "token": display_text}
+                                if thinking_text and enable_thinking:
+                                    yield {"type": "thinking", "content": thinking_text}
+
+                                # 반복 감지: display 200자 이상일 때 마지막 150자가 이전에 등장했으면 중단
+                                if len(display_content) > 200:
+                                    tail = display_content[-150:]
+                                    if display_content[:-150].find(tail) >= 0:
+                                        repetition_detected = True
+                                        logger.warning(
+                                            f"[Auto-RAG] Repetition detected at {len(display_content)} chars, "
+                                            f"stopping generation"
+                                        )
+                                        break
 
                             # finish_reason 감지 (length = max_tokens 도달로 잘림)
                             fr = chunk["choices"][0].get("finish_reason")
@@ -1389,6 +1610,13 @@ async def stream_auto_rag(
         if remaining_display:
             display_content += remaining_display
             yield {"type": "llm_token", "token": remaining_display}
+
+        # 반복 감지 시 중복 부분 제거 후 경고
+        if repetition_detected and display_content:
+            tail = display_content[-150:]
+            first_occurrence = display_content[:-150].find(tail)
+            if first_occurrence >= 0:
+                display_content = display_content[:first_occurrence + 150]
 
         # finish_reason=length 경고를 프론트엔드에 전송
         if truncated_by_length:
@@ -1490,6 +1718,13 @@ async def stream_auto_rag(
         if iteration == MAX_AGENT_ITERATIONS - 1:
             logger.warning(f"Reached max iterations ({MAX_AGENT_ITERATIONS})")
 
+    # 유틸리티 제품은 IMS 이슈 소스 제거 (무관한 결과 오염 방지)
+    if collected_sources and product in _UTILITY_SEARCH_PRODUCTS:
+        collected_sources = [
+            s for s in collected_sources
+            if not ("ims" in s.get("doc_name", "").lower() or "issue" in s.get("doc_name", "").lower())
+        ]
+
     # Emit sources event (소스 참조 표시 — agentic_rag_service와 동일 형식)
     if collected_sources:
         # 스코어 높은 순으로 정렬, 상위 5개
@@ -1500,20 +1735,53 @@ async def stream_auto_rag(
             "total": len(collected_sources),
         }
 
-    # Append source citations to response (응답 끝에 참조 문서 표시)
+    # Append source citations to response (참고 자료 / IMS 이슈 분리 표시)
     if collected_sources:
-        citation_lines = ["\n\n---", "**参照文書:**"]
-        for i, src in enumerate(collected_sources[:5], 1):
+        doc_sources = []
+        ims_sources = []
+        for src in collected_sources[:5]:
             name = src.get("doc_name", "")
-            page = src.get("source_page", "")
-            score = src.get("score", 0)
-            url = src.get("url", "")
-            if url:
-                citation_lines.append(f"{i}. [{name}]({url}) (score: {score:.2f})")
-            elif page:
-                citation_lines.append(f"{i}. {name} p.{page} (score: {score:.2f})")
+            if "ims" in name.lower() or "issue" in name.lower():
+                ims_sources.append(src)
             else:
-                citation_lines.append(f"{i}. {name} (score: {score:.2f})")
+                doc_sources.append(src)
+
+        # 언어별 citation 라벨
+        _cite_labels = {
+            "ja": ("**参考資料:**", "**IMS イシュー:**"),
+            "ko": ("**참고 자료:**", "**IMS 이슈:**"),
+            "en": ("**References:**", "**IMS Issues:**"),
+            "zh": ("**参考资料:**", "**IMS 问题:**"),
+        }
+        _doc_label, _ims_label = _cite_labels.get(language or "ja", _cite_labels["ja"])
+
+        citation_lines = ["\n\n---"]
+        if doc_sources:
+            citation_lines.append(_doc_label)
+            for i, src in enumerate(doc_sources, 1):
+                name = src.get("doc_name", "")
+                page = src.get("source_page", "")
+                score = src.get("score", 0)
+                url = src.get("url", "")
+                if url:
+                    citation_lines.append(f"{i}. [{name}]({url}) (score: {score:.2f})")
+                elif page:
+                    citation_lines.append(f"{i}. {name} p.{page} (score: {score:.2f})")
+                else:
+                    citation_lines.append(f"{i}. {name} (score: {score:.2f})")
+        if ims_sources:
+            citation_lines.append(_ims_label)
+            for i, src in enumerate(ims_sources, 1):
+                name = src.get("doc_name", "")
+                page = src.get("source_page", "")
+                score = src.get("score", 0)
+                url = src.get("url", "")
+                if url:
+                    citation_lines.append(f"{i}. [{name}]({url}) (score: {score:.2f})")
+                elif page:
+                    citation_lines.append(f"{i}. {name} p.{page} (score: {score:.2f})")
+                else:
+                    citation_lines.append(f"{i}. {name} (score: {score:.2f})")
         citation_text = "\n".join(citation_lines)
         yield {"type": "llm_token", "token": citation_text}
 
@@ -1547,10 +1815,12 @@ class AutoRAGService:
         product_ids: Optional[list] = None,
         enable_thinking: bool = False,
         initial_context: Optional[str] = None,
+        language: Optional[str] = None,
     ) -> AsyncGenerator[dict, None]:
         async for event in stream_auto_rag(
             message, history, product_ids, enable_thinking,
             initial_context=initial_context,
+            language=language,
         ):
             yield event
 

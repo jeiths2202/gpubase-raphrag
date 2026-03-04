@@ -78,6 +78,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response: Response = await call_next(request)
 
+        # Codemap HTML은 CDN 스크립트(D3.js, Chart.js)가 필요하므로
+        # 라우터에서 설정한 전용 CSP/X-Frame-Options를 유지
+        if "/codemap/" in request.url.path:
+            return response
+
         # ==================== Content Security Policy ====================
         # Prevents XSS, data injection, and other code injection attacks
         response.headers["Content-Security-Policy"] = self.csp_policy
