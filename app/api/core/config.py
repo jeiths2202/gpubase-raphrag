@@ -277,6 +277,36 @@ class APISettings(BaseSettings):
         description="Weight for topic density in topic-only results"
     )
 
+    # IMS Semantic Search Settings
+    IMS_ISSUES_DIR: str = Field(
+        default="uploads/ims_issues",
+        description="Local directory for IMS issue text files"
+    )
+    IMS_ISSUES_REMOTE_DIR: str = Field(
+        default="/raid/users/ofuser/work/of7/ims_issues_20260302",
+        description="Remote server path for IMS issue text files"
+    )
+    IMS_SEARCH_DEFAULT_LIMIT: int = Field(
+        default=10,
+        description="Default number of search results"
+    )
+    IMS_CHAT_MAX_CONTEXT_CHARS: int = Field(
+        default=48000,
+        description="Maximum characters for IMS chat context (~24K tokens)"
+    )
+    IMS_SEARCH_MAX_LIMIT: int = Field(
+        default=50,
+        description="Maximum allowed search limit per request"
+    )
+    IMS_CHAT_MAX_CONTEXT_ISSUES: int = Field(
+        default=15,
+        description="Maximum issues to include in chat context"
+    )
+    IMS_ISSUE_CACHE_SIZE: int = Field(
+        default=500,
+        description="Maximum cached parsed issues in memory"
+    )
+
     # Source Reliability Settings
     RELIABILITY_HIGH_THRESHOLD: float = Field(
         default=0.7,
@@ -541,6 +571,20 @@ class APISettings(BaseSettings):
     AGENT_TEAMS_WINNER_THRESHOLD: float = Field(
         default=0.6,
         description="Min confidence to select winner in competitive patterns"
+    )
+
+    # OFKMS v2 API Proxy (질의응답 위임)
+    OFKMS_V2_BASE_URL: str = Field(
+        default="http://localhost:12830",
+        description="OFKMS v2 API server URL"
+    )
+    OFKMS_V2_API_KEY: str = Field(
+        default="",
+        description="OFKMS v2 X-API-Key for server-to-server auth"
+    )
+    OFKMS_V2_TIMEOUT: float = Field(
+        default=120.0,
+        description="OFKMS v2 API request timeout in seconds"
     )
 
     # Auto-RAG (Agent Loop + Tool Calling via ofcode-server)
