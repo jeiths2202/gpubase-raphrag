@@ -96,8 +96,14 @@ class IMSSemanticSearchService:
             "IMS_ISSUES_REMOTE_DIR",
             "/raid/users/ofuser/work/of7/ims_issues_20260302",
         )
-        self._llm_url = os.getenv("LEARNING_LLM_URL", "http://192.168.8.11:12810/v1")
-        self._llm_model = os.getenv("LEARNING_LLM_MODEL", "qwen3-32b")
+        self._llm_url = getattr(
+            api_settings, "LEARNING_LLM_URL",
+            os.getenv("LEARNING_LLM_URL", "http://192.168.8.11:12810/v1"),
+        )
+        self._llm_model = getattr(
+            api_settings, "LEARNING_LLM_MODEL",
+            os.getenv("LEARNING_LLM_MODEL", "/opt/models/qwen3-32b"),
+        )
         self._max_context_chars = int(
             getattr(api_settings, "IMS_CHAT_MAX_CONTEXT_CHARS", 48000)
         )
