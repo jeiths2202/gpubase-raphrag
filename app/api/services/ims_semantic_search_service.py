@@ -142,13 +142,39 @@ class IMSSemanticSearchService:
             self._issue_cache[ims_id] = content
         return content
 
-    @staticmethod
-    def _redact_issue(issue: IssueContent) -> IssueContent:
+    # 고객사명 필터 목록 (대소문자 무시 매칭)
+    _CUSTOMER_NAMES = [
+        "이나게야", "노무라", "노무라증권", "야마기와", "라이온", "LION",
+        "이토요카도", "이토요카드", "LG화재", "삼성생명", "해경",
+        "손보", "손보재팬", "Sonpo", "Sompo", "동경해상",
+        "토야마", "Toyama", "Daiken", "다이켄",
+        "Fukuyama", "후쿠야마", "PGF", "라이프카드", "Lifrecard",
+        "스미노애", "SUMINOE", "suminoe", "스즈키", "suzuki",
+        "일본예금보험기구", "GE Capital", "혼다", "HONDA", "Honda",
+        "Itoyocado", "우오이치", "uoichi", "미스미", "MISUMI",
+    ]
+    _CUSTOMER_PATTERN = re.compile(
+        '|'.join(re.escape(name) for name in _CUSTOMER_NAMES),
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def _filter_customer_names(cls, text: str) -> str:
+        """텍스트에서 고객사명을 '***'로 대체"""
+        return cls._CUSTOMER_PATTERN.sub('***', text)
+
+    @classmethod
+    def _redact_issue(cls, issue: IssueContent) -> IssueContent:
         """고객사명, 프로젝트명, 담당자명 제거"""
         # Subject에서 [고객사/프로젝트] 접두사 제거
         redacted_subject = re.sub(r'^\[.*?\]\s*', '', issue.metadata.subject)
-        issue.metadata.subject = redacted_subject
+        issue.metadata.subject = cls._filter_customer_names(redacted_subject)
         issue.metadata.customer = ""
+        # description, action_log에서도 고객사명 필터링
+        issue.description = cls._filter_customer_names(issue.description)
+        for entry in issue.action_log:
+            entry.content = cls._filter_customer_names(entry.content)
+        issue.raw_text = cls._filter_customer_names(issue.raw_text)
         return issue
 
     def _parse_issue_file(self, path: Path, ims_id: str) -> Optional[IssueContent]:

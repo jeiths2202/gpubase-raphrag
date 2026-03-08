@@ -2,10 +2,27 @@
 import re
 import sys
 
+# 고객사명 필터 목록
+_CUSTOMER_NAMES = [
+    "이나게야", "노무라", "노무라증권", "야마기와", "라이온", "LION",
+    "이토요카도", "이토요카드", "LG화재", "삼성생명", "해경",
+    "손보", "손보재팬", "Sonpo", "Sompo", "동경해상",
+    "토야마", "Toyama", "Daiken", "다이켄",
+    "Fukuyama", "후쿠야마", "PGF", "라이프카드", "Lifrecard",
+    "스미노애", "SUMINOE", "suminoe", "스즈키", "suzuki",
+    "일본예금보험기구", "GE Capital", "혼다", "HONDA", "Honda",
+    "Itoyocado", "우오이치", "uoichi", "미스미", "MISUMI",
+]
+_CUSTOMER_PATTERN = re.compile(
+    '|'.join(re.escape(name) for name in _CUSTOMER_NAMES),
+    re.IGNORECASE,
+)
 
-def _strip_customer_info(subject: str) -> str:
-    """Subject에서 [고객사/프로젝트명] 접두사 제거"""
-    return re.sub(r'^\[.*?\]\s*', '', subject)
+
+def _strip_customer_info(text: str) -> str:
+    """[고객사/프로젝트명] 접두사 제거 + 고객사명 마스킹"""
+    text = re.sub(r'^\[.*?\]\s*', '', text)
+    return _CUSTOMER_PATTERN.sub('***', text)
 
 
 def print_search_results(data: dict) -> None:
@@ -148,7 +165,7 @@ def print_chat_stream(events_iter) -> None:
             print()
 
         elif evt == "token":
-            sys.stdout.write(data.get("content", ""))
+            sys.stdout.write(_CUSTOMER_PATTERN.sub('***', data.get("content", "")))
             sys.stdout.flush()
 
         elif evt == "sources":
