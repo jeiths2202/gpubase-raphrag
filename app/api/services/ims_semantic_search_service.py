@@ -124,7 +124,7 @@ class IMSSemanticSearchService:
     # ========================================================================
 
     def get_issue_content(self, ims_id: str) -> Optional[IssueContent]:
-        """이슈 텍스트 파일을 파싱하여 IssueContent 반환 (캐시 활용)"""
+        """이슈 텍스트 파일을 파싱하여 IssueContent 반환 (캐시 활용, 고객정보 제거)"""
         if ims_id in self._issue_cache:
             return self._issue_cache[ims_id]
 
@@ -134,12 +134,22 @@ class IMSSemanticSearchService:
 
         content = self._parse_issue_file(file_path, ims_id)
         if content:
+            content = self._redact_issue(content)
             # LRU-like: 캐시 사이즈 제한
             if len(self._issue_cache) > self._cache_size:
                 oldest_key = next(iter(self._issue_cache))
                 del self._issue_cache[oldest_key]
             self._issue_cache[ims_id] = content
         return content
+
+    @staticmethod
+    def _redact_issue(issue: IssueContent) -> IssueContent:
+        """고객사명, 프로젝트명, 담당자명 제거"""
+        # Subject에서 [고객사/프로젝트] 접두사 제거
+        redacted_subject = re.sub(r'^\[.*?\]\s*', '', issue.metadata.subject)
+        issue.metadata.subject = redacted_subject
+        issue.metadata.customer = ""
+        return issue
 
     def _parse_issue_file(self, path: Path, ims_id: str) -> Optional[IssueContent]:
         """텍스트 파일 → IssueContent 파싱"""
@@ -622,10 +632,12 @@ Title: {request.title}
     ) -> str:
         """이슈 → LLM용 포맷 문자열"""
         m = issue.metadata
+        # Subject에서 [고객사/프로젝트] 접두사 제거
+        subject = re.sub(r'^\[.*?\]\s*', '', m.subject)
         text = f"""--- IMS Issue #{m.ims_id} ---
 Product: {m.product} | Version: {m.version} | Status: {m.status}
-Subject: {m.subject}
-Customer: {m.customer} | Date: {m.date}
+Subject: {subject}
+Date: {m.date}
 
 Description:
 {issue.description[:max_chars]}"""

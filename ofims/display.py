@@ -1,5 +1,11 @@
 """Terminal display formatting for IMS CLI."""
+import re
 import sys
+
+
+def _strip_customer_info(subject: str) -> str:
+    """Subject에서 [고객사/프로젝트명] 접두사 제거"""
+    return re.sub(r'^\[.*?\]\s*', '', subject)
 
 
 def print_search_results(data: dict) -> None:
@@ -21,7 +27,7 @@ def print_search_results(data: dict) -> None:
     print(f"  {'─'*10} {'─'*6}  {'─'*25} {'─'*12} {'─'*40}")
 
     for r in results:
-        subject = r.get("subject", "")[:50]
+        subject = _strip_customer_info(r.get("subject", ""))[:50]
         print(
             f"  {r['ims_id']:<10} {r['score']:>6.4f}  "
             f"{r.get('product', ''):<25} {r.get('status', ''):<12} {subject}"
@@ -38,8 +44,7 @@ def print_issue_detail(data: dict) -> None:
     print(f"{'='*70}")
     print(f"  Product:  {meta.get('product', '')}")
     print(f"  Version:  {meta.get('version', '')}")
-    print(f"  Subject:  {meta.get('subject', '')}")
-    print(f"  Customer: {meta.get('customer', '')}")
+    print(f"  Subject:  {_strip_customer_info(meta.get('subject', ''))}")
     print(f"  Status:   {meta.get('status', '')}  |  Date: {meta.get('date', '')}")
     print(f"{'─'*70}")
 
@@ -88,7 +93,7 @@ def print_related_issues(data: dict) -> None:
     for r in related:
         print(f"  IMS#{r['ims_id']}  [{r['relation_type']}]")
         if r.get("subject"):
-            print(f"    Subject: {r['subject'][:60]}")
+            print(f"    Subject: {_strip_customer_info(r['subject'])[:60]}")
         if r.get("product"):
             print(f"    Product: {r['product']}  Status: {r.get('status', '')}")
         if r.get("context"):
@@ -100,7 +105,7 @@ def print_summary(data: dict) -> None:
     """이슈 요약 출력"""
     print(f"\n{'='*70}")
     print(f"  Summary: IMS#{data.get('ims_id', '')}")
-    print(f"  Subject: {data.get('subject', '')}")
+    print(f"  Subject: {_strip_customer_info(data.get('subject', ''))}")
     print(f"{'='*70}\n")
     print(f"  {data.get('summary', '')}\n")
 
@@ -135,7 +140,7 @@ def print_chat_stream(events_iter) -> None:
             elapsed = data.get("search_time_ms", 0)
             print(f"  Found {total} issues ({elapsed:.0f}ms)")
             for r in data.get("results", [])[:5]:
-                print(f"    IMS#{r['ims_id']} ({r['score']:.4f}) {r.get('subject', '')[:50]}")
+                print(f"    IMS#{r['ims_id']} ({r['score']:.4f}) {_strip_customer_info(r.get('subject', ''))[:50]}")
 
         elif evt == "context_loaded":
             print(f"  Context: {data.get('issues_loaded', 0)} issues + {data.get('related_loaded', 0)} related\n")
@@ -150,7 +155,7 @@ def print_chat_stream(events_iter) -> None:
             print("\n\n  " + "─" * 60)
             print("  Sources:")
             for s in data.get("sources", []):
-                print(f"    IMS#{s['ims_id']} ({s.get('score', 0):.4f}) {s.get('subject', '')[:50]}")
+                print(f"    IMS#{s['ims_id']} ({s.get('score', 0):.4f}) {_strip_customer_info(s.get('subject', ''))[:50]}")
 
         elif evt == "done":
             conv_id = data.get("conversation_id", "")
