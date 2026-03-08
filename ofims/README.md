@@ -1,52 +1,225 @@
-# ofims - IMS Semantic Search CLI
+# OFIMS - IMS Semantic Search CLI
 
-BGE-M3 IR 모델 기반 자연어 IMS 이슈 검색 CLI 도구입니다.
-21,215개 IMS 이슈를 자연어 질의로 검색하고, 이슈 분석/요약/지식 생성을 수행합니다.
+A command-line interface for semantic search across 21,215+ TmaxSoft IMS (Issue Management System) issues. Powered by BGE-M3 dense vector retrieval and Qwen3-32B LLM for intelligent issue analysis, summarization, and knowledge generation.
 
-## 실행 방법
+## Key Features
 
-```bash
-# 프로젝트 루트에서 모듈로 실행
-python -m ofims <command> [options]
+- **Semantic Search** - Natural language queries converted to BGE-M3 1024-dim vectors for cosine similarity matching against 21,215 IMS issues
+- **Issue Detail** - Full issue metadata, description, action logs, and cross-referenced issues
+- **Related Issue Graph** - BFS traversal of IMS#XXXXXX reference patterns with configurable depth (1-3)
+- **LLM Summarization** - Structured issue summaries with key points and resolution via Qwen3-32B
+- **RAG Chat** - Search + context loading + real-time LLM streaming with SSE (Server-Sent Events)
+- **Knowledge Generation** - Multi-issue analysis into reusable Markdown knowledge articles
+- **Privacy Protection** - Automatic customer/project name redaction in all output
+- **Thinking Indicator** - Animated spinner during LLM reasoning (`<think>` tags hidden)
+- **Multilingual** - Auto-detect or specify language (Korean, Japanese, English)
+
+## Project Structure
+
+```
+ofims/
+├── __init__.py      # Package declaration
+├── __main__.py      # Entry point (python -m ofims)
+├── cli.py           # Argument parser and command dispatcher
+├── client.py        # HTTP client for KMS backend API
+├── config.py        # Environment-based configuration
+├── display.py       # Terminal formatting, redaction, and SSE renderer
+└── README.md        # This document
 ```
 
-## 서브커맨드
+| Module       | Responsibility                                                  |
+|--------------|-----------------------------------------------------------------|
+| `cli.py`     | argparse definitions, login flow, command dispatch              |
+| `client.py`  | REST/SSE API calls via `requests.Session` with JWT auth         |
+| `config.py`  | API URL, credentials from environment variables                 |
+| `display.py` | Table/detail formatting, customer name masking, think-tag spinner |
 
-### search - 시맨틱 검색
+## System Architecture
 
-자연어 질의를 BGE-M3 벡터로 변환하여 유사 IMS 이슈를 검색합니다.
+```mermaid
+flowchart LR
+    subgraph User["User"]
+        Terminal["Terminal"]
+    end
 
-```bash
-python -m ofims search "TJES 배치 잡 실행 에러"
-python -m ofims search "VSAM 데이터셋 오류" --limit 20
-python -m ofims search "에러" --product "OpenFrame Batch"
+    subgraph CLI["OFIMS CLI"]
+        ArgParser["ArgParser<br/>(cli.py)"]
+        Client["API Client<br/>(client.py)"]
+        Display["Display<br/>(display.py)"]
+    end
+
+    subgraph Backend["KMS Backend (FastAPI :9000)"]
+        Router["ims_chat Router"]
+        Service["IMSSemanticSearch<br/>Service"]
+    end
+
+    subgraph AI["AI Services"]
+        BGE["BGE-M3 IR<br/>(:12801)"]
+        LLM["Qwen3-32B<br/>(:12810)"]
+    end
+
+    subgraph Storage["Data Layer"]
+        Neo4j["Neo4j<br/>(Vector Index)"]
+        IMS["IMS Issue Store<br/>(21,215 issues)"]
+    end
+
+    Terminal --> ArgParser
+    ArgParser --> Client
+    Client -->|REST/SSE| Router
+    Router --> Service
+    Service -->|Encode Query| BGE
+    Service -->|Vector Search| Neo4j
+    Service -->|Load Issues| IMS
+    Service -->|Generate/Stream| LLM
+    Client --> Display
+    Display --> Terminal
 ```
 
-| 옵션 | 기본값 | 설명 |
-|------|--------|------|
-| `--limit` | 10 | 최대 결과 수 |
-| `--product` | None | 제품명 필터 |
+## Component Architecture
 
-### detail - 이슈 상세 조회
+```mermaid
+flowchart TD
+    subgraph CLI["CLI Layer"]
+        Main["__main__.py"]
+        Parser["cli.py<br/>ArgumentParser"]
+        Config["config.py<br/>ENV Config"]
+    end
 
-이슈 메타데이터, 상세 내용, 조치 이력, 참조 이슈/URL 정보를 조회합니다.
+    subgraph Client["Client Layer"]
+        APIClient["client.py<br/>IMSClient"]
+        Auth["JWT Auth<br/>(login → token)"]
+        SSE["SSE Stream<br/>Parser"]
+    end
+
+    subgraph Display["Display Layer"]
+        Formatter["Table/Detail<br/>Formatter"]
+        Redactor["Customer Name<br/>Redactor"]
+        Spinner["Think-Tag<br/>Spinner"]
+    end
+
+    Main --> Parser
+    Parser --> Config
+    Parser --> APIClient
+    APIClient --> Auth
+    APIClient --> SSE
+    APIClient --> Formatter
+    Formatter --> Redactor
+    SSE --> Spinner
+    Spinner --> Redactor
+```
+
+## System Execution Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant CLI as cli.py
+    participant Client as client.py
+    participant API as KMS Backend
+    participant BGE as BGE-M3
+    participant Neo4j as Neo4j Vector
+    participant LLM as Qwen3-32B
+    participant Display as display.py
+
+    User->>CLI: python -m ofims chat "query"
+    CLI->>Client: login(user, password)
+    Client->>API: POST /auth/login
+    API-->>Client: JWT access_token
+
+    CLI->>Client: chat_stream(query, limit)
+    Client->>API: POST /ims-chat/chat/semantic (SSE)
+
+    API->>BGE: Encode query → 1024-dim vector
+    BGE-->>API: Query embedding
+
+    API->>Neo4j: Vector similarity search
+    Neo4j-->>API: Top-K issue chunks
+
+    API->>API: Load issue content + related issues
+
+    API->>LLM: Stream chat completion
+    loop SSE Events
+        LLM-->>API: Token chunks
+        API-->>Client: event: token
+        Client-->>Display: Render token
+        Display-->>User: Real-time output
+    end
+
+    API-->>Client: event: sources, done
+    Display-->>User: Sources + conversation ID
+```
+
+## Technology Stack
+
+| Layer        | Technology                          |
+|--------------|-------------------------------------|
+| Language     | Python 3.10+                        |
+| Interface    | CLI (argparse)                      |
+| HTTP Client  | requests (sync, SSE streaming)      |
+| Backend API  | FastAPI + Uvicorn                   |
+| Embeddings   | BGE-M3 (1024-dim dense vectors)     |
+| LLM          | Qwen3-32B via vLLM                  |
+| Vector Store | Neo4j (chunk_embedding index)       |
+| Auth         | JWT Bearer Token                    |
+| Streaming    | Server-Sent Events (SSE)            |
+
+## Installation
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd kms-docker-remote
+
+# Install dependencies
+pip install requests
+
+# Verify
+python -m ofims --help
+```
+
+## Usage
+
+### Semantic Search
+
+Search IMS issues using natural language queries.
+
+```bash
+python -m ofims search "TJES batch job execution error"
+python -m ofims search "VSAM dataset error" --limit 20
+python -m ofims search "error" --product "OpenFrame Batch"
+```
+
+**Output:**
+```
+  Search: "TJES batch job execution error"
+  Results: 10 issues (450ms)
+
+  IMS ID     Score  Product                   Status       Subject
+  ────────── ────── ───────────────────────── ──────────── ────────────────────────
+  341013     0.8762 OpenFrame TJES            Closed       TJES batch job ABEND...
+  ...
+```
+
+### Issue Detail
+
+Retrieve full issue metadata, description, action logs, and references.
 
 ```bash
 python -m ofims detail 110005
 python -m ofims detail 347574
 ```
 
-### related - 관련 이슈 탐색
+### Related Issues
 
-이슈 본문의 IMS#XXXXXX 패턴을 추출하여 관련 이슈 목록을 반환합니다.
+Traverse IMS# cross-references to discover related issues.
 
 ```bash
 python -m ofims related 347574
 ```
 
-### summarize - 이슈 요약
+### Issue Summarization
 
-LLM을 사용하여 이슈 내용을 구조화된 요약(핵심 요약, 주요 포인트, 해결 방법)으로 생성합니다.
+Generate structured summaries using LLM analysis.
 
 ```bash
 python -m ofims summarize 110005
@@ -54,76 +227,116 @@ python -m ofims summarize 110005 --lang ko
 python -m ofims summarize 110005 --lang ja
 ```
 
-| 옵션 | 기본값 | 설명 |
-|------|--------|------|
-| `--lang` | auto | 응답 언어: auto, ko, ja, en |
+### RAG Chat
 
-### chat - 검색 + 채팅 (SSE 스트리밍)
-
-자연어 질문 → 시맨틱 검색 → 관련 이슈 컨텍스트 로드 → LLM 실시간 스트리밍 답변을 수행합니다.
+Full pipeline: search + context + LLM streaming response.
 
 ```bash
-python -m ofims chat "배치 잡 실행시 에러 원인이 뭔가요?"
-python -m ofims chat "tjesmgr BOOT 실패 해결법" --limit 10
-python -m ofims chat "VSAM 관련 문제" --no-related --lang ko
+python -m ofims chat "What causes batch job execution errors?"
+python -m ofims chat "tjesmgr BOOT failure resolution" --limit 10
+python -m ofims chat "VSAM related issues" --no-related --lang ko
 ```
 
-| 옵션 | 기본값 | 설명 |
-|------|--------|------|
-| `--limit` | 5 | 검색할 이슈 수 |
-| `--no-related` | False | 관련 이슈 자동 포함 비활성화 |
-| `--lang` | auto | 응답 언어 |
+**Output:**
+```
+  Searching: "tacfmgr error" (limit=10)
+  Found 10 issues (464ms)
+    IMS#214995 (0.8529) ...
+    IMS#83734  (0.8487) TACFMGR -18011 error
+  Context: 7 issues + 5 related
 
-### create-knowledge - 지식 문서 생성
+  ────────────────────────────────────────────────────────────
+  ⠹ thinking... (12s)
 
-하나 이상의 IMS 이슈 내용을 분석하여 재사용 가능한 Markdown 지식 문서를 생성합니다.
+  [LLM-generated analysis with IMS# citations]
+
+  ────────────────────────────────────────────────────────────
+  Sources:
+    IMS#214995 (0.8529) ...
+    IMS#83734  (0.8487) TACFMGR -18011 error
+
+  [conversation: 921f22e0...]
+```
+
+### Knowledge Generation
+
+Synthesize multiple issues into a reusable knowledge article.
 
 ```bash
 python -m ofims create-knowledge 110005 60605 --title "TJES Batch Error Guide"
-python -m ofims create-knowledge 347574 345945 344074 --title "리턴코드 트러블슈팅" --lang ko
+python -m ofims create-knowledge 347574 345945 --title "Return Code Troubleshooting" --lang ko
 ```
 
-| 옵션 | 기본값 | 설명 |
-|------|--------|------|
-| `--title` | (필수) | 지식 문서 제목 |
-| `--lang` | auto | 생성 언어 |
+## Configuration
 
-## 글로벌 옵션
+### Environment Variables
 
-모든 서브커맨드에 공통으로 적용됩니다.
+| Variable         | Default                  | Description           |
+|------------------|--------------------------|-----------------------|
+| `OFIMS_API_URL`  | `http://localhost:9000`  | KMS backend API URL   |
+| `OFIMS_USERNAME` | `admin`                  | Login username         |
+| `OFIMS_PASSWORD` | *(see config)*           | Login password         |
+
+### CLI Global Options
+
+All subcommands accept these options:
 
 ```bash
-python -m ofims --url http://192.168.8.11:9000 search "에러"
-python -m ofims --user admin --password "비밀번호" detail 110005
+python -m ofims --url http://192.168.8.11:9000 search "error"
+python -m ofims --user admin --password "password" detail 110005
 ```
 
-| 옵션 | 환경변수 | 기본값 |
-|------|----------|--------|
-| `--url` | `OFIMS_API_URL` | `http://localhost:9000` |
-| `--user` | `OFIMS_USERNAME` | `admin` |
-| `--password` | `OFIMS_PASSWORD` | (설정 파일 참조) |
+## API Endpoint Mapping
 
-## 환경변수 설정
+| CLI Command        | HTTP Method | API Endpoint                           |
+|--------------------|-------------|----------------------------------------|
+| `search`           | POST        | `/api/v1/ims-chat/search`              |
+| `detail`           | GET         | `/api/v1/ims-chat/issues/{ims_id}`     |
+| `related`          | GET         | `/api/v1/ims-chat/issues/{ims_id}/related` |
+| `summarize`        | POST        | `/api/v1/ims-chat/issues/summarize`    |
+| `chat`             | POST (SSE)  | `/api/v1/ims-chat/chat/semantic`       |
+| `create-knowledge` | POST        | `/api/v1/ims-chat/knowledge/create`    |
 
-```bash
-export OFIMS_API_URL=http://localhost:9000
-export OFIMS_USERNAME=admin
-export OFIMS_PASSWORD="SecureAdm1nP@ss2024!"
-```
+## Extending the Project
 
-## 의존성
+### Adding a New Command
 
-```
-requests
-```
+1. Define the subparser in `cli.py`:
+   ```python
+   p_new = sub.add_parser("new-cmd", help="Description")
+   p_new.add_argument("arg", help="Argument")
+   ```
 
-## API 엔드포인트 매핑
+2. Add the API method in `client.py`:
+   ```python
+   def new_method(self, arg: str) -> dict:
+       resp = self.session.post(f"{self.api_url}/new-endpoint", json={"arg": arg})
+       resp.raise_for_status()
+       return resp.json()
+   ```
 
-| CLI 커맨드 | HTTP Method | API Endpoint |
-|------------|-------------|--------------|
-| search | POST | `/api/v1/ims-chat/search` |
-| detail | GET | `/api/v1/ims-chat/issues/{ims_id}` |
-| related | GET | `/api/v1/ims-chat/issues/{ims_id}/related` |
-| summarize | POST | `/api/v1/ims-chat/issues/summarize` |
-| chat | POST | `/api/v1/ims-chat/chat/semantic` |
-| create-knowledge | POST | `/api/v1/ims-chat/knowledge/create` |
+3. Add the display function in `display.py`:
+   ```python
+   def print_new_result(data: dict) -> None:
+       print(f"  Result: {data.get('field', '')}")
+   ```
+
+4. Wire it in the dispatch block in `cli.py`:
+   ```python
+   elif args.command == "new-cmd":
+       result = client.new_method(args.arg)
+       display.print_new_result(result)
+   ```
+
+### Adding Customer Name Filters
+
+Add entries to `_CUSTOMER_NAMES` in `display.py` (and in the backend service `ims_semantic_search_service.py` for server-side redaction).
+
+## Development Guidelines
+
+- **Configuration**: All settings via environment variables (`config.py`), no hardcoded values
+- **Separation**: CLI parsing (`cli.py`) → API calls (`client.py`) → Output formatting (`display.py`)
+- **Privacy**: All user-facing output passes through `_strip_customer_info()` for customer name redaction
+- **Streaming**: SSE events parsed incrementally; `<think>` tags replaced with animated spinner
+- **Error Handling**: Login failures and API errors reported to stderr with non-zero exit code
+- **Encoding**: Use `PYTHONIOENCODING=utf-8` on Windows for CJK character support

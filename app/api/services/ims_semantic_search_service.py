@@ -526,15 +526,23 @@ Output as JSON only. {lang_instruction}"""
                     issues.append(ref_issue)
                     loaded_ids.add(ref_id)
 
-        # 4. LLM 컨텍스트 구성
+        # 4. LLM 컨텍스트 구성 (vLLM max_model_len=8192 기준)
+        # max_tokens=2048 → 입력 예산 ~5600 tokens, 안전 마진 포함
+        MAX_INPUT_CHARS = 14000  # ~5000 tokens (CJK 약 2.8 chars/token)
         context = self._build_chat_context(issues)
+
+        # 컨텍스트가 너무 크면 이슈를 하나씩 줄여가며 재구성
+        while len(context) > MAX_INPUT_CHARS and len(issues) > 1:
+            issues.pop()  # 점수가 낮은 이슈(뒤쪽)부터 제거
+            context = self._build_chat_context(issues)
+
         total_context_chars = len(context)
 
         yield {
             "event": "context_loaded",
             "data": {
                 "issues_loaded": len(issues),
-                "related_loaded": len(loaded_ids) - search_result.total,
+                "related_loaded": max(0, len(loaded_ids) - search_result.total),
                 "total_context_chars": total_context_chars,
             },
         }
@@ -556,8 +564,8 @@ Found Issues ({len(issues)} total):
         # 대화 히스토리
         history = self._conversations.get(conv_id, [])
         messages = [{"role": "system", "content": system_prompt}]
-        # 최근 6개 메시지만 포함 (컨텍스트 절약)
-        for msg in history[-6:]:
+        # 최근 4개 메시지만 포함 (컨텍스트 절약)
+        for msg in history[-4:]:
             messages.append(msg)
         messages.append({"role": "user", "content": request.query})
 
@@ -728,18 +736,24 @@ Description:
     async def _call_llm_stream(self, messages: List[Dict[str, str]]) -> AsyncGenerator[str, None]:
         """vLLM streaming 호출"""
         try:
+            payload = {
+                "model": self._llm_model,
+                "messages": messages,
+                "stream": True,
+                "temperature": 0.3,
+                "max_tokens": 1536,
+            }
+            total_chars = sum(len(m.get("content", "")) for m in messages)
+            logger.info(f"LLM request: model={self._llm_model}, url={self._llm_url}, messages={len(messages)}, total_chars={total_chars}")
             async with httpx.AsyncClient(timeout=180.0) as client:
                 async with client.stream(
                     "POST",
                     f"{self._llm_url}/chat/completions",
-                    json={
-                        "model": self._llm_model,
-                        "messages": messages,
-                        "stream": True,
-                        "temperature": 0.3,
-                        "max_tokens": 2048,
-                    },
+                    json=payload,
                 ) as resp:
+                    if resp.status_code != 200:
+                        body = await resp.aread()
+                        logger.error(f"LLM returned {resp.status_code}: {body[:500]}")
                     resp.raise_for_status()
                     async for line in resp.aiter_lines():
                         if not line.startswith("data: "):
