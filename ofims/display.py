@@ -1,6 +1,9 @@
 """Terminal display formatting for IMS CLI."""
+import itertools
 import re
 import sys
+import threading
+import time
 
 # 고객사명 필터 목록
 _CUSTOMER_NAMES = [
@@ -17,6 +20,42 @@ _CUSTOMER_PATTERN = re.compile(
     '|'.join(re.escape(name) for name in _CUSTOMER_NAMES),
     re.IGNORECASE,
 )
+
+
+class _ThinkingSpinner:
+    """thinking 중 애니메이션 스피너"""
+    _FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+    def __init__(self):
+        self._running = False
+        self._thread = None
+
+    def start(self):
+        if self._running:
+            return
+        self._running = True
+        self._thread = threading.Thread(target=self._spin, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        if not self._running:
+            return
+        self._running = False
+        if self._thread:
+            self._thread.join(timeout=1)
+        # 스피너 라인 지우기
+        sys.stdout.write("\r" + " " * 30 + "\r")
+        sys.stdout.flush()
+
+    def _spin(self):
+        frames = itertools.cycle(self._FRAMES)
+        elapsed = 0.0
+        while self._running:
+            frame = next(frames)
+            sys.stdout.write(f"\r  {frame} thinking... ({elapsed:.0f}s)")
+            sys.stdout.flush()
+            time.sleep(0.1)
+            elapsed += 0.1
 
 
 def _strip_customer_info(text: str) -> str:
@@ -144,7 +183,11 @@ def print_summary(data: dict) -> None:
 
 
 def print_chat_stream(events_iter) -> None:
-    """SSE 이벤트 스트림을 실시간 출력"""
+    """SSE 이벤트 스트림을 실시간 출력 (<think> 태그는 spinner로 대체)"""
+    in_think = False
+    spinner = _ThinkingSpinner()
+    token_buf = ""  # <think> 태그 파편 감지용 버퍼
+
     for event in events_iter:
         evt = event["event"]
         data = event["data"]
@@ -165,20 +208,72 @@ def print_chat_stream(events_iter) -> None:
             print()
 
         elif evt == "token":
-            sys.stdout.write(_CUSTOMER_PATTERN.sub('***', data.get("content", "")))
+            content = data.get("content", "")
+            token_buf += content
+
+            # <think> 열림 태그 감지
+            if not in_think and "<think>" in token_buf:
+                # <think> 앞 텍스트 출력
+                before = token_buf[:token_buf.index("<think>")]
+                if before:
+                    sys.stdout.write(_CUSTOMER_PATTERN.sub('***', before))
+                    sys.stdout.flush()
+                in_think = True
+                token_buf = token_buf[token_buf.index("<think>") + 7:]
+                spinner.start()
+                continue
+
+            # </think> 닫힘 태그 감지
+            if in_think and "</think>" in token_buf:
+                spinner.stop()
+                in_think = False
+                token_buf = token_buf[token_buf.index("</think>") + 8:]
+                # </think> 뒤 남은 텍스트 출력
+                if token_buf:
+                    sys.stdout.write(_CUSTOMER_PATTERN.sub('***', token_buf))
+                    sys.stdout.flush()
+                token_buf = ""
+                continue
+
+            # thinking 중이면 버퍼만 누적 (출력 안 함)
+            if in_think:
+                # 버퍼가 너무 커지면 앞부분 버림 (</think> 태그만 감지하면 됨)
+                if len(token_buf) > 200:
+                    token_buf = token_buf[-50:]
+                continue
+
+            # 일반 토큰: 태그 파편 가능성 체크 후 출력
+            # "<" 로 끝나면 다음 토큰까지 대기
+            if token_buf.endswith("<"):
+                continue
+            if token_buf.endswith("<t") or token_buf.endswith("<th") or \
+               token_buf.endswith("<thi") or token_buf.endswith("<thin") or \
+               token_buf.endswith("<think"):
+                continue
+
+            sys.stdout.write(_CUSTOMER_PATTERN.sub('***', token_buf))
             sys.stdout.flush()
+            token_buf = ""
 
         elif evt == "sources":
+            # thinking이 끝나지 않았으면 정리
+            if in_think:
+                spinner.stop()
+                in_think = False
             print("\n\n  " + "─" * 60)
             print("  Sources:")
             for s in data.get("sources", []):
                 print(f"    IMS#{s['ims_id']} ({s.get('score', 0):.4f}) {_strip_customer_info(s.get('subject', ''))[:50]}")
 
         elif evt == "done":
+            if in_think:
+                spinner.stop()
             conv_id = data.get("conversation_id", "")
             print(f"\n  [conversation: {conv_id[:8]}...]\n")
 
         elif evt == "error":
+            if in_think:
+                spinner.stop()
             print(f"\n  ERROR: {data.get('message', 'Unknown error')}\n")
 
 
